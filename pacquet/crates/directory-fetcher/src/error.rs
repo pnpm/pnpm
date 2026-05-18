@@ -1,0 +1,32 @@
+use derive_more::{Display, Error};
+use pacquet_diagnostics::miette::{self, Diagnostic};
+
+/// Error type of [`crate::DirectoryFetcher`].
+///
+/// Mirrors the failure modes of upstream's
+/// [`fetching/directory-fetcher/src/index.ts`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts):
+/// directory-walk I/O, manifest parse / read, and the
+/// `includeOnlyPackageFiles` packlist pass (which pacquet delegates
+/// to `pacquet_git_fetcher::packlist`).
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum DirectoryFetcherError {
+    /// Failed to stat or read an entry under the source directory.
+    /// Broken symlinks are *not* surfaced here — they degrade to a
+    /// skipped entry inside the walker, matching upstream's
+    /// `brokenSymlink` debug log at
+    /// [`directory-fetcher/src/index.ts:115-131`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L115-L131).
+    #[display("I/O error while walking directory {dir:?}: {source}")]
+    #[diagnostic(code(pacquet_directory_fetcher::io))]
+    Io {
+        dir: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    #[diagnostic(transparent)]
+    Packlist(#[error(source)] pacquet_git_fetcher::PacklistError),
+
+    #[diagnostic(transparent)]
+    ReadManifest(#[error(source)] pacquet_package_manifest::PackageManifestError),
+}

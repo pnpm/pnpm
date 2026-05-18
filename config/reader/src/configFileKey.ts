@@ -129,6 +129,7 @@ export const excludedPnpmKeys = [
   'publish-branch',
   'recursive-install',
   'resolve-peers-from-workspace-root',
+  'runtime',
   'runtime-on-fail',
   'aggregate-output',
   'reporter-hide-prefix',

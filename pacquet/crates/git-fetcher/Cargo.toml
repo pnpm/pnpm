@@ -1,0 +1,36 @@
+[package]
+name                  = "pacquet-git-fetcher"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-diagnostics      = { workspace = true }
+pacquet-executor         = { workspace = true }
+pacquet-package-manifest = { workspace = true }
+pacquet-reporter         = { workspace = true }
+pacquet-store-dir        = { workspace = true }
+
+derive_more = { workspace = true }
+ignore      = { workspace = true }
+miette      = { workspace = true }
+pipe-trait  = { workspace = true }
+serde_json  = { workspace = true }
+tempfile    = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+walkdir     = { workspace = true }
+
+[dev-dependencies]
+pacquet-testing-utils = { workspace = true }
+
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

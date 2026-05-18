@@ -140,6 +140,24 @@ test('silent run only prints the output of the child process', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
+test('silent run does not print verifyDepsBeforeRun install output', async () => {
+  prepare({
+    scripts: {
+      hi: 'echo hi',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    verifyDepsBeforeRun: 'install',
+  })
+
+  const result = execPnpmSync(['run', '--silent', 'hi'], {
+    expectSuccess: true,
+    omitEnvDefaults: ['pnpm_config_silent'],
+  })
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+})
+
 testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
   prepare({
     scripts: {

@@ -1,5 +1,36 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.pruner@1100.0.6
+  - @pnpm/releasing.exportable-manifest@1100.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.5
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.pruner@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+
 ## 1100.0.8
 
 ### Patch Changes

@@ -12,10 +12,10 @@ import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, types } from '@pnpm/config.reader'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { createResolver } from '@pnpm/installing.client'
+import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
@@ -113,12 +113,11 @@ export async function handler (
     ) && !opts.registrySupportsTimeField
   )
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
-  const { resolve } = createResolver({
+  const { resolve: baseResolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
     fullMetadata,
     filterMetadata: fullMetadata,
-    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     retry: {
       factor: opts.fetchRetryFactor,
@@ -128,11 +127,19 @@ export async function handler (
     },
     timeout: opts.fetchTimeout,
   })
+  // dlx has nowhere to "defer to" — it runs the resolved package directly.
+  // Wrap the resolver under any policy that wants to reject violations
+  // up-front: strict minimumReleaseAge (refuse immature picks) and
+  // `trustPolicy: 'no-downgrade'` (refuse versions whose trust evidence
+  // weakened). Without the trust-policy arm, a downgraded version would
+  // resolve to a `policyViolation` that dlx silently ignored and then
+  // executed.
+  const strictResolution =
+    (Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true) ||
+    opts.trustPolicy === 'no-downgrade'
+  const resolve = strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
   const resolvedPkgAliases: string[] = []
-  const publishedBy = opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined
-  const publishedByExclude = opts.minimumReleaseAgeExclude
-    ? createPackageVersionPolicy(opts.minimumReleaseAgeExclude)
-    : undefined
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg

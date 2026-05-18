@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.1.12",
+  "version": "1100.3.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -58,6 +58,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
@@ -80,6 +81,7 @@
     "@zkochan/rimraf": "catalog:",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
+    "ci-info": "catalog:",
     "enquirer": "catalog:",
     "get-npm-tarball-url": "catalog:",
     "is-subdir": "catalog:",
@@ -114,7 +116,6 @@
     "@types/ramda": "catalog:",
     "@types/yarnpkg__lockfile": "catalog:",
     "@types/zkochan__table": "catalog:",
-    "ci-info": "catalog:",
     "delay": "catalog:",
     "jest-diff": "catalog:",
     "path-name": "catalog:",

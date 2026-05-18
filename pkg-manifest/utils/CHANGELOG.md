@@ -1,5 +1,27 @@
 # @pnpm/manifest-utils
 
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [4a79336]
+  - @pnpm/core-loggers@1100.1.0
+
+## 1100.1.3
+
+### Patch Changes
+
+- 9cad827: `convertEnginesRuntimeToDependencies`: switch the runtime-dependency write to `Object.defineProperty` so the CodeQL `js/prototype-polluting-assignment` rule treats the assignment as safe regardless of the property name (follow-up to [#11609](https://github.com/pnpm/pnpm/pull/11609)).
+- 50b33c1: Address CodeQL static-analysis findings: guard manifest dependency writes against prototype-polluting keys (`__proto__`, `constructor`, `prototype`), and replace a potentially super-linear semver-detection regex in registry 404 hints with an O(n) parser.
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/core-loggers@1100.0.2
+
 ## 1100.1.1
 
 ### Patch Changes

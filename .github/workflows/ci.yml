@@ -15,19 +15,20 @@ jobs:
     name: Compile & Lint
     runs-on: ubuntu-latest
 
+    env:
+      pnpm_config_verify_deps_before_run: false
+
     steps:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    - name: Install pnpm
-      uses: pnpm/action-setup@e578e19d19d31b011b841ba2aca34731a5f706a5
       with:
-        standalone: true
-    - name: Setup Node
-      run: pn runtime -g set node 24.6.0
-      timeout-minutes: 2
-    - name: pnpm install
-      run: pn install
-      timeout-minutes: 3
+        persist-credentials: false
+    - name: Install pnpm
+      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      with:
+        install: false
+    - name: pacquet install
+      run: pnx --config.minimum-release-age=0 pacquet@0.2.2-7 install --frozen-lockfile
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint
@@ -35,7 +36,7 @@ jobs:
     - name: Package compiled artifacts
       run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
     - name: Upload compiled artifacts
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: compiled-packages
         path: compiled.tar.gz
@@ -48,6 +49,9 @@ jobs:
     with:
       node: '24.0.0'
       platform: ubuntu-latest
+      garnet: true
+    secrets:
+      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
   test:
     name: ${{ matrix.platform }} / Node.js ${{ matrix.node }}

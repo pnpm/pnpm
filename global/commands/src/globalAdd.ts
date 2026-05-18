@@ -4,6 +4,7 @@ import path from 'node:path'
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
+import { summaryLogger } from '@pnpm/core-loggers'
 import {
   cleanOrphanedInstallDirs,
   createGlobalCacheKey,
@@ -39,18 +40,9 @@ export async function handleGlobalAdd (
   params: string[],
   commands: CommandHandlerMap
 ): Promise<void> {
-  // Resolve relative path selectors to absolute paths before the working
-  // directory is changed to the global install dir, otherwise "." or
-  // "./foo" would resolve against the temp install directory.
-  params = params.map((param) => resolveLocalParam(param, opts.dir))
   const globalDir = opts.globalPkgDir!
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
-
-  // Install into a new directory first, then read the resolved aliases
-  // from the resulting package.json. This is more reliable than parsing
-  // aliases from CLI params (which may be tarballs, git URLs, etc.).
-  const installDir = createInstallDir(globalDir)
 
   // Convert allowBuild array to allowBuilds Record (same conversion as add.handler)
   let allowBuilds = opts.allowBuilds ?? {}
@@ -61,6 +53,48 @@ export async function handleGlobalAdd (
     }
   }
 
+  // Each space-separated CLI param becomes its own isolated install group.
+  // A param containing commas is split into multiple selectors that share a
+  // single group, so `pnpm add -g foo,bar qar` installs foo+bar together
+  // and qar separately. Local paths and URLs that legitimately contain
+  // commas are detected and kept whole.
+  const groups = params
+    .map((param) => splitCommaSeparated(param, opts.dir).map((token) => resolveLocalParam(token, opts.dir)))
+    .filter((group) => group.length > 0)
+
+  for (const group of groups) {
+    // eslint-disable-next-line no-await-in-loop
+    await installGroup({ opts, globalDir, globalBinDir, allowBuilds, params: group }, commands)
+  }
+
+  // The per-group `mutateModulesInSingleProject` calls run with
+  // `omitSummaryLog: true` so the default-reporter's summary block only
+  // appears once at the end, with every installed package listed under a
+  // single "global:" heading. Without this, the reporter would print
+  // group 1's summary and then ignore later groups, because its summary
+  // pipeline takes only the first `summary` log event.
+  summaryLogger.debug({ prefix: globalDir })
+}
+
+interface InstallGroupContext {
+  opts: GlobalAddOptions
+  globalDir: string
+  globalBinDir: string
+  allowBuilds: Record<string, string | boolean>
+  params: string[]
+}
+
+async function installGroup (
+  ctx: InstallGroupContext,
+  commands: CommandHandlerMap
+): Promise<void> {
+  const { opts, globalDir, globalBinDir, allowBuilds, params } = ctx
+
+  // Install into a new directory first, then read the resolved aliases
+  // from the resulting package.json. This is more reliable than parsing
+  // aliases from CLI params (which may be tarballs, git URLs, etc.).
+  const installDir = createInstallDir(globalDir)
+
   const include = {
     dependencies: true,
     devDependencies: false,
@@ -68,13 +102,13 @@ export async function handleGlobalAdd (
   }
   const fetchFullMetadata = opts.supportedArchitectures?.libc != null && true
 
-  const makeInstallOpts = (dir: string, builds: Record<string, string | boolean>) => ({
+  const installOpts = {
     ...opts,
     global: false,
-    bin: path.join(dir, 'node_modules/.bin'),
-    dir,
-    lockfileDir: dir,
-    rootProjectManifestDir: dir,
+    bin: path.join(installDir, 'node_modules/.bin'),
+    dir: installDir,
+    lockfileDir: installDir,
+    rootProjectManifestDir: installDir,
     rootProjectManifest: undefined,
     saveProd: true,
     saveDev: false,
@@ -86,10 +120,11 @@ export async function handleGlobalAdd (
     fetchFullMetadata,
     include,
     includeDirect: include,
-    allowBuilds: builds,
-  })
+    allowBuilds,
+    omitSummaryLog: true,
+  }
 
-  const ignoredBuilds = await installGlobalPackages(makeInstallOpts(installDir, allowBuilds), params)
+  const ignoredBuilds = await installGlobalPackages(installOpts, params)
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
@@ -132,6 +167,41 @@ export async function handleGlobalAdd (
 
   // Link bins from installed packages into global bin dir
   await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
+}
+
+function splitCommaSeparated (param: string, baseDir: string): string[] {
+  if (!param.includes(',')) return [param]
+  // URLs may contain commas and are never a group of selectors.
+  if (param.includes('://')) return [param]
+  // For path-like specs (relative/absolute paths, file:, link:), the
+  // commas could either be part of a single path that legitimately
+  // contains commas, or be separators between multiple distinct paths.
+  // Resolve the ambiguity by checking whether the whole param actually
+  // refers to an existing local path on disk.
+  if (refersToExistingLocalPath(param, baseDir)) return [param]
+  return param.split(',').map((token) => token.trim()).filter(Boolean)
+}
+
+function refersToExistingLocalPath (param: string, baseDir: string): boolean {
+  let pathPart: string
+  if (param.startsWith('file:')) {
+    pathPart = param.slice('file:'.length)
+  } else if (param.startsWith('link:')) {
+    pathPart = param.slice('link:'.length)
+  } else if (param[0] === '.' || param[0] === '/' || param[0] === '~') {
+    pathPart = param
+  } else if (/^[a-z]:[/\\]/i.test(param)) {
+    pathPart = param
+  } else {
+    return false
+  }
+  const resolved = path.isAbsolute(pathPart) ? pathPart : path.resolve(baseDir, pathPart)
+  try {
+    fs.statSync(resolved)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function resolveLocalParam (param: string, baseDir: string): string {

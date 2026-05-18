@@ -1,0 +1,66 @@
+#!/usr/bin/env node
+const { platform, arch, env, version, release } = process;
+
+const PLATFORMS = {
+  win32: {
+    x64: "@pacquet/win32-x64/pacquet.exe",
+    arm64: "@pacquet/win32-arm64/pacquet.exe",
+  },
+  darwin: {
+    x64: "@pacquet/darwin-x64/pacquet",
+    arm64: "@pacquet/darwin-arm64/pacquet",
+  },
+  linux: {
+    x64: "@pacquet/linux-x64/pacquet",
+    arm64: "@pacquet/linux-arm64/pacquet",
+  },
+};
+
+const binPath = PLATFORMS?.[platform]?.[arch];
+if (binPath) {
+  const result = require("child_process").spawnSync(
+    require.resolve(binPath),
+    process.argv.slice(2),
+    {
+      shell: false,
+      stdio: "inherit",
+      env: {
+        ...env,
+        JS_RUNTIME_VERSION: version,
+        JS_RUNTIME_NAME: release.name,
+        NODE_PACKAGE_MANAGER: detectPackageManager(),
+      },
+    }
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  process.exitCode = result.status;
+} else {
+  console.error(
+    "The pacquet CLI package doesn't ship with prebuilt binaries for your platform yet. " +
+    "You can create an issue at https://github.com/pnpm/pacquet/issues for support."
+  );
+  process.exitCode = 1;
+}
+
+/**
+ * NPM, Yarn, and other package manager set the `npm_config_user_agent`. It has the following format:
+ *
+ * ```
+ * "npm/8.3.0 node/v16.13.2 win32 x64 workspaces/false
+ * ```
+ *
+ * @returns The package manager string (`npm/8.3.0`) or null if the user agent string isn't set.
+ */
+function detectPackageManager() {
+  const userAgent = env.npm_config_user_agent;
+
+  if (userAgent == null) {
+    return null;
+  }
+
+  return userAgent.split(" ")[0];
+}

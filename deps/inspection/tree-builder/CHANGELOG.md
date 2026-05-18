@@ -1,5 +1,39 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.6
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/store.cafs@1100.1.4
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/config.normalize-registries@1100.0.3
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/lockfile.detect-dep-types@1100.0.5
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/store.cafs@1100.1.3
+
 ## 1100.0.7
 
 ### Patch Changes

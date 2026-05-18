@@ -1,5 +1,38 @@
 # @pnpm/local-resolver
 
+## 1101.0.2
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.5
+- @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.0
+
+### Major Changes
+
+- 3ab403a: Replaced the `resolveFromLocal` export with two narrower exports: `resolveFromLocalScheme` (handles `file:`/`link:`/`workspace:`/`path:`) and `resolveFromLocalPath` (path-shape match by tarball extension or filesystem characters).
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.5
 
 ### Patch Changes

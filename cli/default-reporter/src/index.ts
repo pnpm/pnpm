@@ -127,6 +127,7 @@ export function toOutput$ (
   const deprecationPushStream = new Rx.Subject<logs.DeprecationLog>()
   const summaryPushStream = new Rx.Subject<logs.SummaryLog>()
   const lifecyclePushStream = new Rx.Subject<logs.LifecycleLog>()
+  const lockfileVerificationPushStream = new Rx.Subject<logs.LockfileVerificationLog>()
   const statsPushStream = new Rx.Subject<logs.StatsLog>()
   const packageImportMethodPushStream = new Rx.Subject<logs.PackageImportMethodLog>()
   const installCheckPushStream = new Rx.Subject<logs.InstallCheckLog>()
@@ -169,6 +170,9 @@ export function toOutput$ (
           break
         case 'pnpm:lifecycle':
           lifecyclePushStream.next(log)
+          break
+        case 'pnpm:lockfile-verification':
+          lockfileVerificationPushStream.next(log)
           break
         case 'pnpm:stats':
           statsPushStream.next(log)
@@ -243,6 +247,7 @@ export function toOutput$ (
     ignoredScripts: Rx.from(ignoredScriptsPushStream),
     lifecycle: Rx.from(lifecyclePushStream),
     link: Rx.from(linkPushStream),
+    lockfileVerification: Rx.from(lockfileVerificationPushStream),
     other,
     packageImportMethod: Rx.from(packageImportMethodPushStream),
     packageManifest: Rx.from(packageManifestPushStream),

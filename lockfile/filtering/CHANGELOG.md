@@ -1,5 +1,30 @@
 # @pnpm/filter-lockfile
 
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.6
+- @pnpm/lockfile.utils@1100.0.8
+- @pnpm/config.package-is-installable@1100.0.5
+- @pnpm/lockfile.walker@1100.0.6
+
+## 1100.1.0
+
+### Minor Changes
+
+- e1e29c1: Add `--no-runtime` flag (config: `runtime=false`) to skip installing runtime entries (e.g. Node.js downloaded via `devEngines.runtime`) without modifying the lockfile. The lockfile keeps the runtime entry so frozen-lockfile validation still passes; only the runtime fetch and `.bin` linking are skipped. Useful in CI matrices where the runtime is provisioned externally (e.g. via `pnpm runtime -g set node <version>`) before `pnpm install` runs.
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/config.package-is-installable@1100.0.4
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.5
+
 ## 1100.0.7
 
 ### Patch Changes

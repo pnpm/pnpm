@@ -40,6 +40,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
+import { setupPolicyHandlers } from './policyHandlers.js'
 import {
   type CommandFullName,
   createMatcher,
@@ -84,6 +85,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'preferWorkspacePackages'
 | 'registries'
+| 'runtime'
 | 'runtimeOnFail'
 | 'save'
 | 'saveDev'
@@ -121,7 +123,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'selectedProjectsGraph'
-> & CreateStoreControllerOptions & {
+> & Partial<Pick<Config, 'ci'>>
+& CreateStoreControllerOptions & {
   argv: {
     original: string[]
   }
@@ -266,6 +269,13 @@ export async function installDeps (
     applyRuntimeOnFailOverride(manifest, opts.runtimeOnFail)
   }
 
+  // `setupPolicyHandlers` composes the per-policy handlers the install
+  // needs for the current opts (today: minimumReleaseAge; future:
+  // trustPolicy UX, license policy, etc.). Returns `undefined` when no
+  // handler is active so the install skips the empty no-op call at
+  // every checkpoint when no policies are configured.
+  const policyHandlers = setupPolicyHandlers(opts)
+
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     // In case installation is done in a multi-package repository
@@ -275,10 +285,13 @@ export async function installDeps (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,
+    skipRuntimes: opts.runtime === false,
     storeController: store.ctrl,
     storeDir: store.dir,
+    resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
+    handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -337,14 +350,20 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
+      // Only pick entries when we'll actually persist. Otherwise the
+      // info log would claim we added entries the workspace manifest
+      // never saw, and the next install would re-prompt or fail
+      // verification.
+      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
           cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
           allProjects: opts.allProjects,
+          ...policyUpdates,
         }),
       ])
     }
@@ -362,20 +381,34 @@ export async function installDeps (
     return
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
   })
-  if (opts.update === true && opts.save !== false) {
-    await Promise.all([
-      writeProjectManifest(updatedManifest),
-      updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-        updatedCatalogs,
-        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-        allProjects,
-      }),
-    ])
+  // `opts.save === false` (e.g. `--no-save`) means "don't persist anything
+  // from this install" — both package.json and the workspace manifest.
+  // Skip the pick so the info log doesn't claim entries were added that
+  // were never written; the next install will resurface them.
+  if (opts.save !== false) {
+    const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
+    if (opts.update === true) {
+      await Promise.all([
+        writeProjectManifest(updatedManifest),
+        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+          updatedCatalogs,
+          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          allProjects,
+          ...policyUpdates,
+        }),
+      ])
+    } else if (policyUpdates != null) {
+      // Plain `pnpm install` (no --update, no params) wouldn't otherwise touch
+      // the workspace manifest. Persist the auto-policy patches anyway so any
+      // loose bypass (today: minimumReleaseAgeExclude) remains explicit on
+      // subsequent installs.
+      await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, policyUpdates)
+    }
   }
   await handleIgnoredBuilds(opts, ignoredBuilds)
 

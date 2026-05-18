@@ -59,7 +59,7 @@ function parseBasicAuth ({
   authPassword,
 }: Pick<RawCreds, 'authPairBase64' | 'authUsername' | 'authPassword'>): BasicAuth | undefined {
   if (authPairBase64) {
-    const pair = atob(authPairBase64)
+    const pair = decodeBase64Credential(authPairBase64, '_auth')
     const colonIndex = pair.indexOf(':')
     if (colonIndex < 0) {
       throw new AuthMissingSeparatorError()
@@ -70,16 +70,56 @@ function parseBasicAuth ({
   }
 
   if (authUsername && authPassword) {
-    return { username: authUsername, password: atob(authPassword) }
+    return { username: authUsername, password: decodeBase64Credential(authPassword, '_password') }
   }
 
   return undefined
+}
+
+function decodeBase64Credential (value: string, key: '_auth' | '_password'): string {
+  try {
+    return atob(value)
+  } catch {
+    const normalizedValue = normalizeBase64Padding(value)
+    if (normalizedValue !== value) {
+      try {
+        return atob(normalizedValue)
+      } catch {}
+    }
+    throw new AuthBase64DecodeError(key)
+  }
+}
+
+function normalizeBase64Padding (value: string): string {
+  let paddingStart = value.length
+  while (paddingStart > 0 && value[paddingStart - 1] === '=') {
+    paddingStart--
+  }
+
+  const valueWithoutPadding = value.slice(0, paddingStart)
+  if (!valueWithoutPadding) return value
+
+  const remainder = valueWithoutPadding.length % 4
+  if (remainder === 1) return value
+
+  return valueWithoutPadding.padEnd(
+    valueWithoutPadding.length + (4 - remainder) % 4,
+    '='
+  )
 }
 
 export class AuthMissingSeparatorError extends PnpmError {
   constructor () {
     super('AUTH_MISSING_SEPARATOR', 'No separator found in the decoded form of _auth', {
       hint: '_auth is a base64 encoded form of <username>:<password> where the colon (:) serves as the separator',
+    })
+  }
+}
+
+export class AuthBase64DecodeError extends PnpmError {
+  constructor (key: '_auth' | '_password') {
+    super('AUTH_INVALID_BASE64', `Failed to decode ${key} as base64`, {
+      hint: `${key} must contain a base64-encoded ${key === '_auth' ? '<username>:<password>' : 'password'} value`,
     })
   }
 }

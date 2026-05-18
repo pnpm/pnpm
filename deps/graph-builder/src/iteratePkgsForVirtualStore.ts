@@ -4,6 +4,7 @@ import {
   calcGraphNodeHash,
   type DepsGraph,
   type DepsStateCache,
+  findRuntimeNodeVersion,
   type HashedDepPath,
   iterateHashedGraphNodes,
   iteratePkgMeta,
@@ -30,15 +31,26 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   globalVirtualStoreDir: string
   supportedArchitectures?: SupportedArchitectures
 }): IterableIterator<PkgSnapshotWithLocation> {
+  // Resolve the project's pinned runtime Node version once per
+  // invocation — the result drives every snapshot's GVS hash (or
+  // the side-effects-cache key prefix in the non-GVS runtime
+  // branch). `undefined` when no `engines.runtime` / `devEngines.runtime`
+  // pin reached the lockfile, in which case the hasher falls through
+  // to the host-detected Node.
+  const nodeVersion = findRuntimeNodeVersion(Object.keys(lockfile.packages ?? {}))
   if (opts.enableGlobalVirtualStore) {
-    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, opts.allowBuild, opts.supportedArchitectures)) {
+    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile, {
+      allowBuild: opts.allowBuild,
+      supportedArchitectures: opts.supportedArchitectures,
+      nodeVersion,
+    })) {
       yield {
         dirInVirtualStore: path.join(opts.globalVirtualStoreDir, hash),
         pkgMeta,
       }
     }
   } else if (lockfile.packages) {
-    let graphNodeHashOpts: { graph: DepsGraph<DepPath>, cache: DepsStateCache, supportedArchitectures?: SupportedArchitectures } | undefined
+    let graphNodeHashOpts: { graph: DepsGraph<DepPath>, cache: DepsStateCache, supportedArchitectures?: SupportedArchitectures, nodeVersion?: string } | undefined
     for (const depPath in lockfile.packages) {
       if (!Object.hasOwn(lockfile.packages, depPath)) {
         continue
@@ -58,6 +70,7 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
           cache: {},
           graph: lockfileToDepGraph(lockfile, opts.supportedArchitectures),
           supportedArchitectures: opts.supportedArchitectures,
+          nodeVersion,
         }
         const hash = calcGraphNodeHash(graphNodeHashOpts, pkgMeta)
         dirInVirtualStore = path.join(opts.globalVirtualStoreDir, hash)
@@ -74,9 +87,16 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
 
 function hashDependencyPaths (
   lockfile: LockfileObject,
-  allowBuild?: AllowBuild,
-  supportedArchitectures?: SupportedArchitectures
+  {
+    allowBuild,
+    supportedArchitectures,
+    nodeVersion,
+  }: {
+    allowBuild?: AllowBuild
+    supportedArchitectures?: SupportedArchitectures
+    nodeVersion?: string
+  }
 ): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
   const graph = lockfileToDepGraph(lockfile, supportedArchitectures)
-  return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), allowBuild, supportedArchitectures)
+  return iterateHashedGraphNodes(graph, iteratePkgMeta(lockfile, graph), allowBuild, supportedArchitectures, nodeVersion)
 }

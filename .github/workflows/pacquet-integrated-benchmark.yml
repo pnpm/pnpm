@@ -1,0 +1,232 @@
+name: Pacquet Integrated-Benchmark
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'pacquet/**/*.rs'
+      - 'pacquet/**/Cargo.toml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'justfile'
+      - 'pacquet/tasks/registry-mock/package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'pacquet/tasks/integrated-benchmark/src/fixtures/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/workflows/pacquet-integrated-benchmark.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+# This workflow runs in the PR's privilege context, which is read-only for
+# fork PRs (GitHub Actions security policy). The result is uploaded as an
+# artifact and posted by `integrated-benchmark-comment.yml`, which runs in
+# the base-repo privilege context via `workflow_run`.
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    strategy:
+      max-parallel: 1
+      matrix:
+        os: [ubuntu-latest] # windows is skipped because of complexity, macos is skipped because of inconsistency
+    name: Run benchmark on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Make main branch visible
+        shell: bash
+        run: |
+          subsection() {
+            echo >&2
+            echo -e "\033[0;33m$*\033[0m" >&2
+          }
+
+          subsection 'Configuring git...'
+          git config --global advice.detachedHead false
+
+          subsection 'Checking out main branch...'
+          git checkout main
+          git log --oneline -n 3
+
+          subsection 'Switching back...'
+          git checkout -
+          git log --oneline -n 3
+
+          subsection 'Inspecting branches...'
+          git branch
+
+      - name: Cache verdaccio
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          key: integrated-benchmark-verdaccio-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
+          restore-keys: |
+            integrated-benchmark-verdaccio-
+          path: |
+            ~/.local/share/verdaccio/storage
+        timeout-minutes: 1
+        continue-on-error: true
+
+      - name: Cache Rust builds
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          key: integrated-benchmark-builds-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}
+          restore-keys: |
+            integrated-benchmark-builds-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-
+            integrated-benchmark-builds-${{ matrix.os }}-
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            bench-work-env/*/pacquet/target
+        timeout-minutes: 1
+        continue-on-error: true
+
+      - name: Install Rust Toolchain
+        uses: ./.github/actions/rustup
+        with:
+          shared-key: integrated-benchmark
+          restore-cache: false # it's insufficient
+          save-cache: false # it's insufficient
+
+      - name: Install pnpm
+        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+        with:
+          install: false
+
+      - name: Cache pnpm
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          key: integrated-benchmark-pnpm-v11-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            integrated-benchmark-pnpm-v11-
+          path: |
+            ${{ env.PNPM_HOME }}/store/v11
+        timeout-minutes: 1
+        continue-on-error: true
+
+      - name: Install hyperfine
+        uses: ./.github/actions/binstall
+        with:
+          packages: hyperfine@1.18.0
+
+      - name: Install just
+        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        with:
+          tool: just
+
+      - name: Install dependencies
+        run: just install
+
+      - name: Build the benchmark executor
+        run: cargo build --bin=integrated-benchmark
+
+      - name: Precompile benchmark revisions
+        shell: bash
+        timeout-minutes: 15
+        run: just integrated-benchmark --build-only HEAD main
+
+      - name: 'Benchmark: Frozen Lockfile'
+        shell: bash
+        # Hyperfine has no per-command timeout, so a single hanging
+        # install takes the whole step down with the GHA default job
+        # timeout (6 h). A normal run is ~2 min — 10 min is generous
+        # headroom, and a failure surfaces fast enough to iterate on.
+        timeout-minutes: 10
+        run: |
+          just integrated-benchmark --scenario=frozen-lockfile --verdaccio --with-pnpm HEAD main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.json
+
+      - name: 'Benchmark: Frozen Lockfile (Hot Cache)'
+        shell: bash
+        # Same timeout rationale as the cold-cache step above.
+        # Mirrors pnpm's "Headless install (frozen lockfile, warm
+        # store+cache)" benchmark: each timed run wipes only
+        # `node_modules`, the per-revision store survives, and
+        # hyperfine's warmup run is what populates it on the first
+        # iteration so timed runs all see a hot store.
+        timeout-minutes: 10
+        run: |
+          just integrated-benchmark --scenario=frozen-lockfile-hot-cache --verdaccio --with-pnpm HEAD main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.json
+
+      # - name: 'Benchmark: Clean Install'
+      #   shell: bash
+      #   run: |
+      #     just integrated-benchmark --scenario=clean-install --verdaccio --with-pnpm HEAD main
+      #     cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.md
+      #     cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.json
+
+      - name: Generate summary
+        shell: bash
+        run: |
+          (
+            echo '## Integrated-Benchmark Report (${{ runner.os }})'
+            echo
+            echo '### Scenario: Frozen Lockfile'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '### Scenario: Frozen Lockfile (Hot Cache)'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.json
+            echo '```'
+            echo
+            echo '</details>'
+            # echo
+            # echo '### Scenario: Clean Install'
+            # echo
+            # cat bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.md
+            # echo
+            # echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            # echo
+            # echo '```json'
+            # jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.json
+            # echo '```'
+            # echo
+            # echo '</details>'
+          ) > bench-work-env/SUMMARY.md
+
+      - name: Stage artifact contents
+        # The artifact carries only the rendered report. The PR number
+        # and runner OS are derived from the trusted workflow_run
+        # event payload in the comment-posting workflow, not from
+        # fork-controlled artifact contents.
+        shell: bash
+        run: |
+          mkdir -p benchmark-artifact
+          cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
+
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integrated-benchmark-report-${{ matrix.os }}
+          path: benchmark-artifact/
+          if-no-files-found: error
+          retention-days: 14

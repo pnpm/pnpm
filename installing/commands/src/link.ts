@@ -106,6 +106,9 @@ export async function handler (
   opts: LinkOpts,
   params?: string[]
 ): Promise<void> {
+  if ((params == null) || (params.length === 0)) {
+    throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter. Usage: pnpm link <dir>')
+  }
   let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
@@ -126,9 +129,6 @@ export async function handler (
 
   const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
 
-  if ((params == null) || (params.length === 0)) {
-    throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter. Usage: pnpm link <dir>')
-  }
 
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 

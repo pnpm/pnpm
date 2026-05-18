@@ -1,5 +1,35 @@
 # @pnpm/hoist
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [4a79336]
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/bins.linker@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/bins.linker@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [b4f8f47]
+  - @pnpm/bins.linker@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/bins.linker@1100.0.4
+  - @pnpm/core-loggers@1100.0.2
+
 ## 1100.0.3
 
 ### Patch Changes

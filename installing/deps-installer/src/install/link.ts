@@ -6,7 +6,7 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import type {
   DependenciesGraph,
@@ -68,6 +68,7 @@ export interface LinkPackagesOptions {
   sideEffectsCacheRead: boolean
   symlink: boolean
   skipped: Set<DepPath>
+  skipRuntimes?: boolean
   storeController: StoreController
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
@@ -120,6 +121,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     pruneVirtualStore: opts.pruneVirtualStore,
     publicHoistedModulesDir: (opts.publicHoistPattern != null) ? opts.rootModulesDir : undefined,
     skipped: opts.skipped,
+    skipRuntimes: opts.skipRuntimes,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
@@ -136,6 +138,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     include: opts.include,
     registries: opts.registries,
     skipped: opts.skipped,
+    skipRuntimes: opts.skipRuntimes,
   }
   const newCurrentLockfile = filterLockfileByImporters(opts.wantedLockfile, projectIds, {
     ...filterOpts,
@@ -471,6 +474,11 @@ async function linkAllPkgs (
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<void> {
+  // Resolved `engines.runtime` Node version (when present) so the
+  // side-effects-cache key prefix tracks the script-runner Node
+  // rather than pnpm's own `process.version`. Computed once outside
+  // the per-node loop.
+  const nodeVersion = findRuntimeNodeVersion(Object.keys(opts.depGraph))
   await Promise.all(
     depNodes.map(async (depNode): Promise<undefined> => {
       const { files } = await depNode.fetching()
@@ -483,6 +491,7 @@ async function linkAllPkgs (
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
+            nodeVersion,
           })
         }
       }

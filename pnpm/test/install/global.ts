@@ -25,6 +25,10 @@ function globalPkgDir (pnpmHome: string): string {
  * and returns the path to the package's node_modules entry.
  */
 function findGlobalPkg (globalDir: string, pkgName: string): string | null {
+  return findGlobalPkgInstall(globalDir, pkgName)?.pkgPath ?? null
+}
+
+function findGlobalPkgInstall (globalDir: string, pkgName: string): { installDir: string, pkgPath: string } | null {
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })
@@ -46,7 +50,7 @@ function findGlobalPkg (globalDir: string, pkgName: string): string | null {
       continue
     }
     if (pkgJson.dependencies?.[pkgName]) {
-      return path.join(installDir, 'node_modules', pkgName)
+      return { installDir, pkgPath: path.join(installDir, 'node_modules', pkgName) }
     }
   }
   return null
@@ -605,8 +609,8 @@ test('global remove deletes install group and bin shims', async () => {
   }))
   fs.writeFileSync(path.join(pkgB, 'index.js'), '#!/usr/bin/env node\nconsole.log("b")\n')
 
-  // Install as a group
-  await execPnpm(['add', '-g', pkgA, pkgB], { env })
+  // Install as a single bundled group via comma syntax
+  await execPnpm(['add', '-g', `${pkgA},${pkgB}`], { env })
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-a-bin'))).toBeTruthy()
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-b-bin'))).toBeTruthy()
 
@@ -616,4 +620,85 @@ test('global remove deletes install group and bin shims', async () => {
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-b-bin'))).toBeFalsy()
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-a')).toBeNull()
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-b')).toBeNull()
+})
+
+test('global add installs each space-separated package into its own isolated group', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '-g', 'is-positive@1.0.0', 'is-negative@1.0.0'], { env })
+
+  const positive = findGlobalPkgInstall(globalPkgDir(pnpmHome), 'is-positive')
+  const negative = findGlobalPkgInstall(globalPkgDir(pnpmHome), 'is-negative')
+  expect(positive).toBeTruthy()
+  expect(negative).toBeTruthy()
+
+  // Each package lives in its own install dir (they are not bundled together).
+  expect(positive!.installDir).not.toBe(negative!.installDir)
+
+  // Removing one only removes that one — the other remains.
+  await execPnpm(['remove', '-g', 'is-positive'], { env })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-positive')).toBeNull()
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-negative')).toBeTruthy()
+})
+
+test('global add bundles comma-separated packages into a single group', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  // `is-positive,is-negative` is one group; `@pnpm.e2e/peer-c@1` is its own group.
+  await execPnpm(['add', '-g', 'is-positive@1.0.0,is-negative@1.0.0', '@pnpm.e2e/peer-c@1'], { env })
+
+  const positive = findGlobalPkgInstall(globalPkgDir(pnpmHome), 'is-positive')
+  const negative = findGlobalPkgInstall(globalPkgDir(pnpmHome), 'is-negative')
+  const peerC = findGlobalPkgInstall(globalPkgDir(pnpmHome), '@pnpm.e2e/peer-c')
+  expect(positive).toBeTruthy()
+  expect(negative).toBeTruthy()
+  expect(peerC).toBeTruthy()
+
+  // is-positive and is-negative share an install dir (same group).
+  expect(positive!.installDir).toBe(negative!.installDir)
+  // peer-c is in a different install dir.
+  expect(peerC!.installDir).not.toBe(positive!.installDir)
+})
+
+test('global add does not treat commas inside a local path selector as a group separator', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  // Create a local package whose directory name contains a comma.
+  const pkgDir = path.resolve('..', 'tool,with,comma')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: 'tool-comma',
+    version: '1.0.0',
+    bin: { 'tool-comma-bin': './index.js' },
+  }))
+  fs.writeFileSync(path.join(pkgDir, 'index.js'), '#!/usr/bin/env node\nconsole.log("ok")\n')
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_store_dir: path.resolve('..', 'store'),
+  }
+
+  // The path contains commas but must be treated as one selector, not split.
+  execPnpmSync(['add', '-g', pkgDir], { env, expectSuccess: true })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-comma')).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-comma-bin'))).toBeTruthy()
+
+  // Same path via file: protocol should also be preserved.
+  execPnpmSync(['add', '-g', `file:${pkgDir}`], { env, expectSuccess: true })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-comma')).toBeTruthy()
 })

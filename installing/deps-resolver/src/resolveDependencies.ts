@@ -28,6 +28,7 @@ import {
   type PkgResolutionId,
   type PreferredVersions,
   type Resolution,
+  type ResolutionPolicyViolation,
   type WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
 import type {
@@ -187,6 +188,16 @@ export interface ResolutionContext {
   hoistPeers?: boolean
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  /**
+   * Shared accumulator the resolver pushes into when an inline policy
+   * check (today: minimumReleaseAge in `npm-resolver`) flags a pick.
+   * resolveDependencyTree hands the populated array back to the install
+   * command via its return so the post-tree gate can prompt / abort /
+   * persist without re-walking the resolved tree. Each verifier code
+   * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …) is the
+   * contract surface for downstream UX.
+   */
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
@@ -1332,6 +1343,7 @@ async function resolveDependency (
           name: currentPkg.name,
           resolution: currentPkg.resolution,
           version: currentPkg.version,
+          publishedAt: currentPkg.pkgId ? ctx.wantedLockfile.time?.[currentPkg.pkgId] : undefined,
         }
         : undefined,
       expectedPkg: currentPkg,
@@ -1372,7 +1384,7 @@ async function resolveDependency (
       bareSpecifier: wantedDependency.bareSpecifier,
       version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
     }
-    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE' && err.code !== 'ERR_PNPM_NO_MATURE_MATCHING_VERSION') {
+    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE') {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: wantedDependencyDetails,
@@ -1396,6 +1408,14 @@ async function resolveDependency (
       rawSpec: wantedDependency.bareSpecifier,
     },
   })
+
+  // Resolver-inline policy violations (e.g. minimumReleaseAge) flow up
+  // here; collect them onto the shared context so resolveDependencyTree
+  // can hand the full set to the install command between
+  // resolveDependencyTree and resolvePeers.
+  if (pkgResponse.body.policyViolation) {
+    ctx.resolutionPolicyViolations.push(pkgResponse.body.policyViolation)
+  }
 
   // Check if exotic dependencies are disallowed in subdependencies
   if (

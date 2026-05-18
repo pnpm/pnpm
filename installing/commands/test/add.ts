@@ -381,7 +381,7 @@ test('minimumReleaseAge with minimumReleaseAgeStrict enabled makes install fail 
     minimumReleaseAge,
     minimumReleaseAgeStrict: true,
     linkWorkspacePackages: false,
-  }, ['is-odd@0.1.1'])).rejects.toThrow(/Version 0\.1\.1 \(released .+\) of is-odd does not meet the minimumReleaseAge constraint/)
+  }, ['is-odd@0.1.1'])).rejects.toThrow(/is-odd@0\.1\.1 was published.+minimumReleaseAge cutoff/)
 })
 
 describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {

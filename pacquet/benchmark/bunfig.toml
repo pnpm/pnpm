@@ -1,0 +1,12 @@
+[install]
+optional = false
+dev = false
+peer = false
+registry = "http://localhost:4873/"
+
+[install.cache]
+disable = true
+disableManifest = true
+
+[install.lockfile]
+save = false

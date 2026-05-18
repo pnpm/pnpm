@@ -1,5 +1,82 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.2.3
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [6e93f35]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/installing.commands@1100.3.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/deps.compliance.sbom@1100.1.2
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/deps.compliance.audit@1101.0.8
+  - @pnpm/deps.compliance.license-scanner@1100.0.12
+  - @pnpm/lockfile.walker@1100.0.6
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/deps.security.signatures@1101.1.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/config.writer@1100.0.8
+
+## 1101.2.2
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/installing.commands@1100.2.2
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/deps.compliance.audit@1101.0.7
+  - @pnpm/deps.security.signatures@1101.1.1
+  - @pnpm/deps.compliance.license-scanner@1100.0.11
+  - @pnpm/deps.compliance.sbom@1100.1.1
+
+## 1101.2.1
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.2.1
+
+## 1101.2.0
+
+### Minor Changes
+
+- 6ac06cb: Added `pnpm audit signatures` to verify ECDSA registry signatures for installed packages against keys from `/-/npm/v1/keys` [#7909](https://github.com/pnpm/pnpm/issues/7909). Scoped registries are respected, and registries without signing keys are skipped.
+
+### Patch Changes
+
+- Updated dependencies [6ac06cb]
+- Updated dependencies [b61e268]
+- Updated dependencies [87b4bac]
+- Updated dependencies [e1e29c1]
+  - @pnpm/deps.security.signatures@1101.1.0
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.compliance.sbom@1100.1.0
+  - @pnpm/installing.commands@1100.2.0
+  - @pnpm/deps.compliance.audit@1101.0.6
+  - @pnpm/cli.meta@1100.0.3
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/config.writer@1100.0.7
+  - @pnpm/deps.compliance.license-scanner@1100.0.10
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.5
+  - @pnpm/network.auth-header@1100.0.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+
 ## 1101.1.11
 
 ### Patch Changes

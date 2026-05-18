@@ -1,0 +1,443 @@
+use crate::{
+    Config, NodeLinker, PackageImportMethod, ScriptsPrependNodePath, resolve_child_concurrency,
+};
+use derive_more::{Display, Error};
+use indexmap::IndexMap;
+use miette::Diagnostic;
+use pacquet_package_is_installable::SupportedArchitectures;
+use pacquet_store_dir::StoreDir;
+use pipe_trait::Pipe;
+use serde::{Deserialize, Deserializer};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    fs,
+    io::{self, ErrorKind},
+    path::{Path, PathBuf},
+};
+
+/// `serde` helper for fields that need to distinguish "missing key"
+/// from "explicit null" in YAML / JSON. Used by `hoist_pattern` and
+/// `public_hoist_pattern` so an explicit `hoistPattern: null` in
+/// `pnpm-workspace.yaml` propagates as `Some(None)` (= "disable this
+/// side"), while a missing key falls through to the field's serde
+/// default (`None`, = "leave the config default in place").
+///
+/// Field shape: `Option<Option<Vec<String>>>`.
+/// - `None` — key not present in yaml. `apply_to` skips the field.
+/// - `Some(None)` — explicit `null`. `apply_to` overwrites
+///   `Config.<field>` with `None`, mirroring upstream's
+///   `hoistPattern != null` guard treating null as "feature disabled".
+/// - `Some(Some(vec))` — explicit list. `apply_to` overwrites
+///   `Config.<field>` with `Some(vec)`.
+///
+/// Stand-alone helper rather than reaching for `serde_with` (not in
+/// the workspace deps) — the body is one line.
+fn deserialize_double_option<'de, Value, De>(
+    deserializer: De,
+) -> Result<Option<Option<Value>>, De::Error>
+where
+    Value: Deserialize<'de>,
+    De: Deserializer<'de>,
+{
+    Option::<Value>::deserialize(deserializer).map(Some)
+}
+
+/// Settings readable from `pnpm-workspace.yaml`.
+///
+/// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
+/// `lockfile`, …) out of `.npmrc` into `pnpm-workspace.yaml`, using
+/// camelCase keys. Pacquet needs to honour these overrides so a real
+/// pnpm-11-style project — where `.npmrc` may not even contain the
+/// settings — works out of the box.
+///
+/// Every field is `Option` because the yaml is strictly additive on top of
+/// [`Config`]: anything left unset falls through to whatever `.npmrc` provided
+/// (or the hard-coded default).
+///
+/// See <https://pnpm.io/settings> for the canonical key list.
+/// Non-config keys in a real pnpm-workspace.yaml (`packages`, `catalog`,
+/// `catalogs`, `onlyBuiltDependencies`, `allowBuilds`, …) are silently
+/// ignored — serde drops them since the struct doesn't use
+/// `deny_unknown_fields`.
+///
+/// pnpm v11 also reads `patchedDependencies` (and the other install
+/// settings such as `allowBuilds`) from this file rather than from
+/// `package.json`'s `pnpm` field — see upstream's
+/// [`addSettingsFromWorkspaceManifestToConfig`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L803-L831),
+/// which calls `getOptionsFromPnpmSettings` with the workspace
+/// manifest. The misleadingly-named
+/// [`getOptionsFromRootManifest.ts`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts)
+/// is wrapped at that call site, so its `manifestDir` parameter
+/// actually carries the *workspace* dir.
+#[derive(Debug, Default, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WorkspaceSettings {
+    pub hoist: Option<bool>,
+
+    /// Tri-state `hoistPattern`. The deserializer wraps a plain
+    /// `Option<Vec<String>>` in an extra `Some` so the three yaml
+    /// states are distinguishable:
+    ///
+    /// - `None` — key absent in yaml → `apply_to` skips the field
+    ///   (defaults stay).
+    /// - `Some(None)` — explicit `hoistPattern: null` → `apply_to`
+    ///   writes `Config.hoist_pattern = None`, disabling private
+    ///   hoisting and contributing to the install-time
+    ///   `is_some() || is_some()` short-circuit guard. Mirrors
+    ///   upstream's `hoistPattern != null` semantics.
+    /// - `Some(Some(vec))` — explicit list → `apply_to` writes
+    ///   `Config.hoist_pattern = Some(vec)`.
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub hoist_pattern: Option<Option<Vec<String>>>,
+
+    /// Tri-state `publicHoistPattern`. Same semantics as
+    /// [`Self::hoist_pattern`].
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub public_hoist_pattern: Option<Option<Vec<String>>>,
+    pub shamefully_hoist: Option<bool>,
+    pub store_dir: Option<String>,
+    pub modules_dir: Option<String>,
+    pub node_linker: Option<NodeLinker>,
+    pub symlink: Option<bool>,
+    pub virtual_store_dir: Option<String>,
+    /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. Default
+    /// applied in [`Config`] is `false` — matches pnpm v11's
+    /// effective default for non-`--global` installs (upstream's
+    /// `true` assignment lives only inside the `pnpm install --global`
+    /// branch, and pacquet has no `--global` flow). See
+    /// [`Config::enable_global_virtual_store`].
+    pub enable_global_virtual_store: Option<bool>,
+    /// `globalVirtualStoreDir` from `pnpm-workspace.yaml`. Resolved
+    /// against the workspace dir like the other path-valued fields.
+    /// When set, overrides the derived `<store_dir>/links` path.
+    pub global_virtual_store_dir: Option<String>,
+    pub package_import_method: Option<PackageImportMethod>,
+    pub modules_cache_max_age: Option<u64>,
+    pub lockfile: Option<bool>,
+    pub prefer_frozen_lockfile: Option<bool>,
+    pub offline: Option<bool>,
+    pub prefer_offline: Option<bool>,
+    pub lockfile_include_tarball_url: Option<bool>,
+    pub registry: Option<String>,
+    pub auto_install_peers: Option<bool>,
+    pub hoist_workspace_packages: Option<bool>,
+    /// `hoistingLimits` from `pnpm-workspace.yaml`. Outer key is
+    /// the importer locator (e.g. `'.@'`); inner list is the
+    /// alias names whose hoisting is bordered. Mirrors upstream's
+    /// programmatic-only knob shape, exposed here as yaml for
+    /// parity. Empty / missing → no limits.
+    pub hoisting_limits: Option<BTreeMap<String, BTreeSet<String>>>,
+    /// `externalDependencies` from `pnpm-workspace.yaml`. Names
+    /// whose top-level slot is reserved for an external linker
+    /// and stripped from the hoist tree. Mirrors upstream's
+    /// programmatic-only knob shape, exposed here as yaml for
+    /// parity. Empty / missing → no externals.
+    pub external_dependencies: Option<BTreeSet<String>>,
+    pub dedupe_peer_dependents: Option<bool>,
+    pub strict_peer_dependencies: Option<bool>,
+    pub resolve_peers_from_workspace_root: Option<bool>,
+    pub verify_store_integrity: Option<bool>,
+    pub side_effects_cache: Option<bool>,
+    pub side_effects_cache_readonly: Option<bool>,
+    pub fetch_retries: Option<u32>,
+    pub fetch_retry_factor: Option<u32>,
+    pub fetch_retry_mintimeout: Option<u64>,
+    pub fetch_retry_maxtimeout: Option<u64>,
+
+    /// Map of `name[@version]` → patch-file path (relative to the
+    /// workspace dir or absolute). Read verbatim; relative-path
+    /// resolution, file hashing, and grouping are deferred to
+    /// [`pacquet_patching::resolve_and_group`] so the yaml layer
+    /// stays pure data.
+    ///
+    /// [`IndexMap`] (not [`BTreeMap`]) — pnpm's JS-object iteration
+    /// preserves the user's order, and that order leaks into
+    /// `PATCH_KEY_CONFLICT` diagnostics that list matched ranges.
+    /// Sorting the keys here would surface as a divergence in
+    /// error messages.
+    ///
+    /// pnpm 10+ moved `patchedDependencies` out of
+    /// `package.json#pnpm` into `pnpm-workspace.yaml`; pacquet
+    /// matches that. The legacy `package.json#pnpm.patchedDependencies`
+    /// shape is no longer consulted.
+    ///
+    /// [`BTreeMap`]: std::collections::BTreeMap
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+
+    /// Map of `name[@version]` → `true` / `false`. Drives pnpm 11's
+    /// default-deny build policy: a package's lifecycle scripts only
+    /// run when an entry here resolves to `true`. Mirrors upstream's
+    /// [`createAllowBuildFunction`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts).
+    ///
+    /// pnpm 10+ moved `allowBuilds` out of `package.json#pnpm` into
+    /// `pnpm-workspace.yaml` alongside other install settings.
+    pub allow_builds: Option<HashMap<String, bool>>,
+
+    /// Bypass the [`allow_builds`] gate entirely — every package may
+    /// run lifecycle scripts. Same `pnpm-workspace.yaml` migration
+    /// as `allowBuilds`. Default `false`.
+    ///
+    /// [`allow_builds`]: Self::allow_builds
+    pub dangerously_allow_all_builds: Option<bool>,
+
+    /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
+    /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
+    /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
+    pub scripts_prepend_node_path: Option<ScriptsPrependNodePath>,
+
+    /// `unsafePerm` from `pnpm-workspace.yaml`. Forced to `true` on
+    /// Windows in `apply_to` (matches upstream's
+    /// `process.platform === 'win32'` override).
+    pub unsafe_perm: Option<bool>,
+
+    /// `childConcurrency` from `pnpm-workspace.yaml`. Resolved
+    /// through [`crate::resolve_child_concurrency`] in `apply_to`.
+    /// Signed `i32` here so negative values (interpreted as
+    /// `parallelism - |value|`) round-trip cleanly.
+    pub child_concurrency: Option<i32>,
+
+    /// `gitShallowHosts` from `pnpm-workspace.yaml`. Overrides
+    /// [`Config::git_shallow_hosts`] wholesale when set (mirrors
+    /// pnpm's settings precedence, where `pnpm-workspace.yaml`
+    /// replaces the built-in defaults rather than merging).
+    pub git_shallow_hosts: Option<Vec<String>>,
+
+    /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
+    /// optional-dependency platform check at install time: a
+    /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
+    /// keep `darwin-arm64` variants of platform-tagged packages even
+    /// on a non-matching host. Per-axis CLI flags (`--cpu`, `--libc`,
+    /// `--os`) override individual axes — mirrors upstream's
+    /// [`overrideSupportedArchitecturesWithCLI`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/overrideSupportedArchitecturesWithCLI.ts).
+    /// Read from yaml verbatim (no `current` substitution here — that
+    /// happens at the [`pacquet_package_is_installable::check_platform`]
+    /// call site where the host triple is in scope).
+    pub supported_architectures: Option<SupportedArchitectures>,
+
+    /// `ignoredOptionalDependencies` from `pnpm-workspace.yaml`: a
+    /// list of dep-name patterns whose matching entries get
+    /// stripped from every manifest's `optionalDependencies` (and
+    /// `dependencies`, when a package lists the same name in both)
+    /// before any consumer sees them. Mirrors upstream's
+    /// [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts)
+    /// and the lockfile-side drift check at
+    /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
+    pub ignored_optional_dependencies: Option<Vec<String>>,
+}
+
+/// Basename of the file pnpm reads; exported for test use.
+pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
+
+/// Error when reading `pnpm-workspace.yaml`.
+///
+/// Pnpm's
+/// [`workspace-manifest-reader`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts)
+/// treats `ENOENT` as "no manifest" and propagates every other failure.
+/// Pacquet mirrors that split. `serde_saphyr::Error` is boxed so the
+/// returned `Result` stays small.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum LoadWorkspaceYamlError {
+    #[display("Failed to read pnpm-workspace.yaml at {}: {source}", path.display())]
+    ReadFile {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+    #[display("Failed to parse pnpm-workspace.yaml at {}: {source}", path.display())]
+    ParseYaml {
+        path: PathBuf,
+        #[error(source)]
+        source: Box<serde_saphyr::Error>,
+    },
+}
+
+impl WorkspaceSettings {
+    /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
+    /// Returns `Ok(None)` if no ancestor has one. Read or parse failures
+    /// other than `ENOENT` propagate, matching pnpm's
+    /// [`readManifestRaw`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts).
+    pub fn find_and_load(
+        start_dir: &Path,
+    ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
+        for dir in start_dir.ancestors() {
+            let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+            let read_result = fs::read_to_string(&path);
+
+            // Walk up only when the read failed because nothing exists at
+            // this level. Every other error (including `EISDIR` for a
+            // directory named `pnpm-workspace.yaml`, or permission denied)
+            // propagates, matching pnpm where `ENOENT` is the only silent
+            // case.
+            if let Err(error) = &read_result
+                && error.kind() == ErrorKind::NotFound
+            {
+                continue;
+            }
+
+            let settings: WorkspaceSettings = read_result
+                .map_err(|source| LoadWorkspaceYamlError::ReadFile { path: path.clone(), source })?
+                .pipe_as_ref(serde_saphyr::from_str)
+                .map_err(Box::new)
+                .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                    path: path.clone(),
+                    source,
+                })?;
+
+            return Ok(Some((path, settings)));
+        }
+
+        Ok(None)
+    }
+
+    /// Apply every set field onto `config`, leaving unset ones untouched.
+    ///
+    /// Path-valued fields (`store_dir`, `modules_dir`, `virtual_store_dir`)
+    /// are resolved against `base_dir` if relative — anchored at the
+    /// workspace root where the yaml was found, matching pnpm.
+    pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
+        macro_rules! apply {
+            ($($field:ident),* $(,)?) => {$(
+                if let Some(v) = self.$field {
+                    config.$field = v;
+                }
+            )*};
+        }
+
+        apply! {
+            hoist, shamefully_hoist,
+            node_linker, symlink, package_import_method, modules_cache_max_age,
+            lockfile, prefer_frozen_lockfile, offline, prefer_offline,
+            lockfile_include_tarball_url,
+            auto_install_peers, hoist_workspace_packages,
+            hoisting_limits, external_dependencies,
+            dedupe_peer_dependents, strict_peer_dependencies,
+            resolve_peers_from_workspace_root, verify_store_integrity,
+            side_effects_cache, side_effects_cache_readonly,
+            fetch_retries, fetch_retry_factor,
+            fetch_retry_mintimeout, fetch_retry_maxtimeout,
+            enable_global_virtual_store,
+            git_shallow_hosts,
+        }
+
+        // `hoist_pattern` and `public_hoist_pattern` carry the
+        // tri-state described on [`deserialize_double_option`]:
+        // outer `None` means "key missing — leave config defaults in
+        // place"; outer `Some(inner)` means the user wrote something,
+        // and `inner` is what they wrote (`None` for explicit null,
+        // `Some(vec)` for a list). The inner value is assigned to
+        // `Config.<field>` directly so an explicit `hoistPattern: null`
+        // disables hoisting on that side via the install-time
+        // `is_some() || is_some()` guard, matching upstream's
+        // `!= null` semantics.
+        if let Some(inner) = self.hoist_pattern {
+            config.hoist_pattern = inner;
+        }
+        if let Some(inner) = self.public_hoist_pattern {
+            config.public_hoist_pattern = inner;
+        }
+
+        // `hoist: false` nullifies `hoist_pattern` so the install-time
+        // `is_some() || is_some()` guard short-circuits private hoisting
+        // regardless of any explicit `hoist_pattern` the user (or
+        // pacquet's defaults) supplied. Mirrors upstream's
+        // [`projectConfig.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/projectConfig.ts#L72-L75)
+        // — `result.hoist === false ⇒ hoistPattern: undefined`.
+        // `publicHoistPattern` intentionally NOT nullified here:
+        // upstream doesn't either; public hoisting is governed by
+        // its own pattern + the legacy `shamefullyHoist` flag.
+        // Applied AFTER `hoist_pattern` assignment so a yaml that sets
+        // both `hoist: false` and `hoistPattern: ["..."]` still
+        // disables — `hoist: false` wins, matching upstream.
+        if !config.hoist {
+            config.hoist_pattern = None;
+        }
+
+        if let Some(v) = self.modules_dir {
+            config.modules_dir = resolve(base_dir, &v);
+        }
+        if let Some(v) = self.virtual_store_dir {
+            config.virtual_store_dir = resolve(base_dir, &v);
+        }
+        if let Some(v) = self.global_virtual_store_dir {
+            config.global_virtual_store_dir = resolve(base_dir, &v);
+        }
+        if let Some(v) = self.store_dir {
+            config.store_dir = StoreDir::from(resolve(base_dir, &v));
+        }
+        if let Some(v) = self.registry {
+            config.registry = if v.ends_with('/') { v } else { format!("{v}/") };
+        }
+
+        // Anchor patch-file path resolution against the workspace dir
+        // (the yaml's parent), matching upstream's
+        // `getOptionsFromPnpmSettings(workspaceDir, ...)` at
+        // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts#L39-L46>.
+        config.workspace_dir = Some(base_dir.to_path_buf());
+        if let Some(v) = self.patched_dependencies {
+            config.patched_dependencies = Some(v);
+        }
+        if let Some(v) = self.allow_builds {
+            config.allow_builds = v;
+        }
+        if let Some(v) = self.dangerously_allow_all_builds {
+            config.dangerously_allow_all_builds = v;
+        }
+        if let Some(v) = self.scripts_prepend_node_path {
+            config.scripts_prepend_node_path = v;
+        }
+        if let Some(v) = self.unsafe_perm {
+            config.unsafe_perm = v;
+        }
+        // Windows force-override (matches upstream's
+        // [`process.platform === 'win32'`](https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L204-L220)
+        // — running lifecycle scripts under a uid/gid drop is
+        // POSIX-only).
+        if cfg!(windows) {
+            config.unsafe_perm = true;
+        }
+        // `childConcurrency: None` keeps the smart-default
+        // `Config` constructor produced from
+        // [`default_child_concurrency`]; `Some(n)` (including
+        // negative) goes through the upstream resolver.
+        if let Some(v) = self.child_concurrency {
+            config.child_concurrency = resolve_child_concurrency(Some(v));
+        }
+        if let Some(v) = self.supported_architectures {
+            config.supported_architectures = Some(v);
+        }
+        if let Some(v) = self.ignored_optional_dependencies {
+            config.ignored_optional_dependencies = Some(v);
+        }
+    }
+}
+
+fn resolve(base: &Path, value: &str) -> PathBuf {
+    let candidate = Path::new(value);
+    if candidate.is_absolute() { candidate.to_path_buf() } else { base.join(candidate) }
+}
+
+fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
+    let mut cursor = Some(start);
+    while let Some(dir) = cursor {
+        let candidate = dir.join(WORKSPACE_MANIFEST_FILENAME);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        cursor = dir.parent();
+    }
+    None
+}
+
+/// Resolve the workspace root for a given starting directory — i.e. the
+/// directory containing the nearest ancestor `pnpm-workspace.yaml`.
+/// Returns `start` itself if no manifest is found, so callers can always
+/// use the result as a resolution base.
+pub fn workspace_root_or(start: &Path) -> PathBuf {
+    find_workspace_manifest(start)
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| start.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests;

@@ -14,27 +14,34 @@ export async function removeDeps (
   }
 ): Promise<ProjectManifest> {
   if (opts.saveType) {
-    if (packageManifest[opts.saveType] == null) return packageManifest
+    // `Object.hasOwn` rules out `__proto__`, `constructor`, etc. on `opts.saveType`,
+    // so the dynamic read can never land on `Object.prototype`.
+    if (!Object.hasOwn(packageManifest, opts.saveType)) return packageManifest
+    const targetDeps = packageManifest[opts.saveType]
+    if (targetDeps == null) return packageManifest
 
     for (const dependency of removedPackages) {
-      delete packageManifest[opts.saveType as DependenciesField]![dependency]
+      removeOwnEntry(targetDeps, dependency)
     }
   } else {
     for (const depField of DEPENDENCIES_FIELDS) {
-      if (!packageManifest[depField]) continue
+      const fieldDeps = packageManifest[depField]
+      if (!fieldDeps) continue
       for (const dependency of removedPackages) {
-        delete packageManifest[depField]![dependency]
+        removeOwnEntry(fieldDeps, dependency)
       }
     }
   }
   if (packageManifest.peerDependencies != null) {
+    const peerDeps = packageManifest.peerDependencies
     for (const removedDependency of removedPackages) {
-      delete packageManifest.peerDependencies[removedDependency]
+      removeOwnEntry(peerDeps, removedDependency)
     }
   }
   if (packageManifest.dependenciesMeta != null) {
+    const depsMeta = packageManifest.dependenciesMeta
     for (const removedDependency of removedPackages) {
-      delete packageManifest.dependenciesMeta[removedDependency]
+      removeOwnEntry(depsMeta, removedDependency)
     }
   }
 
@@ -43,4 +50,16 @@ export async function removeDeps (
     updated: packageManifest,
   })
   return packageManifest
+}
+
+/**
+ * Remove an entry from a dependency-like record by its key, but only when the
+ * key is an own property. The `Object.hasOwn` guard keeps the `delete` from
+ * reaching into the prototype chain even when the dependency name matches an
+ * inherited property like `__proto__` or `constructor`.
+ */
+function removeOwnEntry (target: Record<string, unknown>, key: string): void {
+  if (Object.hasOwn(target, key)) {
+    delete target[key]
+  }
 }

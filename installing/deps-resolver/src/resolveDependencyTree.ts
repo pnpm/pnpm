@@ -1,17 +1,15 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
-import { PnpmError } from '@pnpm/error'
+import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.npm-resolver'
-import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   AllowedDeprecatedVersions,
-  PackageVersionPolicy,
   PinnedVersion,
   PkgResolutionId,
   ProjectId,
@@ -161,6 +159,14 @@ export interface ResolveDependencyTreeResult {
   wantedToBeSkippedPackageIds: Set<string>
   appliedPatches: Set<string>
   time?: Record<string, string>
+  /**
+   * Policy violations collected inline during resolution — the
+   * resolver pushes to this list whenever it picks a package that
+   * trips one of its own checks (today: `minimumReleaseAge`). The
+   * shape mirrors `ResolutionPolicyViolation`; downstream callers
+   * filter by `code` to decide what to do.
+   */
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
 export async function resolveDependencyTree<T> (
@@ -169,6 +175,7 @@ export async function resolveDependencyTree<T> (
 ): Promise<ResolveDependencyTreeResult> {
   const wantedToBeSkippedPackageIds = new Set<PkgResolutionId>()
   const autoInstallPeers = opts.autoInstallPeers === true
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   const ctx: ResolutionContext = {
     allowBuild: opts.allowBuild,
     autoInstallPeers,
@@ -215,21 +222,13 @@ export async function resolveDependencyTree<T> (
     missingPeersOfChildrenByPkgId: {},
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
-    maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
-    publishedByExclude: opts.minimumReleaseAgeExclude ? createPackageVersionPolicyByExclude(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude') : undefined,
+    maximumPublishedBy: publishedBy,
+    publishedByExclude,
     trustPolicy: opts.trustPolicy,
-    trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyByExclude(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
+    trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     blockExoticSubdeps: opts.blockExoticSubdeps,
-  }
-
-  function createPackageVersionPolicyByExclude (patterns: string[], key: string): PackageVersionPolicy {
-    try {
-      return createPackageVersionPolicy(patterns)
-    } catch (err) {
-      if (!err || typeof err !== 'object' || !('message' in err)) throw err
-      throw new PnpmError(`INVALID_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`, `Invalid value in ${key}: ${err.message as string}`)
-    }
+    resolutionPolicyViolations: [],
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
@@ -353,6 +352,7 @@ export async function resolveDependencyTree<T> (
     appliedPatches: ctx.appliedPatches,
     time,
     allPeerDepNames: ctx.allPeerDepNames,
+    resolutionPolicyViolations: ctx.resolutionPolicyViolations,
   }
 }
 

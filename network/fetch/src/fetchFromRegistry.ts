@@ -31,6 +31,28 @@ export function fetchWithDispatcher (url: string | URL, opts: FetchWithDispatche
   })
 }
 
+export interface CreateDispatchedFetchOptions extends DispatcherOptions {
+  /**
+   * Per-registry config (TLS, auth, etc.). When set, the matching TLS entries
+   * are automatically extracted into `clientCertificates` so callers don't
+   * have to do it themselves.
+   */
+  configByUri?: Record<string, RegistryConfig>
+}
+
+/**
+ * Returns a {@link fetch} pre-bound to the given dispatcher options, so callers
+ * that need a fetch function (rather than a one-shot call) can route their
+ * requests through the configured proxy / TLS / local-address settings.
+ */
+export function createDispatchedFetch (opts: CreateDispatchedFetchOptions): (url: string | URL, opts?: RequestInit) => Promise<Response> {
+  const dispatcherOptions: DispatcherOptions = {
+    ...opts,
+    clientCertificates: opts.clientCertificates ?? extractTlsConfigs(opts.configByUri),
+  }
+  return (url, fetchOpts) => fetchWithDispatcher(url, { ...fetchOpts, dispatcherOptions })
+}
+
 export type { DispatcherOptions }
 
 export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
@@ -39,6 +61,7 @@ export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
 }
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
+  const clientCertificates = extractTlsConfigs(defaultOpts.configByUri)
   return async (url, opts): Promise<Response> => {
     const headers: Record<string, string> = {
       'user-agent': USER_AGENT,
@@ -73,7 +96,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         ...defaultOpts,
         ...opts,
         strictSsl: defaultOpts.strictSsl ?? true,
-        clientCertificates: extractTlsConfigs(defaultOpts.configByUri),
+        clientCertificates,
       }
 
       const response = await fetchWithDispatcher(urlObject, {

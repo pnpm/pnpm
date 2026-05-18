@@ -35,7 +35,7 @@ class PathIsUnsupportedProtocolError extends PnpmError {
   }
 }
 
-export function parseBareSpecifier (
+export function parseLocalScheme (
   wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
@@ -44,18 +44,30 @@ export function parseBareSpecifier (
   if (wd.bareSpecifier.startsWith('link:') || wd.bareSpecifier.startsWith('workspace:')) {
     return fromLocal(wd, projectDir, lockfileDir, 'directory', opts)
   }
-  if (wd.bareSpecifier.endsWith('.tgz') ||
-    wd.bareSpecifier.endsWith('.tar.gz') ||
-    wd.bareSpecifier.endsWith('.tar') ||
-    wd.bareSpecifier.includes(path.sep) ||
-    wd.bareSpecifier.startsWith('file:') ||
-    isFilespec.test(wd.bareSpecifier)
-  ) {
+  if (wd.bareSpecifier.startsWith('file:')) {
     const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
     return fromLocal(wd, projectDir, lockfileDir, type, opts)
   }
   if (wd.bareSpecifier.startsWith('path:')) {
     throw new PathIsUnsupportedProtocolError(wd.bareSpecifier, 'path:')
+  }
+  return null
+}
+
+export function parseLocalPath (
+  wd: WantedLocalDependency,
+  projectDir: string,
+  lockfileDir: string,
+  opts: { preserveAbsolutePaths: boolean }
+): LocalPackageSpec | null {
+  if (wd.bareSpecifier.endsWith('.tgz') ||
+    wd.bareSpecifier.endsWith('.tar.gz') ||
+    wd.bareSpecifier.endsWith('.tar') ||
+    wd.bareSpecifier.includes(path.sep) ||
+    isFilespec.test(wd.bareSpecifier)
+  ) {
+    const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
+    return fromLocal(wd, projectDir, lockfileDir, type, opts)
   }
   return null
 }

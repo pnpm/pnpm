@@ -1,5 +1,106 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1100.1.8
+
+### Patch Changes
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+- b6e2c8c: Make `pnpm self-update` respect `minimumReleaseAge` (and `minimumReleaseAgeExclude`) when resolving which pnpm version to install.
+
+  When the `latest` dist-tag points to a version newer than the configured age threshold, `self-update` now selects the newest mature version instead unless excluded by `minimumReleaseAgeExclude`.
+
+  Also makes `dlx` and `outdated` surface invalid `minimumReleaseAgeExclude` patterns under the same `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` error code already used by `install`, instead of leaking the internal `ERR_PNPM_INVALID_VERSION_UNION` / `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` codes.
+
+- 247d70b: Honor `--silent` when `verifyDepsBeforeRun: install` auto-installs dependencies before `pnpm run` or `pnpm exec`, preventing install output from being written to stdout [#11636](https://github.com/pnpm/pnpm/issues/11636).
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [d3f8408]
+- Updated dependencies [247d70b]
+- Updated dependencies [4a79336]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/installing.commands@1100.3.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/config.version-policy@1100.1.0
+  - @pnpm/exec.pnpm-cli-runner@1100.0.1
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/deps.status@1100.0.16
+  - @pnpm/exec.lifecycle@1100.0.11
+  - @pnpm/building.commands@1100.0.18
+  - @pnpm/engine.runtime.commands@1100.0.15
+  - @pnpm/workspace.injected-deps-syncer@1100.0.12
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/deps.status@1100.0.15
+  - @pnpm/installing.commands@1100.2.2
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/engine.runtime.commands@1100.0.14
+  - @pnpm/installing.client@1100.0.15
+  - @pnpm/building.commands@1100.0.17
+  - @pnpm/exec.lifecycle@1100.0.10
+  - @pnpm/workspace.injected-deps-syncer@1100.0.11
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [02e9cf5]
+  - @pnpm/deps.status@1100.0.14
+  - @pnpm/installing.commands@1100.2.1
+  - @pnpm/installing.client@1100.0.14
+  - @pnpm/exec.lifecycle@1100.0.9
+  - @pnpm/workspace.injected-deps-syncer@1100.0.10
+  - @pnpm/building.commands@1100.0.16
+
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+- Updated dependencies [a575dd2]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.commands@1100.2.0
+  - @pnpm/engine.runtime.commands@1100.0.13
+  - @pnpm/installing.client@1100.0.13
+  - @pnpm/building.commands@1100.0.15
+  - @pnpm/deps.status@1100.0.13
+  - @pnpm/bins.resolver@1100.0.3
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.version-policy@1100.0.3
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/exec.lifecycle@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/workspace.injected-deps-syncer@1100.0.9
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+  - @pnpm/workspace.projects-sorter@1100.0.2
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.1.4
 
 ### Patch Changes

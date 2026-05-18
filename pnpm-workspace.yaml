@@ -49,6 +49,7 @@ packages:
   - text/*
   - workspace/*
   - yaml/*
+  - pacquet/tasks/registry-mock
   - '!**/example/**'
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'
@@ -82,7 +83,7 @@ catalog:
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^2.0.0
-  '@pnpm/config.env-replace': ^3.0.2
+  '@pnpm/config.env-replace': ^4.1.0
   '@pnpm/config.nerf-dart': ^1.0.0
   '@pnpm/exec': ^4.0.0
   '@pnpm/log.group': 3.0.2
@@ -146,7 +147,7 @@ catalog:
   '@yarnpkg/nm': 4.0.7
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.0.8
-  '@zkochan/cmd-shim': ^9.0.2
+  '@zkochan/cmd-shim': ^9.0.3
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
@@ -344,7 +345,7 @@ minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.7'
   - '@zkochan/*'
-  - '@zkochan/cmd-shim@9.0.2'
+  - '@zkochan/cmd-shim@9.0.3'
   - better-path-resolve
   - body-parser@2.2.1
   - can-link

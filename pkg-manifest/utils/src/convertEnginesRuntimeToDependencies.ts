@@ -29,8 +29,17 @@ export function convertEnginesRuntimeToDependencies (
     if ('webcontainer' in process.versions) {
       globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
     } else {
-      manifest[dependenciesFieldName] ??= {}
-      manifest[dependenciesFieldName]![runtimeName] = `runtime:${runtime.version}`
+      const deps = (manifest[dependenciesFieldName] ??= {})
+      // Use Object.defineProperty so a future RUNTIME_NAMES entry that
+      // happens to match an inherited property name (`__proto__`,
+      // `constructor`, `prototype`) becomes a regular own data property
+      // instead of altering Object.prototype.
+      Object.defineProperty(deps, runtimeName, {
+        value: `runtime:${runtime.version}`,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      })
     }
   }
 }

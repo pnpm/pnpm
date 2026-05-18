@@ -1,6 +1,7 @@
 import { describe, expect, test } from '@jest/globals'
 
 import {
+  AuthBase64DecodeError,
   AuthMissingSeparatorError,
   type Creds,
   parseCreds,
@@ -18,6 +19,12 @@ describe('parseCreds', () => {
     })).toStrictEqual({
       authToken: 'example auth token',
     } as Creds)
+  })
+
+  test('empty authToken is treated as absent', () => {
+    // Reachable path via loadNpmrcFiles when an unresolved `${VAR}` placeholder
+    // is dropped to empty. Must not surface as a usable token.
+    expect(parseCreds({ authToken: '' })).toBeUndefined()
   })
 
   test('authPairBase64', () => {
@@ -46,6 +53,23 @@ describe('parseCreds', () => {
     })).toThrow(new AuthMissingSeparatorError())
   })
 
+  test('authPairBase64 allows redundant trailing padding', () => {
+    expect(parseCreds({
+      authPairBase64: `${btoa('foo:bar')}=`,
+    })).toStrictEqual({
+      basicAuth: {
+        username: 'foo',
+        password: 'bar',
+      },
+    } as Creds)
+  })
+
+  test('authPairBase64 must be base64', () => {
+    expect(() => parseCreds({
+      authPairBase64: 'foo*bar',
+    })).toThrow(new AuthBase64DecodeError('_auth'))
+  })
+
   test('authUsername and authPassword', () => {
     expect(parseCreds({
       authUsername: 'foo',
@@ -64,6 +88,25 @@ describe('parseCreds', () => {
     expect(parseCreds({
       authPassword: 'bar',
     })).toBeUndefined()
+  })
+
+  test('authPassword allows redundant trailing padding', () => {
+    expect(parseCreds({
+      authUsername: 'foo',
+      authPassword: `${btoa('bar')}=`,
+    })).toStrictEqual({
+      basicAuth: {
+        username: 'foo',
+        password: 'bar',
+      },
+    } as Creds)
+  })
+
+  test('authPassword must be base64', () => {
+    expect(() => parseCreds({
+      authUsername: 'foo',
+      authPassword: 'bar*baz',
+    })).toThrow(new AuthBase64DecodeError('_password'))
   })
 
   test('tokenHelper', () => {

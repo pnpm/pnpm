@@ -1,5 +1,40 @@
 # @pnpm/resolving.deno-resolver
 
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/fetching.binary-fetcher@1101.0.6
+  - @pnpm/worker@1100.1.6
+
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [e526f89]
+- Updated dependencies [c2c2890]
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/worker@1100.1.5
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.3
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/worker@1100.1.4
+  - @pnpm/fetching.binary-fetcher@1101.0.5
+
 ## 1101.0.4
 
 ### Patch Changes

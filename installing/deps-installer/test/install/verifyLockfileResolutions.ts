@@ -1,0 +1,292 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+
+import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
+
+function makeLockfile (packages: Record<string, { resolution: unknown, version?: string }>): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {},
+    packages: packages as LockfileObject['packages'],
+  } as LockfileObject
+}
+
+const tarballResolution = (integrity: string = 'sha512-deadbeef') => ({ integrity, tarball: '' })
+
+const NOOP_SLOT = {
+  policy: {} as Record<string, unknown>,
+  canTrustPastCheck: () => true,
+}
+
+function wrap (
+  verify: ResolutionVerifier['verify'],
+  slot: Omit<ResolutionVerifier, 'verify'> = NOOP_SLOT
+): ResolutionVerifier {
+  return { ...slot, verify }
+}
+
+const okVerifier = wrap(async () => ({ ok: true }))
+
+test('no-op when the verifier list is empty', async () => {
+  const lockfile = makeLockfile({
+    'fresh@1.0.0': { resolution: tarballResolution() },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})
+
+test('no-op when lockfile has no packages', async () => {
+  const lockfile = makeLockfile({})
+  await expect(verifyLockfileResolutions(lockfile, [okVerifier])).resolves.toBeUndefined()
+})
+
+test('passes when every entry is verified ok', async () => {
+  const lockfile = makeLockfile({
+    'lodash@4.17.21': { resolution: tarballResolution() },
+    'is-odd@0.1.0': { resolution: tarballResolution() },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [okVerifier])).resolves.toBeUndefined()
+})
+
+test('throws with the verifier-supplied code and reason on a single failure', async () => {
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution() },
+  })
+  const verifier = wrap(async () => ({
+    ok: false,
+    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    reason: 'was published yesterday',
+  }))
+
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+    code: 'ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION',
+    message: expect.stringMatching(/is-odd@0\.1\.2 was published yesterday/),
+  })
+})
+
+test('throws a generic code with per-entry codes in the breakdown when violations span policies', async () => {
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
+    'untrusted@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const verifier = wrap(async (_, { name }) => {
+    if (name === 'is-odd') {
+      return { ok: false, code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'too fresh' }
+    }
+    return { ok: false, code: 'TRUST_DOWNGRADE', reason: 'trust weakened' }
+  })
+
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+    // Mixed-code batch escalates to the generic LOCKFILE_RESOLUTION_VERIFICATION
+    // code so downstream handlers don't mis-route on whichever entry happened
+    // to land first.
+    code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
+    // Per-entry code is included in the breakdown so the user can see
+    // which policy each line tripped.
+    message: expect.stringMatching(/is-odd@0\.1\.2 \[MINIMUM_RELEASE_AGE_VIOLATION\][\s\S]*untrusted@1\.0\.0 \[TRUST_DOWNGRADE\]/),
+  })
+})
+
+test('lists violations in stable order across multiple failures', async () => {
+  const lockfile = makeLockfile({
+    'fresh-b@2.0.0': { resolution: tarballResolution('sha512-b') },
+    'fresh-a@1.0.0': { resolution: tarballResolution('sha512-a') },
+  })
+  const verifier = wrap(async (_, { name, version }) => ({
+    ok: false,
+    code: 'POLICY_X',
+    reason: `${name}@${version} failed`,
+  }))
+
+  await expect(verifyLockfileResolutions(lockfile, [verifier]))
+    .rejects.toThrow(/fresh-a@1\.0\.0[\s\S]*fresh-b@2\.0\.0/)
+})
+
+test('caps printed violations at 20 with an "…and N more" summary', async () => {
+  const packages: Record<string, { resolution: unknown }> = {}
+  for (let i = 0; i < 25; i++) {
+    packages[`pkg-${String(i).padStart(2, '0')}@1.0.0`] = {
+      resolution: tarballResolution(`sha512-${i}`),
+    }
+  }
+  const lockfile = makeLockfile(packages)
+  const verifier = wrap(async (_, { name, version }) => ({
+    ok: false,
+    code: 'POLICY_X',
+    reason: `${name}@${version}`,
+  }))
+
+  await expect(verifyLockfileResolutions(lockfile, [verifier]))
+    .rejects.toThrow(/25 lockfile entries failed verification[\s\S]*…and 5 more/)
+})
+
+test('dedupes peer/patch-suffix variants and invokes the verifier once per (name, version)', async () => {
+  const lockfile = makeLockfile({
+    'react@18.0.0': { resolution: tarballResolution('sha512-a') },
+    'react@18.0.0(peer-x)': { resolution: tarballResolution('sha512-a') },
+    'react@18.0.0(patch_hash=abc)(peer-x)': { resolution: tarballResolution('sha512-a') },
+  })
+  const seen: Array<{ name: string, version: string }> = []
+  const verifier = wrap(async (_, { name, version }) => {
+    seen.push({ name, version })
+    return { ok: true }
+  })
+
+  await verifyLockfileResolutions(lockfile, [verifier])
+  expect(seen).toEqual([{ name: 'react', version: '18.0.0' }])
+})
+
+test('does not collapse same (name, version) with different resolutions', async () => {
+  // Two entries sharing a name@version but pinned via different protocols
+  // (npm registry vs. git). If the dedup key were just `name@version` one
+  // would silently overwrite the other and a protocol-scoped verifier
+  // would short-circuit on the survivor — letting the real entry skip
+  // the gate.
+  const npmResolution = tarballResolution('sha512-a')
+  const gitResolution = { type: 'git', repo: 'x', commit: 'abc' }
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: npmResolution },
+    'foo@1.0.0(peer-x)': { resolution: gitResolution },
+  })
+  const seenResolutions: unknown[] = []
+  const verifier = wrap(async (resolution) => {
+    seenResolutions.push(resolution)
+    return { ok: true }
+  })
+
+  await verifyLockfileResolutions(lockfile, [verifier])
+  expect(seenResolutions).toEqual(expect.arrayContaining([npmResolution, gitResolution]))
+  expect(seenResolutions).toHaveLength(2)
+})
+
+test('the verifier sees the resolution shape verbatim', async () => {
+  const npmResolution = tarballResolution()
+  const gitResolution = { type: 'git', repo: 'x', commit: 'abc' }
+  const lockfile = makeLockfile({
+    'npm-pkg@1.0.0': { resolution: npmResolution },
+    'git-pkg@1.0.0': { resolution: gitResolution },
+  })
+  const received: unknown[] = []
+  const verifier = wrap(async (resolution) => {
+    received.push(resolution)
+    return { ok: true }
+  })
+
+  await verifyLockfileResolutions(lockfile, [verifier])
+  expect(received).toEqual(expect.arrayContaining([npmResolution, gitResolution]))
+})
+
+test('keeps the per-policy code when every violation in the batch shares it', async () => {
+  // Same code across all violations → throw with that code so existing
+  // handlers / docs / search routes still match. Mixed-code coverage is
+  // in the dedicated "throws a generic code …" test above.
+  const lockfile = makeLockfile({
+    'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    'b@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const verifier = wrap(async () => ({
+    ok: false,
+    code: 'POLICY_A',
+    reason: 'failed',
+  }))
+
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+    code: 'ERR_PNPM_POLICY_A',
+  })
+})
+
+test('runs every active verifier per entry and stops at the first failure', async () => {
+  const lockfile = makeLockfile({
+    'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+  })
+  const calls: string[] = []
+  const firstOk = wrap(async () => {
+    calls.push('first')
+    return { ok: true }
+  }, NOOP_SLOT)
+  const secondFail = wrap(async () => {
+    calls.push('second')
+    return { ok: false, code: 'SECOND_POLICY', reason: 'nope' }
+  }, NOOP_SLOT)
+
+  await expect(verifyLockfileResolutions(lockfile, [firstOk, secondFail]))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_SECOND_POLICY' })
+  // Both verifiers ran on the entry; ordering follows the list.
+  expect(calls).toEqual(['first', 'second'])
+})
+
+function exampleSlot (current: number): Omit<ResolutionVerifier, 'verify'> {
+  return {
+    policy: { minimumReleaseAge: current },
+    canTrustPastCheck: (cached) => {
+      const past = cached.minimumReleaseAge
+      return typeof past === 'number' && past >= current
+    },
+  }
+}
+
+test('skips the verifier when the cache holds an unchanged lockfile + matching policy', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+
+    let calls = 0
+    const counting = wrap(async () => {
+      calls++
+      return { ok: true }
+    }, exampleSlot(60))
+
+    // First call has no cache record yet — verifier runs.
+    await verifyLockfileResolutions(lockfile, [counting], {
+      cacheDir, lockfilePath,
+    })
+    expect(calls).toBe(1)
+
+    // Second call against the same lockfile + policy — cache short-circuit.
+    await verifyLockfileResolutions(lockfile, [counting], {
+      cacheDir, lockfilePath,
+    })
+    expect(calls).toBe(1)
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('does not write a cache record when verification rejects', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+
+    const rejecting = wrap(async () => ({
+      ok: false,
+      code: 'POLICY_X',
+      reason: 'failed',
+    }), exampleSlot(60))
+
+    await expect(
+      verifyLockfileResolutions(lockfile, [rejecting], {
+        cacheDir, lockfilePath,
+      })
+    ).rejects.toThrow()
+
+    // No record was written — a rejecting verification must rerun next install.
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    await expect(fs.promises.access(cacheFile)).rejects.toThrow()
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})

@@ -1,5 +1,42 @@
 # @pnpm/cache.api
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/store.cafs@1100.1.5
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [e526f89]
+- Updated dependencies [c2c2890]
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/store.cafs@1100.1.4
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/store.cafs@1100.1.3
+
 ## 1100.0.10
 
 ### Patch Changes

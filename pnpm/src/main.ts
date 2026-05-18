@@ -183,9 +183,15 @@ export async function main (inputArgv: string[]): Promise<void> {
 
   const printLogs = !config['parseable'] && !config['json']
   if (printLogs) {
+    // `pnpm add -g` may install several isolated groups in one run, one
+    // per CLI param. When that happens, force the reporter to show the
+    // per-prefix progress/stats output so every group's stats line up
+    // with the right install dir instead of being silently dropped.
+    const multiGroupGlobalAdd = cmd === 'add' && cliOptions.global === true && cliParams.length > 1
     initReporter(reporterType, {
       cmd,
       config: { ...config, ...context },
+      hideProgressPrefix: multiGroupGlobalAdd ? false : undefined,
     })
     global[REPORTER_INITIALIZED] = reporterType
   }

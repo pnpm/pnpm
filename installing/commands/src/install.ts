@@ -56,6 +56,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'public-hoist-pattern',
     'registry',
     'reporter',
+    'runtime',
     'save-workspace-protocol',
     'scripts-prepend-node-path',
     'shamefully-hoist',
@@ -83,6 +84,11 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'fix-lockfile': Boolean,
   'resolution-only': Boolean,
   recursive: Boolean,
+  // `--no-save` lets `pnpm install` skip writing to package.json /
+  // pnpm-workspace.yaml. Without registering it here, nopt drops the
+  // flag, `opts.save` stays undefined, and the auto-add path treats
+  // it as "save enabled".
+  save: Boolean,
 })
 
 export const shorthands: Record<string, string> = {
@@ -131,6 +137,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: '`optionalDependencies` are not installed',
             name: '--no-optional',
+          },
+          {
+            description: 'Skip installing runtime entries (e.g. Node.js downloaded via `devEngines.runtime`). The lockfile is left untouched, so frozen installs still validate; only the runtime fetch and bin-linking are skipped. Useful in CI matrices where the runtime is provisioned externally.',
+            name: '--no-runtime',
           },
           {
             description: `Don't read or generate a \`${WANTED_LOCKFILE}\` file`,

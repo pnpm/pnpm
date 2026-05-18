@@ -7,52 +7,52 @@ importers:
     configDependencies: {}
     packageManagerDependencies:
       '@pnpm/exe':
-        specifier: 11.0.7
-        version: 11.0.7
+        specifier: 11.1.3
+        version: 11.1.3
       pnpm:
-        specifier: 11.0.7
-        version: 11.0.7
+        specifier: 11.1.3
+        version: 11.1.3
 
 packages:
 
-  '@pnpm/exe@11.0.7':
-    resolution: {integrity: sha512-zD5EMUePXPGAg4yKj1xEVQXIAOeIGuQh0YXo86t3n5fRmqDVwnGMAqZDBMdSXwXS/uvLpmserl6j9jqoeGlQUQ==}
+  '@pnpm/exe@11.1.3':
+    resolution: {integrity: sha512-J6bSMpZlHVUKuMKtPT/+lrFPpvBiOIgk6HnNC3vmoM/fsMgFhao6ITFwdsUMzdCl2qHf9cnVYA4ZBdsGmVUnpg==}
     hasBin: true
 
-  '@pnpm/linux-arm64@11.0.7':
-    resolution: {integrity: sha512-Opx5npdHf8m3MS16yodVWcFjoaQ0N9FO9OQpdT3Ks7FxRNtp4T4VBRqlqlXfUA35CroTh22cXLZn3ByIT0MSDw==}
+  '@pnpm/linux-arm64@11.1.3':
+    resolution: {integrity: sha512-sz3fc0hSqguk2eGe/InelpBD3LP82MzF+8pLzDpYNGuhasGY+VWkuxEo02HczQYRVXTsbpZVepk+Qs2CONc04Q==}
     cpu: [arm64]
     os: [linux]
 
-  '@pnpm/linux-x64@11.0.7':
-    resolution: {integrity: sha512-+D8XIEC2fp9dKKR2emGjzPcsJB9Xw/rXqzVayyphBbaPu6J+JytET4kYHIsM1EeJ7o6UkmAXjPLmgc6Bxu11EQ==}
+  '@pnpm/linux-x64@11.1.3':
+    resolution: {integrity: sha512-UadJh5fJZWa47OtdZTWLKWDj4z5WpZFB5pS2wOh/kfKypUmQyjmbOMClP7/yJGS2ZtrSjRgYjIEWAjndkWsMaA==}
     cpu: [x64]
     os: [linux]
 
-  '@pnpm/linuxstatic-arm64@11.0.7':
-    resolution: {integrity: sha512-EePML7trF6ygvIZpvmCX4ykYsiw3J5k6aiG4uIAi7gJ8N1ZFHrZiqJVXlQPek6XVaeLNu4gaAORi1P3b4M68HA==}
+  '@pnpm/linuxstatic-arm64@11.1.3':
+    resolution: {integrity: sha512-lWmGr96w+VrIRVsEfTXROB3GeQNxrX2Hy32j3USHr6WlqmpH1i7YjavJGpoXeVZbb77fCFjNFAtsJzGXSgy/Og==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@pnpm/linuxstatic-x64@11.0.7':
-    resolution: {integrity: sha512-XwrdZAdn5ArA3yWnvMIabKCFGoZrahvY/q9FjRXKPyN1hiAuzdITBZW+w1ywq8lgLBJT+2acgpafuiQKol/0lA==}
+  '@pnpm/linuxstatic-x64@11.1.3':
+    resolution: {integrity: sha512-I74GDBOPbr5TXgob3ct4hv6BQtLGdsjGJrII2qNl/e2xYHXekjIWE4Eh7RGN4C7xu+BZYKtvnOOr149yR7KxUw==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@pnpm/macos-arm64@11.0.7':
-    resolution: {integrity: sha512-dBnXwHY3flGveXgc+aAqr0jTddNJZIktAV8HmEalLty5bQQKi9bxNeCoMGImRjocgqc6on5wg1bNr9IdqwbhpQ==}
+  '@pnpm/macos-arm64@11.1.3':
+    resolution: {integrity: sha512-nWn155BVa54iNyg4iolVhjMtqumXHPh8ul5CFjQFJXdwgr9MRUgc5EUBML1+7mS8C/7Wcex5HUgn/w3fliHCsQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@pnpm/win-arm64@11.0.7':
-    resolution: {integrity: sha512-Mg7hgalpv+55g0rqJgFKx5b4YuCF8i8AE9w8bHmAsx8Ezwe3fmIg8tubAIiH78ccUZN8vZ5Gp2x/h2fE+jH0+A==}
+  '@pnpm/win-arm64@11.1.3':
+    resolution: {integrity: sha512-4u6PQL7/WgwdweC2ZJcdCzhM1koRFG5ofcUSrIVsdyo9ePfGq2D9p1rkZbiLEfIGvl3GKOsfMB5DRTgs8es4AQ==}
     cpu: [arm64]
     os: [win32]
 
-  '@pnpm/win-x64@11.0.7':
-    resolution: {integrity: sha512-nKEgq5TsQSmfZdwbQlAaH1gft1VxjWE46y0sixQJrsXhHL+t8VP+kLmMF76T5kW4kMynSv3SSyEx7stK4n8ecA==}
+  '@pnpm/win-x64@11.1.3':
+    resolution: {integrity: sha512-JmhH7ljJ3MWjvWFz/YHbu/27ISCNLZsQb1JG+ib3uHlfUwIJuF6BudXYsbS5Uu0o7xUvC9sPPm+Uho4Or6R3vA==}
     cpu: [x64]
     os: [win32]
 
@@ -116,45 +116,45 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  pnpm@11.0.7:
-    resolution: {integrity: sha512-ckp7XSMZzdcAnWXhWiwpqunTkCtQWFyhY9OKdzfrhbxOchloef9Zdopx6B/jKqcei3DwiLLiS55KKFDYfkYHtQ==}
+  pnpm@11.1.3:
+    resolution: {integrity: sha512-yFNX/hfKEt0j3XBxgiZm39fjy3b+IU4zcLXqL7NPKiMRhVCbY+cX880KyzjdP42CvNXoFyQArmeLcOpPvtCJbQ==}
     engines: {node: '>=22.13'}
     hasBin: true
 
 snapshots:
 
-  '@pnpm/exe@11.0.7':
+  '@pnpm/exe@11.1.3':
     dependencies:
       '@reflink/reflink': 0.1.19
       detect-libc: 2.1.2
     optionalDependencies:
-      '@pnpm/linux-arm64': 11.0.7
-      '@pnpm/linux-x64': 11.0.7
-      '@pnpm/linuxstatic-arm64': 11.0.7
-      '@pnpm/linuxstatic-x64': 11.0.7
-      '@pnpm/macos-arm64': 11.0.7
-      '@pnpm/win-arm64': 11.0.7
-      '@pnpm/win-x64': 11.0.7
+      '@pnpm/linux-arm64': 11.1.3
+      '@pnpm/linux-x64': 11.1.3
+      '@pnpm/linuxstatic-arm64': 11.1.3
+      '@pnpm/linuxstatic-x64': 11.1.3
+      '@pnpm/macos-arm64': 11.1.3
+      '@pnpm/win-arm64': 11.1.3
+      '@pnpm/win-x64': 11.1.3
 
-  '@pnpm/linux-arm64@11.0.7':
+  '@pnpm/linux-arm64@11.1.3':
     optional: true
 
-  '@pnpm/linux-x64@11.0.7':
+  '@pnpm/linux-x64@11.1.3':
     optional: true
 
-  '@pnpm/linuxstatic-arm64@11.0.7':
+  '@pnpm/linuxstatic-arm64@11.1.3':
     optional: true
 
-  '@pnpm/linuxstatic-x64@11.0.7':
+  '@pnpm/linuxstatic-x64@11.1.3':
     optional: true
 
-  '@pnpm/macos-arm64@11.0.7':
+  '@pnpm/macos-arm64@11.1.3':
     optional: true
 
-  '@pnpm/win-arm64@11.0.7':
+  '@pnpm/win-arm64@11.1.3':
     optional: true
 
-  '@pnpm/win-x64@11.0.7':
+  '@pnpm/win-x64@11.1.3':
     optional: true
 
   '@reflink/reflink-darwin-arm64@0.1.19':
@@ -194,7 +194,7 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  pnpm@11.0.7: {}
+  pnpm@11.1.3: {}
 
 ---
 lockfileVersion: '9.0'
@@ -242,8 +242,8 @@ catalogs:
       specifier: ^2.0.0
       version: 2.0.0
     '@pnpm/config.env-replace':
-      specifier: ^3.0.2
-      version: 3.0.2
+      specifier: ^4.1.0
+      version: 4.1.0
     '@pnpm/config.nerf-dart':
       specifier: ^1.0.0
       version: 1.0.1
@@ -434,7 +434,7 @@ catalogs:
       specifier: ^4.0.8
       version: 4.1.5
     '@zkochan/cmd-shim':
-      specifier: ^9.0.2
+      specifier: ^9.0.3
       version: 9.0.3
     '@zkochan/retry':
       specifier: ^0.2.0
@@ -732,7 +732,7 @@ catalogs:
       version: 8.0.0
     p-queue:
       specifier: ^9.1.0
-      version: 9.2.0
+      version: 9.3.0
     parse-json:
       specifier: ^8.3.0
       version: 8.3.0
@@ -1073,6 +1073,9 @@ importers:
       lcov-result-merger:
         specifier: 'catalog:'
         version: 5.0.1
+      node:
+        specifier: runtime:24.6.0
+        version: runtime:24.6.0
       rimraf:
         specifier: 'catalog:'
         version: 6.1.3
@@ -2602,7 +2605,7 @@ importers:
         version: link:../../catalogs/types
       '@pnpm/config.env-replace':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.1.0
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../matcher
@@ -3296,15 +3299,15 @@ importers:
 
   deps/graph-hasher:
     dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../core/constants
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../../engine/runtime/system-node-version
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -3892,6 +3895,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../../config/version-policy
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../../deps/graph-hasher
@@ -4941,6 +4947,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../core/core-loggers
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
         version: link:../../deps/inspection/list
@@ -5129,6 +5138,9 @@ importers:
       '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
         version: link:../../engine/runtime/node-resolver
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../fetching/binary-fetcher
@@ -5156,6 +5168,9 @@ importers:
       '@pnpm/resolving.default-resolver':
         specifier: workspace:*
         version: link:../../resolving/default-resolver
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5262,6 +5277,9 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -5328,6 +5346,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      ci-info:
+        specifier: 'catalog:'
+        version: 4.4.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -5413,9 +5434,6 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
-      ci-info:
-        specifier: 'catalog:'
-        version: 4.4.0
       delay:
         specifier: 'catalog:'
         version: 7.0.0
@@ -6498,7 +6516,7 @@ importers:
         version: 7.3.0
       p-queue:
         specifier: 'catalog:'
-        version: 9.2.0
+        version: 9.3.0
       promise-share:
         specifier: 'catalog:'
         version: 2.0.0
@@ -7299,6 +7317,15 @@ importers:
       '@pnpm/object.property-path':
         specifier: workspace:*
         version: 'link:'
+
+  pacquet/tasks/registry-mock:
+    devDependencies:
+      '@pnpm-private/pacquet-registry-mock-launcher':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
 
   patching/apply-patch:
     dependencies:
@@ -8382,6 +8409,9 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../git-resolver
@@ -8419,6 +8449,15 @@ importers:
       '@pnpm/store.cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
+      '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: link:../../testing/mock-agent
+      load-json-file:
+        specifier: 'catalog:'
+        version: 7.0.1
+      tempy:
+        specifier: 'catalog:'
+        version: 3.0.0
 
   resolving/git-resolver:
     dependencies:
@@ -8512,6 +8551,9 @@ importers:
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -8606,9 +8648,6 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
-      '@pnpm/config.version-policy':
-        specifier: workspace:*
-        version: link:../../config/version-policy
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -8959,6 +8998,9 @@ importers:
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/store.controller':
         specifier: workspace:*
         version: link:../controller
@@ -9244,6 +9286,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/store.controller':
         specifier: workspace:*
         version: link:../../store/controller
@@ -11038,6 +11083,10 @@ packages:
   '@pnpm/config.env-replace@3.0.2':
     resolution: {integrity: sha512-GD6nKLyKF+ev15Tj3pS8y6cTVPIuAqTyhPrUFMfmodFvhEDdYKN/gdGimkc9GJLfHVC/SuCVFg49YNJyoW7niA==}
     engines: {node: '>=18.12'}
+
+  '@pnpm/config.env-replace@4.1.0':
+    resolution: {integrity: sha512-5sirJgdwgE8YU8RMSOZVkluCxCdVRV5a9vRbiLMJ7HBlEluG7jYRvLfLtZ/K3RCI8dckX7Lfpkz0VKpCLp9nug==}
+    engines: {node: '>=22.13'}
 
   '@pnpm/config.nerf-dart@1.0.1':
     resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
@@ -15361,6 +15410,116 @@ packages:
   node-releases@2.0.44:
     resolution: {integrity: sha512-5WUyunoPMsvvEhS8AxHtRzP+oA8UCkJ7YRxatWKjngndhDGLiqEVAQKWjFAiAiuL8zMRGzGSJxFnLetoa43qGQ==}
 
+  node@runtime:24.6.0:
+    resolution:
+      type: variations
+      variants:
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-eXm+UQ/2iWLhaJHuKckQgOMh16Vbn7xrOY2MIKWTK98=
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-aix-ppc64.tar.gz
+          targets:
+            - cpu: ppc64
+              os: aix
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-do8UlSQD4wJf7Y4oh1AN+mPutVYoqbID5LjrsPsJx+s=
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-darwin-arm64.tar.gz
+          targets:
+            - cpu: arm64
+              os: darwin
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-aV/DNFSCGyFtaMsZjWRqmtdpx318Mj5zg4EjPkZm3/4=
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-darwin-x64.tar.gz
+          targets:
+            - cpu: x64
+              os: darwin
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-iVbhHb71sZfWLri1uXoTHrQvuyU0f+DNybYqHBqjbfU=
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-linux-arm64.tar.gz
+          targets:
+            - cpu: arm64
+              os: linux
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-+vyIuqmsufv4KgiY64BlmRhTTA7W0ZpJDYZ1YwTGbmc=
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-linux-ppc64le.tar.gz
+          targets:
+            - cpu: ppc64le
+              os: linux
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-HNd1hrSLbbG1JIZpYZxix4WuyiR6S/qulf6YILd6VAU=
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-linux-s390x.tar.gz
+          targets:
+            - cpu: s390x
+              os: linux
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-NS3bxItYbBHwGOybiGIlEXkJ6pPgW0oEptsy8+Y9AoE=
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-linux-x64.tar.gz
+          targets:
+            - cpu: x64
+              os: linux
+        - resolution:
+            archive: zip
+            bin:
+              node: node.exe
+            integrity: sha256-W9hfrLz6Mu84tzppDChFGlw9/3tFRX9e9CHE0LDe6sc=
+            prefix: node-v24.6.0-win-arm64
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-win-arm64.zip
+          targets:
+            - cpu: arm64
+              os: win32
+        - resolution:
+            archive: zip
+            bin:
+              node: node.exe
+            integrity: sha256-Om0y/liDaY5sWcpaZVS0HBsqldtPerfE7dJy9DkXgNo=
+            prefix: node-v24.6.0-win-x64
+            type: binary
+            url: https://nodejs.org/download/release/v24.6.0/node-v24.6.0-win-x64.zip
+          targets:
+            - cpu: x64
+              os: win32
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-6kuCABREMq8vAOeBGZiAzJrElmmMPxoYYwPPVgGh9FM=
+            type: binary
+            url: https://unofficial-builds.nodejs.org/download/release/v24.6.0/node-v24.6.0-linux-x64-musl.tar.gz
+          targets:
+            - cpu: x64
+              os: linux
+              libc: musl
+    version: 24.6.0
+    hasBin: true
+
   nopt@1.0.10:
     resolution: {integrity: sha512-NWmpvLSqUrgrAC9HCuxEvb+PSloHpqVu+FqcO4eeF2h5qYRhA7ev6KvelyQAKtegUbC6RypJnlEOhd8vloNKYg==}
     hasBin: true
@@ -15635,8 +15794,8 @@ packages:
     resolution: {integrity: sha512-RwFpb72c/BhQLEXIZ5K2e+AhgNVmIejGlTgiB9MzZ0e93GRvqZ7uSi0dvRF7/XIXDeNkra2fNHBxTyPDGySpjQ==}
     engines: {node: '>=8'}
 
-  p-queue@9.2.0:
-    resolution: {integrity: sha512-dWgLE8AH0HjQ9fe74pUkKkvzzYT18Inp4zra3lKHnnwqGvcfcUBrvF2EAVX+envufDNBOzpPq/IBUONDbI7+3g==}
+  p-queue@9.3.0:
+    resolution: {integrity: sha512-7NED7xhQ74Ngp4JP/2e0VZHp7vSWfJfqeiR92jPgxsz6m0Se4P03YoTKa9dDXyZ3r6P616gUXttrB6nnHYKang==}
     engines: {node: '>=20'}
 
   p-reflect@2.1.0:
@@ -18833,6 +18992,8 @@ snapshots:
   '@pnpm/config.env-replace@1.1.0': {}
 
   '@pnpm/config.env-replace@3.0.2': {}
+
+  '@pnpm/config.env-replace@4.1.0': {}
 
   '@pnpm/config.nerf-dart@1.0.1': {}
 
@@ -24490,6 +24651,8 @@ snapshots:
 
   node-releases@2.0.44: {}
 
+  node@runtime:24.6.0: {}
+
   nopt@1.0.10:
     dependencies:
       abbrev: 1.1.1
@@ -24785,7 +24948,7 @@ snapshots:
       eventemitter3: 4.0.7
       p-timeout: 3.2.0
 
-  p-queue@9.2.0:
+  p-queue@9.3.0:
     dependencies:
       eventemitter3: 5.0.4
       p-timeout: 7.0.1

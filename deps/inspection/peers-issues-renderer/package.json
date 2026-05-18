@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.peers-issues-renderer",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Visualizes peer dependency issues",
   "keywords": [
     "pnpm",

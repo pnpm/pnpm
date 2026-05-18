@@ -15,3 +15,41 @@ export function getSystemNodeVersionNonCached (): string | undefined {
 }
 
 export const getSystemNodeVersion = mem(getSystemNodeVersionNonCached)
+
+/**
+ * The `<platform>;<arch>;node<major>` string used as the side-effects
+ * cache-key prefix and the engine portion of the global-virtual-store
+ * hash. Identifies the runtime environment that built (or will build)
+ * a package's lifecycle scripts — so two installs that materialize the
+ * same package on the same host produce the same key.
+ *
+ * The Node version is resolved in this order:
+ *
+ * 1. `nodeVersion` argument when provided. Callers use this to thread
+ *    a project-pinned runtime (`engines.runtime` / `devEngines.runtime`)
+ *    through to the hash — see `findRuntimeNodeVersion` /
+ *    `readSnapshotRuntimePin` in `@pnpm/deps.path` for the helpers
+ *    that extract the value from a lockfile or graph node.
+ * 2. {@link getSystemNodeVersion} — the `node` on the user's `PATH`,
+ *    or `process.version` when not SEA-bundled.
+ * 3. `process.version` as a last-resort fallback when the host has
+ *    no `node` on `PATH` (rare: SEA pnpm with no separately-installed
+ *    Node). Scripts cannot run in that scenario regardless, so the
+ *    cache key is effectively unused — the fallback exists only to
+ *    keep the value deterministic.
+ *
+ * Anchoring to a project-pinned or script-runner Node — not to pnpm's
+ * own `process.version` — matters most when pnpm ships via the
+ * `@pnpm/exe` SEA bundle, which has an embedded Node distinct from
+ * the one that actually runs lifecycle scripts. Without the override,
+ * a project with `devEngines.runtime: node@22` would still hash under
+ * the SEA-runner's Node major, splitting the cache across two pnpm
+ * installations on the same machine even though both run scripts on
+ * the same pinned Node.
+ */
+export function engineName (nodeVersion?: string): string {
+  const version = nodeVersion ?? getSystemNodeVersion() ?? process.version
+  const stripped = version.startsWith('v') ? version.slice(1) : version
+  const major = stripped.split('.')[0]
+  return `${process.platform};${process.arch};node${major}`
+}

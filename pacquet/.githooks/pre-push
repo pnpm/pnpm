@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Catch formatter violations before they hit CI.
+# Installed via `just install-hooks` (sets core.hooksPath to .githooks/).
+set -euo pipefail
+
+red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
+yellow() { printf '\033[0;33m%s\033[0m\n' "$*" >&2; }
+
+failed=0
+
+if command -v cargo >/dev/null 2>&1; then
+    yellow '▸ cargo fmt --all -- --check'
+    if ! cargo fmt --all -- --check; then
+        red '✗ cargo fmt found unformatted Rust files — run `cargo fmt --all` (or `just fmt`) and commit.'
+        failed=1
+    fi
+else
+    yellow '! cargo not found on PATH — skipping Rust format check.'
+fi
+
+if command -v taplo >/dev/null 2>&1; then
+    yellow '▸ taplo format --check'
+    if ! taplo format --check; then
+        red '✗ taplo found unformatted TOML — run `taplo format` (or `just fmt`) and commit.'
+        failed=1
+    fi
+else
+    yellow '! taplo not found on PATH — skipping TOML format check (install with `cargo binstall taplo-cli` or via `just init`).'
+fi
+
+if [ "$failed" -ne 0 ]; then
+    red ''
+    red 'Push aborted. Bypass with `git push --no-verify` if you really need to.'
+    exit 1
+fi

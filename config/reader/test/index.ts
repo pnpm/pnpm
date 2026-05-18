@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import PATH from 'path-name'
@@ -163,6 +164,47 @@ test('runtimeOnFail=ignore overrides an existing onFail=download and removes nod
     onFail: 'ignore',
   })
   expect(context.rootProjectManifest?.devDependencies?.node).toBeUndefined()
+})
+
+test('devEngines.packageManager without onFail resolves to the documented pmOnFail default "download" (#11676)', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '11.0.0',
+      },
+    },
+  })
+
+  const { context } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.wantedPackageManager).toMatchObject({
+    name: 'pnpm',
+    version: '11.0.0',
+    onFail: 'download',
+  })
+})
+
+test('devEngines.packageManager with explicit onFail is respected (regression guard for #11676)', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '11.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { context } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.wantedPackageManager?.onFail).toBe('error')
 })
 
 test('throw error if --link-workspace-packages is used with --global', async () => {
@@ -659,6 +701,120 @@ test('workspace .npmrc overrides pnpm auth file', async () => {
       delete process.env.XDG_CONFIG_HOME
     }
   }
+})
+
+describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
+  // Regression suite for https://github.com/pnpm/pnpm/issues/11513: actions/setup-node
+  // writes `_authToken=${NODE_AUTH_TOKEN}` to .npmrc, and when the user relies on OIDC
+  // trusted publishing without setting NODE_AUTH_TOKEN, the literal placeholder must not
+  // surface as a bearer token — otherwise the registry sees `Bearer ${NODE_AUTH_TOKEN}`
+  // and rejects the publish.
+  let originalXdg: string | undefined
+  let configHome: string
+
+  beforeEach(() => {
+    prepareEmpty()
+    fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n', 'utf8')
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), '', 'utf8')
+    // Isolate from the developer's real ~/.config/pnpm/auth.ini, which on a maintainer's
+    // machine often contains a working npm token that would otherwise satisfy the assertion.
+    configHome = path.resolve('xdg-config')
+    fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+    originalXdg = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = configHome
+  })
+
+  afterEach(() => {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  })
+
+  test('drops the placeholder when the env var is unset', async () => {
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      env: { ...env, XDG_CONFIG_HOME: configHome }, // NODE_AUTH_TOKEN intentionally unset
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('')
+  })
+
+  test('substitutes normally when the env var is set', async () => {
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      env: { ...env, XDG_CONFIG_HOME: configHome, NODE_AUTH_TOKEN: 'real-token' },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.npmjs.org/:_authToken']).toBe('real-token')
+  })
+
+  test('only drops the unresolved placeholder, preserving resolved ones and defaults', async () => {
+    // Same value contains one resolvable placeholder, one unresolved bare placeholder,
+    // and one placeholder with a `-default` fallback. The unresolved one becomes ''
+    // but the other two must still expand. Guards against the original implementation
+    // that stripped every `${...}` on any substitution failure.
+    fs.writeFileSync(
+      '.npmrc',
+      '//registry.test/:_authToken=${SET}-${UNSET}-${DEFAULTED-fallback}\n',
+      'utf8'
+    )
+
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      env: { ...env, XDG_CONFIG_HOME: configHome, SET: 'AAA' }, // UNSET, DEFAULTED unset
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.test/:_authToken']).toBe('AAA--fallback')
+  })
+
+  test('explicit `undefined` value in env is treated as unset for `${VAR-default}` fallbacks', async () => {
+    // Callers that construct the env object directly (notably tests) commonly use
+    // `{ KEY: undefined }` to model an unset variable. `${VAR-default}` must then
+    // resolve to `default`, matching the `Record<string, string | undefined>` contract.
+    fs.writeFileSync(
+      '.npmrc',
+      '//registry.test/:_authToken=${EXPLICIT_UNDEF-fallback}\n',
+      'utf8'
+    )
+
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      env: { ...env, XDG_CONFIG_HOME: configHome, EXPLICIT_UNDEF: undefined },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.authConfig['//registry.test/:_authToken']).toBe('fallback')
+  })
 })
 
 test('throw error if --save-prod is used with --save-peer', async () => {
@@ -1512,6 +1668,47 @@ test('do not return a warning if a package.json has workspaces field and there i
   expect(warnings).toStrictEqual([])
 })
 
+test('return a warning if a package.json has a legacy "pnpm" field with ignored settings', async () => {
+  const prefix = f.find('pkg-with-legacy-pnpm-field')
+  const { warnings } = await getConfig({
+    cliOptions: { dir: prefix },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toStrictEqual([
+    'The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.',
+  ])
+})
+
+test('do not return a warning if a package.json "pnpm" field only contains keys that are still actively read (e.g. "pnpm.app")', async () => {
+  const prefix = f.find('pkg-with-pnpm-app-field')
+  const { warnings } = await getConfig({
+    cliOptions: { dir: prefix },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toStrictEqual([])
+})
+
+test('do not return a warning if a package.json "pnpm" field only contains keys unrelated to migrated settings (e.g. set by third-party tooling)', async () => {
+  const prefix = f.find('pkg-with-unknown-pnpm-field')
+  const { warnings } = await getConfig({
+    cliOptions: { dir: prefix },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toStrictEqual([])
+})
+
 test('read PNPM_HOME defined in environment variables', async () => {
   const oldEnv = process.env
   const homeDir = './specified-dir'
@@ -2108,4 +2305,101 @@ test('pnpm_config_git_branch_lockfile env var overrides git-branch-lockfile from
   })
 
   expect(config.useGitBranchLockfile).toBe(true)
+})
+
+test('GVS: workspace manifest allowBuilds takes precedence over global config.yaml dangerouslyAllowAllBuilds', async () => {
+  prepareEmpty()
+
+  const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
+
+  const globalDir = path.join(import.meta.dirname, 'global', GLOBAL_LAYOUT_VERSION)
+
+  try {
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    fs.mkdirSync(path.join(process.env.XDG_CONFIG_HOME, 'pnpm'), { recursive: true })
+    writeYamlFileSync(path.join(process.env.XDG_CONFIG_HOME, 'pnpm', 'config.yaml'), {
+      dangerouslyAllowAllBuilds: true,
+    })
+
+    fs.mkdirSync(globalDir, { recursive: true })
+    writeYamlFileSync(path.join(globalDir, 'pnpm-workspace.yaml'), {
+      allowBuilds: { '@some/pkg': true, esbuild: true },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {
+        global: true,
+      },
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.enableGlobalVirtualStore).toBe(true)
+    expect(config.allowBuilds).toStrictEqual({ '@some/pkg': true, esbuild: true })
+    // The dangerouslyAllowAllBuilds value from the already-loaded global config.yaml
+    // is preserved when workspace manifest settings are applied after
+    // extractAndRemoveDependencyBuildOptions strips the workspace build options.
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+  } finally {
+    if (prevXdgConfigHome === undefined) {
+      delete process.env.XDG_CONFIG_HOME
+    } else {
+      process.env.XDG_CONFIG_HOME = prevXdgConfigHome
+    }
+    fs.rmSync(globalDir, { recursive: true, force: true })
+    const parentGlobalDir = path.join(import.meta.dirname, 'global')
+    if (fs.existsSync(parentGlobalDir)) {
+      fs.rmSync(parentGlobalDir, { recursive: true, force: true })
+    }
+  }
+})
+
+test('GVS: global config.yaml dangerouslyAllowAllBuilds is preserved when no workspace manifest exists', async () => {
+  prepareEmpty()
+
+  const prevXdgConfigHome = process.env.XDG_CONFIG_HOME
+
+  try {
+    // Set up global config.yaml with a build policy
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      dangerouslyAllowAllBuilds: true,
+    })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    // No global pnpm-workspace.yaml
+    // intentionally do not write a workspace manifest
+
+    const { config } = await getConfig({
+      cliOptions: {
+        global: true,
+      },
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    // For global installs, enableGlobalVirtualStore defaults to true.
+    expect(config.enableGlobalVirtualStore).toBe(true)
+    // The key assertion: global config.yaml policy should NOT be wiped by the GVS
+    // allowBuilds = {} default. Previously this block set allowBuilds
+    // before globalDepsBuildConfig was re-applied, so hasDependencyBuildOptions
+    // saw allowBuilds = {} and skipped re-application, silently losing
+    // dangerouslyAllowAllBuilds.
+    expect(config.dangerouslyAllowAllBuilds).toBe(true)
+    // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
+    expect(config.allowBuilds).toBeUndefined()
+  } finally {
+    if (prevXdgConfigHome === undefined) {
+      delete process.env.XDG_CONFIG_HOME
+    } else {
+      process.env.XDG_CONFIG_HOME = prevXdgConfigHome
+    }
+  }
 })

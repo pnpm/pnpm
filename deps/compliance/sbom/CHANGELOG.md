@@ -1,5 +1,42 @@
 # @pnpm/deps.compliance.sbom
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/store.pkg-finder@1100.0.10
+  - @pnpm/lockfile.detect-dep-types@1100.0.6
+  - @pnpm/lockfile.walker@1100.0.6
+
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/store.pkg-finder@1100.0.9
+
+## 1100.1.0
+
+### Minor Changes
+
+- 87b4bac: Allow setting sbom spec version using `--sbom-spec-version` [#11389](https://github.com/pnpm/pnpm/pull/11389).
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.detect-dep-types@1100.0.5
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.pkg-finder@1100.0.8
+
 ## 1100.0.9
 
 ### Patch Changes

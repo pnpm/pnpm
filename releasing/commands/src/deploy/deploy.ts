@@ -246,7 +246,7 @@ async function deployFromSharedLockfile (
     allowBuilds: opts.allowBuilds,
   })
 
-  const filesToWrite: Array<Promise<void>> = [
+  const filesToWrite: Array<Promise<unknown>> = [
     fs.promises.writeFile(
       path.join(deployDir, 'package.json'),
       JSON.stringify(deployFiles.manifest, undefined, 2) + '\n'

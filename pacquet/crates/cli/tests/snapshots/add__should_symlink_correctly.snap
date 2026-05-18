@@ -1,0 +1,23 @@
+---
+source: crates/cli/tests/add.rs
+assertion_line: 61
+expression: get_all_folders(&workspace)
+---
+[
+    "node_modules",
+    "node_modules/.bin",
+    "node_modules/.pnpm",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e",
+    "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin",
+    "node_modules/@pnpm.e2e",
+    "node_modules/@pnpm.e2e/hello-world-js-bin-parent",
+]

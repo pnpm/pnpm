@@ -1,5 +1,34 @@
 # @pnpm/worker
 
+## 1100.1.6
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.5
+- @pnpm/store.create-cafs-store@1100.0.8
+- @pnpm/fs.symlink-dependency@1100.0.4
+- @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.5
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.4
+- @pnpm/store.create-cafs-store@1100.0.7
+- @pnpm/fs.hard-link-dir@1100.0.1
+- @pnpm/fs.symlink-dependency@1100.0.3
+
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.3
+- @pnpm/fs.symlink-dependency@1100.0.3
+- @pnpm/store.cafs@1100.1.3
+- @pnpm/store.cafs-types@1100.0.1
+- @pnpm/fs.hard-link-dir@1100.0.1
+- @pnpm/store.create-cafs-store@1100.0.6
+
 ## 1100.1.3
 
 ### Patch Changes

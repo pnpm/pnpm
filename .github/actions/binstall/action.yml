@@ -1,0 +1,25 @@
+name: Cargo B(inary)Install
+
+description: Install binaries with cargo-binstall
+
+inputs:
+  packages:
+    description: List of arguments to pass to `cargo binstall`
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        with:
+          tool: cargo-binstall
+
+      - name: Running cargo-binstall with provided arguments
+        shell: bash
+        env:
+          PACKAGES: ${{ inputs.packages }}
+        # `$PACKAGES` is intentionally unquoted so each space-separated
+        # entry becomes its own positional argument to `cargo binstall`.
+        run: cargo binstall --no-confirm $PACKAGES

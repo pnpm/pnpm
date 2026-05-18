@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.pkg-requires-build",
-  "version": "1100.0.2",
+  "version": "1100.0.3",
   "description": "Checks if a package requires to be built",
   "keywords": [
     "pnpm",

@@ -37,7 +37,7 @@ test('runtime set uses project dir when not global', async () => {
   }, ['set', 'node', '22'])
 
   expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['add', 'node@runtime:22'],
+    ['add', 'node@runtime:22', '--ignore-workspace-root-check'],
     { cwd: '/tmp/project' }
   )
 })

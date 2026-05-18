@@ -1,0 +1,33 @@
+---
+source: crates/cli/tests/install.rs
+assertion_line: 48
+expression: "(workspace_folders, store_files)"
+---
+(
+    [
+        "node_modules",
+        "node_modules/.bin",
+        "node_modules/.pnpm",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin",
+        "node_modules/@pnpm.e2e",
+        "node_modules/@pnpm.e2e/hello-world-js-bin-parent",
+    ],
+    [
+        "v11/files/02/f9d952341eade675d0a8f5da14d4277fded62f937242292c2cf5f1bb0eda101b5f803098d64e2a138f4bfe4cdf326cfaf8f6b4015476ab86d25df03ddec731-exec",
+        "v11/files/2f/b86ecd88e34f18360bf865231219f7898cf713f63ad6d099f72b821f47cded6b92ece8d468775219a2950c50451d3f3e2f3920d15b4a3c372098f2daff864b",
+        "v11/files/65/d9491d753c9cff7b6d93461c83b8542a36db429a4cba4c712f841ae657f0d82b36d94081816d5a92ce761146c64b036ea1d89d53890c86b115d457bb98fa6b",
+        "v11/files/bf/0c878f2a4f2ec6f231bb2d414547efb15eb22a673815cba36acfd89633cd4c8affcbdc9378e90ad4d8fc654de921d1f67444be94e6a2f81bda9330be60be93-exec",
+        "v11/files/fe/06f6dff7c043b7ea30547ff55a8fd06fecc30fe143e3acf09cdd30def35d660f8cafa74ff28287748f661bbd767987eed52b440c77942eb0fb9aa6f44cfb37",
+        "v11/index.db",
+    ],
+)

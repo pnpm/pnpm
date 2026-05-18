@@ -1,5 +1,73 @@
 # @pnpm/config.deps-installer
 
+## 1101.0.10
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [6e93f35]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [5dc8be8]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/installing.deps-resolver@1100.1.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/deps.graph-hasher@1100.2.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/lockfile.pruner@1100.0.6
+  - @pnpm/worker@1100.1.6
+  - @pnpm/config.writer@1100.0.8
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [18a464f]
+- Updated dependencies [e526f89]
+- Updated dependencies [180aee9]
+- Updated dependencies [c2c2890]
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/network.fetch@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/installing.deps-resolver@1100.0.10
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/store.controller@1101.0.6
+  - @pnpm/worker@1100.1.5
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [20e7aff]
+- Updated dependencies [b61e268]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.deps-resolver@1100.0.9
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/config.writer@1100.0.7
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.5
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.pruner@1100.0.5
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/network.auth-header@1100.0.2
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/store.controller@1101.0.5
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/worker@1100.1.4
+
 ## 1101.0.7
 
 ### Patch Changes

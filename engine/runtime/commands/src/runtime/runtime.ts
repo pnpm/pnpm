@@ -94,6 +94,8 @@ function runtimeSet (opts: RuntimeCommandOptions, params: string[]): void {
   if (opts.global) {
     args.push('--global')
     if (opts.bin) args.push('--global-bin-dir', opts.bin)
+  } else {
+    args.push('--ignore-workspace-root-check')
   }
   if (opts.storeDir) args.push('--store-dir', opts.storeDir)
   if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir)

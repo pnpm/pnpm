@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.normalize-registries",
-  "version": "1100.0.2",
+  "version": "1100.0.3",
   "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
   "keywords": [
     "pnpm",

@@ -5,6 +5,7 @@ import path from 'node:path'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { createDispatchedFetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
@@ -15,9 +16,10 @@ import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
-import { publishWithOtpHandling } from './otp.js'
+import { type OtpContext, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
+import { SHARED_CONTEXT } from './utils/shared-context.js'
 
 export type PublishPackedPkgOptions = Pick<Config,
 | 'configByUri'
@@ -30,7 +32,16 @@ export type PublishPackedPkgOptions = Pick<Config,
 | 'registries'
 | 'tag'
 | 'userAgent'
-> & {
+> & Partial<Pick<Config,
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'noProxy'
+| 'strictSsl'
+>> & {
   access?: 'public' | 'restricted'
   ci?: boolean
   otp?: string // NOTE: There is no existing test for the One-time Password feature
@@ -94,12 +105,31 @@ export async function publishPackedPkg (
     globalWarn(`Skip publishing ${name}@${version} (dry run)`)
     return summary
   }
-  const response = await publishWithOtpHandling({ manifest: publishedManifest, tarballData, publishOptions })
+  const response = await publishWithOtpHandling({
+    context: createPublishContext(opts),
+    manifest: publishedManifest,
+    publishOptions,
+    tarballData,
+  })
   if (response.ok) {
     globalInfo(`✅ Published package ${name}@${version}`)
     return summary
   }
   throw await createFailedToPublishError(packResult, response)
+}
+
+/**
+ * Builds the {@link OtpContext} used to drive the publish. The default fetch
+ * is replaced by one that respects proxy / TLS / local-address settings, so
+ * the `doneUrl` polling in the web-based authentication flow goes through
+ * the same network configuration as the initial publish request (see
+ * https://github.com/pnpm/pnpm/issues/11561).
+ */
+export function createPublishContext (opts: PublishPackedPkgOptions): OtpContext {
+  return {
+    ...SHARED_CONTEXT,
+    fetch: createDispatchedFetch({ ...opts, timeout: opts.fetchTimeout }),
+  }
 }
 
 /**

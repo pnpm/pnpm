@@ -1,0 +1,460 @@
+use crate::apply::{PatchApplyError, apply_patch_to_dir};
+use pretty_assertions::assert_eq;
+use std::fs;
+use tempfile::tempdir;
+use text_block_macros::text_block_fnl;
+
+/// Mirrors the upstream `is-positive` fixture at
+/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-restorer/test/fixtures/simple-with-patch/patches/is-positive.patch>:
+/// a single-hunk Modify on `index.js`.
+const IS_POSITIVE_PATCH: &str = "\
+diff --git a/index.js b/index.js
+index 8e020cac3320e72cb40e66b4c4573cc51c55e1e4..8be55d95c50a2a28e021e586ce5b928d9fea140e 100644
+--- a/index.js
++++ b/index.js
+@@ -7,3 +7,5 @@ module.exports = function (n) {
+
+ \treturn n >= 0;
+ };
++
++// a change
+";
+
+/// The upstream `is-positive@1.0.0` `index.js` body the patch
+/// applies against. Six lines before the modified region, three
+/// lines of context. Indentation uses tabs because the file
+/// upstream's patch was authored against uses tabs.
+const IS_POSITIVE_INDEX_JS: &str = "\
+'use strict';
+module.exports = function (n) {
+\tif (typeof n !== 'number') {
+\t\tthrow new TypeError('Expected a number');
+\t}
+
+\treturn n >= 0;
+};
+";
+
+/// `is-positive`'s `index.js` after the upstream patch lands:
+/// trailing blank line plus a `// a change` comment.
+const IS_POSITIVE_INDEX_JS_PATCHED: &str = "\
+'use strict';
+module.exports = function (n) {
+\tif (typeof n !== 'number') {
+\t\tthrow new TypeError('Expected a number');
+\t}
+
+\treturn n >= 0;
+};
+
+// a change
+";
+
+fn write_patch(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
+    let path = dir.join("patch.patch");
+    fs::write(&path, body).expect("write patch");
+    path
+}
+
+/// Happy path: applying the upstream is-positive patch over
+/// is-positive's actual `index.js` produces the expected output.
+/// Mirrors upstream's
+/// [`'install with patchedDependencies'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/test/install/patch.ts)
+/// happy-path coverage at the unit level.
+#[test]
+fn applies_modify_against_existing_file() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("index.js"), IS_POSITIVE_INDEX_JS).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let after = fs::read_to_string(patched.path().join("index.js")).unwrap();
+    assert_eq!(after, IS_POSITIVE_INDEX_JS_PATCHED);
+}
+
+/// `ERR_PNPM_PATCH_NOT_FOUND` for a missing patch file. Mirrors
+/// upstream's
+/// [`if (err.code === 'ENOENT') throw new PnpmError('PATCH_NOT_FOUND', ...)`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/apply-patch/src/index.ts).
+#[test]
+fn missing_patch_file_errors_patch_not_found() {
+    let patched = tempdir().unwrap();
+    let missing = patched.path().join("does-not-exist.patch");
+    let err = apply_patch_to_dir(patched.path(), &missing).expect_err("must fail");
+    assert!(matches!(err, PatchApplyError::PatchNotFound { .. }), "got: {err:?}");
+}
+
+/// `ERR_PNPM_INVALID_PATCH` when the patch body can't be parsed —
+/// e.g. truncated hunk header. Mirrors upstream's `catch (err) ...
+/// throw new PnpmError('INVALID_PATCH', ...)` branch.
+#[test]
+fn malformed_patch_errors_invalid_patch() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("file.txt"), "hello\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ THIS IS NOT A HUNK HEADER\n",
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must fail");
+    assert!(matches!(err, PatchApplyError::InvalidPatch { .. }), "got: {err:?}");
+}
+
+/// `ERR_PNPM_PATCH_FAILED` when a hunk can't be applied — e.g. the
+/// context doesn't match the on-disk file. Mirrors upstream's
+/// `if (!success) throw new PnpmError('PATCH_FAILED', ...)`.
+#[test]
+fn unmatching_hunk_errors_patch_failed() {
+    let patched = tempdir().unwrap();
+    // Write a file whose contents diverge from the patch's context
+    // lines so diffy's apply can't locate the hunk.
+    fs::write(patched.path().join("index.js"), "totally different contents\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must fail");
+    assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
+}
+
+/// `ERR_PNPM_PATCH_FAILED` when the target file is missing. The
+/// patch refers to `index.js` but the patched dir is empty.
+#[test]
+fn missing_target_file_errors_patch_failed() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must fail");
+    assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
+}
+
+/// File creation: a patch that adds a brand-new file (`--- /dev/null`).
+#[test]
+fn applies_create_for_new_file() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/created.txt b/created.txt
+new file mode 100644
+--- /dev/null
++++ b/created.txt
+@@ -0,0 +1,2 @@
++first line
++second line
+",
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    let after = fs::read_to_string(patched.path().join("created.txt")).unwrap();
+    assert_eq!(after, "first line\nsecond line\n");
+}
+
+/// Target-file reads use lossy UTF-8 decoding, matching Node's
+/// `fs.readFile(..., 'utf8')` and the patch-file reader. A target
+/// file with stray non-UTF-8 bytes must NOT cause `Modify` to
+/// fail with `InvalidData` — those bytes round-trip through
+/// `String::from_utf8_lossy` as U+FFFD before
+/// [`diffy::apply`] sees them.
+///
+/// The patch context here is the U+FFFD chars themselves, so we
+/// can construct a real patch that applies cleanly against the
+/// lossy-decoded target. Flagged by Copilot during review of
+/// pacquet#427.
+#[test]
+fn modify_target_with_invalid_utf8_bytes_does_not_error() {
+    let patched = tempdir().unwrap();
+    // Three invalid UTF-8 bytes that lossy-decode to three U+FFFD
+    // chars (`\xEF\xBF\xBD` each).
+    fs::write(patched.path().join("blob.txt"), [0xffu8, 0xfeu8, 0xfdu8, b'\n']).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/blob.txt b/blob.txt
+--- a/blob.txt
++++ b/blob.txt
+@@ -1 +1,2 @@
+ \u{fffd}\u{fffd}\u{fffd}
++added line
+",
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("lossy decoding must allow apply");
+    let after = fs::read_to_string(patched.path().join("blob.txt")).unwrap();
+    assert!(after.contains("added line"), "got: {after:?}");
+}
+
+/// `..` in a patch path is rejected — a malicious or
+/// misconfigured patch must not be able to read/write/delete
+/// outside `patched_dir`. CodeRabbit flagged this as Critical
+/// during review of pacquet#427.
+#[test]
+fn parent_dir_segment_in_modify_errors() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/../escape.txt b/../escape.txt
+--- a/../escape.txt
++++ b/../escape.txt
+@@ -1 +1 @@
+-existing
++modified
+",
+    );
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must reject ..");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("escapes target dir"), "got: {message}");
+}
+
+#[test]
+fn parent_dir_segment_in_create_errors() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/../planted.txt b/../planted.txt
+new file mode 100644
+--- /dev/null
++++ b/../planted.txt
+@@ -0,0 +1 @@
++pwned
+",
+    );
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must reject ..");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("escapes target dir"), "got: {message}");
+}
+
+#[test]
+fn parent_dir_segment_in_delete_errors() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/../victim.txt b/../victim.txt
+deleted file mode 100644
+--- a/../victim.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-going away
+",
+    );
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must reject ..");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("escapes target dir"), "got: {message}");
+}
+
+/// `Create` refuses to overwrite an existing file. Matches `patch`
+/// and `git apply` semantics for `--- /dev/null` hunks. Flagged by
+/// Copilot during review of pacquet#427.
+#[test]
+fn create_on_existing_file_errors() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("already-here.txt");
+    fs::write(&target, "i was here first\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/already-here.txt b/already-here.txt
+new file mode 100644
+--- /dev/null
++++ b/already-here.txt
+@@ -0,0 +1 @@
++overwriting
+",
+    );
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must refuse overwrite");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("already exists"), "got: {message}");
+    // The original file must be untouched.
+    assert_eq!(fs::read_to_string(&target).unwrap(), "i was here first\n");
+}
+
+/// `Delete` validates hunks before unlinking. A stale patch (one
+/// whose `-` lines don't match the actual file content) must NOT
+/// silently remove the file. Flagged by Copilot during review of
+/// pacquet#427.
+#[test]
+fn delete_with_mismatching_hunks_errors_without_unlinking() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("to-delete.txt");
+    // The patch expects the file to contain "going away\n", but
+    // the actual file diverges. A correct implementation must
+    // refuse to delete.
+    fs::write(&target, "actually different content\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/to-delete.txt b/to-delete.txt
+deleted file mode 100644
+--- a/to-delete.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-going away
+",
+    );
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must refuse mismatch");
+    assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
+    assert!(target.exists(), "file must NOT be unlinked when the patch doesn't match");
+}
+
+/// File deletion: a patch that removes an existing file
+/// (`+++ /dev/null`). The target is unlinked.
+#[test]
+fn applies_delete_for_removed_file() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("to-delete.txt");
+    fs::write(&target, "going away\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/to-delete.txt b/to-delete.txt
+deleted file mode 100644
+--- a/to-delete.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-going away
+",
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    assert!(!target.exists(), "deleted target must be gone");
+}
+
+/// Reading the patch-file path itself can fail with errors other
+/// than `NotFound` — here, the patch path is a directory rather
+/// than a file. The classifier must surface this as `ReadPatchFile`
+/// (not `PatchNotFound`).
+#[cfg(unix)]
+#[test]
+fn read_patch_file_surfaces_non_not_found_error() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    // Pass the directory itself as the patch path. `fs::read` on a
+    // directory returns `IsADirectory`, never `NotFound`.
+    let err = apply_patch_to_dir(patched.path(), patch_dir.path())
+        .expect_err("reading a directory as a patch file should fail");
+    assert!(
+        matches!(err, PatchApplyError::ReadPatchFile { .. }),
+        "expected ReadPatchFile error, got {err:?}",
+    );
+}
+
+/// A delete patch that does not consume the entire file leaves
+/// non-empty content behind after `diffy::apply`. The implementation
+/// must refuse to remove the file in that case rather than silently
+/// dropping the unpatched tail. Tests the `if !after.is_empty()`
+/// guard in the Delete arm.
+#[test]
+fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("partial.txt");
+    // Two lines on disk. The patch below claims to delete the file
+    // but only removes the first line — `diffy::apply` applies the
+    // single hunk and returns the unpatched tail (`stay\n`), which
+    // is non-empty, so the implementation must error.
+    fs::write(&target, "going away\nstay\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/partial.txt b/partial.txt"
+            "deleted file mode 100644"
+            "--- a/partial.txt"
+            "+++ /dev/null"
+            "@@ -1 +0,0 @@"
+            "-going away"
+        },
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must refuse partial delete");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(message.contains("non-empty"), "got: {message:?}");
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+    assert!(target.exists(), "target must NOT be unlinked when content remains");
+}
+
+/// Rename and copy file operations are not yet supported. A patch
+/// that contains one of these headers must error cleanly via
+/// `PatchFailed`, not silently no-op.
+#[test]
+fn rename_operation_errors_as_unsupported() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("from.txt"), "hello\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/from.txt b/to.txt"
+            "similarity index 100%"
+            "rename from from.txt"
+            "rename to to.txt"
+        },
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("rename must error");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(
+                message.contains("rename/copy operations in patches are not yet supported"),
+                "got: {message:?}",
+            );
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+}
+
+/// `Create` resolves the parent dir via `create_dir_all`. When the
+/// parent path is a regular file rather than a directory, that call
+/// fails and must surface as `PatchFailed` with a `create parent of`
+/// prefix.
+#[cfg(unix)]
+#[test]
+fn create_with_unwritable_parent_path_errors() {
+    let patched = tempdir().unwrap();
+    // Plant a regular file where the patch wants to create the
+    // nested target's parent directory.
+    fs::write(patched.path().join("blocker"), b"not a dir").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/blocker/nested.txt b/blocker/nested.txt"
+            "new file mode 100644"
+            "--- /dev/null"
+            "+++ b/blocker/nested.txt"
+            "@@ -0,0 +1 @@"
+            "+hi"
+        },
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("create_dir_all must fail");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(message.contains("create parent of"), "got: {message:?}");
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+}

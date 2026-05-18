@@ -1,5 +1,59 @@
 # pnpm-agent
 
+## 0.0.15
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [6e93f35]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [31538bf]
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/installing.deps-installer@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/store.cafs@1100.1.5
+
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [8c06d1a]
+- Updated dependencies [180aee9]
+  - @pnpm/installing.deps-installer@1101.1.2
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/installing.client@1100.0.15
+  - @pnpm/store.controller@1101.0.6
+  - @pnpm/store.cafs@1100.1.4
+
+## 0.0.13
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.14
+- @pnpm/installing.deps-installer@1101.1.1
+- @pnpm/store.controller@1101.0.5
+
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [4b25a3d]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/installing.deps-installer@1101.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.client@1100.0.13
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/store.cafs@1100.1.3
+  - @pnpm/store.controller@1101.0.5
+
 ## 0.0.11
 
 ### Patch Changes

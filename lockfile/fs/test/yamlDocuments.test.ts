@@ -64,6 +64,25 @@ describe('streamReadFirstYamlDocument', () => {
     const result = await streamReadFirstYamlDocument(filePath)
     expect(result).toBe(envContent)
   })
+
+  test('handles CRLF line endings (Windows)', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    const envContent = 'lockfileVersion: env-1.0\nimporters:\n  .:\n    foo: bar'
+    const content = `---\n${envContent}\n---\nlockfileVersion: 9.0\n`.replace(/\n/g, '\r\n')
+    fs.writeFileSync(filePath, content)
+    const result = await streamReadFirstYamlDocument(filePath)
+    expect(result).toBe(envContent)
+  })
+
+  test('handles BOM with CRLF line endings', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    const content = '﻿---\r\nfoo: bar\r\n---\r\nlockfileVersion: 9.0\r\n'
+    fs.writeFileSync(filePath, content)
+    const result = await streamReadFirstYamlDocument(filePath)
+    expect(result).toBe('foo: bar')
+  })
 })
 
 describe('extractMainDocument', () => {
@@ -81,5 +100,16 @@ describe('extractMainDocument', () => {
     const mainContent = 'lockfileVersion: 9.0\npackages: {}\n'
     const combined = `---\nfoo: bar\n---\n${mainContent}`
     expect(extractMainDocument(combined)).toBe(mainContent)
+  })
+
+  test('handles CRLF line endings in combined file', () => {
+    const mainContent = 'lockfileVersion: 9.0\npackages: {}\n'
+    const combined = `---\nfoo: bar\n---\n${mainContent}`.replace(/\n/g, '\r\n')
+    expect(extractMainDocument(combined)).toBe(mainContent)
+  })
+
+  test('normalizes CRLF to LF for content without document separator', () => {
+    const content = 'lockfileVersion: 9.0\r\npackages: {}\r\n'
+    expect(extractMainDocument(content)).toBe('lockfileVersion: 9.0\npackages: {}\n')
   })
 })

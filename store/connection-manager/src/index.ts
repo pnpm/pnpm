@@ -1,4 +1,5 @@
 import type { Config } from '@pnpm/config.reader'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller'
 import { getStorePath } from '@pnpm/store.path'
 
@@ -13,10 +14,16 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 | 'workspaceDir'
 >
 
+export interface StoreControllerHandle {
+  ctrl: StoreController
+  dir: string
+  resolutionVerifiers: ResolutionVerifier[]
+}
+
 export async function createStoreControllerCached (
-  storeControllerCache: Map<string, Promise<{ ctrl: StoreController, dir: string }>>,
+  storeControllerCache: Map<string, Promise<StoreControllerHandle>>,
   opts: CreateStoreControllerOptions
-): Promise<{ ctrl: StoreController, dir: string }> {
+): Promise<StoreControllerHandle> {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
@@ -25,15 +32,12 @@ export async function createStoreControllerCached (
   if (!storeControllerCache.has(storeDir)) {
     storeControllerCache.set(storeDir, createStoreController(opts))
   }
-  return await storeControllerCache.get(storeDir) as { ctrl: StoreController, dir: string }
+  return await storeControllerCache.get(storeDir) as StoreControllerHandle
 }
 
 export async function createStoreController (
   opts: CreateStoreControllerOptions
-): Promise<{
-  ctrl: StoreController
-  dir: string
-}> {
+): Promise<StoreControllerHandle> {
   const storeDir = await getStorePath({
     pkgRoot: opts.workspaceDir ?? opts.dir,
     storePath: opts.storeDir,

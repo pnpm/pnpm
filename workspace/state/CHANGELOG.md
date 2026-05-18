@@ -1,5 +1,31 @@
 # @pnpm/workspace.state
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.3.1
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+
 ## 1100.0.10
 
 ### Patch Changes

@@ -1,0 +1,26 @@
+[package]
+name                 = "pacquet-network"
+description          = "Network utility functions used by pacquet"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+derive_more = { workspace = true }
+miette      = { workspace = true }
+pipe-trait  = { workspace = true }
+reqwest     = { workspace = true }
+tokio       = { workspace = true }
+
+[dev-dependencies]
+mockito           = { workspace = true }
+pretty_assertions = { workspace = true }
+tokio             = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true
