@@ -1,5 +1,14 @@
 # @pnpm/deps.inspection.peers-checker
 
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.walker@1100.0.6
+
 ## 1100.0.8
 
 ### Patch Changes

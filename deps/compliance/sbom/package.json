@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.sbom",
-  "version": "1100.1.1",
+  "version": "1100.1.2",
   "description": "Generate SBOM from pnpm lockfile",
   "keywords": [
     "pnpm",

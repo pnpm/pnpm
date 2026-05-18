@@ -1,5 +1,15 @@
 # @pnpm/local-resolver
 
+## 1101.0.2
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1101.0.1
 
 ### Patch Changes

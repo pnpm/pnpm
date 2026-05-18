@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.utils@1100.1.4
+- @pnpm/workspace.project-manifest-reader@1100.0.6
+
 ## 1100.0.6
 
 ### Patch Changes

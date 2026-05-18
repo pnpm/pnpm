@@ -1,5 +1,16 @@
 # @pnpm/lifecycle
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [4a79336]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/fetching.directory-fetcher@1100.0.10
+  - @pnpm/bins.linker@1100.0.7
+
 ## 1100.0.10
 
 ### Patch Changes

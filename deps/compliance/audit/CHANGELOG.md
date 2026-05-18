@@ -1,5 +1,18 @@
 # @pnpm/audit
 
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.6
+  - @pnpm/lockfile.walker@1100.0.6
+
 ## 1101.0.7
 
 ### Patch Changes

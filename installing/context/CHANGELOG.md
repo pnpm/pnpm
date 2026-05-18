@@ -1,5 +1,20 @@
 # @pnpm/get-context
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [6e93f35]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/installing.read-projects-context@1100.0.10
+
 ## 1100.0.10
 
 ### Patch Changes

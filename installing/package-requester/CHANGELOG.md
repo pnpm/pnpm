@@ -1,5 +1,22 @@
 # @pnpm/package-requester
 
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [4a79336]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/fetching.pick-fetcher@1100.0.7
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/config.package-is-installable@1100.0.5
+  - @pnpm/worker@1100.1.6
+
 ## 1101.0.6
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/lockfile-file
 
+## 1100.1.0
+
+### Minor Changes
+
+- 2a9bd89: Record the post-resolution lockfile in the verification cache. Previously the cache only captured the lockfile that was loaded at the start of an install, so a flow like `pnpm install <pkg>` followed by `rm -rf node_modules && pnpm install` re-ran the per-package registry round-trip against the newly written lockfile even though the local resolver had already enforced the policy when picking those versions. The fresh lockfile is now recorded immediately after each install-time write, so the second install takes the cache fast path.
+
+### Patch Changes
+
+- 6e93f35: Fix lockfile parsing failures when `pnpm-lock.yaml` contains CRLF line endings and multiple YAML documents [#11612](https://github.com/pnpm/pnpm/issues/11612).
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/lockfile.merger@1100.0.6
+
 ## 1100.0.8
 
 ### Patch Changes

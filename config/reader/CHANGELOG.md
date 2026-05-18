@@ -1,5 +1,30 @@
 # @pnpm/config
 
+## 1101.3.2
+
+### Patch Changes
+
+- 020ac45: Allow redundant trailing base64 padding in `.npmrc` auth values and report invalid auth base64 with a pnpm error.
+- d3f8408: **fix**: global installs respect global config build policy (e.g., `dangerouslyAllowAllBuilds` from config.yaml) when GVS is enabled [#9249](https://github.com/pnpm/pnpm/issues/9249).
+
+  The global virtual-store (GVS) default `allowBuilds = {}` was applied before workspace manifest settings were read and before global config values (stripped by `extractAndRemoveDependencyBuildOptions`) were re-applied via `globalDepsBuildConfig`. This caused `hasDependencyBuildOptions` to return `true` (because `{}` is not null), blocking restoration of global config values like `dangerouslyAllowAllBuilds`. As a result, global installs skipped all build scripts even when the config explicitly allowed them.
+
+  This fix moves the GVS default to **after** workspace manifest reading and `globalDepsBuildConfig` re-application, so that:
+
+  1. Workspace manifest `allowBuilds` takes precedence (if present)
+  2. Global config `dangerouslyAllowAllBuilds` is properly restored (if set and no workspace policy exists)
+  3. Empty `{}` is only applied as a last resort when no policy is configured anywhere
+
+- a62f959: Fixed `pnpm publish` failing with a 404 when authentication relied on OIDC trusted publishing alongside an `.npmrc` written by `actions/setup-node` (`_authToken=${NODE_AUTH_TOKEN}`) without `NODE_AUTH_TOKEN` being set. Unresolved `${VAR}` placeholders in auth values are now treated as empty rather than passed through verbatim, so the literal placeholder no longer surfaces as a bearer token when OIDC fallback is the intended auth source [#11513](https://github.com/pnpm/pnpm/issues/11513).
+- ba2c884: Fix `devEngines.packageManager` (singular form, without `onFail`) defaulting to `onFail: "error"` instead of the documented `pmOnFail: "download"`. As a result, a project that pinned a different pnpm version via `devEngines.packageManager` and ran `pnpm install` from a mismatched pnpm version failed with a hard error, even though the migration table from `managePackageManagerVersions: true` to `pmOnFail: download (default)` promises the install would auto-download the wanted version [#11676](https://github.com/pnpm/pnpm/issues/11676).
+
+  The array form of `devEngines.packageManager` keeps its existing per-element defaults (`error` for the last entry, `ignore` for the rest), since those reflect explicit prioritization by the user. Explicit `onFail` values continue to win.
+
+- 8df408c: Warn when `package.json` contains a legacy `pnpm` field with settings pnpm no longer reads from `package.json` (e.g. `pnpm.overrides`, `pnpm.patchedDependencies`). Previously these were silently ignored after the upgrade from v10, leaving users unaware that their overrides/patched dependencies had stopped taking effect [#11677](https://github.com/pnpm/pnpm/issues/11677).
+  - @pnpm/hooks.pnpmfile@1100.0.9
+  - @pnpm/pkg-manifest.utils@1100.1.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+
 ## 1101.3.1
 
 ### Patch Changes
