@@ -16,6 +16,7 @@ pacquet-lockfile                = { workspace = true }
 pacquet-reporter                = { workspace = true }
 pacquet-resolving-resolver-base = { workspace = true }
 
+chrono       = { workspace = true }
 derive_more  = { workspace = true }
 futures-util = { workspace = true }
 miette       = { workspace = true }
@@ -28,6 +29,7 @@ tokio        = { workspace = true, features = ["sync"] }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }
 ssri              = { workspace = true }
+tempfile          = { workspace = true }
 tokio             = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 
 [lints]

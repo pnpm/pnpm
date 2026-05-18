@@ -20,12 +20,20 @@
 //!
 //! [`ResolutionVerifier`]: pacquet_resolving_resolver_base::ResolutionVerifier
 
+mod cache;
 mod errors;
 mod hash_lockfile;
+mod record_lockfile_verified;
 mod verify_lockfile_resolutions;
 
+pub use cache::{
+    CACHE_FILE_NAME, COMPACT_TRIGGER_BYTES, CacheLockfile, CacheLookupResult, CachePrecomputed,
+    CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, record_verification,
+    try_lockfile_verification_cache,
+};
 pub use errors::VerifyError;
 pub use hash_lockfile::hash_lockfile;
+pub use record_lockfile_verified::record_lockfile_verified;
 pub use verify_lockfile_resolutions::{
     VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
     verify_lockfile_resolutions,

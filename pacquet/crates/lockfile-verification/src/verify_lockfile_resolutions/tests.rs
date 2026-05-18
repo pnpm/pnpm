@@ -1,10 +1,17 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    path::Path,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName};
 use pacquet_reporter::{LockfileVerificationMessage, LogEvent, Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
+use tempfile::TempDir;
 
 use super::{
     VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
@@ -194,8 +201,9 @@ async fn all_ok_emits_started_then_done() {
     let lockfile = parse(SINGLE_PKG_LOCKFILE);
     // Verifier that always returns Ok.
     let verifier = FailFor::new("UNUSED", "n/a", vec![]);
+    let lockfile_path = Path::new("/p/lock.yaml");
     let opts = VerifyLockfileResolutionsOptions {
-        lockfile_path: Some("/p/lock.yaml"),
+        lockfile_path: Some(lockfile_path),
         ..Default::default()
     };
     verify_lockfile_resolutions::<RecordingReporter>(
@@ -392,6 +400,70 @@ async fn one_packages_entry_yields_one_verification() {
     .await
     .expect("all-ok");
     assert_eq!(CALLS.load(Ordering::SeqCst), 1);
+}
+
+/// End-to-end cache wiring: a successful first run records the
+/// verification; a second run against the same lockfile +
+/// trustworthy verifier policies hits the cache and never invokes
+/// `verify` again.
+#[tokio::test]
+async fn second_run_with_cache_skips_fan_out() {
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    CALLS.store(0, Ordering::SeqCst);
+
+    struct Counting {
+        policy: serde_json::Map<String, serde_json::Value>,
+    }
+    impl ResolutionVerifier for Counting {
+        fn verify<'a>(
+            &'a self,
+            _resolution: &'a LockfileResolution,
+            _ctx: VerifyCtx<'a>,
+        ) -> VerifyFuture<'a> {
+            CALLS.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { ResolutionVerification::Ok })
+        }
+        fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+            &self.policy
+        }
+        fn can_trust_past_check(
+            &self,
+            _cached: &serde_json::Map<String, serde_json::Value>,
+        ) -> bool {
+            true
+        }
+    }
+
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    std::fs::write(&lockfile_path, SINGLE_PKG_LOCKFILE).expect("write lockfile");
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let cache_dir = dir.path().join("cache");
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(Counting { policy: serde_json::Map::new() });
+    let opts = VerifyLockfileResolutionsOptions {
+        lockfile_path: Some(&lockfile_path),
+        cache_dir: Some(&cache_dir),
+        ..Default::default()
+    };
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("first run");
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "first run ran the verifier");
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("second run");
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "second run skipped via cache");
 }
 
 /// Catches a regression where `PkgName` would be passed into the

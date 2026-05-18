@@ -16,7 +16,7 @@
 //! emit boundaries — is in place so the cache slice only needs to
 //! plug into the existing call sites.
 
-use std::{collections::BTreeMap, sync::Arc, time::Instant};
+use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName};
@@ -28,7 +28,11 @@ use pacquet_resolving_resolver_base::{
 };
 use tokio::sync::Semaphore;
 
-use crate::errors::{RenderedViolation, VerifyError};
+use crate::{
+    cache::{CachePrecomputed, record_verification, try_lockfile_verification_cache},
+    errors::{RenderedViolation, VerifyError},
+    hash_lockfile,
+};
 
 /// Default concurrency cap for the per-candidate fan-out. Mirrors
 /// upstream's `DEFAULT_CONCURRENCY = 16` (the floor of pnpm's
@@ -37,17 +41,24 @@ const DEFAULT_CONCURRENCY: usize = 16;
 
 /// Options bundle for [`verify_lockfile_resolutions`]. Mirrors
 /// upstream's
-/// [`VerifyLockfileResolutionsOptions`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L34-L47)
-/// minus the cache fields, which land in a follow-up slice.
+/// [`VerifyLockfileResolutionsOptions`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L34-L47).
 #[derive(Debug, Clone, Default)]
 pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Cap on concurrent verifier futures. `None` falls back to
     /// [`DEFAULT_CONCURRENCY`].
     pub concurrency: Option<usize>,
-    /// Absolute path of the lockfile being verified. Surfaced in the
-    /// `pnpm:lockfile-verification` reporter payload so log consumers
-    /// can disambiguate concurrent workspace installs.
-    pub lockfile_path: Option<&'a str>,
+    /// Absolute path of the lockfile being verified. Required for
+    /// the on-disk verification cache (the stat shortcut + per-path
+    /// index key off it) and surfaced in the
+    /// `pnpm:lockfile-verification` reporter payload.
+    pub lockfile_path: Option<&'a Path>,
+    /// Pnpm's on-disk cache directory. When set together with
+    /// `lockfile_path`, a successful run is memoised in
+    /// `<cache_dir>/lockfile-verified.jsonl` and the gate
+    /// short-circuits on a repeat run against an unchanged lockfile
+    /// (under the same or stricter policy). Omitting either field
+    /// disables the cache (every call rehashes + reruns the gate).
+    pub cache_dir: Option<&'a Path>,
 }
 
 /// Run every active [`ResolutionVerifier`] against every entry in
@@ -75,8 +86,53 @@ pub async fn verify_lockfile_resolutions<R: Reporter>(
         return Ok(());
     }
 
+    // Caching activates only when both `cache_dir` and
+    // `lockfile_path` are supplied. Production wiring always passes
+    // both; tests that skip them exercise the gate without
+    // memoization (and still cover the runner's emit + violation
+    // logic via the same code path).
+    let cache_inputs = opts.cache_dir.zip(opts.lockfile_path);
+
+    // Memoised content hash. Used by both the lookup (when the
+    // stat-shortcut doesn't apply) and the recorder (after the
+    // gate passes). The closure is `FnMut` so multiple lazy calls
+    // share the computed string.
+    let mut cached_hash: Option<String> = None;
+    let mut hash_once = || {
+        if let Some(hash) = cached_hash.as_ref() {
+            return hash.clone();
+        }
+        let hash = hash_lockfile(lockfile);
+        cached_hash = Some(hash.clone());
+        hash
+    };
+
+    let mut cache_precomputed: CachePrecomputed = CachePrecomputed::default();
+    if let Some((cache_dir, lockfile_path)) = cache_inputs {
+        let result =
+            try_lockfile_verification_cache(cache_dir, lockfile_path, verifiers, &mut hash_once);
+        if result.hit {
+            return Ok(());
+        }
+        cache_precomputed = result.precomputed;
+    }
+
     let candidates = collect_candidates(lockfile);
+    let lockfile_path_str = opts.lockfile_path.map(|p| p.to_string_lossy().into_owned());
     if candidates.is_empty() {
+        // Persist the success so the next install can stat-only the
+        // lockfile. Matches upstream's behavior at
+        // `verifyLockfileResolutions.ts:124-132` — empty fan-out is
+        // still a successful run.
+        if let Some((cache_dir, lockfile_path)) = cache_inputs {
+            record_verification(
+                cache_dir,
+                lockfile_path,
+                verifiers,
+                &mut hash_once,
+                cache_precomputed,
+            );
+        }
         return Ok(());
     }
 
@@ -84,10 +140,7 @@ pub async fn verify_lockfile_resolutions<R: Reporter>(
     let started_at = Instant::now();
     emit::<R>(
         LogLevel::Debug,
-        LockfileVerificationMessage::Started {
-            entries,
-            lockfile_path: opts.lockfile_path.map(str::to_string),
-        },
+        LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path_str.clone() },
     );
 
     // The drop guard fires `Failed` for early-return / panic paths.
@@ -95,15 +148,24 @@ pub async fn verify_lockfile_resolutions<R: Reporter>(
     // returning, so the guard's drop only fires on a panic or on the
     // throw-violations branch.
     let mut emit_guard =
-        TerminalEmitGuard::<R>::failed(entries, started_at, opts.lockfile_path.map(str::to_string));
+        TerminalEmitGuard::<R>::failed(entries, started_at, lockfile_path_str.clone());
 
     let violations = run_fan_out(candidates, verifiers, opts.concurrency).await;
     if violations.is_empty() {
         emit_guard.cancel(LockfileVerificationMessage::Done {
             entries,
             elapsed_ms: started_at.elapsed().as_millis() as u64,
-            lockfile_path: opts.lockfile_path.map(str::to_string),
+            lockfile_path: lockfile_path_str,
         });
+        if let Some((cache_dir, lockfile_path)) = cache_inputs {
+            record_verification(
+                cache_dir,
+                lockfile_path,
+                verifiers,
+                &mut hash_once,
+                cache_precomputed,
+            );
+        }
         return Ok(());
     }
     Err(build_verification_error(violations))
