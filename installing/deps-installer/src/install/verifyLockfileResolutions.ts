@@ -1,5 +1,4 @@
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
-import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -11,6 +10,7 @@ import type {
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
+import { hashLockfile } from './lockfileHash.js'
 import {
   recordVerification,
   tryLockfileVerificationCache,
@@ -97,18 +97,19 @@ export async function verifyLockfileResolutions (
   // miss the precomputed stat+hash flow to recordVerification.
   type Precomputed = ReturnType<typeof tryLockfileVerificationCache>['precomputed']
   let cachePrecomputed: Precomputed | undefined
-  // hashObject is streaming (no "Invalid string length" on huge lockfiles)
-  // and key-order-stable, which JSON.stringify is not.
+  // hashLockfile applies the round-trip normalization that the cache
+  // contract relies on — see ./lockfileHash.ts. Memoize so we don't
+  // pay for it twice on the miss-then-record path.
   let cachedHash: string | undefined
-  const hashLockfile = (): string => {
-    if (cachedHash == null) cachedHash = hashObject(lockfile)
+  const memoizedHashLockfile = (): string => {
+    if (cachedHash == null) cachedHash = hashLockfile(lockfile)
     return cachedHash
   }
   if (cache) {
     const result = tryLockfileVerificationCache(cache.cacheDir, {
       lockfilePath: cache.lockfilePath,
       verifiers,
-      hashLockfile,
+      hashLockfile: memoizedHashLockfile,
     })
     if (result.hit) return
     cachePrecomputed = result.precomputed
@@ -127,7 +128,7 @@ export async function verifyLockfileResolutions (
       recordVerification(cache.cacheDir, {
         lockfilePath: cache.lockfilePath,
         verifiers,
-        hashLockfile,
+        hashLockfile: memoizedHashLockfile,
       }, cachePrecomputed)
     }
     return
@@ -154,7 +155,7 @@ export async function verifyLockfileResolutions (
         recordVerification(cache.cacheDir, {
           lockfilePath: cache.lockfilePath,
           verifiers,
-          hashLockfile,
+          hashLockfile: memoizedHashLockfile,
         }, cachePrecomputed)
       }
       return

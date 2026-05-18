@@ -1664,7 +1664,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
-        }).then(() =>
+        }).then(() => {
           // Local resolution already enforced the same policy the verifier
           // would re-check on the next install — record the fresh lockfile
           // so that next run takes the cache fast path.
@@ -1674,7 +1674,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             lockfile: newLockfile,
             resolutionVerifiers: opts.resolutionVerifiers,
           })
-        )
+        })
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile),
       (async () => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
@@ -1728,7 +1728,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } else {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
       await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
-      await recordLockfileVerified({
+      recordLockfileVerified({
         cacheDir: opts.cacheDir,
         lockfileDir: ctx.lockfileDir,
         lockfile: newLockfile,
@@ -2285,7 +2285,7 @@ async function installFromPnpmRegistry (
     // The agent enforces minimumReleaseAge server-side (and no-downgrade
     // is refused upstream at the agent gate), so the agent-resolved
     // lockfile is policy-clean under the verifiers we'd run locally.
-    await recordLockfileVerified({
+    recordLockfileVerified({
       cacheDir: opts.cacheDir,
       lockfileDir,
       lockfile,

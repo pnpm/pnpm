@@ -1,10 +1,10 @@
 import path from 'node:path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { hashObject } from '@pnpm/crypto.object-hasher'
-import { type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
+import { hashLockfile } from './lockfileHash.js'
 import { recordVerification } from './verifyLockfileResolutionsCache.js'
 
 export interface RecordLockfileVerifiedOptions {
@@ -27,26 +27,20 @@ export interface RecordLockfileVerifiedOptions {
  * every entry in the just-written lockfile is policy-clean by
  * construction; we record that fact instead of re-discovering it.
  *
+ * Hashes the lockfile via {@link hashLockfile} so the recorded hash
+ * matches what the next install will compute on its loaded copy
+ * without re-reading the file we just wrote.
+ *
  * No-op when the cache isn't wired or when no verifiers are active,
  * mirroring the gate in verifyLockfileResolutions.
- *
- * The cache compares hashes of the parsed lockfile object, not the raw
- * file bytes. The in-memory object handed to the writer can differ from
- * the one the next install parses back from disk — optional fields are
- * `undefined` in memory but absent (or `{}`) after a round-trip, which
- * `object-hash` treats as distinct values. To keep the recorded hash
- * aligned with what the next install will compute, re-read the lockfile
- * here instead of hashing the just-passed in-memory object.
  */
-export async function recordLockfileVerified (opts: RecordLockfileVerifiedOptions): Promise<void> {
+export function recordLockfileVerified (opts: RecordLockfileVerifiedOptions): void {
   if (!opts.cacheDir) return
   if (!opts.resolutionVerifiers?.length) return
   if (!opts.lockfile.packages) return
-  const reloaded = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
-  if (!reloaded) return
   recordVerification(opts.cacheDir, {
     lockfilePath: path.resolve(opts.lockfileDir, WANTED_LOCKFILE),
     verifiers: opts.resolutionVerifiers,
-    hashLockfile: () => hashObject(reloaded),
+    hashLockfile: () => hashLockfile(opts.lockfile),
   })
 }

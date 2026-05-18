@@ -4,10 +4,10 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { hashObject } from '@pnpm/crypto.object-hasher'
 import { type LockfileObject, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
+import { hashLockfile } from '../../src/install/lockfileHash.js'
 import { recordLockfileVerified } from '../../src/install/recordLockfileVerified.js'
 import { tryLockfileVerificationCache } from '../../src/install/verifyLockfileResolutionsCache.js'
 
@@ -57,8 +57,8 @@ function makeLockfile (): LockfileObject {
   } as unknown as LockfileObject
 }
 
-test('no-op when cacheDir is undefined', async () => {
-  await recordLockfileVerified({
+test('no-op when cacheDir is undefined', () => {
+  recordLockfileVerified({
     cacheDir: undefined,
     lockfileDir,
     lockfile: makeLockfile(),
@@ -67,8 +67,8 @@ test('no-op when cacheDir is undefined', async () => {
   expect(fs.existsSync(cacheDir)).toBe(false)
 })
 
-test('no-op when resolutionVerifiers is empty', async () => {
-  await recordLockfileVerified({
+test('no-op when resolutionVerifiers is empty', () => {
+  recordLockfileVerified({
     cacheDir,
     lockfileDir,
     lockfile: makeLockfile(),
@@ -77,8 +77,8 @@ test('no-op when resolutionVerifiers is empty', async () => {
   expect(fs.existsSync(cacheDir)).toBe(false)
 })
 
-test('no-op when resolutionVerifiers is undefined', async () => {
-  await recordLockfileVerified({
+test('no-op when resolutionVerifiers is undefined', () => {
+  recordLockfileVerified({
     cacheDir,
     lockfileDir,
     lockfile: makeLockfile(),
@@ -89,7 +89,7 @@ test('no-op when resolutionVerifiers is undefined', async () => {
 
 test('records nothing when the in-memory lockfile has no packages', async () => {
   await writeWantedLockfile(lockfileDir, makeLockfile())
-  await recordLockfileVerified({
+  recordLockfileVerified({
     cacheDir,
     lockfileDir,
     lockfile: { lockfileVersion: '9.0', importers: {} } as unknown as LockfileObject,
@@ -98,50 +98,35 @@ test('records nothing when the in-memory lockfile has no packages', async () => 
   expect(fs.existsSync(path.join(cacheDir, 'lockfile-verified.jsonl'))).toBe(false)
 })
 
-test('records nothing when the lockfile file is missing on disk', async () => {
-  // No write — readWantedLockfile returns null and the recording short-circuits
-  // instead of indexing a hash the next install won't be able to verify against.
-  await recordLockfileVerified({
-    cacheDir,
-    lockfileDir,
-    lockfile: makeLockfile(),
-    resolutionVerifiers: [mraVerifier(60)],
-  })
-  expect(fs.existsSync(path.join(cacheDir, 'lockfile-verified.jsonl'))).toBe(false)
-})
-
-test('records the hash of the lockfile as it is parsed back from disk — matches what the next install computes', async () => {
+test('records the load-equivalent hash — matches what the next install computes off-disk', async () => {
   const writtenLockfile = makeLockfile()
   await writeWantedLockfile(lockfileDir, writtenLockfile)
-  await recordLockfileVerified({
+  recordLockfileVerified({
     cacheDir,
     lockfileDir,
     lockfile: writtenLockfile,
     resolutionVerifiers: [mraVerifier(60)],
   })
 
-  // Compute the hash the way the next install will: load the lockfile from
-  // disk, then `hashObject(loadedLockfile)`. If the recorded hash matches
-  // this value, the cache lookup will hit on the next install.
-  //
-  // This is the round-trip stability guarantee the implementation relies on
-  // — it justifies hashing post-load rather than the in-memory write object,
-  // since `undefined` vs `{}` differences between the two would otherwise
-  // produce diverging hashes under `object-hash`.
+  // The cache contract: the next install hashes its loaded
+  // `LockfileObject` and looks the hash up. The recorded hash must
+  // match what that lookup computes — that's what makes `hashLockfile`
+  // a round-trip-stable canonicalization rather than raw `hashObject`.
   const loaded = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   expect(loaded).not.toBeNull()
-  const expectedHash = hashObject(loaded!)
+  const expectedHash = hashLockfile(loaded!)
 
   const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
-  const raw = fs.readFileSync(cacheFile, 'utf8').trim()
-  const record = JSON.parse(raw) as { lockfile: { hash: string } }
+  const record = JSON.parse(fs.readFileSync(cacheFile, 'utf8').trim()) as {
+    lockfile: { hash: string }
+  }
   expect(record.lockfile.hash).toBe(expectedHash)
 })
 
-test('records a cache entry that the next install hits — both stat shortcut and hash fallback paths', async () => {
+test('records a cache entry that the next install hits on both the stat shortcut and hash fallback paths', async () => {
   const lockfile = makeLockfile()
   await writeWantedLockfile(lockfileDir, lockfile)
-  await recordLockfileVerified({
+  recordLockfileVerified({
     cacheDir,
     lockfileDir,
     lockfile,
@@ -154,13 +139,14 @@ test('records a cache entry that the next install hits — both stat shortcut an
   const statResult = tryLockfileVerificationCache(cacheDir, {
     lockfilePath,
     verifiers: [mraVerifier(60)],
-    hashLockfile: () => hashObject(loaded),
+    hashLockfile: () => hashLockfile(loaded),
   })
   expect(statResult.hit).toBe(true)
 
-  // Hash fallback: invalidate the recorded inode so the stat shortcut bails,
-  // forcing the lookup through hashLockfile. The hash must match for the
-  // fallback to hit — this is the cross-machine / CI-checkout path.
+  // Hash fallback: invalidate the recorded inode so the stat shortcut bails.
+  // This is the CI-checkout / new-worktree path; the hash has to match for
+  // the fallback to hit, which is the whole point of hashing the canonical
+  // load-equivalent form.
   const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
   const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8').trim()) as {
     lockfile: { inode: string }
@@ -171,7 +157,7 @@ test('records a cache entry that the next install hits — both stat shortcut an
   const hashResult = tryLockfileVerificationCache(cacheDir, {
     lockfilePath,
     verifiers: [mraVerifier(60)],
-    hashLockfile: () => hashObject(loaded),
+    hashLockfile: () => hashLockfile(loaded),
   })
   expect(hashResult.hit).toBe(true)
 })
