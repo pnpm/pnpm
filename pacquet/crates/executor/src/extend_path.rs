@@ -12,7 +12,7 @@ use std::{
 /// type (upstream's `scriptsPrependNodePath: boolean | 'warn-only'`
 /// shape) and converts to this one at the call site, so the executor
 /// crate stays free of serde and Config wiring.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptsPrependNodePath {
     /// `scriptsPrependNodePath: true` — always prepend.
     Always,

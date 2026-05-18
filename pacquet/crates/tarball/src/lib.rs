@@ -167,7 +167,7 @@ pub struct VerifyChecksumError {
     pub error: ssri::Error,
 }
 
-#[derive(Debug, Display, Error, From, Diagnostic)]
+#[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum TarballError {
     #[diagnostic(code(pacquet_tarball::fetch_tarball))]

@@ -14,7 +14,7 @@ use sysinfo::{Pid, Signal};
 /// by the first test to run.
 ///
 /// The reference counter increases on [load](RegistryAnchor::load_or_init) and decreases on [drop](Drop).
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RegistryAnchor {
     pub ref_count: u32,
     pub info: RegistryInfo,

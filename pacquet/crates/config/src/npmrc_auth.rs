@@ -107,7 +107,7 @@ pub(crate) struct NpmrcAuth {
 /// pnpm's
 /// [`RawCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/parseCreds.ts#L7-L18).
 /// Each `Option` stores the post-`${VAR}`-substitution value when set.
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct RawCreds {
     /// `_authToken=` value.
     pub auth_token: Option<String>,

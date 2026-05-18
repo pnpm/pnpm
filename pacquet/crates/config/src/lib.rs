@@ -33,7 +33,7 @@ pub use workspace_yaml::{
     LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
 };
 
-#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
     /// dependencies are symlinked from a virtual store at node_modules/.pnpm.

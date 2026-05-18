@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{NetworkError, RegistryError, package_version::PackageVersion};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Package {
     pub name: String,
     #[serde(rename = "dist-tags")]

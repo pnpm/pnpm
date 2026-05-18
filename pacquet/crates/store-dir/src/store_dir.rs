@@ -14,7 +14,7 @@ pub type FileHash = digest::Output<Sha512>;
 /// * The location of the store directory can be customized by `store-dir` field.
 /// * The on-disk layout matches pnpm v11 (`<root>/v11/files/XX/…[-exec]` + `<root>/v11/index.db`)
 ///   so the two tools can share a store.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct StoreDir {
     /// Path to the root of the store directory from which all sub-paths are derived.

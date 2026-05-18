@@ -116,7 +116,7 @@ pub type DependenciesGraph = BTreeMap<PathBuf, DependenciesGraphNode>;
 ///
 /// Wrapped in a newtype rather than typedef'd to a recursive
 /// `BTreeMap` because Rust doesn't allow recursive type aliases.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct DepHierarchy(pub BTreeMap<PathBuf, DepHierarchy>);
 
 /// Per-importer alias → direct-dependency directory. For the
@@ -134,7 +134,7 @@ pub type DirectDependenciesByImporterId = BTreeMap<String, BTreeMap<String, Path
 /// isolated linker uses the same struct with `hierarchy`,
 /// `hoisted_locations`, and `symlinked_direct_dependencies_by_importer_id`
 /// left empty.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct LockfileToDepGraphResult {
     pub graph: DependenciesGraph,
     pub direct_dependencies_by_importer_id: DirectDependenciesByImporterId,

@@ -12,7 +12,7 @@ mod tests;
 /// transitive-peer metadata needed to recreate the install.
 ///
 /// Specification: <https://github.com/pnpm/spec/blob/834f2815cc/lockfile/9.0.md>
-#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotEntry {
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -39,3 +39,34 @@ ignore = [
     # hoisting to a `let` is purely noise.
     "params",
 ]
+
+# Enforce a single canonical ordering inside every `#[derive(...)]`
+# attribute. The codebase has ~270 derive sites in 79 distinct
+# orderings before this rule; the prefix below encodes the
+# conventions that already dominate (Debug first, error-chain
+# `Display→Error→Diagnostic` together, supertraits before subtraits,
+# serde at the end) and alphabetises everything past the long tail.
+# Trait matching is on the final path segment, so `derive_more::Display`
+# / `miette::Diagnostic` / `clap::Parser` match `Display` / `Diagnostic`
+# / `Parser` respectively.
+[perfectionist]
+enable = ["derive_ordering"]
+
+["perfectionist::derive_ordering"]
+style = "prefix_then_alphabetical"
+prefix = [
+    "Debug",
+    "Default",
+    "Display",
+    "Error",
+    "Diagnostic",
+    "Clone",
+    "Copy",
+    "PartialEq",
+    "Eq",
+    "PartialOrd",
+    "Ord",
+    "Hash",
+    "Serialize",
+    "Deserialize",
+]

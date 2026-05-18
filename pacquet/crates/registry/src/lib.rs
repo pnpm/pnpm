@@ -19,7 +19,7 @@ pub struct NetworkError {
     pub error: reqwest::Error,
 }
 
-#[derive(Debug, Display, Error, From, Diagnostic)]
+#[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum RegistryError {
     #[from(ignore)] // TODO: remove this after derive(From) has been removed

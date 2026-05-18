@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 
-#[derive(Debug, Display, Error, From, Diagnostic)]
+#[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum PackageManifestError {
     #[diagnostic(code(pacquet_package_manifest::serialization_error))]
@@ -54,7 +54,7 @@ pub enum DependencyGroup {
     Peer,
 }
 
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BundleDependencies {
     Boolean(bool),

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 /// [`SnapshotEntry`](crate::SnapshotEntry) instead.
 ///
 /// Specification: <https://github.com/pnpm/spec/blob/834f2815cc/lockfile/9.0.md>
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageMetadata {
     pub resolution: LockfileResolution,
@@ -36,7 +36,7 @@ pub struct PackageMetadata {
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PeerDependencyMeta {
     pub optional: bool,
 }

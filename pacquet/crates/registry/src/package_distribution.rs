@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, Eq)]
+#[derive(Debug, Default, Clone, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageDistribution {
     pub integrity: Option<Integrity>,

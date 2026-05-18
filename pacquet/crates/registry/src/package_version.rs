@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq)]
+#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageVersion {
     pub name: String,

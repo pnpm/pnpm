@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// `dedupe_current` before the `os` / `cpu` / `libc` lists are
 /// compared. Mirrors upstream's `SupportedArchitectures` at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/core/types/src/package.ts#L232-L236>.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SupportedArchitectures {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub os: Option<Vec<String>>,
@@ -25,7 +25,7 @@ pub struct SupportedArchitectures {
 
 /// Wanted platform triple as declared by a package's manifest
 /// (`os`, `cpu`, `libc`). Each is optional; absent means "any".
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 pub struct WantedPlatform {
     pub os: Option<Vec<String>>,
     pub cpu: Option<Vec<String>>,
@@ -41,7 +41,7 @@ pub struct WantedPlatform {
 ///
 /// `Copy` so the recursive / per-snapshot call sites don't need an
 /// extra reference layer; all three fields are already references.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct WantedPlatformRef<'a> {
     pub os: Option<&'a [String]>,
     pub cpu: Option<&'a [String]>,

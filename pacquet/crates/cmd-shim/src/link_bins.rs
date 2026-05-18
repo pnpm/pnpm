@@ -82,7 +82,7 @@ impl PackageBinSource {
 /// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92>
 /// where direct candidates are kept and hoisted candidates with a
 /// name collision are dropped.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum BinOrigin {
     /// The candidate is a direct dependency of the importer
     /// installing it. Direct deps come from the per-importer

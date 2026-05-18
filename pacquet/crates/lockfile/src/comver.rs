@@ -5,7 +5,7 @@ use std::{borrow::Cow, num::ParseIntError, str::FromStr};
 /// Information of the top-level field `lockfileVersion`.
 ///
 /// It contains only major and minor.
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[display("{major}.{minor}")]
 #[serde(try_from = "Cow<'de, str>", into = "String")]
 pub struct ComVer {
