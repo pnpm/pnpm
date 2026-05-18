@@ -1,5 +1,15 @@
 # @pnpm/hooks.types
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/lockfile.types@1100.0.6
+
 ## 1100.0.6
 
 ### Patch Changes

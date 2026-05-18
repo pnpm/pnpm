@@ -1,5 +1,78 @@
 # pnpm
 
+## 11.1.3
+
+### Patch Changes
+
+- `pnpm install` now re-validates `pnpm-lock.yaml` entries against the active `minimumReleaseAge` and `trustPolicy: 'no-downgrade'` policies before any tarball is fetched. Lockfiles resolved elsewhere (committed to the repo, restored from a CI cache, produced by an older pnpm) under a weaker or absent policy can no longer install a freshly-published or trust-downgraded version silently. Violating entries abort the install with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, `ERR_PNPM_TRUST_DOWNGRADE`, or the generic `ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION` when both policies trip in the same batch; `minimumReleaseAgeExclude` and `trustPolicyExclude` are honored. Verification results are cached so repeat installs against an unchanged lockfile take a fast path, and pnpm shows a transient progress line while the registry round-trip runs.
+
+  When fresh resolution picks an immature version, the behavior depends on `minimumReleaseAgeStrict`:
+
+  - **Loose mode** — the default, in effect whenever `minimumReleaseAge` keeps its built-in 24-hour value — auto-adds the immature picks to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` and lets the install proceed. A single info message lists what was persisted.
+  - **Strict mode** in an interactive terminal collects every immature direct AND transitive pick in one pass and prompts once with the full list. Approving adds them to `minimumReleaseAgeExclude` and the install continues; declining aborts before the lockfile, `package.json`, or `node_modules` is touched.
+  - **Strict mode** in CI (or any non-TTY context) aborts with `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing every offending entry, instead of failing on the first one the resolver hit.
+
+  `minimumReleaseAgeStrict` auto-enables whenever the user explicitly sets `minimumReleaseAge` (CLI flag, env var, global `config.yaml`, or `pnpm-workspace.yaml`); set `minimumReleaseAgeStrict: false` to keep loose-mode auto-collect even with an explicit `minimumReleaseAge` value. Closes [#10438](https://github.com/pnpm/pnpm/issues/10438), [#10488](https://github.com/pnpm/pnpm/issues/10488), [#11687](https://github.com/pnpm/pnpm/issues/11687).
+- Allow redundant trailing base64 padding in `.npmrc` auth values and report invalid auth base64 with a pnpm error.
+- Make `pnpm self-update` respect `minimumReleaseAge` (and `minimumReleaseAgeExclude`) when resolving which pnpm version to install.
+
+  When the `latest` dist-tag points to a version newer than the configured age threshold, `self-update` now selects the newest mature version instead unless excluded by `minimumReleaseAgeExclude`.
+
+  Also makes `dlx` and `outdated` surface invalid `minimumReleaseAgeExclude` patterns under the same `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` error code already used by `install`, instead of leaking the internal `ERR_PNPM_INVALID_VERSION_UNION` / `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` codes.
+
+- Global installs respect global config build policy (e.g., `dangerouslyAllowAllBuilds` from config.yaml) when GVS is enabled [#9249](https://github.com/pnpm/pnpm/issues/9249).
+
+  The global virtual-store (GVS) default `allowBuilds = {}` was applied before workspace manifest settings were read and before global config values (stripped by `extractAndRemoveDependencyBuildOptions`) were re-applied via `globalDepsBuildConfig`. This caused `hasDependencyBuildOptions` to return `true` (because `{}` is not null), blocking restoration of global config values like `dangerouslyAllowAllBuilds`. As a result, global installs skipped all build scripts even when the config explicitly allowed them.
+
+  This fix moves the GVS default to **after** workspace manifest reading and `globalDepsBuildConfig` re-application, so that:
+
+  1. Workspace manifest `allowBuilds` takes precedence (if present)
+  2. Global config `dangerouslyAllowAllBuilds` is properly restored (if set and no workspace policy exists)
+  3. Empty `{}` is only applied as a last resort when no policy is configured anywhere
+
+- Honor `--silent` when `verifyDepsBeforeRun: install` auto-installs dependencies before `pnpm run` or `pnpm exec`, preventing install output from being written to stdout [#11636](https://github.com/pnpm/pnpm/issues/11636).
+- Fix lockfile parsing failures when `pnpm-lock.yaml` contains CRLF line endings and multiple YAML documents [#11612](https://github.com/pnpm/pnpm/issues/11612).
+- Anchor the side-effects-cache key and global-virtual-store hash to the project's script-runner Node — `engines.runtime` pin when present, shell `node` otherwise — instead of pnpm's own runtime.
+
+  `ENGINE_NAME` (the `<platform>;<arch>;node<major>` prefix used as the side-effects-cache key and the engine portion of the GVS hash) was computed from `process.version` — the Node that runs pnpm itself. That was wrong in two situations:
+
+  1. **`@pnpm/exe` SEA bundle.** The bundle has its own embedded Node, not the `node` on the user's `PATH` that actually spawns lifecycle scripts. Two pnpm installations on the same machine (one SEA, one npm-package) therefore disagreed on the cache key, partitioning the side-effects cache and the global virtual store across two Node majors even though both installs would run scripts on the same shell `node`.
+  2. **`engines.runtime` / `devEngines.runtime` pin.** When a project pins a Node version via `devEngines.runtime` (pnpm v11+), pnpm downloads that Node into `node_modules/node/` and uses it to run lifecycle scripts. But the hash still anchored to whichever Node ran pnpm itself, not to the pinned Node — so two installs of the same project with two different runner Nodes would still disagree on the GVS slot path even though scripts run on the same pinned Node.
+
+  Three changes:
+
+  - `@pnpm/engine.runtime.system-node-version` now exports `engineName(nodeVersion?)`. Resolves the version in this order: explicit override → `getSystemNodeVersion()` (which already prefers `node --version` over `process.version` in SEA contexts) → `process.version`.
+  - `@pnpm/deps.graph-hasher` now exports `findRuntimeNodeVersion(snapshotKeys)` — scans an iterable of lockfile snapshot keys for a `node@runtime:<version>` entry and returns its bare version string. `calcDepState` and `calcGraphNodeHash`/`iterateHashedGraphNodes` accept a `nodeVersion?` (in the options bag for the first, as a trailing parameter / ctx field for the others), forwarded to `engineName()`. The default (no override) preserves the pre-change behaviour. The legacy `ENGINE_NAME` constant in `@pnpm/constants` is unchanged so external consumers and existing tests keep working; in non-SEA, non-pinned contexts every value lines up.
+  - Every install-side caller of the graph-hasher (`@pnpm/installing.deps-resolver`, `@pnpm/installing.deps-restorer`, `@pnpm/installing.deps-installer`, `@pnpm/building.during-install`, `@pnpm/building.after-install`, `@pnpm/deps.graph-builder`) now derives the project's pinned runtime via `findRuntimeNodeVersion(Object.keys(graph))` once per invocation and threads it through.
+
+  On upgrade, two one-time GVS slot churns are possible:
+
+  - **SEA-pnpm users** without a runtime pin: slots that previously hashed under the embedded-Node major (e.g. `node26`) now hash under the shell-Node major (e.g. `node24`), matching what pacquet, the npm-published `pnpm` package, and any other pnpm-compatible tool already produce.
+  - **Projects with a `devEngines.runtime` pin**: slots that previously hashed under the runner's Node major now hash under the pinned Node major, matching what the lifecycle scripts will actually run on.
+
+  In both cases the old slots become prune-eligible.
+
+- Resolve the GVS hash's engine portion per-snapshot when a dependency declares its own `engines.runtime`, instead of using an install-wide value.
+
+  Pnpm's resolver desugars a dep's `engines.runtime` into `dependencies.node: 'runtime:<version>'`, and the bin linker spawns that dep's lifecycle scripts through the pinned Node downloaded into `<pkgDir>/node_modules/node/`. The GVS hash and the side-effects-cache key prefix were still anchored to the install-wide runtime — so a pinning snapshot's slot encoded the wrong Node major, and a reinstall on the same host could read the cached side-effects under a key whose `<platform>;<arch>;node<major>` triple disagreed with the Node the build actually ran on.
+
+  Per-snapshot resolution now matches what `bins/linker` already does on a per-package basis:
+
+  - `@pnpm/deps.graph-hasher` adds `readSnapshotRuntimePin(children)` — reads the `node` entry from one snapshot's graph children and extracts the version from a `node@runtime:` value. Pairs with the existing `findRuntimeNodeVersion(snapshotKeys)` install-wide fallback (also now exported from `@pnpm/deps.graph-hasher` rather than `@pnpm/engine.runtime.system-node-version`, where it was a poor fit — `system-node-version` is about probing the host Node, not parsing lockfile-derived strings).
+  - `calcDepState` and `calcGraphNodeHash` consult `readSnapshotRuntimePin(graph[depPath].children)` first and only fall back to the install-wide `nodeVersion` parameter when the snapshot doesn't pin its own Node.
+
+  Pacquet mirrors the same precedence at the `calc_graph_node_hash` call site in `package-manager/src/virtual_store_layout.rs` — a new `find_own_runtime_node_major(snapshot)` helper reads each snapshot's `dependencies` for a `node` entry with `Prefix::Runtime` and overrides the install-wide engine when present.
+
+  On upgrade, snapshots of dependencies that declare their own `engines.runtime` re-hash under that dep's pinned Node instead of the install-wide value. The old slots become prune-eligible. Closes [#11690](https://github.com/pnpm/pnpm/issues/11690).
+
+- Fixed `pnpm publish` failing with a 404 when authentication relied on OIDC trusted publishing alongside an `.npmrc` written by `actions/setup-node` (`_authToken=${NODE_AUTH_TOKEN}`) without `NODE_AUTH_TOKEN` being set. Unresolved `${VAR}` placeholders in auth values are now treated as empty rather than passed through verbatim, so the literal placeholder no longer surfaces as a bearer token when OIDC fallback is the intended auth source [#11513](https://github.com/pnpm/pnpm/issues/11513).
+- Fix `devEngines.packageManager` (singular form, without `onFail`) defaulting to `onFail: "error"` instead of the documented `pmOnFail: "download"`. As a result, a project that pinned a different pnpm version via `devEngines.packageManager` and ran `pnpm install` from a mismatched pnpm version failed with a hard error, even though the migration table from `managePackageManagerVersions: true` to `pmOnFail: download (default)` promises the install would auto-download the wanted version [#11676](https://github.com/pnpm/pnpm/issues/11676).
+
+  The array form of `devEngines.packageManager` keeps its existing per-element defaults (`error` for the last entry, `ignore` for the rest), since those reflect explicit prioritization by the user. Explicit `onFail` values continue to win.
+
+- Fix `devEngines.packageManager` not writing `packageManagerDependencies` to `pnpm-lock.yaml` when the lockfile lacks an env-doc entry. Previously the lockfile sync skipped resolution unless an existing `packageManagerDependencies.pnpm` entry needed refreshing, so a fresh install without `onFail: "download"` left the resolved pnpm version unrecorded — contradicting the documented behavior that the resolved version is stored in `pnpm-lock.yaml` [#11674](https://github.com/pnpm/pnpm/issues/11674).
+- Warn when `package.json` contains a legacy `pnpm` field with settings pnpm no longer reads from `package.json` (e.g. `pnpm.overrides`, `pnpm.patchedDependencies`). Previously these were silently ignored after the upgrade from v10, leaving users unaware that their overrides/patched dependencies had stopped taking effect [#11677](https://github.com/pnpm/pnpm/issues/11677).
+
 ## 11.1.2
 
 ### Patch Changes

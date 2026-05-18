@@ -1,5 +1,12 @@
 # @pnpm/assert-project
 
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.6
+- @pnpm/assert-store@1100.0.9
+
 ## 1100.0.8
 
 ### Patch Changes

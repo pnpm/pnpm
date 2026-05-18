@@ -1,5 +1,11 @@
 # @pnpm/exec.pnpm-cli-runner
 
+## 1100.0.1
+
+### Patch Changes
+
+- 247d70b: Honor `--silent` when `verifyDepsBeforeRun: install` auto-installs dependencies before `pnpm run` or `pnpm exec`, preventing install output from being written to stdout [#11636](https://github.com/pnpm/pnpm/issues/11636).
+
 ## 1001.0.0
 
 ### Major Changes

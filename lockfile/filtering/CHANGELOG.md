@@ -1,5 +1,14 @@
 # @pnpm/filter-lockfile
 
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.6
+- @pnpm/lockfile.utils@1100.0.8
+- @pnpm/config.package-is-installable@1100.0.5
+- @pnpm/lockfile.walker@1100.0.6
+
 ## 1100.1.0
 
 ### Minor Changes

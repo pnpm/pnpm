@@ -1,5 +1,13 @@
 # @pnpm/agent.client
 
+## 1.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.6
+- @pnpm/store.cafs@1100.1.5
+- @pnpm/worker@1100.1.6
+
 ## 1.0.5
 
 ### Patch Changes

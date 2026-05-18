@@ -1,5 +1,13 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/fetching.directory-fetcher@1100.0.10
+- @pnpm/bins.linker@1100.0.7
+- @pnpm/workspace.projects-reader@1101.0.5
+
 ## 1100.0.11
 
 ### Patch Changes

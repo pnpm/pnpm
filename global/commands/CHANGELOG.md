@@ -1,5 +1,29 @@
 # @pnpm/global.commands
 
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [4a79336]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [31538bf]
+- Updated dependencies [8df408c]
+  - @pnpm/installing.deps-installer@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/deps.inspection.list@1100.0.11
+  - @pnpm/bins.remover@1100.0.4
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/bins.linker@1100.0.7
+
 ## 1100.0.17
 
 ### Patch Changes

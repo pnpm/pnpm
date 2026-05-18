@@ -1,5 +1,11 @@
 # @pnpm/dedupe.check
 
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.6
+
 ## 1100.0.5
 
 ### Patch Changes
