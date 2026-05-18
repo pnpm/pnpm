@@ -2019,10 +2019,10 @@ test('injected local packages are deduped', async () => {
 // `ENOENT: copyfile '...node_modules/.bin/<tool>'`. `runLifecycleHooksConcurrently`
 // scanned the existing injected node_modules and added absolute paths under
 // it to the filesMap; the importer's fast path then wiped the target before
-// reading from those paths. Fixed by skipping the importPackage round-trip:
-// fetchFromDir lists the source tree (already excludes node_modules) and
-// mirrorFilesIntoTarget overlays it into each injected target, leaving the
-// target's existing node_modules — and its bin symlinks — untouched.
+// reading from those paths. Fixed by keeping storeController.importPackage
+// but passing keepModulesDir: true, so importIndexedDir skips the
+// destructive makeEmptyDir fast path (#11088) and preserves the target's
+// existing node_modules (bin links + transitive deps) instead.
 test('inject local package with prepare script + bin-having dep does not crash on re-import', async () => {
   const project1Manifest = {
     name: 'project-1',
@@ -2097,7 +2097,7 @@ test('inject local package with prepare script + bin-having dep does not crash o
   expect(fs.existsSync(path.resolve('project-1/built.txt'))).toBeTruthy()
   // The re-import succeeded — project-2's injected copy has both the bin
   // symlink from the original injection AND the built.txt from prepare.
-  projects['project-2'].has('project-1')
+  expect(() => projects['project-2'].has('project-1')).not.toThrow()
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/built.txt'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/node_modules/.bin/hello-world-js-bin'))).toBeTruthy()
 })

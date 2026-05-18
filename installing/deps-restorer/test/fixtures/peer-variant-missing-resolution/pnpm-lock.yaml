@@ -23,14 +23,10 @@ importers:
 
 packages:
 
-  # Base entry — has `resolution` describing the workspace directory.
-  'pkg-a@file:packages/pkg-a':
-    resolution: { directory: packages/pkg-a, type: directory }
-
-  # Peer-variant entry — inherits resolution from the base, intentionally
-  # omits its own `resolution`. This shape is what pnpm itself writes for a
-  # workspace dep with peer dependencies that resolve differently per
-  # consumer. Before the fix it crashed `lockfileToDepGraph` with
+  # Peer-variant entry whose base `pkg-a@file:packages/pkg-a` packages entry
+  # was dropped by a pruner (e.g. `turbo prune --docker`). With the base gone
+  # `convertToLockfileObject` cannot inherit `resolution`; pre-fix this
+  # crashed `lockfileToDepGraph` with
   # `TypeError: Cannot use 'in' operator to search for 'directory' in undefined`.
   'pkg-a@file:packages/pkg-a(peer@1.0.0)':
     dependencies:
