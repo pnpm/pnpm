@@ -754,10 +754,15 @@ trustPolicyIgnoreAfter: 525600
     settings.apply_to(&mut config, Path::new("/proj"));
     assert_eq!(config.cache_dir, Path::new("/proj/.pacquet-cache"));
     assert_eq!(config.minimum_release_age, Some(1440));
+    assert_eq!(
+        config.minimum_release_age_exclude.as_deref(),
+        Some(&["lodash".to_string(), "is-*".to_string()][..]),
+    );
     assert!(config.minimum_release_age_ignore_missing_time);
     assert_eq!(config.minimum_release_age_strict, Some(true));
     assert!(config.resolved_minimum_release_age_strict());
     assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
+    assert_eq!(config.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]),);
     assert_eq!(config.trust_policy_ignore_after, Some(525_600));
 }
 

@@ -87,6 +87,10 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
+    assert!(
+        matches!(err, super::FetchMetadataError::Network { .. }),
+        "expected Network variant, got: {err:?}",
+    );
     let text = format!("{err:?}");
     assert!(text.contains("acme"), "error mentions the failing URL: {text}");
     mock.assert_async().await;
