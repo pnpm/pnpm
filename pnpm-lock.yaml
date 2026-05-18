@@ -8164,9 +8164,6 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
-      '@pnpm/lockfile.utils':
-        specifier: workspace:*
-        version: link:../../lockfile/utils
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch

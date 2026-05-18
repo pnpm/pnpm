@@ -4,7 +4,6 @@ import { refToRelative } from '@pnpm/deps.path'
 import { DepType, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type {
   PackageSnapshot,
-  PackageSnapshots,
   TarballResolution,
 } from '@pnpm/lockfile.fs'
 import {
@@ -73,16 +72,13 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
   const depPath = refToRelative(opts.ref, opts.alias)
   if (depPath) {
     let pkgSnapshot: PackageSnapshot | undefined
-    let pkgPackages: PackageSnapshots | undefined
     if (opts.currentPackages[depPath]) {
       pkgSnapshot = opts.currentPackages[depPath]
-      pkgPackages = opts.currentPackages
       const parsed = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       name = parsed.name
       version = parsed.version
     } else {
       pkgSnapshot = opts.wantedPackages[depPath]
-      pkgPackages = opts.wantedPackages
       if (pkgSnapshot) {
         const parsed = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         name = parsed.name
@@ -97,7 +93,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
     if (pkgSnapshot) {
       resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
       optional = pkgSnapshot.optional
-      if (pkgSnapshot.resolution != null && 'integrity' in pkgSnapshot.resolution) {
+      if ('integrity' in pkgSnapshot.resolution) {
         integrity = pkgSnapshot.resolution.integrity as string
       }
     }

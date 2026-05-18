@@ -98,8 +98,7 @@ async function walkStep (
 ): Promise<void> {
   await Promise.all(
     step.dependencies.map(async (dep) => {
-      const { depPath, pkgSnapshot: rawPkgSnapshot, next } = dep
-      const pkgSnapshot = rawPkgSnapshot
+      const { depPath, pkgSnapshot, next } = dep
       const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       if (!name || !version) return

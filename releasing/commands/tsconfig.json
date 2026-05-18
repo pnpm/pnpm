@@ -97,9 +97,6 @@
       "path": "../../lockfile/types"
     },
     {
-      "path": "../../lockfile/utils"
-    },
-    {
       "path": "../../network/fetch"
     },
     {

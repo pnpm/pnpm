@@ -179,12 +179,11 @@ async function fetchDeps (
   await Promise.all(Array.from(deps).map(async (dep) => {
     const depPath = Array.from(dep.references)[0] as DepPath
     if (opts.skipped.has(depPath) || depPath.startsWith('workspace:')) return
-    const rawPkgSnapshot = opts.lockfile.packages![depPath]
-    if (!rawPkgSnapshot) {
+    const pkgSnapshot = opts.lockfile.packages![depPath]
+    if (!pkgSnapshot) {
       // it is a link
       return
     }
-    const pkgSnapshot = rawPkgSnapshot
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
     const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
