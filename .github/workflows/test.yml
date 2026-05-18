@@ -52,7 +52,7 @@ jobs:
         install: false
         runtime: node@${{ inputs.node }}
     - name: pacquet install
-      run: pnx --config.minimum-release-age=0 pacquet install --frozen-lockfile --no-runtime
+      run: pnx --config.minimum-release-age=0 pacquet@0.2.2-7 install --frozen-lockfile --no-runtime
     - name: Verify Node version
       shell: bash
       env:

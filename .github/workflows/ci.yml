@@ -28,7 +28,7 @@ jobs:
       with:
         install: false
     - name: pacquet install
-      run: pnx --config.minimum-release-age=0 pacquet install --frozen-lockfile
+      run: pnx --config.minimum-release-age=0 pacquet@0.2.2-7 install --frozen-lockfile
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint
