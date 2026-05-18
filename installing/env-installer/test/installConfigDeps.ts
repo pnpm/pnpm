@@ -159,6 +159,41 @@ test('optional subdep that does not match the current platform is skipped', asyn
   expect(() => requireFromParent.resolve(`${subdepName}/package.json`)).toThrow(/Cannot find/)
 })
 
+test('optional subdep that does not match the current cpu is skipped', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const subdepVersion = '100.0.0'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [subdepName]: subdepVersion },
+  }
+  lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+    cpu: ['this-cpu-does-not-exist'],
+  }
+
+  await installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })
+
+  const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
+  const requireFromParent = createRequire(path.join(parentRealPath, 'package.json'))
+  expect(() => requireFromParent.resolve(`${subdepName}/package.json`)).toThrow(/Cannot find/)
+})
+
 test('installation fails if the checksum of the config dependency is invalid', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore({

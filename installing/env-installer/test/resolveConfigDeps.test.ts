@@ -86,7 +86,15 @@ test('one level of optionalDependencies is recorded in the env lockfile with pla
     cpu: ['arm64'],
   })
   expect(envLockfile!.snapshots['@pnpm.e2e/only-darwin-arm64@1.0.0']).toStrictEqual({})
-  expect(envLockfile!.packages['@pnpm.e2e/only-linux-x64-musl@1.0.0']).toBeDefined()
+  // libc is preserved alongside os/cpu for musl/glibc variants.
+  expect(envLockfile!.packages['@pnpm.e2e/only-linux-x64-musl@1.0.0']).toStrictEqual({
+    resolution: {
+      integrity: getIntegrity('@pnpm.e2e/only-linux-x64-musl', '1.0.0'),
+    },
+    os: ['linux'],
+    cpu: ['x64'],
+    libc: ['musl'],
+  })
 
   // The parent config dep itself is still registered as the only top-level config dep.
   expect(envLockfile!.importers['.'].configDependencies).toStrictEqual({
