@@ -1,3 +1,4 @@
+import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
@@ -113,9 +114,21 @@ export async function verifyLockfileResolutions (
     cachePrecomputed = result.precomputed
   }
 
-  const violations = await iterateLockfileViolations(lockfile, verifiers, options?.concurrency)
+  // Emit started/done around the actual verification pass — the
+  // round-trip can be slow on a cold registry cache, and the cached
+  // short-circuit above doesn't reach this branch, so a user only
+  // sees these messages on installs that are doing real work.
+  const candidates = collectCandidates(lockfile)
+  const startedAt = Date.now()
+  lockfileVerificationLogger.debug({ status: 'started', entries: candidates.size })
+  const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
 
   if (violations.length === 0) {
+    lockfileVerificationLogger.debug({
+      status: 'done',
+      entries: candidates.size,
+      elapsedMs: Date.now() - startedAt,
+    })
     // Persist the success so the next install can stat-only the lockfile.
     if (cache) {
       recordVerification(cache.cacheDir, {
@@ -182,26 +195,28 @@ export async function collectResolutionPolicyViolations (
 ): Promise<ResolutionPolicyViolation[]> {
   if (verifiers.length === 0) return []
   if (!lockfile.packages) return []
-  return iterateLockfileViolations(lockfile, verifiers, options?.concurrency)
+  return iterateLockfileViolations(collectCandidates(lockfile), verifiers, options?.concurrency)
 }
 
-async function iterateLockfileViolations (
-  lockfile: LockfileObject,
-  verifiers: readonly ResolutionVerifier[],
-  concurrency: number | undefined
-): Promise<ResolutionPolicyViolation[]> {
-  // depPath can include peer-dependency and patch_hash suffixes (e.g.
-  // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
-  // therefore appear multiple times. Dedupe so we issue at most one
-  // verification per package version.
-  //
-  // Include a serialization of `resolution` in the key so two entries that
-  // share a (name, version) but differ in *what* was resolved (e.g. one
-  // pinned via npm, another via a git URL under the same alias) don't
-  // collapse: if the wrong shape wins the dedup, a protocol-scoped
-  // verifier short-circuits on the surviving entry and the real one is
-  // never checked.
-  const candidates = new Map<string, { name: string, version: string, resolution: Resolution }>()
+interface Candidate {
+  name: string
+  version: string
+  resolution: Resolution
+}
+
+// depPath can include peer-dependency and patch_hash suffixes (e.g.
+// `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
+// therefore appear multiple times. Dedupe so we issue at most one
+// verification per package version.
+//
+// Include a serialization of `resolution` in the key so two entries that
+// share a (name, version) but differ in *what* was resolved (e.g. one
+// pinned via npm, another via a git URL under the same alias) don't
+// collapse: if the wrong shape wins the dedup, a protocol-scoped
+// verifier short-circuits on the surviving entry and the real one is
+// never checked.
+function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
+  const candidates = new Map<string, Candidate>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
@@ -212,7 +227,14 @@ async function iterateLockfileViolations (
       resolution: snapshot.resolution as Resolution,
     })
   }
+  return candidates
+}
 
+async function iterateLockfileViolations (
+  candidates: Map<string, Candidate>,
+  verifiers: readonly ResolutionVerifier[],
+  concurrency: number | undefined
+): Promise<ResolutionPolicyViolation[]> {
   const violations: ResolutionPolicyViolation[] = []
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   await Promise.all(
