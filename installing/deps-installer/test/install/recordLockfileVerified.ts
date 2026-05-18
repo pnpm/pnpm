@@ -167,15 +167,18 @@ test('records a cache entry that the next install hits on both the stat shortcut
   })
   expect(statResult.hit).toBe(true)
 
-  // Hash fallback: invalidate the recorded inode so the stat shortcut bails.
-  // This is the CI-checkout / new-worktree path; the hash has to match for
-  // the fallback to hit, which is the whole point of hashing the canonical
-  // load-equivalent form.
+  // Hash fallback: invalidate stat fields the cache compares against so the
+  // shortcut bails. This is the CI-checkout / new-worktree path; the hash
+  // has to match for the fallback to hit, which is the whole point of
+  // hashing the canonical load-equivalent form. Use `size = -1` (impossible
+  // for a real file) rather than zeroing `inode`/`mtimeNs` alone — on
+  // Windows `stat.ino` is often 0, which would let the cached record
+  // accidentally match and skip the fallback path we want to exercise.
   const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
   const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8').trim()) as {
-    lockfile: { inode: string }
+    lockfile: { size: number }
   }
-  cached.lockfile.inode = '0'
+  cached.lockfile.size = -1
   fs.writeFileSync(cacheFile, `${JSON.stringify(cached)}\n`)
 
   const hashResult = tryLockfileVerificationCache(cacheDir, {
