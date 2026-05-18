@@ -643,9 +643,9 @@ The above code is still valid code, and the Rust compiler doesn't error, but it 
 
 ### Dependency injection for tests
 
-Side-effecting code — filesystem access, environment variables, network calls, time, process state — has two testing routes. **The default route is a real fixture:** a `tempfile::TempDir` for filesystem work, the mocked registry (`just registry-mock`) for HTTP, an integration test that spawns the actual pacquet binary in a scratch directory for end-to-end flows. Real fixtures keep tests close to what users see, scale with the codebase without per-call-site plumbing, and are the right tool for every happy path and for the bulk of error paths. **Most new code should not introduce a DI seam at all** — it should land with integration or unit tests built on real fixtures.
+Side-effecting code — filesystem access, environment variables, network calls, time, process state — has two testing routes. **The default route is a real fixture:** a `tempfile::TempDir` for filesystem work, the mocked registry (`just registry-mock`) for HTTP, an integration test that spawns the actual pacquet binary in a scratch directory for end-to-end flows. Real fixtures keep tests close to what users see and scale with the codebase without per-call-site plumbing; they are the right tool everywhere except the cases enumerated below.
 
-The dependency-injection seam described below is the **narrow second route**, reserved for code paths that real fixtures cannot reach or cannot reach cheaply. Reach for it only when one of the following applies:
+The dependency-injection seam described below is the **narrow second route**. Reach for it only when one of the following applies:
 
 - **Filesystem error branches the host OS won't reproduce portably.** `PermissionDenied`, `ENOSPC`, a directory that disappears mid-walk, a chmod that fails after the file exists — provoking these on real disks is platform-specific, racy, or both. A fake that returns the exact `io::ErrorKind` is the only portable way to drive the branch.
 - **Deterministic time.** Asserting that `prunedAt` equals a specific RFC 2822 timestamp, or that a throttled emitter fires on the second sample, needs the clock to be a known value. The real `SystemTime::now` makes those assertions flaky.
