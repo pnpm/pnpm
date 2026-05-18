@@ -9,7 +9,7 @@ use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Config, RealApi};
+use pacquet_config::{Config, Host};
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
@@ -94,12 +94,12 @@ impl CliArgs {
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`) —
         // see [`loadNpmrcConfig`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts#L48-L50).
         //
-        // Production callers turbofish `RealApi` explicitly so the
+        // Production callers turbofish `Host` explicitly so the
         // dependency-injection plumbing is visible at the call site.
         // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
         // for the pattern and rationale.
         let config = || -> miette::Result<&'static mut Config> {
-            Config::current::<RealApi, _, _, _, _>(
+            Config::current::<Host, _, _, _, _>(
                 || Ok::<_, std::convert::Infallible>(dir.clone()),
                 home::home_dir,
                 Default::default,

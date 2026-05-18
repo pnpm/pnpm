@@ -1,22 +1,22 @@
-//! Capability traits and the project-wide [`RealApi`] provider.
+//! Capability traits and the [`Host`] provider for this crate.
 //!
-//! Mirrors the dependency-injection pattern documented in
-//! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339): one
-//! trait per capability, one provider gathering every capability impl
-//! used across the codebase, all methods static. Production callers
-//! turbofish the real provider explicitly
-//! (e.g. `Config::current::<RealApi>(...)`); tests substitute a
-//! per-test unit struct that implements only the bounds the function
-//! actually declares, with any per-test scenario data stored in a
-//! `static` inside the test fn.
+//! Each crate that needs to thread a side-effecting capability through
+//! a generic seam declares its own capability traits and its own
+//! `Host` provider; this is the one for `pacquet-config`. Production
+//! callers turbofish the real provider explicitly
+//! (e.g. `Config::current::<Host>(...)`); tests substitute a per-test
+//! unit struct that implements only the bounds the function actually
+//! declares, with any per-test scenario data stored in a `static`
+//! inside the test fn.
 //!
-//! Today the provider only exposes [`EnvVar`]. As more side-effecting
-//! capabilities are introduced (filesystem, disk inspection, time,
-//! …) their `impl … for RealApi` blocks land here too, so callers
-//! never juggle multiple providers. Trait names keep their domain
-//! prefix (`Fs*`, `GetDisk*`, `Env*`, …) so a reader can identify
-//! which domain a generic bound belongs to without chasing
-//! definitions.
+//! Today this provider only exposes [`EnvVar`]. As more side-effecting
+//! capabilities are introduced into `pacquet-config` (filesystem reads
+//! for `.npmrc`, network probes for auth, …) their `impl … for Host`
+//! blocks land here too. Trait names keep their domain prefix (`Fs*`,
+//! `GetDisk*`, `Env*`, …) so a reader can identify which domain a
+//! generic bound belongs to without chasing definitions. See the
+//! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
+//! section of the style guide for the full convention.
 
 /// Capability: read a process environment variable.
 ///
@@ -34,18 +34,19 @@ pub trait EnvVar {
     fn var(name: &str) -> Option<String>;
 }
 
-/// Project-wide capability provider. Production code threads
-/// `RealApi` through generic call sites with an explicit turbofish:
+/// Production provider for the capability traits in this crate.
+/// Production code threads `Host` through generic call sites with an
+/// explicit turbofish:
 ///
 /// ```ignore
-/// let config = Config::current::<RealApi>(env::current_dir, home::home_dir, Default::default);
+/// let config = Config::current::<Host>(env::current_dir, home::home_dir, Default::default);
 /// ```
 ///
 /// Tests substitute their own zero-sized struct that implements only
 /// the trait bounds the function under test declares.
-pub struct RealApi;
+pub struct Host;
 
-impl EnvVar for RealApi {
+impl EnvVar for Host {
     fn var(name: &str) -> Option<String> {
         std::env::var(name).ok()
     }

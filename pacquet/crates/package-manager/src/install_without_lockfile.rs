@@ -7,7 +7,7 @@ use dashmap::DashSet;
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
-use pacquet_cmd_shim::{LinkBinsError, RealApi, link_bins};
+use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
 use pacquet_config::Config;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -207,7 +207,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // iterator was already consumed by the install loop above; pnpm's
         // own `linkBins(modulesDir, binsDir)` overload uses the same
         // strategy.
-        link_bins::<RealApi>(&config.modules_dir, &config.modules_dir.join(".bin"))
+        link_bins::<Host>(&config.modules_dir, &config.modules_dir.join(".bin"))
             .map_err(InstallWithoutLockfileError::LinkBins)?;
 
         // No lockfile here, so no prefetched manifests are available —

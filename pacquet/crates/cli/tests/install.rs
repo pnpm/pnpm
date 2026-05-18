@@ -253,7 +253,7 @@ fn should_install_circular_dependencies() {
 
 /// End-to-end coverage for `${VAR}` substitution in `.npmrc`.
 ///
-/// `<RealApi as EnvVar>::var` (the `std::env::var` bridge in
+/// `<Host as EnvVar>::var` (the `std::env::var` bridge in
 /// `crates/config/src/api.rs`) is unreachable by every other test
 /// because `add_mocked_registry` writes literal values, so
 /// `env_replace` short-circuits at the no-`$` branch.
@@ -264,7 +264,7 @@ fn should_install_circular_dependencies() {
 /// upstream's [`installing/deps-installer/test/install/auth.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/installing/deps-installer/test/install/auth.ts)
 /// is not exercised here. The mock registry doesn't gate on auth, so
 /// substituting the registry URL is the smallest scenario that drives
-/// `<RealApi as EnvVar>::var` end-to-end. Token-substitution coverage
+/// `<Host as EnvVar>::var` end-to-end. Token-substitution coverage
 /// belongs in a test against a registry that actually validates the
 /// header.
 #[test]
