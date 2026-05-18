@@ -20,9 +20,11 @@ where
     pub tarball_mem_cache: &'a MemCache,
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
+    pub http_client_arc: std::sync::Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a mut PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
+    pub lockfile_path: Option<&'a std::path::Path>,
     pub list_dependency_groups: ListDependencyGroups, // must be a function because it is called multiple times
     pub package_name: &'a str, // TODO: 1. support version range, 2. multiple arguments, 3. name this `packages`
     pub save_exact: bool,      // TODO: add `save-exact` to `.npmrc`, merge configs, and remove this
@@ -53,9 +55,11 @@ where
         let Add {
             tarball_mem_cache,
             http_client,
+            http_client_arc,
             config,
             manifest,
             lockfile,
+            lockfile_path,
             list_dependency_groups,
             package_name,
             save_exact,
@@ -83,9 +87,11 @@ where
         Install {
             tarball_mem_cache,
             http_client,
+            http_client_arc,
             config,
             manifest,
             lockfile,
+            lockfile_path,
             dependency_groups: list_dependency_groups(),
             frozen_lockfile: false,
             skip_runtimes: config.skip_runtimes,

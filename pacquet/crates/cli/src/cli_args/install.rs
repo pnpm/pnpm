@@ -165,12 +165,22 @@ impl InstallArgs {
         // yaml/npmrc value for this invocation. Mirrors pnpm's
         // override-on-explicit-flag semantics.
         let node_linker = node_linker.map(NodeLinkerArg::into_config).unwrap_or(config.node_linker);
+        // The lockfile-verification gate keys its on-disk cache off
+        // `<manifest_dir>/pnpm-lock.yaml`. Once workspace support
+        // lands (pacquet#431), this becomes `workspace_root` to
+        // match where the lockfile actually lives.
+        let lockfile_path = manifest
+            .path()
+            .parent()
+            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
         Install {
             tarball_mem_cache,
             http_client,
+            http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
             lockfile: lockfile.as_ref(),
+            lockfile_path: lockfile_path.as_deref(),
             dependency_groups: dependency_options.dependency_groups(),
             frozen_lockfile,
             skip_runtimes,

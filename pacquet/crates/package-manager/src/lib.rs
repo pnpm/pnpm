@@ -1,5 +1,6 @@
 mod add;
 mod build_modules;
+mod build_resolution_verifiers;
 mod build_sequence;
 mod build_snapshot;
 mod create_symlink_layout;
@@ -29,6 +30,7 @@ mod virtual_store_layout;
 
 pub use add::*;
 pub use build_modules::*;
+pub use build_resolution_verifiers::*;
 pub use build_sequence::*;
 pub use build_snapshot::*;
 pub use create_symlink_layout::*;

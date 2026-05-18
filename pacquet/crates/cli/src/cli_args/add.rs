@@ -104,12 +104,18 @@ impl AddArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
 
+        let lockfile_path = manifest
+            .path()
+            .parent()
+            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
         Add {
             tarball_mem_cache,
             http_client,
+            http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
             lockfile: lockfile.as_ref(),
+            lockfile_path: lockfile_path.as_deref(),
             list_dependency_groups: || self.dependency_options.dependency_groups(),
             package_name: &self.package_name,
             save_exact: self.save_exact,
