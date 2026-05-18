@@ -35,6 +35,7 @@ pacquet-store-dir              = { path = "pacquet/crates/store-dir" }
 pacquet-reporter               = { path = "pacquet/crates/reporter" }
 pacquet-patching               = { path = "pacquet/crates/patching" }
 pacquet-real-hoist             = { path = "pacquet/crates/real-hoist" }
+pacquet-resolving-resolver-base = { path = "pacquet/crates/resolving-resolver-base" }
 pacquet-workspace              = { path = "pacquet/crates/workspace" }
 pacquet-workspace-state        = { path = "pacquet/crates/workspace-state" }
 

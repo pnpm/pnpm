@@ -2368,6 +2368,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-resolver-base"
+version = "0.0.1"
+dependencies = [
+ "pacquet-lockfile",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-store-dir"
 version = "0.0.1"
 dependencies = [
