@@ -2087,6 +2087,7 @@ name = "pacquet-fs"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "dunce",
  "junction",
  "miette 7.6.0",
  "pathdiff",

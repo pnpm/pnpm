@@ -19,6 +19,7 @@ pathdiff    = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
+dunce    = { workspace = true }
 junction = { workspace = true }
 
 [lints]
