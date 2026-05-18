@@ -87,7 +87,7 @@ const LOG_FLAG_CLONE: u8 = 1 << 0;
 const LOG_FLAG_HARDLINK: u8 = 1 << 1;
 const LOG_FLAG_COPY: u8 = 1 << 2;
 
-fn log_method_once<R: Reporter>(logged: &AtomicU8, flag: u8, method: WireImportMethod) {
+fn log_method_once<Reporter: self::Reporter>(logged: &AtomicU8, flag: u8, method: WireImportMethod) {
     if logged.fetch_or(flag, Ordering::Relaxed) & flag == 0 {
         let method_name = match method {
             WireImportMethod::Clone => "clone",
@@ -95,7 +95,7 @@ fn log_method_once<R: Reporter>(logged: &AtomicU8, flag: u8, method: WireImportM
             WireImportMethod::Copy => "copy",
         };
         tracing::info!(target: "pacquet::package_import_method", method = method_name, "selected package import method");
-        R::emit(&LogEvent::PackageImportMethod(PackageImportMethodLog {
+        Reporter::emit(&LogEvent::PackageImportMethod(PackageImportMethodLog {
             level: LogLevel::Debug,
             method,
         }));
@@ -112,7 +112,7 @@ fn log_method_once<R: Reporter>(logged: &AtomicU8, flag: u8, method: WireImportM
 ///   sequentially up-front and then calls into the import primitive
 ///   per file. [`import_indexed_dir`](crate::import_indexed_dir()) is
 ///   the production caller and handles that pre-pass.
-pub fn link_file<R: Reporter>(
+pub fn link_file<Reporter: self::Reporter>(
     logged: &AtomicU8,
     method: PackageImportMethod,
     source_file: &Path,
@@ -160,7 +160,7 @@ pub fn link_file<R: Reporter>(
     let result = match method {
         PackageImportMethod::Auto => {
             static AUTO_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
-            auto_link::<R>(logged, &AUTO_STATE, source_file, target_link)
+            auto_link::<Reporter>(logged, &AUTO_STATE, source_file, target_link)
         }
         // pnpm's explicit `hardlink` method uses `hardlinkPkg(linkOrCopy)`
         // which falls back to copy on `EXDEV` (cross-device link not
@@ -172,28 +172,28 @@ pub fn link_file<R: Reporter>(
         // itself is already cheap; pnpm doesn't cache this path either.
         PackageImportMethod::Hardlink => match fs::hard_link(source_file, target_link) {
             Ok(()) => {
-                log_method_once::<R>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+                log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
                 Ok(())
             }
             Err(error) if is_cross_device(&error) => fs::copy(source_file, target_link)
                 .inspect(|_| {
-                    log_method_once::<R>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                 })
                 .map(drop),
             Err(error) => Err(error),
         },
         PackageImportMethod::Clone => {
             reflink_copy::reflink(source_file, target_link).inspect(|_| {
-                log_method_once::<R>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+                log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
             })
         }
         PackageImportMethod::CloneOrCopy => {
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
-            clone_or_copy_link::<R>(logged, &CLONE_OR_COPY_STATE, source_file, target_link)
+            clone_or_copy_link::<Reporter>(logged, &CLONE_OR_COPY_STATE, source_file, target_link)
         }
         PackageImportMethod::Copy => fs::copy(source_file, target_link)
             .inspect(|_| {
-                log_method_once::<R>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
             })
             .map(drop),
     };
@@ -274,7 +274,7 @@ fn is_call_error(err: &io::Error) -> bool {
 /// downgrade the cached state; other errors propagate immediately so a
 /// one-off `NotFound` on a single file doesn't permanently disable a
 /// tier for the rest of the process.
-fn auto_link<R: Reporter>(
+fn auto_link<Reporter: self::Reporter>(
     logged: &AtomicU8,
     state: &AtomicU8,
     source: &Path,
@@ -284,7 +284,7 @@ fn auto_link<R: Reporter>(
         match state.load(Ordering::Relaxed) {
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
-                    log_method_once::<R>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+                    log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
                 Err(err) if is_call_error(&err) => return Err(err),
@@ -294,7 +294,7 @@ fn auto_link<R: Reporter>(
             },
             LINK_STATE_HARDLINK => match fs::hard_link(source, target) {
                 Ok(()) => {
-                    log_method_once::<R>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+                    log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
                     return Ok(());
                 }
                 Err(err) if is_call_error(&err) => return Err(err),
@@ -305,7 +305,7 @@ fn auto_link<R: Reporter>(
             _ => {
                 return fs::copy(source, target)
                     .inspect(|_| {
-                        log_method_once::<R>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                     })
                     .map(drop);
             }
@@ -319,7 +319,7 @@ fn auto_link<R: Reporter>(
 /// first reflink failure reassigns its closure directly to `copyPkg`.
 /// Same error-narrowing as `auto_link`: only capability failures
 /// downgrade; real errors propagate.
-fn clone_or_copy_link<R: Reporter>(
+fn clone_or_copy_link<Reporter: self::Reporter>(
     logged: &AtomicU8,
     state: &AtomicU8,
     source: &Path,
@@ -329,7 +329,7 @@ fn clone_or_copy_link<R: Reporter>(
         match state.load(Ordering::Relaxed) {
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
-                    log_method_once::<R>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+                    log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
                 Err(err) if is_call_error(&err) => return Err(err),
@@ -340,7 +340,7 @@ fn clone_or_copy_link<R: Reporter>(
             _ => {
                 return fs::copy(source, target)
                     .inspect(|_| {
-                        log_method_once::<R>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                     })
                     .map(drop);
             }

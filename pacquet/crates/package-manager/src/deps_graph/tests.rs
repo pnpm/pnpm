@@ -7,16 +7,16 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::HashMap;
 
-fn name(s: &str) -> PkgName {
-    PkgName::parse(s).expect("parse pkg name")
+fn name(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse pkg name")
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(name(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(name(name_text), ver(version))
 }
 
 fn integrity() -> Integrity {

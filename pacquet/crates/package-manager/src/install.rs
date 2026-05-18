@@ -160,7 +160,7 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     /// Execute the subroutine.
-    pub async fn run<R: Reporter>(self) -> Result<(), InstallError> {
+    pub async fn run<Reporter: self::Reporter>(self) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
             resolved_packages,
@@ -215,7 +215,7 @@ where
         // fires before `pnpm:context` so consumers that key off
         // manifest contents have it ready when the install header
         // renders.
-        R::emit(&LogEvent::PackageManifest(PackageManifestLog {
+        Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
             message: PackageManifestMessage::Initial {
                 prefix: prefix.clone(),
@@ -245,14 +245,14 @@ where
         // upstream's <https://github.com/pnpm/pnpm/blob/94240bc046/installing/context/src/index.ts#L196>:
         // `true` once a previous install has written
         // `<virtual_store_dir>/lock.yaml`.
-        R::emit(&LogEvent::Context(ContextLog {
+        Reporter::emit(&LogEvent::Context(ContextLog {
             level: LogLevel::Debug,
             current_lockfile_exists: current_lockfile.is_some(),
             store_dir: config.store_dir.display().to_string(),
             virtual_store_dir: config.virtual_store_dir.to_string_lossy().into_owned(),
         }));
 
-        R::emit(&LogEvent::Stage(StageLog {
+        Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: prefix.clone(),
             stage: Stage::ImportingStarted,
@@ -372,8 +372,8 @@ where
                 snapshots: snapshots.as_ref(),
                 lockfile,
                 current_lockfile: current_lockfile.as_ref(),
-                current_snapshots: current_lockfile.as_ref().and_then(|l| l.snapshots.as_ref()),
-                current_packages: current_lockfile.as_ref().and_then(|l| l.packages.as_ref()),
+                current_snapshots: current_lockfile.as_ref().and_then(|lockfile| lockfile.snapshots.as_ref()),
+                current_packages: current_lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref()),
                 dependency_groups,
                 logged_methods: &logged_methods,
                 workspace_root: &workspace_root,
@@ -382,7 +382,7 @@ where
                 skip_runtimes,
                 node_linker,
             }
-            .run::<R>()
+            .run::<Reporter>()
             .await
             .map_err(InstallError::FrozenLockfile)?;
 
@@ -447,7 +447,7 @@ where
                 logged_methods: &logged_methods,
                 requester: &prefix,
             }
-            .run::<R>()
+            .run::<Reporter>()
             .await
             .map_err(InstallError::WithoutLockfile)?;
             (hd, BTreeMap::new(), crate::SkippedSnapshots::new())
@@ -537,7 +537,7 @@ where
         // the accumulated `pnpm:root` events as a "+N -M" block. Must
         // come after `importing_done`, matching pnpm's ordering at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1663>.
-        R::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+        Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 
         Ok(())
     }

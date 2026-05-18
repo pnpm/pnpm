@@ -704,8 +704,8 @@ fn walk_deps(
             version: pkg_key.suffix.version().to_string(),
             optional: snapshot.map(|s| s.optional).unwrap_or(false),
             optional_dependencies: snapshot
-                .and_then(|s| s.optional_dependencies.as_ref())
-                .map(|m| m.keys().map(|k| k.to_string()).collect())
+                .and_then(|snap| snap.optional_dependencies.as_ref())
+                .map(|map| map.keys().map(|k| k.to_string()).collect())
                 .unwrap_or_default(),
             has_bin: metadata.has_bin.unwrap_or(false),
             has_bundled_dependencies: metadata.bundled_dependencies.is_some(),
@@ -954,12 +954,12 @@ mod tests {
             .expect("lockfileVersion 9.0 is compatible")
     }
 
-    fn pkg_name(s: &str) -> PkgName {
-        PkgName::parse(s).expect("parse PkgName")
+    fn pkg_name(text: &str) -> PkgName {
+        PkgName::parse(text).expect("parse PkgName")
     }
 
-    fn ver_peer(s: &str) -> PkgVerPeer {
-        s.parse::<PkgVerPeer>().expect("parse PkgVerPeer")
+    fn ver_peer(text: &str) -> PkgVerPeer {
+        text.parse::<PkgVerPeer>().expect("parse PkgVerPeer")
     }
 
     fn dep_key(name: &str, version: &str) -> PkgNameVerPeer {
@@ -1713,7 +1713,7 @@ mod tests {
         );
         // Workspace nodes themselves are NOT graph entries; only
         // their package-bearing descendants are.
-        assert!(!result.graph.values().any(|n| n.alias.as_deref() == Some("packages%2Ffoo")));
+        assert!(!result.graph.values().any(|node| node.alias.as_deref() == Some("packages%2Ffoo")));
     }
 
     /// Hierarchy must include one entry per importer root: the

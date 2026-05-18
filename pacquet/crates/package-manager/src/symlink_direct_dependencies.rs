@@ -135,7 +135,7 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     /// Execute the subroutine.
-    pub fn run<R: Reporter>(self) -> Result<(), SymlinkDirectDependenciesError> {
+    pub fn run<Reporter: self::Reporter>(self) -> Result<(), SymlinkDirectDependenciesError> {
         let SymlinkDirectDependencies {
             config,
             layout,
@@ -186,7 +186,7 @@ where
             let project_dir = importer_root_dir(workspace_root, importer_id);
             let modules_dir = project_dir.join(modules_dir_name);
 
-            link_one_importer::<R>(
+            link_one_importer::<Reporter>(
                 importer_id,
                 layout,
                 project_snapshot,
@@ -268,14 +268,14 @@ fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDependenci
 /// deps live as real directories under
 /// `<importer>/node_modules/<alias>` already and don't need the
 /// symlink-targeted filter).
-pub fn direct_dep_names_for_importer<I>(
+pub fn direct_dep_names_for_importer<Iter>(
     snapshot: &ProjectSnapshot,
-    dependency_groups: I,
+    dependency_groups: Iter,
     skipped: &SkippedSnapshots,
     link_only: bool,
 ) -> Vec<String>
 where
-    I: IntoIterator<Item = DependencyGroup>,
+    Iter: IntoIterator<Item = DependencyGroup>,
 {
     let mut seen: HashSet<&PkgName> = HashSet::new();
     dependency_groups
@@ -319,7 +319,7 @@ pub(crate) fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> Pat
 }
 
 #[allow(clippy::too_many_arguments)]
-fn link_one_importer<R: Reporter>(
+fn link_one_importer<Reporter: self::Reporter>(
     importer_id: &str,
     layout: &VirtualStoreLayout,
     project_snapshot: &ProjectSnapshot,
@@ -507,7 +507,7 @@ fn link_one_importer<R: Reporter>(
                 ImporterDepVersion::Alias(alias) => alias.name.to_string(),
                 ImporterDepVersion::Regular(_) | ImporterDepVersion::Link(_) => name_str.clone(),
             };
-            R::emit(&LogEvent::Root(RootLog {
+            Reporter::emit(&LogEvent::Root(RootLog {
                 level: LogLevel::Debug,
                 message: RootMessage::Added {
                     prefix: prefix.clone(),

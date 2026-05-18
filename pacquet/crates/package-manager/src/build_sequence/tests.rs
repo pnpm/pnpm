@@ -8,16 +8,16 @@ use pacquet_patching::ExtendedPatchInfo;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
-fn name(s: &str) -> PkgName {
-    PkgName::parse(s).expect("parse pkg name")
+fn name(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse pkg name")
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(name(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(name(name_text), ver(version))
 }
 
 /// Build a `requires_build` map for tests from a list of (key, requires_build)

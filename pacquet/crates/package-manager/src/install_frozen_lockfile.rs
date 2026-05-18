@@ -256,7 +256,7 @@ where
     /// hoist decisions, and `skipped` lets the next install seed
     /// the installability re-check against the previously skipped
     /// snapshots.
-    pub async fn run<R: Reporter>(
+    pub async fn run<Reporter: self::Reporter>(
         self,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         let InstallFrozenLockfile {
@@ -382,7 +382,7 @@ where
             if let Some(supp) = supported_architectures {
                 host.supported_architectures = Some(supp.clone());
             }
-            let skipped = compute_skipped_snapshots::<R>(
+            let skipped = compute_skipped_snapshots::<Reporter>(
                 snapshots.expect("guarded by needs_installability_check"),
                 packages.expect("guarded by needs_installability_check"),
                 &host,
@@ -596,7 +596,7 @@ where
             workspace_root,
             node_linker,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .await
         .map_err(InstallFrozenLockfileError::CreateVirtualStore)?;
 
@@ -623,7 +623,7 @@ where
                 skipped: &skipped,
                 link_only: false,
             }
-            .run::<R>()
+            .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
 
             // Link the bins of each virtual-store slot's children into the
@@ -762,7 +762,7 @@ where
                 logged_methods,
                 requester,
             };
-            link_hoisted_modules::<R>(&link_opts)
+            link_hoisted_modules::<Reporter>(&link_opts)
                 .map_err(InstallFrozenLockfileError::LinkHoistedModules)?;
             // Workspace `link:` deps still need symlinks under
             // each importer's `node_modules/<alias>` even though
@@ -785,7 +785,7 @@ where
                 skipped: &skipped,
                 link_only: true,
             }
-            .run::<R>()
+            .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
             // Map snapshot key → first recorded directory. The
             // walker can emit multiple [`crate::DependenciesGraphNode`]s
@@ -989,7 +989,7 @@ where
         // phase. Reporters use it to close the import progress display so
         // subsequent `pnpm:lifecycle` events render in their own section.
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>
-        R::emit(&LogEvent::Stage(StageLog {
+        Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: requester.to_string(),
             stage: Stage::ImportingDone,
@@ -1111,14 +1111,14 @@ where
             pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
             gather_ancestor_bin_paths: is_hoisted,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .map_err(InstallFrozenLockfileError::BuildModules)?;
 
         // Mirrors upstream's single emit at the end of the build phase:
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L414>.
         // Always emitted (with an empty list when nothing was ignored), so
         // the reporter can display a consistent "no ignored scripts" state.
-        R::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+        Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
             level: LogLevel::Debug,
             package_names: ignored_builds,
         }));

@@ -294,7 +294,7 @@ impl<'a> BuildModules<'a> {
     /// The caller is expected to fold the returned set into a single
     /// `pnpm:ignored-scripts` event — mirroring upstream's emit at
     /// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L414>.
-    pub fn run<R: Reporter>(self) -> Result<Vec<String>, BuildModulesError> {
+    pub fn run<Reporter: self::Reporter>(self) -> Result<Vec<String>, BuildModulesError> {
         let BuildModules {
             layout,
             modules_dir,
@@ -379,7 +379,7 @@ impl<'a> BuildModules<'a> {
         // many parents.
         let read_gate_active = side_effects_cache
             && engine_name.is_some()
-            && side_effects_maps_by_snapshot.is_some_and(|m| !m.is_empty());
+            && side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty());
         let write_gate_active = side_effects_cache_write
             && engine_name.is_some()
             && store_index_writer.is_some()
@@ -440,7 +440,7 @@ impl<'a> BuildModules<'a> {
             // collections above and `deps_state_cache`.
             pool.install(|| -> Result<(), BuildModulesError> {
                 chunk.par_iter().try_for_each(|snapshot_key| {
-                    build_one_snapshot::<R>(
+                    build_one_snapshot::<Reporter>(
                         snapshot_key,
                         snapshots,
                         packages,
@@ -487,7 +487,7 @@ impl<'a> BuildModules<'a> {
 /// as the pre-#12 sequential loop — `continue`s become `return Ok(())`
 /// here.
 #[allow(clippy::too_many_arguments)]
-fn build_one_snapshot<R: Reporter>(
+fn build_one_snapshot<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
@@ -599,7 +599,7 @@ fn build_one_snapshot<R: Reporter>(
                 // `None` for unpatched snapshots leaves the
                 // `;patch=...` segment off the cache key entirely,
                 // matching upstream when `depNode.patch == null`.
-                patch_file_hash: patch.map(|p| p.hash.as_str()),
+                patch_file_hash: patch.map(|patch| patch.hash.as_str()),
                 // Mirrors `includeDepGraphHash: hasSideEffects` at
                 // upstream line 202. A patched-only snapshot (no
                 // scripts will run) leaves the deps-hash off so the
@@ -678,7 +678,7 @@ fn build_one_snapshot<R: Reporter>(
     };
 
     let has_side_effects = if should_run_scripts {
-        let result = run_postinstall_hooks::<R>(RunPostinstallHooks {
+        let result = run_postinstall_hooks::<Reporter>(RunPostinstallHooks {
             dep_path: &snapshot_key.to_string(),
             pkg_root: &pkg_dir,
             root_modules_dir: modules_dir,
@@ -707,7 +707,7 @@ fn build_one_snapshot<R: Reporter>(
                     // channel and swallowed so the install can
                     // continue. The `package.id` field upstream is
                     // `depNode.dir`; we use the same.
-                    R::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+                    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                         level: LogLevel::Debug,
                         details: Some(err.to_string()),
                         package: SkippedOptionalPackage::Installed {
@@ -855,7 +855,7 @@ fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) -> Vec<Path
     loop {
         let parent = dir.parent().unwrap_or(Path::new(""));
         let parent_starts_with_at =
-            parent.to_str().and_then(|s| s.chars().next()).is_some_and(|c| c == '@');
+            parent.to_str().and_then(|text| text.chars().next()).is_some_and(|ch| ch == '@');
         if !parent_starts_with_at {
             bin_dirs.push(dir.join("node_modules").join(".bin"));
         }

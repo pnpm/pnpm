@@ -73,7 +73,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
     /// [`crate::InstallFrozenLockfile::run`]. The signature symmetry
     /// keeps `Install::run` from branching on which sub-path produced
     /// the result.
-    pub async fn run<R: Reporter>(self) -> Result<HoistedDependencies, InstallWithoutLockfileError>
+    pub async fn run<Reporter: self::Reporter>(self) -> Result<HoistedDependencies, InstallWithoutLockfileError>
     where
         DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     {
@@ -153,7 +153,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
                         name,
                         version_range,
                     }
-                    .run::<R>()
+                    .run::<Reporter>()
                     .await
                     .map_err(InstallWithoutLockfileError::InstallPackageFromRegistry)?;
 
@@ -167,7 +167,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
                         logged_methods,
                         requester,
                     }
-                    .install_dependencies_from_registry::<R>(
+                    .install_dependencies_from_registry::<Reporter>(
                         &dependency,
                         store_index_ref,
                         store_index_writer_ref,
@@ -243,7 +243,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // path does not run lifecycle scripts today, so emitting here also
         // marks end-of-install for reporters.
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>
-        R::emit(&LogEvent::Stage(StageLog {
+        Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: requester.to_string(),
             stage: Stage::ImportingDone,
@@ -256,7 +256,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
 impl<'a> InstallWithoutLockfile<'a, ()> {
     /// Install dependencies of a dependency.
     #[async_recursion]
-    async fn install_dependencies_from_registry<R>(
+    async fn install_dependencies_from_registry<Reporter>(
         &self,
         package: &PackageVersion,
         store_index: Option<&'async_recursion pacquet_store_dir::SharedReadonlyStoreIndex>,
@@ -266,7 +266,7 @@ impl<'a> InstallWithoutLockfile<'a, ()> {
         verified_files_cache: &'async_recursion SharedVerifiedFilesCache,
     ) -> Result<(), InstallWithoutLockfileError>
     where
-        R: Reporter,
+        Reporter: self::Reporter,
     {
         let InstallWithoutLockfile {
             tarball_mem_cache,
@@ -307,10 +307,10 @@ impl<'a> InstallWithoutLockfile<'a, ()> {
                     name,
                     version_range,
                 }
-                .run::<R>()
+                .run::<Reporter>()
                 .await
                 .map_err(InstallWithoutLockfileError::InstallPackageFromRegistry)?;
-                self.install_dependencies_from_registry::<R>(
+                self.install_dependencies_from_registry::<Reporter>(
                     &dependency,
                     store_index,
                     store_index_writer,

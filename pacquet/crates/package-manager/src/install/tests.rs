@@ -379,7 +379,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     let has_real_name_dir = std::fs::read_dir(&virtual_store_dir_path)
         .unwrap()
         .flatten()
-        .any(|e| e.file_name().to_string_lossy().starts_with("@pnpm.e2e+hello-world-js-bin@"));
+        .any(|entry| entry.file_name().to_string_lossy().starts_with("@pnpm.e2e+hello-world-js-bin@"));
     assert!(has_real_name_dir, "expected real-name virtual store directory");
 
     drop((dir, mock_instance));
@@ -1063,7 +1063,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     let captured = EVENTS.lock().unwrap();
     let broken: Vec<&BrokenModulesLog> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::BrokenModules(b) => Some(b),
             _ => None,
         })
@@ -1165,7 +1165,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         .lock()
         .unwrap()
         .iter()
-        .find_map(|e| match e {
+        .find_map(|event| match event {
             LogEvent::Context(c) => Some(c.clone()),
             _ => None,
         })
@@ -1209,7 +1209,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         .lock()
         .unwrap()
         .iter()
-        .find_map(|e| match e {
+        .find_map(|event| match event {
             LogEvent::Context(c) => Some(c.clone()),
             _ => None,
         })
@@ -1297,7 +1297,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         .lock()
         .unwrap()
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Stats(StatsLog { message: StatsMessage::Added { added, .. }, .. }) => {
                 Some(*added)
             }

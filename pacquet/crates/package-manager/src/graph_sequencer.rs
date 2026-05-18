@@ -5,21 +5,21 @@ use std::{
 
 /// Output of [`graph_sequencer`].
 ///
-/// Ports the `Result<T>` shape from
+/// Ports the `Result<Node>` shape from
 /// `https://github.com/pnpm/pnpm/blob/80037699fb/deps/graph-sequencer/src/index.ts`.
 #[derive(Debug)]
-pub struct GraphSequencerResult<T> {
+pub struct GraphSequencerResult<Node> {
     /// `false` when at least one cycle of length > 1 was found.
     pub safe: bool,
-    /// Topologically ordered groups. Every node in chunk `i` has all of its
+    /// Nodeopologically ordered groups. Every node in chunk `i` has all of its
     /// outgoing edges (within the included subset) pointing into earlier
     /// chunks `0..i`, so chunk `i` may run only after chunks `0..i` finish.
-    pub chunks: Vec<Vec<T>>,
+    pub chunks: Vec<Vec<Node>>,
     /// Cycles encountered while sorting. Each cycle is a list of nodes.
-    pub cycles: Vec<Vec<T>>,
+    pub cycles: Vec<Vec<Node>>,
 }
 
-/// Topologically sort a graph into chunks.
+/// Nodeopologically sort a graph into chunks.
 ///
 /// Ports `graphSequencer` from
 /// `https://github.com/pnpm/pnpm/blob/80037699fb/deps/graph-sequencer/src/index.ts`.
@@ -29,16 +29,16 @@ pub struct GraphSequencerResult<T> {
 ///
 /// Iteration order follows `included`, so the output is deterministic for a
 /// given input order.
-pub fn graph_sequencer<T>(graph: &HashMap<T, Vec<T>>, included: &[T]) -> GraphSequencerResult<T>
+pub fn graph_sequencer<Node>(graph: &HashMap<Node, Vec<Node>>, included: &[Node]) -> GraphSequencerResult<Node>
 where
-    T: Eq + Hash + Clone,
+    Node: Eq + Hash + Clone,
 {
-    let mut reverse_graph: HashMap<T, Vec<T>> =
-        graph.keys().map(|k| (k.clone(), Vec::new())).collect();
+    let mut reverse_graph: HashMap<Node, Vec<Node>> =
+        graph.keys().map(|key| (key.clone(), Vec::new())).collect();
 
-    let mut remaining: HashSet<T> = included.iter().cloned().collect();
-    let mut visited: HashSet<T> = HashSet::new();
-    let mut out_degree: HashMap<T, usize> = HashMap::new();
+    let mut remaining: HashSet<Node> = included.iter().cloned().collect();
+    let mut visited: HashSet<Node> = HashSet::new();
+    let mut out_degree: HashMap<Node, usize> = HashMap::new();
 
     for (from, edges) in graph {
         out_degree.insert(from.clone(), 0);
@@ -53,12 +53,12 @@ where
         }
     }
 
-    let mut chunks: Vec<Vec<T>> = Vec::new();
-    let mut cycles: Vec<Vec<T>> = Vec::new();
+    let mut chunks: Vec<Vec<Node>> = Vec::new();
+    let mut cycles: Vec<Vec<Node>> = Vec::new();
     let mut safe = true;
 
     while !remaining.is_empty() {
-        let mut chunk: Vec<T> = Vec::new();
+        let mut chunk: Vec<Node> = Vec::new();
         let mut min_degree: usize = usize::MAX;
         for node in included {
             if !remaining.contains(node) {
@@ -79,7 +79,7 @@ where
             }
             chunks.push(chunk);
         } else {
-            let mut cycle_nodes: Vec<T> = Vec::new();
+            let mut cycle_nodes: Vec<Node> = Vec::new();
             for node in included {
                 if !remaining.contains(node) {
                     continue;
@@ -104,14 +104,14 @@ where
     GraphSequencerResult { safe, chunks, cycles }
 }
 
-fn remove_node<T>(
-    node: &T,
-    reverse_graph: &HashMap<T, Vec<T>>,
-    out_degree: &mut HashMap<T, usize>,
-    visited: &mut HashSet<T>,
-    remaining: &mut HashSet<T>,
+fn remove_node<Node>(
+    node: &Node,
+    reverse_graph: &HashMap<Node, Vec<Node>>,
+    out_degree: &mut HashMap<Node, usize>,
+    visited: &mut HashSet<Node>,
+    remaining: &mut HashSet<Node>,
 ) where
-    T: Eq + Hash + Clone,
+    Node: Eq + Hash + Clone,
 {
     if let Some(parents) = reverse_graph.get(node) {
         for parent in parents {
@@ -126,14 +126,14 @@ fn remove_node<T>(
     remaining.remove(node);
 }
 
-fn find_cycle<T>(start: &T, graph: &HashMap<T, Vec<T>>, visited: &HashSet<T>) -> Vec<T>
+fn find_cycle<Node>(start: &Node, graph: &HashMap<Node, Vec<Node>>, visited: &HashSet<Node>) -> Vec<Node>
 where
-    T: Eq + Hash + Clone,
+    Node: Eq + Hash + Clone,
 {
-    let mut queue: VecDeque<(T, Vec<T>)> = VecDeque::new();
+    let mut queue: VecDeque<(Node, Vec<Node>)> = VecDeque::new();
     queue.push_back((start.clone(), vec![start.clone()]));
-    let mut cycle_visited: HashSet<T> = HashSet::new();
-    let mut found_cycles: Vec<Vec<T>> = Vec::new();
+    let mut cycle_visited: HashSet<Node> = HashSet::new();
+    let mut found_cycles: Vec<Vec<Node>> = Vec::new();
 
     while let Some((id, cycle)) = queue.pop_front() {
         let Some(edges) = graph.get(&id) else { continue };

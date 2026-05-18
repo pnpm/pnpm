@@ -110,7 +110,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     let expected_prefix = project_root.to_string_lossy().into_owned();
     let added: Vec<&AddedRoot> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
                 assert_eq!(prefix, &expected_prefix);
                 Some(added)
@@ -124,13 +124,13 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     // must carry their version, the matching dependency type, and
     // `realName == name` (pacquet's lockfile snapshots don't
     // preserve npm-alias keys at this layer).
-    let fastify = added.iter().find(|a| a.name == "fastify").expect("fastify added event missing");
+    let fastify = added.iter().find(|added| added.name == "fastify").expect("fastify added event missing");
     assert_eq!(fastify.real_name, "fastify");
     assert_eq!(fastify.version.as_deref(), Some("4.0.0"));
     assert_eq!(fastify.dependency_type, Some(DependencyType::Prod));
 
     let dev =
-        added.iter().find(|a| a.name == "@pnpm.e2e/dev-dep").expect("dev-dep added event missing");
+        added.iter().find(|added| added.name == "@pnpm.e2e/dev-dep").expect("dev-dep added event missing");
     assert_eq!(dev.real_name, "@pnpm.e2e/dev-dep");
     assert_eq!(dev.version.as_deref(), Some("1.2.3"));
     assert_eq!(dev.dependency_type, Some(DependencyType::Dev));
@@ -216,7 +216,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
     let captured = EVENTS.lock().unwrap();
     let added: Vec<&AddedRoot> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Root(RootLog { message: RootMessage::Added { added, .. }, .. }) => {
                 Some(added)
             }
@@ -307,7 +307,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     let captured = EVENTS.lock().unwrap();
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
                 Some((prefix.as_str(), added))
             }
@@ -434,7 +434,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
     let captured = EVENTS.lock().unwrap();
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
                 Some((prefix.as_str(), added))
             }

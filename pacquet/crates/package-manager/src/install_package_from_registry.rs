@@ -64,7 +64,7 @@ pub enum InstallPackageFromRegistryError {
 
 impl<'a> InstallPackageFromRegistry<'a> {
     /// Execute the subroutine.
-    pub async fn run<R: Reporter>(self) -> Result<PackageVersion, InstallPackageFromRegistryError> {
+    pub async fn run<Reporter: self::Reporter>(self) -> Result<PackageVersion, InstallPackageFromRegistryError> {
         let &InstallPackageFromRegistry { http_client, config, name, version_range, .. } = &self;
 
         // Strip any `npm:<name>@<range>` alias prefix before talking to
@@ -89,7 +89,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
             )
             .await
             .map_err(InstallPackageFromRegistryError::FetchFromRegistry)?;
-            self.install_package_version::<R>(&package_version).await?;
+            self.install_package_version::<Reporter>(&package_version).await?;
             package_version
         } else {
             let package = Package::fetch_from_registry(
@@ -101,12 +101,12 @@ impl<'a> InstallPackageFromRegistry<'a> {
             .await
             .map_err(InstallPackageFromRegistryError::FetchFromRegistry)?;
             let package_version = package.pinned_version(version_range).unwrap(); // TODO: propagate error for when no version satisfies range
-            self.install_package_version::<R>(package_version).await?;
+            self.install_package_version::<Reporter>(package_version).await?;
             package_version.clone()
         })
     }
 
-    async fn install_package_version<R: Reporter>(
+    async fn install_package_version<Reporter: self::Reporter>(
         self,
         package_version: &PackageVersion,
     ) -> Result<(), InstallPackageFromRegistryError> {
@@ -134,7 +134,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
         // registry-fetched `package_version`; emit before the
         // tarball download so consumers see resolved → fetched/
         // found_in_store → imported in order.
-        R::emit(&LogEvent::Progress(ProgressLog {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Resolved {
                 package_id: package_id.clone(),
@@ -165,7 +165,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
             ignore_file_pattern: None,
             offline: config.offline,
         }
-        .run_with_mem_cache::<R>(tarball_mem_cache)
+        .run_with_mem_cache::<Reporter>(tarball_mem_cache)
         .await
         .map_err(InstallPackageFromRegistryError::DownloadTarballToStore)?;
 
@@ -184,7 +184,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
 
         tracing::info!(target: "pacquet::import", ?save_path, ?symlink_path, "Import package");
 
-        import_indexed_dir::<R>(
+        import_indexed_dir::<Reporter>(
             logged_methods,
             config.package_import_method,
             &save_path,
@@ -201,7 +201,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
         // the optimistic `method` value. `to` is the per-package
         // virtual-store directory the symlink under
         // `node_modules/{name}` resolves to.
-        R::emit(&LogEvent::Progress(ProgressLog {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Imported {
                 method: crate::optimistic_wire_method(config.package_import_method),
