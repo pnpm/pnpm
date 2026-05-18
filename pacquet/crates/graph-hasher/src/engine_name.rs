@@ -238,15 +238,12 @@ mod tests {
     }
 
     /// `detect_node_version` returns the full version string with
-    /// the leading `v` stripped when `node --version` is reachable.
-    /// Skips silently when there is no `node` on `PATH` (we can't
-    /// assert presence in every test runner).
+    /// the leading `v` stripped. `node` is a hard prerequisite for
+    /// the test suite — if it isn't on `PATH` that's a test-env
+    /// bug, so we `expect` rather than skip.
     #[test]
-    fn detect_node_version_strips_leading_v_when_node_is_available() {
-        let Some(version) = detect_node_version() else {
-            eprintln!("`node` not on PATH; skipping version-detect test");
-            return;
-        };
+    fn detect_node_version_strips_leading_v() {
+        let version = detect_node_version().expect("`node` must be on PATH for the test suite");
         assert!(!version.starts_with('v'), "leading `v` must be stripped: {version:?}");
         let major = version.split('.').next().expect("at least one component");
         assert!(major.parse::<u32>().is_ok(), "major must be numeric: {version:?}");
@@ -257,10 +254,8 @@ mod tests {
     /// matches the leading component of the full version string.
     #[test]
     fn detect_node_major_matches_detect_node_version_leading_component() {
-        let (Some(major), Some(version)) = (detect_node_major(), detect_node_version()) else {
-            eprintln!("`node` not on PATH; skipping version-detect test");
-            return;
-        };
+        let major = detect_node_major().expect("`node` must be on PATH for the test suite");
+        let version = detect_node_version().expect("`node` must be on PATH for the test suite");
         let leading: u32 =
             version.split('.').next().expect("non-empty version").parse().expect("major numeric");
         assert_eq!(major, leading);
