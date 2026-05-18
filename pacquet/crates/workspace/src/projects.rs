@@ -187,9 +187,9 @@ pub fn find_workspace_projects_no_check(
     // sort below to make the contract visible.
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
     sorted.sort_by(|left, right| {
-        let dir_a = left.parent().unwrap_or(Path::new(""));
-        let dir_b = right.parent().unwrap_or(Path::new(""));
-        dir_a.cmp(dir_b)
+        let dir_left = left.parent().unwrap_or(Path::new(""));
+        let dir_right = right.parent().unwrap_or(Path::new(""));
+        dir_left.cmp(dir_right)
     });
 
     let mut projects = Vec::with_capacity(sorted.len());

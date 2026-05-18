@@ -5,13 +5,13 @@ use std::{
 
 /// Output of [`graph_sequencer`].
 ///
-/// Ports the `Result<Node>` shape from
+/// Ports the `Result<T>` shape from
 /// `https://github.com/pnpm/pnpm/blob/80037699fb/deps/graph-sequencer/src/index.ts`.
 #[derive(Debug)]
 pub struct GraphSequencerResult<Node> {
     /// `false` when at least one cycle of length > 1 was found.
     pub safe: bool,
-    /// Nodeopologically ordered groups. Every node in chunk `i` has all of its
+    /// Topologically ordered groups. Every node in chunk `i` has all of its
     /// outgoing edges (within the included subset) pointing into earlier
     /// chunks `0..i`, so chunk `i` may run only after chunks `0..i` finish.
     pub chunks: Vec<Vec<Node>>,
@@ -19,7 +19,7 @@ pub struct GraphSequencerResult<Node> {
     pub cycles: Vec<Vec<Node>>,
 }
 
-/// Nodeopologically sort a graph into chunks.
+/// Topologically sort a graph into chunks.
 ///
 /// Ports `graphSequencer` from
 /// `https://github.com/pnpm/pnpm/blob/80037699fb/deps/graph-sequencer/src/index.ts`.
