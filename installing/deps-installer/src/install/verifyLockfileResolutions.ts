@@ -1,3 +1,4 @@
+import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
@@ -113,10 +114,15 @@ export async function verifyLockfileResolutions (
     cachePrecomputed = result.precomputed
   }
 
-  const violations = await iterateLockfileViolations(lockfile, verifiers, options?.concurrency)
-
-  if (violations.length === 0) {
-    // Persist the success so the next install can stat-only the lockfile.
+  // Emit started/done around the actual verification pass — the
+  // round-trip can be slow on a cold registry cache, and the cached
+  // short-circuit above doesn't reach this branch, so a user only
+  // sees these messages on installs that are doing real work.
+  // A degenerate lockfile where every snapshot fails the
+  // name/version extraction (so candidates is empty) skips emission
+  // entirely — no work, no noise.
+  const candidates = collectCandidates(lockfile)
+  if (candidates.size === 0) {
     if (cache) {
       recordVerification(cache.cacheDir, {
         lockfilePath: cache.lockfilePath,
@@ -126,7 +132,45 @@ export async function verifyLockfileResolutions (
     }
     return
   }
+  const startedAt = Date.now()
+  lockfileVerificationLogger.debug({
+    status: 'started',
+    entries: candidates.size,
+    lockfilePath: options?.lockfilePath,
+  })
+  // Guarantee a terminal `done` or `failed` event on every exit path
+  // that emitted `started`. Without this, an unexpected throw from the
+  // registry fan-out (or the policy-violation throw below) would leave
+  // the transient "Verifying lockfile…" line as the last frame the
+  // reporter rendered for this block, hanging spinner-style above the
+  // failure output.
+  let terminalStatus: 'done' | 'failed' = 'failed'
+  try {
+    const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
+    if (violations.length === 0) {
+      terminalStatus = 'done'
+      // Persist the success so the next install can stat-only the lockfile.
+      if (cache) {
+        recordVerification(cache.cacheDir, {
+          lockfilePath: cache.lockfilePath,
+          verifiers,
+          hashLockfile,
+        }, cachePrecomputed)
+      }
+      return
+    }
+    throw buildVerificationError(violations)
+  } finally {
+    lockfileVerificationLogger.debug({
+      status: terminalStatus,
+      entries: candidates.size,
+      elapsedMs: Date.now() - startedAt,
+      lockfilePath: options?.lockfilePath,
+    })
+  }
+}
 
+function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmError {
   // Stable order so the error output is deterministic.
   violations.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
   // Pick the throw code: a single-code batch keeps the per-policy code
@@ -147,7 +191,7 @@ export async function verifyLockfileResolutions (
   const details = omitted > 0
     ? `${breakdown}\n  …and ${omitted} more`
     : breakdown
-  throw new PnpmError(
+  return new PnpmError(
     errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
@@ -182,26 +226,28 @@ export async function collectResolutionPolicyViolations (
 ): Promise<ResolutionPolicyViolation[]> {
   if (verifiers.length === 0) return []
   if (!lockfile.packages) return []
-  return iterateLockfileViolations(lockfile, verifiers, options?.concurrency)
+  return iterateLockfileViolations(collectCandidates(lockfile), verifiers, options?.concurrency)
 }
 
-async function iterateLockfileViolations (
-  lockfile: LockfileObject,
-  verifiers: readonly ResolutionVerifier[],
-  concurrency: number | undefined
-): Promise<ResolutionPolicyViolation[]> {
-  // depPath can include peer-dependency and patch_hash suffixes (e.g.
-  // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
-  // therefore appear multiple times. Dedupe so we issue at most one
-  // verification per package version.
-  //
-  // Include a serialization of `resolution` in the key so two entries that
-  // share a (name, version) but differ in *what* was resolved (e.g. one
-  // pinned via npm, another via a git URL under the same alias) don't
-  // collapse: if the wrong shape wins the dedup, a protocol-scoped
-  // verifier short-circuits on the surviving entry and the real one is
-  // never checked.
-  const candidates = new Map<string, { name: string, version: string, resolution: Resolution }>()
+interface Candidate {
+  name: string
+  version: string
+  resolution: Resolution
+}
+
+// depPath can include peer-dependency and patch_hash suffixes (e.g.
+// `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
+// therefore appear multiple times. Dedupe so we issue at most one
+// verification per package version.
+//
+// Include a serialization of `resolution` in the key so two entries that
+// share a (name, version) but differ in *what* was resolved (e.g. one
+// pinned via npm, another via a git URL under the same alias) don't
+// collapse: if the wrong shape wins the dedup, a protocol-scoped
+// verifier short-circuits on the surviving entry and the real one is
+// never checked.
+function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
+  const candidates = new Map<string, Candidate>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
@@ -212,7 +258,14 @@ async function iterateLockfileViolations (
       resolution: snapshot.resolution as Resolution,
     })
   }
+  return candidates
+}
 
+async function iterateLockfileViolations (
+  candidates: Map<string, Candidate>,
+  verifiers: readonly ResolutionVerifier[],
+  concurrency: number | undefined
+): Promise<ResolutionPolicyViolation[]> {
   const violations: ResolutionPolicyViolation[] = []
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   await Promise.all(

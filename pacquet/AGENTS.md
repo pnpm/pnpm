@@ -204,6 +204,48 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   regression. Consult it before adding ported tests, and update its
   checkboxes as items land.
 
+### No "tolerant" tests for missing tools
+
+Tests must not be tolerant of a missing build / runtime environment by
+silently `return`-ing early when a tool isn't found. Patterns like:
+
+```rust
+fn skip_if_no_git() -> bool {
+    if std::process::Command::new("git").arg("--version").output().is_err() {
+        eprintln!("skipping: `git` not on PATH");
+        return true;
+    }
+    false
+}
+
+#[test]
+fn my_test() {
+    if skip_if_no_git() {
+        return;
+    }
+    // ...
+}
+```
+
+are forbidden. If the test needs a tool, just call into it and let the
+existing `.unwrap()` / `.expect(...)` panic when the tool is absent — a
+failing test in an under-provisioned environment is the correct signal.
+Tolerance defeats the purpose of testing: if the environment really
+doesn't have the required tools, that's the *environment's* fault and it
+needs to be fixed.
+
+This applies in particular to `git`, `node`, and `npm` — git is ubiquitous
+on developer machines, and Node.js is a documented prerequisite for
+building pnpm. There is no realistic environment in which pacquet's tests
+should run *and* these tools should be absent.
+
+The only marginally acceptable exception is platform-locked tools — APIs
+or binaries that exist on one OS but not another. Even then, prefer
+`#[cfg_attr(target_os = "windows", ignore = "...")]` (or the matching
+`#[cfg(unix)]` gate already used in this crate for `/bin/sh` shims) over a
+runtime probe-and-skip helper. The gate is visible to `cargo test` and
+shows up in the test report; a silent `return` does not.
+
 ### Running tests narrowly
 
 Running the full suite is slow. While iterating, target what you're working

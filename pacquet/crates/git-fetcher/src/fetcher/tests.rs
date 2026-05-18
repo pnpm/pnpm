@@ -8,33 +8,6 @@ use pacquet_testing_utils::env_guard::EnvGuard;
 use std::{fs, path::Path, path::PathBuf};
 use tempfile::tempdir;
 
-fn skip_if_no_git() -> bool {
-    let probe = std::process::Command::new("git").arg("--version").output();
-    if probe.is_err() {
-        eprintln!("skipping: `git` not on PATH");
-        return true;
-    }
-    false
-}
-
-/// Skip the test if `npm` (and `node`) aren't on `PATH`. Used by the
-/// real-prepare tests below, which spawn an actual lifecycle script:
-/// `prepare_package` synthesizes `npm install` for any non-pnpm
-/// preferred-pm, and that needs an npm binary to invoke. Hosts
-/// without node tooling (a Rust-only sandbox, an embedded CI image)
-/// silently skip rather than fail so the suite stays portable.
-fn skip_if_no_npm() -> bool {
-    if std::process::Command::new("npm").arg("--version").output().is_err() {
-        eprintln!("skipping: `npm` not on PATH");
-        return true;
-    }
-    if std::process::Command::new("node").arg("--version").output().is_err() {
-        eprintln!("skipping: `node` not on PATH");
-        return true;
-    }
-    false
-}
-
 /// Build a bare repo whose manifest declares a `prepare` script. The
 /// script is whatever the caller passes — typically a `node -e '…'`
 /// one-liner that writes a marker file or exits non-zero. Returns
@@ -122,9 +95,6 @@ fn extract_host_handles_user_authority_and_port() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_imports_package_into_cas() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_bare_repo(tmp.path());
     let store_root = tempdir().unwrap();
@@ -164,9 +134,6 @@ async fn fetcher_imports_package_into_cas() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_rejects_commit_mismatch() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, _commit) = make_bare_repo(tmp.path());
     let store_root = tempdir().unwrap();
@@ -211,9 +178,6 @@ async fn fetcher_rejects_commit_mismatch() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_blocks_build_when_not_allowed() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     // A repo whose manifest declares a `prepare` script — exercises
     // the `allow_build` gate without actually spawning the script
@@ -337,9 +301,6 @@ fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
 /// the monorepo root or sibling packages.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_packs_subfolder_when_path_set() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_monorepo_bare_repo(tmp.path());
     let store_root = tempdir().unwrap();
@@ -387,9 +348,6 @@ async fn fetcher_packs_subfolder_when_path_set() {
 /// downstream, but the fetcher itself must not crash.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_handles_repo_without_package_json() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_bare_repo_without_manifest(tmp.path());
     let store_root = tempdir().unwrap();
@@ -433,9 +391,6 @@ async fn fetcher_handles_repo_without_package_json() {
 /// build (matches upstream's `shouldBeBuilt = true` short-circuit).
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_skips_build_when_ignore_scripts() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     // A repo whose `prepare` script would fail if it ran — observing
     // success proves the lifecycle runner never spawned anything.
@@ -510,9 +465,6 @@ async fn fetcher_skips_build_when_ignore_scripts() {
 /// actually executed (the file didn't exist in the source tree).
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_runs_prepare_script_when_allowed() {
-    if skip_if_no_git() || skip_if_no_npm() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     // The prepare script writes a marker. Single-quoted inner
     // string so the JSON doesn't need to escape it; node reads the
@@ -569,9 +521,6 @@ async fn fetcher_runs_prepare_script_when_allowed() {
 /// fetcher refuses to add a broken-build snapshot to the CAS.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_surfaces_prepare_failure() {
-    if skip_if_no_git() || skip_if_no_npm() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_bare_repo_with_prepare_script(
         tmp.path(),
@@ -641,9 +590,6 @@ async fn fetcher_surfaces_prepare_failure() {
 /// keep the block-test green.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_runs_prepare_when_allow_build_returns_true() {
-    if skip_if_no_git() || skip_if_no_npm() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_bare_repo_with_prepare_script(
         tmp.path(),
