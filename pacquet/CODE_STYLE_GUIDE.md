@@ -643,7 +643,18 @@ The above code is still valid code, and the Rust compiler doesn't error, but it 
 
 ### Dependency injection for tests
 
-Side-effecting code — filesystem access, environment variables, network calls, time, process state — is threaded through a per-capability trait on a domain-neutral provider type. Production code turbofishes the real provider (`Host`); tests substitute a per-test zero-sized struct that implements only the capability bounds the function under test declares. This is the convention for porting any new function whose pnpm equivalent reaches for `fs.*`, `process.env`, `new Date()`, or similar — the goal is unit-test coverage of the I/O error and time-dependent branches that real fixtures cannot trigger portably.
+Side-effecting code — filesystem access, environment variables, network calls, time, process state — has two testing routes. **The default route is a real fixture:** a `tempfile::TempDir` for filesystem work, the mocked registry (`just registry-mock`) for HTTP, an integration test that spawns the actual pacquet binary in a scratch directory for end-to-end flows. Real fixtures keep tests close to what users see, scale with the codebase without per-call-site plumbing, and are the right tool for every happy path and for the bulk of error paths. **Most new code should not introduce a DI seam at all** — it should land with integration or unit tests built on real fixtures.
+
+The dependency-injection seam described below is the **narrow second route**, reserved for code paths that real fixtures cannot reach or cannot reach cheaply. Reach for it only when one of the following applies:
+
+- **Filesystem error branches the host OS won't reproduce portably.** `PermissionDenied`, `ENOSPC`, a directory that disappears mid-walk, a chmod that fails after the file exists — provoking these on real disks is platform-specific, racy, or both. A fake that returns the exact `io::ErrorKind` is the only portable way to drive the branch.
+- **Deterministic time.** Asserting that `prunedAt` equals a specific RFC 2822 timestamp, or that a throttled emitter fires on the second sample, needs the clock to be a known value. The real `SystemTime::now` makes those assertions flaky.
+- **External-service happy paths that can't be staged in CI.** Upstream pnpm has features whose *normal* flow depends on real external systems — `pnpm login`'s 2FA prompt round-trip, the OIDC token exchange and provenance attestation in `pnpm publish`, and similar — where the happy path itself is what needs faking, not just the error path. When pacquet ports those features, DI is the right tool for their tests too. (As of writing, these are not yet ported; this exception is documented so the convention is in place when they land.)
+- **Unreachable-by-design preconditions.** When a function declares a capability bound but a specific test exercises a branch that never reaches that capability, the fake satisfies the bound with `unreachable!` and documents the precondition. See the worked example below.
+
+A function that takes a `<Sys>` generic but is only ever exercised via real fixtures is a smell — either the DI branches are missing coverage, or the generic is over-design. Either add the tests that justify the seam, or drop the generic and let the real fixture cover everything.
+
+The rest of this section is the convention that applies *when DI is the right tool*.
 
 #### Names
 
@@ -809,12 +820,6 @@ where
 ```
 
 The provider implements each trait independently, so adding a domain to an existing `Sys` is one more `impl X for Host` block — no churn on the production type beyond the new line, and no churn on existing tests beyond the ones whose fakes now need the new method.
-
-#### When to use real fixtures instead
-
-DI's value is unit-testable I/O error paths and deterministic time. It is not the right tool for end-to-end behavior tests that just happen to touch the filesystem — those go through a `tempfile::TempDir` fixture and exercise the real filesystem. Use DI when the test needs to provoke `PermissionDenied`, `ENOSPC`, a missing-then-recreated path, a fixed `prunedAt`, or any other branch the real OS won't reproduce portably. Use a tempdir when the test is happy with whatever the real fs does.
-
-A function that takes a `<Sys>` generic but is only ever exercised via real fixtures is a smell — either the test coverage is missing the DI branches, or the generic is over-design. Either fix the tests or drop the generic.
 
 ### Reporter / log events
 

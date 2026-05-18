@@ -42,17 +42,20 @@ Before writing code for a feature, bug fix, or behavior change:
    [Reporter / log events](./CODE_STYLE_GUIDE.md#reporter--log-events)
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
-7. **Side-effecting code uses the dependency-injection seam.** Any new
-   code that touches the filesystem, environment variables, network,
-   time, or process state goes through a capability trait on the
-   `Host` provider, threaded as `Sys: <Bounds>` through the function
-   signature. See
+7. **Prefer real fixtures; reach for the dependency-injection seam
+   only when they can't cover the branch.** Most happy paths and
+   error paths should be tested with a `tempfile::TempDir`, the
+   mocked registry, or an integration test that spawns the actual
+   binary. Use the DI seam — a capability trait on the `Host`
+   provider, threaded as `Sys: <Bounds>` — only for branches a real
+   fixture can't reach portably: filesystem error kinds
+   (`PermissionDenied`, `ENOSPC`, …), deterministic time, or the
+   external-service happy paths in features like `pnpm login` (2FA)
+   and `pnpm publish` (OIDC / provenance) when those land. See
    [Dependency injection for tests](./CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
-   in the style guide for the names (`Sys`, `Host`, `Fs*`, `Clock`,
-   `EnvVar`, …), the eight principles, and the `modules-yaml` worked
-   example. The seam exists so unit tests can drive I/O error paths
-   and time-dependent branches the real OS cannot reproduce portably;
-   skipping it leaves those branches untested.
+   in the style guide for the gating rule, the names (`Sys`, `Host`,
+   `Fs*`, `Clock`, `EnvVar`, …), the eight principles, and the
+   `modules-yaml` worked example.
 
 If the pnpm behavior is unclear or looks wrong, stop and ask the user
 rather than guessing.
