@@ -51,7 +51,7 @@ Before writing code for a feature, bug fix, or behavior change:
    fixture can't reach portably: filesystem error kinds
    (`PermissionDenied`, `ENOSPC`, …), deterministic time, shared
    process-global state a test would otherwise mutate
-   (`env::set_var` is the one example we have today), or the
+   (`env::set_var`, `set_current_dir`, the umask, …), or the
    external-service happy paths in features like `pnpm login` (2FA)
    and `pnpm publish` (OIDC / provenance) when those land. See
    [Dependency injection for tests](./CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
