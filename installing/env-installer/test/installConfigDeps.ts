@@ -84,40 +84,22 @@ test('optional subdep matching the current platform is installed and symlinked n
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
 
-  const parentName = '@pnpm.e2e/support-different-architectures'
-  const parentVersion = '1.0.0'
-  // Build a subdep entry that matches the current platform exactly.
-  const matchingSubdepName = `@pnpm.e2e/only-${process.platform}-${process.arch}`
-  const matchingSubdepVersion = '1.0.0'
-  const incompatibleSubdepName = '@pnpm.e2e/only-darwin-arm64'
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const subdepVersion = '100.0.0'
 
   const lockfile = createEnvLockfile()
   const parentKey = `${parentName}@${parentVersion}`
   lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
   lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
   lockfile.snapshots[parentKey] = {
-    optionalDependencies: {
-      [matchingSubdepName]: matchingSubdepVersion,
-      // Force-include a darwin-arm64 entry to verify cross-platform skip logic.
-      // If the test runs on darwin-arm64, this is the matching one and is added
-      // twice (no-op due to map semantics), so we only assert the unrelated
-      // platform skip when running on other architectures.
-      ...(matchingSubdepName !== incompatibleSubdepName
-        ? { [incompatibleSubdepName]: '1.0.0' }
-        : {}),
-    },
+    optionalDependencies: { [subdepName]: subdepVersion },
   }
-  lockfile.packages[`${matchingSubdepName}@${matchingSubdepVersion}`] = {
-    resolution: { integrity: getIntegrity(matchingSubdepName, matchingSubdepVersion) },
+  lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
     os: [process.platform],
     cpu: [process.arch],
-  }
-  if (matchingSubdepName !== incompatibleSubdepName) {
-    lockfile.packages[`${incompatibleSubdepName}@1.0.0`] = {
-      resolution: { integrity: getIntegrity(incompatibleSubdepName, '1.0.0') },
-      os: ['darwin'],
-      cpu: ['arm64'],
-    }
   }
 
   await installConfigDeps(lockfile, {
@@ -129,21 +111,48 @@ test('optional subdep matching the current platform is installed and symlinked n
     storeDir,
   })
 
-  // Parent is symlinked into .pnpm-config
   expect(fs.existsSync(`node_modules/.pnpm-config/${parentName}/package.json`)).toBe(true)
 
-  // The matching subdep is reachable from the parent's location via Node-style
-  // module resolution (walk up to siblings in node_modules).
   const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
-  const subdepSiblingPath = `${parentRealPath}/../${matchingSubdepName}`
-  expect(fs.existsSync(`${subdepSiblingPath}/package.json`)).toBe(true)
-  const subdepManifest = loadJsonFileSync<{ name: string }>(`${subdepSiblingPath}/package.json`)
-  expect(subdepManifest.name).toBe(matchingSubdepName)
+  const siblingPkgJsonPath = `${parentRealPath}/../${subdepName}/package.json`
+  expect(fs.existsSync(siblingPkgJsonPath)).toBe(true)
+  const siblingManifest = loadJsonFileSync<{ name: string, version: string }>(siblingPkgJsonPath)
+  expect(siblingManifest.name).toBe(subdepName)
+  expect(siblingManifest.version).toBe(subdepVersion)
+})
 
-  // The non-matching subdep is NOT linked next to the parent
-  if (matchingSubdepName !== incompatibleSubdepName) {
-    expect(fs.existsSync(`${parentRealPath}/../${incompatibleSubdepName}`)).toBe(false)
+test('optional subdep that does not match the current platform is skipped', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const subdepVersion = '100.0.0'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [subdepName]: subdepVersion },
   }
+  lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+    os: ['this-os-does-not-exist'],
+  }
+
+  await installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })
+
+  const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
+  expect(fs.existsSync(`${parentRealPath}/../${subdepName}`)).toBe(false)
 })
 
 test('installation fails if the checksum of the config dependency is invalid', async () => {
