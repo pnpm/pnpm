@@ -68,16 +68,35 @@ jobs:
           git config user.email "canora-bot@users.noreply.github.com"
           git config user.name  "canora-bot"
 
-      - name: Rebase patch onto upstream ref (FAIL LOUD on conflict)
-        if: ${{ github.event.inputs.upstream_ref != '' }}
+      - name: Resolve upstream target (manual input, else latest stable)
+        id: tgt
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          target='${{ github.event.inputs.upstream_ref }}'
-          echo "Rebasing canora-patch onto ${target} (ephemeral; not pushed)"
+          t='${{ github.event.inputs.upstream_ref }}'
+          if [ -z "$t" ]; then
+            t=$(gh api repos/pnpm/pnpm/releases/latest --jq '.tag_name')
+          fi
+          echo "target=$t" >> "$GITHUB_OUTPUT"
+          echo "Upstream target: $t"
+
+      - name: Rebase patch onto target (FAIL-SAFE — conflict aborts, no ship)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          target='${{ steps.tgt.outputs.target }}'
+          echo "Rebasing canora-patch onto ${target}"
           if ! git rebase "${target}"; then
             git rebase --abort || true
-            echo "::error::Rebase onto ${target} conflicts — upstream changed the patched code. Resolve canora-patch manually; refusing to ship an unverified patch."
+            gh issue create \
+              --title "canora-patch: weekly rebase onto ${target} conflicts" \
+              --body "Upstream ${target} changed code the patch touches. canora-sync stays on the last-good release (nothing shipped). Resolve canora-patch manually, then re-run canora-pnpm-release." 2>/dev/null || true
+            echo "::error::Rebase onto ${target} conflicts — last-good release kept; alert issue opened. Refusing to ship an unverified patch."
             exit 1
           fi
+          # Keep the maintenance branch current (our branch; safe force).
+          git push --force-with-lease origin canora-patch
 
       - name: Resolve version
         id: ver
@@ -85,7 +104,10 @@ jobs:
           base=$(node -p "require('./pnpm/package.json').version")
           base=${base%%-canora*}
           rev='${{ github.event.inputs.rev }}'
-          [ -z "$rev" ] && rev="$(date -u +%Y%m%d)"
+          # Deterministic: short SHA of the rebased patch. Identical when
+          # upstream is unchanged (idempotent — consumers see no churn);
+          # changes only when a new upstream release shifted the base.
+          [ -z "$rev" ] && rev="$(git rev-parse --short=7 HEAD)"
           echo "version=${base}-canora.${rev}" >> "$GITHUB_OUTPUT"
           echo "base=${base}" >> "$GITHUB_OUTPUT"
 
