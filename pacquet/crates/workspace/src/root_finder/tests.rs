@@ -2,7 +2,7 @@ use super::{
     BadWorkspaceManifestNameError, FindWorkspaceDirError, INVALID_WORKSPACE_MANIFEST_FILENAMES,
     WORKSPACE_DIR_ENV_VAR, find_workspace_dir, find_workspace_dir_from_env_with,
 };
-use crate::WORKSPACE_MANIFEST_FILENAME;
+use crate::{WORKSPACE_MANIFEST_FILENAME, api::EnvVarOs};
 use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 use std::fs;
@@ -75,16 +75,20 @@ fn correct_filename_wins_over_misnamed_sibling() {
 ///
 /// `std::env::set_var` has documented UB when other threads access
 /// the process environment concurrently (and Rust tests default to
-/// multi-threaded). The injected accessor on
-/// [`find_workspace_dir_from_env_with`] lets this test exercise the
-/// fall-through branch without touching the process env at all.
+/// multi-threaded). Routing the env lookup through the [`EnvVarOs`]
+/// DI seam on [`find_workspace_dir_from_env_with`] lets this test
+/// exercise the fall-through branch without touching the process
+/// env at all.
 #[test]
 fn empty_env_var_is_treated_as_unset() {
-    let env = |name: &str| -> Option<OsString> {
-        if name == WORKSPACE_DIR_ENV_VAR { Some(OsString::from("")) } else { None }
-    };
+    struct EnvWithEmptyWorkspaceDir;
+    impl EnvVarOs for EnvWithEmptyWorkspaceDir {
+        fn var_os(name: &str) -> Option<OsString> {
+            (name == WORKSPACE_DIR_ENV_VAR).then(OsString::new)
+        }
+    }
     assert_eq!(
-        find_workspace_dir_from_env_with(env),
+        find_workspace_dir_from_env_with::<EnvWithEmptyWorkspaceDir>(),
         None,
         "empty env var must fall through to the upward walk",
     );
@@ -95,11 +99,14 @@ fn empty_env_var_is_treated_as_unset() {
 /// guards the truthy-value side of the fall-through above.
 #[test]
 fn non_empty_env_var_resolves_verbatim() {
-    let env = |name: &str| -> Option<OsString> {
-        if name == WORKSPACE_DIR_ENV_VAR { Some(OsString::from("/explicit/root")) } else { None }
-    };
+    struct EnvWithUppercaseWorkspaceDir;
+    impl EnvVarOs for EnvWithUppercaseWorkspaceDir {
+        fn var_os(name: &str) -> Option<OsString> {
+            (name == WORKSPACE_DIR_ENV_VAR).then(|| OsString::from("/explicit/root"))
+        }
+    }
     assert_eq!(
-        find_workspace_dir_from_env_with(env),
+        find_workspace_dir_from_env_with::<EnvWithUppercaseWorkspaceDir>(),
         Some(std::path::PathBuf::from("/explicit/root")),
     );
 }
@@ -108,15 +115,15 @@ fn non_empty_env_var_resolves_verbatim() {
 /// `process.env[VAR] ?? process.env[VAR.toLowerCase()]` lookup.
 #[test]
 fn lowercase_env_var_is_honored_as_fallback() {
-    let env = |name: &str| -> Option<OsString> {
-        if name == WORKSPACE_DIR_ENV_VAR.to_lowercase() {
-            Some(OsString::from("/lowercase/root"))
-        } else {
-            None
+    struct EnvWithLowercaseWorkspaceDir;
+    impl EnvVarOs for EnvWithLowercaseWorkspaceDir {
+        fn var_os(name: &str) -> Option<OsString> {
+            (name == WORKSPACE_DIR_ENV_VAR.to_lowercase())
+                .then(|| OsString::from("/lowercase/root"))
         }
-    };
+    }
     assert_eq!(
-        find_workspace_dir_from_env_with(env),
+        find_workspace_dir_from_env_with::<EnvWithLowercaseWorkspaceDir>(),
         Some(std::path::PathBuf::from("/lowercase/root")),
     );
 }

@@ -9,16 +9,15 @@
 //! declares, with any per-test scenario data stored in a `static`
 //! inside the test fn.
 //!
-//! Today this provider only exposes [`EnvVar`]. As more side-effecting
-//! capabilities are introduced into `pacquet-config` (filesystem reads
-//! for `.npmrc`, network probes for auth, …) their `impl … for Host`
-//! blocks land here too. Trait names keep their domain prefix (`Fs*`,
-//! `GetDisk*`, `Env*`, …) so a reader can identify which domain a
-//! generic bound belongs to without chasing definitions. See the
+//! Trait names keep their domain prefix (`Env*`, `Get*`, …) so a
+//! reader can identify which side effect a generic bound belongs to
+//! without chasing definitions. See the
 //! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
 //! section of the style guide for the full convention.
 
-/// Capability: read a process environment variable.
+use std::{ffi::OsString, io, path::PathBuf};
+
+/// Capability: read a process environment variable as a UTF-8 string.
 ///
 /// `pnpm` resolves `${VAR}` placeholders inside `.npmrc` against the
 /// process environment in
@@ -34,12 +33,54 @@ pub trait EnvVar {
     fn var(name: &str) -> Option<String>;
 }
 
+/// Capability: read a process environment variable as a raw
+/// [`OsString`]. Used for env vars whose value is a filesystem path
+/// — invalid UTF-8 is preserved verbatim so the path can be passed
+/// to `std::fs` without round-tripping through `String`.
+///
+/// Pacquet's `NPM_CONFIG_WORKSPACE_DIR` lookup (mirroring upstream's
+/// `findWorkspaceDir`) goes through this trait so tests can drive
+/// the "set", "unset", and "empty" branches without touching
+/// process state.
+pub trait EnvVarOs {
+    /// Return the value of the named environment variable as an
+    /// [`OsString`], or `None` when unset. Mirrors
+    /// [`std::env::var_os`].
+    fn var_os(name: &str) -> Option<OsString>;
+}
+
+/// Capability: locate the user's home directory.
+///
+/// Mirrors the [`home::home_dir`] crate function. Threaded through a
+/// trait so tests don't have to consult the host's actual home
+/// directory.
+pub trait GetHomeDir {
+    /// Return the user's home directory, or `None` when it can't be
+    /// determined. Mirrors [`home::home_dir`].
+    fn home_dir() -> Option<PathBuf>;
+}
+
+/// Capability: read the process's current working directory.
+///
+/// Mirrors [`std::env::current_dir`]. Only used by code that
+/// genuinely needs the cwd (e.g. [`crate::defaults::default_store_dir`]
+/// on Windows for the drive-letter derivation). Code that needs a
+/// "starting path" — like [`crate::Config::current`] — takes a
+/// direct path parameter instead, because production passes a
+/// caller-supplied path (the canonicalized `--dir`) rather than the
+/// host's cwd.
+pub trait GetCurrentDir {
+    /// Return the process's current working directory, or an error
+    /// if it can't be determined. Mirrors [`std::env::current_dir`].
+    fn current_dir() -> io::Result<PathBuf>;
+}
+
 /// Production provider for the capability traits in this crate.
 /// Production code threads `Host` through generic call sites with an
 /// explicit turbofish:
 ///
 /// ```ignore
-/// let config = Config::current::<Host>(env::current_dir, home::home_dir, Default::default);
+/// let config = Config::current::<Host, _>(&dir, Default::default);
 /// ```
 ///
 /// Tests substitute their own zero-sized struct that implements only
@@ -49,5 +90,23 @@ pub struct Host;
 impl EnvVar for Host {
     fn var(name: &str) -> Option<String> {
         std::env::var(name).ok()
+    }
+}
+
+impl EnvVarOs for Host {
+    fn var_os(name: &str) -> Option<OsString> {
+        std::env::var_os(name)
+    }
+}
+
+impl GetHomeDir for Host {
+    fn home_dir() -> Option<PathBuf> {
+        home::home_dir()
+    }
+}
+
+impl GetCurrentDir for Host {
+    fn current_dir() -> io::Result<PathBuf> {
+        std::env::current_dir()
     }
 }
