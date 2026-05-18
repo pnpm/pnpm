@@ -175,6 +175,18 @@ pub enum LogEvent {
     /// (per-snapshot emit site).
     #[serde(rename = "pnpm:_broken_node_modules")]
     BrokenModules(BrokenModulesLog),
+
+    /// Lockfile-verification gate progress (`pnpm:lockfile-verification`).
+    /// One `started` event before the fan-out, followed by exactly one
+    /// terminal `done` (success) or `failed` (policy violation or
+    /// unexpected throw). Fires only when the candidate set is
+    /// non-empty — a lockfile whose snapshots all fail name/version
+    /// extraction produces no events.
+    ///
+    /// Upstream: <https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts>.
+    /// Emit site: <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L134-L168>.
+    #[serde(rename = "pnpm:lockfile-verification")]
+    LockfileVerification(LockfileVerificationLog),
 }
 
 /// `pnpm:context` payload.
@@ -643,6 +655,54 @@ pub enum SkippedOptionalReason {
 pub struct BrokenModulesLog {
     pub level: LogLevel,
     pub missing: String,
+}
+
+/// `pnpm:lockfile-verification` payload. The [bunyan]-envelope `level`
+/// is a fixed outer field; the rest of the record is a status-tagged
+/// union via `#[serde(flatten)]` so the wire shape stays flat
+/// (matching pnpm's `LockfileVerificationMessage` discriminator on
+/// `status`).
+///
+/// [bunyan]: https://github.com/trentm/node-bunyan
+#[derive(Debug, Clone, Serialize)]
+pub struct LockfileVerificationLog {
+    pub level: LogLevel,
+    #[serde(flatten)]
+    pub message: LockfileVerificationMessage,
+}
+
+/// `pnpm:lockfile-verification` discriminated payload. `Started`
+/// fires once before the per-candidate fan-out begins; exactly one
+/// terminal `Done` or `Failed` fires after, with `elapsed_ms`
+/// measured against the matching `Started`.
+///
+/// `lockfile_path` is the absolute path of the lockfile being
+/// verified. It's `Option` because the runner is invoked without a
+/// path in unit tests that skip the cache wiring; production code
+/// paths always supply it. Mirrors upstream's
+/// [`LockfileVerificationMessageBase.lockfilePath`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts#L11-L16).
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum LockfileVerificationMessage {
+    Started {
+        entries: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
+    Done {
+        entries: u64,
+        #[serde(rename = "elapsedMs")]
+        elapsed_ms: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
+    Failed {
+        entries: u64,
+        #[serde(rename = "elapsedMs")]
+        elapsed_ms: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
 }
 
 /// Severity level on the [bunyan]-shaped envelope.
