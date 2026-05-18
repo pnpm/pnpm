@@ -56,7 +56,7 @@ jobs:
           node -e "const f='pnpm/package.json',p=require('./'+f);p.version='11.1.2-canora.16';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
           cd pnpm && pnpm pack
           ls -la pnpm-11.1.2-canora.16.tgz
-          node -e "const t=require('child_process').execSync('tar -xzOf pnpm-11.1.2-canora.16.tgz package/dist/pnpm.mjs').toString();process.exit(t.includes('11.1.2-canora.16')?0:1)" && echo "baked version OK"
+          tar -xzOf pnpm-11.1.2-canora.16.tgz package/dist/pnpm.mjs | grep -q "11.1.2-canora.16" && echo "baked version OK"
 
       - name: Release canora.16
         env:
