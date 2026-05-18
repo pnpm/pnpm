@@ -112,7 +112,7 @@ fn package_equality_compares_by_name_only() {
     assert_eq!(lhs, rhs);
 
     let other = package_with_versions("widget", &["1.0.0"], "1.0.0");
-    assert!(lhs != other);
+    assert_ne!(lhs, other);
 }
 
 /// `latest()` looks up the version named under the `latest`
