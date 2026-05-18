@@ -2764,3 +2764,191 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
 
     drop(dir);
 }
+
+/// End-to-end wiring smoke for the lockfile-verification gate
+/// (Phase 7). An invalid `minimumReleaseAgeExclude` pattern (the
+/// glob form is rejected when paired with a version part, per
+/// upstream's `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` arm) trips
+/// `build_resolution_verifiers` before the frozen-lockfile dispatch
+/// runs. The resulting `InstallError::BuildVerifiers` proves:
+///
+/// 1. `build_resolution_verifiers` actually fires during install.
+/// 2. The error short-circuits the install — no virtual-store
+///    materialization, no registry round-trip.
+///
+/// The gate's positive / negative `verify_lockfile_resolutions`
+/// branches are exercised by the unit tests in
+/// `pacquet-lockfile-verification`; this test pins only the install
+/// wiring so it stays fast and doesn't depend on the mocked
+/// packument shape.
+#[tokio::test]
+async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    // Activate the verifier with an invalid exclude entry — the
+    // version-part-with-wildcard combination is rejected by
+    // `create_package_version_policy`.
+    config.minimum_release_age = Some(60);
+    config.minimum_release_age_exclude = Some(vec!["is-*@1.0.0".to_string()]);
+    let config = config.leak();
+
+    // Empty lockfile is enough — the gate runs as soon as
+    // `lockfile.is_some()` regardless of the snapshot count.
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies: {}"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse minimal v9 lockfile");
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    let err = result.expect_err("invalid exclude pattern must surface");
+    assert!(matches!(err, InstallError::BuildVerifiers(_)), "expected BuildVerifiers, got {err:?}",);
+    // The build error must short-circuit the install before any
+    // virtual-store materialization runs.
+    assert!(
+        !project_root.join("node_modules/.pacquet").exists(),
+        "BuildVerifiers must abort before virtual-store materialization",
+    );
+
+    drop(dir);
+}
+
+/// Positive-path proof that `verify_lockfile_resolutions` runs from
+/// inside `Install::run`. With `minimumReleaseAge` set absurdly high
+/// (100 years), every version the mocked registry knows about is
+/// inside the cutoff, so the gate rejects every lockfile entry
+/// before any tarball is fetched.
+///
+/// Asserts:
+///
+/// 1. `Install::run` returns `Err(InstallError::LockfileVerification(...))`
+///    with the inner `VerifyError::MinimumReleaseAgeViolation` —
+///    i.e. the verifier code path actually ran and returned a
+///    violation, the wiring is correct, and the dispatch maps the
+///    inner code to the per-policy variant rather than collapsing
+///    to the generic envelope.
+/// 2. No virtual-store materialization. The gate fails before
+///    `InstallFrozenLockfile` runs, so neither the slot nor the
+///    project's `node_modules` symlink exist.
+#[tokio::test]
+async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    // 100 years in minutes. Anything the registry has shipped to
+    // date is inside the cutoff, so the publish-time check rejects
+    // every lockfile entry regardless of what the mocked packument's
+    // `time` map actually says.
+    config.minimum_release_age = Some(60 * 24 * 365 * 100);
+    let config = config.leak();
+
+    // The integrity hash here is placeholder text — the gate fails
+    // before the tarball is fetched, so checksum verification never
+    // runs and the value doesn't have to match the mock's actual
+    // payload. The lockfile only needs to deserialize.
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      '@pnpm.e2e/hello-world-js-bin':"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "packages:"
+        "  '@pnpm.e2e/hello-world-js-bin@1.0.0':"
+        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}"
+        "snapshots:"
+        "  '@pnpm.e2e/hello-world-js-bin@1.0.0': {}"
+    })
+    .expect("parse lockfile fixture");
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    let err = result.expect_err("100-year cutoff must reject every entry");
+    let InstallError::LockfileVerification(ref verify_err) = err else {
+        panic!("expected InstallError::LockfileVerification, got {err:?}");
+    };
+    assert!(
+        matches!(
+            verify_err,
+            pacquet_lockfile_verification::VerifyError::MinimumReleaseAgeViolation { .. }
+        ),
+        "expected MinimumReleaseAgeViolation, got {verify_err:?}",
+    );
+
+    // The gate must short-circuit before any virtual-store
+    // materialization — no slot, no project-side symlink.
+    let slot = project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
+    assert!(!slot.exists(), "the gate must fail before any virtual-store materialization");
+    assert!(
+        !project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
+        "the gate must fail before any project-side symlinks are created",
+    );
+
+    drop((dir, mock_instance));
+}
