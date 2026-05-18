@@ -137,16 +137,25 @@ function readAndFilterNpmrc (
     return {}
   }
 
+  const npmrcDir = path.dirname(filePath)
   const result: Record<string, unknown> = {}
   for (const [rawKey, rawValue] of Object.entries(raw)) {
     // Apply ${VAR} substitution to both keys and values
     const key = substituteEnv(rawKey, env, warnings)
-    const value = typeof rawValue === 'string'
+    let value: unknown = typeof rawValue === 'string'
       ? substituteEnv(rawValue, env, warnings)
       : rawValue
 
     // Only keep auth/registry related keys
     if (isNpmrcReadableKey(key)) {
+      // Resolve a relative `cafile=` against the directory of the .npmrc that
+      // declared it, not against process.cwd(). Without this, `pnpm --dir
+      // <project>` invoked from a different cwd reads `cafile=certs/ca.pem`
+      // from the wrong place, silently drops the CA, and TLS to private
+      // registries fails with no log line tying back to the wrong path.
+      if (key === 'cafile' && typeof value === 'string' && value !== '' && !path.isAbsolute(value)) {
+        value = path.resolve(npmrcDir, value)
+      }
       result[key] = value
     }
   }
