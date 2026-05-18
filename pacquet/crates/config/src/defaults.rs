@@ -76,6 +76,12 @@ where
     Sys: EnvVar,
     HomeDir: FnOnce() -> Option<PathBuf>,
     CurrentDir: FnOnce() -> Result<PathBuf, Error>,
+    // `.expect(...)` on the `current_dir` result inside the Windows
+    // branch needs `Error: Debug`. Production callers pass
+    // `env::current_dir` (Error = `io::Error`, which has `Debug`);
+    // test fakes that don't drive the Windows branch pin
+    // `Error = std::io::Error` via turbofish for the same reason.
+    Error: std::fmt::Debug,
 {
     // TODO: If env variables start with ~, make sure to resolve it into home_dir.
     if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
