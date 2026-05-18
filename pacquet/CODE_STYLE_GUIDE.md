@@ -647,13 +647,13 @@ Side-effecting code — filesystem access, environment variables, network calls,
 
 #### Names
 
-- The generic type parameter is named **`Sys`** — short for "system seam," the slot in the function signature that selects between the real OS and the test fake. Do not call it `Api`, `Provider`, `Env`, `Fs`, or anything else; the single short name makes a generic call site instantly recognisable as the DI seam.
-- The production provider struct is named **`Host`** — unqualified, because the production implementation is the default. Avoid the "Platonic prefix" anti-pattern of naming it `RealHost`, `RealApi`, `ProdHost`, etc.; that places the burden of qualification on the common case and forces every production call site to spell the qualifier out. Fakes carry behaviour-based names (`FailingRead`, `EmptyRead`, `PermissionDenied`) — never `*Api`, `*Sys`, or `*Host`.
+- The generic type parameter is named **`Sys`** — short for "system seam," the slot in the function signature that selects between the real OS and the test fake. A single short name makes a generic call site instantly recognisable as the DI seam.
+- The production provider struct is named **`Host`** — unqualified, because the production implementation is the default. Fakes carry behaviour-based names that describe what they do (`FailingRead`, `EmptyRead`, `PermissionDenied`, `FakeHostName`), not what category of thing they are.
 - Capability traits use the form `<Domain><Action>`: filesystem capabilities are `Fs*` (`FsReadToString`, `FsCreateDirAll`, `FsWrite`, `FsReadDir`, `FsWalkFiles`, `FsSetExecutable`, `FsEnsureExecutableBits`); environment-variable lookup is `EnvVar`; clock reads are `Clock`; hostname lookup is `GetHostName`. The domain prefix lets a reader of a generic bound see which side effect the function reaches for without chasing definitions. Method names mirror their `std` equivalents so the trait is a thin seam over `std::fs::*` / `std::env::var` / `SystemTime::now`, not a re-imagining.
 
 #### Eight principles
 
-1. **Single-purpose traits.** Each capability gets its own trait — one method per side effect, no umbrella `FsApi` lumping `read`, `write`, `create_dir_all` into one bag. A function then binds only the capabilities it actually consumes, and a test fake implements only the methods the function under test exercises. The interface-segregation refinement of the lumped pattern at [`parallel-disk-usage/hdd.rs`](https://github.com/KSXGitHub/parallel-disk-usage/blob/2aa39917f9/src/app/hdd.rs#L25-L35).
+1. **Single-purpose traits.** Each capability gets its own trait — one method per side effect, no umbrella trait that bundles `read`, `write`, `create_dir_all` into one bag. A function then binds only the capabilities it actually consumes, and a test fake implements only the methods the function under test exercises.
 
 2. **One generic parameter with multiple bounds.** Compose bounds on a single `Sys`, never introduce a second type parameter per capability:
 
