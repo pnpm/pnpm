@@ -5,6 +5,7 @@ import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import type { PackageManifest, Registries } from '@pnpm/types'
@@ -35,6 +36,7 @@ export interface GetPackageInfoOptions {
   virtualStoreDirMaxLength: number
   dir: string
   modulesDir: string
+  indexCache?: Map<string, PackageFilesIndex>
 }
 
 export type PkgInfo = {
@@ -68,6 +70,7 @@ export async function getPkgInfo (
         storeIndex: opts.storeIndex,
         lockfileDir: opts.dir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        indexCache: opts.indexCache,
       }
     )
     if (!result) {

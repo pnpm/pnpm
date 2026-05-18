@@ -160,4 +160,28 @@ describe('readPackageFileMap', () => {
 
     expect(result).toBeUndefined()
   })
+
+  it('should reuse decoded indexes via the indexCache option without touching the store on the second call', async () => {
+    const integrity = 'sha512-abc123cache'
+    const pkgId = 'cache-pkg@1.0.0'
+    const key = storeIndexKey(integrity, pkgId)
+    storeIndex.set(key, createFilesIndex())
+
+    const resolution: TarballResolution = {
+      integrity,
+      tarball: 'https://registry.npmjs.org/cache-pkg/-/cache-pkg-1.0.0.tgz',
+    }
+    const indexCache = new Map<string, PackageFilesIndex>()
+    const opts = { ...defaultOpts(), indexCache }
+
+    await readPackageFileMap(resolution, pkgId, opts)
+    expect(indexCache.has(key)).toBe(true)
+
+    // Drop the entry from the store; if the cache is consulted, the second
+    // call still succeeds. If the store is consulted, it would throw ENOENT.
+    storeIndex.delete(key)
+    const second = await readPackageFileMap(resolution, pkgId, opts)
+    expect(second).toBeDefined()
+    expect(second!.has('package.json')).toBe(true)
+  })
 })
