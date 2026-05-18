@@ -137,6 +137,7 @@ jobs:
       - name: Publish sha256-pinned release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           V='${{ steps.ver.outputs.version }}'
           tag="v${V}"
