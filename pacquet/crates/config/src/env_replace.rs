@@ -22,7 +22,7 @@
 //!   pnpm's behaviour even though plain shell `${VAR:-default}` would
 //!   also use the default for the empty case.
 //!
-//! Production callers thread `RealApi` (which delegates to
+//! Production callers thread `Host` (which delegates to
 //! `std::env::var`) through the turbofish slot. Tests provide their
 //! own per-test unit struct, per the DI pattern from
 //! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
@@ -30,7 +30,7 @@
 use crate::api::EnvVar;
 
 /// Replace every `${VAR}` (or `${VAR:-default}`) placeholder in `text` with
-/// the value [`Api::var`] returns. Placeholders that have no value and no
+/// the value [`Sys::var`] returns. Placeholders that have no value and no
 /// default become `""` (the literal `${...}` never reaches the caller) and
 /// are recorded in the returned `Vec` so the caller can surface each one as
 /// a warning.
@@ -43,8 +43,8 @@ use crate::api::EnvVar;
 /// same string still expand normally — only the unresolved bare ones are
 /// dropped to `""`.
 ///
-/// [`Api::var`]: EnvVar::var
-pub(crate) fn env_replace_lossy<Api: EnvVar>(text: &str) -> (String, Vec<String>) {
+/// [`Sys::var`]: EnvVar::var
+pub(crate) fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
     let bytes = text.as_bytes();
     let mut output = String::with_capacity(text.len());
     let mut unresolved = Vec::new();
@@ -92,7 +92,7 @@ pub(crate) fn env_replace_lossy<Api: EnvVar>(text: &str) -> (String, Vec<String>
                 Some(separator) => (&inside[..separator], Some(&inside[separator + 2..])),
                 None => (inside, None),
             };
-            let value = Api::var(var_name).filter(|value| !value.is_empty());
+            let value = Sys::var(var_name).filter(|value| !value.is_empty());
             match (value, default) {
                 (Some(value), _) => output.push_str(&value),
                 (None, Some(default)) => output.push_str(default),
@@ -140,8 +140,8 @@ mod tests {
 
     /// Run [`env_replace_lossy`] and assert no placeholder went unresolved.
     /// Used by tests that exercise paths where every placeholder must expand.
-    fn replace_clean<Api: EnvVar>(text: &str) -> String {
-        let (value, unresolved) = env_replace_lossy::<Api>(text);
+    fn replace_clean<Sys: EnvVar>(text: &str) -> String {
+        let (value, unresolved) = env_replace_lossy::<Sys>(text);
         assert_eq!(unresolved, Vec::<String>::new(), "unexpected unresolved placeholders");
         value
     }

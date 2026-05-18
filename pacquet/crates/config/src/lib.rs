@@ -5,7 +5,7 @@ pub mod matcher;
 mod npmrc_auth;
 mod workspace_yaml;
 
-pub use crate::api::{EnvVar, RealApi};
+pub use crate::api::{EnvVar, Host};
 
 use indexmap::IndexMap;
 use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
@@ -767,13 +767,13 @@ impl Config {
     /// `pnpm-workspace.yaml` cannot be read or parsed, matching pnpm's
     /// [`readWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts).
     /// A missing file is not an error.
-    pub fn current<Api, Error, CurrentDir, HomeDir, Default>(
+    pub fn current<Sys, Error, CurrentDir, HomeDir, Default>(
         current_dir: CurrentDir,
         home_dir: HomeDir,
         default: Default,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
-        Api: EnvVar,
+        Sys: EnvVar,
         CurrentDir: FnOnce() -> Result<PathBuf, Error>,
         HomeDir: FnOnce() -> Option<PathBuf>,
         Default: FnOnce() -> Config,
@@ -811,7 +811,7 @@ impl Config {
             .and_then(|dir| read_npmrc(dir))
             .or_else(|| home_dir().and_then(|dir| read_npmrc(&dir)));
         let mut npmrc_auth = auth_source
-            .map(|text| crate::npmrc_auth::NpmrcAuth::from_ini::<Api>(&text))
+            .map(|text| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text))
             .unwrap_or_default();
         npmrc_auth.apply_registry_and_warn(&mut config);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
@@ -819,7 +819,7 @@ impl Config {
         // [`config/reader/src/index.ts:591-600`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L591-L600)
         // is a normalization step on the resolved config, not a
         // function of `.npmrc` presence.
-        npmrc_auth.apply_proxy_cascade::<Api>(&mut config);
+        npmrc_auth.apply_proxy_cascade::<Sys>(&mut config);
         // TLS + local-address are sourced from `.npmrc` only — pnpm
         // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
         // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
@@ -952,7 +952,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use tempfile::tempdir;
 
-    use super::{Config, NodeLinker, PackageImportMethod, RealApi, fs};
+    use super::{Config, Host, NodeLinker, PackageImportMethod, fs};
     use crate::defaults::default_store_dir;
     use pacquet_store_dir::StoreDir;
     use pacquet_testing_utils::env_guard::EnvGuard;
@@ -1024,7 +1024,7 @@ mod tests {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join(".npmrc"), "registry=https://cwd.example")
             .expect("write to .npmrc");
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || unreachable!("shouldn't reach home dir"),
             Config::new,
@@ -1042,7 +1042,7 @@ mod tests {
         let non_auth_ini = "symlink=false\nlockfile=true\nhoist=false\nnode-linker=hoisted\n";
         fs::write(tmp.path().join(".npmrc"), non_auth_ini).expect("write to .npmrc");
         let defaults = Config::new();
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1066,7 +1066,7 @@ mod tests {
         let ini = "fetch-retries=99\nfetch-retry-factor=99\nfetch-retry-mintimeout=99\nfetch-retry-maxtimeout=99\n";
         fs::write(tmp.path().join(".npmrc"), ini).expect("write to .npmrc");
         let defaults = Config::new();
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1083,7 +1083,7 @@ mod tests {
         let tmp = tempdir().unwrap();
         // write invalid utf-8 value to npmrc
         fs::write(tmp.path().join(".npmrc"), b"Hello \xff World").expect("write to .npmrc");
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1098,7 +1098,7 @@ mod tests {
         let home_dir = tempdir().unwrap();
         fs::write(home_dir.path().join(".npmrc"), "registry=https://home.example")
             .expect("write to .npmrc");
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || current_dir.path().to_path_buf().pipe(Ok::<_, ()>),
             || home_dir.path().to_path_buf().pipe(Some),
             Config::new,
@@ -1117,7 +1117,7 @@ mod tests {
             .expect("write to .npmrc");
         fs::write(tmp.path().join("pnpm-workspace.yaml"), "registry: https://from-yaml.test\n")
             .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || unreachable!("shouldn't reach home dir"),
             Config::new,
@@ -1135,7 +1135,7 @@ mod tests {
             .expect("write to pnpm-workspace.yaml");
         // No `.npmrc` anywhere, but a parent dir has `pnpm-workspace.yaml` —
         // the yaml should still be applied.
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || nested.clone().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1148,7 +1148,7 @@ mod tests {
     pub fn test_current_folder_fallback_to_default() {
         let current_dir = tempdir().unwrap();
         let home_dir = tempdir().unwrap();
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || current_dir.path().to_path_buf().pipe(Ok::<_, ()>),
             || home_dir.path().to_path_buf().pipe(Some),
             || Config { symlink: false, ..Config::new() },
@@ -1173,7 +1173,7 @@ mod tests {
     #[test]
     pub fn gvs_default_is_off_and_paths_derive_cleanly() {
         let tmp = tempdir().unwrap();
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1201,7 +1201,7 @@ mod tests {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
             .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1226,7 +1226,7 @@ mod tests {
             format!("enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n", user_path.display()),
         )
         .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1264,7 +1264,7 @@ mod tests {
             ),
         )
         .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1284,7 +1284,7 @@ mod tests {
     /// fallback through `Config::current`. The injected-`EnvVar` tests
     /// in `npmrc_auth/tests.rs` cover the cascade branches
     /// exhaustively; this one only proves the wiring through
-    /// `RealApi::var` reaches `std::env::var` and that the cascade
+    /// `Host::var` reaches `std::env::var` and that the cascade
     /// fires even with no `.npmrc` present.
     #[test]
     pub fn proxy_env_fallback_applies_through_current() {
@@ -1320,7 +1320,7 @@ mod tests {
             env::remove_var("npm_config_workspace_dir");
             env::set_var("HTTPS_PROXY", "http://env.example:8080");
         }
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1344,7 +1344,7 @@ mod tests {
         // `: : :` is rejected by saphyr.
         fs::write(tmp.path().join("pnpm-workspace.yaml"), ": : :\n")
             .expect("write to pnpm-workspace.yaml");
-        let result = Config::current::<RealApi, _, _, _, _>(
+        let result = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1373,7 +1373,7 @@ mod tests {
         fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
             .expect("write to pnpm-workspace.yaml");
 
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || subdir.clone().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1410,7 +1410,7 @@ mod tests {
             env::remove_var("npm_config_workspace_dir");
         }
         let tmp = tempdir().unwrap();
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1451,7 +1451,7 @@ mod tests {
             env::set_var("NPM_CONFIG_WORKSPACE_DIR", env_workspace.path());
         }
 
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || cwd_dir.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,
@@ -1487,7 +1487,7 @@ mod tests {
             env::set_var("npm_config_workspace_dir", "");
         }
         let tmp = tempdir().unwrap();
-        let config = Config::current::<RealApi, _, _, _, _>(
+        let config = Config::current::<Host, _, _, _, _>(
             || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
             || None,
             Config::new,

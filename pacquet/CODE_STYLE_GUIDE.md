@@ -641,6 +641,188 @@ The above code is still valid code, and the Rust compiler doesn't error, but it 
 
 **Readability:** The generic `.clone()` or `Clone::clone` often implies an expensive operation (for example: cloning a `Vec`), but `Arc` and `Rc` are not as expensive as the generic `.clone()`. Explicitly marking the cloned type aids future refactoring.
 
+### Dependency injection for tests
+
+Side-effecting code — filesystem access, environment variables, network calls, time, process state — has two testing routes. **The default route is a real fixture:** a `tempfile::TempDir` for filesystem work, the mocked registry (`just registry-mock`) for HTTP, an integration test that spawns the actual pacquet binary in a scratch directory for end-to-end flows. Real fixtures keep tests close to what users see and scale with the codebase without per-call-site plumbing; they are the right tool everywhere except the cases enumerated below.
+
+The dependency-injection seam described below is the **narrow second route**. Reach for it only when one of the following applies:
+
+- **Filesystem error branches the host OS won't reproduce portably.** `PermissionDenied`, `ENOSPC`, a directory that disappears mid-walk, a chmod that fails after the file exists — provoking these on real disks is platform-specific, racy, or both. A fake that returns the exact `io::ErrorKind` is the only portable way to drive the branch.
+- **Deterministic time.** Asserting that `prunedAt` equals a specific HTTP-date (RFC 7231 IMF-fixdate, what `httpdate::fmt_http_date` emits), or that a throttled emitter fires on the second sample, needs the clock to be a known value. The real `SystemTime::now` makes those assertions flaky.
+- **External-service happy paths that can't be staged in CI.** Upstream pnpm has features whose *normal* flow depends on real external systems — `pnpm login`'s 2FA prompt round-trip, the OIDC token exchange and provenance attestation in `pnpm publish`, and similar — where the happy path itself is what needs faking, not just the error path. When pacquet ports those features, DI is the right tool for their tests too. (As of writing, these are not yet ported; this exception is documented so the convention is in place when they land.)
+- **Unreachable-by-design preconditions.** When a function declares a capability bound but a specific test exercises a branch that never reaches that capability, the fake satisfies the bound with `unreachable!` and documents the precondition. See the worked example below.
+
+A function that takes a `<Sys>` generic but is only ever exercised via real fixtures is a smell — either the DI branches are missing coverage, or the generic is over-design. Either add the tests that justify the seam, or drop the generic and let the real fixture cover everything.
+
+The rest of this section is the convention that applies *when DI is the right tool*.
+
+#### Names
+
+- The generic type parameter is named **`Sys`** — short for "system seam," the slot in the function signature that selects between the real OS and the test fake. A single short name makes a generic call site instantly recognisable as the DI seam.
+- The production provider struct is named **`Host`** — unqualified, because the production implementation is the default. Fakes carry behaviour-based names that describe what they do (`FailingRead`, `EmptyRead`, `PermissionDenied`, `FakeHostName`), not what category of thing they are.
+- Capability traits use the form `<Domain><Action>`: filesystem capabilities are `Fs*` (`FsReadToString`, `FsCreateDirAll`, `FsWrite`, `FsReadDir`, `FsWalkFiles`, `FsSetExecutable`, `FsEnsureExecutableBits`); environment-variable lookup is `EnvVar`; clock reads are `Clock`; hostname lookup is `GetHostName`. The domain prefix lets a reader of a generic bound see which side effect the function reaches for without chasing definitions. Method names mirror their `std` equivalents so the trait is a thin seam over `std::fs::*` / `std::env::var` / `SystemTime::now`, not a re-imagining.
+
+#### Eight principles
+
+1. **Single-purpose traits.** Each capability gets its own trait — one method per side effect, no umbrella trait that bundles `read`, `write`, `create_dir_all` into one bag. A function then binds only the capabilities it actually consumes, and a test fake implements only the methods the function under test exercises.
+
+2. **One generic parameter with multiple bounds.** Compose bounds on a single `Sys`, never introduce a second type parameter per capability:
+
+   ```rust
+   // Good: one parameter, composed bounds
+   pub fn read_modules_manifest<Sys>(modules_dir: &Path) -> Result<...>
+   where
+       Sys: FsReadToString + Clock,
+   { /* ... */ }
+
+   // Bad: a parameter per capability — every call site has to satisfy two slots
+   pub fn read_modules_manifest<Fs, C>(modules_dir: &Path) -> Result<...>
+   where Fs: FsReadToString, C: Clock { /* ... */ }
+   ```
+
+   One parameter keeps turbofish call sites short (`read_modules_manifest::<Host>(dir)`) and makes the fake's job obvious: implement every trait in the bound list, no more.
+
+3. **Static methods, not `&self`.** Capability methods are associated functions (no `&self` receiver). The provider is a unit struct that carries no data:
+
+   ```rust
+   pub trait FsReadToString {
+       fn read_to_string(path: &Path) -> io::Result<String>;
+   }
+
+   pub struct Host;
+   impl FsReadToString for Host {
+       fn read_to_string(path: &Path) -> io::Result<String> { fs::read_to_string(path) }
+   }
+   ```
+
+   Stateful fakes (a fake clock that returns a fixed `SystemTime`, a recording fake that captures every call) store their state in an interior-mutable `static` declared inside the `#[test]` body, so the trait shape doesn't have to change to accommodate state. This keeps the production impl free of `&self` plumbing the test-only fake would otherwise force on it.
+
+4. **Associated types for data operations.** When a capability operates over a domain data type, expose the data type as an associated type rather than threading an instance through every call. The provider chooses the concrete type, and fakes can pick a stub-friendly stand-in.
+
+5. **Capability traits on the implementor.** `impl FsReadToString for Host` lives on the provider, not on the data type. The data types stay free of test-shim conditional impls; the seam is the provider.
+
+6. **Domain-neutral provider, domain-scoped traits.** The generic is `Sys`, the production type is `Host` (or whatever your crate exports as its provider), and the trait names carry the domain prefix (`Fs*`, `Env*`, `Clock`, `GetHostName`, …). A reader of `Sys: FsReadToString + Clock + EnvVar` knows immediately which side effects the function reaches for.
+
+7. **Explicit turbofish in production.** Production call sites name the provider:
+
+   ```rust
+   read_modules_manifest::<Host>(modules_dir)
+   write_modules_manifest::<Host>(modules_dir, manifest)
+   Config::current::<Host, _, _, _, _>(env::current_dir, home::home_dir, Default::default)
+   ```
+
+   The turbofish makes the production choice visible at the call site instead of relying on type inference; if a future caller wants to swap in a different provider (a test driver, a dry-run shim), the spot to change is obvious.
+
+8. **Capabilities are primitives, not algorithms.** Each trait names a leaf-level effect that maps to a single `std` function (`read_to_string`, `create_dir_all`, `write`, `var`, …). Higher-level guarantees — atomic write, retry loops, walk-with-options — become free functions composed on top of those primitives, not new trait methods. That keeps the fake surface dead-simple: a fake declares one method per capability, never a knob-laden builder.
+
+#### Worked example: `modules-yaml`
+
+`crates/modules-yaml` reads and writes `node_modules/.modules.yaml`. The read path is generic over `FsReadToString + Clock` because it needs to read the file and stamp `prunedAt` from the wall clock; the write path is generic over `FsCreateDirAll + FsWrite` because it needs to ensure the parent directory exists before writing the serialized manifest:
+
+```rust
+pub trait FsReadToString {
+    fn read_to_string(path: &Path) -> io::Result<String>;
+}
+
+pub trait FsCreateDirAll {
+    fn create_dir_all(path: &Path) -> io::Result<()>;
+}
+
+pub trait FsWrite {
+    fn write(path: &Path, contents: &[u8]) -> io::Result<()>;
+}
+
+pub trait Clock {
+    fn now() -> SystemTime;
+}
+
+pub struct Host;
+
+impl FsReadToString for Host {
+    fn read_to_string(path: &Path) -> io::Result<String> { fs::read_to_string(path) }
+}
+impl FsCreateDirAll for Host {
+    fn create_dir_all(path: &Path) -> io::Result<()> { fs::create_dir_all(path) }
+}
+impl FsWrite for Host {
+    fn write(path: &Path, contents: &[u8]) -> io::Result<()> { fs::write(path, contents) }
+}
+impl Clock for Host {
+    fn now() -> SystemTime { SystemTime::now() }
+}
+
+pub fn read_modules_manifest<Sys>(modules_dir: &Path) -> Result<Option<Modules>, ReadModulesError>
+where
+    Sys: FsReadToString + Clock,
+{
+    let content = match Sys::read_to_string(&manifest_path) { /* ... */ };
+    // ...
+    manifest.pruned_at = httpdate::fmt_http_date(Sys::now());
+    Ok(Some(manifest))
+}
+```
+
+A test that wants to drive the `PermissionDenied` branch declares a unit-struct fake inside the `#[test]` body, implementing only the capability the function touches:
+
+```rust
+#[test]
+fn read_propagates_non_not_found_io_error() {
+    struct FailingRead;
+    impl FsReadToString for FailingRead {
+        fn read_to_string(_: &Path) -> io::Result<String> {
+            Err(io::Error::new(io::ErrorKind::PermissionDenied, "mocked"))
+        }
+    }
+    // `read_modules_manifest`'s bound list is `FsReadToString + Clock`,
+    // so every fake must satisfy both bounds at the type level — Rust
+    // doesn't know that the `prunedAt` branch is unreachable for this
+    // input. The convention for capabilities the test won't exercise
+    // is a trivial impl whose body is `unreachable!`: the bound is
+    // satisfied, and the panic message documents the precondition the
+    // test relies on.
+    impl Clock for FailingRead {
+        fn now() -> SystemTime {
+            unreachable!("clock must not be called when read_to_string fails");
+        }
+    }
+    let err = read_modules_manifest::<FailingRead>(Path::new("/")).unwrap_err();
+    assert!(matches!(err, ReadModulesError::ReadFile { .. }));
+}
+```
+
+Stateful fakes (deterministic clock, recording reads) hold their state in a `static` inside the test fn:
+
+```rust
+#[test]
+fn read_fills_in_pruned_at_when_missing() {
+    static FAKE_NOW: SystemTime = SystemTime::UNIX_EPOCH;
+    struct FakeClock;
+    impl Clock for FakeClock {
+        fn now() -> SystemTime { FAKE_NOW }
+    }
+    // The `static` lives in this fn's scope, so other tests get
+    // independent storage and never race on it. The provider type
+    // stays an empty unit struct; the state lives next to the test
+    // that needs it. Use `SystemTime::UNIX_EPOCH` (a `const`) for a
+    // const-initialised static, or `LazyLock` when the desired value
+    // needs a runtime constructor.
+    // ...
+}
+```
+
+#### Cross-domain composition
+
+When a function needs capabilities from more than one domain, list them inline on `Sys`:
+
+```rust
+fn write_shim<Sys>(target_path: &Path, shim_path: &Path) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
+{ /* ... */ }
+```
+
+The provider implements each trait independently, so adding a domain to an existing `Sys` is one more `impl X for Host` block — no churn on the production type beyond the new line, and no churn on existing tests beyond the ones whose fakes now need the new method.
+
 ### Reporter / log events
 
 Pacquet's user-facing output mirrors pnpm's: every channel pnpm fires must fire from the corresponding pacquet site, with the same payload shape and the same firing cadence. The reporter lives in `crates/reporter` (the `Reporter` capability trait, the `LogEvent` enum, the `NdjsonReporter` and `SilentReporter` sinks); this section is the convention for porting emissions into ported functions.

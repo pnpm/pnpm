@@ -18,7 +18,7 @@ use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_lockfile::{
     Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
-use pacquet_modules_yaml::{RealApi, read_modules_manifest};
+use pacquet_modules_yaml::{Host, read_modules_manifest};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_patching::{
@@ -338,7 +338,7 @@ where
         // A read error (corrupt yaml, permissions) is degraded to
         // an empty seed — `.modules.yaml` is a cache artifact, not
         // an authoritative source. Missing file → empty seed.
-        let seed = match read_modules_manifest::<RealApi>(&config.modules_dir) {
+        let seed = match read_modules_manifest::<Host>(&config.modules_dir) {
             Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
             Ok(None) => SkippedSnapshots::new(),
             Err(error) => {
