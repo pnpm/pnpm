@@ -63,12 +63,12 @@ pub trait GetHomeDir {
 /// Capability: read the process's current working directory.
 ///
 /// Mirrors [`std::env::current_dir`]. Only used by code that
-/// genuinely needs the cwd (e.g. [`crate::defaults::default_store_dir`]
-/// on Windows for the drive-letter derivation). Code that needs a
-/// "starting path" — like [`crate::Config::current`] — takes a
-/// direct path parameter instead, because production passes a
-/// caller-supplied path (the canonicalized `--dir`) rather than the
-/// host's cwd.
+/// genuinely needs the cwd — the SmartDefault for
+/// [`crate::Config::store_dir`] consults it on Windows for the
+/// drive-letter derivation. Code that needs a "starting path" — like
+/// [`crate::Config::current`] — takes a direct path parameter
+/// instead, because production passes a caller-supplied path (the
+/// canonicalized `--dir`) rather than the host's cwd.
 pub trait GetCurrentDir {
     /// Return the process's current working directory, or an error
     /// if it can't be determined. Mirrors [`std::env::current_dir`].
