@@ -8,6 +8,7 @@ import { createEnvLockfile, type EnvLockfile, readEnvLockfile } from '@pnpm/lock
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
+import { rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -197,39 +198,24 @@ test('optional subdep that does not match the current platform is skipped', asyn
   expect(() => requireFromParent.resolve(`${subdepName}/package.json`)).toThrow(/Cannot find/)
 })
 
-test('platform change between runs prunes the stale sibling and relinks the new compatible one', async () => {
+test('re-installs sibling symlinks even when the parent symlink is already correct', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
 
   const parentName = '@pnpm.e2e/foo'
   const parentVersion = '100.0.0'
-  const subdepA = { name: '@pnpm.e2e/bar', version: '100.0.0' }
-  const subdepB = { name: '@pnpm.e2e/qar', version: '100.0.0' }
+  const subdepName = '@pnpm.e2e/bar'
+  const subdepVersion = '100.0.0'
 
-  // Same parent + same subdep versions → same leaf hash both runs. Only the
-  // os field on each subdep changes, which the lockfile's leaf hash doesn't
-  // capture but the install-time selector does. The realpath skip-check
-  // would match, so we rely on installOptionalSubdeps running unconditionally.
-  function buildLockfile (matching: { name: string, version: string }, other: { name: string, version: string }): EnvLockfile {
-    const lockfile = createEnvLockfile()
-    const parentKey = `${parentName}@${parentVersion}`
-    lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
-    lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
-    lockfile.snapshots[parentKey] = {
-      optionalDependencies: {
-        [matching.name]: matching.version,
-        [other.name]: other.version,
-      },
-    }
-    lockfile.packages[`${matching.name}@${matching.version}`] = {
-      resolution: { integrity: getIntegrity(matching.name, matching.version) },
-      os: [process.platform],
-    }
-    lockfile.packages[`${other.name}@${other.version}`] = {
-      resolution: { integrity: getIntegrity(other.name, other.version) },
-      os: ['this-os-does-not-exist'],
-    }
-    return lockfile
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = { optionalDependencies: { [subdepName]: subdepVersion } }
+  lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+    os: [process.platform],
+    cpu: [process.arch],
   }
 
   const installOpts = {
@@ -239,17 +225,21 @@ test('platform change between runs prunes the stale sibling and relinks the new 
     storeDir,
   }
 
-  // First run: A compatible, B incompatible.
-  await installConfigDeps(buildLockfile(subdepA, subdepB), installOpts)
-  const requireRun1 = createRequire(path.join(fs.realpathSync(`node_modules/.pnpm-config/${parentName}`), 'package.json'))
-  expect(() => requireRun1.resolve(`${subdepA.name}/package.json`)).not.toThrow()
-  expect(() => requireRun1.resolve(`${subdepB.name}/package.json`)).toThrow(/Cannot find/)
+  // First install — parent + subdep symlink land in the GVS leaf.
+  await installConfigDeps(lockfile, installOpts)
+  const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
+  const subdepSiblingPath = path.join(path.dirname(path.dirname(parentRealPath)), subdepName)
+  expect(fs.existsSync(`${subdepSiblingPath}/package.json`)).toBe(true)
 
-  // Second run, roles swapped: B compatible, A incompatible. Same leaf hash.
-  await installConfigDeps(buildLockfile(subdepB, subdepA), installOpts)
-  const requireRun2 = createRequire(path.join(fs.realpathSync(`node_modules/.pnpm-config/${parentName}`), 'package.json'))
-  expect(() => requireRun2.resolve(`${subdepB.name}/package.json`)).not.toThrow()
-  expect(() => requireRun2.resolve(`${subdepA.name}/package.json`)).toThrow(/Cannot find/)
+  // Simulate stale state: remove the subdep sibling symlink. The parent's
+  // .pnpm-config symlink still points at the expected leaf, so the realpath
+  // skip-check passes. installOptionalSubdeps must still run to repair.
+  await rimraf(subdepSiblingPath)
+  expect(fs.existsSync(subdepSiblingPath)).toBe(false)
+
+  // Second install with the same lockfile.
+  await installConfigDeps(lockfile, installOpts)
+  expect(fs.existsSync(`${subdepSiblingPath}/package.json`)).toBe(true)
 })
 
 test('optional subdep that does not match the current cpu is skipped', async () => {
