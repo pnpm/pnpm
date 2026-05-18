@@ -75,7 +75,6 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
 interface PickerOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
-  strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
 }
 
@@ -106,8 +105,9 @@ const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
 // When minimumReleaseAge is active: try the highest mature version; if none
-// and strictPublishedByCheck is off, fall back to the lowest version in range
-// without applying the maturity filter.
+// satisfies the range, fall back to the lowest version regardless of maturity
+// so the resolver can report the violation inline and let the install layer
+// (or other caller) decide what to do — never throw at this layer.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
@@ -115,7 +115,7 @@ function pickRespectingMinReleaseAge (
 ): PackageInRegistry | null {
   return runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
-    if (highest || pickerOpts.strictPublishedByCheck) return highest
+    if (highest) return highest
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
@@ -178,7 +178,6 @@ export async function pickPackage (
     offline?: boolean
     preferOffline?: boolean
     filterMetadata?: boolean
-    strictPublishedByCheck?: boolean
     ignoreMissingTimeField?: boolean
   },
   spec: RegistryPackageSpec,
@@ -192,7 +191,6 @@ export async function pickPackage (
     publishedByExclude: opts.publishedByExclude,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,
-    strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
   }
 
@@ -279,10 +277,11 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch (err: unknown) {
-          if (shouldRethrowFromFastPathCache(err, ctx.strictPublishedByCheck)) {
-            throw err
-          }
+        } catch {
+          // Swallow fast-path errors (e.g. ERR_PNPM_MISSING_TIME from
+          // abbreviated meta) and fall through to the network fetch, which
+          // can upgrade to full metadata and run the maturity check on
+          // real `time` data.
         }
       }
     }
@@ -299,10 +298,8 @@ export async function pickPackage (
                 pickedPackage,
               }
             }
-          } catch (err: unknown) {
-            if (shouldRethrowFromFastPathCache(err, ctx.strictPublishedByCheck)) {
-              throw err
-            }
+          } catch {
+            // Same as above — fall through to the network fetch.
           }
         }
       }
@@ -495,14 +492,6 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
 }
 
-// Returns true when a fast-path cache catch should rethrow under
-// strictPublishedByCheck. ERR_PNPM_MISSING_TIME is excluded so callers fall
-// through to the network fetch path, which can upgrade abbreviated cached
-// metadata to full and run the maturity check on real `time` data.
-function shouldRethrowFromFastPathCache (err: unknown, strictPublishedByCheck: boolean | undefined): boolean {
-  return strictPublishedByCheck === true && !isMissingTimeError(err)
-}
-
 // Persists upgraded full metadata to the on-disk cache mirror and returns
 // the meta to store in the in-memory cache. When `filterMetadata` is on, the
 // in-memory and on-disk forms are both stripped via `clearMeta`; otherwise
@@ -604,7 +593,7 @@ function isMissingTimeError (err: unknown): boolean {
 const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
-function warnMissingTimeFieldOnce (pkgName: string): void {
+export function warnMissingTimeFieldOnce (pkgName: string): void {
   if (warnedMissingTimeFor.has(pkgName)) return
   if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
     // Set preserves insertion order, so the first entry is the oldest.

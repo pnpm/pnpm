@@ -2,7 +2,11 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import type { Resolution, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import type {
+  Resolution,
+  ResolutionPolicyViolation,
+  ResolutionVerifier,
+} from '@pnpm/resolving.resolver-base'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
@@ -11,11 +15,10 @@ import {
   tryLockfileVerificationCache,
 } from './verifyLockfileResolutionsCache.js'
 
-interface Violation {
-  pkgId: string
-  code: string
-  reason: string
-}
+// Re-exported for back-compat with the existing import surface.
+// The interface itself lives in resolver-base so deps-resolver can
+// participate in the same shape; see the doc there.
+export type { ResolutionPolicyViolation }
 
 // Cap the per-entry breakdown so a verifier rejecting hundreds of entries
 // (e.g. a poisoned lockfile) doesn't flood the terminal / CI log; the full
@@ -110,49 +113,7 @@ export async function verifyLockfileResolutions (
     cachePrecomputed = result.precomputed
   }
 
-  // depPath can include peer-dependency and patch_hash suffixes (e.g.
-  // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
-  // therefore appear multiple times. Dedupe so we issue at most one
-  // verification per package version.
-  //
-  // Include a serialization of `resolution` in the key so two entries that
-  // share a (name, version) but differ in *what* was resolved (e.g. one
-  // pinned via npm, another via a git URL under the same alias) don't
-  // collapse: if the wrong shape wins the dedup, a protocol-scoped
-  // verifier short-circuits on the surviving entry and the real one is
-  // never checked.
-  const candidates = new Map<string, { name: string, version: string, resolution: Resolution }>()
-  for (const [depPath, snapshot] of Object.entries(lockfile.packages)) {
-    const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
-    if (!name || !version) continue
-    const key = `${name}@${version}@${JSON.stringify(snapshot.resolution)}`
-    candidates.set(key, {
-      name,
-      version,
-      resolution: snapshot.resolution as Resolution,
-    })
-  }
-
-  const violations: Violation[] = []
-  const limit = pLimit(options?.concurrency ?? DEFAULT_CONCURRENCY)
-  await Promise.all(
-    Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {
-      const pkgId = `${name}@${version}`
-      // Fan out across every active verifier; each handles its own
-      // protocol short-circuit (e.g. the npm verifier returns ok:true for
-      // git resolutions). We stop at the first failure per entry so a
-      // multi-verifier setup doesn't produce duplicate violations for the
-      // same (name, version).
-      for (const verifier of verifiers) {
-        // eslint-disable-next-line no-await-in-loop
-        const result = await verifier.verify(resolution, { name, version })
-        if (!result.ok) {
-          violations.push({ pkgId, code: result.code, reason: result.reason })
-          break
-        }
-      }
-    }))
-  )
+  const violations = await iterateLockfileViolations(lockfile, verifiers, options?.concurrency)
 
   if (violations.length === 0) {
     // Persist the success so the next install can stat-only the lockfile.
@@ -167,19 +128,27 @@ export async function verifyLockfileResolutions (
   }
 
   // Stable order so the error output is deterministic.
-  violations.sort((a, b) => a.pkgId.localeCompare(b.pkgId))
+  violations.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
+  // Pick the throw code: a single-code batch keeps the per-policy code
+  // (so existing handlers / docs / search keywords still route correctly);
+  // a mixed batch (e.g. minimumReleaseAge + trust-downgrade on the same
+  // lockfile) escalates to the generic `LOCKFILE_RESOLUTION_VERIFICATION`
+  // and the per-entry code goes into the breakdown so the user can see
+  // which policy each entry tripped.
+  const distinctCodes = new Set(violations.map((v) => v.code))
+  const isMixed = distinctCodes.size > 1
+  const errorCode = isMixed ? 'LOCKFILE_RESOLUTION_VERIFICATION' : violations[0].code
   const visible = violations.slice(0, MAX_VIOLATIONS_TO_PRINT)
   const omitted = violations.length - visible.length
-  const breakdown = visible.map((v) => `  ${v.pkgId} ${v.reason}`).join('\n')
+  const formatEntry = isMixed
+    ? (v: ResolutionPolicyViolation): string => `  ${v.name}@${v.version} [${v.code}] ${v.reason}`
+    : (v: ResolutionPolicyViolation): string => `  ${v.name}@${v.version} ${v.reason}`
+  const breakdown = visible.map(formatEntry).join('\n')
   const details = omitted > 0
     ? `${breakdown}\n  …and ${omitted} more`
     : breakdown
-  // Use the code of the first violation — all of today's violations are the
-  // same shape (one verifier, one code). If multiple verifiers fire later
-  // with mixed codes, switch to a generic LOCKFILE_RESOLUTION_VERIFICATION
-  // code and list per-entry codes in the breakdown.
   throw new PnpmError(
-    violations[0].code,
+    errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
       hint: 'The lockfile contains entries that the active policies reject. ' +
@@ -191,4 +160,77 @@ export async function verifyLockfileResolutions (
         'them.',
     }
   )
+}
+
+/**
+ * Collect-mode sibling of {@link verifyLockfileResolutions}: runs the
+ * same fan-out over every verifier and every lockfile entry, but
+ * returns the violations as data instead of throwing on the first batch.
+ * No cache lookup or write — the throw-mode `verifyLockfileResolutions`
+ * is what populates / honors the cache; this is for callers that need
+ * to inspect violations (auto-collect into `minimumReleaseAgeExclude`,
+ * the strict-mode interactive prompt, future resolver-specific
+ * policies).
+ *
+ * Returns an empty array when `verifiers` is empty or the lockfile has
+ * no packages, so callers don't need a separate emptiness check.
+ */
+export async function collectResolutionPolicyViolations (
+  lockfile: LockfileObject,
+  verifiers: ResolutionVerifier[],
+  options?: Pick<VerifyLockfileResolutionsOptions, 'concurrency'>
+): Promise<ResolutionPolicyViolation[]> {
+  if (verifiers.length === 0) return []
+  if (!lockfile.packages) return []
+  return iterateLockfileViolations(lockfile, verifiers, options?.concurrency)
+}
+
+async function iterateLockfileViolations (
+  lockfile: LockfileObject,
+  verifiers: readonly ResolutionVerifier[],
+  concurrency: number | undefined
+): Promise<ResolutionPolicyViolation[]> {
+  // depPath can include peer-dependency and patch_hash suffixes (e.g.
+  // `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
+  // therefore appear multiple times. Dedupe so we issue at most one
+  // verification per package version.
+  //
+  // Include a serialization of `resolution` in the key so two entries that
+  // share a (name, version) but differ in *what* was resolved (e.g. one
+  // pinned via npm, another via a git URL under the same alias) don't
+  // collapse: if the wrong shape wins the dedup, a protocol-scoped
+  // verifier short-circuits on the surviving entry and the real one is
+  // never checked.
+  const candidates = new Map<string, { name: string, version: string, resolution: Resolution }>()
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
+    if (!name || !version) continue
+    const key = `${name}@${version}@${JSON.stringify(snapshot.resolution)}`
+    candidates.set(key, {
+      name,
+      version,
+      resolution: snapshot.resolution as Resolution,
+    })
+  }
+
+  const violations: ResolutionPolicyViolation[] = []
+  const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
+  await Promise.all(
+    Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {
+      // Fan out across every active verifier; each handles its own
+      // protocol short-circuit (e.g. the npm verifier returns ok:true for
+      // git resolutions). We stop at the first failure per entry so a
+      // multi-verifier setup doesn't produce duplicate violations for the
+      // same (name, version).
+      for (const verifier of verifiers) {
+        // eslint-disable-next-line no-await-in-loop
+        const result = await verifier.verify(resolution, { name, version })
+        if (!result.ok) {
+          violations.push({ name, version, resolution, code: result.code, reason: result.reason })
+          break
+        }
+      }
+    }))
+  )
+  return violations
 }

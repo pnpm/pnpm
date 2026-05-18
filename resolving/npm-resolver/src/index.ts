@@ -12,6 +12,8 @@ import type {
   DirectoryResolution,
   PkgResolutionId,
   PreferredVersions,
+  Resolution,
+  ResolutionPolicyViolation,
   ResolveResult,
   TarballResolution,
   WantedDependency,
@@ -55,6 +57,7 @@ import {
 } from './pickPackage.js'
 import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
@@ -62,29 +65,16 @@ export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta
   registry: string
-  immatureVersion?: string
-  publishedBy?: Date
 }
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
-  public readonly immatureVersion?: string
   constructor (opts: NoMatchingVersionErrorOptions) {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
       : opts.wantedDependency.bareSpecifier!
-    let errorMessage: string
-    if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
-      const time = new Date(opts.packageMeta.time[opts.immatureVersion])
-      const releaseAgeText = formatTimeAgo(time) ?? 'just now'
-      const pkgName = opts.wantedDependency.alias ?? opts.packageMeta.name
-      errorMessage = `Version ${opts.immatureVersion} (released ${releaseAgeText}) of ${pkgName} does not meet the minimumReleaseAge constraint`
-    } else {
-      errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
-    }
-    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage)
+    super('NO_MATCHING_VERSION', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
     this.packageMeta = opts.packageMeta
-    this.immatureVersion = opts.immatureVersion
   }
 }
 
@@ -130,6 +120,10 @@ export {
   workspacePrefToNpm,
 }
 export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
+export {
+  MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  TRUST_DOWNGRADE_VIOLATION_CODE,
+} from './violationCodes.js'
 export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {
@@ -145,7 +139,6 @@ export interface ResolverFactoryOptions {
   namedRegistries?: Record<string, string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
-  strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
   fetchWarnTimeoutMs?: number
   /** Pre-populated metadata cache. When provided, the resolver uses this
@@ -249,7 +242,6 @@ export function createNpmResolver (
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
-      strictPublishedByCheck: opts.strictPublishedByCheck,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
     }),
     registries: opts.registries,
@@ -384,6 +376,19 @@ async function resolveNpm (
             resolution: currentResolution as TarballResolution,
             resolvedVia: 'npm-registry',
             publishedAt: opts.currentPkg.publishedAt,
+            // Loose-mode bypass: a lockfile entry whose publishedAt sits
+            // after the maturity cutoff would have been rejected at
+            // resolver time, but the peek path skips the maturity check.
+            // Report inline so the deps-resolver aggregator surfaces it
+            // to the install command.
+            policyViolation: detectMinReleaseAgeViolation({
+              name: manifest.name,
+              version: manifest.version,
+              publishedAt: opts.currentPkg.publishedAt,
+              resolution: currentResolution,
+              publishedBy: opts.publishedBy,
+              publishedByExclude: opts.publishedByExclude,
+            }),
           }
         }
       }
@@ -443,22 +448,6 @@ async function resolveNpm (
       }
     }
 
-    if (opts.publishedBy) {
-      const immatureVersion = pickVersionByVersionRange({
-        meta,
-        versionRange: spec.fetchSpec,
-        preferredVersionSelectors: opts.preferredVersions?.[spec.name],
-      })
-      if (immatureVersion) {
-        throw new NoMatchingVersionError({
-          wantedDependency,
-          packageMeta: meta,
-          registry,
-          immatureVersion,
-          publishedBy: opts.publishedBy,
-        })
-      }
-    }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
     failIfTrustDowngraded(meta, pickedPackage.version, opts)
@@ -512,14 +501,23 @@ async function resolveNpm (
       defaultPinnedVersion: opts.pinnedVersion,
     })
   }
+  const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id,
     latest: meta['dist-tags'].latest,
     manifest: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
-    publishedAt: meta.time?.[pickedPackage.version],
+    publishedAt,
     normalizedBareSpecifier,
+    policyViolation: detectMinReleaseAgeViolation({
+      name: pickedPackage.name,
+      version: pickedPackage.version,
+      publishedAt,
+      resolution,
+      publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
+    }),
   }
 }
 
@@ -632,6 +630,7 @@ async function pickFromSimpleRegistry (
   manifest: DependencyManifest
   resolution: TarballResolution
   publishedAt?: string
+  policyViolation?: ResolutionPolicyViolation
 }> {
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   const { meta, pickedPackage } = await ctx.pickPackage(spec, {
@@ -648,15 +647,25 @@ async function pickFromSimpleRegistry (
   if (pickedPackage == null) {
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
+  const resolution = {
+    integrity: getIntegrity(pickedPackage.dist),
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
+  }
+  const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: meta['dist-tags'].latest,
     manifest: pickedPackage,
-    resolution: {
-      integrity: getIntegrity(pickedPackage.dist),
-      tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
-    },
-    publishedAt: meta.time?.[pickedPackage.version],
+    resolution,
+    publishedAt,
+    policyViolation: detectMinReleaseAgeViolation({
+      name: pickedPackage.name,
+      version: pickedPackage.version,
+      publishedAt,
+      resolution,
+      publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
+    }),
   }
 }
 
@@ -904,6 +913,44 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
     fetchSpec: defaultTag,
     name: alias,
     type: 'tag',
+  }
+}
+
+/**
+ * Inline minimumReleaseAge detection: returns a violation entry when the
+ * picked version's publish timestamp is past the policy cutoff (and
+ * isn't covered by `publishedByExclude`). The resolver already has the
+ * timestamp in hand, so reporting inline saves the install layer from
+ * re-walking the resolved tree and re-fetching the same metadata. The
+ * deps-resolver aggregates the per-resolve `policyViolation` fields into
+ * a single set the install command reacts to.
+ *
+ * Returns `undefined` for resolutions outside the policy — no policy
+ * active, version excluded by pattern, timestamp missing or malformed,
+ * or version mature. Specific-version exclusions (`pkg@1.0.0`) and
+ * full-name exclusions (`pkg`) are both honored so an entry already on
+ * the user's exclude list isn't re-announced every install.
+ */
+function detectMinReleaseAgeViolation (args: {
+  name: string
+  version: string
+  publishedAt: string | undefined
+  resolution: Resolution
+  publishedBy: Date | undefined
+  publishedByExclude: PackageVersionPolicy | undefined
+}): ResolutionPolicyViolation | undefined {
+  if (!args.publishedBy || !args.publishedAt) return undefined
+  const excludeResult = args.publishedByExclude?.(args.name)
+  if (excludeResult === true) return undefined
+  if (Array.isArray(excludeResult) && excludeResult.includes(args.version)) return undefined
+  const ts = new Date(args.publishedAt).getTime()
+  if (Number.isNaN(ts) || ts <= args.publishedBy.getTime()) return undefined
+  return {
+    name: args.name,
+    version: args.version,
+    resolution: args.resolution,
+    code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    reason: `was published at ${new Date(ts).toISOString()}, within the minimumReleaseAge cutoff (${args.publishedBy.toISOString()})`,
   }
 }
 

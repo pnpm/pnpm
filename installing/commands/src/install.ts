@@ -84,6 +84,11 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'fix-lockfile': Boolean,
   'resolution-only': Boolean,
   recursive: Boolean,
+  // `--no-save` lets `pnpm install` skip writing to package.json /
+  // pnpm-workspace.yaml. Without registering it here, nopt drops the
+  // flag, `opts.save` stays undefined, and the auto-add path treats
+  // it as "save enabled".
+  save: Boolean,
 })
 
 export const shorthands: Record<string, string> = {

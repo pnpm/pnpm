@@ -55,6 +55,7 @@ import pLimit from 'p-limit'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
+import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -120,6 +121,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   pnpmfile: string[]
 } & Partial<
   Pick<Config,
+| 'ci'
 | 'sort'
 | 'strictDepBuilds'
 | 'workspaceConcurrency'
@@ -154,6 +156,12 @@ export async function recursive (
 
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
+  // See `installDeps.ts` for context; mirrored here so workspace-recursive
+  // installs also surface immature picks (loose-mode auto-persist or
+  // strict-mode prompt). The workspace manifest writer dedupes against the
+  // existing list, so a single drain at the end captures additions across
+  // every project.
+  const policyHandlers = setupPolicyHandlers(opts)
   const installOpts = Object.assign(opts, {
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
@@ -169,6 +177,7 @@ export async function recursive (
     targetDependenciesField,
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
+    handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
   }) as InstallOptions
 
   const result: RecursiveSummary = {}
@@ -296,12 +305,18 @@ export async function recursive (
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
+      resolutionPolicyViolations,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
     if (opts.save !== false) {
+      // Only pick entries when we'll actually persist. Otherwise the
+      // info log would claim entries were added that the workspace
+      // manifest never saw, and the next install would re-prompt or
+      // fail verification.
+      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
@@ -309,6 +324,7 @@ export async function recursive (
         updatedCatalogs,
         cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
         allProjects,
+        ...policyUpdates,
       }))
       await Promise.all(promises)
     }
@@ -321,6 +337,10 @@ export async function recursive (
   let updatedCatalogs: Catalogs | undefined
 
   const allIgnoredBuilds = new Set<DepPath>()
+  // Each per-project install returns its own slice of lockfile-resolution
+  // violations; accumulate them here so the post-loop persist step can
+  // dedup and write a single batch to the workspace manifest.
+  const allResolutionPolicyViolations: PolicyViolation[] = []
   const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
     limitInstallation(async () => {
@@ -368,6 +388,7 @@ export async function recursive (
           updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
           ignoredBuilds: IgnoredBuilds | undefined
+          resolutionPolicyViolations?: PolicyViolation[]
         }
 
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
@@ -387,6 +408,7 @@ export async function recursive (
                 updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
                 updatedManifest: mutationResult.updatedProjects[0].manifest,
                 ignoredBuilds: mutationResult.ignoredBuilds,
+                resolutionPolicyViolations: mutationResult.resolutionPolicyViolations,
               }
             }
             break
@@ -402,6 +424,7 @@ export async function recursive (
           updatedCatalogs: newCatalogsAddition,
           updatedManifest: newManifest,
           ignoredBuilds,
+          resolutionPolicyViolations,
         } = await action(
           manifest,
           {
@@ -433,6 +456,11 @@ export async function recursive (
             allIgnoredBuilds.add(depPath)
           }
         }
+        if (resolutionPolicyViolations?.length) {
+          for (const violation of resolutionPolicyViolations) {
+            allResolutionPolicyViolations.push(violation)
+          }
+        }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line
         logger.info(err)
@@ -453,11 +481,18 @@ export async function recursive (
     })
   ))
   await handleIgnoredBuilds(opts, allIgnoredBuilds.size ? allIgnoredBuilds : undefined)
-  await updateWorkspaceManifest(opts.workspaceDir, {
-    updatedCatalogs,
-    cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-    allProjects,
-  })
+  if (opts.save !== false) {
+    // Only pick entries when we'll actually persist. Otherwise the
+    // info log would claim entries were added that the workspace
+    // manifest never saw, mirroring the gate the shared-lockfile
+    // branch + installDeps already apply.
+    await updateWorkspaceManifest(opts.workspaceDir, {
+      updatedCatalogs,
+      cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+      allProjects,
+      ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
+    })
+  }
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (

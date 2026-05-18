@@ -2,11 +2,12 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   Resolution,
   ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
-import type { PackageVersionPolicy, Registries } from '@pnpm/types'
+import type { PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
 
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
@@ -17,7 +18,12 @@ import {
   type FetchFullMetadataCachedOptions,
 } from './fetchFullMetadataCached.js'
 import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
-import { getPkgMirrorPath, loadMeta } from './pickPackage.js'
+import { getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnce } from './pickPackage.js'
+import { failIfTrustDowngraded } from './trustChecks.js'
+import {
+  MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  TRUST_DOWNGRADE_VIOLATION_CODE,
+} from './violationCodes.js'
 
 export interface CreateNpmResolutionVerifierOptions {
   /**
@@ -26,13 +32,37 @@ export interface CreateNpmResolutionVerifierOptions {
    */
   minimumReleaseAge?: number
   /**
-   * Gate the age check on strict mode so the built-in default doesn't
-   * silently enforce for users who never opted in. The verifier factory
-   * returns `undefined` unless both `minimumReleaseAge > 0` and
-   * `minimumReleaseAgeStrict` are set.
+   * Retained on the options bag because the resolver path branches on it
+   * (the lowest-version fallback) and tests forward both fields together.
+   * The verifier itself no longer gates on this flag — once the loose-mode
+   * auto-collect makes every accepted-immature pin explicit in
+   * `minimumReleaseAgeExclude`, running the verifier in loose mode is the
+   * thing that proves the manifest stays in sync with the lockfile.
    */
   minimumReleaseAgeStrict?: boolean
   minimumReleaseAgeExclude?: string[]
+  /**
+   * When the registry's metadata lacks the per-version `time` field
+   * (some self-hosted registries strip it), the verifier can't apply
+   * the maturity cutoff. Set this to `true` to mirror the resolver's
+   * `pickMatchingVersionFinal` warn-and-skip behavior — the verifier
+   * passes the entry with a one-time `globalWarn`, instead of failing
+   * closed. Defaults to `false` so the verifier stays stricter than
+   * the resolver only when the user has explicitly opted in to the
+   * skip on the resolver side.
+   */
+  ignoreMissingTimeField?: boolean
+  /**
+   * `'no-downgrade'` rejects a lockfile entry whose version has weaker
+   * trust evidence (no attestations) than an earlier-published version
+   * had. This mirrors the resolver-time `failIfTrustDowngraded` check
+   * applied during fresh resolution — the verifier catches the same
+   * supply-chain signal on entries that bypassed resolution (peek-path,
+   * frozen lockfile, etc.).
+   */
+  trustPolicy?: TrustPolicy
+  trustPolicyExclude?: string[]
+  trustPolicyIgnoreAfter?: number
   registries: Registries
   /**
    * Registries reached via the named-registry resolver chain (e.g. `gh:` →
@@ -55,9 +85,10 @@ export interface CreateNpmResolutionVerifierOptions {
 
 /**
  * Returns a `ResolutionVerifier` that re-applies the `minimumReleaseAge`
- * policy to npm-registry-resolved lockfile entries, or `undefined` when no
- * policy is active. Pairs with `createNpmResolver`: each resolver factory
- * may export a sibling verifier factory that the default-resolver combines.
+ * and/or `trustPolicy='no-downgrade'` policies to npm-registry-resolved
+ * lockfile entries, or `undefined` when no policy is active. Pairs with
+ * `createNpmResolver`: each resolver factory may export a sibling
+ * verifier factory that the default-resolver combines.
  *
  * Designed for fail-closed semantics: if the manifest can't be loaded or
  * the pinned version is missing from it, the verifier reports a violation
@@ -67,11 +98,20 @@ export interface CreateNpmResolutionVerifierOptions {
 export function createNpmResolutionVerifier (
   opts: CreateNpmResolutionVerifierOptions
 ): ResolutionVerifier | undefined {
-  if (!opts.minimumReleaseAge || !opts.minimumReleaseAgeStrict) return undefined
+  const ageCheckActive = Boolean(opts.minimumReleaseAge)
+  const trustCheckActive = opts.trustPolicy === 'no-downgrade'
+  // No policy → no verifier. Skipping early keeps the install-side fan-out
+  // empty when nothing is configured.
+  if (!ageCheckActive && !trustCheckActive) return undefined
 
-  const cutoff = (opts.now ?? Date.now()) - opts.minimumReleaseAge * 60 * 1000
+  const cutoff = ageCheckActive
+    ? (opts.now ?? Date.now()) - opts.minimumReleaseAge! * 60 * 1000
+    : 0
   const excludePolicy = opts.minimumReleaseAgeExclude?.length
-    ? createExcludePolicy(opts.minimumReleaseAgeExclude)
+    ? createExcludePolicy(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')
+    : undefined
+  const trustExcludePolicy = opts.trustPolicyExclude?.length
+    ? createExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
     : undefined
 
   // Pre-normalize named-registry URLs and sort by length so two registries
@@ -98,10 +138,14 @@ export function createNpmResolutionVerifier (
     .filter((value): value is string => value != null)
     .sort((a, b) => b.length - a.length)
 
-  // Per-install dedup of every network/disk fetch the verifier issues
-  // (see fetchPublishedAt for the lookup order). The on-disk
-  // conditional-GET cache is handled inside fetch{Abbreviated,Full}MetadataCached
-  // via the resolver's shared mirrors at opts.cacheDir.
+  // Per-install dedup of every network/disk fetch the verifier issues.
+  // The maturity check uses the layered `fetchPublishedAt` lookup; the
+  // trust check uses an attestation fast-path before falling back to
+  // the same full-metadata mirror. All maps live here so verifying
+  // many versions of the same package only pays the disk/network costs
+  // once. The on-disk conditional-GET cache is handled inside
+  // fetch{Abbreviated,Full}MetadataCached via the resolver's shared
+  // mirrors at opts.cacheDir.
   const lookupContext: PublishedAtLookupContext = {
     fetchOpts: opts.fetchOpts,
     getAuthHeaderValueByURI: opts.getAuthHeaderValueByURI,
@@ -111,72 +155,231 @@ export function createNpmResolutionVerifier (
     publishedAtCache: new Map(),
     localMetaCache: new Map(),
     fullMetaCache: new Map(),
+    fullMetaForTrustCache: new Map(),
   }
 
-  const minimumReleaseAge = opts.minimumReleaseAge
+  const minimumReleaseAge = opts.minimumReleaseAge ?? 0
+  const trustPolicy = opts.trustPolicy
+  const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version }) => {
     if (!isNpmRegistryResolution(resolution)) return { ok: true }
     // Non-semver versions identify URL tarballs, file: refs, git refs, etc.
-    // The age policy doesn't apply and a registry lookup would 404.
+    // Neither the age nor the trust policy applies, and a registry lookup
+    // would 404.
     if (!semver.valid(version)) return { ok: true }
-    if (isExcluded(excludePolicy, name, version)) return { ok: true }
+
+    const ageApplies = ageCheckActive && !isExcluded(excludePolicy, name, version)
+    const trustApplies = trustCheckActive && !isExcluded(trustExcludePolicy, name, version)
+    if (!ageApplies && !trustApplies) return { ok: true }
 
     const tarballUrl = (resolution as { tarball?: string }).tarball
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
-    let published: string | undefined
-    try {
-      published = await fetchPublishedAt(lookupContext, registry, name, version)
-    } catch (err) {
-      return {
-        ok: false,
-        code: 'MINIMUM_RELEASE_AGE_VIOLATION',
-        reason: uncheckable(err instanceof Error ? err.message : String(err)),
-      }
+
+    if (ageApplies) {
+      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, opts.ignoreMissingTimeField === true)
+      if (ageViolation) return ageViolation
     }
-    if (!published) {
-      // No source — attestation, local mirror, or full metadata —
-      // surfaced a publish timestamp for this version. Either it's
-      // unpublished or the registry doesn't expose per-version
-      // timestamps. Report a violation rather than silently passing.
-      return {
-        ok: false,
-        code: 'MINIMUM_RELEASE_AGE_VIOLATION',
-        reason: uncheckable('version not present in registry manifest'),
-      }
+
+    if (trustApplies) {
+      const trustViolation = await runTrustCheck(lookupContext, registry, name, version, {
+        trustPolicyExclude: trustExcludePolicy,
+        trustPolicyIgnoreAfter,
+      })
+      if (trustViolation) return trustViolation
     }
-    const publishedAt = new Date(published)
-    const ts = publishedAt.getTime()
-    if (Number.isNaN(ts)) {
-      return {
-        ok: false,
-        code: 'MINIMUM_RELEASE_AGE_VIOLATION',
-        reason: 'publish timestamp is not a valid date',
-      }
-    }
-    if (ts > cutoff) {
-      return {
-        ok: false,
-        code: 'MINIMUM_RELEASE_AGE_VIOLATION',
-        reason: `was published at ${publishedAt.toISOString()}, within the minimumReleaseAge cutoff (${new Date(cutoff).toISOString()})`,
-      }
-    }
+
     return { ok: true }
   }
+  // Snapshot the exclude lists (sorted, deduped) and require an exact
+  // match in `canTrustPastCheck`: cache identity == policy identity.
+  // Any change to either exclude list — adding, removing, or
+  // substituting an entry — invalidates the cached run. This is
+  // stricter than a pure correctness check would require (adding to
+  // either list is more permissive and the cached pass would still
+  // hold), but it makes the cache contract trivial to reason about and
+  // removes a class of bypasses where a previously-approved version
+  // stays trusted after its exclude entry has been pulled.
+  const sortedMinAgeExcludes = [...new Set(opts.minimumReleaseAgeExclude ?? [])].sort()
+  const sortedTrustExcludes = [...new Set(opts.trustPolicyExclude ?? [])].sort()
   return {
     verify,
-    policy: { minimumReleaseAge },
+    policy: {
+      minimumReleaseAge,
+      minimumReleaseAgeExclude: sortedMinAgeExcludes,
+      trustPolicy: trustPolicy ?? null,
+      trustPolicyExclude: sortedTrustExcludes,
+      trustPolicyIgnoreAfter: trustPolicyIgnoreAfter ?? null,
+    },
     canTrustPastCheck: (cached) => {
-      // A previously cached run under a larger cutoff (stricter window)
-      // is trustworthy under a smaller current one — its set of
-      // accepted versions is a subset of today's. The reverse —
-      // tightening the cutoff — invalidates the cached run: versions
-      // that passed before may now be in-window. Non-number cached
-      // values come from an older record shape and aren't trusted.
+      // Maturity: a previously cached run under a larger cutoff
+      // (stricter window) is trustworthy under a smaller current one —
+      // its set of accepted versions is a subset of today's. The
+      // reverse — tightening the cutoff — invalidates the cached run:
+      // versions that passed before may now be in-window. Non-number
+      // cached values come from an older record shape and aren't trusted.
       const past = cached.minimumReleaseAge
-      return typeof past === 'number' && past >= minimumReleaseAge
+      const pastNumber = typeof past === 'number' ? past : 0
+      if (pastNumber < minimumReleaseAge) return false
+
+      // Excludes: today's sorted-deduped lists must match the cached
+      // ones byte for byte. Older records (no field) fall back to an
+      // empty array, so they only trust today's empty policy.
+      const pastMinAgeExcludes = Array.isArray(cached.minimumReleaseAgeExclude)
+        ? cached.minimumReleaseAgeExclude
+        : []
+      if (JSON.stringify(pastMinAgeExcludes) !== JSON.stringify(sortedMinAgeExcludes)) return false
+
+      // Trust policy: any change to `trustPolicy`, the exclude list, or
+      // the ignore-after cutoff invalidates the cached run. Older
+      // records (no trust field at all) treat the trust policy as
+      // absent and are only trusted under an unset-today policy.
+      const pastTrustPolicy = cached.trustPolicy ?? null
+      const todayTrustPolicy = trustPolicy ?? null
+      if (pastTrustPolicy !== todayTrustPolicy) return false
+      const pastTrustExcludes = Array.isArray(cached.trustPolicyExclude)
+        ? cached.trustPolicyExclude
+        : []
+      if (JSON.stringify(pastTrustExcludes) !== JSON.stringify(sortedTrustExcludes)) return false
+      const pastIgnoreAfter = typeof cached.trustPolicyIgnoreAfter === 'number'
+        ? cached.trustPolicyIgnoreAfter
+        : null
+      const todayIgnoreAfter = trustPolicyIgnoreAfter ?? null
+      if (pastIgnoreAfter !== todayIgnoreAfter) return false
+
+      return true
     },
   }
+}
+
+async function runAgeCheck (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string,
+  version: string,
+  cutoff: number,
+  ignoreMissingTimeField: boolean
+): Promise<{ ok: false, code: string, reason: string } | undefined> {
+  let published: string | undefined
+  try {
+    published = await fetchPublishedAt(context, registry, name, version)
+  } catch (err) {
+    return {
+      ok: false,
+      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+      reason: uncheckable('minimumReleaseAge', err instanceof Error ? err.message : String(err)),
+    }
+  }
+  if (!published) {
+    // No source — attestation, local mirror, or full metadata —
+    // surfaced a publish timestamp for this version. The resolver's
+    // pickMatchingVersionFinal honors `minimumReleaseAgeIgnoreMissingTime`
+    // for the same shape (some self-hosted registries strip per-version
+    // `time`); the verifier mirrors that so it can't be stricter than
+    // fresh resolution. Without the flag we still fail closed — better
+    // a false reject than silent bypass when the user hasn't opted in.
+    if (ignoreMissingTimeField) {
+      warnMissingTimeFieldOnce(name)
+      return undefined
+    }
+    return {
+      ok: false,
+      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+      reason: uncheckable('minimumReleaseAge', 'version not present in registry manifest'),
+    }
+  }
+  const publishedAt = new Date(published)
+  const ts = publishedAt.getTime()
+  if (Number.isNaN(ts)) {
+    return {
+      ok: false,
+      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+      reason: 'publish timestamp is not a valid date',
+    }
+  }
+  if (ts > cutoff) {
+    return {
+      ok: false,
+      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+      reason: `was published at ${publishedAt.toISOString()}, within the minimumReleaseAge cutoff (${new Date(cutoff).toISOString()})`,
+    }
+  }
+  return undefined
+}
+
+/**
+ * Run the resolver-time `failIfTrustDowngraded` check against the
+ * pinned lockfile version. The packument is fetched through a
+ * per-install cache so multiple versions of the same package share
+ * one fetch.
+ *
+ * No attestation fast-path here even though the per-version
+ * attestation endpoint is cheaper than the packument: presence of
+ * provenance on the current version is not sufficient to clear a
+ * downgrade. A package could have shipped earlier versions under a
+ * `trustedPublisher` (the higher-rank evidence) and then dropped
+ * back to plain provenance for the version we're verifying —
+ * `failIfTrustDowngraded` correctly flags that, and a "has any
+ * attestation → pass" shortcut would silently miss it.
+ */
+async function runTrustCheck (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string,
+  version: string,
+  opts: {
+    trustPolicyExclude?: PackageVersionPolicy
+    trustPolicyIgnoreAfter?: number
+  }
+): Promise<{ ok: false, code: string, reason: string } | undefined> {
+  let meta: PackageMeta
+  try {
+    meta = await fetchFullMetaForTrust(context, registry, name)
+  } catch (err) {
+    // `fetchFullMetadataCached` rejects (network error, 404, etc.); the
+    // verifier fails closed so a missing manifest can't be mistaken
+    // for a passing trust check.
+    return {
+      ok: false,
+      code: TRUST_DOWNGRADE_VIOLATION_CODE,
+      reason: uncheckable('trustPolicy', err instanceof Error ? err.message : String(err)),
+    }
+  }
+
+  try {
+    failIfTrustDowngraded(meta, version, opts)
+  } catch (err) {
+    return {
+      ok: false,
+      code: TRUST_DOWNGRADE_VIOLATION_CODE,
+      reason: err instanceof Error ? err.message : String(err),
+    }
+  }
+  return undefined
+}
+
+function fetchFullMetaForTrust (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string
+): Promise<PackageMeta> {
+  const cacheKey = `${registry}\x00${name}`
+  let cachedPromise = context.fullMetaForTrustCache.get(cacheKey)
+  if (cachedPromise == null) {
+    // Don't swallow the fetch rejection here — `runTrustCheck` catches it
+    // and surfaces the underlying message in the violation reason, which
+    // is more actionable than the generic "metadata is unavailable" the
+    // `!meta` fallback emits. The cache still holds the rejected promise
+    // so repeat verifier calls for the same (registry, name) within one
+    // install don't refetch a known-failing endpoint.
+    cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
+      registry,
+      authHeaderValue: context.getAuthHeaderValueByURI(registry),
+      cacheDir: context.cacheDir,
+    })
+    context.fullMetaForTrustCache.set(cacheKey, cachedPromise)
+  }
+  return cachedPromise
 }
 
 type PublishedAtTimeMap = Record<string, string | undefined>
@@ -200,7 +403,7 @@ interface PublishedAtLookupContext {
    * ~zero cost. Resolves to the parsed metadata or `undefined` on
    * failure.
    */
-  abbreviatedMetaCache: Map<string, Promise<{ modified?: string } | undefined>>
+  abbreviatedMetaCache: Map<string, Promise<{ modified?: string, versions?: Record<string, unknown> } | undefined>>
   /**
    * Per-(registry+name+version) memo of the final published-at answer
    * the verifier hands to the policy check. One install verifies each
@@ -219,6 +422,14 @@ interface PublishedAtLookupContext {
    * attestation endpoint fail to yield a timestamp.
    */
   fullMetaCache: Map<string, Promise<PublishedAtTimeMap | undefined>>
+  /**
+   * Per-(registry+name) memo of the full packument used by the trust
+   * check (history walk for `failIfTrustDowngraded`). Kept separate
+   * from `fullMetaCache` because the trust check needs the whole
+   * document (`_npmUser`, `dist.attestations` per version) where the
+   * age check only needs `time`.
+   */
+  fullMetaForTrustCache: Map<string, Promise<PackageMeta>>
 }
 
 /**
@@ -263,7 +474,7 @@ async function resolvePublishedAt (
   name: string,
   version: string
 ): Promise<string | undefined> {
-  const abbreviatedShortcut = await tryAbbreviatedModifiedShortcut(context, registry, name)
+  const abbreviatedShortcut = await tryAbbreviatedModifiedShortcut(context, registry, name, version)
   if (abbreviatedShortcut != null) return abbreviatedShortcut
 
   const localTime = await readLocalMetaTime(context, registry, name)
@@ -282,18 +493,25 @@ async function resolvePublishedAt (
 /**
  * Returns the abbreviated metadata's `modified` timestamp **iff** it
  * proves the gate would pass — i.e. modified is strictly older than
- * the policy cutoff. In that case every version this package contains
- * predates the cutoff, so the caller can short-circuit with `modified`
- * as a conservative upper-bound publish time.
+ * the policy cutoff *and* the pinned version still exists in the
+ * package's current versions map.
+ *
+ * The version check is the fail-closed contract: an unpublished or
+ * never-published version must not slip through on the package-level
+ * `modified` timestamp. When the version is missing here we fall
+ * through to the later layers so the caller eventually surfaces the
+ * "version not present in registry manifest" violation.
  *
  * Returns `undefined` otherwise (modified is too recent, the metadata
- * lacks a parseable modified field, or the fetch failed) and the
- * caller proceeds with per-version lookups.
+ * lacks a parseable modified field, the version isn't in the abbreviated
+ * form, or the fetch failed) and the caller proceeds with per-version
+ * lookups.
  */
 async function tryAbbreviatedModifiedShortcut (
   context: PublishedAtLookupContext,
   registry: string,
-  name: string
+  name: string,
+  version: string
 ): Promise<string | undefined> {
   const meta = await fetchAbbreviatedMeta(context, registry, name)
   const modified = meta?.modified
@@ -301,6 +519,11 @@ async function tryAbbreviatedModifiedShortcut (
   const modifiedMs = Date.parse(modified)
   if (Number.isNaN(modifiedMs)) return undefined
   if (modifiedMs >= context.cutoffMs) return undefined
+  // The shortcut treats `modified` as an upper bound on every version's
+  // publish time — but only for versions the registry currently lists.
+  // An unpublished or never-published pin would otherwise pass the gate
+  // on a stale package-level timestamp.
+  if (!meta?.versions || !(version in meta.versions)) return undefined
   return modified
 }
 
@@ -308,7 +531,7 @@ function fetchAbbreviatedMeta (
   context: PublishedAtLookupContext,
   registry: string,
   name: string
-): Promise<{ modified?: string } | undefined> {
+): Promise<{ modified?: string, versions?: Record<string, unknown> } | undefined> {
   const cacheKey = `${registry}\x00${name}`
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
   if (cachedPromise == null) {
@@ -395,11 +618,11 @@ function tryParseUrl (url: string): URL | null {
   }
 }
 
-function uncheckable (why: string): string {
-  return `could not be checked against minimumReleaseAge (${why})`
+function uncheckable (policy: 'minimumReleaseAge' | 'trustPolicy', why: string): string {
+  return `could not be checked against ${policy} (${why})`
 }
 
-function createExcludePolicy (patterns: string[]): PackageVersionPolicy {
+function createExcludePolicy (patterns: string[], key: string): PackageVersionPolicy {
   // Mirror the wrapping done by the full-resolution path
   // (installing/deps-resolver/src/resolveDependencyTree.ts) so the error
   // code is identical regardless of which path surfaced the invalid pattern.
@@ -408,8 +631,8 @@ function createExcludePolicy (patterns: string[]): PackageVersionPolicy {
   } catch (err) {
     if (!err || typeof err !== 'object' || !('message' in err)) throw err
     throw new PnpmError(
-      'INVALID_MINIMUM_RELEASE_AGE_EXCLUDE',
-      `Invalid value in minimumReleaseAgeExclude: ${(err as { message: string }).message}`
+      `INVALID_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`,
+      `Invalid value in ${key}: ${(err as { message: string }).message}`
     )
   }
 }
