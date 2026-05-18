@@ -123,10 +123,13 @@ fn extra_bin_paths_come_after_bins_and_node_gyp() {
     let extra: Vec<PathBuf> = vec![PathBuf::from("/extra/one"), PathBuf::from("/extra/two")];
     let path = extend_path(wd, None, Some(&node_gyp), &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
-    let bin_idx = parts.iter().position(|part| part.contains("proj") && part.ends_with(".bin")).unwrap();
+    let bin_idx =
+        parts.iter().position(|part| part.contains("proj") && part.ends_with(".bin")).unwrap();
     let gyp_idx = parts.iter().position(|part| part.contains("node-gyp-bin")).unwrap();
-    let extra1_idx = parts.iter().position(|part| part == "/extra/one" || part == r"\extra\one").unwrap();
-    let extra2_idx = parts.iter().position(|part| part == "/extra/two" || part == r"\extra\two").unwrap();
+    let extra1_idx =
+        parts.iter().position(|part| part == "/extra/one" || part == r"\extra\one").unwrap();
+    let extra2_idx =
+        parts.iter().position(|part| part == "/extra/two" || part == r"\extra\two").unwrap();
     assert!(
         bin_idx < gyp_idx && gyp_idx < extra1_idx && extra1_idx < extra2_idx,
         "expected order .bin < nodeGyp < extra1 < extra2; got {parts:?}",

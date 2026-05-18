@@ -64,7 +64,9 @@ pub enum InstallPackageFromRegistryError {
 
 impl<'a> InstallPackageFromRegistry<'a> {
     /// Execute the subroutine.
-    pub async fn run<Reporter: self::Reporter>(self) -> Result<PackageVersion, InstallPackageFromRegistryError> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+    ) -> Result<PackageVersion, InstallPackageFromRegistryError> {
         let &InstallPackageFromRegistry { http_client, config, name, version_range, .. } = &self;
 
         // Strip any `npm:<name>@<range>` alias prefix before talking to

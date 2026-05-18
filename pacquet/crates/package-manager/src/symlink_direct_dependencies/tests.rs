@@ -124,13 +124,16 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     // must carry their version, the matching dependency type, and
     // `realName == name` (pacquet's lockfile snapshots don't
     // preserve npm-alias keys at this layer).
-    let fastify = added.iter().find(|added| added.name == "fastify").expect("fastify added event missing");
+    let fastify =
+        added.iter().find(|added| added.name == "fastify").expect("fastify added event missing");
     assert_eq!(fastify.real_name, "fastify");
     assert_eq!(fastify.version.as_deref(), Some("4.0.0"));
     assert_eq!(fastify.dependency_type, Some(DependencyType::Prod));
 
-    let dev =
-        added.iter().find(|added| added.name == "@pnpm.e2e/dev-dep").expect("dev-dep added event missing");
+    let dev = added
+        .iter()
+        .find(|added| added.name == "@pnpm.e2e/dev-dep")
+        .expect("dev-dep added event missing");
     assert_eq!(dev.real_name, "@pnpm.e2e/dev-dep");
     assert_eq!(dev.version.as_deref(), Some("1.2.3"));
     assert_eq!(dev.dependency_type, Some(DependencyType::Dev));

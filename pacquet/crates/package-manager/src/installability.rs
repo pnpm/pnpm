@@ -452,8 +452,10 @@ pub fn any_installability_constraint(packages: &HashMap<PackageKey, PackageMetad
 ///   "accept" inside `check_platform`'s `check_list`, and an empty
 ///   list cannot exclude the host either. Treat both as no-constraint.
 fn metadata_has_meaningful_constraint(metadata: &PackageMetadata) -> bool {
-    let engines_meaningful =
-        metadata.engines.as_ref().is_some_and(|engines| engines.contains_key("node") || engines.contains_key("pnpm"));
+    let engines_meaningful = metadata
+        .engines
+        .as_ref()
+        .is_some_and(|engines| engines.contains_key("node") || engines.contains_key("pnpm"));
     engines_meaningful
         || platform_axis_meaningful(metadata.cpu.as_deref())
         || platform_axis_meaningful(metadata.os.as_deref())
@@ -473,17 +475,22 @@ fn platform_axis_meaningful(axis: Option<&[String]>) -> bool {
 
 fn manifest_from_metadata(metadata: &PackageMetadata) -> PackageInstallabilityManifest {
     PackageInstallabilityManifest {
-        engines: metadata
-            .engines
-            .as_ref()
-            .map(|map| WantedEngine { node: map.get("node").cloned(), pnpm: map.get("pnpm").cloned() }),
+        engines: metadata.engines.as_ref().map(|map| WantedEngine {
+            node: map.get("node").cloned(),
+            pnpm: map.get("pnpm").cloned(),
+        }),
         cpu: metadata.cpu.clone(),
         os: metadata.os.clone(),
         libc: metadata.libc.clone(),
     }
 }
 
-fn emit_skipped<Reporter: self::Reporter>(pkg_id: &str, reason: SkipReason, details: String, prefix: &str) {
+fn emit_skipped<Reporter: self::Reporter>(
+    pkg_id: &str,
+    reason: SkipReason,
+    details: String,
+    prefix: &str,
+) {
     let (name, version) = split_name_version(pkg_id);
     let wire_reason = match reason {
         SkipReason::UnsupportedEngine => SkippedOptionalReason::UnsupportedEngine,

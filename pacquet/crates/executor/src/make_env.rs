@@ -250,11 +250,7 @@ fn sanitize_env_key(raw: &str) -> String {
 /// from index.js:406-408. JSON-encode multi-line strings so child
 /// shells don't break on embedded newlines.
 fn escape_newlines(text: &str) -> String {
-    if text.contains('\n') {
-        Value::String(text.to_string()).to_string()
-    } else {
-        text.to_string()
-    }
+    if text.contains('\n') { Value::String(text.to_string()).to_string() } else { text.to_string() }
 }
 
 #[cfg(test)]

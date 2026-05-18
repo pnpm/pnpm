@@ -321,10 +321,22 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     let stderr = child.stderr.take();
 
     let stdout_handle = stdout.map(|stream| {
-        spawn_line_pump::<Reporter>(stream, LifecycleStdio::Stdout, opts.dep_path, stage, &pkg_root_str)
+        spawn_line_pump::<Reporter>(
+            stream,
+            LifecycleStdio::Stdout,
+            opts.dep_path,
+            stage,
+            &pkg_root_str,
+        )
     });
     let stderr_handle = stderr.map(|stream| {
-        spawn_line_pump::<Reporter>(stream, LifecycleStdio::Stderr, opts.dep_path, stage, &pkg_root_str)
+        spawn_line_pump::<Reporter>(
+            stream,
+            LifecycleStdio::Stderr,
+            opts.dep_path,
+            stage,
+            &pkg_root_str,
+        )
     });
 
     let status = child.wait().map_err(|error| LifecycleScriptError::Wait {

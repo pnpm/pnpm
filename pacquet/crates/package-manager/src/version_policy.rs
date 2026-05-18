@@ -84,7 +84,9 @@ pub enum VersionPolicyError {
 /// `"is-*"` and never matches a real package name (matches upstream
 /// behavior exactly — see `should not allow patterns in allowBuilds`
 /// in `building/policy/test/index.ts`).
-pub fn expand_package_version_specs<Iter, Spec>(specs: Iter) -> Result<HashSet<String>, VersionPolicyError>
+pub fn expand_package_version_specs<Iter, Spec>(
+    specs: Iter,
+) -> Result<HashSet<String>, VersionPolicyError>
 where
     Iter: IntoIterator<Item = Spec>,
     Spec: AsRef<str>,

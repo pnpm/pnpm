@@ -87,7 +87,11 @@ const LOG_FLAG_CLONE: u8 = 1 << 0;
 const LOG_FLAG_HARDLINK: u8 = 1 << 1;
 const LOG_FLAG_COPY: u8 = 1 << 2;
 
-fn log_method_once<Reporter: self::Reporter>(logged: &AtomicU8, flag: u8, method: WireImportMethod) {
+fn log_method_once<Reporter: self::Reporter>(
+    logged: &AtomicU8,
+    flag: u8,
+    method: WireImportMethod,
+) {
     if logged.fetch_or(flag, Ordering::Relaxed) & flag == 0 {
         let method_name = match method {
             WireImportMethod::Clone => "clone",
@@ -294,7 +298,11 @@ fn auto_link<Reporter: self::Reporter>(
             },
             LINK_STATE_HARDLINK => match fs::hard_link(source, target) {
                 Ok(()) => {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
+                    log_method_once::<Reporter>(
+                        logged,
+                        LOG_FLAG_HARDLINK,
+                        WireImportMethod::Hardlink,
+                    );
                     return Ok(());
                 }
                 Err(err) if is_call_error(&err) => return Err(err),

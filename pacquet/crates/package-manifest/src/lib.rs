@@ -297,8 +297,9 @@ pub fn convert_engines_runtime_to_dependencies(
             single @ Value::Object(_) => std::slice::from_ref(single),
             _ => continue,
         };
-        let Some(runtime) =
-            runtimes.iter().find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
+        let Some(runtime) = runtimes
+            .iter()
+            .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
         else {
             continue;
         };

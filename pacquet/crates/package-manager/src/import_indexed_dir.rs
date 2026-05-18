@@ -205,7 +205,12 @@ fn populate_dir<Reporter: self::Reporter>(
     cas_paths
         .par_iter()
         .try_for_each(|(cleaned_entry, store_path)| {
-            link_file::<Reporter>(logged_methods, import_method, store_path, &dir_path.join(cleaned_entry))
+            link_file::<Reporter>(
+                logged_methods,
+                import_method,
+                store_path,
+                &dir_path.join(cleaned_entry),
+            )
         })
         .map_err(ImportIndexedDirError::LinkFile)
 }

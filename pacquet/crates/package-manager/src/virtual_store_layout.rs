@@ -281,7 +281,8 @@ fn lockfile_to_dep_graph(
             let children = collect_children(snapshot);
             let metadata_key = snapshot_key.without_peer();
             let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(metadata_key.to_string());
-            let resolution = packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
+            let resolution =
+                packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
             let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
             (snapshot_key.clone(), DepsGraphNode { full_pkg_id, children })
         })

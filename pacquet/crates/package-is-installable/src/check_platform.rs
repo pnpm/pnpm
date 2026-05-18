@@ -147,8 +147,10 @@ pub fn check_platform(
 ) -> Option<UnsupportedPlatformError> {
     let default_current = vec!["current".to_string()];
     let os_supp = supported.and_then(|supported| supported.os.as_ref()).unwrap_or(&default_current);
-    let cpu_supp = supported.and_then(|supported| supported.cpu.as_ref()).unwrap_or(&default_current);
-    let libc_supp = supported.and_then(|supported| supported.libc.as_ref()).unwrap_or(&default_current);
+    let cpu_supp =
+        supported.and_then(|supported| supported.cpu.as_ref()).unwrap_or(&default_current);
+    let libc_supp =
+        supported.and_then(|supported| supported.libc.as_ref()).unwrap_or(&default_current);
 
     let current = Platform {
         os: dedupe_current(current_os, os_supp),
@@ -202,7 +204,10 @@ pub fn check_platform(
 /// concrete host value. Ports upstream's `dedupeCurrent` at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts#L88-L90>.
 fn dedupe_current(current: &str, supported: &[String]) -> Vec<String> {
-    supported.iter().map(|item| if item == "current" { current.to_string() } else { item.clone() }).collect()
+    supported
+        .iter()
+        .map(|item| if item == "current" { current.to_string() } else { item.clone() })
+        .collect()
 }
 
 /// Decide whether any element of `value` is allowed by `list`.

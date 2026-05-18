@@ -482,7 +482,10 @@ fn temp_path_for(file_path: &Path) -> PathBuf {
     let pid = std::process::id();
 
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
-    let name = file_path.file_name().map(|file_name| file_name.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = file_path
+        .file_name()
+        .map(|file_name| file_name.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let base = strip_dash_suffix(&name);
 
     parent.join(format!("{base}{pid}{counter}"))

@@ -29,7 +29,10 @@ pub struct GraphSequencerResult<Node> {
 ///
 /// Iteration order follows `included`, so the output is deterministic for a
 /// given input order.
-pub fn graph_sequencer<Node>(graph: &HashMap<Node, Vec<Node>>, included: &[Node]) -> GraphSequencerResult<Node>
+pub fn graph_sequencer<Node>(
+    graph: &HashMap<Node, Vec<Node>>,
+    included: &[Node],
+) -> GraphSequencerResult<Node>
 where
     Node: Eq + Hash + Clone,
 {
@@ -126,7 +129,11 @@ fn remove_node<Node>(
     remaining.remove(node);
 }
 
-fn find_cycle<Node>(start: &Node, graph: &HashMap<Node, Vec<Node>>, visited: &HashSet<Node>) -> Vec<Node>
+fn find_cycle<Node>(
+    start: &Node,
+    graph: &HashMap<Node, Vec<Node>>,
+    visited: &HashSet<Node>,
+) -> Vec<Node>
 where
     Node: Eq + Hash + Clone,
 {

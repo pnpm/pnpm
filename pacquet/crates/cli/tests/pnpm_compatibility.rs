@@ -218,7 +218,10 @@ fn pnpm_reads_pacquet_written_rows() {
 /// alongside any inner-shape disagreement instead of being silently
 /// normalized away.
 fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
-    files.into_iter().filter(|path| path.starts_with("links/") || path.starts_with("v11/links/")).collect()
+    files
+        .into_iter()
+        .filter(|path| path.starts_with("links/") || path.starts_with("v11/links/"))
+        .collect()
 }
 
 /// Append GVS opt-in (and any extra fields) to the `pnpm-workspace.yaml`

@@ -376,10 +376,10 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     // Virtual-store directory uses the real package name (version resolved
     // at runtime from `latest` — just assert the real name prefix exists).
     let virtual_store_dir_path = project_root.join("node_modules/.pacquet");
-    let has_real_name_dir = std::fs::read_dir(&virtual_store_dir_path)
-        .unwrap()
-        .flatten()
-        .any(|entry| entry.file_name().to_string_lossy().starts_with("@pnpm.e2e+hello-world-js-bin@"));
+    let has_real_name_dir =
+        std::fs::read_dir(&virtual_store_dir_path).unwrap().flatten().any(|entry| {
+            entry.file_name().to_string_lossy().starts_with("@pnpm.e2e+hello-world-js-bin@")
+        });
     assert!(has_real_name_dir, "expected real-name virtual store directory");
 
     drop((dir, mock_instance));

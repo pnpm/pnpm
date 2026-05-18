@@ -73,7 +73,9 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
     /// [`crate::InstallFrozenLockfile::run`]. The signature symmetry
     /// keeps `Install::run` from branching on which sub-path produced
     /// the result.
-    pub async fn run<Reporter: self::Reporter>(self) -> Result<HoistedDependencies, InstallWithoutLockfileError>
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+    ) -> Result<HoistedDependencies, InstallWithoutLockfileError>
     where
         DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     {

@@ -186,9 +186,9 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
     if scripts.get("prepare").and_then(Value::as_str).is_some_and(|script| !script.is_empty()) {
         return true;
     }
-    let has_prepublish_script = PREPUBLISH_SCRIPTS
-        .iter()
-        .any(|name| scripts.get(*name).and_then(Value::as_str).is_some_and(|script| !script.is_empty()));
+    let has_prepublish_script = PREPUBLISH_SCRIPTS.iter().any(|name| {
+        scripts.get(*name).and_then(Value::as_str).is_some_and(|script| !script.is_empty())
+    });
     if !has_prepublish_script {
         return false;
     }

@@ -683,8 +683,9 @@ impl<'a> CreateVirtualStore<'a> {
                     })
                 })
             };
-            let on_multi_thread = tokio::runtime::Handle::try_current()
-                .is_ok_and(|handle| handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
+            let on_multi_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
+                handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread
+            });
             if on_multi_thread {
                 tokio::task::block_in_place(warm_work)?;
             } else {
@@ -995,7 +996,10 @@ fn snapshot_cache_key(
 /// optional-deps check is the `isEmpty(...) && isEmpty(...) ||
 /// equals(...)` arm folded together.
 fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntry) -> bool {
-    fn maps_equal<Key, Value>(lhs: Option<&HashMap<Key, Value>>, rhs: Option<&HashMap<Key, Value>>) -> bool
+    fn maps_equal<Key, Value>(
+        lhs: Option<&HashMap<Key, Value>>,
+        rhs: Option<&HashMap<Key, Value>>,
+    ) -> bool
     where
         Key: std::cmp::Eq + std::hash::Hash,
         Value: PartialEq,

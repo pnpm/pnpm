@@ -707,17 +707,19 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                     // channel and swallowed so the install can
                     // continue. The `package.id` field upstream is
                     // `depNode.dir`; we use the same.
-                    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-                        level: LogLevel::Debug,
-                        details: Some(err.to_string()),
-                        package: SkippedOptionalPackage::Installed {
-                            id: pkg_dir.to_string_lossy().into_owned(),
-                            name: name.clone(),
-                            version: version.clone(),
+                    Reporter::emit(&LogEvent::SkippedOptionalDependency(
+                        SkippedOptionalDependencyLog {
+                            level: LogLevel::Debug,
+                            details: Some(err.to_string()),
+                            package: SkippedOptionalPackage::Installed {
+                                id: pkg_dir.to_string_lossy().into_owned(),
+                                name: name.clone(),
+                                version: version.clone(),
+                            },
+                            prefix: lockfile_dir.to_string_lossy().into_owned(),
+                            reason: SkippedOptionalReason::BuildFailure,
                         },
-                        prefix: lockfile_dir.to_string_lossy().into_owned(),
-                        reason: SkippedOptionalReason::BuildFailure,
-                    }));
+                    ));
                     return Ok(());
                 }
                 return Err(BuildModulesError::LifecycleScript(err));

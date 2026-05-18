@@ -372,8 +372,12 @@ where
                 snapshots: snapshots.as_ref(),
                 lockfile,
                 current_lockfile: current_lockfile.as_ref(),
-                current_snapshots: current_lockfile.as_ref().and_then(|lockfile| lockfile.snapshots.as_ref()),
-                current_packages: current_lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref()),
+                current_snapshots: current_lockfile
+                    .as_ref()
+                    .and_then(|lockfile| lockfile.snapshots.as_ref()),
+                current_packages: current_lockfile
+                    .as_ref()
+                    .and_then(|lockfile| lockfile.packages.as_ref()),
                 dependency_groups,
                 logged_methods: &logged_methods,
                 workspace_root: &workspace_root,

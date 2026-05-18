@@ -66,14 +66,16 @@ pub fn filter_lockfile_for_current(
         .collect();
 
     let snapshots = lockfile.snapshots.as_ref().map(|snapshots| {
-        snapshots.iter()
+        snapshots
+            .iter()
             .filter(|(k, _)| reachable.contains(*k))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<HashMap<_, _>>()
     });
 
     let packages = lockfile.packages.as_ref().map(|packages| {
-        packages.iter()
+        packages
+            .iter()
             .filter(|(k, _)| reachable_metadata.contains(*k))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<HashMap<_, _>>()

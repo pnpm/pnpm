@@ -59,8 +59,9 @@ fn synthetic_metadata(
             git_hosted: None,
             path: None,
         }),
-        engines: engines
-            .map(|entries| entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()),
+        engines: engines.map(|entries| {
+            entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
+        }),
         cpu: cpu.map(|values| values.iter().map(|s| (*s).to_string()).collect()),
         os: os.map(|values| values.iter().map(|s| (*s).to_string()).collect()),
         libc: libc.map(|values| values.iter().map(|s| (*s).to_string()).collect()),
@@ -115,8 +116,10 @@ fn skip_optional_with_wrong_os() {
     assert!(skipped.contains(&key));
 
     let events = take_events();
-    let skipped_events: Vec<_> =
-        events.iter().filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_))).collect();
+    let skipped_events: Vec<_> = events
+        .iter()
+        .filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_)))
+        .collect();
     assert_eq!(skipped_events.len(), 1);
     if let LogEvent::SkippedOptionalDependency(log) = skipped_events[0] {
         assert_eq!(log.reason, SkippedOptionalReason::UnsupportedPlatform);
@@ -152,8 +155,10 @@ fn skip_optional_with_wrong_node_engine() {
 
     assert!(skipped.contains(&key));
     let events = take_events();
-    let skipped_events: Vec<_> =
-        events.iter().filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_))).collect();
+    let skipped_events: Vec<_> = events
+        .iter()
+        .filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_)))
+        .collect();
     assert_eq!(skipped_events.len(), 1);
     if let LogEvent::SkippedOptionalDependency(log) = skipped_events[0] {
         assert_eq!(log.reason, SkippedOptionalReason::UnsupportedEngine);
@@ -350,8 +355,10 @@ fn duplicate_metadata_dedupes_reporter_events() {
 
     // ...but the reporter only sees one event for the metadata row.
     let events = take_events();
-    let skipped_events: Vec<_> =
-        events.iter().filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_))).collect();
+    let skipped_events: Vec<_> = events
+        .iter()
+        .filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_)))
+        .collect();
     assert_eq!(skipped_events.len(), 1, "must dedup per metadata row");
 }
 
