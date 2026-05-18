@@ -79,7 +79,9 @@ export async function installConfigDeps (
       await installOptionalSubdeps({
         parentName: pkgName,
         subdeps: pkg.optionalSubdeps,
-        parentNodeModulesDir: path.dirname(pkgDirInGlobalVirtualStore),
+        // path.dirname would land in the scope subdir for scoped parents; use
+        // the leaf's node_modules root so sibling symlinks resolve correctly.
+        parentNodeModulesDir: path.join(globalVirtualStoreDir, relPath, 'node_modules'),
         globalVirtualStoreDir,
         rootDir: opts.rootDir,
         store: opts.store,
