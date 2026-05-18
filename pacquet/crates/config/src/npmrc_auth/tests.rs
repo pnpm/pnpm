@@ -734,7 +734,7 @@ fn parses_scoped_cafile_missing_silently_dropped() {
     // `PerRegistryTls::from_map` filters all-`None` entries later;
     // here the parse-time behavior is "no entry written".
     assert!(
-        auth.tls_by_uri.get("//reg.example.com/").is_none_or(|e| e.ca.is_none()),
+        auth.tls_by_uri.get("//reg.example.com/").is_none_or(|entry| entry.ca.is_none()),
         "missing cafile must not produce a non-None ca slot: {:?}",
         auth.tls_by_uri,
     );

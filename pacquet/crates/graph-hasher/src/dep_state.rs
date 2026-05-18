@@ -23,16 +23,16 @@ use std::collections::{HashMap, HashSet};
 /// Owns its strings so a caller building the graph from a lockfile
 /// doesn't have to keep a separate `String` arena alive for the
 /// duration of the hash walk.
-pub struct DepsGraphNode<K> {
+pub struct DepsGraphNode<Key> {
     pub full_pkg_id: String,
-    pub children: HashMap<String, K>,
+    pub children: HashMap<String, Key>,
 }
 
 /// Memoized per-depPath state cache. Mirrors pnpm's
 /// [`DepsStateCache`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L21-L23):
 /// the result of `hash_object` for each visited node is stashed so
 /// the recursive walk over diamond-shaped graphs stays linear.
-pub type DepsStateCache<K> = HashMap<K, String>;
+pub type DepsStateCache<Key> = HashMap<Key, String>;
 
 /// Inputs to [`calc_dep_state`]. Mirrors the option bag at
 /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L29-L33>.
@@ -57,14 +57,14 @@ pub struct CalcDepStateOptions<'a> {
 /// `<engine_name>[;deps=<hash>][;patch=<hash>]`. Byte-for-byte
 /// parity with pnpm is required — the key is persisted on disk and
 /// shared with pnpm.
-pub fn calc_dep_state<K>(
-    graph: &HashMap<K, DepsGraphNode<K>>,
-    cache: &mut DepsStateCache<K>,
-    dep_path: &K,
+pub fn calc_dep_state<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &mut DepsStateCache<Key>,
+    dep_path: &Key,
     opts: &CalcDepStateOptions<'_>,
 ) -> String
 where
-    K: Clone + Eq + std::hash::Hash,
+    Key: Clone + Eq + std::hash::Hash,
 {
     let mut result = opts.engine_name.to_string();
     if opts.include_dep_graph_hash {
@@ -95,14 +95,14 @@ where
 /// upstream module layout, where `calcDepGraphHash` is private to
 /// `deps/graph-hasher/src/index.ts` and both `calcDepState` and
 /// `calcGraphNodeHash` are file-internal callers.
-pub(crate) fn calc_dep_graph_hash<K>(
-    graph: &HashMap<K, DepsGraphNode<K>>,
-    cache: &mut DepsStateCache<K>,
+pub(crate) fn calc_dep_graph_hash<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &mut DepsStateCache<Key>,
     parents: &mut HashSet<String>,
-    dep_path: &K,
+    dep_path: &Key,
 ) -> String
 where
-    K: Clone + Eq + std::hash::Hash,
+    Key: Clone + Eq + std::hash::Hash,
 {
     if let Some(cached) = cache.get(dep_path) {
         return cached.clone();
@@ -163,15 +163,15 @@ where
 /// is the per-walk cycle-tracking set — callers always pass a fresh
 /// empty `HashSet`, the function inserts/removes `dep_path` around
 /// the recursion.
-pub(crate) fn transitively_requires_build<K>(
-    graph: &HashMap<K, DepsGraphNode<K>>,
-    built_dep_paths: &HashSet<K>,
-    cache: &mut HashMap<K, bool>,
-    dep_path: &K,
-    parents: &mut HashSet<K>,
+pub(crate) fn transitively_requires_build<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    built_dep_paths: &HashSet<Key>,
+    cache: &mut HashMap<Key, bool>,
+    dep_path: &Key,
+    parents: &mut HashSet<Key>,
 ) -> bool
 where
-    K: Clone + Eq + std::hash::Hash,
+    Key: Clone + Eq + std::hash::Hash,
 {
     if let Some(&cached) = cache.get(dep_path) {
         return cached;

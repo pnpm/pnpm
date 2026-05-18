@@ -115,6 +115,6 @@ fn hex_decode(hex: &str) -> Vec<u8> {
     assert!(hex.len() % 2 == 0);
     (0..hex.len())
         .step_by(2)
-        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).expect("hex digit"))
+        .map(|index| u8::from_str_radix(&hex[index..index + 2], 16).expect("hex digit"))
         .collect()
 }

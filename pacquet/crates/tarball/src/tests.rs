@@ -1291,7 +1291,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                 let target_shard = mem_cache.determine_map(&url1);
                 let url2 = (0u32..10_000)
                     .map(|i| format!("{}/pkg-{i}.tgz", server.url()))
-                    .find(|u| u != &url1 && mem_cache.determine_map(u) == target_shard)
+                    .find(|url| url != &url1 && mem_cache.determine_map(url) == target_shard)
                     .expect("no colliding URL within 10000 candidates");
 
                 let path1 = url1.trim_start_matches(server.url().as_str()).to_string();
@@ -1306,9 +1306,9 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     .mock("GET", path1.as_str())
                     .with_status(200)
                     .expect(1)
-                    .with_chunked_body(|w| {
+                    .with_chunked_body(|writer| {
                         std::thread::sleep(RESPONSE_LATENCY);
-                        w.write_all(FASTIFY_ERROR_TARBALL)
+                        writer.write_all(FASTIFY_ERROR_TARBALL)
                     })
                     .create_async()
                     .await;
@@ -1316,9 +1316,9 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     .mock("GET", path2.as_str())
                     .with_status(200)
                     .expect(1)
-                    .with_chunked_body(|w| {
+                    .with_chunked_body(|writer| {
                         std::thread::sleep(RESPONSE_LATENCY);
-                        w.write_all(FASTIFY_ERROR_TARBALL)
+                        writer.write_all(FASTIFY_ERROR_TARBALL)
                     })
                     .create_async()
                     .await;
@@ -1827,7 +1827,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     let captured = EVENTS.lock().unwrap();
     let started: Vec<(u32, Option<u64>)> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::FetchingProgress(log) => match &log.message {
                 FetchingProgressMessage::Started { attempt, package_id, size } => {
                     assert_eq!(package_id, "@fastify/error@3.3.0");
@@ -1914,7 +1914,7 @@ async fn started_fires_for_connection_level_failures() {
     let captured = EVENTS.lock().unwrap();
     let started: Vec<Option<u64>> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::FetchingProgress(log) => match &log.message {
                 FetchingProgressMessage::Started { size, .. } => Some(*size),
                 FetchingProgressMessage::InProgress { .. } => None,
@@ -2124,7 +2124,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     let captured = EVENTS.lock().unwrap();
     let retries: Vec<&RequestRetryLog> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::RequestRetry(log) => Some(log),
             _ => None,
         })
