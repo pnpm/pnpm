@@ -23,7 +23,7 @@
 //! `fetchFullMetadataCached.ts` and swaps the full-meta calls behind
 //! that wrapper without changing this module's call sites.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
@@ -37,8 +37,8 @@ use pipe_trait::Pipe;
 use serde_json::Value as JsonValue;
 
 use crate::{
-    FetchAttestationOptions, FetchFullMetadataOptions, TrustCheckOptions, TrustViolation,
-    fetch_attestation_published_at, fetch_full_metadata,
+    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustViolation,
+    fetch_attestation_published_at, fetch_full_metadata_cached,
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{build_named_registry_prefixes, pick_registry_for_package},
     trust_checks::fail_if_trust_downgraded,
@@ -91,6 +91,12 @@ pub struct CreateNpmResolutionVerifierOptions {
     pub named_registries: HashMap<String, String>,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
+    /// Root of pnpm's on-disk metadata mirror. When set, the verifier
+    /// reads conditional headers from
+    /// `<cache_dir>/v11/metadata-full/<registry>/<pkg>.jsonl` and
+    /// writes 200 responses back; when `None`, every fetch is
+    /// unconditional. Mirrors upstream's `cacheDir` option.
+    pub cache_dir: Option<PathBuf>,
     /// Override for `Utc::now()` when computing the age cutoff and
     /// the `trustPolicyIgnoreAfter` window. `None` falls back to
     /// wall-clock at construction time.
@@ -118,6 +124,7 @@ pub struct NpmResolutionVerifier {
     named_registry_prefixes: Vec<String>,
     http_client: Arc<ThrottledClient>,
     auth_headers: Arc<AuthHeaders>,
+    cache_dir: Option<PathBuf>,
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: PublishedAtLookupContext,
@@ -189,6 +196,7 @@ pub fn create_npm_resolution_verifier(
         named_registry_prefixes,
         http_client: opts.http_client,
         auth_headers: opts.auth_headers,
+        cache_dir: opts.cache_dir,
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
@@ -520,12 +528,13 @@ impl NpmResolutionVerifier {
     }
 
     async fn fetch_full_meta(&self, registry: &str, name: &PkgName) -> Result<Package, String> {
-        let opts = FetchFullMetadataOptions {
+        let opts = FetchFullMetadataCachedOptions {
             registry,
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
+            cache_dir: self.cache_dir.as_deref(),
         };
-        fetch_full_metadata(&name.to_string(), &opts).await.map_err(|err| err.to_string())
+        fetch_full_metadata_cached(&name.to_string(), &opts).await.map_err(|err| err.to_string())
     }
 }
 

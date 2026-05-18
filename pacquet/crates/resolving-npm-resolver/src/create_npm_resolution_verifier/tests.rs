@@ -46,6 +46,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         named_registries: HashMap::new(),
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
+        cache_dir: None,
         now: None,
     }
 }
