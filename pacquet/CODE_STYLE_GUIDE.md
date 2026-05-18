@@ -765,10 +765,17 @@ fn read_propagates_non_not_found_io_error() {
         }
     }
     // `read_modules_manifest`'s bound list is `FsReadToString + Clock`,
-    // but this test never hits the `prunedAt` branch, so the fake omits
-    // `Clock`. Rust will reject `read_modules_manifest::<FailingRead>` at
-    // compile time only if the fake doesn't satisfy a bound the body
-    // actually reaches; bounds that gate dead branches are free.
+    // so every fake must satisfy both bounds at the type level — Rust
+    // doesn't know that the `prunedAt` branch is unreachable for this
+    // input. The convention for capabilities the test won't exercise
+    // is a trivial impl whose body is `unreachable!`: the bound is
+    // satisfied, and the panic message documents the precondition the
+    // test relies on.
+    impl Clock for FailingRead {
+        fn now() -> SystemTime {
+            unreachable!("clock must not be called when read_to_string fails");
+        }
+    }
     let err = read_modules_manifest::<FailingRead>(Path::new("/")).unwrap_err();
     assert!(matches!(err, ReadModulesError::ReadFile { .. }));
 }
