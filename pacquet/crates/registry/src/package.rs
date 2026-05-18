@@ -16,8 +16,57 @@ pub struct Package {
     dist_tags: HashMap<String, String>,
     pub versions: HashMap<String, PackageVersion>,
 
+    /// Per-version publish timestamps as the npm registry reports
+    /// them. Each key is either a version string (value: ISO-8601
+    /// timestamp) or the reserved `unpublished` key (value: object).
+    /// The map is typed as `serde_json::Value` so the reserved key's
+    /// object value can round-trip alongside the per-version
+    /// timestamps without a custom deserializer.
+    ///
+    /// Mirrors pnpm's
+    /// [`PackageMeta.time`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/registry/types/src/index.ts#L11)
+    /// and is the input to the `minimumReleaseAge` verifier. Use
+    /// [`Self::published_at`] for the typed per-version lookup.
+    ///
+    /// Optional — abbreviated metadata responses (`application/vnd.npm.install-v1+json`)
+    /// omit this field; only the full-metadata fetcher used by the
+    /// verifier sees it populated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<HashMap<String, serde_json::Value>>,
+
+    /// Package-level "last modified" timestamp the abbreviated
+    /// metadata endpoint sends. The verifier's
+    /// `tryAbbreviatedModifiedShortcut` reads this as a conservative
+    /// upper bound on every version's publish time — if `modified`
+    /// is older than the policy cutoff, every version in this
+    /// package was published at least that long ago.
+    ///
+    /// Mirrors pnpm's
+    /// [`PackageMeta.modified`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/registry/types/src/index.ts#L12).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified: Option<String>,
+
+    /// Last `ETag` the registry returned when this manifest was
+    /// fetched. Threaded into `If-None-Match` on the next
+    /// conditional GET by the cached metadata fetcher (Phase 5).
+    ///
+    /// Mirrors pnpm's
+    /// [`PackageMeta.etag`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/registry/types/src/index.ts#L13).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub etag: Option<String>,
+
     #[serde(skip_serializing, skip_deserializing)]
     pub mutex: Arc<Mutex<u8>>,
+}
+
+impl Package {
+    /// Resolved publish timestamp for `version`, or `None` when the
+    /// registry didn't report one for that pin. Filters out the
+    /// reserved `unpublished` key (which is an object, not a string)
+    /// and any version slot whose value isn't a string.
+    pub fn published_at(&self, version: &str) -> Option<&str> {
+        self.time.as_ref()?.get(version)?.as_str()
+    }
 }
 
 impl PartialEq for Package {

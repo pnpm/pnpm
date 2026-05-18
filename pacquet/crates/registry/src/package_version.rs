@@ -15,6 +15,50 @@ pub struct PackageVersion {
     pub dependencies: Option<HashMap<String, String>>,
     pub dev_dependencies: Option<HashMap<String, String>>,
     pub peer_dependencies: Option<HashMap<String, String>>,
+
+    /// npm registry's per-version publisher metadata. When
+    /// `trusted_publisher` is present the version was published
+    /// through an OIDC-backed trusted-publisher integration, which
+    /// counts as the higher (`trustedPublisher`) trust rank that
+    /// upstream's [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/trustChecks.ts#L119-L127)
+    /// checks before falling back to the `provenance` attestation
+    /// rank.
+    ///
+    /// Mirrors pnpm's
+    /// [`PackageInRegistry._npmUser`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/registry/types/src/index.ts#L29-L36)
+    /// (note the leading underscore on the wire).
+    #[serde(
+        default,
+        rename = "_npmUser",
+        skip_serializing_if = "Option::is_none",
+        alias = "_npm_user"
+    )]
+    pub npm_user: Option<NpmUser>,
+}
+
+/// `_npmUser` field on a per-version manifest. The verifier reads
+/// `trusted_publisher` to assign the higher of the two trust ranks
+/// (`trustedPublisher` > `provenance` > none). `name` / `email` are
+/// kept for round-trip parity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NpmUser {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_publisher: Option<TrustedPublisher>,
+}
+
+/// OIDC trusted-publisher record on `_npmUser.trustedPublisher`.
+/// The verifier only checks for the field's presence; the inner
+/// values are kept for round-trip parity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrustedPublisher {
+    pub id: String,
+    pub oidc_config_id: String,
 }
 
 impl PartialEq for PackageVersion {
