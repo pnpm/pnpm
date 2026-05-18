@@ -33,11 +33,11 @@ export function reportLockfileVerification (
       switch (log.status) {
         case 'started':
           return {
-            msg: `${chalk.cyan('?')} Verifying lockfile${path_} (${entries})...`,
+            msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${entries})...`,
           }
         case 'done':
           return {
-            msg: `${chalk.green('✓')} Lockfile${path_} verified (${entries} in ${prettyMs(log.elapsedMs)})`,
+            msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${entries} in ${prettyMs(log.elapsedMs)})`,
           }
       }
     })

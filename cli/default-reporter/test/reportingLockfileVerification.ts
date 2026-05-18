@@ -32,8 +32,8 @@ test('prints lockfile verification in-progress and completion messages', async (
   })
 
   const [started, done] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile (234 entries)...')
-  expect(stripAnsi(done)).toBe('✓ Lockfile verified (234 entries in 1.2s)')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (234 entries)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (234 entries in 1.2s)')
 })
 
 test('uses singular noun for one entry', async () => {
@@ -52,8 +52,8 @@ test('uses singular noun for one entry', async () => {
   })
 
   const [started, done] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile (1 entry)...')
-  expect(stripAnsi(done)).toBe('✓ Lockfile verified (1 entry in 42ms)')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (1 entry)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (1 entry in 42ms)')
 })
 
 test('prints relative path when lockfile lives outside the workspace root', async () => {
@@ -80,8 +80,8 @@ test('prints relative path when lockfile lives outside the workspace root', asyn
   })
 
   const [started, done] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile at ../../locks/pnpm-lock.yaml (5 entries)...')
-  expect(stripAnsi(done)).toBe('✓ Lockfile at ../../locks/pnpm-lock.yaml verified (5 entries in 200ms)')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile at ../../locks/pnpm-lock.yaml against supply-chain policies (5 entries)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile at ../../locks/pnpm-lock.yaml passes supply-chain policies (5 entries in 200ms)')
 })
 
 test('does not print path when running from workspace subdir and lockfile is at workspace root', async () => {
@@ -101,5 +101,5 @@ test('does not print path when running from workspace subdir and lockfile is at 
   lockfileVerificationLogger.debug({ status: 'started', entries: 10, lockfilePath })
 
   const [started] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile (10 entries)...')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (10 entries)...')
 })
