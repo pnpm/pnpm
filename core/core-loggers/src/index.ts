@@ -9,6 +9,7 @@ import type {
   InstallingConfigDepsLog,
   LifecycleLog,
   LinkLog,
+  LockfileVerificationLog,
   PackageImportMethodLog,
   PackageManifestLog,
   PeerDependencyIssuesLog,
@@ -37,6 +38,7 @@ export type Log =
   | IgnoredScriptsLog
   | LifecycleLog
   | LinkLog
+  | LockfileVerificationLog
   | PackageManifestLog
   | PackageImportMethodLog
   | PeerDependencyIssuesLog

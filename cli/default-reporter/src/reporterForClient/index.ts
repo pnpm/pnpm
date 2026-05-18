@@ -13,6 +13,7 @@ import { reportIgnoredBuilds } from './reportIgnoredBuilds.js'
 import { reportInstallChecks } from './reportInstallChecks.js'
 import { reportInstallingConfigDeps } from './reportInstallingConfigDeps.js'
 import { reportLifecycleScripts } from './reportLifecycleScripts.js'
+import { reportLockfileVerification } from './reportLockfileVerification.js'
 import { LOG_LEVEL_NUMBER, reportMisc } from './reportMisc.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { reportProgress } from './reportProgress.js'
@@ -41,6 +42,7 @@ export function reporterForClient (
     deprecation: Rx.Observable<logs.DeprecationLog>
     summary: Rx.Observable<logs.SummaryLog>
     lifecycle: Rx.Observable<logs.LifecycleLog>
+    lockfileVerification: Rx.Observable<logs.LockfileVerificationLog>
     stats: Rx.Observable<logs.StatsLog>
     installCheck: Rx.Observable<logs.InstallCheckLog>
     installingConfigDeps: Rx.Observable<logs.InstallingConfigDepsLog>
@@ -130,6 +132,10 @@ export function reporterForClient (
       }),
       reportInstallChecks(log$.installCheck, { cwd }),
       reportInstallingConfigDeps(log$.installingConfigDeps),
+      reportLockfileVerification(log$.lockfileVerification, {
+        cwd,
+        workspaceDir: opts.pnpmConfig?.workspaceDir,
+      }),
       reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
       reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
       reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
