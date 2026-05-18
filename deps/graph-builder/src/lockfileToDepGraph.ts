@@ -10,7 +10,6 @@ import * as dp from '@pnpm/deps.path'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
-  inheritOrSynthesizeResolution,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
@@ -194,11 +193,6 @@ async function buildGraphFromPackages (
       const { pkgIdWithPatchHash, name: pkgName, version: pkgVersion, depPath } = pkgMeta
       let { pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
-
-      // Peer-dep variant snapshots inherit `resolution` from the base entry;
-      // pnpm's writer omits it on variants. Normalize here so downstream
-      // accesses see a fully-formed snapshot.
-      pkgSnapshot = inheritOrSynthesizeResolution(depPath, pkgSnapshot, lockfile.packages)
 
       const pkg = {
         name: pkgName,

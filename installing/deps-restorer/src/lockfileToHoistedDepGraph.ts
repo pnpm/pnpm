@@ -16,7 +16,6 @@ import type {
   ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import {
-  inheritOrSynthesizeResolution,
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
@@ -185,11 +184,7 @@ async function fetchDeps (
       // it is a link
       return
     }
-    // Peer-dep variant snapshots inherit `resolution` from the base entry;
-    // pnpm's writer omits it on variants. Normalize so downstream accesses
-    // (`'directory' in pkgSnapshot.resolution`, `pkgSnapshotToResolution`)
-    // see a fully-formed snapshot.
-    const pkgSnapshot = inheritOrSynthesizeResolution(depPath, rawPkgSnapshot, opts.lockfile.packages)
+    const pkgSnapshot = rawPkgSnapshot
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
     const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)

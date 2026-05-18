@@ -1,6 +1,6 @@
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
-import { inheritOrSynthesizeResolution, nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
+import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
@@ -99,9 +99,7 @@ async function walkStep (
   await Promise.all(
     step.dependencies.map(async (dep) => {
       const { depPath, pkgSnapshot: rawPkgSnapshot, next } = dep
-      // Peer-dep variant snapshots inherit `resolution` from the base entry;
-      // normalize before reading `.integrity` / calling pkgSnapshotToResolution.
-      const pkgSnapshot = inheritOrSynthesizeResolution(depPath, rawPkgSnapshot, opts.lockfile.packages)
+      const pkgSnapshot = rawPkgSnapshot
       const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       if (!name || !version) return

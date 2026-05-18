@@ -8,7 +8,6 @@ import type {
   TarballResolution,
 } from '@pnpm/lockfile.fs'
 import {
-  inheritOrSynthesizeResolution,
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
@@ -96,10 +95,6 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       isSkipped = opts.skipped.has(depPath)
     }
     if (pkgSnapshot) {
-      // Peer-dep variant snapshots inherit `resolution` from the base entry;
-      // normalize so the resolution + integrity reads below see a populated
-      // snapshot.
-      pkgSnapshot = inheritOrSynthesizeResolution(depPath, pkgSnapshot, pkgPackages)
       resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
       optional = pkgSnapshot.optional
       if (pkgSnapshot.resolution != null && 'integrity' in pkgSnapshot.resolution) {

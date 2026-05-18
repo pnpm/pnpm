@@ -11,7 +11,6 @@ import type {
   ProjectSnapshot,
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
-import { inheritOrSynthesizeResolution } from '@pnpm/lockfile.utils'
 import type {
   DependenciesField,
   DepPath,
@@ -72,13 +71,7 @@ export function createDeployFiles ({
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
     const inputDepPath = name as DepPath
-    // Peer-dep variant snapshots inherit `resolution` from the base entry;
-    // normalize before convertPackageSnapshot dereferences `.integrity` etc.
-    const inputSnapshot = inheritOrSynthesizeResolution(
-      inputDepPath,
-      lockfile.packages[inputDepPath],
-      lockfile.packages
-    )
+    const inputSnapshot = lockfile.packages[inputDepPath]
     const resolveResult = resolveLinkOrFile(inputDepPath, {
       lockfileDir,
       projectRootDirRealPath: rootProjectManifestDir,

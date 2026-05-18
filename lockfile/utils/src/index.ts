@@ -1,6 +1,5 @@
 import { refToRelative } from '@pnpm/deps.path'
 
-export { inheritOrSynthesizeResolution } from './inheritOrSynthesizeResolution.js'
 export { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
 export { packageIsIndependent } from './packageIsIndependent.js'
