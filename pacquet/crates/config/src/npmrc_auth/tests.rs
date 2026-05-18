@@ -56,17 +56,18 @@ fn ignores_non_auth_keys() {
     // from pnpm-workspace.yaml now. Writing them to .npmrc should be a
     // no-op.
     //
-    // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` via
-    // `default_store_dir::<Host>` to compute `store_dir`. Both
-    // values come from the real process environment, but no other
-    // test in this crate mutates them anymore — the per-branch
-    // tests in `defaults::tests` and `lib::tests` drive
-    // `default_store_dir` through the dependency-injection seam
-    // (pnpm/pacquet#339, pnpm/pnpm#11708, pnpm/pacquet#343) with
-    // fake `Sys` providers, so the two `Config::new()` snapshots
-    // compared below observe the same env-derived `store_dir` even
-    // under nextest's in-process parallelism without an `EnvGuard`
-    // lock.
+    // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` via the
+    // SmartDefault expression on `Config::store_dir` —
+    // `default_store_dir::<Host, _, _, _>(home::home_dir,
+    // env::current_dir)` — to compute `store_dir`. Both values come
+    // from the real process environment, but no other test in this
+    // crate mutates them anymore — the per-branch tests in
+    // `defaults::tests` and `lib::tests` drive `default_store_dir`
+    // through the dependency-injection seam (pnpm/pacquet#339,
+    // pnpm/pnpm#11708, pnpm/pacquet#343) with fake `Sys` providers,
+    // so the two `Config::new()` snapshots compared below observe
+    // the same env-derived `store_dir` even under nextest's
+    // in-process parallelism without an `EnvGuard` lock.
     let ini = "
 store-dir=/should/not/apply
 lockfile=false

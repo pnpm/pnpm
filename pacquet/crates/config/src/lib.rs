@@ -975,15 +975,15 @@ mod tests {
         assert!(value.symlink);
         assert!(value.hoist);
         // The SmartDefault expression for `store_dir` resolves to
-        // `default_store_dir::<Host>(home::home_dir, env::current_dir)`
-        // via the thin `default_store_dir_host` wrapper, so calling
-        // the generic helper here with the same `Host` capability and
-        // the same OS closures must produce the same value — even on
-        // a developer machine with `PNPM_HOME` / `XDG_DATA_HOME` set.
-        // This is the wiring assertion that proves the SmartDefault
-        // field still goes through the production capability; the
-        // per-branch behaviour of `default_store_dir` is exercised
-        // with fake-`Sys` structs in `defaults::tests`.
+        // `default_store_dir::<Host, _, _, _>(home::home_dir, env::current_dir)`
+        // directly (no wrapper), so calling the generic helper here
+        // with the same `Host` capability and the same OS closures
+        // must produce the same value — even on a developer machine
+        // with `PNPM_HOME` / `XDG_DATA_HOME` set. This is the wiring
+        // assertion that proves the SmartDefault field still goes
+        // through the production capability; the per-branch behaviour
+        // of `default_store_dir` is exercised with fake-`Sys` structs
+        // in `defaults::tests`.
         assert_eq!(
             value.store_dir,
             default_store_dir::<Host, _, _, _>(home::home_dir, env::current_dir),
