@@ -40,7 +40,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
-import { setupImmaturePicks } from './immaturePicks.js'
+import { setupPolicyHandlers } from './policyHandlers.js'
 import {
   type CommandFullName,
   createMatcher,
@@ -269,12 +269,12 @@ export async function installDeps (
     applyRuntimeOnFailOverride(manifest, opts.runtimeOnFail)
   }
 
-  // `setupImmaturePicks` returns the wiring the install needs for the
-  // resolver-agnostic post-resolution scan. Loose mode auto-persists
-  // silently (handled below from the install result); strict + TTY
-  // prompts; strict no-TTY (CI) throws with the full violation list.
-  // Returns `undefined` only when no minimumReleaseAge policy is active.
-  const immaturePicks = setupImmaturePicks(opts)
+  // `setupPolicyHandlers` composes the per-policy handlers the install
+  // needs for the current opts (today: minimumReleaseAge; future:
+  // trustPolicy UX, license policy, etc.). Returns `undefined` when no
+  // handler is active so the install skips the empty no-op call at
+  // every checkpoint when no policies are configured.
+  const policyHandlers = setupPolicyHandlers(opts)
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
@@ -291,7 +291,7 @@ export async function installDeps (
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
-    onAfterResolveDependencyTree: immaturePicks?.onAfterResolveDependencyTree,
+    handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -356,14 +356,14 @@ export async function installDeps (
       // info log would claim we added entries the workspace manifest
       // never saw, and the next install would re-prompt or fail
       // verification.
-      const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(resolutionPolicyViolations)
+      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
           cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
           allProjects: opts.allProjects,
-          addedMinimumReleaseAgeExcludes,
+          ...policyUpdates,
         }),
       ])
     }
@@ -391,7 +391,7 @@ export async function installDeps (
   // Skip the pick so the info log doesn't claim entries were added that
   // were never written; the next install will resurface them.
   if (opts.save !== false) {
-    const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(resolutionPolicyViolations)
+    const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
     if (opts.update === true) {
       await Promise.all([
         writeProjectManifest(updatedManifest),
@@ -399,16 +399,15 @@ export async function installDeps (
           updatedCatalogs,
           cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
           allProjects,
-          addedMinimumReleaseAgeExcludes,
+          ...policyUpdates,
         }),
       ])
-    } else if (addedMinimumReleaseAgeExcludes?.length) {
+    } else if (policyUpdates != null) {
       // Plain `pnpm install` (no --update, no params) wouldn't otherwise touch
-      // the workspace manifest. Persist the auto-excludes anyway so the loose
-      // bypass remains explicit on subsequent installs.
-      await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-        addedMinimumReleaseAgeExcludes,
-      })
+      // the workspace manifest. Persist the auto-policy patches anyway so any
+      // loose bypass (today: minimumReleaseAgeExclude) remains explicit on
+      // subsequent installs.
+      await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, policyUpdates)
     }
   }
   await handleIgnoredBuilds(opts, ignoredBuilds)

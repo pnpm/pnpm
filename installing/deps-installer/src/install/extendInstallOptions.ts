@@ -189,7 +189,7 @@ export interface StrictInstallOptions {
    * install command filters by code to decide what to do. Future
    * resolvers can plug verifiers in without touching this signature.
    */
-  onAfterResolveDependencyTree?: (
+  handleResolutionPolicyViolations?: (
     violations: readonly ResolutionPolicyViolation[]
   ) => Promise<void>
   /**

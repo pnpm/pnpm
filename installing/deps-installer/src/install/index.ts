@@ -1407,7 +1407,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       blockExoticSubdeps: opts.blockExoticSubdeps,
       allProjectIds: Object.values(ctx.projects).map((p) => p.id),
-      onAfterResolveDependencyTree: opts.onAfterResolveDependencyTree,
+      handleResolutionPolicyViolations: opts.handleResolutionPolicyViolations,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {

@@ -55,7 +55,7 @@ import pLimit from 'p-limit'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
-import { type ResolverViolation, setupImmaturePicks } from './immaturePicks.js'
+import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -161,7 +161,7 @@ export async function recursive (
   // strict-mode prompt). The workspace manifest writer dedupes against the
   // existing list, so a single drain at the end captures additions across
   // every project.
-  const immaturePicks = setupImmaturePicks(opts)
+  const policyHandlers = setupPolicyHandlers(opts)
   const installOpts = Object.assign(opts, {
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
@@ -177,7 +177,7 @@ export async function recursive (
     targetDependenciesField,
     resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
-    onAfterResolveDependencyTree: immaturePicks?.onAfterResolveDependencyTree,
+    handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
   }) as InstallOptions
 
   const result: RecursiveSummary = {}
@@ -316,7 +316,7 @@ export async function recursive (
       // info log would claim entries were added that the workspace
       // manifest never saw, and the next install would re-prompt or
       // fail verification.
-      const addedMinimumReleaseAgeExcludes = immaturePicks?.pickEntriesToPersist(resolutionPolicyViolations)
+      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
@@ -324,7 +324,7 @@ export async function recursive (
         updatedCatalogs,
         cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
         allProjects,
-        addedMinimumReleaseAgeExcludes,
+        ...policyUpdates,
       }))
       await Promise.all(promises)
     }
@@ -340,7 +340,7 @@ export async function recursive (
   // Each per-project install returns its own slice of lockfile-resolution
   // violations; accumulate them here so the post-loop persist step can
   // dedup and write a single batch to the workspace manifest.
-  const allResolutionPolicyViolations: ResolverViolation[] = []
+  const allResolutionPolicyViolations: PolicyViolation[] = []
   const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
     limitInstallation(async () => {
@@ -388,7 +388,7 @@ export async function recursive (
           updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
           ignoredBuilds: IgnoredBuilds | undefined
-          resolutionPolicyViolations?: ResolverViolation[]
+          resolutionPolicyViolations?: PolicyViolation[]
         }
 
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
@@ -490,7 +490,7 @@ export async function recursive (
       updatedCatalogs,
       cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
       allProjects,
-      addedMinimumReleaseAgeExcludes: immaturePicks?.pickEntriesToPersist(allResolutionPolicyViolations),
+      ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })
   }
 

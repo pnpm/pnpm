@@ -77,7 +77,7 @@ test('minimumReleaseAge falls back to immature version when no mature version sa
   expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
 })
 
-test('strict minimumReleaseAge surfaces every immature pick via onAfterResolveDependencyTree, then aborts', async () => {
+test('strict minimumReleaseAge surfaces every immature pick via handleResolutionPolicyViolations, then aborts', async () => {
   // Pre-refactor strict mode threw at the resolver on the first immature
   // pick (forcing a discover-by-loop dance, #10488). With always-defer the
   // resolver records every immature pick inline; the install command (here
@@ -87,7 +87,7 @@ test('strict minimumReleaseAge surfaces every immature pick via onAfterResolveDe
   const seen: string[] = []
   await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
-    onAfterResolveDependencyTree: async (violations) => {
+    handleResolutionPolicyViolations: async (violations) => {
       for (const v of violations) seen.push(`${v.name}@${v.version}`)
       throw new Error('immature picks rejected')
     },
@@ -256,7 +256,7 @@ test('versions excluded via minimumReleaseAgeExclude are not surfaced as violati
   expect(result.resolutionPolicyViolations.find((v) => v.name === 'is-odd')).toBeUndefined()
 })
 
-test('onAfterResolveDependencyTree throwing aborts the install before the lockfile is written', async () => {
+test('handleResolutionPolicyViolations throwing aborts the install before the lockfile is written', async () => {
   // Simulates the strict-mode interactive prompt rejecting the immature
   // picks. The hook runs after the new lockfile is built but before it's
   // written to disk; throwing unwinds the install in its pre-install state.
@@ -264,7 +264,7 @@ test('onAfterResolveDependencyTree throwing aborts the install before the lockfi
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
   await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
-    onAfterResolveDependencyTree: async () => {
+    handleResolutionPolicyViolations: async () => {
       throw new Error('user denied')
     },
   })).rejects.toThrow(/user denied/)
@@ -274,12 +274,12 @@ test('onAfterResolveDependencyTree throwing aborts the install before the lockfi
   await expect(readWantedLockfile('.', { ignoreIncompatible: false })).resolves.toBeNull()
 })
 
-test('onAfterResolveDependencyTree approval lets the install proceed cleanly', async () => {
+test('handleResolutionPolicyViolations approval lets the install proceed cleanly', async () => {
   prepareEmpty()
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
   const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
-    onAfterResolveDependencyTree: async (violations) => {
+    handleResolutionPolicyViolations: async (violations) => {
       // The real install command would inspect the violations and run
       // an enquirer prompt here. The test just confirms the hook gets a
       // full set and returns to approve.
