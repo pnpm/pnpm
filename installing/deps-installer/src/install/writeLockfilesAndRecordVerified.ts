@@ -14,38 +14,24 @@ export interface WriteLockfilesAndRecordVerifiedOptions {
   mergeGitBranchLockfiles?: boolean
   cacheDir?: string
   resolutionVerifiers: readonly ResolutionVerifier[] | undefined
-  /**
-   * Pre-resolved absolute path of the wanted lockfile. Optional: when
-   * omitted the wrapper calls `getWantedLockfileName` itself. Pass it
-   * when the caller already computed it (e.g. for the pre-resolution
-   * gate) to avoid the redundant `getCurrentBranch` shell-out.
-   */
-  wantedLockfilePath?: string
 }
 
 /**
- * Convenience over {@link writeLockfiles} + {@link
- * recordLockfileVerified}: write both lockfiles and, if a verification
- * cache is wired, record the canonical write-side hash of the wanted
- * lockfile so the next install can stat- or hash-shortcut its way
- * past the registry round-trip.
- *
- * Returns the writer's result unchanged. The verification cache record
- * is a no-op when the cache isn't wired or no verifiers are active,
- * so this wrapper is exactly equivalent to calling {@link writeLockfiles}
- * directly in that case (plus the single `getWantedLockfileName` call
- * when `wantedLockfilePath` is omitted).
+ * Plural counterpart of {@link writeWantedLockfileAndRecordVerified}.
+ * See that for the contract — the record is gated on `cacheDir` plus
+ * non-empty `resolutionVerifiers`, and the wanted lockfile name is
+ * resolved once and shared with the writer when caching is active.
  */
 export async function writeLockfilesAndRecordVerified (
   opts: WriteLockfilesAndRecordVerifiedOptions
 ): Promise<WriteLockfilesResult> {
-  const wantedLockfilePath = opts.wantedLockfilePath ?? path.resolve(
-    opts.wantedLockfileDir,
-    await getWantedLockfileName({
+  const cacheActive = opts.cacheDir != null && (opts.resolutionVerifiers?.length ?? 0) > 0
+  const wantedLockfileName = cacheActive
+    ? await getWantedLockfileName({
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     })
-  )
+    : undefined
   const written = await writeLockfiles({
     wantedLockfile: opts.wantedLockfile,
     wantedLockfileDir: opts.wantedLockfileDir,
@@ -53,12 +39,15 @@ export async function writeLockfilesAndRecordVerified (
     currentLockfileDir: opts.currentLockfileDir,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    wantedLockfileName,
   })
-  recordLockfileVerified({
-    cacheDir: opts.cacheDir,
-    lockfilePath: wantedLockfilePath,
-    lockfile: written.wantedLockfile,
-    resolutionVerifiers: opts.resolutionVerifiers,
-  })
+  if (cacheActive) {
+    recordLockfileVerified({
+      cacheDir: opts.cacheDir,
+      lockfilePath: path.resolve(opts.wantedLockfileDir, wantedLockfileName!),
+      lockfile: written.wantedLockfile,
+      resolutionVerifiers: opts.resolutionVerifiers,
+    })
+  }
   return written
 }

@@ -362,13 +362,16 @@ export async function mutateModules (
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
   // Resolve the actual lockfile filename so cache records key on the
-  // file the install really reads/writes — under useGitBranchLockfile
-  // that's a branch-suffixed name, not WANTED_LOCKFILE.
-  const wantedLockfileName = await getWantedLockfileName({
-    useGitBranchLockfile: opts.useGitBranchLockfile,
-    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-  })
-  const wantedLockfilePath = path.resolve(ctx.lockfileDir, wantedLockfileName)
+  // file the install really reads/writes (under useGitBranchLockfile
+  // that's a branch-suffixed name). Skip the resolution — and its
+  // getCurrentBranch() shell-out — when there's nothing to cache.
+  const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
+  const wantedLockfilePath = cacheActive
+    ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    }))
+    : undefined
   try {
     await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
       cacheDir: opts.cacheDir,
@@ -1268,15 +1271,6 @@ type InstallFunction = (
 ) => Promise<InstallFunctionResult>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
-  // Resolve the actual lockfile path the install will write to, matching
-  // what useGitBranchLockfile picks. Same value is computed by the gate
-  // in mutateModules — recompute here because we're below the call
-  // boundary and don't have it threaded through.
-  const wantedLockfilePath = path.resolve(ctx.lockfileDir, await getWantedLockfileName({
-    useGitBranchLockfile: opts.useGitBranchLockfile,
-    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-  }))
-
   // The wanted lockfile is mutated during installation. To compare changes, a
   // deep copy before installation is needed. This copy should represent the
   // original wanted lockfile on disk as close as possible.
@@ -1682,7 +1676,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           currentLockfileDir,
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
-          wantedLockfilePath,
           cacheDir: opts.cacheDir,
           resolutionVerifiers: opts.resolutionVerifiers,
           ...lockfileOpts,
@@ -1741,7 +1734,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
       await writeWantedLockfileAndRecordVerified({
         lockfileDir: ctx.lockfileDir,
-        lockfilePath: wantedLockfilePath,
         lockfile: newLockfile,
         cacheDir: opts.cacheDir,
         resolutionVerifiers: opts.resolutionVerifiers,

@@ -32,9 +32,16 @@ export async function writeWantedLockfile (
   opts?: {
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
+    /**
+     * Pre-resolved filename. When omitted, computed via
+     * `getWantedLockfileName(opts)`. Pass it when the caller already
+     * resolved the name to avoid a redundant `getCurrentBranch()`
+     * shell-out under `useGitBranchLockfile`.
+     */
+    lockfileName?: string
   }
 ): Promise<LockfileObject> {
-  const wantedLockfileName: string = await getWantedLockfileName(opts)
+  const wantedLockfileName: string = opts?.lockfileName ?? await getWantedLockfileName(opts)
   return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile)
 }
 
@@ -76,13 +83,12 @@ async function writeLockfile (
 
   // Return the canonical "as-saved" lockfile so callers like the
   // verification cache can hash a value that matches what the next
-  // `readWantedLockfile` will produce. The only divergence we need to
-  // mirror between the in-memory `LockfileFile` and the parsed-on-read
-  // form is YAML dropping `undefined` values (e.g. an unset
-  // `settings.dedupePeers`); a recursive strip captures that. We chose
-  // this over a `yaml.load` round-trip because the strip walks the
-  // existing object in-place rather than parsing the YAML string a
-  // second time, which is noticeably cheaper on large lockfiles.
+  // `readWantedLockfile` will produce. The only divergence between the
+  // in-memory `LockfileFile` and the parsed-on-read form is YAML
+  // dropping `undefined` values (e.g. an unset `settings.dedupePeers`);
+  // a recursive strip captures that. Cheaper than a `yaml.load`
+  // round-trip because the strip rebuilds the object graph from
+  // memory rather than re-parsing the serialized string.
   return convertToLockfileObject(stripUndefinedDeep(lockfileToStringify) as LockfileFile)
 }
 
@@ -135,9 +141,11 @@ export async function writeLockfiles (
     currentLockfileDir: string
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
+    /** See {@link writeWantedLockfile}'s `lockfileName` option. */
+    wantedLockfileName?: string
   }
 ): Promise<WriteLockfilesResult> {
-  const wantedLockfileName: string = await getWantedLockfileName(opts)
+  const wantedLockfileName: string = opts.wantedLockfileName ?? await getWantedLockfileName(opts)
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
@@ -189,10 +197,17 @@ export async function writeLockfiles (
   const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile)
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
+  // In the differs branch, the current lockfile can be a filtered
+  // subset of the wanted one (e.g. deps-restorer passes a pruned
+  // current lockfile against a full wanted lockfile). Key the
+  // delete/keep and the return value off `currentLockfile`, not
+  // `wantedLockfile`, so an empty filtered current correctly removes
+  // the on-disk file even when the wanted side is non-empty.
+  const currentIsEmpty = isEmptyLockfile(opts.currentLockfile)
   await Promise.all([
     writeFileAtomic(wantedLockfilePath, wantedYamlDoc),
     (async () => {
-      if (isEmptyLockfile(opts.wantedLockfile)) {
+      if (currentIsEmpty) {
         await rimraf(currentLockfilePath)
       } else {
         await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
@@ -202,7 +217,7 @@ export async function writeLockfiles (
   ])
   return {
     wantedLockfile: convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile),
-    currentLockfile: isEmptyLockfile(opts.wantedLockfile)
+    currentLockfile: currentIsEmpty
       ? undefined
       : convertToLockfileObject(stripUndefinedDeep(currentLockfileToStringify) as LockfileFile),
   }
