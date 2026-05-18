@@ -56,7 +56,14 @@ jobs:
           node -e "const f='pnpm/package.json',p=require('./'+f);p.version='11.1.2-canora.16';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
           cd pnpm && pnpm pack
           ls -la pnpm-11.1.2-canora.16.tgz
-          tar -xzOf pnpm-11.1.2-canora.16.tgz package/dist/pnpm.mjs | grep -q "11.1.2-canora.16" && echo "baked version OK"
+          tar -xzOf pnpm-11.1.2-canora.16.tgz package/dist/pnpm.mjs > /tmp/pnpm.mjs
+          if grep -q "11.1.2-canora.16" /tmp/pnpm.mjs; then
+            echo "baked version OK"
+          else
+            echo "::error::dist bundle baked version is NOT 11.1.2-canora.16"
+            grep -oE "11\.1\.2[^\"']*" /tmp/pnpm.mjs | sort -u | head
+            exit 1
+          fi
 
       - name: Release canora.16
         env:
