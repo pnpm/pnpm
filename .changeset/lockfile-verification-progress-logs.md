@@ -1,7 +1,7 @@
 ---
 "@pnpm/core-loggers": minor
 "@pnpm/installing.deps-installer": patch
-"@pnpm/cli.default-reporter": patch
+"@pnpm/cli.default-reporter": minor
 "pnpm": patch
 ---
 
