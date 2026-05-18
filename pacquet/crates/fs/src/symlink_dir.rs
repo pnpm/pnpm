@@ -82,11 +82,23 @@ fn relative_target_inner(original: &Path, parent: &Path) -> PathBuf {
 
 /// Whether `a` and `b` share a Windows path root, meaning the same
 /// drive letter, the same UNC share, or both rootless. Drive letters
-/// are compared case-insensitively because NTFS is case-insensitive
+/// are uppercased before comparing because NTFS is case-insensitive
 /// and Node.js's `path.win32.relative` lowercases before comparing.
-/// Callers should pre-simplify inputs with `dunce::simplified` so
-/// `Prefix::Disk('C')` and `Prefix::VerbatimDisk('C')` (and the UNC
-/// analogues) don't fall on opposite sides of this check.
+///
+/// The comparison is *variant-strict*: `Prefix::Disk('C')` and
+/// `Prefix::VerbatimDisk('C')` are treated as different roots, and
+/// the same goes for `UNC` vs. `VerbatimUNC`. Callers should pre-
+/// simplify inputs with `dunce::simplified` so the common
+/// short-path mixed-form case (e.g., `\\?\C:\foo` paired with
+/// `C:\bar`) collapses onto a common variant before this check.
+/// Collapsing the variants in this function instead would be
+/// unsafe: `pathdiff::diff_paths` itself walks `Component::Prefix`
+/// for equality, so a variant-tolerant `same_path_root` would
+/// declare two paths same-root but the downstream diff would still
+/// emit a re-anchored garbage path on the verbatim-vs-plain pair
+/// `dunce::simplified` declined to simplify (e.g., a verbatim path
+/// past the non-verbatim length limit). Falling back to the
+/// absolute target is the safe outcome in that edge case.
 #[cfg(windows)]
 fn same_path_root(a: &Path, b: &Path) -> bool {
     fn first_prefix(path: &Path) -> Option<std::path::Prefix<'_>> {
@@ -98,7 +110,8 @@ fn same_path_root(a: &Path, b: &Path) -> bool {
     fn case_normalize(prefix: std::path::Prefix<'_>) -> std::path::Prefix<'_> {
         use std::path::Prefix::{Disk, VerbatimDisk};
         match prefix {
-            Disk(d) | VerbatimDisk(d) => Disk(d.to_ascii_uppercase()),
+            Disk(d) => Disk(d.to_ascii_uppercase()),
+            VerbatimDisk(d) => VerbatimDisk(d.to_ascii_uppercase()),
             other => other,
         }
     }
