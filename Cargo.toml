@@ -23,6 +23,7 @@ pacquet-package-manifest       = { path = "pacquet/crates/package-manifest" }
 pacquet-package-manager        = { path = "pacquet/crates/package-manager" }
 pacquet-package-is-installable = { path = "pacquet/crates/package-is-installable" }
 pacquet-lockfile               = { path = "pacquet/crates/lockfile" }
+pacquet-lockfile-verification  = { path = "pacquet/crates/lockfile-verification" }
 pacquet-modules-yaml           = { path = "pacquet/crates/modules-yaml" }
 pacquet-network                = { path = "pacquet/crates/network" }
 pacquet-config                 = { path = "pacquet/crates/config" }

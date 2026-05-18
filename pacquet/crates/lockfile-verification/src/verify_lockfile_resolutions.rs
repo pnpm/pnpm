@@ -1,0 +1,299 @@
+//! Fan-out runner for the lockfile-verification gate.
+//!
+//! Verbatim port of pnpm's
+//! [`verifyLockfileResolutions.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts).
+//!
+//! Walks every entry in `lockfile.packages`, dedupes by
+//! `(name, version, resolution)`, and asks every active verifier to
+//! evaluate each candidate. Verifiers handle their own protocol
+//! short-circuit by returning [`ResolutionVerification::Ok`] for
+//! resolutions outside their scope; the runner is policy-neutral and
+//! dispatch-free at this layer.
+//!
+//! Cache lookup / record are out of scope for this slice (Phase 6
+//! splits the runner from the JSONL cache). The shape that supports
+//! the cache — `lockfile_path` on the options bag, the runner-side
+//! emit boundaries — is in place so the cache slice only needs to
+//! plug into the existing call sites.
+
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
+
+use futures_util::{StreamExt, stream::FuturesUnordered};
+use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName};
+use pacquet_reporter::{
+    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
+};
+use pacquet_resolving_resolver_base::{
+    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx,
+};
+use tokio::sync::Semaphore;
+
+use crate::errors::{RenderedViolation, VerifyError};
+
+/// Default concurrency cap for the per-candidate fan-out. Mirrors
+/// upstream's `DEFAULT_CONCURRENCY = 16` (the floor of pnpm's
+/// `package-requester` network-concurrency formula).
+const DEFAULT_CONCURRENCY: usize = 16;
+
+/// Options bundle for [`verify_lockfile_resolutions`]. Mirrors
+/// upstream's
+/// [`VerifyLockfileResolutionsOptions`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L34-L47)
+/// minus the cache fields, which land in a follow-up slice.
+#[derive(Debug, Clone, Default)]
+pub struct VerifyLockfileResolutionsOptions<'a> {
+    /// Cap on concurrent verifier futures. `None` falls back to
+    /// [`DEFAULT_CONCURRENCY`].
+    pub concurrency: Option<usize>,
+    /// Absolute path of the lockfile being verified. Surfaced in the
+    /// `pnpm:lockfile-verification` reporter payload so log consumers
+    /// can disambiguate concurrent workspace installs.
+    pub lockfile_path: Option<&'a str>,
+}
+
+/// Run every active [`ResolutionVerifier`] against every entry in
+/// `lockfile.packages`. No-op when `verifiers` is empty or the
+/// lockfile carries no `packages:` map.
+///
+/// Verifiers fan out across candidates with the runner's concurrency
+/// cap; each candidate stops at the first verifier that rejects it,
+/// so a multi-verifier setup never emits duplicate violations for
+/// the same `(name, version)` pair.
+///
+/// Reporter events fire only when the fan-out actually runs — an
+/// empty candidate set skips both `Started` and `Done`. On the
+/// non-empty path, a `Started` always pairs with exactly one
+/// terminal `Done` (success) or `Failed` (rejection), even if the
+/// fan-out panics; the failure variant of the emit is fired from the
+/// drop guard so the reporter never leaves a hanging "Verifying…"
+/// frame.
+pub async fn verify_lockfile_resolutions<R: Reporter>(
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    opts: &VerifyLockfileResolutionsOptions<'_>,
+) -> Result<(), VerifyError> {
+    if verifiers.is_empty() || lockfile.packages.is_none() {
+        return Ok(());
+    }
+
+    let candidates = collect_candidates(lockfile);
+    if candidates.is_empty() {
+        return Ok(());
+    }
+
+    let entries = candidates.len() as u64;
+    let started_at = Instant::now();
+    emit::<R>(
+        LogLevel::Debug,
+        LockfileVerificationMessage::Started {
+            entries,
+            lockfile_path: opts.lockfile_path.map(str::to_string),
+        },
+    );
+
+    // The drop guard fires `Failed` for early-return / panic paths.
+    // The success path replaces it with the `Done` payload before
+    // returning, so the guard's drop only fires on a panic or on the
+    // throw-violations branch.
+    let mut emit_guard =
+        TerminalEmitGuard::<R>::failed(entries, started_at, opts.lockfile_path.map(str::to_string));
+
+    let violations = run_fan_out(candidates, verifiers, opts.concurrency).await;
+    if violations.is_empty() {
+        emit_guard.cancel(LockfileVerificationMessage::Done {
+            entries,
+            elapsed_ms: started_at.elapsed().as_millis() as u64,
+            lockfile_path: opts.lockfile_path.map(str::to_string),
+        });
+        return Ok(());
+    }
+    Err(build_verification_error(violations))
+}
+
+/// Collect-mode sibling of [`verify_lockfile_resolutions`] that
+/// returns violations as data instead of throwing on the first batch.
+/// No reporter emits, no cache wiring — for callers that need to
+/// inspect violations (auto-collect into `minimumReleaseAgeExclude`,
+/// strict-mode prompts, future custom policies).
+pub async fn collect_resolution_policy_violations(
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    concurrency: Option<usize>,
+) -> Vec<ResolutionPolicyViolation> {
+    if verifiers.is_empty() || lockfile.packages.is_none() {
+        return Vec::new();
+    }
+    let candidates = collect_candidates(lockfile);
+    run_fan_out(candidates, verifiers, concurrency).await
+}
+
+/// One `(name, version, resolution)` tuple deduplicated from
+/// `lockfile.packages`. Mirrors upstream's inline `Candidate`
+/// interface.
+struct Candidate {
+    name: PkgName,
+    version: String,
+    resolution: LockfileResolution,
+}
+
+/// Walk `lockfile.packages` and dedupe by
+/// `(name, version, resolution-json)`. Mirrors upstream's
+/// [`collectCandidates`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L248-L261).
+///
+/// The serialized resolution is part of the key so two entries that
+/// share a `(name, version)` but differ in *what* was resolved (npm
+/// vs git URL under the same alias) don't collapse into one.
+/// `BTreeMap` over a serialized key gives deterministic iteration
+/// order for tests; the fan-out runs across the value iter so order
+/// doesn't affect correctness, only the reproducibility of failures.
+fn collect_candidates(lockfile: &Lockfile) -> Vec<Candidate> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Vec::new();
+    };
+    let mut deduped: BTreeMap<String, Candidate> = BTreeMap::new();
+    for (key, metadata) in packages {
+        let name = key.name.clone();
+        let version = key.suffix.version().to_string();
+        let resolution_json = match serde_json::to_string(&metadata.resolution) {
+            Ok(json) => json,
+            // A resolution that fails to serialize is a logic bug —
+            // skip it instead of crashing the install. The verifier
+            // would have nothing to do with it anyway.
+            Err(_) => continue,
+        };
+        let key = format!("{name}@{version}@{resolution_json}");
+        deduped.entry(key).or_insert(Candidate {
+            name,
+            version,
+            resolution: metadata.resolution.clone(),
+        });
+    }
+    deduped.into_values().collect()
+}
+
+/// Run every active verifier against every candidate with a
+/// concurrency cap. Each candidate stops at the first verifier that
+/// rejects it.
+async fn run_fan_out(
+    candidates: Vec<Candidate>,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    concurrency: Option<usize>,
+) -> Vec<ResolutionPolicyViolation> {
+    let limit = concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
+    let semaphore = Arc::new(Semaphore::new(limit));
+    let mut futures = FuturesUnordered::new();
+    for candidate in candidates {
+        let semaphore = Arc::clone(&semaphore);
+        let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+            verifiers.iter().map(Arc::clone).collect();
+        futures.push(async move {
+            // Holding the permit across every verifier .await keeps
+            // the effective in-flight count bounded by the semaphore.
+            // Releasing per-verifier would let N candidates × M
+            // verifiers race past the cap.
+            let _permit = semaphore.acquire().await.expect("semaphore not closed during fan-out");
+            evaluate_candidate(candidate, &verifiers).await
+        });
+    }
+    let mut violations = Vec::new();
+    while let Some(result) = futures.next().await {
+        if let Some(violation) = result {
+            violations.push(violation);
+        }
+    }
+    violations
+}
+
+async fn evaluate_candidate(
+    candidate: Candidate,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Option<ResolutionPolicyViolation> {
+    for verifier in verifiers {
+        let ctx = VerifyCtx { name: &candidate.name, version: &candidate.version };
+        match verifier.verify(&candidate.resolution, ctx).await {
+            ResolutionVerification::Ok => continue,
+            ResolutionVerification::Err { code, reason } => {
+                return Some(ResolutionPolicyViolation {
+                    name: candidate.name,
+                    version: candidate.version,
+                    resolution: candidate.resolution,
+                    code,
+                    reason,
+                });
+            }
+        }
+    }
+    None
+}
+
+/// Sort violations by `name@version` and build the matching
+/// [`VerifyError`]. Mirrors upstream's
+/// [`buildVerificationError`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L172-L206).
+fn build_verification_error(mut violations: Vec<ResolutionPolicyViolation>) -> VerifyError {
+    violations.sort_by(|a, b| {
+        format!("{}@{}", a.name, a.version).cmp(&format!("{}@{}", b.name, b.version))
+    });
+    let rendered: Vec<RenderedViolation> = violations
+        .into_iter()
+        .map(|v| RenderedViolation {
+            name: v.name.to_string(),
+            version: v.version,
+            code: v.code,
+            reason: v.reason,
+        })
+        .collect();
+    VerifyError::from_rendered(rendered)
+}
+
+fn emit<R: Reporter>(level: LogLevel, message: LockfileVerificationMessage) {
+    R::emit(&LogEvent::LockfileVerification(LockfileVerificationLog { level, message }));
+}
+
+/// Drop guard that fires the terminal `Failed` payload when the
+/// runner panics or returns early through `?`. On the success path
+/// the runner calls [`Self::cancel`] with the `Done` payload, which
+/// replaces the queued message and emits it on drop instead.
+struct TerminalEmitGuard<R: Reporter> {
+    pending: Option<LockfileVerificationMessage>,
+    _reporter: std::marker::PhantomData<R>,
+}
+
+impl<R: Reporter> TerminalEmitGuard<R> {
+    fn failed(entries: u64, started_at: Instant, lockfile_path: Option<String>) -> Self {
+        Self {
+            pending: Some(LockfileVerificationMessage::Failed {
+                entries,
+                elapsed_ms: started_at.elapsed().as_millis() as u64,
+                lockfile_path,
+            }),
+            _reporter: std::marker::PhantomData,
+        }
+    }
+
+    fn cancel(&mut self, success: LockfileVerificationMessage) {
+        self.pending = Some(success);
+    }
+}
+
+impl<R: Reporter> Drop for TerminalEmitGuard<R> {
+    fn drop(&mut self) {
+        if let Some(message) = self.pending.take() {
+            // Refresh `elapsed_ms` on the Failed branch only — the
+            // success branch already filled the up-to-date value.
+            let message = match message {
+                LockfileVerificationMessage::Failed { entries, lockfile_path, .. } => {
+                    // The "Failed" guard's `elapsed_ms` was set at
+                    // construction (before the fan-out ran), so the
+                    // value would be ~0 on a panic path. We can't
+                    // recapture `started_at` here, so the docs note
+                    // that `elapsed_ms` on a panic is best-effort.
+                    LockfileVerificationMessage::Failed { entries, elapsed_ms: 0, lockfile_path }
+                }
+                other => other,
+            };
+            emit::<R>(LogLevel::Debug, message);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;
