@@ -1,4 +1,4 @@
-use crate::api::{EnvVar, Host};
+use crate::api::EnvVar;
 use pacquet_store_dir::StoreDir;
 use std::{env, path::PathBuf};
 
@@ -65,9 +65,10 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
 /// mutating the process environment. Mirrors the seam established
 /// in pnpm/pacquet#339 and consolidated in
 /// [pnpm/pnpm#11708](https://github.com/pnpm/pnpm/pull/11708).
-/// Production callers pass [`Host`] for `Sys` together with
-/// `home::home_dir` and `env::current_dir` for the closures (see
-/// [`default_store_dir_host`]).
+/// Production callers pass [`crate::Host`] for `Sys` together
+/// with `home::home_dir` and `env::current_dir` for the
+/// closures — see the `SmartDefault` expression on
+/// [`crate::Config::store_dir`].
 pub fn default_store_dir<Sys, HomeDir, CurrentDir, Error>(
     home_dir: HomeDir,
     current_dir: CurrentDir,
@@ -81,6 +82,11 @@ where
     // `env::current_dir` (Error = `io::Error`, which has `Debug`);
     // test fakes that don't drive the Windows branch pin
     // `Error = std::io::Error` via turbofish for the same reason.
+    // The bound would ideally be gated `#[cfg(windows)]` so non-Windows
+    // callers stayed free of the `Debug` requirement, but
+    // `#[cfg(...)]` on where-clause predicates is still unstable
+    // (rust-lang/rust#115590) — keep the bound unconditional until
+    // that stabilises.
     Error: std::fmt::Debug,
 {
     // TODO: If env variables start with ~, make sure to resolve it into home_dir.
@@ -110,15 +116,6 @@ where
         "macos" => home_dir.join("Library/pnpm/store").into(),
         _ => panic!("unsupported operating system: {}", env::consts::OS),
     }
-}
-
-/// `SmartDefault` entry-point for [`crate::Config::store_dir`]: thin
-/// wrapper around [`default_store_dir`] that wires the production
-/// [`Host`] provider together with the real `home::home_dir` and
-/// `env::current_dir` lookups. Kept args-less so the
-/// `#[default(_code = ...)]` expression on the field stays short.
-pub fn default_store_dir_host() -> StoreDir {
-    default_store_dir::<Host, _, _, _>(home::home_dir, env::current_dir)
 }
 
 pub fn default_modules_dir() -> PathBuf {

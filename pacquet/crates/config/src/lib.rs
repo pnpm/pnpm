@@ -15,7 +15,7 @@ use serde::Deserialize;
 use smart_default::SmartDefault;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    fs,
+    env, fs,
     path::PathBuf,
 };
 
@@ -27,8 +27,7 @@ use crate::defaults::{
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_retries,
     default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
     default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
-    default_public_hoist_pattern, default_registry, default_store_dir_host,
-    default_virtual_store_dir,
+    default_public_hoist_pattern, default_registry, default_store_dir, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
@@ -185,7 +184,7 @@ pub struct Config {
     pub shamefully_hoist: bool,
 
     /// The location where all the packages are saved on the disk.
-    #[default(_code = "default_store_dir_host()")]
+    #[default(_code = "default_store_dir::<Host, _, _, _>(home::home_dir, env::current_dir)")]
     pub store_dir: StoreDir,
 
     /// The directory in which dependencies will be installed (instead of node_modules).
