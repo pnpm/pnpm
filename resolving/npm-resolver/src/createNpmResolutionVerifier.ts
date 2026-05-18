@@ -313,21 +313,17 @@ async function runTrustCheck (
     trustPolicyIgnoreAfter?: number
   }
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  let meta: PackageMeta | undefined
+  let meta: PackageMeta
   try {
     meta = await fetchFullMetaForTrust(context, registry, name)
   } catch (err) {
+    // `fetchFullMetadataCached` rejects (network error, 404, etc.); the
+    // verifier fails closed so an unfetchable manifest can't be
+    // mistaken for a passing trust check.
     return {
       ok: false,
       code: TRUST_DOWNGRADE_VIOLATION_CODE,
       reason: uncheckable('trustPolicy', err instanceof Error ? err.message : String(err)),
-    }
-  }
-  if (!meta) {
-    return {
-      ok: false,
-      code: TRUST_DOWNGRADE_VIOLATION_CODE,
-      reason: uncheckable('trustPolicy', 'package metadata is unavailable'),
     }
   }
 
@@ -347,15 +343,21 @@ function fetchFullMetaForTrust (
   context: PublishedAtLookupContext,
   registry: string,
   name: string
-): Promise<PackageMeta | undefined> {
+): Promise<PackageMeta> {
   const cacheKey = `${registry}\x00${name}`
   let cachedPromise = context.fullMetaForTrustCache.get(cacheKey)
   if (cachedPromise == null) {
+    // Don't swallow the fetch rejection here — `runTrustCheck` catches it
+    // and surfaces the underlying message in the violation reason, which
+    // is more actionable than the generic "metadata is unavailable" the
+    // `!meta` fallback emits. The cache still holds the rejected promise
+    // so repeat verifier calls for the same (registry, name) within one
+    // install don't refetch a known-failing endpoint.
     cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
       registry,
       authHeaderValue: context.getAuthHeaderValueByURI(registry),
       cacheDir: context.cacheDir,
-    }).catch(() => undefined)
+    })
     context.fullMetaForTrustCache.set(cacheKey, cachedPromise)
   }
   return cachedPromise
@@ -408,7 +410,7 @@ interface PublishedAtLookupContext {
    * document (`_npmUser`, `dist.attestations` per version) where the
    * age check only needs `time`.
    */
-  fullMetaForTrustCache: Map<string, Promise<PackageMeta | undefined>>
+  fullMetaForTrustCache: Map<string, Promise<PackageMeta>>
 }
 
 /**
