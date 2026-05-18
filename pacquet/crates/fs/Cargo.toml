@@ -20,3 +20,6 @@ tempfile = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
+
+[lints]
+workspace = true

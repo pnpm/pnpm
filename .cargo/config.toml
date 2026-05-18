@@ -1,12 +1,3 @@
 [alias]
 # Do not append `--` or it will break IDEs
 codecov = "llvm-cov nextest --workspace --ignore-filename-regex tasks"
-
-# Declare the `dylint_lib` cfg used by `#[cfg_attr(dylint_lib = "...", ...)]`
-# gates that suppress perfectionist lints at affected sites. Without this
-# entry, regular `cargo check` warns `unexpected_cfgs` because the cfg is
-# only set by the dylint driver. Workspace-level `[lints]` would require
-# every member crate to opt in with `lints.workspace = true`; setting it
-# here via `rustflags` covers the whole tree in one place.
-[build]
-rustflags = ["--check-cfg=cfg(dylint_lib, values(any()))"]

@@ -21,3 +21,6 @@ sha2        = { workspace = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }
+
+[lints]
+workspace = true

@@ -110,6 +110,18 @@ mockito           = { version = "1.7.2" }
 [workspace.metadata.workspaces]
 allow_branch = "main"
 
+# Declares the `dylint_lib = "perfectionist"` cfg used by the
+# `cfg_attr(dylint_lib = "perfectionist", feature(register_tool))` /
+# `register_tool(perfectionist)` lines at each pacquet crate's root.
+# Those `cfg_attr`s register the perfectionist tool name under dylint's
+# nightly toolchain (so `#[expect(perfectionist::lint, reason = "...")]`
+# at use sites compiles cleanly without a wrapper); this `check-cfg`
+# entry tells stable `cargo check` that the cfg name is expected even
+# though it's never set off-dylint. Mirrors the convention in
+# KSXGitHub/parallel-disk-usage's Cargo.toml.
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfectionist"))'] }
+
 [profile.release]
 opt-level     = 3
 lto           = "fat"

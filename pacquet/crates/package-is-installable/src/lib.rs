@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! Port of `@pnpm/config.package-is-installable` from upstream pnpm.
 //!
 //! Mirrors the entry point and the two checker helpers

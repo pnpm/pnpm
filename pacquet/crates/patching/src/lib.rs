@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! Configuration, matching, and application logic for pnpm's
 //! `patchedDependencies` (pacquet#397 item 9).
 //!

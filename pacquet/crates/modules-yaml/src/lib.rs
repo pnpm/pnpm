@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! Read and write pnpm's `node_modules/.modules.yaml` manifest.
 //!
 //! Mirrors pnpm v11's `installing/modules-yaml` package. See upstream

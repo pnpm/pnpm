@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! Fetchers for git-hosted dependencies, plus the `preparePackage`
 //! port both fetchers delegate to.
 //!

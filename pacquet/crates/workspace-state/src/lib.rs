@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! Read and write pnpm's `node_modules/.pnpm-workspace-state-v1.json`.
 //!
 //! Mirrors pnpm v11's `@pnpm/workspace.state` package. See upstream
