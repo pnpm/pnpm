@@ -338,3 +338,122 @@ deleted file mode 100644
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
     assert!(!target.exists(), "deleted target must be gone");
 }
+
+/// Reading the patch-file path itself can fail with errors other
+/// than `NotFound` — here, the patch path is a directory rather
+/// than a file. The classifier must surface this as `ReadPatchFile`
+/// (not `PatchNotFound`).
+#[cfg(unix)]
+#[test]
+fn read_patch_file_surfaces_non_not_found_error() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    // Pass the directory itself as the patch path. `fs::read` on a
+    // directory returns `IsADirectory`, never `NotFound`.
+    let err = apply_patch_to_dir(patched.path(), patch_dir.path())
+        .expect_err("reading a directory as a patch file should fail");
+    assert!(
+        matches!(err, PatchApplyError::ReadPatchFile { .. }),
+        "expected ReadPatchFile error, got {err:?}",
+    );
+}
+
+/// A delete patch that does not consume the entire file leaves
+/// non-empty content behind after `diffy::apply`. The implementation
+/// must refuse to remove the file in that case rather than silently
+/// dropping the unpatched tail. Tests the `if !after.is_empty()`
+/// guard in the Delete arm.
+#[test]
+fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("partial.txt");
+    // Two lines on disk. The patch below claims to delete the file
+    // but only removes the first line — `diffy::apply` applies the
+    // single hunk and returns the unpatched tail (`stay\n`), which
+    // is non-empty, so the implementation must error.
+    fs::write(&target, "going away\nstay\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/partial.txt b/partial.txt
+deleted file mode 100644
+--- a/partial.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-going away
+",
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must refuse partial delete");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(message.contains("non-empty"), "got: {message:?}");
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+    assert!(target.exists(), "target must NOT be unlinked when content remains");
+}
+
+/// Rename and copy file operations are not yet supported. A patch
+/// that contains one of these headers must error cleanly via
+/// `PatchFailed`, not silently no-op.
+#[test]
+fn rename_operation_errors_as_unsupported() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("from.txt"), "hello\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/from.txt b/to.txt
+similarity index 100%
+rename from from.txt
+rename to to.txt
+",
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("rename must error");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(
+                message.contains("rename/copy operations in patches are not yet supported"),
+                "got: {message:?}",
+            );
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+}
+
+/// `Create` resolves the parent dir via `create_dir_all`. When the
+/// parent path is a regular file rather than a directory, that call
+/// fails and must surface as `PatchFailed` with a `create parent of`
+/// prefix.
+#[cfg(unix)]
+#[test]
+fn create_with_unwritable_parent_path_errors() {
+    let patched = tempdir().unwrap();
+    // Plant a regular file where the patch wants to create the
+    // nested target's parent directory.
+    fs::write(patched.path().join("blocker"), b"not a dir").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/blocker/nested.txt b/blocker/nested.txt
+new file mode 100644
+--- /dev/null
++++ b/blocker/nested.txt
+@@ -0,0 +1 @@
++hi
+",
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("create_dir_all must fail");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(message.contains("create parent of"), "got: {message:?}");
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+}

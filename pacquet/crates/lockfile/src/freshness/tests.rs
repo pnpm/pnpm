@@ -383,6 +383,30 @@ fn no_importer_message_uses_bracket_quoted_id() {
     );
 }
 
+/// Multi-element `removed` and `modified` buckets exercise the
+/// plural arm of `noun_verb_for` *and* the comma separator inside
+/// the per-bucket loops. The single-item display test above only
+/// hits the singular branch and the first-iteration of the loop.
+#[test]
+fn spec_diff_display_lists_plural_removed_and_modified_with_separators() {
+    let mut diff = super::SpecDiff::default();
+    diff.removed.insert("alpha".to_string(), "^1.0.0".to_string());
+    diff.removed.insert("beta".to_string(), "^2.0.0".to_string());
+    diff.modified.insert("gamma".to_string(), ("^3.0.0".to_string(), "^4.0.0".to_string()));
+    diff.modified.insert("delta".to_string(), ("^0.1.0".to_string(), "^0.2.0".to_string()));
+    let rendered = diff.to_string();
+    // Plural noun + plural verb for n>1 (`were`).
+    assert!(rendered.contains("2 dependencies were removed: "), "got: {rendered:?}");
+    // Comma separator inside the removed loop.
+    assert!(
+        rendered.contains("alpha@^1.0.0, beta@^2.0.0")
+            || rendered.contains("beta@^2.0.0, alpha@^1.0.0"),
+        "expected comma-joined removed entries, got: {rendered:?}",
+    );
+    // Plural noun + plural verb for n>1 `modified` (`are`).
+    assert!(rendered.contains("2 dependencies are mismatched:"), "got: {rendered:?}");
+}
+
 /// Pinpoint singular-vs-plural wording per bucket so the n==1 case
 /// doesn't silently regress.
 #[test]

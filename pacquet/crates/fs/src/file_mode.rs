@@ -35,3 +35,47 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(windows)]
     return Ok(());
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{EXEC_MASK, EXEC_MODE, is_executable, make_file_executable};
+
+    /// Sanity-pin the two on-disk constants. The mask is `--x--x--x`
+    /// and the canonical executable mode is `rwxr-xr-x` — these
+    /// match pnpm's `EXEC_MODE` and are part of the CAFS contract.
+    #[test]
+    fn exec_constants_pin_pnpm_layout() {
+        assert_eq!(EXEC_MASK, 0o111);
+        assert_eq!(EXEC_MODE, 0o755);
+    }
+
+    /// Every tarball-shipped exec bit (`u+x`, `g+x`, `o+x`) flips
+    /// `is_executable` to `true`. Any-bit semantics matches
+    /// upstream's `modeIsExecutable`.
+    #[test]
+    fn is_executable_matches_any_exec_bit() {
+        assert!(!is_executable(0o644));
+        assert!(is_executable(0o744)); // user-only exec, the common npm shape
+        assert!(is_executable(0o755));
+        assert!(is_executable(0o050)); // group-only — still executable
+        assert!(is_executable(0o001)); // other-only — still executable
+    }
+
+    /// `make_file_executable` flips the exec bits on a freshly
+    /// created non-executable file. On Unix the mode must include
+    /// all three exec bits afterward; on Windows the call is a
+    /// no-op and we just assert it returns `Ok`.
+    #[test]
+    fn make_file_executable_sets_exec_bits_on_unix() {
+        let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
+        let file = tmp.as_file();
+        make_file_executable(file).expect("set permissions");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = file.metadata().expect("stat").permissions().mode();
+            assert_eq!(mode & EXEC_MASK, EXEC_MASK, "all exec bits should be set, got {mode:o}");
+        }
+    }
+}

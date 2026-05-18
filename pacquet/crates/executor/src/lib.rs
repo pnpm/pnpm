@@ -34,3 +34,27 @@ pub fn execute_shell(command: &str) -> Result<(), ExecutorError> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::execute_shell;
+
+    /// `execute_shell` returns `Ok(())` when `sh -c <command>` runs
+    /// to completion. The unix-only guard mirrors the function
+    /// itself, which spawns `sh` unconditionally.
+    #[cfg(unix)]
+    #[test]
+    fn execute_shell_runs_successful_command() {
+        execute_shell("true").expect("`true` runs cleanly");
+    }
+
+    /// A non-zero exit from the spawned command still surfaces as
+    /// `Ok(())`: `execute_shell` only fails on I/O errors from
+    /// spawn or wait. Pnpm's `run` semantics treat the script's
+    /// exit code as its own concern, not a wrapper failure.
+    #[cfg(unix)]
+    #[test]
+    fn execute_shell_propagates_nonzero_exit_as_ok() {
+        execute_shell("exit 1").expect("wait succeeds even on nonzero exit");
+    }
+}
