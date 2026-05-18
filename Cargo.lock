@@ -2028,6 +2028,7 @@ dependencies = [
  "indexmap",
  "libc",
  "miette 7.6.0",
+ "node-semver",
  "pacquet-network",
  "pacquet-package-is-installable",
  "pacquet-patching",
