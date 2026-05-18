@@ -125,20 +125,7 @@ impl MatcherImpl {
             MatcherImpl::Single(s) => s.matches(input),
             MatcherImpl::AllInclude(patterns) => {
                 for (i, p) in patterns.iter().enumerate() {
-                    // Rebind `!p.is_ignore` to a local so the
-                    // `macro_argument_binding` rule sees a plain path as
-                    // the assert argument. perfectionist 0.0.0-rc.14's
-                    // `take_pure_atom` (src/rules/macro_argument_binding/
-                    // purity.rs) only recognises `&`, `&&`, and `*` as
-                    // pure prefix operators — unary `!` is not listed,
-                    // so `debug_assert!(!p.is_ignore)` is flagged even
-                    // though the docs say side-effect-free operators
-                    // preserve purity. Upstream issue should be filed.
-                    #[cfg(debug_assertions)]
-                    {
-                        let is_include = !p.is_ignore;
-                        debug_assert!(is_include);
-                    }
+                    debug_assert!(!p.is_ignore);
                     if p.matches(input) {
                         return Some(i);
                     }
