@@ -148,7 +148,7 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
     // Peer-variant snapshots (`pkg@file:packages/pkg(peer@1)`) inherit
     // `resolution` from their base `packages:` entry, merged above via
     // pkgId. If a pruned lockfile dropped that base entry (older
-    // `turbo prune --docker` — fixed upstream in vercel/turborepo#12819),
+    // `turbo prune --docker` — fixed upstream in vercel/turborepo#12825),
     // synthesize the directory resolution from the `file:` depPath: this
     // is exactly what pnpm's own writer emits for an injected workspace
     // dep, so it's reconstruction, not a guess. Doing it here — the single
