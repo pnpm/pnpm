@@ -6,6 +6,7 @@ import { depPathToFilename, findHoistedPackageDirs } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import type { PackageManifest, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
@@ -46,6 +47,7 @@ export interface GetPackageInfoOptions {
    */
   hoistedLocations?: Record<string, string[]>
   supportedArchitectures?: SupportedArchitectures
+  indexCache?: Map<string, PackageFilesIndex>
 }
 
 export type PkgInfo = {
@@ -102,6 +104,7 @@ async function readPackageFilesAndManifest (
         lockfileDir: opts.lockfileDir ?? opts.dir,
         supportedArchitectures: opts.supportedArchitectures,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        indexCache: opts.indexCache,
       }
     )
     if (!result) {
