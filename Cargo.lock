@@ -2369,6 +2369,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-npm-resolver"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pacquet-config",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-registry",
+ "pacquet-resolving-resolver-base",
+ "pipe-trait",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-resolving-resolver-base"
 version = "0.0.1"
 dependencies = [
