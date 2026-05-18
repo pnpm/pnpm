@@ -10,6 +10,7 @@ export {
   writeCurrentLockfile,
   writeLockfileFile,
   writeLockfiles,
+  type WriteLockfilesResult,
   writeWantedLockfile,
 } from './write.js'
 export { extractMainDocument } from './yamlDocuments.js'
