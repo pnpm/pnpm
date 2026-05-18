@@ -118,7 +118,20 @@ export async function verifyLockfileResolutions (
   // round-trip can be slow on a cold registry cache, and the cached
   // short-circuit above doesn't reach this branch, so a user only
   // sees these messages on installs that are doing real work.
+  // A degenerate lockfile where every snapshot fails the
+  // name/version extraction (so candidates is empty) skips emission
+  // entirely — no work, no noise.
   const candidates = collectCandidates(lockfile)
+  if (candidates.size === 0) {
+    if (cache) {
+      recordVerification(cache.cacheDir, {
+        lockfilePath: cache.lockfilePath,
+        verifiers,
+        hashLockfile,
+      }, cachePrecomputed)
+    }
+    return
+  }
   const startedAt = Date.now()
   lockfileVerificationLogger.debug({
     status: 'started',
