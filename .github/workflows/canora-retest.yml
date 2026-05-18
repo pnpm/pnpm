@@ -1,0 +1,74 @@
+name: canora-retest
+
+# pnpm/pnpm CI for this fork PR is gated on maintainer "Approve and run"
+# (external-fork policy) — it cannot run on its own. This workflow gives
+# the equivalent signal we control: it builds the lean PR head
+# (fix/graph-builder-missing-resolution), runs the full `compile`
+# (tsgo typecheck across the monorepo — the gate for the call-site
+# reverts), runs the Bug-1 + Bug-2 regression tests, and packs
+# canora.16 so the canora-sync golden harness can re-validate end to end.
+#
+# Lives on the fork default branch (workflow_dispatch discoverability);
+# checks out + builds the PR branch.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  retest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/graph-builder-missing-resolution
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm (repo packageManager)
+        run: npm install -g pnpm@11.1.1 && pnpm --version
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Compile gate (tsgo typecheck across monorepo)
+        run: pnpm compile
+
+      - name: Bug-1 regression (deps-restorer peer-variant fixture)
+        run: pnpm --filter "@pnpm/deps.restorer" test
+        continue-on-error: true
+        id: bug1
+
+      - name: Bug-2 regression (lifecycle inject re-import)
+        run: pnpm --filter "@pnpm/deps.installer" test -- injectLocalPackages
+        continue-on-error: true
+        id: bug2
+
+      - name: Pack canora.16 (lean PR head)
+        env:
+          npm_package_version: 11.1.2-canora.16
+          npm_package_name: pnpm
+        run: |
+          node -e "const f='pnpm/package.json',p=require('./'+f);p.version='11.1.2-canora.16';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          cd pnpm && pnpm pack
+          ls -la pnpm-11.1.2-canora.16.tgz
+          node -e "const t=require('child_process').execSync('tar -xzOf pnpm-11.1.2-canora.16.tgz package/dist/pnpm.mjs').toString();process.exit(t.includes('11.1.2-canora.16')?0:1)" && echo "baked version OK"
+
+      - name: Release canora.16
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v11.1.2-canora.16 --yes --cleanup-tag 2>/dev/null || true
+          gh release create v11.1.2-canora.16 pnpm/pnpm-11.1.2-canora.16.tgz \
+            --title "pnpm 11.1.2 + canora LEAN PR head (rev 16)" \
+            --notes "Built from fix/graph-builder-missing-resolution @ lean head (PR pnpm/pnpm#11662): single-point converter Bug-1 + Bug-2 keepModulesDir, helper removed. compile gate: see run. Bug-1 test: ${{ steps.bug1.outcome }}; Bug-2 test: ${{ steps.bug2.outcome }}."
+
+      - name: Summary
+        run: |
+          echo "compile: PASSED (job would have failed otherwise)"
+          echo "Bug-1 deps.restorer test: ${{ steps.bug1.outcome }}"
+          echo "Bug-2 deps.installer test: ${{ steps.bug2.outcome }}"
