@@ -60,16 +60,13 @@ fn relative_target_inner(original: &Path, parent: &Path) -> PathBuf {
     pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
 }
 
-/// Whether `a` and `b` share a Windows path root: same drive letter
-/// (case-insensitive), same UNC share, or both rootless.
-///
-/// Comparison is variant-strict — `Prefix::Disk` and
-/// `Prefix::VerbatimDisk` (and the UNC analogues) are different roots
-/// here. Collapsing the variants would let `pathdiff::diff_paths`
-/// downstream walk into a verbatim-vs-plain pair it cannot relate,
-/// emitting a re-anchored garbage path. Callers should run inputs
-/// through `dunce::simplified` first to collapse the common
-/// short-path mixed-form case onto a single variant before this check.
+/// Whether `a` and `b` have an identical `Component::Prefix` after
+/// `dunce::simplified`, with drive letters case-folded. UNC shares
+/// only match when their server/share are written with identical
+/// casing and variant — the check has to stay in lockstep with what
+/// `pathdiff::diff_paths` will tolerate, since a variant-tolerant or
+/// case-tolerant comparison here would let the downstream diff emit
+/// a re-anchored garbage path on a `Prefix` mismatch it cannot relate.
 #[cfg(windows)]
 fn same_path_root(a: &Path, b: &Path) -> bool {
     fn first_prefix(path: &Path) -> Option<std::path::Prefix<'_>> {
