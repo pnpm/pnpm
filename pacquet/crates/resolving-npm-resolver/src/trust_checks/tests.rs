@@ -290,3 +290,31 @@ fn unparsable_timestamp_surfaces_trust_check_failed() {
         .expect_err("unparsable timestamp should fail");
     assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
+
+/// Regression: a prior version with no entry in the `time` map must
+/// not abort the history walk. The scan needs to consult every
+/// other prior version's evidence so a stronger-evidence ancestor
+/// (here `1.0.0` with `TrustedPublisher`) still gates downgrades to
+/// a weaker successor (`1.1.0` with no evidence). Without the
+/// per-version `continue`, a single missing-time entry would mask
+/// the entire ancestry and let the downgrade slip through.
+#[test]
+fn prior_version_missing_time_does_not_mask_trust_history() {
+    let mut meta = make_package(
+        "acme",
+        &[
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
+            ("1.0.1", "2025-01-15T00:00:00.000Z", Evidence::Provenance),
+            ("1.1.0", "2025-02-01T00:00:00.000Z", Evidence::None),
+        ],
+    );
+    // Drop the middle version's `time` entry so it has a manifest
+    // but no publish timestamp — the exact shape that previously
+    // tripped the early-return.
+    if let Some(time) = meta.time.as_mut() {
+        time.remove("1.0.1");
+    }
+    let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
+        .expect_err("missing-time on a prior version must not mask the 1.0.0 baseline");
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}

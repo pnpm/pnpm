@@ -19,6 +19,7 @@ mod fetch_full_metadata_cached;
 mod lookup_context;
 mod mirror;
 mod named_registry;
+mod registry_url;
 mod trust_checks;
 mod violation_codes;
 

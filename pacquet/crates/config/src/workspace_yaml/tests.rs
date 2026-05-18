@@ -755,7 +755,8 @@ trustPolicyIgnoreAfter: 525600
     assert_eq!(config.cache_dir, Path::new("/proj/.pacquet-cache"));
     assert_eq!(config.minimum_release_age, Some(1440));
     assert!(config.minimum_release_age_ignore_missing_time);
-    assert!(config.minimum_release_age_strict);
+    assert_eq!(config.minimum_release_age_strict, Some(true));
+    assert!(config.resolved_minimum_release_age_strict());
     assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
     assert_eq!(config.trust_policy_ignore_after, Some(525_600));
 }

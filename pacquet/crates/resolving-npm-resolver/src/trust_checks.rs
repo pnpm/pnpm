@@ -212,7 +212,15 @@ fn detect_strongest_trust_evidence_before(
         if exclude_prerelease && is_prerelease(version) {
             continue;
         }
-        let ts = meta.published_at(version)?;
+        // Skip individual versions that lack a publish timestamp
+        // rather than aborting the entire history walk: a single
+        // prior version with no `time` entry would otherwise mask
+        // every earlier version's evidence and allow a downgrade
+        // to slip through. Matches the upstream behavior of
+        // checking each timestamp in isolation.
+        let Some(ts) = meta.published_at(version) else {
+            continue;
+        };
         let parsed = match DateTime::parse_from_rfc3339(ts) {
             Ok(parsed) => parsed.with_timezone(&Utc),
             Err(_) => continue,

@@ -28,6 +28,7 @@ use crate::{
         FULL_META_DIR, get_pkg_mirror_path, load_meta, load_meta_headers, prepare_json_for_disk,
         save_meta,
     },
+    registry_url::to_registry_url,
 };
 
 /// Options bundle for [`fetch_full_metadata_cached`]. Mirrors
@@ -103,7 +104,7 @@ pub async fn fetch_full_metadata_cached(
     };
     let cache_headers = mirror_path.as_deref().and_then(load_meta_headers);
 
-    let url = format!("{registry}{name}", registry = opts.registry, name = pkg_name);
+    let url = to_registry_url(opts.registry, pkg_name);
     let mut request = opts
         .http_client
         .acquire_for_url(&url)

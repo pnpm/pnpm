@@ -451,7 +451,7 @@ impl WorkspaceSettings {
             config.minimum_release_age_ignore_missing_time = v;
         }
         if let Some(v) = self.minimum_release_age_strict {
-            config.minimum_release_age_strict = v;
+            config.minimum_release_age_strict = Some(v);
         }
         if let Some(v) = self.trust_policy {
             config.trust_policy = v;

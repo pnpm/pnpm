@@ -215,13 +215,14 @@ fn collect_candidates(lockfile: &Lockfile) -> Vec<Candidate> {
     for (key, metadata) in packages {
         let name = key.name.clone();
         let version = key.suffix.version().to_string();
-        let resolution_json = match serde_json::to_string(&metadata.resolution) {
-            Ok(json) => json,
-            // A resolution that fails to serialize is a logic bug —
-            // skip it instead of crashing the install. The verifier
-            // would have nothing to do with it anyway.
-            Err(_) => continue,
-        };
+        // Every `LockfileResolution` variant derives `Serialize`, and
+        // the wire shape never contains non-string keys or non-finite
+        // numbers — the only way this `expect` could fire is a future
+        // variant that breaks the contract. Fail loudly rather than
+        // skipping the candidate, which would silently bypass
+        // verification for that lockfile entry.
+        let resolution_json = serde_json::to_string(&metadata.resolution)
+            .expect("LockfileResolution must serialize for candidate dedupe");
         let key = format!("{name}@{version}@{resolution_json}");
         deduped.entry(key).or_insert(Candidate {
             name,
@@ -316,6 +317,12 @@ fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerification
 /// replaces the queued message and emits it on drop instead.
 struct TerminalEmitGuard<Reporter: self::Reporter> {
     pending: Option<LockfileVerificationMessage>,
+    /// `Started` instant captured at runner entry. The Drop impl uses
+    /// it to refresh `elapsed_ms` on the Failed branch (the field is
+    /// stale on the `pending` payload — it was built at guard
+    /// construction, before the fan-out ran). `Done` payloads land
+    /// via [`Self::cancel`] with their own up-to-date `elapsed_ms`.
+    started_at: Instant,
     _reporter: std::marker::PhantomData<Reporter>,
 }
 
@@ -324,9 +331,12 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
         Self {
             pending: Some(LockfileVerificationMessage::Failed {
                 entries,
-                elapsed_ms: started_at.elapsed().as_millis() as u64,
+                // Placeholder; the Drop impl overwrites this with
+                // the real elapsed when the guard actually fires.
+                elapsed_ms: 0,
                 lockfile_path,
             }),
+            started_at,
             _reporter: std::marker::PhantomData,
         }
     }
@@ -340,15 +350,15 @@ impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
     fn drop(&mut self) {
         if let Some(message) = self.pending.take() {
             // Refresh `elapsed_ms` on the Failed branch only — the
-            // success branch already filled the up-to-date value.
+            // success branch already filled the up-to-date value via
+            // `cancel(Done { elapsed_ms: <now> })`.
             let message = match message {
                 LockfileVerificationMessage::Failed { entries, lockfile_path, .. } => {
-                    // The "Failed" guard's `elapsed_ms` was set at
-                    // construction (before the fan-out ran), so the
-                    // value would be ~0 on a panic path. We can't
-                    // recapture `started_at` here, so the docs note
-                    // that `elapsed_ms` on a panic is best-effort.
-                    LockfileVerificationMessage::Failed { entries, elapsed_ms: 0, lockfile_path }
+                    LockfileVerificationMessage::Failed {
+                        entries,
+                        elapsed_ms: self.started_at.elapsed().as_millis() as u64,
+                        lockfile_path,
+                    }
                 }
                 other => other,
             };

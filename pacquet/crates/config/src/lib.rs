@@ -661,7 +661,7 @@ pub struct Config {
     #[default(_code = "default_cache_dir::<Host, _>(home::home_dir)")]
     pub cache_dir: PathBuf,
 
-    /// Minimum age, in milliseconds, a published version must reach
+    /// Minimum age, in **minutes**, a published version must reach
     /// before pacquet accepts it. Drives the
     /// `MINIMUM_RELEASE_AGE_VIOLATION` verifier check on every
     /// `(name, version)` entry the lockfile loads under this policy.
@@ -669,8 +669,9 @@ pub struct Config {
     ///
     /// Mirrors pnpm's
     /// [`minimumReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L264)
-    /// in milliseconds, matching the value pnpm forwards through
-    /// `extendInstallOptions` to the verifier.
+    /// in minutes — the same unit pnpm's CLI / yaml accept and pnpm
+    /// forwards verbatim through `extendInstallOptions` to the
+    /// verifier.
     pub minimum_release_age: Option<u64>,
 
     /// Glob-style `name[@version]` patterns that opt specific packages
@@ -686,7 +687,11 @@ pub struct Config {
     /// cannot enforce the maturity cutoff. With this flag set,
     /// uncheckable entries pass with a one-time `globalWarn` instead
     /// of failing closed. Mirrors pnpm's
-    /// [`minimumReleaseAgeIgnoreMissingTime`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L266).
+    /// [`minimumReleaseAgeIgnoreMissingTime`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L266),
+    /// which defaults to `true` so a registry that strips `time`
+    /// (a self-hosted Verdaccio without provenance plugin, for
+    /// example) doesn't lock the user out.
+    #[default = true]
     pub minimum_release_age_ignore_missing_time: bool,
 
     /// When `true`, picks fresher-than-cutoff versions still abort
@@ -694,7 +699,14 @@ pub struct Config {
     /// Used by the resolver path; the verifier itself does not gate
     /// on this flag. Mirrors pnpm's
     /// [`minimumReleaseAgeStrict`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L267).
-    pub minimum_release_age_strict: bool,
+    ///
+    /// Upstream conditional default: `true` when
+    /// `minimumReleaseAge` is explicitly configured, `false`
+    /// otherwise. Modeled as [`Option`] here so the deserializer can
+    /// distinguish "unset" from "explicit `false`"; the install path
+    /// resolves the effective value via
+    /// [`Self::resolved_minimum_release_age_strict`].
+    pub minimum_release_age_strict: Option<bool>,
 
     /// Trust-evidence policy applied to lockfile entries; see
     /// [`TrustPolicy`].
@@ -725,6 +737,19 @@ pub struct Config {
 impl Config {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Effective value of [`Self::minimum_release_age_strict`].
+    /// Mirrors upstream's conditional default at
+    /// [`pnpm.io/settings`](https://pnpm.io/settings#minimumreleaseagestrict):
+    /// when the user did not explicitly set the flag, it defaults to
+    /// `true` if [`Self::minimum_release_age`] is set and `false`
+    /// otherwise. The verifier itself does not gate on this flag —
+    /// it's the resolver path that uses it — so this resolver lives
+    /// on `Config` for callers that eventually want it (today: none,
+    /// since pacquet's resolver isn't ported yet).
+    pub fn resolved_minimum_release_age_strict(&self) -> bool {
+        self.minimum_release_age_strict.unwrap_or_else(|| self.minimum_release_age.is_some())
     }
 
     /// Whether the install should consult the side-effects cache.

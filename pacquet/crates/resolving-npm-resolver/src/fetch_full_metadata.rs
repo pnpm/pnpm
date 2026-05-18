@@ -19,9 +19,8 @@
 
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_registry::Package;
-use pipe_trait::Pipe;
 
-use crate::FetchMetadataError;
+use crate::{FetchMetadataError, registry_url::to_registry_url};
 
 /// Options bundle for [`fetch_full_metadata`]. Mirrors upstream's
 /// `FetchFullMetadataCachedOptions` minus the cache fields, which the
@@ -42,25 +41,34 @@ pub async fn fetch_full_metadata(
     opts: &FetchFullMetadataOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
     // Format once and reuse for the request, the auth-header lookup,
-    // and the error mapper. Mirrors the pattern
-    // [`Package::fetch_from_registry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts)
-    // ports.
-    let url = format!("{registry}{name}", registry = opts.registry, name = pkg_name);
+    // and the error mapper. Mirrors upstream's
+    // [`toUri`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts)
+    // — scoped names get the `/` after the `@scope` percent-encoded
+    // so the registry routes the request to the package as a single
+    // path segment, not two.
+    let url = to_registry_url(opts.registry, pkg_name);
     let mut request =
         opts.http_client.acquire_for_url(&url).await.get(&url).header("accept", "application/json");
     if let Some(value) = opts.auth_headers.for_url(&url) {
         request = request.header("authorization", value);
     }
-    request
+    let response = request
         .send()
         .await
         .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?
         .error_for_status()
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?
-        .json::<Package>()
+        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+    // Decode in two steps so a JSON-shape mismatch surfaces as
+    // `FetchMetadataError::Decode` (with the serde_json error), not
+    // as `Network` (which `.json::<T>()` would do, conflating
+    // transport and parse failures and losing the
+    // `decode_error` diagnostic code).
+    let raw_body = response
+        .text()
         .await
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?
-        .pipe(Ok)
+        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+    serde_json::from_str(&raw_body)
+        .map_err(|error| FetchMetadataError::Decode { url: url.clone(), error })
 }
 
 #[cfg(test)]
