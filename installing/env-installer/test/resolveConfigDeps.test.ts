@@ -45,6 +45,76 @@ test('configuration dependency is resolved', async () => {
   expect(envLockfile!.snapshots['@pnpm.e2e/foo@100.0.0']).toStrictEqual({})
 })
 
+test('one level of optionalDependencies is recorded in the env lockfile with platform fields', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  await resolveConfigDeps(['@pnpm.e2e/support-different-architectures@1.0.0'], {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+  })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+
+  const parentKey = '@pnpm.e2e/support-different-architectures@1.0.0'
+  expect(envLockfile!.snapshots[parentKey]).toStrictEqual({
+    optionalDependencies: {
+      '@pnpm.e2e/only-darwin-arm64': '1.0.0',
+      '@pnpm.e2e/only-darwin-x64': '1.0.0',
+      '@pnpm.e2e/only-linux-arm64-glibc': '1.0.0',
+      '@pnpm.e2e/only-linux-arm64-musl': '1.0.0',
+      '@pnpm.e2e/only-linux-x64-glibc': '1.0.0',
+      '@pnpm.e2e/only-linux-x64-musl': '1.0.0',
+      '@pnpm.e2e/only-win32-arm64': '1.0.0',
+      '@pnpm.e2e/only-win32-x64': '1.0.0',
+    },
+  })
+
+  // Each optional subdep is in `packages` with its os/cpu fields preserved for
+  // install-time platform filtering, and gets an empty snapshot.
+  expect(envLockfile!.packages['@pnpm.e2e/only-darwin-arm64@1.0.0']).toStrictEqual({
+    resolution: {
+      integrity: getIntegrity('@pnpm.e2e/only-darwin-arm64', '1.0.0'),
+    },
+    os: ['darwin'],
+    cpu: ['arm64'],
+  })
+  expect(envLockfile!.snapshots['@pnpm.e2e/only-darwin-arm64@1.0.0']).toStrictEqual({})
+  expect(envLockfile!.packages['@pnpm.e2e/only-linux-x64-musl@1.0.0']).toBeDefined()
+
+  // The parent config dep itself is still registered as the only top-level config dep.
+  expect(envLockfile!.importers['.'].configDependencies).toStrictEqual({
+    '@pnpm.e2e/support-different-architectures': {
+      specifier: '1.0.0',
+      version: '1.0.0',
+    },
+  })
+})
+
+test('config dep with no optionalDependencies keeps an empty snapshot', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  await resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+  })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile!.snapshots['@pnpm.e2e/foo@100.0.0']).toStrictEqual({})
+})
+
 test('fails with frozenLockfile', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()

@@ -6175,6 +6175,9 @@ importers:
 
   installing/env-installer:
     dependencies:
+      '@pnpm/config.package-is-installable':
+        specifier: workspace:*
+        version: link:../../config/package-is-installable
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package

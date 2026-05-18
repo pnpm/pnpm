@@ -1,0 +1,80 @@
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { PnpmError } from '@pnpm/error'
+import type { EnvLockfile } from '@pnpm/lockfile.fs'
+import type { ResolvedDependencies } from '@pnpm/lockfile.types'
+import { toLockfileResolution } from '@pnpm/lockfile.utils'
+import type { createNpmResolver } from '@pnpm/resolving.npm-resolver'
+import type { DependencyManifest, Registries } from '@pnpm/types'
+
+type ResolveFromNpm = ReturnType<typeof createNpmResolver>['resolveFromNpm']
+
+export interface ResolveOptionalSubdepsOpts {
+  envLockfile: EnvLockfile
+  lockfileDir: string
+  registries: Registries
+  resolveFromNpm: ResolveFromNpm
+}
+
+export async function resolveOptionalSubdeps (
+  parentName: string,
+  parentManifest: DependencyManifest,
+  opts: ResolveOptionalSubdepsOpts
+): Promise<ResolvedDependencies | undefined> {
+  const optionalDeps = parentManifest.optionalDependencies
+  if (!optionalDeps || Object.keys(optionalDeps).length === 0) {
+    return undefined
+  }
+
+  const resolved: ResolvedDependencies = {}
+  await Promise.all(Object.entries(optionalDeps).map(async ([subdepName, subdepSpec]) => {
+    let resolution
+    try {
+      resolution = await opts.resolveFromNpm({ alias: subdepName, bareSpecifier: subdepSpec }, {
+        lockfileDir: opts.lockfileDir,
+        preferredVersions: {},
+        projectDir: opts.lockfileDir,
+      })
+    } catch {
+      // npm's optionalDependencies semantics: a failed resolution is not fatal.
+      return
+    }
+    if (
+      resolution?.resolution == null ||
+      !('integrity' in resolution.resolution) ||
+      typeof resolution.resolution.integrity !== 'string' ||
+      !resolution.resolution.integrity ||
+      resolution.manifest == null
+    ) {
+      throw new PnpmError(
+        'BAD_CONFIG_DEP',
+        `Cannot resolve optionalDependency "${subdepName}" of config dependency "${parentName}" because it has no integrity`
+      )
+    }
+    const subdepVersion = resolution.manifest.version
+    const registry = pickRegistryForPackage(opts.registries, subdepName)
+    const subdepKey = `${subdepName}@${subdepVersion}`
+
+    opts.envLockfile.packages[subdepKey] = {
+      resolution: toLockfileResolution(
+        { name: subdepName, version: subdepVersion },
+        resolution.resolution,
+        registry
+      ),
+      ...pickPlatformFields(resolution.manifest),
+    }
+    if (opts.envLockfile.snapshots[subdepKey] == null) {
+      opts.envLockfile.snapshots[subdepKey] = {}
+    }
+    resolved[subdepName] = subdepVersion
+  }))
+
+  return Object.keys(resolved).length > 0 ? resolved : undefined
+}
+
+function pickPlatformFields (manifest: DependencyManifest): { os?: string[], cpu?: string[], libc?: string[] } {
+  const out: { os?: string[], cpu?: string[], libc?: string[] } = {}
+  if (manifest.os?.length) out.os = manifest.os
+  if (manifest.cpu?.length) out.cpu = manifest.cpu
+  if (manifest.libc?.length) out.libc = manifest.libc
+  return out
+}

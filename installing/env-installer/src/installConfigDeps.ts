@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
 import { calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
@@ -15,7 +16,7 @@ import getNpmTarballUrl from 'get-npm-tarball-url'
 import { symlinkDir } from 'symlink-dir'
 
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
-import type { NormalizedConfigDep } from './parseIntegrity.js'
+import type { NormalizedConfigDep, NormalizedSubdep } from './parseIntegrity.js'
 
 export interface InstallConfigDepsOpts {
   frozenLockfile?: boolean
@@ -72,6 +73,16 @@ export async function installConfigDeps (
         force: true,
         requiresBuild: false,
         filesResponse,
+      })
+    }
+    if (pkg.optionalSubdeps?.length) {
+      await installOptionalSubdeps({
+        parentName: pkgName,
+        subdeps: pkg.optionalSubdeps,
+        parentNodeModulesDir: path.dirname(pkgDirInGlobalVirtualStore),
+        globalVirtualStoreDir,
+        rootDir: opts.rootDir,
+        store: opts.store,
       })
     }
     if (existingConfigDeps.includes(pkgName)) {
@@ -149,13 +160,109 @@ function normalizeFromLockfile (
       )
     }
     const registry = pickRegistryForPackage(registries, pkgName)
+    const snapshot = lockfile.snapshots[pkgKey]
+    const optionalSubdeps = snapshot?.optionalDependencies
+      ? readOptionalSubdepsFromLockfile(pkgName, snapshot.optionalDependencies, lockfile, registries)
+      : undefined
     deps[pkgName] = {
       version,
       resolution: {
         integrity: resolution.integrity,
         tarball: resolution.tarball ?? getNpmTarballUrl(pkgName, version, { registry }),
       },
+      optionalSubdeps,
     }
   }
   return deps
+}
+
+function readOptionalSubdepsFromLockfile (
+  parentName: string,
+  optionalDeps: Record<string, string>,
+  lockfile: EnvLockfile,
+  registries: Registries
+): NormalizedSubdep[] {
+  const subdeps: NormalizedSubdep[] = []
+  for (const [subdepName, subdepVersion] of Object.entries(optionalDeps)) {
+    const subdepKey = `${subdepName}@${subdepVersion}`
+    const subdepInfo = lockfile.packages[subdepKey]
+    if (!subdepInfo) {
+      throw new PnpmError(
+        'ENV_LOCKFILE_CORRUPTED',
+        `pnpm-lock.yaml is corrupted or incomplete: missing packages entry for "${subdepKey}" ` +
+        `referenced from optionalDependencies of config dependency "${parentName}"`
+      )
+    }
+    const subdepResolution = subdepInfo.resolution as { integrity?: string; tarball?: string }
+    if (!subdepResolution.integrity) {
+      throw new PnpmError(
+        'ENV_LOCKFILE_CORRUPTED',
+        `pnpm-lock.yaml is corrupted or incomplete: missing integrity for "${subdepKey}"`
+      )
+    }
+    const registry = pickRegistryForPackage(registries, subdepName)
+    subdeps.push({
+      name: subdepName,
+      version: subdepVersion,
+      resolution: {
+        integrity: subdepResolution.integrity,
+        tarball: subdepResolution.tarball ?? getNpmTarballUrl(subdepName, subdepVersion, { registry }),
+      },
+      os: subdepInfo.os,
+      cpu: subdepInfo.cpu,
+      libc: subdepInfo.libc,
+    })
+  }
+  return subdeps
+}
+
+interface InstallOptionalSubdepsOpts {
+  parentName: string
+  subdeps: NormalizedSubdep[]
+  parentNodeModulesDir: string
+  globalVirtualStoreDir: string
+  rootDir: string
+  store: StoreController
+}
+
+async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promise<void> {
+  const compatibleSubdeps = opts.subdeps.filter((subdep) => {
+    if (!subdep.os && !subdep.cpu && !subdep.libc) return true
+    return packageIsInstallable(
+      `${subdep.name}@${subdep.version}`,
+      { name: subdep.name, version: subdep.version, os: subdep.os, cpu: subdep.cpu, libc: subdep.libc },
+      { optional: true, lockfileDir: opts.rootDir }
+    ) === true
+  })
+
+  const expectedSiblings = new Set([opts.parentName, ...compatibleSubdeps.map((s) => s.name)])
+  const existingSiblings = await readModulesDir(opts.parentNodeModulesDir) ?? []
+  await Promise.all(existingSiblings
+    .filter((name) => !expectedSiblings.has(name))
+    .map((name) => rimraf(path.join(opts.parentNodeModulesDir, name))))
+
+  await Promise.all(compatibleSubdeps.map(async (subdep) => {
+    const subdepFullPkgId = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
+    const subdepRelPath = calcLeafGlobalVirtualStorePath(subdepFullPkgId, subdep.name, subdep.version)
+    const subdepDirInGlobalVirtualStore = path.join(opts.globalVirtualStoreDir, subdepRelPath, 'node_modules', subdep.name)
+    if (!fs.existsSync(path.join(subdepDirInGlobalVirtualStore, 'package.json'))) {
+      const { fetching } = await opts.store.fetchPackage({
+        force: true,
+        lockfileDir: opts.rootDir,
+        pkg: {
+          id: `${subdep.name}@${subdep.version}`,
+          resolution: subdep.resolution,
+        },
+      })
+      const { files: filesResponse } = await fetching()
+      await opts.store.importPackage(subdepDirInGlobalVirtualStore, {
+        force: true,
+        requiresBuild: false,
+        filesResponse,
+      })
+    }
+    const linkPath = path.join(opts.parentNodeModulesDir, subdep.name)
+    await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
+    await symlinkDir(subdepDirInGlobalVirtualStore, linkPath)
+  }))
 }
