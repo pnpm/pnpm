@@ -134,7 +134,7 @@ describe('lockfile minimumReleaseAge verification', () => {
       cacheDir,
     })
 
-    await execPnpm(
+    execPnpmSync(
       [PUBLIC_REGISTRY, 'add', 'is-positive@1.0.0'],
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
