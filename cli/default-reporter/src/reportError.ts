@@ -72,7 +72,7 @@ function getErrorInfo (logObj: Log, config?: Config): ErrorInfo | null {
         return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
       case 'ERR_PNPM_NO_MATCHING_VERSION':
       case 'ERR_PNPM_NO_MATURE_MATCHING_VERSION':
-        return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta, immatureVersion?: string })
+        return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta, immatureVersion?: string, hint?: string })
       case 'ERR_PNPM_RECURSIVE_FAIL':
         return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
       case 'ERR_PNPM_BAD_TARBALL_SIZE':
@@ -134,7 +134,7 @@ interface PackageMeta {
   time?: Record<string, string>
 }
 
-function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, immatureVersion?: string }) {
+function formatNoMatchingVersion (err: Error & { hint?: string }, msg: { packageMeta: PackageMeta, immatureVersion?: string, hint?: string }) {
   const meta: PackageMeta = msg.packageMeta
   const latestVersion = meta['dist-tags'].latest
   let output = `The latest release of ${meta.name} is "${latestVersion}".`
@@ -163,6 +163,9 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, i
 
   if (msg.immatureVersion) {
     output += `${EOL}${EOL}If you want to install the matched version ignoring the time it was published, you can add the package name to the minimumReleaseAgeExclude setting. Read more about it: https://pnpm.io/settings#minimumreleaseageexclude`
+  }
+  if (msg.hint ?? err.hint) {
+    output += `${EOL}${EOL}${msg.hint ?? err.hint}`
   }
 
   return {

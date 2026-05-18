@@ -62,6 +62,7 @@ export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta
   registry: string
+  hint?: string
   immatureVersion?: string
   publishedBy?: Date
 }
@@ -82,7 +83,7 @@ export class NoMatchingVersionError extends PnpmError {
     } else {
       errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
     }
-    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage)
+    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage, { hint: opts.hint })
     this.packageMeta = opts.packageMeta
     this.immatureVersion = opts.immatureVersion
   }
@@ -420,6 +421,10 @@ async function resolveNpm (
       } catch {
         // ignore
       }
+      const workspaceHint = getWorkspaceVersionsHint(workspacePackages, spec)
+      if (workspaceHint) {
+        appendHint(err, workspaceHint)
+      }
     }
     throw err
   }
@@ -442,6 +447,9 @@ async function resolveNpm (
         // ignore
       }
     }
+    const workspaceHint = workspacePackages != null
+      ? getWorkspaceVersionsHint(workspacePackages, spec)
+      : undefined
 
     if (opts.publishedBy) {
       const immatureVersion = pickVersionByVersionRange({
@@ -454,12 +462,13 @@ async function resolveNpm (
           wantedDependency,
           packageMeta: meta,
           registry,
+          hint: workspaceHint,
           immatureVersion,
           publishedBy: opts.publishedBy,
         })
       }
     }
-    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
+    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry, hint: workspaceHint })
   } else if (opts.trustPolicy === 'no-downgrade') {
     failIfTrustDowngraded(meta, pickedPackage.version, opts)
   }
@@ -774,7 +783,7 @@ function tryResolveFromWorkspacePackages (
     opts.update ? { name: spec.name, fetchSpec: '*', type: 'range' } : spec
   )
   if (!localVersion) {
-    const availableVersions = Array.from(workspacePkgsMatchingName.keys()).sort((a, b) => semver.rcompare(a, b))
+    const availableVersions = getAvailableWorkspaceVersions(workspacePkgsMatchingName)
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
       `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.bareSpecifier ?? ''} inside the workspace` +
@@ -787,6 +796,29 @@ function tryResolveFromWorkspacePackages (
     )
   }
   return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, opts)
+}
+
+function appendHint (err: Error, hint: string): void {
+  const errorWithHint = err as Error & { hint?: string }
+  errorWithHint.hint = errorWithHint.hint
+    ? `${errorWithHint.hint}\n\n${hint}`
+    : hint
+}
+
+function getWorkspaceVersionsHint (
+  workspacePackages: WorkspacePackages,
+  spec: RegistryPackageSpec
+): string | undefined {
+  const workspacePkgsMatchingName = workspacePackages.get(spec.name)
+  if (!workspacePkgsMatchingName) return undefined
+  if (pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)) return undefined
+  const availableVersions = getAvailableWorkspaceVersions(workspacePkgsMatchingName)
+  if (availableVersions.length === 0) return undefined
+  return `Available workspace versions for "${spec.name}": ${availableVersions.join(', ')}`
+}
+
+function getAvailableWorkspaceVersions (workspacePkgsMatchingName: WorkspacePackagesByVersion): string[] {
+  return Array.from(workspacePkgsMatchingName.keys()).sort((a, b) => semver.rcompare(a, b))
 }
 
 function pickMatchingLocalVersionOrNull (
