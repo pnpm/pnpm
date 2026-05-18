@@ -15,13 +15,17 @@ mod errors;
 mod fetch_attestation_published_at;
 mod fetch_full_metadata;
 mod named_registry;
+mod trust_checks;
 mod violation_codes;
 
 pub use errors::FetchMetadataError;
-pub use fetch_attestation_published_at::fetch_attestation_published_at;
+pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
 pub use fetch_full_metadata::{FetchFullMetadataOptions, fetch_full_metadata};
 pub use named_registry::{
     BUILTIN_NAMED_REGISTRIES, build_named_registry_prefixes, pick_registry_for_package,
     pick_registry_for_version,
+};
+pub use trust_checks::{
+    TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,
 };
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
