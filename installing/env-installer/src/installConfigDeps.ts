@@ -57,7 +57,14 @@ export async function installConfigDeps (
     }
     installingConfigDepsLogger.debug({ status: 'started' })
     const fullPkgId = `${pkgName}@${pkg.version}:${pkg.resolution.integrity}`
-    const relPath = calcLeafGlobalVirtualStorePath(fullPkgId, pkgName, pkg.version)
+    // The parent's GVS hash must incorporate its optional subdeps; otherwise
+    // changing a subdep version while keeping the parent pinned would collide
+    // on the same leaf and silently overwrite the previous sibling symlinks.
+    const optionalSubdepIds: Record<string, string> = {}
+    for (const subdep of pkg.optionalSubdeps ?? []) {
+      optionalSubdepIds[subdep.name] = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
+    }
+    const relPath = calcLeafGlobalVirtualStorePath(fullPkgId, pkgName, pkg.version, optionalSubdepIds)
     const pkgDirInGlobalVirtualStore = path.join(globalVirtualStoreDir, relPath, 'node_modules', pkgName)
     if (!fs.existsSync(path.join(pkgDirInGlobalVirtualStore, 'package.json'))) {
       const { fetching } = await opts.store.fetchPackage({

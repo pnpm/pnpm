@@ -249,8 +249,24 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   return formatGlobalVirtualStorePath(name, version, hexDigest)
 }
 
-export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string, version: string): string {
-  const depsHash = hashObject({ id: fullPkgId, deps: {} })
+/**
+ * `deps` maps each direct child's alias to its full pkg id
+ * (`${name}@${version}:${integrity}`); pass `{}` when the package has no
+ * traversable dependency subtree. Children themselves are treated as leaves —
+ * one level deep only, matching the config-dependency surface where this is
+ * used today.
+ */
+export function calcLeafGlobalVirtualStorePath (
+  fullPkgId: string,
+  name: string,
+  version: string,
+  deps: Record<string, string> = {}
+): string {
+  const childHashes: Record<string, string> = {}
+  for (const [alias, childFullPkgId] of Object.entries(deps)) {
+    childHashes[alias] = hashObject({ id: childFullPkgId, deps: {} })
+  }
+  const depsHash = hashObject({ id: fullPkgId, deps: childHashes })
   const hexDigest = hashObjectWithoutSorting({ engine: null, deps: depsHash }, { encoding: 'hex' })
   return formatGlobalVirtualStorePath(name, version, hexDigest)
 }
