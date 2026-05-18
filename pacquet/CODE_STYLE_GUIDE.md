@@ -795,7 +795,7 @@ Stateful fakes (deterministic clock, recording reads) hold their state in a `sta
 ```rust
 #[test]
 fn read_fills_in_pruned_at_when_missing() {
-    static FAKE_NOW: SystemTime = /* fixed instant */;
+    static FAKE_NOW: SystemTime = SystemTime::UNIX_EPOCH;
     struct FakeClock;
     impl Clock for FakeClock {
         fn now() -> SystemTime { FAKE_NOW }
@@ -803,7 +803,9 @@ fn read_fills_in_pruned_at_when_missing() {
     // The `static` lives in this fn's scope, so other tests get
     // independent storage and never race on it. The provider type
     // stays an empty unit struct; the state lives next to the test
-    // that needs it.
+    // that needs it. Use `SystemTime::UNIX_EPOCH` (a `const`) for a
+    // const-initialised static, or `LazyLock` when the desired value
+    // needs a runtime constructor.
     // ...
 }
 ```

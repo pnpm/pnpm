@@ -1,22 +1,22 @@
-//! Capability traits and the project-wide [`Host`] provider.
+//! Capability traits and the [`Host`] provider for this crate.
 //!
-//! Mirrors the dependency-injection pattern documented in
-//! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339): one
-//! trait per capability, one provider gathering every capability impl
-//! used across the codebase, all methods static. Production callers
-//! turbofish the real provider explicitly
-//! (e.g. `Config::current::<Host>(...)`); tests substitute a
-//! per-test unit struct that implements only the bounds the function
-//! actually declares, with any per-test scenario data stored in a
-//! `static` inside the test fn.
+//! Each crate that needs to thread a side-effecting capability through
+//! a generic seam declares its own capability traits and its own
+//! `Host` provider; this is the one for `pacquet-config`. Production
+//! callers turbofish the real provider explicitly
+//! (e.g. `Config::current::<Host>(...)`); tests substitute a per-test
+//! unit struct that implements only the bounds the function actually
+//! declares, with any per-test scenario data stored in a `static`
+//! inside the test fn.
 //!
-//! Today the provider only exposes [`EnvVar`]. As more side-effecting
-//! capabilities are introduced (filesystem, disk inspection, time,
-//! …) their `impl … for Host` blocks land here too, so callers
-//! never juggle multiple providers. Trait names keep their domain
-//! prefix (`Fs*`, `GetDisk*`, `Env*`, …) so a reader can identify
-//! which domain a generic bound belongs to without chasing
-//! definitions.
+//! Today this provider only exposes [`EnvVar`]. As more side-effecting
+//! capabilities are introduced into `pacquet-config` (filesystem reads
+//! for `.npmrc`, network probes for auth, …) their `impl … for Host`
+//! blocks land here too. Trait names keep their domain prefix (`Fs*`,
+//! `GetDisk*`, `Env*`, …) so a reader can identify which domain a
+//! generic bound belongs to without chasing definitions. See the
+//! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
+//! section of the style guide for the full convention.
 
 /// Capability: read a process environment variable.
 ///

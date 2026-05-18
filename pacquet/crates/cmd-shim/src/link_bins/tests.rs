@@ -308,10 +308,10 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     assert!(bins.join("foo.ps1").exists(), ".ps1 sibling must be re-created on second pass");
 }
 
-/// [`link_bins_of_packages`] propagates a non-`NotFound` `read_dir`
-/// error from the calling context. Use a fake `Sys` that fails the
-/// initial `create_dir_all` to cover the [`LinkBinsError::CreateBinDir`]
-/// error variant that real fs can't trigger portably.
+/// [`link_bins_of_packages`] propagates a `create_dir_all` failure on
+/// the destination bins directory as [`LinkBinsError::CreateBinDir`].
+/// Use a fake `Sys` that fails the initial `create_dir_all` to drive
+/// the variant, since the real fs can't trigger it portably.
 #[test]
 fn link_bins_propagates_create_bin_dir_error_via_di() {
     use std::io;
