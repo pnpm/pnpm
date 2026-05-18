@@ -326,7 +326,7 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
 /// stale dirent and retries. We use `symlink_metadata` so we identify
 /// the dirent type without following a symlink.
 fn remove_stale_cafs_entry(path: &Path) {
-    let is_dir = fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_dir());
+    let is_dir = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir());
     let result = if is_dir { fs::remove_dir_all(path) } else { fs::remove_file(path) };
     if let Err(error) = result {
         tracing::debug!(
