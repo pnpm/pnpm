@@ -197,6 +197,61 @@ test('optional subdep that does not match the current platform is skipped', asyn
   expect(() => requireFromParent.resolve(`${subdepName}/package.json`)).toThrow(/Cannot find/)
 })
 
+test('platform change between runs prunes the stale sibling and relinks the new compatible one', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepA = { name: '@pnpm.e2e/bar', version: '100.0.0' }
+  const subdepB = { name: '@pnpm.e2e/qar', version: '100.0.0' }
+
+  // Same parent + same subdep versions → same leaf hash both runs. Only the
+  // os field on each subdep changes, which the lockfile's leaf hash doesn't
+  // capture but the install-time selector does. The realpath skip-check
+  // would match, so we rely on installOptionalSubdeps running unconditionally.
+  function buildLockfile (matching: { name: string, version: string }, other: { name: string, version: string }): EnvLockfile {
+    const lockfile = createEnvLockfile()
+    const parentKey = `${parentName}@${parentVersion}`
+    lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+    lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+    lockfile.snapshots[parentKey] = {
+      optionalDependencies: {
+        [matching.name]: matching.version,
+        [other.name]: other.version,
+      },
+    }
+    lockfile.packages[`${matching.name}@${matching.version}`] = {
+      resolution: { integrity: getIntegrity(matching.name, matching.version) },
+      os: [process.platform],
+    }
+    lockfile.packages[`${other.name}@${other.version}`] = {
+      resolution: { integrity: getIntegrity(other.name, other.version) },
+      os: ['this-os-does-not-exist'],
+    }
+    return lockfile
+  }
+
+  const installOpts = {
+    registries: { default: registry },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  }
+
+  // First run: A compatible, B incompatible.
+  await installConfigDeps(buildLockfile(subdepA, subdepB), installOpts)
+  const requireRun1 = createRequire(path.join(fs.realpathSync(`node_modules/.pnpm-config/${parentName}`), 'package.json'))
+  expect(() => requireRun1.resolve(`${subdepA.name}/package.json`)).not.toThrow()
+  expect(() => requireRun1.resolve(`${subdepB.name}/package.json`)).toThrow(/Cannot find/)
+
+  // Second run, roles swapped: B compatible, A incompatible. Same leaf hash.
+  await installConfigDeps(buildLockfile(subdepB, subdepA), installOpts)
+  const requireRun2 = createRequire(path.join(fs.realpathSync(`node_modules/.pnpm-config/${parentName}`), 'package.json'))
+  expect(() => requireRun2.resolve(`${subdepB.name}/package.json`)).not.toThrow()
+  expect(() => requireRun2.resolve(`${subdepA.name}/package.json`)).toThrow(/Cannot find/)
+})
+
 test('optional subdep that does not match the current cpu is skipped', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()

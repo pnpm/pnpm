@@ -58,13 +58,16 @@ export async function installConfigDeps (
     }
     const relPath = calcLeafGlobalVirtualStorePath(fullPkgId, pkgName, pkg.version, optionalSubdepIds)
     const pkgDirInGlobalVirtualStore = path.join(globalVirtualStoreDir, relPath, 'node_modules', pkgName)
-    // The package.json name/version match isn't sufficient: a subdep version
-    // change (or a platform change) keeps name/version stable but moves the
-    // expected leaf. Compare the symlink's realpath against the expected leaf
-    // so we re-install whenever any input that feeds the leaf hash changed.
-    if (existingConfigDeps.includes(pkgName) && await symlinkPointsTo(configDepPath, pkgDirInGlobalVirtualStore)) {
-      return
-    }
+    // The leaf hash captures parent+subdep identities from the lockfile but
+    // not the host's `process.arch`/`process.platform` selection. So even if
+    // the symlink target is already the expected leaf, the sibling links
+    // inside that leaf may target the wrong platform binary if the host's
+    // effective arch changed between runs (e.g. Rosetta x64 vs arm64 on
+    // macOS). Short-circuit only the parent's re-import/re-symlink in that
+    // case; always run installOptionalSubdeps so platform-specific siblings
+    // get pruned and relinked.
+    const parentSymlinkAlreadyCorrect = existingConfigDeps.includes(pkgName) &&
+      await symlinkPointsTo(configDepPath, pkgDirInGlobalVirtualStore)
     installingConfigDepsLogger.debug({ status: 'started' })
     if (!fs.existsSync(path.join(pkgDirInGlobalVirtualStore, 'package.json'))) {
       const { fetching } = await opts.store.fetchPackage({
@@ -93,6 +96,9 @@ export async function installConfigDeps (
         rootDir: opts.rootDir,
         store: opts.store,
       })
+    }
+    if (parentSymlinkAlreadyCorrect) {
+      return
     }
     if (existingConfigDeps.includes(pkgName)) {
       await rimraf(configDepPath)
