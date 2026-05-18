@@ -120,6 +120,48 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 
+  test('a fresh install records the just-written lockfile in the verification cache', async () => {
+    // Reproduces the "install foo, rm -rf node_modules, install" flow:
+    // the lockfile written by the first install must be recorded under
+    // its post-resolution content, otherwise the second install re-runs
+    // the registry round-trip even though the resolver already enforced
+    // the policy when picking those versions.
+    prepare({})
+    const cacheDir = path.resolve('pnpm-cache')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 1,
+      minimumReleaseAgeStrict: true,
+      cacheDir,
+    })
+
+    await execPnpm(
+      [PUBLIC_REGISTRY, 'add', 'is-positive@1.0.0'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    expect(fs.existsSync(cacheFile)).toBe(true)
+    const lines = fs.readFileSync(cacheFile, 'utf8').split('\n').filter(Boolean)
+    const records = lines.map((line) => JSON.parse(line) as {
+      lockfile: { hash: string, path: string }
+      policy: Record<string, unknown>
+    })
+    const lockfilePath = path.resolve('pnpm-lock.yaml')
+    const recordForLockfile = records.find((r) => r.lockfile.path === lockfilePath)
+    expect(recordForLockfile).toBeDefined()
+    expect(recordForLockfile!.policy).toMatchObject({ minimumReleaseAge: 1 })
+
+    // Re-running install completes without hitting the registry to
+    // re-verify is-positive. We can't directly observe the network skip,
+    // but a clean run with --offline confirms the cache short-circuit
+    // works end-to-end (the verifier would otherwise need a registry
+    // round-trip to evaluate the cutoff).
+    execPnpmSync(
+      [PUBLIC_REGISTRY, '--offline', 'install', '--frozen-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+  })
+
   test('loose mode rejects immature lockfile entries that are not on minimumReleaseAgeExclude', () => {
     // The verifier now runs in loose mode too, so a lockfile produced under
     // no policy that still has immature pins is rejected the same way

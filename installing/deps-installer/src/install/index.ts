@@ -94,6 +94,7 @@ import {
   type ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
+import { recordLockfileVerified } from './recordLockfileVerified.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
@@ -1663,7 +1664,17 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
-        })
+        }).then(() =>
+          // Local resolution already enforced the same policy the verifier
+          // would re-check on the next install — record the fresh lockfile
+          // so that next run takes the cache fast path.
+          recordLockfileVerified({
+            cacheDir: opts.cacheDir,
+            lockfileDir: ctx.lockfileDir,
+            lockfile: newLockfile,
+            resolutionVerifiers: opts.resolutionVerifiers,
+          })
+        )
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile),
       (async () => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
@@ -1717,6 +1728,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } else {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
       await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
+      await recordLockfileVerified({
+        cacheDir: opts.cacheDir,
+        lockfileDir: ctx.lockfileDir,
+        lockfile: newLockfile,
+        resolutionVerifiers: opts.resolutionVerifiers,
+      })
     }
 
     if (opts.nodeLinker !== 'hoisted') {
@@ -2265,6 +2282,15 @@ async function installFromPnpmRegistry (
     }
 
     await writeWantedLockfile(lockfileDir, lockfile)
+    // The agent enforces minimumReleaseAge server-side (and no-downgrade
+    // is refused upstream at the agent gate), so the agent-resolved
+    // lockfile is policy-clean under the verifiers we'd run locally.
+    await recordLockfileVerified({
+      cacheDir: opts.cacheDir,
+      lockfileDir,
+      lockfile,
+      resolutionVerifiers: opts.resolutionVerifiers,
+    })
 
     logger.info({
       message: `Resolved ${agentStats.totalPackages} packages: ${agentStats.alreadyInStore} cached, ${agentStats.filesToDownload} files to download`,
