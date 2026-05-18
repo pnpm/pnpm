@@ -343,7 +343,7 @@ async fn failed_path_emits_failed_terminator() {
         LogEvent::LockfileVerification(log) => assert!(
             matches!(log.message, LockfileVerificationMessage::Failed { .. }),
             "expected Failed, got: {:?}",
-            log.message
+            log.message,
         ),
         other => panic!("expected LockfileVerification, got {other:?}"),
     }

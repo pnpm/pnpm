@@ -14,8 +14,8 @@
 //! - [`verifyLockfileResolutionsCache.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts)
 //!   — the JSONL stat-and-skip cache (lands in a follow-up slice).
 //!
-//! Public surface today: [`verify_lockfile_resolutions`],
-//! [`collect_resolution_policy_violations`], [`hash_lockfile`], and
+//! Public surface today: [`verify_lockfile_resolutions()`],
+//! [`collect_resolution_policy_violations()`], [`hash_lockfile()`], and
 //! [`VerifyError`].
 //!
 //! [`ResolutionVerifier`]: pacquet_resolving_resolver_base::ResolutionVerifier

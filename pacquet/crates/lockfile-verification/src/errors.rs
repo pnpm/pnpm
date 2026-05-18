@@ -41,10 +41,10 @@ pub struct RenderedViolation {
     pub reason: String,
 }
 
-/// Errors raised by [`crate::verify_lockfile_resolutions`]. Each
+/// Errors raised by [`crate::verify_lockfile_resolutions()`]. Each
 /// variant maps to the matching upstream `PnpmError` code. The
 /// formatted message includes the count + per-entry breakdown,
-/// trimmed to [`MAX_VIOLATIONS_TO_PRINT`].
+/// trimmed to `MAX_VIOLATIONS_TO_PRINT`.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum VerifyError {
@@ -89,28 +89,28 @@ impl VerifyError {
     pub fn from_rendered(violations: Vec<RenderedViolation>) -> Self {
         debug_assert!(!violations.is_empty(), "no violations → no error");
         let distinct_codes: std::collections::BTreeSet<&str> =
-            violations.iter().map(|v| v.code).collect();
+            violations.iter().map(|violation| violation.code).collect();
         let mixed = distinct_codes.len() > 1;
         let count = violations.len();
         let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
         let omitted = count.saturating_sub(visible_count);
 
         let mut breakdown = String::new();
-        for v in violations.iter().take(visible_count) {
+        for violation in violations.iter().take(visible_count) {
             if mixed {
                 breakdown.push_str(&format!(
                     "  {name}@{version} [{code}] {reason}\n",
-                    name = v.name,
-                    version = v.version,
-                    code = v.code,
-                    reason = v.reason,
+                    name = violation.name,
+                    version = violation.version,
+                    code = violation.code,
+                    reason = violation.reason,
                 ));
             } else {
                 breakdown.push_str(&format!(
                     "  {name}@{version} {reason}\n",
-                    name = v.name,
-                    version = v.version,
-                    reason = v.reason,
+                    name = violation.name,
+                    version = violation.version,
+                    reason = violation.reason,
                 ));
             }
         }

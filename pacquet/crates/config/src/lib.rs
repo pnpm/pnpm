@@ -690,7 +690,7 @@ pub struct Config {
     pub minimum_release_age_ignore_missing_time: bool,
 
     /// When `true`, picks fresher-than-cutoff versions still abort
-    /// rather than auto-collect into [`minimum_release_age_exclude`].
+    /// rather than auto-collect into [`Self::minimum_release_age_exclude`].
     /// Used by the resolver path; the verifier itself does not gate
     /// on this flag. Mirrors pnpm's
     /// [`minimumReleaseAgeStrict`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L267).

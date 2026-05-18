@@ -194,7 +194,7 @@ fn record_verification_merges_policies() {
     let line = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
     let record: CacheRecord = serde_json::from_str(line.trim_end()).expect("parse cache record");
     assert_eq!(record.policy.get("minimumReleaseAge").and_then(JsonValue::as_u64), Some(120));
-    assert_eq!(record.policy.get("trustPolicy").and_then(JsonValue::as_str), Some("no-downgrade"),);
+    assert_eq!(record.policy.get("trustPolicy").and_then(JsonValue::as_str), Some("no-downgrade"));
 }
 
 /// `record_verification` is idempotent on the same `(path, hash)`
@@ -217,7 +217,7 @@ fn append_only_log_records_each_call() {
         );
     }
     let contents = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
-    let lines: Vec<&str> = contents.lines().filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
     assert_eq!(lines.len(), 3);
 }
 
@@ -232,14 +232,26 @@ fn compaction_dedupes_by_path_and_hash() {
 
     // Pre-seed with a >1.5 MB file of duplicate records (same path,
     // same hash). After the next `record_verification`, compaction
-    // kicks in and trims to the latest entry.
+    // kicks in and trims to the latest entry. Serialize each record
+    // through serde so the path field round-trips correctly across
+    // platforms (Windows backslashes need JSON escaping).
     let mut seed = String::with_capacity(2 * 1024 * 1024);
-    let path_str = lockfile.to_string_lossy();
+    let mut counter: u64 = 0;
     while (seed.len() as u64) <= super::COMPACT_TRIGGER_BYTES {
-        seed.push_str(&format!(
-            "{{\"lockfile\":{{\"hash\":\"dup\",\"path\":\"{path_str}\",\"size\":0,\"mtimeNs\":\"0\",\"inode\":\"0\"}},\"verifiedAt\":\"{}\",\"policy\":{{}}}}\n",
-            seed.len()
-        ));
+        let record = CacheRecord {
+            lockfile: CacheLockfile {
+                hash: "dup".into(),
+                path: lockfile.to_string_lossy().into_owned(),
+                size: 0,
+                mtime_ns: "0".into(),
+                inode: "0".into(),
+            },
+            verified_at: counter.to_string(),
+            policy: serde_json::Map::new(),
+        };
+        seed.push_str(&serde_json::to_string(&record).expect("serialize record"));
+        seed.push('\n');
+        counter += 1;
     }
     fs::write(&cache_path, &seed).expect("seed cache");
     assert!(seed.len() as u64 > super::COMPACT_TRIGGER_BYTES, "seed must trigger compaction");
@@ -255,7 +267,7 @@ fn compaction_dedupes_by_path_and_hash() {
     );
 
     let contents = fs::read_to_string(&cache_path).expect("read post-compact");
-    let lines: Vec<&str> = contents.lines().filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
     assert!(lines.len() <= MAX_CACHE_ENTRIES + 1, "trimmed past cap: {}", lines.len());
     // Original duplicates collapsed to one (path, hash="dup"), plus
     // the freshly-recorded line with hash="new-hash".
@@ -269,11 +281,22 @@ fn compaction_dedupes_by_path_and_hash() {
 fn malformed_lines_are_tolerated_on_read() {
     let dir = TempDir::new().expect("tempdir");
     let lockfile = touch_lockfile(dir.path(), "lockfileVersion: '9.0'\n");
-    let path_str = lockfile.to_string_lossy();
+    // Build the record via the typed shape so the path encodes as
+    // a JSON string with proper escaping (matters on Windows where
+    // the lockfile path contains backslashes).
+    let record = CacheRecord {
+        lockfile: CacheLockfile {
+            hash: "H".into(),
+            path: lockfile.to_string_lossy().into_owned(),
+            size: 0,
+            mtime_ns: "0".into(),
+            inode: "0".into(),
+        },
+        verified_at: "now".into(),
+        policy: serde_json::Map::new(),
+    };
+    let good = serde_json::to_string(&record).expect("serialize record");
     let cache_path = dir.path().join(CACHE_FILE_NAME);
-    let good = format!(
-        r#"{{"lockfile":{{"hash":"H","path":"{path_str}","size":0,"mtimeNs":"0","inode":"0"}},"verifiedAt":"now","policy":{{}}}}"#
-    );
     let contents = format!("garbage line\n{good}\nmore garbage\n");
     fs::write(&cache_path, contents).expect("seed");
 
@@ -304,6 +327,6 @@ fn cache_lockfile_serializes_with_camelcase_fields() {
         policy: serde_json::Map::new(),
     };
     let json = serde_json::to_string(&record).expect("serialize");
-    assert!(json.contains("\"mtimeNs\":\"100\""), "got: {json}");
-    assert!(json.contains("\"verifiedAt\":\"now\""), "got: {json}");
+    assert!(json.contains(r#""mtimeNs":"100""#), "got: {json}");
+    assert!(json.contains(r#""verifiedAt":"now""#), "got: {json}");
 }

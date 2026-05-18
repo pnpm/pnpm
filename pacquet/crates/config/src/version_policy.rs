@@ -140,7 +140,7 @@ impl std::fmt::Debug for PackageVersionPolicy {
     // count and each rule's exact-versions list.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PackageVersionPolicy")
-            .field("rules", &self.rules.iter().map(|r| &r.exact_versions).collect::<Vec<_>>())
+            .field("rules", &self.rules.iter().map(|rule| &rule.exact_versions).collect::<Vec<_>>())
             .finish()
     }
 }

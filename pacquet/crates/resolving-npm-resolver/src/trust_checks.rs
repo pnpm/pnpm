@@ -50,7 +50,7 @@ pub enum TrustEvidence {
 pub enum TrustViolation {
     /// Reserved for the metadata-shape failures upstream raises with
     /// the `TRUST_CHECK_FAIL` code: missing `time` map, missing per-
-    /// version manifest, unparseable publish timestamp. Surfaced as
+    /// version manifest, unparsable publish timestamp. Surfaced as
     /// a "could not be checked" violation reason at the verifier
     /// boundary.
     #[display("trust check failed: {reason}")]
@@ -114,7 +114,7 @@ pub fn fail_if_trust_downgraded(
         match exclude.matches(&meta.name) {
             PolicyMatch::AnyVersion => return Ok(()),
             PolicyMatch::ExactVersions(versions) => {
-                if versions.iter().any(|v| v == version) {
+                if versions.iter().any(|exact| exact == version) {
                     return Ok(());
                 }
             }
@@ -131,7 +131,7 @@ pub fn fail_if_trust_downgraded(
         meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
             reason: format!(
                 "missing time for version {version} of {name} in metadata",
-                name = meta.name
+                name = meta.name,
             ),
         })?;
     let version_date = DateTime::parse_from_rfc3339(published_at)
@@ -239,10 +239,10 @@ fn detect_strongest_trust_evidence_before(
 /// absence of both yields `None`. Mirrors pnpm's
 /// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/trustChecks.ts#L119-L127).
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
-    if version.npm_user.as_ref().and_then(|u| u.trusted_publisher.as_ref()).is_some() {
+    if version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some() {
         return Some(TrustEvidence::TrustedPublisher);
     }
-    if version.dist.attestations.as_ref().and_then(|a| a.provenance.as_ref()).is_some() {
+    if version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some() {
         return Some(TrustEvidence::Provenance);
     }
     None

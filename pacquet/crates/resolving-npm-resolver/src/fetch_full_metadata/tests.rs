@@ -62,8 +62,8 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     assert_eq!(pkg.name, "acme");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     let version = pkg.versions.get("1.0.0").expect("version present");
-    assert!(version.npm_user.as_ref().and_then(|u| u.trusted_publisher.as_ref()).is_some());
-    assert!(version.dist.attestations.as_ref().and_then(|a| a.provenance.as_ref()).is_some());
+    assert!(version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some());
+    assert!(version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some());
     mock.assert_async().await;
 }
 

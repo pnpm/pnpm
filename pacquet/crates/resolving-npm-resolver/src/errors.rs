@@ -4,8 +4,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 
 /// Failure to fetch a registry metadata document. Used by
-/// [`crate::fetch_full_metadata`] and
-/// [`crate::fetch_full_metadata_cached`]; flows up through the
+/// [`crate::fetch_full_metadata()`] and
+/// [`crate::fetch_full_metadata_cached()`]; flows up through the
 /// verifier's `verify` and is folded into a violation with
 /// [`crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE`] or
 /// [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`] depending on which

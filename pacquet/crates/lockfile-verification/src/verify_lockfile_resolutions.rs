@@ -42,10 +42,10 @@ const DEFAULT_CONCURRENCY: usize = 16;
 /// Options bundle for [`verify_lockfile_resolutions`]. Mirrors
 /// upstream's
 /// [`VerifyLockfileResolutionsOptions`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L34-L47).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Cap on concurrent verifier futures. `None` falls back to
-    /// [`DEFAULT_CONCURRENCY`].
+    /// the internal `DEFAULT_CONCURRENCY` (`16`, matching upstream).
     pub concurrency: Option<usize>,
     /// Absolute path of the lockfile being verified. Required for
     /// the on-disk verification cache (the stat shortcut + per-path
@@ -77,7 +77,7 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
 /// fan-out panics; the failure variant of the emit is fired from the
 /// drop guard so the reporter never leaves a hanging "Verifying…"
 /// frame.
-pub async fn verify_lockfile_resolutions<R: Reporter>(
+pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
@@ -118,7 +118,7 @@ pub async fn verify_lockfile_resolutions<R: Reporter>(
     }
 
     let candidates = collect_candidates(lockfile);
-    let lockfile_path_str = opts.lockfile_path.map(|p| p.to_string_lossy().into_owned());
+    let lockfile_path_str = opts.lockfile_path.map(|path| path.to_string_lossy().into_owned());
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
         // lockfile. Matches upstream's behavior at
@@ -138,7 +138,7 @@ pub async fn verify_lockfile_resolutions<R: Reporter>(
 
     let entries = candidates.len() as u64;
     let started_at = Instant::now();
-    emit::<R>(
+    emit::<Reporter>(
         LogLevel::Debug,
         LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path_str.clone() },
     );
@@ -148,7 +148,7 @@ pub async fn verify_lockfile_resolutions<R: Reporter>(
     // returning, so the guard's drop only fires on a panic or on the
     // throw-violations branch.
     let mut emit_guard =
-        TerminalEmitGuard::<R>::failed(entries, started_at, lockfile_path_str.clone());
+        TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
     let violations = run_fan_out(candidates, verifiers, opts.concurrency).await;
     if violations.is_empty() {
@@ -291,35 +291,35 @@ async fn evaluate_candidate(
 /// [`VerifyError`]. Mirrors upstream's
 /// [`buildVerificationError`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L172-L206).
 fn build_verification_error(mut violations: Vec<ResolutionPolicyViolation>) -> VerifyError {
-    violations.sort_by(|a, b| {
-        format!("{}@{}", a.name, a.version).cmp(&format!("{}@{}", b.name, b.version))
+    violations.sort_by(|left, right| {
+        format!("{}@{}", left.name, left.version).cmp(&format!("{}@{}", right.name, right.version))
     });
     let rendered: Vec<RenderedViolation> = violations
         .into_iter()
-        .map(|v| RenderedViolation {
-            name: v.name.to_string(),
-            version: v.version,
-            code: v.code,
-            reason: v.reason,
+        .map(|violation| RenderedViolation {
+            name: violation.name.to_string(),
+            version: violation.version,
+            code: violation.code,
+            reason: violation.reason,
         })
         .collect();
     VerifyError::from_rendered(rendered)
 }
 
-fn emit<R: Reporter>(level: LogLevel, message: LockfileVerificationMessage) {
-    R::emit(&LogEvent::LockfileVerification(LockfileVerificationLog { level, message }));
+fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerificationMessage) {
+    Reporter::emit(&LogEvent::LockfileVerification(LockfileVerificationLog { level, message }));
 }
 
 /// Drop guard that fires the terminal `Failed` payload when the
 /// runner panics or returns early through `?`. On the success path
 /// the runner calls [`Self::cancel`] with the `Done` payload, which
 /// replaces the queued message and emits it on drop instead.
-struct TerminalEmitGuard<R: Reporter> {
+struct TerminalEmitGuard<Reporter: self::Reporter> {
     pending: Option<LockfileVerificationMessage>,
-    _reporter: std::marker::PhantomData<R>,
+    _reporter: std::marker::PhantomData<Reporter>,
 }
 
-impl<R: Reporter> TerminalEmitGuard<R> {
+impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
     fn failed(entries: u64, started_at: Instant, lockfile_path: Option<String>) -> Self {
         Self {
             pending: Some(LockfileVerificationMessage::Failed {
@@ -336,7 +336,7 @@ impl<R: Reporter> TerminalEmitGuard<R> {
     }
 }
 
-impl<R: Reporter> Drop for TerminalEmitGuard<R> {
+impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
     fn drop(&mut self) {
         if let Some(message) = self.pending.take() {
             // Refresh `elapsed_ms` on the Failed branch only — the
@@ -352,7 +352,7 @@ impl<R: Reporter> Drop for TerminalEmitGuard<R> {
                 }
                 other => other,
             };
-            emit::<R>(LogLevel::Debug, message);
+            emit::<Reporter>(LogLevel::Debug, message);
         }
     }
 }

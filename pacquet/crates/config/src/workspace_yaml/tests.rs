@@ -742,7 +742,7 @@ trustPolicyIgnoreAfter: 525600
     assert_eq!(settings.minimum_release_age, Some(1440));
     assert_eq!(
         settings.minimum_release_age_exclude.as_deref(),
-        Some(&["lodash".to_string(), "is-*".to_string()][..])
+        Some(&["lodash".to_string(), "is-*".to_string()][..]),
     );
     assert_eq!(settings.minimum_release_age_ignore_missing_time, Some(true));
     assert_eq!(settings.minimum_release_age_strict, Some(true));

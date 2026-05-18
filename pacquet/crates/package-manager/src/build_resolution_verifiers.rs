@@ -3,11 +3,11 @@
 //! plugs in; future resolver-side verifiers append to the same vec.
 //!
 //! Returning `Vec<Arc<dyn ResolutionVerifier>>` matches the runner's
-//! input shape ([`verify_lockfile_resolutions`]) and lets the install
-//! path skip the call entirely when the vec is empty (the runner is
-//! a no-op on `&[]`). The function never returns an error; an
-//! invalid exclude pattern surfaces from
-//! [`pacquet_config::version_policy::create_package_version_policy`]
+//! input shape ([`pacquet_lockfile_verification::verify_lockfile_resolutions()`])
+//! and lets the install path skip the call entirely when the vec is
+//! empty (the runner is a no-op on `&[]`). The function never returns
+//! an error; an invalid exclude pattern surfaces from
+//! [`pacquet_config::version_policy::create_package_version_policy()`]
 //! and propagates via [`BuildVerifiersError`].
 //!
 //! Mirrors the install-site wiring at

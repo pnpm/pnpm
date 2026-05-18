@@ -363,7 +363,7 @@ async fn min_age_missing_time_fails_closed_by_default() {
     assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
     assert!(
         reason.contains("could not be checked against minimumReleaseAge"),
-        "got reason: {reason}"
+        "got reason: {reason}",
     );
 }
 
@@ -527,16 +527,22 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     let verifier = create_npm_resolution_verifier(opts).expect("verifier");
 
     let policy = verifier.policy();
-    assert_eq!(policy.get("minimumReleaseAge").and_then(|v| v.as_u64()), Some(60 * 24));
+    assert_eq!(policy.get("minimumReleaseAge").and_then(|value| value.as_u64()), Some(60 * 24));
     let min_age_excludes =
-        policy.get("minimumReleaseAgeExclude").and_then(|v| v.as_array()).expect("array");
+        policy.get("minimumReleaseAgeExclude").and_then(|value| value.as_array()).expect("array");
     assert_eq!(
-        min_age_excludes.iter().filter_map(|v| v.as_str().map(str::to_string)).collect::<Vec<_>>(),
+        min_age_excludes
+            .iter()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect::<Vec<_>>(),
         vec!["acme".to_string(), "lodash".to_string()],
-        "sorted + deduped"
+        "sorted + deduped",
     );
-    assert_eq!(policy.get("trustPolicy").and_then(|v| v.as_str()), Some("no-downgrade"));
-    assert_eq!(policy.get("trustPolicyIgnoreAfter").and_then(|v| v.as_u64()), Some(60 * 24 * 30));
+    assert_eq!(policy.get("trustPolicy").and_then(|value| value.as_str()), Some("no-downgrade"));
+    assert_eq!(
+        policy.get("trustPolicyIgnoreAfter").and_then(|value| value.as_u64()),
+        Some(60 * 24 * 30),
+    );
 }
 
 /// A previously-cached run with a stricter (larger) cutoff stays

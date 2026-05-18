@@ -51,7 +51,7 @@ pub enum ResolutionVerification {
 /// caps the rendered breakdown.
 ///
 /// `Eq` is not derived because [`LockfileResolution`] contains
-/// [`ssri::Integrity`], which is only `PartialEq`.
+/// `ssri::Integrity`, which is only `PartialEq`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolutionPolicyViolation {
     pub name: PkgName,

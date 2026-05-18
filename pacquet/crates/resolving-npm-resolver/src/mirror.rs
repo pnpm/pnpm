@@ -54,7 +54,7 @@ pub const FULL_META_DIR: &str = "v11/metadata-full";
 /// optional because some registries omit one or the other; the
 /// fetcher tolerates a partial header set and only sends the headers
 /// it has.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MetaHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,

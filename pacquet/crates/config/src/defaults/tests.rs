@@ -135,8 +135,7 @@ fn test_default_cache_dir_with_xdg_cache_home_env() {
 fn test_default_cache_dir_falls_back_to_platform_default() {
     use std::path::PathBuf;
 
-    let cache_dir =
-        default_cache_dir::<NoEnv, _>(|| Some(PathBuf::from("/home/test-user")));
+    let cache_dir = default_cache_dir::<NoEnv, _>(|| Some(PathBuf::from("/home/test-user")));
     let expected = if cfg!(target_os = "macos") {
         PathBuf::from("/home/test-user/Library/Caches/pnpm")
     } else {

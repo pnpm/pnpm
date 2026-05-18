@@ -9,7 +9,7 @@
 //! reads the cached body (304) or writes the new body back (2xx).
 //! Without a cache directory it falls through to a plain GET — the
 //! same behavior callers got before Phase 5 from
-//! [`crate::fetch_full_metadata`].
+//! [`crate::fetch_full_metadata()`].
 //!
 //! The cache layout matches pnpm's so a pnpm-populated mirror is
 //! usable from pacquet (and vice versa). The two-line NDJSON shape
@@ -56,14 +56,16 @@ pub struct FetchFullMetadataCachedOptions<'a> {
 ///    in this step degrade silently — a malformed registry URL or
 ///    other path-encoding error just disables the cache for this
 ///    call; the fetch still issues an unconditional GET.
-/// 2. **Read cache headers** off the mirror's first line via
-///    [`load_meta_headers`]. Missing file / unreadable / malformed →
-///    no conditional headers; the GET is unconditional.
+/// 2. **Read cache headers** off the mirror's first line via the
+///    internal `load_meta_headers` helper. Missing file /
+///    unreadable / malformed → no conditional headers; the GET is
+///    unconditional.
 /// 3. **Issue the GET** with `If-None-Match` /
 ///    `If-Modified-Since` headers when both ETag/Last-Modified were
 ///    available, plus the per-URL `Authorization` header from
 ///    [`AuthHeaders`].
-/// 4. **On `304 Not Modified`**: re-read the mirror via [`load_meta`].
+/// 4. **On `304 Not Modified`**: re-read the mirror via the
+///    internal `load_meta` helper.
 ///    A 304 with no mirror present propagates as [`FetchMetadataError::NotModifiedWithoutCache`]
 ///    (matches upstream's `META_NOT_MODIFIED_WITHOUT_CACHE`);
 ///    a 304 whose mirror vanishes between the headers read and the
@@ -80,7 +82,7 @@ pub async fn fetch_full_metadata_cached(
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
     // Encoding the mirror path can fail only on a malformed registry
-    // URL (no host, unparseable). Either case is a config bug; we
+    // URL (no host, unparsable). Either case is a config bug; we
     // log and proceed without a cache so the user still gets metadata
     // on this install instead of a hard error.
     let mirror_path = match opts.cache_dir {
@@ -142,8 +144,11 @@ pub async fn fetch_full_metadata_cached(
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    let etag =
-        response.headers().get(header::ETAG).and_then(|v| v.to_str().ok()).map(str::to_string);
+    let etag = response
+        .headers()
+        .get(header::ETAG)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
     let raw_body = response
         .text()
         .await

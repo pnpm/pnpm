@@ -85,7 +85,7 @@ async fn earliest_wins_across_multiple_bundles() {
     assert_eq!(
         result.as_deref(),
         Some("2024-01-01T00:00:00.000Z"),
-        "earliest integratedTime across all bundles wins"
+        "earliest integratedTime across all bundles wins",
     );
     mock.assert_async().await;
 }

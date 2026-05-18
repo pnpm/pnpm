@@ -31,7 +31,7 @@ async fn cold_cache_writes_mirror_on_200() {
         .mock("GET", "/acme")
         .match_header("accept", "application/json")
         .with_status(200)
-        .with_header("etag", "W/\"fresh\"")
+        .with_header("etag", r#"W/"fresh""#)
         .with_body(PACKAGE_BODY)
         .expect(1)
         .create_async()
@@ -56,7 +56,7 @@ async fn cold_cache_writes_mirror_on_200() {
         get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("path");
     assert!(mirror_path.exists(), "mirror file written");
     let headers = load_meta_headers(&mirror_path).expect("headers readable");
-    assert_eq!(headers.etag.as_deref(), Some("W/\"fresh\""));
+    assert_eq!(headers.etag.as_deref(), Some(r#"W/"fresh""#));
 }
 
 /// Warm cache + matching `If-None-Match` → 304 → response served
@@ -69,7 +69,7 @@ async fn warm_cache_serves_from_mirror_on_304() {
         .mock("GET", "/acme")
         .match_header("accept", "application/json")
         .with_status(200)
-        .with_header("etag", "W/\"v1\"")
+        .with_header("etag", r#"W/"v1""#)
         .with_body(PACKAGE_BODY)
         .expect(1)
         .create_async()
@@ -77,7 +77,7 @@ async fn warm_cache_serves_from_mirror_on_304() {
     // Second call: must carry If-None-Match: W/"v1" — registry replies 304.
     let second = server
         .mock("GET", "/acme")
-        .match_header("if-none-match", "W/\"v1\"")
+        .match_header("if-none-match", r#"W/"v1""#)
         .with_status(304)
         .expect(1)
         .create_async()
@@ -112,7 +112,7 @@ async fn stale_cache_refreshes_mirror_on_200() {
     let first = server
         .mock("GET", "/acme")
         .with_status(200)
-        .with_header("etag", "W/\"v1\"")
+        .with_header("etag", r#"W/"v1""#)
         .with_body(PACKAGE_BODY)
         .expect(1)
         .create_async()
@@ -120,9 +120,9 @@ async fn stale_cache_refreshes_mirror_on_200() {
     let updated_body = PACKAGE_BODY.replace("2025-01-10T08:30:00.000Z", "2025-03-01T00:00:00.000Z");
     let second = server
         .mock("GET", "/acme")
-        .match_header("if-none-match", "W/\"v1\"")
+        .match_header("if-none-match", r#"W/"v1""#)
         .with_status(200)
-        .with_header("etag", "W/\"v2\"")
+        .with_header("etag", r#"W/"v2""#)
         .with_body(updated_body)
         .expect(1)
         .create_async()
@@ -147,7 +147,7 @@ async fn stale_cache_refreshes_mirror_on_200() {
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-03-01T00:00:00.000Z"));
     let mirror = get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("path");
     let reloaded = load_meta(&mirror).expect("mirror readable");
-    assert_eq!(reloaded.etag.as_deref(), Some("W/\"v2\""));
+    assert_eq!(reloaded.etag.as_deref(), Some(r#"W/"v2""#));
 }
 
 /// `cache_dir = None` → straight unconditional GET, no mirror IO. A

@@ -132,7 +132,7 @@ fn create_policy_scoped_name_at_exact_version() {
     let policy = create_package_version_policy(["@babel/core@7.20.0"]).unwrap();
     assert_eq!(
         policy.matches("@babel/core"),
-        PolicyMatch::ExactVersions(vec!["7.20.0".to_string()])
+        PolicyMatch::ExactVersions(vec!["7.20.0".to_string()]),
     );
 }
 
@@ -187,7 +187,7 @@ fn create_policy_version_union_unscoped() {
     let policy = create_package_version_policy(["axios@1.12.0 || 1.12.1"]).unwrap();
     assert_eq!(
         policy.matches("axios"),
-        PolicyMatch::ExactVersions(vec!["1.12.0".to_string(), "1.12.1".to_string()])
+        PolicyMatch::ExactVersions(vec!["1.12.0".to_string(), "1.12.1".to_string()]),
     );
 }
 
@@ -198,7 +198,7 @@ fn create_policy_version_union_scoped() {
     let policy = create_package_version_policy(["@scope/pkg@1.0.0 || 1.0.1"]).unwrap();
     assert_eq!(
         policy.matches("@scope/pkg"),
-        PolicyMatch::ExactVersions(vec!["1.0.0".to_string(), "1.0.1".to_string()])
+        PolicyMatch::ExactVersions(vec!["1.0.0".to_string(), "1.0.1".to_string()]),
     );
 }
 
@@ -213,6 +213,6 @@ fn create_policy_version_union_handles_whitespace() {
             "1.0.0".to_string(),
             "1.0.1".to_string(),
             "1.0.2".to_string(),
-        ])
+        ]),
     );
 }

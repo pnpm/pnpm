@@ -198,7 +198,7 @@ fn package_deserializes_full_provenance_packument() {
     let pkg: Package = serde_json::from_str(body).expect("deserialize full packument");
     assert_eq!(pkg.name, "acme");
     assert_eq!(pkg.modified.as_deref(), Some("2025-01-15T12:00:00.000Z"));
-    assert_eq!(pkg.etag.as_deref(), Some("\"abc123\""));
+    assert_eq!(pkg.etag.as_deref(), Some(r#""abc123""#));
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     assert_eq!(pkg.published_at("9.9.9"), None);
 

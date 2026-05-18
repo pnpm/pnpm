@@ -13,7 +13,7 @@ fn registries(entries: &[(&str, &str)]) -> HashMap<String, String> {
 #[test]
 fn build_prefixes_includes_gh_builtin() {
     let prefixes = build_named_registry_prefixes(&HashMap::new());
-    assert!(prefixes.iter().any(|p| p == "https://npm.pkg.github.com/"));
+    assert!(prefixes.iter().any(|prefix| prefix == "https://npm.pkg.github.com/"));
 }
 
 /// User-supplied named registries override the builtins on key
@@ -23,8 +23,8 @@ fn build_prefixes_overrides_builtin_on_same_key() {
     let mut named = HashMap::new();
     named.insert("gh".to_string(), "https://internal/gh/".to_string());
     let prefixes = build_named_registry_prefixes(&named);
-    assert!(prefixes.iter().any(|p| p == "https://internal/gh/"));
-    assert!(!prefixes.iter().any(|p| p == "https://npm.pkg.github.com/"));
+    assert!(prefixes.iter().any(|prefix| prefix == "https://internal/gh/"));
+    assert!(!prefixes.iter().any(|prefix| prefix == "https://npm.pkg.github.com/"));
 }
 
 /// Two registries sharing a host but different paths each get a
@@ -38,7 +38,7 @@ fn build_prefixes_sorts_longest_first() {
     let prefixes = build_named_registry_prefixes(&named);
     assert!(
         prefixes[0].starts_with("https://npm.example/team-a/sub"),
-        "longest prefix first, got {prefixes:?}"
+        "longest prefix first, got {prefixes:?}",
     );
 }
 

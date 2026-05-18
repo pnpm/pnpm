@@ -898,7 +898,7 @@ fn lockfile_verification_omits_absent_lockfile_path() {
         .expect("parse JSON");
     assert!(
         json.get("lockfilePath").is_none(),
-        "lockfilePath must be omitted when absent, got {json:?}"
+        "lockfilePath must be omitted when absent, got {json:?}",
     );
 }
 

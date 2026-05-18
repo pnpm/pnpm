@@ -102,7 +102,7 @@ pub struct CacheLockfile {
 /// carries the stat + hash that the lookup already computed so the
 /// matching [`record_verification`] call can skip re-doing them on
 /// the miss-then-record path.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CacheLookupResult {
     pub hit: bool,
     pub precomputed: CachePrecomputed,
@@ -110,7 +110,7 @@ pub struct CacheLookupResult {
 
 /// Precomputed lockfile fingerprint values shared between
 /// [`try_lockfile_verification_cache`] and [`record_verification`].
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CachePrecomputed {
     pub stat: Option<LockfileStat>,
     pub hash: Option<String>,
@@ -305,8 +305,8 @@ fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
     let mtime_ns = metadata
         .modified()
         .ok()
-        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
-        .map(|d| d.as_nanos().to_string())
+        .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_nanos().to_string())
         .unwrap_or_else(|| "0".to_string());
     let inode = inode_of(&metadata);
     Some(LockfileStat { size, mtime_ns, inode })
@@ -335,7 +335,7 @@ fn every_verifier_trusts_cached_run(
     record: &CacheRecord,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> bool {
-    verifiers.iter().all(|v| v.can_trust_past_check(&record.policy))
+    verifiers.iter().all(|verifier| verifier.can_trust_past_check(&record.policy))
 }
 
 fn merge_policies(verifiers: &[Arc<dyn ResolutionVerifier>]) -> serde_json::Map<String, JsonValue> {
@@ -382,7 +382,7 @@ fn maybe_compact_cache(cache_dir: &Path) {
 
     // Walk reverse so the newest record per (path, hash) wins, drop
     // older duplicates, then trim to MAX_CACHE_ENTRIES.
-    let lines: Vec<&str> = contents.lines().filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut reversed: Vec<String> = Vec::new();
     for line in lines.iter().rev() {

@@ -155,7 +155,7 @@ impl std::fmt::Debug for NpmResolutionVerifier {
 pub fn create_npm_resolution_verifier(
     opts: CreateNpmResolutionVerifierOptions,
 ) -> Option<NpmResolutionVerifier> {
-    let age_check_active = opts.minimum_release_age.is_some_and(|m| m > 0);
+    let age_check_active = opts.minimum_release_age.is_some_and(|minutes| minutes > 0);
     let trust_check_active = matches!(opts.trust_policy, Some(TrustPolicy::NoDowngrade));
     if !age_check_active && !trust_check_active {
         return None;
@@ -231,7 +231,9 @@ impl ResolutionVerifier for NpmResolutionVerifier {
             .get("minimumReleaseAgeExclude")
             .and_then(JsonValue::as_array)
             .map(|arr| {
-                arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect::<Vec<_>>()
+                arr.iter()
+                    .filter_map(|value| value.as_str().map(str::to_string))
+                    .collect::<Vec<_>>()
             })
             .unwrap_or_default();
         if past_min_age_excludes != self.sorted_min_age_excludes {
@@ -248,7 +250,9 @@ impl ResolutionVerifier for NpmResolutionVerifier {
             .get("trustPolicyExclude")
             .and_then(JsonValue::as_array)
             .map(|arr| {
-                arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect::<Vec<_>>()
+                arr.iter()
+                    .filter_map(|value| value.as_str().map(str::to_string))
+                    .collect::<Vec<_>>()
             })
             .unwrap_or_default();
         if past_trust_excludes != self.sorted_trust_excludes {
@@ -306,7 +310,7 @@ impl NpmResolutionVerifier {
     }
 
     fn age_check_active(&self) -> bool {
-        self.minimum_release_age_minutes.is_some_and(|m| m > 0)
+        self.minimum_release_age_minutes.is_some_and(|minutes| minutes > 0)
     }
 
     fn trust_check_active(&self) -> bool {
@@ -570,7 +574,7 @@ fn is_excluded(policy: Option<&PackageVersionPolicy>, name: &PkgName, version: &
         pacquet_config::version_policy::PolicyMatch::No => false,
         pacquet_config::version_policy::PolicyMatch::AnyVersion => true,
         pacquet_config::version_policy::PolicyMatch::ExactVersions(versions) => {
-            versions.iter().any(|v| v == version)
+            versions.iter().any(|exact| exact == version)
         }
     }
 }
@@ -605,7 +609,7 @@ fn build_policy_snapshot(
     map.insert(
         "minimumReleaseAgeExclude".to_string(),
         JsonValue::Array(
-            sorted_min_age_excludes.iter().map(|s| JsonValue::String(s.clone())).collect(),
+            sorted_min_age_excludes.iter().map(|spec| JsonValue::String(spec.clone())).collect(),
         ),
     );
     map.insert(
@@ -618,7 +622,7 @@ fn build_policy_snapshot(
     map.insert(
         "trustPolicyExclude".to_string(),
         JsonValue::Array(
-            sorted_trust_excludes.iter().map(|s| JsonValue::String(s.clone())).collect(),
+            sorted_trust_excludes.iter().map(|spec| JsonValue::String(spec.clone())).collect(),
         ),
     );
     map.insert(

@@ -73,7 +73,7 @@ impl ResolutionVerifier for StubVerifier {
         &self,
         cached_policy: &serde_json::Map<String, serde_json::Value>,
     ) -> bool {
-        cached_policy.get("stub").and_then(|v| v.as_bool()).unwrap_or(false)
+        cached_policy.get("stub").and_then(|value| value.as_bool()).unwrap_or(false)
     }
 }
 
@@ -90,7 +90,7 @@ async fn resolution_verifier_dispatches_through_dyn() {
     let outcome = verifier.verify(&resolution, VerifyCtx { name: &name, version: "4.17.21" }).await;
     assert_eq!(
         outcome,
-        ResolutionVerification::Err { code: "STUB", reason: "stub fails by design".to_string() }
+        ResolutionVerification::Err { code: "STUB", reason: "stub fails by design".to_string() },
     );
 
     let mut cached = serde_json::Map::new();

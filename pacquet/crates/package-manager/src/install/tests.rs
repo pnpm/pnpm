@@ -2834,7 +2834,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
     .await;
 
     let err = result.expect_err("invalid exclude pattern must surface");
-    assert!(matches!(err, InstallError::BuildVerifiers(_)), "expected BuildVerifiers, got {err:?}",);
+    assert!(matches!(err, InstallError::BuildVerifiers(_)), "expected BuildVerifiers, got {err:?}");
     // The build error must short-circuit the install before any
     // virtual-store materialization runs.
     assert!(

@@ -56,7 +56,7 @@ pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>)
             format!("{}{}", parsed.origin().ascii_serialization(), pathname)
         })
         .collect();
-    prefixes.sort_by_key(|p| std::cmp::Reverse(p.len()));
+    prefixes.sort_by_key(|prefix| std::cmp::Reverse(prefix.len()));
     prefixes
 }
 

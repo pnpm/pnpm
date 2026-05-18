@@ -27,7 +27,7 @@ fn encode_pkg_name_hash_suffix_for_mixed_case() {
     assert!(got.starts_with("LRUCache_"), "got: {got}");
     let suffix = got.trim_start_matches("LRUCache_");
     assert_eq!(suffix.len(), 64, "sha256 hex is 64 chars");
-    assert!(suffix.chars().all(|c| c.is_ascii_hexdigit()));
+    assert!(suffix.chars().all(|ch| ch.is_ascii_hexdigit()));
 }
 
 /// `https://registry.npmjs.org/` → `registry.npmjs.org`. No port,
@@ -108,12 +108,12 @@ fn fixture_package() -> Package {
 fn prepare_json_for_disk_two_line_shape() {
     let pkg = fixture_package();
     let raw = r#"{"name":"acme"}"#;
-    let json = prepare_json_for_disk(&pkg, Some("\"abc\""), Some(raw)).expect("serialize");
+    let json = prepare_json_for_disk(&pkg, Some(r#""abc""#), Some(raw)).expect("serialize");
     let mut lines = json.split('\n');
     let header_line = lines.next().expect("header line present");
     let body_line = lines.next().expect("body line present");
     let headers: MetaHeaders = serde_json::from_str(header_line).expect("parse header");
-    assert_eq!(headers.etag.as_deref(), Some("\"abc\""));
+    assert_eq!(headers.etag.as_deref(), Some(r#""abc""#));
     assert_eq!(headers.modified.as_deref(), Some("2025-01-15T12:00:00.000Z"));
     assert_eq!(body_line, raw, "raw body line wins over re-serialization");
 }
@@ -127,10 +127,10 @@ fn load_meta_headers_round_trip() {
     let mirror = dir.path().join("nested").join("lodash.jsonl");
     let pkg = fixture_package();
     let json =
-        prepare_json_for_disk(&pkg, Some("W/\"abc\""), Some(r#"{"name":"acme"}"#)).expect("ser");
+        prepare_json_for_disk(&pkg, Some(r#"W/"abc""#), Some(r#"{"name":"acme"}"#)).expect("ser");
     save_meta(&mirror, &json).expect("save");
     let headers = load_meta_headers(&mirror).expect("read headers back");
-    assert_eq!(headers.etag.as_deref(), Some("W/\"abc\""));
+    assert_eq!(headers.etag.as_deref(), Some(r#"W/"abc""#));
     assert_eq!(headers.modified.as_deref(), Some("2025-01-15T12:00:00.000Z"));
 }
 
@@ -141,11 +141,11 @@ fn load_meta_round_trip_backfills_etag() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
-    let json = prepare_json_for_disk(&pkg, Some("W/\"abc\""), None).expect("ser");
+    let json = prepare_json_for_disk(&pkg, Some(r#"W/"abc""#), None).expect("ser");
     save_meta(&mirror, &json).expect("save");
     let loaded = load_meta(&mirror).expect("read full back");
     assert_eq!(loaded.name, "acme");
-    assert_eq!(loaded.etag.as_deref(), Some("W/\"abc\""));
+    assert_eq!(loaded.etag.as_deref(), Some(r#"W/"abc""#));
     assert_eq!(loaded.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
 }
 
@@ -181,13 +181,13 @@ fn save_meta_overwrites_existing_mirror() {
     let pkg = fixture_package();
 
     let first =
-        prepare_json_for_disk(&pkg, Some("W/\"old\""), Some(r#"{"name":"acme"}"#)).expect("ser");
+        prepare_json_for_disk(&pkg, Some(r#"W/"old""#), Some(r#"{"name":"acme"}"#)).expect("ser");
     save_meta(&mirror, &first).expect("first save");
 
     let second =
-        prepare_json_for_disk(&pkg, Some("W/\"new\""), Some(r#"{"name":"acme"}"#)).expect("ser");
+        prepare_json_for_disk(&pkg, Some(r#"W/"new""#), Some(r#"{"name":"acme"}"#)).expect("ser");
     save_meta(&mirror, &second).expect("second save");
 
     let headers = load_meta_headers(&mirror).expect("read headers");
-    assert_eq!(headers.etag.as_deref(), Some("W/\"new\""));
+    assert_eq!(headers.etag.as_deref(), Some(r#"W/"new""#));
 }

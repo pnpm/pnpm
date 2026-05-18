@@ -11,7 +11,7 @@
 //!
 //! Caching (conditional GETs + on-disk mirror) lands in a follow-up
 //! phase. This module is the no-cache baseline that
-//! [`crate::create_npm_resolution_verifier`] consumes today; the
+//! [`crate::create_npm_resolution_verifier()`] consumes today; the
 //! cached variant wraps it without changing the call site.
 //!
 //! Ports the no-cache half of upstream's

@@ -13,8 +13,8 @@ use std::path::PathBuf;
 pub struct State {
     /// Shared cache that store downloaded tarballs.
     pub tarball_mem_cache: MemCache,
-    /// HTTP client to make HTTP requests. Held behind [`Arc`] so the
-    /// lockfile-verification gate can own a clone for the
+    /// HTTP client to make HTTP requests. Held behind [`std::sync::Arc`] so
+    /// the lockfile-verification gate can own a clone for the
     /// `NpmResolutionVerifier`'s lifetime while every install
     /// sub-pipeline takes a borrowed `&ThrottledClient` via deref.
     pub http_client: std::sync::Arc<ThrottledClient>,

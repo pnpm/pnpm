@@ -281,12 +281,12 @@ fn missing_time_surfaces_trust_check_failed() {
 /// A timestamp string that doesn't parse as RFC3339 also surfaces
 /// as `TrustCheckFailed`.
 #[test]
-fn unparseable_timestamp_surfaces_trust_check_failed() {
+fn unparsable_timestamp_surfaces_trust_check_failed() {
     let mut meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
     if let Some(time) = meta.time.as_mut() {
         time.insert("1.0.0".to_string(), serde_json::Value::String("not-a-date".to_string()));
     }
     let err = fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
-        .expect_err("unparseable timestamp should fail");
+        .expect_err("unparsable timestamp should fail");
     assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
