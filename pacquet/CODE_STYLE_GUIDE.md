@@ -645,8 +645,6 @@ The above code is still valid code, and the Rust compiler doesn't error, but it 
 
 Side-effecting code — filesystem access, environment variables, network calls, time, process state — is threaded through a per-capability trait on a domain-neutral provider type. Production code turbofishes the real provider (`Host`); tests substitute a per-test zero-sized struct that implements only the capability bounds the function under test declares. This is the convention for porting any new function whose pnpm equivalent reaches for `fs.*`, `process.env`, `new Date()`, or similar — the goal is unit-test coverage of the I/O error and time-dependent branches that real fixtures cannot trigger portably.
 
-The pattern was hashed out across [pnpm/pacquet#332](https://github.com/pnpm/pacquet/pull/332), [#333](https://github.com/pnpm/pacquet/pull/333), and [#337](https://github.com/pnpm/pacquet/pull/337), and consolidated by [#517](https://github.com/pnpm/pacquet/pull/517) (which tracks issue [#339](https://github.com/pnpm/pacquet/issues/339)). The names and worked example below come from that consolidation.
-
 #### Names
 
 - The generic type parameter is named **`Sys`** — short for "system seam," the slot in the function signature that selects between the real OS and the test fake. Do not call it `Api`, `Provider`, `Env`, `Fs`, or anything else; the single short name makes a generic call site instantly recognisable as the DI seam.
