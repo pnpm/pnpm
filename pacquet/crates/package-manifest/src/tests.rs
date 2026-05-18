@@ -419,7 +419,7 @@ fn safe_read_surfaces_non_not_found_io_errors() {
 
     let err = safe_read_package_json_from_dir(dir.path())
         .expect_err("read_to_string on a directory should fail");
-    assert!(matches!(err, PackageManifestError::Io(_)), "expected Io error, got {err:?}",);
+    assert!(matches!(err, PackageManifestError::Io(_)), "expected Io error, got {err:?}");
 }
 
 /// `convert_engines_runtime_to_dependencies` ignores `devEngines.runtime`
