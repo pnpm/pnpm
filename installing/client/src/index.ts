@@ -1,4 +1,5 @@
 import { NODE_EXTRAS_IGNORE_PATTERN } from '@pnpm/engine.runtime.node-resolver'
+import { PnpmError } from '@pnpm/error'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
 import { createDirectoryFetcher } from '@pnpm/fetching.directory-fetcher'
 import type { BinaryFetcher, DirectoryFetcher, GitFetcher } from '@pnpm/fetching.fetcher-base'
@@ -15,7 +16,8 @@ import {
   type ResolveFunction,
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
-import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
+import type { ResolutionPolicyViolation, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { RegistryConfig } from '@pnpm/types'
 
@@ -38,7 +40,15 @@ export type ClientOptions = {
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
 } & ResolverFactoryOptions & DispatcherOptions
-  & Pick<ResolutionVerifierFactoryOptions, 'minimumReleaseAge' | 'minimumReleaseAgeStrict' | 'minimumReleaseAgeExclude'>
+  & Pick<ResolutionVerifierFactoryOptions,
+  | 'minimumReleaseAge'
+  | 'minimumReleaseAgeStrict'
+  | 'minimumReleaseAgeExclude'
+  | 'ignoreMissingTimeField'
+  | 'trustPolicy'
+  | 'trustPolicyExclude'
+  | 'trustPolicyIgnoreAfter'
+  >
 
 export interface Client {
   fetchers: Fetchers
@@ -72,6 +82,40 @@ export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { reso
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 
   return _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
+}
+
+/**
+ * Wraps a `ResolveFunction` so any inline policy violation surfaced by
+ * the resolver is rethrown as a `PnpmError` instead of being returned on
+ * the result. Use this from one-shot callers (dlx, self-update) that
+ * have nowhere to defer a violation to — the install command leaves
+ * resolution unwrapped because it aggregates violations across the
+ * whole tree before deciding what to do.
+ *
+ * The error mapping is centralized here so future violation codes
+ * (today: `MINIMUM_RELEASE_AGE_VIOLATION`) get a consistent error code
+ * across every strict-mode caller without each call site re-translating.
+ */
+export function makeResolutionStrict (resolve: ResolveFunction): ResolveFunction {
+  return (async (wantedDependency, opts) => {
+    const result = await resolve(wantedDependency, opts)
+    if (result?.policyViolation) {
+      throw policyViolationToError(result.policyViolation)
+    }
+    return result
+  }) as ResolveFunction
+}
+
+function policyViolationToError (violation: ResolutionPolicyViolation): PnpmError {
+  const message = `${violation.name}@${violation.version} ${violation.reason}`
+  // Map the per-violation `code` to the user-facing PnpmError code that
+  // pre-refactor callers (and `default-reporter`) already recognize.
+  // Future violation codes get their mapping added here so call sites
+  // don't have to re-translate.
+  const errorCode = violation.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE
+    ? 'NO_MATURE_MATCHING_VERSION'
+    : violation.code
+  return new PnpmError(errorCode, message)
 }
 
 type Fetchers = {

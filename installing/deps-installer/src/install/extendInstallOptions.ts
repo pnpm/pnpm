@@ -11,7 +11,7 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
@@ -175,6 +175,23 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  /**
+   * Resolver-agnostic post-tree gate, invoked between
+   * `resolveDependencyTree` and `resolvePeers` inside
+   * `resolveDependencies`. Receives the violations the verifier
+   * fan-out collected from the freshly-resolved tree. Throwing here
+   * unwinds the install before peer-dep resolution runs — nothing on
+   * disk has changed, and the (potentially expensive) peer pass is
+   * skipped on abort.
+   *
+   * Intentionally policy-neutral. Each verifier owns its violation
+   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …); the
+   * install command filters by code to decide what to do. Future
+   * resolvers can plug verifiers in without touching this signature.
+   */
+  handleResolutionPolicyViolations?: (
+    violations: readonly ResolutionPolicyViolation[]
+  ) => Promise<void>
   /**
    * Resolver-side verifiers that re-check each lockfile-pinned resolution
    * against policies configured upstream (today: at most one,

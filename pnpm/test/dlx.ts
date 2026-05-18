@@ -108,7 +108,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
     ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
 
     expect(result.status).toBe(1)
-    expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
+    expect(result.stderr.toString()).toMatch(/was published.+minimumReleaseAge cutoff/)
   })
 
   test('dlx succeeds when the requested version is older than minimumReleaseAge', () => {
@@ -172,7 +172,7 @@ skipOnWindows('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml',
   ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
 
   expect(result.status).toBe(1)
-  expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
+  expect(result.stderr.toString()).toMatch(/was published.+minimumReleaseAge cutoff/)
 })
 
 describe('catalogs inherited from pnpm-workspace.yaml', () => {

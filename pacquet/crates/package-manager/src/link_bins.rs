@@ -3,7 +3,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_cmd_shim::{
     BinOrigin, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-    FsReadString, FsSetExecutable, FsWalkFiles, FsWrite, LinkBinsError, PackageBinSource, RealApi,
+    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, PackageBinSource,
     link_bins_of_packages,
 };
 use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
@@ -61,7 +61,7 @@ pub fn link_direct_dep_bins(modules_dir: &Path, dep_names: &[String]) -> Result<
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<RealApi>(&bin_sources, &modules_dir.join(".bin"))
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"))
 }
 
 /// Top-level bin link that mixes direct-dep candidates and hoisted
@@ -120,7 +120,7 @@ pub fn link_top_level_bins(
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<RealApi>(&bin_sources, &modules_dir.join(".bin"))
+    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"))
 }
 
 /// Read each `<modules_dir>/<name>/package.json` and assemble the
@@ -245,19 +245,19 @@ pub struct LinkVirtualStoreBins<'a> {
 
 impl<'a> LinkVirtualStoreBins<'a> {
     pub fn run(self) -> Result<(), LinkVirtualStoreBinsError> {
-        self.run_with::<RealApi>()
+        self.run_with::<Host>()
     }
 
     /// DI-driven entry. Production callers go through [`Self::run`] which
-    /// turbofishes [`RealApi`]; tests inject fakes that fail specific fs
+    /// turbofishes [`Host`]; tests inject fakes that fail specific fs
     /// operations to cover error paths the real fs can't trigger
     /// portably. See the per-capability DI pattern at
     /// <https://github.com/pnpm/pacquet/pull/332#issuecomment-4345054524>.
-    pub fn run_with<Api>(self) -> Result<(), LinkVirtualStoreBinsError>
+    pub fn run_with<Sys>(self) -> Result<(), LinkVirtualStoreBinsError>
     where
-        Api: FsReadDir
+        Sys: FsReadDir
             + FsReadFile
-            + FsReadString
+            + FsReadToString
             + FsReadHead
             + FsCreateDirAll
             + FsWalkFiles
@@ -268,7 +268,7 @@ impl<'a> LinkVirtualStoreBins<'a> {
         let LinkVirtualStoreBins { layout, snapshots, packages, package_manifests, skipped } = self;
         if let Some(snapshots) = snapshots {
             let has_bin_set = build_has_bin_set(packages);
-            run_lockfile_driven::<Api>(
+            run_lockfile_driven::<Sys>(
                 layout,
                 snapshots,
                 has_bin_set.as_ref(),
@@ -281,7 +281,7 @@ impl<'a> LinkVirtualStoreBins<'a> {
             // frozen installs, which #432 doesn't activate GVS for, so
             // reading from `layout.package_store_dir()` reproduces
             // today's behaviour exactly when GVS is off.
-            run_with_readdir::<Api>(layout.package_store_dir())
+            run_with_readdir::<Sys>(layout.package_store_dir())
         }
     }
 }
@@ -346,7 +346,7 @@ fn build_has_bin_set(
 /// cold-batch packages that prefetch missed, a fallback
 /// `package.json` read through the existing symlink at
 /// `<slot>/node_modules/<alias>`.
-fn run_lockfile_driven<Api>(
+fn run_lockfile_driven<Sys>(
     layout: &crate::VirtualStoreLayout,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     has_bin_set: Option<&HashSet<PackageKey>>,
@@ -354,8 +354,8 @@ fn run_lockfile_driven<Api>(
     skipped: &SkippedSnapshots,
 ) -> Result<(), LinkVirtualStoreBinsError>
 where
-    Api: FsReadFile
-        + FsReadString
+    Sys: FsReadFile
+        + FsReadToString
         + FsReadHead
         + FsCreateDirAll
         + FsWalkFiles
@@ -467,7 +467,7 @@ where
                 // prefetched manifest map yet. Reading from disk
                 // here is the same code path as the non-lockfile
                 // install — see [`run_with_readdir`].
-                match read_package::<Api>(&child_location) {
+                match read_package::<Sys>(&child_location) {
                     Ok(Some(pkg)) => bin_sources.push(pkg),
                     Ok(None) => {}
                     Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
@@ -484,7 +484,7 @@ where
             if let Some(manifest) = package_manifests.get(&self_metadata_key) {
                 bin_sources.push(PackageBinSource::new(self_pkg_dir.clone(), Arc::clone(manifest)));
             } else {
-                match read_package::<Api>(&self_pkg_dir) {
+                match read_package::<Sys>(&self_pkg_dir) {
                     Ok(Some(pkg)) => bin_sources.push(pkg),
                     Ok(None) => {}
                     Err(error) => return Err(LinkVirtualStoreBinsError::LinkBins(error)),
@@ -495,7 +495,7 @@ where
         if bin_sources.is_empty() {
             return Ok(());
         }
-        link_bins_of_packages::<Api>(&bin_sources, &bins_dir)
+        link_bins_of_packages::<Sys>(&bin_sources, &bins_dir)
             .map_err(LinkVirtualStoreBinsError::LinkBins)
     })
 }
@@ -526,11 +526,11 @@ fn pkg_dir_under(modules_dir: &Path, name: &PkgName) -> PathBuf {
 /// then walk each slot's `node_modules` to discover children. Used
 /// only by [`crate::InstallWithoutLockfile`] today; the lockfile
 /// path bypasses every directory enumeration in here.
-fn run_with_readdir<Api>(virtual_store_dir: &Path) -> Result<(), LinkVirtualStoreBinsError>
+fn run_with_readdir<Sys>(virtual_store_dir: &Path) -> Result<(), LinkVirtualStoreBinsError>
 where
-    Api: FsReadDir
+    Sys: FsReadDir
         + FsReadFile
-        + FsReadString
+        + FsReadToString
         + FsReadHead
         + FsCreateDirAll
         + FsWalkFiles
@@ -538,7 +538,7 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    let slots = match Api::read_dir(virtual_store_dir) {
+    let slots = match Sys::read_dir(virtual_store_dir) {
         Ok(slots) => slots,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => {
@@ -565,11 +565,11 @@ where
         // is trivial; the lockfile-driven path bypasses this by
         // treating the slot's own pkg dir as an invariant of
         // [`crate::create_virtual_dir_by_snapshot`].
-        if Api::read_dir(&self_pkg_dir).is_err() {
+        if Sys::read_dir(&self_pkg_dir).is_err() {
             return Ok(());
         }
         let bins_dir = self_pkg_dir.join("node_modules/.bin");
-        link_bins_excluding::<Api>(&modules_dir, &bins_dir, &self_pkg_dir)
+        link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &self_pkg_dir)
             .map_err(LinkVirtualStoreBinsError::LinkBins)
     })
 }
@@ -589,7 +589,7 @@ where
 ///
 /// Returns `None` only when the slot name fails to parse — there's no
 /// filesystem probe for the resolved candidate. The previous version
-/// stat-equivalent-ed the path with `Api::read_dir` to short-circuit
+/// stat-equivalent-ed the path with `Sys::read_dir` to short-circuit
 /// missing slots, but on a 1267-package fixture that was 1267
 /// wasted `open(O_DIRECTORY) + close` round-trips on the hot path of
 /// every warm install. The slot's own package directory is an
@@ -627,15 +627,15 @@ fn find_slot_own_package_dir(slot_dir: &Path, modules_dir: &Path) -> Option<Path
 /// Like [`pacquet_cmd_shim::link_bins`] but skipping the slot's own package
 /// from the candidate set. Without this, a slot for `tsc@5.0.0` would link
 /// its own `tsc` bin into its own `node_modules/.bin`, which pnpm doesn't.
-fn link_bins_excluding<Api>(
+fn link_bins_excluding<Sys>(
     modules_dir: &Path,
     bins_dir: &Path,
     exclude: &Path,
 ) -> Result<(), LinkBinsError>
 where
-    Api: FsReadDir
+    Sys: FsReadDir
         + FsReadFile
-        + FsReadString
+        + FsReadToString
         + FsReadHead
         + FsCreateDirAll
         + FsWalkFiles
@@ -645,7 +645,7 @@ where
 {
     let mut packages: Vec<PackageBinSource> = Vec::new();
 
-    let entries = match Api::read_dir(modules_dir) {
+    let entries = match Sys::read_dir(modules_dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => {
@@ -669,7 +669,7 @@ where
             // the bins for every package under this scope silently
             // disappear, so surface them instead of letting them
             // hide.
-            let scope_entries = match Api::read_dir(&path) {
+            let scope_entries = match Sys::read_dir(&path) {
                 Ok(entries) => entries,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
                 Err(error) => {
@@ -680,7 +680,7 @@ where
                 if paths_eq(&sub_path, exclude) {
                     continue;
                 }
-                if let Some(pkg) = read_package::<Api>(&sub_path)? {
+                if let Some(pkg) = read_package::<Sys>(&sub_path)? {
                     packages.push(pkg);
                 }
             }
@@ -690,7 +690,7 @@ where
         if paths_eq(&path, exclude) {
             continue;
         }
-        if let Some(pkg) = read_package::<Api>(&path)? {
+        if let Some(pkg) = read_package::<Sys>(&path)? {
             packages.push(pkg);
         }
     }
@@ -699,14 +699,14 @@ where
         return Ok(());
     }
 
-    link_bins_of_packages::<Api>(&packages, bins_dir)
+    link_bins_of_packages::<Sys>(&packages, bins_dir)
 }
 
-fn read_package<Api: FsReadFile>(
+fn read_package<Sys: FsReadFile>(
     location: &Path,
 ) -> Result<Option<PackageBinSource>, LinkBinsError> {
     let manifest_path = location.join("package.json");
-    let bytes = match Api::read_file(&manifest_path) {
+    let bytes = match Sys::read_file(&manifest_path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),

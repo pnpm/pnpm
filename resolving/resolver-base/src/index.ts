@@ -129,6 +129,26 @@ export interface ResolutionVerifier {
   canTrustPastCheck: (cachedPolicy: Record<string, unknown>) => boolean
 }
 
+/**
+ * A `ResolutionVerifier`'s rejection materialized for one (name,
+ * version, resolution) entry. The install side aggregates these across
+ * every active verifier on the freshly-resolved tree and either prompts
+ * the user, persists them (e.g. into `minimumReleaseAgeExclude`), or
+ * aborts. Code is the verifier-defined error code
+ * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, etc.) — the
+ * install command filters by code to decide downstream UX. Lifted here
+ * (rather than in deps-installer) so both deps-resolver and
+ * deps-installer can share one shape; future resolver packages plug in
+ * without needing the deps-installer dependency.
+ */
+export interface ResolutionPolicyViolation {
+  name: string
+  version: string
+  resolution: Resolution
+  code: string
+  reason: string
+}
+
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */
 export interface PlatformSelector {
   os: string
@@ -197,6 +217,22 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
+  /**
+   * Set when the resolver picked this version despite a policy
+   * violation (e.g. immature relative to `publishedBy`, trust
+   * downgrade detected by `failIfTrustDowngraded`). The resolver
+   * already has the metadata it needs to decide, so reporting inline
+   * here avoids the install layer having to re-scan the tree and
+   * re-fetch the same metadata. The deps-resolver aggregates these
+   * across every resolve call into a single set the install command
+   * can react to.
+   *
+   * `resolution` on the violation is the same `resolution` field
+   * above — supplied for symmetry with `ResolutionPolicyViolation`
+   * entries that flow out of `verifyLockfileResolutions` for
+   * lockfile-only paths.
+   */
+  policyViolation?: ResolutionPolicyViolation
 }
 
 export interface WorkspacePackage {

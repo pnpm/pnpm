@@ -5,7 +5,10 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use tempfile::{NamedTempFile, tempdir};
 
-use super::{BundleDependencies, PackageManifest, convert_engines_runtime_to_dependencies};
+use super::{
+    BundleDependencies, PackageManifest, PackageManifestError,
+    convert_engines_runtime_to_dependencies, safe_read_package_json_from_dir,
+};
 use crate::DependencyGroup;
 use serde_json::json;
 use std::io::Write;
@@ -353,4 +356,85 @@ fn from_path_applies_convert_engines_runtime() {
         .and_then(|d| d.get("node"))
         .and_then(|v| v.as_str());
     assert_eq!(node_spec, Some("runtime:24.6.0"));
+}
+
+/// `from_path` surfaces `NoImporterManifestFound` (the typed
+/// equivalent of pnpm's `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`)
+/// when the path does not exist, rather than letting the
+/// underlying ENOENT escape as a generic IO error.
+#[test]
+fn from_path_errors_no_importer_when_missing() {
+    let dir = tempdir().unwrap();
+    let missing = dir.path().join("does-not-exist").join("package.json");
+    let result = PackageManifest::from_path(missing.clone());
+    let err = match result {
+        Err(err) => err,
+        Ok(_) => panic!("missing package.json should not parse"),
+    };
+    assert!(
+        matches!(err, PackageManifestError::NoImporterManifestFound(_)),
+        "expected NoImporterManifestFound, got {err:?}",
+    );
+}
+
+/// `add_dependency` rejects manifests where the target
+/// dependency group exists but holds a non-object value (a quirk
+/// upstream allows on disk but cannot insert into). Pin that the
+/// error is the typed `InvalidAttribute` and not a panic.
+#[test]
+fn add_dependency_errors_when_field_is_not_an_object() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    // Pre-seed `dependencies` as a string instead of an object.
+    let raw = json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": "not an object",
+    });
+    std::fs::write(&path, serde_json::to_string_pretty(&raw).unwrap()).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path).unwrap();
+    let err = manifest
+        .add_dependency("foo", "1.0.0", DependencyGroup::Prod)
+        .expect_err("non-object `dependencies` should reject insert");
+    match err {
+        PackageManifestError::InvalidAttribute(msg) => {
+            assert!(msg.contains("dependencies"), "got: {msg:?}");
+        }
+        other => panic!("expected InvalidAttribute, got {other:?}"),
+    }
+}
+
+/// `safe_read_package_json_from_dir` surfaces non-NotFound IO
+/// errors via `PackageManifestError::Io`, rather than swallowing
+/// them as `Ok(None)`. Mirrors upstream's contract: `null` is
+/// returned only on ENOENT.
+#[cfg(unix)]
+#[test]
+fn safe_read_surfaces_non_not_found_io_errors() {
+    let dir = tempdir().unwrap();
+    // Plant `package.json` as a directory rather than a file.
+    // `fs::read_to_string` returns `IsADirectory`, never `NotFound`.
+    std::fs::create_dir(dir.path().join("package.json")).unwrap();
+
+    let err = safe_read_package_json_from_dir(dir.path())
+        .expect_err("read_to_string on a directory should fail");
+    assert!(matches!(err, PackageManifestError::Io(_)), "expected Io error, got {err:?}");
+}
+
+/// `convert_engines_runtime_to_dependencies` ignores `devEngines.runtime`
+/// entries whose value is neither an array nor a single object.
+/// Pin that the function returns without mutating the manifest in
+/// that case, instead of panicking.
+#[test]
+fn convert_engines_ignores_non_array_non_object_runtime_entries() {
+    let mut manifest = json!({
+        "name": "x",
+        "version": "1.0.0",
+        // `runtime` is a bare string — neither an object nor an array.
+        "devEngines": { "runtime": "not-supported" },
+    });
+    let before = manifest.clone();
+    convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
+    assert_eq!(manifest, before, "manifest must be unchanged for unsupported `runtime` shape");
 }

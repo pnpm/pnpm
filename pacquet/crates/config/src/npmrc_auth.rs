@@ -143,7 +143,7 @@ impl NpmrcAuth {
     /// plus comments starting with `;` or `#`. We hand-parse rather than
     /// use a strongly-typed deserializer so unknown / malformed keys don't
     /// blow up parsing.
-    pub fn from_ini<Api: EnvVar>(text: &str) -> Self {
+    pub fn from_ini<Sys: EnvVar>(text: &str) -> Self {
         let mut auth = NpmrcAuth::default();
         for line in text.lines() {
             let line = line.trim();
@@ -159,8 +159,8 @@ impl NpmrcAuth {
             // Apply ${VAR} substitution to both the key and the value,
             // matching `readAndFilterNpmrc` in pnpm's `loadNpmrcFiles.ts`.
             // Unresolved placeholders become "" and are recorded as warnings.
-            let (key, key_unresolved) = env_replace_lossy::<Api>(raw_key);
-            let (value, value_unresolved) = env_replace_lossy::<Api>(raw_value);
+            let (key, key_unresolved) = env_replace_lossy::<Sys>(raw_key);
+            let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
             for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
                 auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
             }
@@ -308,31 +308,31 @@ impl NpmrcAuth {
     /// Generic over [`EnvVar`] so cascade tests can drive every branch
     /// without mutating the process environment (no `EnvGuard` global
     /// lock).
-    pub fn apply_proxy_cascade<Api: EnvVar>(&mut self, config: &mut Config) {
+    pub fn apply_proxy_cascade<Sys: EnvVar>(&mut self, config: &mut Config) {
         // Upstream's `getProcessEnv` tries literal-, upper-, and
         // lower-case in order (config/reader/src/index.ts:689-693). For
         // the proxy var names below the literal form is already either
         // fully upper or fully lower, so the triple collapses to two
         // real attempts.
-        fn env_pair<Api: EnvVar>(upper: &str, lower: &str) -> Option<String> {
-            Api::var(upper).or_else(|| Api::var(lower))
+        fn env_pair<Sys: EnvVar>(upper: &str, lower: &str) -> Option<String> {
+            Sys::var(upper).or_else(|| Sys::var(lower))
         }
 
         config.proxy.https_proxy = self
             .https_proxy
             .take()
             .or_else(|| self.legacy_proxy.clone())
-            .or_else(|| env_pair::<Api>("HTTPS_PROXY", "https_proxy"));
+            .or_else(|| env_pair::<Sys>("HTTPS_PROXY", "https_proxy"));
         config.proxy.http_proxy = self
             .http_proxy
             .take()
             .or_else(|| config.proxy.https_proxy.clone())
-            .or_else(|| env_pair::<Api>("HTTP_PROXY", "http_proxy"))
-            .or_else(|| env_pair::<Api>("PROXY", "proxy"));
+            .or_else(|| env_pair::<Sys>("HTTP_PROXY", "http_proxy"))
+            .or_else(|| env_pair::<Sys>("PROXY", "proxy"));
         config.proxy.no_proxy = self
             .no_proxy
             .take()
-            .or_else(|| env_pair::<Api>("NO_PROXY", "no_proxy"))
+            .or_else(|| env_pair::<Sys>("NO_PROXY", "no_proxy"))
             .map(|raw| parse_no_proxy(&raw));
     }
 
@@ -391,9 +391,9 @@ impl NpmrcAuth {
     /// [`apply_proxy_cascade`]: NpmrcAuth::apply_proxy_cascade
     /// [`build_auth_headers`]: NpmrcAuth::build_auth_headers
     #[cfg(test)]
-    pub fn apply_to<Api: EnvVar>(mut self, config: &mut Config) {
+    pub fn apply_to<Sys: EnvVar>(mut self, config: &mut Config) {
         self.apply_registry_and_warn(config);
-        self.apply_proxy_cascade::<Api>(config);
+        self.apply_proxy_cascade::<Sys>(config);
         self.apply_tls_and_local_address(config);
         self.build_auth_headers(config);
     }

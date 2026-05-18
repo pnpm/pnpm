@@ -72,21 +72,33 @@ test('minimumReleaseAge falls back to immature version when no mature version sa
   // The fallback picks the lowest matching version (0.1.0), which differs from
   // normal resolution without minimumReleaseAge that would pick the highest (0.1.2).
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    // Acknowledge the policy violations without aborting — this test
+    // only inspects the resolved manifest. resolveDependencies refuses
+    // to proceed if violations fire and no handler is wired.
+    handleResolutionPolicyViolations: async () => {},
+  })
 
   expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
 })
 
-test('minimumReleaseAge throws when no mature version satisfies the range and strict mode is enabled', async () => {
+test('strict minimumReleaseAge surfaces every immature pick via handleResolutionPolicyViolations, then aborts', async () => {
+  // Pre-refactor strict mode threw at the resolver on the first immature
+  // pick (forcing a discover-by-loop dance, #10488). With always-defer the
+  // resolver records every immature pick inline; the install command (here
+  // simulated via the hook) decides what to do once it has the full set.
   prepareEmpty()
-
-  await expect(async () => {
-    const opts = testDefaults(
-      { minimumReleaseAge: allImmatureMinimumReleaseAge },
-      { strictPublishedByCheck: true }
-    )
-    await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
-  }).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  const seen: string[] = []
+  await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    handleResolutionPolicyViolations: async (violations) => {
+      for (const v of violations) seen.push(`${v.name}@${v.version}`)
+      throw new Error('immature picks rejected')
+    },
+  })).rejects.toThrow(/immature picks rejected/)
+  expect(seen).toContain('is-odd@0.1.0')
 })
 
 test('time-based resolution repopulates missing lockfile time entries on re-install', async () => {
@@ -180,17 +192,131 @@ test('minimumReleaseAge is enforced on pre-existing lockfile entries during pnpm
   ).rejects.toThrow(/minimumReleaseAge/)
 })
 
-test('the lockfile minimumReleaseAge gate is inert when strict mode is off (default-value semantics)', async () => {
+test('the lockfile minimumReleaseAge gate runs in loose mode too', async () => {
   prepareEmpty()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
   expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
 
-  // Without explicit strict mode — the same shape as the CLI built-in default
-  // (1-day release-age window applied without `minimumReleaseAge` being set in
-  // .npmrc) — the revalidation pass stays inert and the locked version
-  // installs cleanly.
+  // Loose mode no longer skips the verifier — once auto-collect makes every
+  // accepted-immature pin explicit in `minimumReleaseAgeExclude`, running
+  // the verifier in loose mode is what keeps the manifest in sync with the
+  // lockfile. A pre-existing immature lockfile entry that isn't yet on the
+  // exclude list is rejected here, same as strict mode.
   await expect(
     install(manifest, testDefaults({ minimumReleaseAge }))
+  ).rejects.toThrow(/minimumReleaseAge/)
+})
+
+test('the lockfile minimumReleaseAge gate accepts loose-mode entries already on the exclude list', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
+
+  // is-odd@0.1.2 pulls in is-buffer and kind-of transitively. With the exclude
+  // list pre-populated (as the auto-collect would have produced on a previous
+  // install), the loose-mode verifier accepts all three and the install
+  // completes — the steady-state shape this feature is built around.
+  await expect(
+    install(manifest, testDefaults({
+      minimumReleaseAge,
+      minimumReleaseAgeStrict: false,
+      minimumReleaseAgeExclude: ['is-odd@0.1.2', 'is-buffer', 'kind-of'],
+    }))
   ).resolves.toBeDefined()
+})
+
+test('loose mode surfaces immature fresh picks in the install result', async () => {
+  prepareEmpty()
+
+  // Every version is younger than the cutoff. With strict mode off the
+  // resolver's lowest-version fallback installs the immature version,
+  // and the post-resolution scan in `mutateModules` reports it back via
+  // `resolutionPolicyViolations`. The CLI command filters by code to
+  // persist the entries to `minimumReleaseAgeExclude`.
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    // Acknowledge the violations without aborting so the install
+    // proceeds and the result can be inspected.
+    handleResolutionPolicyViolations: async () => {},
+  })
+
+  expect(result.resolutionPolicyViolations).toContainEqual(
+    expect.objectContaining({
+      name: 'is-odd',
+      version: '0.1.0',
+      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    })
+  )
+})
+
+test('versions excluded via minimumReleaseAgeExclude are not surfaced as violations', async () => {
+  prepareEmpty()
+
+  const opts = testDefaults({
+    minimumReleaseAge: allImmatureMinimumReleaseAge,
+    minimumReleaseAgeExclude: ['is-odd'],
+  })
+  // is-odd is excluded, but `is-odd@0.1.2` pulls in is-buffer / is-number /
+  // kind-of transitively — those still produce policy violations. Wire a
+  // no-op handler to acknowledge them.
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    handleResolutionPolicyViolations: async () => {},
+  })
+
+  // is-odd is excluded by policy — the install installed 0.1.2 (the highest in
+  // range) treating it as fully trusted. The verifier short-circuits on the
+  // excluded entry, so it doesn't end up in the violations array — otherwise
+  // every install would re-add the same exclude entry the user just dismissed.
+  expect(result.resolutionPolicyViolations.find((v) => v.name === 'is-odd')).toBeUndefined()
+})
+
+test('handleResolutionPolicyViolations throwing aborts the install before the lockfile is written', async () => {
+  // Simulates the strict-mode interactive prompt rejecting the immature
+  // picks. The hook runs after the new lockfile is built but before it's
+  // written to disk; throwing unwinds the install in its pre-install state.
+  prepareEmpty()
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    handleResolutionPolicyViolations: async () => {
+      throw new Error('user denied')
+    },
+  })).rejects.toThrow(/user denied/)
+
+  // The lockfile must NOT have been written — the throw fires before the
+  // resolver finishes, so no on-disk side effects.
+  await expect(readWantedLockfile('.', { ignoreIncompatible: false })).resolves.toBeNull()
+})
+
+test('resolveDependencies throws if violations fire but no handleResolutionPolicyViolations is wired', async () => {
+  // Safety net: the policy contract is "every pick that trips a check
+  // produces a violation that gets handled". A caller that opted into a
+  // policy but forgot to wire the handler would otherwise silently drop
+  // the violations and land policy-rejected versions in the lockfile.
+  prepareEmpty()
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    // Explicitly omit handleResolutionPolicyViolations.
+    handleResolutionPolicyViolations: undefined,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED' })
+})
+
+test('handleResolutionPolicyViolations approval lets the install proceed cleanly', async () => {
+  prepareEmpty()
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    handleResolutionPolicyViolations: async (violations) => {
+      // The real install command would inspect the violations and run
+      // an enquirer prompt here. The test just confirms the hook gets a
+      // full set and returns to approve.
+      expect(violations.some((v) => v.name === 'is-odd' && v.version === '0.1.0')).toBe(true)
+    },
+  })
+
+  expect(result.updatedManifest.dependencies!['is-odd']).toBe('~0.1.0')
 })

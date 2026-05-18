@@ -8,9 +8,7 @@
 //! ported, so these direct unit tests guard the behavior in the meantime.
 
 use indexmap::IndexSet;
-use pacquet_modules_yaml::{
-    DepPath, Modules, RealApi, read_modules_manifest, write_modules_manifest,
-};
+use pacquet_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
@@ -33,7 +31,7 @@ fn read_preserves_absolute_virtual_store_dir() {
     fs::write(modules_dir.join(".modules.yaml"), raw).expect("write fixture");
 
     let manifest = modules_dir
-        .pipe_as_ref(read_modules_manifest::<RealApi>)
+        .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read manifest")
         .expect("manifest exists");
     assert_eq!(Path::new(&manifest.virtual_store_dir), custom_store);
@@ -55,7 +53,7 @@ fn write_relativizes_non_descendant_virtual_store_dir() {
         "virtualStoreDir": &sibling_store,
     }));
 
-    write_modules_manifest::<RealApi>(&modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(&modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)
@@ -77,7 +75,7 @@ fn write_sorts_skipped_array() {
         "skipped": ["zeta", "alpha", "mu"],
     }));
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)
@@ -99,7 +97,7 @@ fn write_removes_null_public_hoist_pattern() {
         "publicHoistPattern": null,
     }));
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)
@@ -136,7 +134,7 @@ fn dep_path_serializes_transparently() {
         [DepPath::from("/sharp/0.32.0".to_string())].into_iter().collect();
     assert_eq!(manifest.ignored_builds.as_ref(), Some(&expected_ignored));
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)
@@ -181,8 +179,8 @@ fn hoisted_locations_round_trips() {
         Some(&vec!["node_modules/accepts".to_string()]),
     );
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest.clone()).expect("write manifest");
-    let actual = read_modules_manifest::<RealApi>(modules_dir)
+    write_modules_manifest::<Host>(modules_dir, manifest.clone()).expect("write manifest");
+    let actual = read_modules_manifest::<Host>(modules_dir)
         .expect("read manifest")
         .expect("manifest exists");
     assert_eq!(actual.hoisted_locations, manifest.hoisted_locations);
@@ -211,7 +209,7 @@ fn absent_hoisted_locations_is_omitted_on_write() {
     let manifest = manifest_from_json(json!({ "layoutVersion": 5 }));
     assert!(manifest.hoisted_locations.is_none(), "fixture seed");
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)

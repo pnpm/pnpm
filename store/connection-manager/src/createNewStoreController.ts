@@ -51,6 +51,8 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'saveWorkspaceProtocol'
 | 'strictSsl'
 | 'trustPolicy'
+| 'trustPolicyExclude'
+| 'trustPolicyIgnoreAfter'
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
@@ -115,11 +117,13 @@ export async function createNewStoreController (
     includeOnlyPackageFiles: !opts.deployAllFiles,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
-    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     storeIndex,
   })
   return {

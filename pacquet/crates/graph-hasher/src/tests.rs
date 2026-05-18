@@ -111,8 +111,46 @@ fn hash_object_string_length_counts_utf16_code_units() {
     assert_ne!(one_unit, two_bytes_ascii, "utf-16 length must differ from byte length");
 }
 
+/// `null`, booleans, and arrays each go through their own arm of
+/// the `serialize` dispatcher. The bytestream prefixes (`Null`,
+/// `bool:true|false`, `array:<N>:`) are part of the on-disk
+/// cache-key contract and must produce stable, distinct hashes
+/// — pin them to guard against silent divergence from
+/// `@pnpm/crypto.object-hasher`.
+#[test]
+fn hash_object_handles_null_bool_and_array_variants() {
+    // Same scalar wrapped in a single-key object so we can hash
+    // each independently. Pacquet's call sites only ever feed
+    // top-level objects.
+    let null_hash = hash_object(&json!({ "v": null }));
+    let true_hash = hash_object(&json!({ "v": true }));
+    let false_hash = hash_object(&json!({ "v": false }));
+    let array_hash = hash_object(&json!({ "v": [1, 2, 3] }));
+
+    // Each variant produces a non-empty, distinct hash. Collisions
+    // across variants would mean the discriminator prefixes were
+    // lost.
+    let all = [&null_hash, &true_hash, &false_hash, &array_hash];
+    for a in all {
+        assert!(!a.is_empty());
+    }
+    for (i, a) in all.iter().enumerate() {
+        for (j, b) in all.iter().enumerate() {
+            if i != j {
+                assert_ne!(a, b, "variant prefixes must distinguish hashes");
+            }
+        }
+    }
+
+    // Stable across calls.
+    assert_eq!(null_hash, hash_object(&json!({ "v": null })));
+    assert_eq!(array_hash, hash_object(&json!({ "v": [1, 2, 3] })));
+    // Array element order matters: `[1,2,3]` and `[3,2,1]` differ.
+    assert_ne!(array_hash, hash_object(&json!({ "v": [3, 2, 1] })));
+}
+
 fn hex_decode(hex: &str) -> Vec<u8> {
-    assert!(hex.len() % 2 == 0);
+    assert!(hex.len().is_multiple_of(2));
     (0..hex.len())
         .step_by(2)
         .map(|index| u8::from_str_radix(&hex[index..index + 2], 16).expect("hex digit"))

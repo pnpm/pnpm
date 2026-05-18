@@ -65,30 +65,30 @@ pub trait Clock {
 }
 
 /// Production implementation, backed by [`std::fs`] and [`SystemTime::now`].
-pub struct RealApi;
+pub struct Host;
 
-impl FsReadToString for RealApi {
+impl FsReadToString for Host {
     #[inline]
     fn read_to_string(path: &Path) -> io::Result<String> {
         fs::read_to_string(path)
     }
 }
 
-impl FsCreateDirAll for RealApi {
+impl FsCreateDirAll for Host {
     #[inline]
     fn create_dir_all(path: &Path) -> io::Result<()> {
         fs::create_dir_all(path)
     }
 }
 
-impl FsWrite for RealApi {
+impl FsWrite for Host {
     #[inline]
     fn write(path: &Path, contents: &[u8]) -> io::Result<()> {
         fs::write(path, contents)
     }
 }
 
-impl Clock for RealApi {
+impl Clock for Host {
     #[inline]
     fn now() -> SystemTime {
         SystemTime::now()
@@ -362,16 +362,16 @@ pub enum WriteModulesError {
 /// `null` document, matching upstream `readModules` at
 /// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L50-L105>.
 ///
-/// Production callers turbofish [`RealApi`]: `read_modules_manifest::<RealApi>(dir)`.
+/// Production callers turbofish [`Host`]: `read_modules_manifest::<Host>(dir)`.
 /// The bounds list the minimal capabilities ([`FsReadToString`] +
 /// [`Clock`]) so test fakes only need to implement the methods that are
 /// actually called.
-pub fn read_modules_manifest<Api>(modules_dir: &Path) -> Result<Option<Modules>, ReadModulesError>
+pub fn read_modules_manifest<Sys>(modules_dir: &Path) -> Result<Option<Modules>, ReadModulesError>
 where
-    Api: FsReadToString + Clock,
+    Sys: FsReadToString + Clock,
 {
     let manifest_path = modules_dir.join(MODULES_FILENAME);
-    let content = match Api::read_to_string(&manifest_path) {
+    let content = match Sys::read_to_string(&manifest_path) {
         Ok(content) => content,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(source) => {
@@ -386,7 +386,7 @@ where
     apply_legacy_shamefully_hoist(&mut manifest);
     resolve_virtual_store_dir(&mut manifest, modules_dir);
     if manifest.pruned_at.is_empty() {
-        manifest.pruned_at = httpdate::fmt_http_date(Api::now());
+        manifest.pruned_at = httpdate::fmt_http_date(Sys::now());
     }
     if manifest.virtual_store_dir_max_length == 0 {
         manifest.virtual_store_dir_max_length = DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
@@ -407,14 +407,14 @@ where
 /// `clone()` inside the function. Per the CODE_STYLE_GUIDE rule that
 /// owned-vs-borrowed parameter choice should minimize copies.
 ///
-/// Production callers turbofish [`RealApi`]: `write_modules_manifest::<RealApi>(dir, m)`.
+/// Production callers turbofish [`Host`]: `write_modules_manifest::<Host>(dir, m)`.
 /// Bounds are minimal: only [`FsCreateDirAll`] and [`FsWrite`] are required.
-pub fn write_modules_manifest<Api>(
+pub fn write_modules_manifest<Sys>(
     modules_dir: &Path,
     mut manifest: Modules,
 ) -> Result<(), WriteModulesError>
 where
-    Api: FsCreateDirAll + FsWrite,
+    Sys: FsCreateDirAll + FsWrite,
 {
     manifest.skipped.sort();
     drop_legacy_hoisted_aliases_when_unreferenced(&mut manifest);
@@ -426,12 +426,12 @@ where
     }
     let serialized =
         serde_json::to_string_pretty(&manifest).map_err(WriteModulesError::SerializeJson)?;
-    Api::create_dir_all(modules_dir).map_err(|source| WriteModulesError::CreateDir {
+    Sys::create_dir_all(modules_dir).map_err(|source| WriteModulesError::CreateDir {
         path: modules_dir.to_path_buf(),
         source,
     })?;
     let manifest_path = modules_dir.join(MODULES_FILENAME);
-    Api::write(&manifest_path, serialized.as_bytes())
+    Sys::write(&manifest_path, serialized.as_bytes())
         .map_err(|source| WriteModulesError::WriteFile { path: manifest_path, source })
 }
 

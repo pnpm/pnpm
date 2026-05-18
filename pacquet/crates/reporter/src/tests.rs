@@ -6,9 +6,9 @@ use serde_json::Value;
 
 use crate::{
     AddedRoot, BrokenModulesLog, ContextLog, DependencyType, Envelope, FetchingProgressLog,
-    FetchingProgressMessage, GetHostName, IgnoredScriptsLog, LifecycleLog, LifecycleMessage,
+    FetchingProgressMessage, GetHostName, Host, IgnoredScriptsLog, LifecycleLog, LifecycleMessage,
     LifecycleStdio, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
-    PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, RealApi, RemovedRoot,
+    PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, RemovedRoot,
     Reporter, RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog,
     StatsLog, StatsMessage, SummaryLog,
@@ -805,20 +805,20 @@ fn recording_fake_captures_emitted_events() {
 /// test, which is what consumers of the trait need to know.
 #[test]
 fn get_host_name_capability_is_mockable() {
-    struct FakeApi;
-    impl GetHostName for FakeApi {
+    struct FakeHostName;
+    impl GetHostName for FakeHostName {
         fn get_host_name() -> String {
             "fixture-host".to_owned()
         }
     }
-    assert_eq!(FakeApi::get_host_name(), "fixture-host");
+    assert_eq!(FakeHostName::get_host_name(), "fixture-host");
 }
 
-/// [`RealApi::get_host_name`] returns the value of `gethostname(2)`,
+/// [`Host::get_host_name`] returns the value of `gethostname(2)`,
 /// which any real environment populates with at least one byte.
 #[test]
-fn real_api_returns_a_non_empty_host_name() {
-    let host = RealApi::get_host_name();
-    eprintln!("RealApi::get_host_name() = {host:?}");
+fn host_returns_a_non_empty_host_name() {
+    let host = Host::get_host_name();
+    eprintln!("Host::get_host_name() = {host:?}");
     assert!(!host.is_empty());
 }

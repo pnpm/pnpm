@@ -2305,6 +2305,7 @@ dependencies = [
  "pretty_assertions",
  "sha2",
  "tempfile",
+ "text-block-macros",
 ]
 
 [[package]]

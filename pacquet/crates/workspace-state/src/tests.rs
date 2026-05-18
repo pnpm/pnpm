@@ -1,6 +1,7 @@
 use super::{
-    NodeLinker, ProjectEntry, WorkspaceState, WorkspaceStateSettings, get_file_path,
-    load_workspace_state, now_millis, update_workspace_state,
+    LoadWorkspaceStateError, NodeLinker, ProjectEntry, UpdateWorkspaceStateError, WorkspaceState,
+    WorkspaceStateSettings, get_file_path, load_workspace_state, now_millis,
+    update_workspace_state,
 };
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
@@ -94,4 +95,74 @@ fn node_linker_serializes_lowercase() {
     assert_eq!(value, serde_json::Value::from("hoisted"));
     let value = serde_json::to_value(NodeLinker::Pnp).expect("serialize");
     assert_eq!(value, serde_json::Value::from("pnp"));
+}
+
+/// `update_workspace_state` fails with the typed `CreateDir`
+/// variant when `node_modules` can't be created — here, because
+/// the workspace dir is itself a regular file blocking the
+/// parent path. Pins that the error is classified as a directory
+/// failure and not collapsed into `WriteFile`.
+#[test]
+fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
+    let tmp = tempdir().expect("create temp dir");
+    // The "workspace dir" is actually a file, so create_dir_all on
+    // `<file>/node_modules` must fail.
+    let blocker = tmp.path().join("blocker");
+    std::fs::write(&blocker, b"not a dir").expect("seed blocker file");
+
+    let state = WorkspaceState {
+        last_validated_timestamp: 0,
+        projects: BTreeMap::new(),
+        pnpmfiles: vec![],
+        filtered_install: false,
+        config_dependencies: None,
+        settings: WorkspaceStateSettings::default(),
+    };
+    let err = update_workspace_state(&blocker, &state)
+        .expect_err("create_dir_all on a regular-file ancestor should fail");
+    assert!(
+        matches!(err, UpdateWorkspaceStateError::CreateDir { .. }),
+        "expected CreateDir error, got {err:?}",
+    );
+}
+
+/// `load_workspace_state` surfaces non-NotFound read errors via
+/// the typed `ReadFile` variant. Here we make the target a
+/// directory: `read_to_string` on a directory returns
+/// `IsADirectory` (or `Other`) on Unix, never `NotFound`, which
+/// keeps the early-return arm out of the way.
+#[cfg(unix)]
+#[test]
+fn load_surfaces_read_file_error_when_target_is_a_directory() {
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+    let target = get_file_path(workspace_dir);
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    // Plant a directory where the state file should be.
+    std::fs::create_dir(&target).expect("seed directory at state path");
+
+    let err =
+        load_workspace_state(workspace_dir).expect_err("read_to_string on a directory should fail");
+    assert!(
+        matches!(err, LoadWorkspaceStateError::ReadFile { .. }),
+        "expected ReadFile error, got {err:?}",
+    );
+}
+
+/// `load_workspace_state` surfaces malformed JSON via the typed
+/// `ParseJson` variant. Pins that a corrupt state file doesn't
+/// collapse into `ReadFile` or `Ok(None)`.
+#[test]
+fn load_surfaces_parse_json_error_on_malformed_state() {
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+    let target = get_file_path(workspace_dir);
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::write(&target, b"{ not valid json").expect("seed malformed state");
+
+    let err = load_workspace_state(workspace_dir).expect_err("malformed JSON should fail to parse");
+    assert!(
+        matches!(err, LoadWorkspaceStateError::ParseJson { .. }),
+        "expected ParseJson error, got {err:?}",
+    );
 }

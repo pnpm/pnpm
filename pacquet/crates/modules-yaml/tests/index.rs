@@ -5,7 +5,7 @@
 //! sibling files (`real_fs.rs`, `fakes.rs`).
 
 use pacquet_modules_yaml::{
-    HoistKind, Modules, RealApi, read_modules_manifest, write_modules_manifest,
+    HoistKind, Host, Modules, read_modules_manifest, write_modules_manifest,
 };
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -44,8 +44,8 @@ fn write_modules_manifest_and_read_modules_manifest() {
         "virtualStoreDirMaxLength": 120,
     }));
 
-    write_modules_manifest::<RealApi>(modules_dir, modules_yaml.clone()).expect("write manifest");
-    let actual = read_modules_manifest::<RealApi>(modules_dir).expect("read manifest");
+    write_modules_manifest::<Host>(modules_dir, modules_yaml.clone()).expect("write manifest");
+    let actual = read_modules_manifest::<Host>(modules_dir).expect("read manifest");
     assert_eq!(actual, Some(modules_yaml));
 
     let raw: Value = modules_dir
@@ -69,7 +69,7 @@ fn read_legacy_shamefully_hoist_true_manifest() {
     let manifest = env!("CARGO_MANIFEST_DIR")
         .pipe(Path::new)
         .join("tests/fixtures/old-shamefully-hoist")
-        .pipe_as_ref(read_modules_manifest::<RealApi>)
+        .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read manifest")
         .expect("modules manifest exists");
 
@@ -99,7 +99,7 @@ fn read_legacy_shamefully_hoist_false_manifest() {
     let manifest = env!("CARGO_MANIFEST_DIR")
         .pipe(Path::new)
         .join("tests/fixtures/old-no-shamefully-hoist")
-        .pipe_as_ref(read_modules_manifest::<RealApi>)
+        .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read manifest")
         .expect("modules manifest exists");
 
@@ -151,8 +151,8 @@ fn write_modules_manifest_creates_node_modules_directory() {
         "virtualStoreDirMaxLength": 120,
     }));
 
-    write_modules_manifest::<RealApi>(&modules_dir, modules_yaml.clone()).expect("write manifest");
-    let actual = read_modules_manifest::<RealApi>(&modules_dir).expect("read manifest");
+    write_modules_manifest::<Host>(&modules_dir, modules_yaml.clone()).expect("write manifest");
+    let actual = read_modules_manifest::<Host>(&modules_dir).expect("read manifest");
     assert_eq!(actual, Some(modules_yaml));
 }
 
@@ -162,7 +162,7 @@ fn read_empty_modules_manifest_returns_none() {
     let modules_yaml = env!("CARGO_MANIFEST_DIR")
         .pipe(Path::new)
         .join("tests/fixtures/empty-modules-yaml")
-        .pipe_as_ref(read_modules_manifest::<RealApi>)
+        .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read manifest");
     assert_eq!(modules_yaml, None);
 }

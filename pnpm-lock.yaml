@@ -5138,6 +5138,9 @@ importers:
       '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
         version: link:../../engine/runtime/node-resolver
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: link:../../fetching/binary-fetcher
@@ -5165,6 +5168,9 @@ importers:
       '@pnpm/resolving.default-resolver':
         specifier: workspace:*
         version: link:../../resolving/default-resolver
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5271,6 +5277,9 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
+      '@pnpm/resolving.npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -5337,6 +5346,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      ci-info:
+        specifier: 'catalog:'
+        version: 4.4.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -5422,9 +5434,6 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
-      ci-info:
-        specifier: 'catalog:'
-        version: 4.4.0
       delay:
         specifier: 'catalog:'
         version: 7.0.0

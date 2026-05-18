@@ -6,6 +6,7 @@ import {
 } from '@pnpm/core-loggers'
 import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import type {
   LockfileObject,
   ProjectSnapshot,
@@ -16,6 +17,7 @@ import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
 } from '@pnpm/pkg-manifest.utils'
+import type { ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -110,6 +112,17 @@ export interface ResolveDependenciesResult {
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   waitTillAllFetchingsFinish: () => Promise<void>
   wantedToBeSkippedPackageIds: Set<string>
+  /**
+   * Policy violations collected inline during resolution — each
+   * resolver pushes to the list whenever it picks a version that
+   * trips one of its own checks (today: `minimumReleaseAge`). The
+   * install command reacts via `handleResolutionPolicyViolations`
+   * (prompt / abort) and `mutateModules` forwards the array out so
+   * the auto-persist path at the install's tail can drain it into
+   * the workspace manifest. Empty when no policy is active or no
+   * pick violates.
+   */
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
 export async function resolveDependencies (
@@ -127,6 +140,17 @@ export async function resolveDependencies (
     allowUnusedPatches?: boolean
     enableGlobalVirtualStore?: boolean
     allProjectIds: string[]
+    /**
+     * Generic checkpoint invoked between `resolveDependencyTree` and
+     * `resolvePeers` once any inline-collected policy violations have
+     * been gathered. Callers can prompt, persist, or throw based on
+     * the violations. Throwing unwinds before any peer-dep work,
+     * lockfile write, package.json update, or modules-dir change.
+     * Intentionally policy-neutral: each resolver owns its violation
+     * codes and the hook implementer (install command) decides what
+     * to do with them.
+     */
+    handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -148,7 +172,35 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
+    resolutionPolicyViolations,
   } = await resolveDependencyTree(projectsToResolve, opts)
+
+  // Resolver-policy gate between main resolution and peer-dep
+  // resolution: every resolver records its own policy violations
+  // inline as it picks each version, and we hand the accumulated
+  // list to the install command's hook. The hook throws to abort
+  // cleanly — nothing on disk has changed yet, and we haven't paid
+  // the cost of peer resolution. Dispatch stays policy-neutral: each
+  // resolver owns its violation codes, and the hook implementer
+  // decides what to do with them.
+  //
+  // If violations fired but no hook was wired, throw rather than
+  // silently dropping them — the resolver-policy contract is "every
+  // pick that trips a check produces a violation that gets handled";
+  // a missing handler means the caller forgot to opt in and would
+  // otherwise see policy-rejected versions land in the lockfile.
+  if (resolutionPolicyViolations.length > 0) {
+    if (!opts.handleResolutionPolicyViolations) {
+      throw new PnpmError(
+        'RESOLUTION_POLICY_VIOLATIONS_UNHANDLED',
+        `${resolutionPolicyViolations.length} resolution-policy ${resolutionPolicyViolations.length === 1 ? 'violation was' : 'violations were'} produced but no handleResolutionPolicyViolations callback was wired to react to them.`,
+        {
+          hint: 'Internal: resolveDependencies needs a handleResolutionPolicyViolations callback whenever a policy that can produce violations (today: minimumReleaseAge) is active. Wire setupPolicyHandlers (in @pnpm/installing.commands) or supply a callback directly.',
+        }
+      )
+    }
+    await opts.handleResolutionPolicyViolations(resolutionPolicyViolations)
+  }
 
   opts.storeController.clearResolutionCache()
 
@@ -358,6 +410,7 @@ export async function resolveDependencies (
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
+    resolutionPolicyViolations,
   }
 }
 

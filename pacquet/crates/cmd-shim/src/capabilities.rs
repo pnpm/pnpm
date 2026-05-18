@@ -1,5 +1,5 @@
 //! Per-capability dependency-injection traits and the production
-//! [`RealApi`] provider. Mirrors the pattern documented at
+//! [`Host`] provider. Mirrors the pattern documented at
 //! <https://github.com/pnpm/pacquet/pull/332#issuecomment-4345054524>:
 //!
 //! 1. One trait per capability.
@@ -27,7 +27,7 @@ use std::{
 /// generic over this trait, so test fakes do not have to grow.
 ///
 /// The trait makes no claim about how many syscalls a particular
-/// impl will use — the production `RealApi` impl opens the file,
+/// impl will use — the production `Host` impl opens the file,
 /// seeks to `offset` (if non-zero), and reads, which is more than
 /// one. What it does promise is the semantic contract: read up to
 /// `buf.len()` bytes starting at `offset` into `buf`.
@@ -48,7 +48,7 @@ pub trait FsReadFile {
 /// Read the entire contents of a file into a `String`. Used by
 /// [`crate::link_bins_of_packages`] to short-circuit on warm reinstalls
 /// where the existing shim already targets the same bin file.
-pub trait FsReadString {
+pub trait FsReadToString {
     fn read_to_string(path: &Path) -> io::Result<String>;
 }
 
@@ -145,9 +145,9 @@ pub trait FsEnsureExecutableBits {
 
 /// The production filesystem provider. Every method delegates straight
 /// to `std::fs`.
-pub struct RealApi;
+pub struct Host;
 
-impl FsReadHead for RealApi {
+impl FsReadHead for Host {
     fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
         use std::io::{Read, Seek, SeekFrom};
         let mut file = std::fs::File::open(path)?;
@@ -158,19 +158,19 @@ impl FsReadHead for RealApi {
     }
 }
 
-impl FsReadFile for RealApi {
+impl FsReadFile for Host {
     fn read_file(path: &Path) -> io::Result<Vec<u8>> {
         std::fs::read(path)
     }
 }
 
-impl FsReadString for RealApi {
+impl FsReadToString for Host {
     fn read_to_string(path: &Path) -> io::Result<String> {
         std::fs::read_to_string(path)
     }
 }
 
-impl FsReadDir for RealApi {
+impl FsReadDir for Host {
     fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
         // `flatten()` silently drops per-entry errors. This matches the
         // prior collect-then-flatten shape and the `tinyglobby`-style
@@ -179,7 +179,7 @@ impl FsReadDir for RealApi {
     }
 }
 
-impl FsWalkFiles for RealApi {
+impl FsWalkFiles for Host {
     fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
         // `flatten()` silently drops per-entry errors and matches
         // pnpm's `tinyglobby` ENOENT-on-subtree behaviour. The
@@ -196,20 +196,20 @@ impl FsWalkFiles for RealApi {
     }
 }
 
-impl FsCreateDirAll for RealApi {
+impl FsCreateDirAll for Host {
     fn create_dir_all(path: &Path) -> io::Result<()> {
         std::fs::create_dir_all(path)
     }
 }
 
-impl FsWrite for RealApi {
+impl FsWrite for Host {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         std::fs::write(path, bytes)
     }
 }
 
 #[cfg(unix)]
-impl FsSetExecutable for RealApi {
+impl FsSetExecutable for Host {
     fn set_executable(path: &Path) -> io::Result<()> {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
@@ -217,14 +217,14 @@ impl FsSetExecutable for RealApi {
 }
 
 #[cfg(not(unix))]
-impl FsSetExecutable for RealApi {
+impl FsSetExecutable for Host {
     fn set_executable(_path: &Path) -> io::Result<()> {
         Ok(())
     }
 }
 
 #[cfg(unix)]
-impl FsEnsureExecutableBits for RealApi {
+impl FsEnsureExecutableBits for Host {
     fn ensure_executable_bits(path: &Path) -> io::Result<()> {
         use std::os::unix::fs::PermissionsExt;
         let metadata = std::fs::metadata(path)?;
@@ -234,7 +234,7 @@ impl FsEnsureExecutableBits for RealApi {
 }
 
 #[cfg(not(unix))]
-impl FsEnsureExecutableBits for RealApi {
+impl FsEnsureExecutableBits for Host {
     fn ensure_executable_bits(_path: &Path) -> io::Result<()> {
         Ok(())
     }

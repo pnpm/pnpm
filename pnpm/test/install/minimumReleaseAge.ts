@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
@@ -119,11 +120,12 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 
-  test('install is unaffected by minimumReleaseAge when strict mode is explicitly off', () => {
-    // The config reader auto-enables strict mode the moment a user
-    // explicitly sets `minimumReleaseAge`, so opting out requires an
-    // explicit `minimumReleaseAgeStrict: false`. With that, the verifier
-    // doesn't construct and the lockfile passes through untouched.
+  test('loose mode rejects immature lockfile entries that are not on minimumReleaseAgeExclude', () => {
+    // The verifier now runs in loose mode too, so a lockfile produced under
+    // no policy that still has immature pins is rejected the same way
+    // strict mode would reject it. The expected workflow is: the loose-mode
+    // auto-collect (during fresh resolution) populates the exclude list, and
+    // subsequent installs run cleanly against that list.
     prepare({
       dependencies: { 'is-odd': '0.1.2' },
     })
@@ -134,9 +136,218 @@ describe('lockfile minimumReleaseAge verification', () => {
       minimumReleaseAgeStrict: false,
     })
 
+    const result = execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      omitMinReleaseAgeEnv
+    )
+    expect(result.status).toBe(1)
+    const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+    expect(output).toContain('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
+    expect(output).toMatch(/is-odd@0\.1\.2/)
+  })
+
+  test('loose mode auto-adds fresh immature picks to minimumReleaseAgeExclude', () => {
+    // Fresh resolution under loose mode: the resolver's lowest-version
+    // fallback picks an immature version, and the install layer surfaces it
+    // to `minimumReleaseAgeExclude`. The verifier sees an empty lockfile at
+    // the start (no entries to reject) and the workspace manifest grows.
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    // is-odd@0.1.2 pulls in is-buffer, is-number, and kind-of transitively;
+    // every one of those is immature relative to the (deliberately extreme)
+    // cutoff, so all four end up on the exclude list. Match by package name
+    // (any version) so the test stays stable across npm-registry republishes
+    // that shift the transitive pins.
+    expect(workspaceManifest.minimumReleaseAgeExclude).toEqual(expect.arrayContaining([
+      'is-odd@0.1.2',
+      expect.stringMatching(/^is-buffer@/),
+      expect.stringMatching(/^is-number@/),
+      expect.stringMatching(/^kind-of@/),
+    ]))
+  })
+
+  test('loose-mode auto-exclude is a no-op when no immature picks occur', () => {
+    // is-positive@1.0.0 was published in 2014; with a 1-minute cutoff it
+    // stays mature relative to the policy. Auto-exclude should not touch
+    // the workspace manifest when there's nothing to add.
+    prepare({
+      dependencies: { 'is-positive': '1.0.0' },
+    })
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { expectSuccess: true })
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 1,
+      minimumReleaseAgeStrict: false,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
+
+  test('subsequent installs run cleanly once the exclude list is populated', () => {
+    // Round-trip the auto-collect: first install populates the exclude list
+    // from fresh resolution, the next install runs the verifier against the
+    // now-populated list and succeeds without re-announcing anything. The
+    // verifier and the auto-collect together keep the workspace manifest in
+    // sync with the lockfile across installs.
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
     execPnpmSync(
       [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
       { ...omitMinReleaseAgeEnv, expectSuccess: true }
     )
+  })
+
+  test('recursive --no-save leaves the workspace manifest untouched even when picks are collected (shared lockfile)', () => {
+    // The shared-lockfile recursive branch in recursive.ts: a single
+    // `mutateModules` call across all importers. Same drain-only-when-
+    // saving gate has to hold here.
+    preparePackages([
+      {
+        name: 'project-a',
+        version: '1.0.0',
+        dependencies: { 'is-odd': '0.1.2' },
+      },
+    ])
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      packages: ['*'],
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, '-r', 'install', '--no-save'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
+
+  test('recursive --no-save leaves the workspace manifest untouched even when picks are collected (per-project lockfiles)', () => {
+    // The other recursive branch: with sharedWorkspaceLockfile: false
+    // the per-project loop is taken instead of the single
+    // mutateModules call. The post-loop updateWorkspaceManifest at the
+    // tail of recursive.ts also has to honor --no-save.
+    preparePackages([
+      {
+        name: 'project-a',
+        version: '1.0.0',
+        dependencies: { 'is-odd': '0.1.2' },
+      },
+    ])
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      packages: ['*'],
+      sharedWorkspaceLockfile: false,
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, '-r', 'install', '--no-save'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
+
+  test('--no-save leaves the workspace manifest untouched even when picks are collected', () => {
+    // `--no-save` means "don't persist anything from this install" — the
+    // auto-add should obey that. Without the gate, the info log would
+    // claim entries were added that never reached pnpm-workspace.yaml,
+    // and the next install would either re-prompt or fail verification.
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: false,
+    })
+
+    // First install resolves and populates the lockfile but not the
+    // workspace manifest (because --no-save).
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--no-save'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+
+    const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml')
+    expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
+  })
+
+  test('verifier cache invalidates when minimumReleaseAgeExclude is shrunk', async () => {
+    // Removing an entry from the exclude list could expose a violation
+    // that previously passed verification. The cache record snapshots the
+    // exclude list and `canTrustPastCheck` rejects the cached run when
+    // today's list isn't a superset of the cached one — so the next
+    // install re-verifies and the now-uncovered immature lockfile entry
+    // is flagged.
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    await execPnpm([PUBLIC_REGISTRY, 'install'])
+
+    const cacheDir = path.resolve('pnpm-cache')
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: true,
+      minimumReleaseAgeExclude: ['is-odd', 'is-buffer', 'is-number', 'kind-of'],
+      cacheDir,
+    })
+    // Step 1: install with the full exclude list — verifier writes a
+    // cache record under that policy.
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    expect(fs.existsSync(cacheFile)).toBe(true)
+
+    // Step 2: drop `is-odd` from the exclude list. The cached record
+    // had it; today doesn't. canTrustPastCheck must reject so the
+    // re-verification flags is-odd@0.1.2 as immature.
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: true,
+      minimumReleaseAgeExclude: ['is-buffer', 'is-number', 'kind-of'],
+      cacheDir,
+    })
+    const result = execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
+      omitMinReleaseAgeEnv
+    )
+    expect(result.status).toBe(1)
+    const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+    expect(output).toContain('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
+    expect(output).toMatch(/is-odd@0\.1\.2/)
   })
 })

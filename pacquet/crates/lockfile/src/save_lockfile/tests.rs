@@ -250,3 +250,95 @@ fn write_current_is_a_noop_for_empty_lockfile_with_no_existing_file() {
         .expect("write should succeed when target is missing");
     assert!(!virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists());
 }
+
+/// `create_dir_all` failures (here, attempting to create a
+/// directory under a path that is actually a regular file)
+/// surface as the typed `CreateDir` error. Pins the error
+/// classification so a regression that bubbled the raw
+/// `io::Error` as `WriteFile` would fail this test.
+#[test]
+fn write_current_surfaces_create_dir_error_when_parent_is_a_file() {
+    let tmp = tempdir().expect("create tempdir");
+    // Make `tmp/blocker` a regular file, then ask to write the
+    // lockfile under `tmp/blocker/.pacquet`. `create_dir_all` will
+    // fail with `NotADirectory` (or `AlreadyExists` on some
+    // platforms) — either way it must land as `CreateDir`.
+    let blocker = tmp.path().join("blocker");
+    std::fs::write(&blocker, b"not a dir").expect("seed blocker file");
+
+    let virtual_store_dir = blocker.join(".pacquet");
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let err = lockfile
+        .save_current_to_virtual_store_dir(&virtual_store_dir)
+        .expect_err("create_dir_all should fail on a regular-file ancestor");
+    assert!(
+        matches!(err, SaveLockfileError::CreateDir { .. }),
+        "expected CreateDir error, got: {err:?}",
+    );
+}
+
+/// Trying to remove an existing entry that is a directory (rather
+/// than a regular file) surfaces as `RemoveFile`. Mirrors
+/// upstream's strict file/dir distinction at the rimraf-equivalent
+/// step. Tests the not-NotFound arm of the empty-lockfile branch.
+#[cfg(unix)]
+#[test]
+fn write_current_surfaces_remove_file_error_when_target_is_a_directory() {
+    let tmp = tempdir().expect("create tempdir");
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    std::fs::create_dir_all(&virtual_store_dir).unwrap();
+    // Pre-seed `lock.yaml` as a directory rather than a file.
+    // `fs::remove_file` rejects this with `IsADirectory` on Unix.
+    let dir_at_target = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    std::fs::create_dir(&dir_at_target).expect("seed directory at lock.yaml path");
+
+    let empty: Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
+    let err = empty
+        .save_current_to_virtual_store_dir(&virtual_store_dir)
+        .expect_err("remove_file on a directory should error");
+    assert!(
+        matches!(err, SaveLockfileError::RemoveFile { .. }),
+        "expected RemoveFile error, got: {err:?}",
+    );
+    // The directory is still there — the failure was reported, not silently swallowed.
+    assert!(dir_at_target.is_dir());
+}
+
+/// `write_atomic`'s rename step fails when the target is an
+/// existing non-empty directory: Unix `rename(2)` returns
+/// `ENOTEMPTY` / `EISDIR`. Pins that the error surfaces as
+/// `RenameFile`, not as a generic write failure, and that the
+/// temp blob is cleaned up on the way out.
+#[cfg(unix)]
+#[test]
+fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
+    let tmp = tempdir().expect("create tempdir");
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    std::fs::create_dir_all(&virtual_store_dir).unwrap();
+    // Plant a *non-empty* directory at the target. `rename` over
+    // it must fail on every supported platform.
+    let dir_at_target = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    std::fs::create_dir(&dir_at_target).unwrap();
+    std::fs::write(dir_at_target.join("decoy"), b"x").unwrap();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let err = lockfile
+        .save_current_to_virtual_store_dir(&virtual_store_dir)
+        .expect_err("rename over a non-empty directory should fail");
+    assert!(
+        matches!(err, SaveLockfileError::RenameFile { .. }),
+        "expected RenameFile error, got: {err:?}",
+    );
+    // The temp file write_atomic created next to the target must
+    // not have been left behind.
+    let leftovers: Vec<_> = std::fs::read_dir(&virtual_store_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .filter(|name| {
+            let s = name.to_string_lossy();
+            s != Lockfile::CURRENT_FILE_NAME
+        })
+        .collect();
+    assert!(leftovers.is_empty(), "temp file should have been cleaned up, found: {leftovers:?}");
+}

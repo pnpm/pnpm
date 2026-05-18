@@ -193,6 +193,7 @@ async function resolveAndFetch (
     publishedAt,
     normalizedBareSpecifier,
     alias,
+    policyViolation,
   } = resolveResult
 
   // Check if the integrity has changed between the current and newly resolved package
@@ -256,6 +257,7 @@ async function resolveAndFetch (
         updated,
         publishedAt,
         alias,
+        policyViolation,
       },
     }
   }
@@ -319,6 +321,7 @@ async function resolveAndFetch (
       updated,
       publishedAt,
       alias,
+      policyViolation,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,
