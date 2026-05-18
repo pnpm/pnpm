@@ -42,6 +42,7 @@ import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
+  getWantedLockfileName,
   type LockfileObject,
   type ProjectSnapshot,
   readWantedLockfile,
@@ -97,6 +98,8 @@ import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
+import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -358,10 +361,17 @@ export async function mutateModules (
   // resolver's own filters already cover fresh resolution. We run this
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
+  const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
+  const wantedLockfilePath = cacheActive
+    ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    }))
+    : undefined
   try {
     await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
       cacheDir: opts.cacheDir,
-      lockfilePath: path.resolve(ctx.lockfileDir, WANTED_LOCKFILE),
+      lockfilePath: wantedLockfilePath,
     })
   } catch (err) {
     // verifyLockfileResolutions is the one throw site in this function
@@ -1657,11 +1667,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
-        ? writeLockfiles({
+        ? writeLockfilesAndRecordVerified({
           currentLockfile: result.currentLockfile,
           currentLockfileDir,
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
+          cacheDir: opts.cacheDir,
+          resolutionVerifiers: opts.resolutionVerifiers,
           ...lockfileOpts,
         })
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile),
@@ -1716,7 +1728,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   } else {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
-      await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
+      await writeWantedLockfileAndRecordVerified({
+        lockfileDir: ctx.lockfileDir,
+        lockfile: newLockfile,
+        cacheDir: opts.cacheDir,
+        resolutionVerifiers: opts.resolutionVerifiers,
+        ...lockfileOpts,
+      })
     }
 
     if (opts.nodeLinker !== 'hoisted') {
@@ -2264,7 +2282,14 @@ async function installFromPnpmRegistry (
       storeIndex.close()
     }
 
-    await writeWantedLockfile(lockfileDir, lockfile)
+    await writeWantedLockfileAndRecordVerified({
+      lockfileDir,
+      lockfile,
+      cacheDir: opts.cacheDir,
+      resolutionVerifiers: opts.resolutionVerifiers,
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    })
 
     logger.info({
       message: `Resolved ${agentStats.totalPackages} packages: ${agentStats.alreadyInStore} cached, ${agentStats.filesToDownload} files to download`,
