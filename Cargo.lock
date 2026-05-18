@@ -2170,6 +2170,7 @@ dependencies = [
  "chrono",
  "derive_more",
  "futures-util",
+ "insta",
  "miette 7.6.0",
  "pacquet-diagnostics",
  "pacquet-lockfile",

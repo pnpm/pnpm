@@ -26,6 +26,7 @@ sha2         = { workspace = true }
 tokio        = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
+insta             = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }
 ssri              = { workspace = true }

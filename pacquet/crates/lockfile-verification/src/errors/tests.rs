@@ -110,3 +110,78 @@ fn single_entry_breakdown_has_no_trailing_newline() {
     };
     assert!(!breakdown.ends_with('\n'), "breakdown: {breakdown:?}");
 }
+
+/// One-entry single-code rendering — the canonical "the user
+/// committed a lockfile with one immature pin" shape. Insta-snapshot
+/// pins the user-facing Display text so a future format change
+/// surfaces as a reviewable diff. Mirrors pnpm's `PnpmError` Display
+/// shape; the per-policy code lives on the envelope, the breakdown
+/// is single-column.
+#[test]
+fn renders_single_entry_single_code() {
+    let err = VerifyError::from_rendered(vec![rendered(
+        "acme",
+        "1.0.0",
+        "MINIMUM_RELEASE_AGE_VIOLATION",
+        "was published at 2025-11-30T22:00:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)",
+    )]);
+    insta::assert_snapshot!("single_entry_single_code", err.to_string());
+}
+
+/// Three-entry single-code rendering — every entry tripped the same
+/// policy. The envelope's `code` carries the policy; the breakdown
+/// lists `<name>@<version> <reason>` without per-line code prefixes.
+#[test]
+fn renders_three_entries_single_code() {
+    let err = VerifyError::from_rendered(vec![
+        rendered(
+            "acme",
+            "1.0.0",
+            "MINIMUM_RELEASE_AGE_VIOLATION",
+            "was published at 2025-11-30T22:00:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)",
+        ),
+        rendered(
+            "bravo",
+            "2.0.0",
+            "MINIMUM_RELEASE_AGE_VIOLATION",
+            "was published at 2025-11-30T22:30:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)",
+        ),
+        rendered(
+            "charlie",
+            "3.0.0",
+            "MINIMUM_RELEASE_AGE_VIOLATION",
+            "was published at 2025-11-30T23:00:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)",
+        ),
+    ]);
+    insta::assert_snapshot!("three_entries_single_code", err.to_string());
+}
+
+/// Three-entry mixed-code rendering — at least two distinct
+/// violation codes in the batch. The envelope escalates to
+/// `LOCKFILE_RESOLUTION_VERIFICATION`; the breakdown carries the
+/// per-line code prefix so the user can see which policy each entry
+/// tripped.
+#[test]
+fn renders_three_entries_mixed_codes() {
+    let err = VerifyError::from_rendered(vec![
+        rendered(
+            "acme",
+            "1.0.0",
+            "MINIMUM_RELEASE_AGE_VIOLATION",
+            "was published at 2025-11-30T22:00:00.000Z, within the minimumReleaseAge cutoff (2025-11-30T00:00:00.000Z)",
+        ),
+        rendered(
+            "bravo",
+            "2.0.0",
+            "TRUST_DOWNGRADE",
+            "High-risk trust downgrade for \"bravo@2.0.0\" (possible package takeover)",
+        ),
+        rendered(
+            "charlie",
+            "3.0.0",
+            "MINIMUM_RELEASE_AGE_VIOLATION",
+            "could not be checked against minimumReleaseAge (version not present in registry manifest)",
+        ),
+    ]);
+    insta::assert_snapshot!("three_entries_mixed_codes", err.to_string());
+}
