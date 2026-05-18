@@ -74,15 +74,27 @@ async function writeLockfile (
     await writeFileAtomic(lockfilePath, yamlDoc)
   }
 
-  // Return the canonical "as-saved" lockfile — parse the same YAML we
-  // just wrote and run the same converter the reader does. The
-  // alternative (`convertToLockfileObject(lockfileToStringify)`) is
-  // close, but the in-memory `LockfileFile` can still carry leftover
-  // `undefined` values that YAML drops on serialize (e.g. an unset
-  // `settings.dedupePeers`), so its output would mismatch what the
-  // next `readWantedLockfile` produces. A `yaml.load` round-trip is
-  // the only way to mirror that drop exactly.
-  return convertToLockfileObject(yaml.load(yamlDoc) as LockfileFile)
+  // Return the canonical "as-saved" lockfile so callers like the
+  // verification cache can hash a value that matches what the next
+  // `readWantedLockfile` will produce. The only divergence we need to
+  // mirror between the in-memory `LockfileFile` and the parsed-on-read
+  // form is YAML dropping `undefined` values (e.g. an unset
+  // `settings.dedupePeers`); a recursive strip captures that. We chose
+  // this over a `yaml.load` round-trip because the strip walks the
+  // existing object in-place rather than parsing the YAML string a
+  // second time, which is noticeably cheaper on large lockfiles.
+  return convertToLockfileObject(stripUndefinedDeep(lockfileToStringify) as LockfileFile)
+}
+
+function stripUndefinedDeep<T> (value: T): T {
+  if (value === null || typeof value !== 'object') return value
+  if (Array.isArray(value)) return value.map(stripUndefinedDeep) as unknown as T
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === undefined) continue
+    out[k] = stripUndefinedDeep(v)
+  }
+  return out as T
 }
 
 export function writeLockfileFile (
@@ -158,10 +170,11 @@ export async function writeLockfiles (
         }
       })(),
     ])
-    // Both files were written from the same source YAML, so we round-trip
-    // parse once and reuse the result. See writeLockfile for why the
-    // yaml.load is required instead of reusing wantedLockfileToStringify.
-    const normalized = convertToLockfileObject(yaml.load(yamlDoc) as LockfileFile)
+    // Both files were written from the same source object — strip
+    // undefined once and reuse. See writeLockfile for why
+    // stripUndefinedDeep is needed instead of reusing
+    // wantedLockfileToStringify directly.
+    const normalized = convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile)
     return {
       wantedLockfile: normalized,
       currentLockfile: isEmptyLockfile(opts.wantedLockfile) ? undefined : normalized,
@@ -188,9 +201,9 @@ export async function writeLockfiles (
     })(),
   ])
   return {
-    wantedLockfile: convertToLockfileObject(yaml.load(yamlDoc) as LockfileFile),
+    wantedLockfile: convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile),
     currentLockfile: isEmptyLockfile(opts.wantedLockfile)
       ? undefined
-      : convertToLockfileObject(yaml.load(currentYamlDoc) as LockfileFile),
+      : convertToLockfileObject(stripUndefinedDeep(currentLockfileToStringify) as LockfileFile),
   }
 }

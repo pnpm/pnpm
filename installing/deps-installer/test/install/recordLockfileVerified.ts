@@ -101,20 +101,31 @@ test('records nothing when the in-memory lockfile has no packages', async () => 
 })
 
 test('records the load-equivalent hash — matches what the next install computes off-disk', async () => {
-  const writtenLockfile = makeLockfile()
-  await writeWantedLockfile(lockfileDir, writtenLockfile)
+  // Use a fixture that carries an explicit `undefined` optional field
+  // (the real divergence case install-time code produces), then pass
+  // the *writer's return value* to recordLockfileVerified — same flow
+  // as the production call sites. Passing the in-memory input here
+  // instead would silently regress the moment the writer's
+  // canonicalization stops matching the reader's output.
+  const inMemoryLockfile = {
+    ...makeLockfile(),
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+      dedupePeers: undefined,
+    },
+  } as unknown as LockfileObject
+  const written = await writeWantedLockfile(lockfileDir, inMemoryLockfile)
   recordLockfileVerified({
     cacheDir,
     lockfilePath,
-    lockfile: writtenLockfile,
+    lockfile: written,
     resolutionVerifiers: [mraVerifier(60)],
   })
 
   // The cache contract: the next install hashes its loaded
   // `LockfileObject` and looks the hash up. The recorded hash must
-  // match what that lookup computes — the writer YAML-round-trips
-  // its output so its return value (which we hashed) and what
-  // `readWantedLockfile` produces here are structurally identical.
+  // match what that lookup computes.
   const loaded = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   expect(loaded).not.toBeNull()
   const expectedHash = hashObject(loaded!)
@@ -149,12 +160,25 @@ test('respects the caller-supplied lockfilePath — git-branch lockfiles record 
 })
 
 test('records a cache entry that the next install hits on both the stat shortcut and hash fallback paths', async () => {
-  const lockfile = makeLockfile()
-  await writeWantedLockfile(lockfileDir, lockfile)
+  // Mirror real call sites: hand `recordLockfileVerified` the
+  // writer's return value rather than the in-memory input. With an
+  // explicit `undefined` optional field in the fixture, those two
+  // diverge structurally — the in-memory variant would record a hash
+  // the next install can't match, and this test would silently miss
+  // that regression.
+  const inMemoryLockfile = {
+    ...makeLockfile(),
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+      dedupePeers: undefined,
+    },
+  } as unknown as LockfileObject
+  const written = await writeWantedLockfile(lockfileDir, inMemoryLockfile)
   recordLockfileVerified({
     cacheDir,
     lockfilePath,
-    lockfile,
+    lockfile: written,
     resolutionVerifiers: [mraVerifier(60)],
   })
   const loaded = (await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }))!

@@ -98,13 +98,17 @@ test('writeLockfiles() when no specifiers but dependencies present', async () =>
   expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
 })
 
-test('writeWantedLockfile() returns the canonical lockfile — matches what readWantedLockfile produces from the same file', async () => {
+test('writeWantedLockfile() returns the canonical lockfile — matches what readWantedLockfile produces, even when the input carries undefined optional fields', async () => {
   // Cache-key contract: callers (today, the verification cache) need a
   // hash of the *as-saved* lockfile, not the in-memory write object.
-  // Those two diverge when the input carries `undefined` values that
-  // YAML drops on serialize — the writer's return value runs the input
-  // through the same converter chain the reader does so the two ends
-  // line up.
+  // Those two diverge specifically because YAML drops `undefined` on
+  // serialize. To exercise that drop, the fixture has to actually
+  // carry an explicit `undefined` — `settings.dedupePeers` here, the
+  // same field install-time code produces (see
+  // installing/deps-installer/src/install/index.ts where it's set to
+  // `opts.dedupePeers || undefined`). Without this, the test would
+  // happily pass against a writer that returned a near-canonical-but-
+  // still-divergent object.
   const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
@@ -114,6 +118,11 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+      dedupePeers: undefined,
+    },
     packages: {
       '/is-positive@1.0.0': {
         resolution: {
@@ -121,10 +130,14 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
         },
       },
     },
-  }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
   const written = await writeWantedLockfile(projectPath, wantedLockfile)
   const loaded = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
   expect(written).toEqual(loaded)
+  // Verify the canonicalization actually dropped the undefined field —
+  // toEqual is lenient about undefined-vs-missing, so check explicitly.
+  expect('dedupePeers' in (written.settings ?? {})).toBe(false)
 })
 
 test('writeLockfiles() return matches readWantedLockfile/readCurrentLockfile output', async () => {
