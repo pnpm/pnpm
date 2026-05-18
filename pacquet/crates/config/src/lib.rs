@@ -27,7 +27,8 @@ use crate::defaults::{
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_retries,
     default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
     default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
-    default_public_hoist_pattern, default_registry, default_store_dir, default_virtual_store_dir,
+    default_public_hoist_pattern, default_registry, default_store_dir_host,
+    default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
@@ -184,7 +185,7 @@ pub struct Config {
     pub shamefully_hoist: bool,
 
     /// The location where all the packages are saved on the disk.
-    #[default(_code = "default_store_dir()")]
+    #[default(_code = "default_store_dir_host()")]
     pub store_dir: StoreDir,
 
     /// The directory in which dependencies will be installed (instead of node_modules).
@@ -956,7 +957,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use tempfile::tempdir;
 
-    use super::{Config, Host, NodeLinker, PackageImportMethod, fs};
+    use super::{Config, EnvVar, Host, NodeLinker, PackageImportMethod, fs};
     use crate::defaults::default_store_dir;
     use pacquet_store_dir::StoreDir;
     use pacquet_testing_utils::env_guard::EnvGuard;
@@ -974,7 +975,20 @@ mod tests {
         assert!(value.prefer_frozen_lockfile);
         assert!(value.symlink);
         assert!(value.hoist);
-        assert_eq!(value.store_dir, default_store_dir());
+        // The SmartDefault expression for `store_dir` resolves to
+        // `default_store_dir::<Host>(home::home_dir, env::current_dir)`
+        // via the thin `default_store_dir_host` wrapper, so calling
+        // the generic helper here with the same `Host` capability and
+        // the same OS closures must produce the same value — even on
+        // a developer machine with `PNPM_HOME` / `XDG_DATA_HOME` set.
+        // This is the wiring assertion that proves the SmartDefault
+        // field still goes through the production capability; the
+        // per-branch behaviour of `default_store_dir` is exercised
+        // with fake-`Sys` structs in `defaults::tests`.
+        assert_eq!(
+            value.store_dir,
+            default_store_dir::<Host, _, _, _>(home::home_dir, env::current_dir),
+        );
         assert_eq!(value.registry, "https://registry.npmjs.org/");
     }
 
@@ -991,36 +1005,52 @@ mod tests {
         assert_eq!(value.fetch_retry_maxtimeout, 60_000);
     }
 
+    /// `default_store_dir`'s `PNPM_HOME` branch, exercised through the
+    /// generic capability seam — no process-environment mutation, no
+    /// `EnvGuard` lock, no `unsafe` block. The earlier shape of this
+    /// test set `PNPM_HOME` via `std::env::set_var` and called
+    /// `Config::new()`; with the DI seam from pnpm/pacquet#339 +
+    /// pnpm/pnpm#11708 the same precedence is checked by passing a
+    /// per-test unit struct that satisfies [`EnvVar`].
+    ///
+    /// The `home_dir` and `current_dir` closures both call
+    /// `unreachable!` because `default_store_dir` short-circuits on
+    /// `PNPM_HOME` before consulting either — the panic-on-call
+    /// documents that precondition. Tracks pnpm/pacquet#343.
     #[test]
     pub fn should_use_pnpm_home_env_var() {
-        let _g = EnvGuard::snapshot(["PNPM_HOME"]);
-        // SAFETY: EnvGuard above serializes the test against other env-mutating
-        // tests in this process; no other thread reads these vars concurrently.
-        unsafe {
-            env::set_var("PNPM_HOME", "/hello"); // TODO: change this to dependency injection
+        struct EnvWithPnpmHome;
+        impl EnvVar for EnvWithPnpmHome {
+            fn var(name: &str) -> Option<String> {
+                (name == "PNPM_HOME").then(|| "/hello".to_owned())
+            }
         }
-        let value = Config::new();
-        assert_eq!(display_store_dir(&value.store_dir), "/hello/store");
+        let store_dir = default_store_dir::<EnvWithPnpmHome, _, _, std::io::Error>(
+            || unreachable!("home_dir must not be called when PNPM_HOME is set"),
+            || unreachable!("current_dir must not be called when PNPM_HOME is set"),
+        );
+        assert_eq!(display_store_dir(&store_dir), "/hello/store");
     }
 
+    /// Companion to [`should_use_pnpm_home_env_var`]: when
+    /// `PNPM_HOME` is unset, `default_store_dir` falls through to
+    /// `XDG_DATA_HOME`. Exercised through the DI seam with a fake
+    /// `Sys` that only returns a value for `XDG_DATA_HOME`. No
+    /// process-environment mutation, no `EnvGuard`, no `unsafe`.
+    /// Tracks pnpm/pacquet#343.
     #[test]
     pub fn should_use_xdg_data_home_env_var() {
-        // Clear `PNPM_HOME` first — `default_store_dir` checks it
-        // before `XDG_DATA_HOME`, so running the test suite with pnpm
-        // installed (common) would otherwise hit the `PNPM_HOME`
-        // branch and fail the assertion. Snapshot both so the test
-        // cleans up after itself even when parallel peers observe the
-        // temporarily-unset state. See the companion fix in
-        // `defaults::tests::test_default_store_dir_with_xdg_env`.
-        let _g = EnvGuard::snapshot(["PNPM_HOME", "XDG_DATA_HOME"]);
-        // SAFETY: EnvGuard above serializes the test against other env-mutating
-        // tests in this process; no other thread reads these vars concurrently.
-        unsafe {
-            env::remove_var("PNPM_HOME"); // TODO: change this to dependency injection
-            env::set_var("XDG_DATA_HOME", "/hello");
+        struct EnvWithXdgDataHome;
+        impl EnvVar for EnvWithXdgDataHome {
+            fn var(name: &str) -> Option<String> {
+                (name == "XDG_DATA_HOME").then(|| "/hello".to_owned())
+            }
         }
-        let value = Config::new();
-        assert_eq!(display_store_dir(&value.store_dir), "/hello/pnpm/store");
+        let store_dir = default_store_dir::<EnvWithXdgDataHome, _, _, std::io::Error>(
+            || unreachable!("home_dir must not be called when XDG_DATA_HOME is set"),
+            || unreachable!("current_dir must not be called when XDG_DATA_HOME is set"),
+        );
+        assert_eq!(display_store_dir(&store_dir), "/hello/pnpm/store");
     }
 
     #[test]

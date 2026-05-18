@@ -2,10 +2,9 @@ use super::{
     default_child_concurrency_with_parallelism, default_store_dir, default_unsafe_perm,
     is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
 };
+use crate::api::EnvVar;
 use pacquet_store_dir::StoreDir;
-use pacquet_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
-use std::env;
 
 #[cfg(windows)]
 use super::{default_store_dir_windows, get_drive_letter};
@@ -16,37 +15,88 @@ fn display_store_dir(store_dir: &StoreDir) -> String {
     store_dir.display().to_string().replace('\\', "/")
 }
 
+/// Empty env: every lookup returns `None`. Used by the
+/// neither-`PNPM_HOME`-nor-`XDG_DATA_HOME` paths that fall through
+/// to the home/cwd-anchored OS defaults.
+struct NoEnv;
+impl EnvVar for NoEnv {
+    fn var(_: &str) -> Option<String> {
+        None
+    }
+}
+
+/// `default_store_dir`'s `PNPM_HOME` branch wins over everything
+/// else. Exercised through the dependency-injection seam from
+/// pnpm/pacquet#339 + pnpm/pnpm#11708 with a per-test unit struct
+/// that satisfies [`EnvVar`] — no `std::env::set_var`, no
+/// `EnvGuard` lock, no `unsafe` block. Tracks pnpm/pacquet#343.
+///
+/// The `home_dir` and `current_dir` closures call `unreachable!`
+/// because the early `PNPM_HOME` return short-circuits before
+/// either is consumed. Matches the worked example in
+/// `pacquet/CODE_STYLE_GUIDE.md` (Dependency injection for tests):
+/// satisfy the bound, document the precondition.
 #[test]
 fn test_default_store_dir_with_pnpm_home_env() {
-    let _g = EnvGuard::snapshot(["PNPM_HOME"]);
-    // SAFETY: EnvGuard above serializes the test against other env-mutating
-    // tests in this process; no other thread reads these vars concurrently.
-    unsafe {
-        env::set_var("PNPM_HOME", "/tmp/pnpm-home"); // TODO: change this to dependency injection
+    struct EnvWithPnpmHome;
+    impl EnvVar for EnvWithPnpmHome {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_HOME").then(|| "/tmp/pnpm-home".to_owned())
+        }
     }
-    let store_dir = default_store_dir();
+    let store_dir = default_store_dir::<EnvWithPnpmHome, _, _, std::io::Error>(
+        || unreachable!("home_dir must not be called when PNPM_HOME is set"),
+        || unreachable!("current_dir must not be called when PNPM_HOME is set"),
+    );
     assert_eq!(display_store_dir(&store_dir), "/tmp/pnpm-home/store");
 }
 
+/// `default_store_dir`'s `XDG_DATA_HOME` branch fires only when
+/// `PNPM_HOME` is unset. The fake `Sys` here returns a value for
+/// `XDG_DATA_HOME` and `None` for `PNPM_HOME`, so the lookup falls
+/// through to the second branch deterministically — no need to
+/// snapshot-and-restore real process env state to neutralise a
+/// developer's shell that has `PNPM_HOME` set. Tracks
+/// pnpm/pacquet#343.
 #[test]
 fn test_default_store_dir_with_xdg_env() {
-    // `default_store_dir` checks `PNPM_HOME` before `XDG_DATA_HOME`,
-    // so a developer running the test suite with pnpm in their
-    // environment (very common) otherwise sees the `PNPM_HOME`
-    // branch win and the assertion fail. Snapshot-and-restore both
-    // env vars so the test is self-contained even under nextest's
-    // in-process parallelism. Proper fix is dependency injection —
-    // see the TODO — but this is enough for the failure mode this
-    // PR is fixing.
-    let _g = EnvGuard::snapshot(["PNPM_HOME", "XDG_DATA_HOME"]);
-    // SAFETY: EnvGuard above serializes the test against other env-mutating
-    // tests in this process; no other thread reads these vars concurrently.
-    unsafe {
-        env::remove_var("PNPM_HOME");
-        env::set_var("XDG_DATA_HOME", "/tmp/xdg_data_home");
+    struct EnvWithXdgDataHome;
+    impl EnvVar for EnvWithXdgDataHome {
+        fn var(name: &str) -> Option<String> {
+            (name == "XDG_DATA_HOME").then(|| "/tmp/xdg_data_home".to_owned())
+        }
     }
-    let store_dir = default_store_dir();
+    let store_dir = default_store_dir::<EnvWithXdgDataHome, _, _, std::io::Error>(
+        || unreachable!("home_dir must not be called when XDG_DATA_HOME is set"),
+        || unreachable!("current_dir must not be called when XDG_DATA_HOME is set"),
+    );
     assert_eq!(display_store_dir(&store_dir), "/tmp/xdg_data_home/pnpm/store");
+}
+
+/// When neither `PNPM_HOME` nor `XDG_DATA_HOME` is set, the
+/// non-Windows fall-through uses `home_dir()` plus the
+/// `env::consts::OS` switch — `~/.local/share/pnpm/store` on
+/// Linux, `~/Library/pnpm/store` on macOS. Drive the home-dir
+/// closure with a fixed path so the assertion is deterministic on
+/// any host. The `current_dir` closure stays `unreachable!`
+/// because the non-Windows fall-through never consults it. Mirrors
+/// the third branch of pnpm's
+/// [`storePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts).
+#[cfg(not(windows))]
+#[test]
+fn test_default_store_dir_falls_back_to_home_dir() {
+    use std::path::PathBuf;
+
+    let store_dir = default_store_dir::<NoEnv, _, _, std::io::Error>(
+        || Some(PathBuf::from("/home/test-user")),
+        || unreachable!("current_dir must not be called on non-Windows fall-through"),
+    );
+    let expected = match std::env::consts::OS {
+        "linux" => "/home/test-user/.local/share/pnpm/store",
+        "macos" => "/home/test-user/Library/pnpm/store",
+        other => panic!("unexpected target OS in test: {other}"),
+    };
+    assert_eq!(display_store_dir(&store_dir), expected);
 }
 
 /// Port of upstream

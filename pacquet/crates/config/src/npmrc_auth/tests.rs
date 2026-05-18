@@ -56,13 +56,17 @@ fn ignores_non_auth_keys() {
     // from pnpm-workspace.yaml now. Writing them to .npmrc should be a
     // no-op.
     //
-    // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` to compute
-    // `store_dir`, and the env-mutating tests in `defaults`
-    // toggle those vars under `EnvGuard`. Hold the same lock so a
-    // parallel test can't change the env between the two `Config::new()`
-    // snapshots compared below. Proper fix is dependency injection.
-    // See the TODO on `default_store_dir`.
-    let _g = pacquet_testing_utils::env_guard::EnvGuard::snapshot(["PNPM_HOME", "XDG_DATA_HOME"]);
+    // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` via
+    // `default_store_dir::<Host>` to compute `store_dir`. Both
+    // values come from the real process environment, but no other
+    // test in this crate mutates them anymore — the per-branch
+    // tests in `defaults::tests` and `lib::tests` drive
+    // `default_store_dir` through the dependency-injection seam
+    // (pnpm/pacquet#339, pnpm/pnpm#11708, pnpm/pacquet#343) with
+    // fake `Sys` providers, so the two `Config::new()` snapshots
+    // compared below observe the same env-derived `store_dir` even
+    // under nextest's in-process parallelism without an `EnvGuard`
+    // lock.
     let ini = "
 store-dir=/should/not/apply
 lockfile=false
