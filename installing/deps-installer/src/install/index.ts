@@ -96,6 +96,7 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { runPacquet } from './runPacquet.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
@@ -958,6 +959,20 @@ Note that in CI environments, this setting is enabled by default.`,
       logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
+    }
+    if (opts.configDependencies?.pacquet) {
+      logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
+      await runPacquet({ lockfileDir: opts.lockfileDir, frozenLockfile })
+      return {
+        updatedProjects: projects.map((mutatedProject) => {
+          const project = ctx.projects[mutatedProject.rootDir]
+          return {
+            ...project,
+            manifest: project.originalManifest ?? project.manifest,
+          }
+        }),
+        ignoredBuilds: undefined,
+      }
     }
     try {
       const { stats, ignoredBuilds } = await headlessInstall({

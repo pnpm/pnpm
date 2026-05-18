@@ -15,6 +15,7 @@ import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages }
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
+  ConfigDependencies,
   PackageExtension,
   PackageVulnerabilityAudit,
   PeerDependencyRules,
@@ -215,6 +216,11 @@ export interface StrictInstallOptions {
   trustPolicyIgnoreAfter?: number
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  /**
+   * configDependencies from the workspace manifest, threaded through so the
+   * frozen-install path can detect `pacquet` and delegate to its binary.
+   */
+  configDependencies?: ConfigDependencies
   /**
    * If true, `mutateModules` does not emit the per-install `summary` log
    * event. Used by `pnpm add -g` when it runs multiple isolated installs
