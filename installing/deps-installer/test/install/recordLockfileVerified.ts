@@ -4,10 +4,10 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import { type LockfileObject, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
-import { hashLockfile } from '../../src/install/lockfileHash.js'
 import { recordLockfileVerified } from '../../src/install/recordLockfileVerified.js'
 import { tryLockfileVerificationCache } from '../../src/install/verifyLockfileResolutionsCache.js'
 
@@ -112,11 +112,12 @@ test('records the load-equivalent hash — matches what the next install compute
 
   // The cache contract: the next install hashes its loaded
   // `LockfileObject` and looks the hash up. The recorded hash must
-  // match what that lookup computes — that's what makes `hashLockfile`
-  // a round-trip-stable canonicalization rather than raw `hashObject`.
+  // match what that lookup computes — the writer YAML-round-trips
+  // its output so its return value (which we hashed) and what
+  // `readWantedLockfile` produces here are structurally identical.
   const loaded = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   expect(loaded).not.toBeNull()
-  const expectedHash = hashLockfile(loaded!)
+  const expectedHash = hashObject(loaded!)
 
   const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
   const record = JSON.parse(fs.readFileSync(cacheFile, 'utf8').trim()) as {
@@ -162,7 +163,7 @@ test('records a cache entry that the next install hits on both the stat shortcut
   const statResult = tryLockfileVerificationCache(cacheDir, {
     lockfilePath,
     verifiers: [mraVerifier(60)],
-    hashLockfile: () => hashLockfile(loaded),
+    hashLockfile: () => hashObject(loaded),
   })
   expect(statResult.hit).toBe(true)
 
@@ -180,7 +181,7 @@ test('records a cache entry that the next install hits on both the stat shortcut
   const hashResult = tryLockfileVerificationCache(cacheDir, {
     lockfilePath,
     verifiers: [mraVerifier(60)],
-    hashLockfile: () => hashLockfile(loaded),
+    hashLockfile: () => hashObject(loaded),
   })
   expect(hashResult.hit).toBe(true)
 })

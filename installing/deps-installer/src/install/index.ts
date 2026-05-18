@@ -1682,14 +1682,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
-        }).then(() => {
+        }).then((written) => {
           // Local resolution already enforced the same policy the verifier
           // would re-check on the next install — record the fresh lockfile
-          // so that next run takes the cache fast path.
+          // so that next run takes the cache fast path. Hash the writer's
+          // canonical output, not `newLockfile`, so the recorded hash is
+          // provably of what landed on disk.
           recordLockfileVerified({
             cacheDir: opts.cacheDir,
             lockfilePath: wantedLockfilePath,
-            lockfile: newLockfile,
+            lockfile: written.wantedLockfile,
             resolutionVerifiers: opts.resolutionVerifiers,
           })
         })
@@ -1745,11 +1747,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   } else {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
-      await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
+      const written = await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
       recordLockfileVerified({
         cacheDir: opts.cacheDir,
         lockfilePath: wantedLockfilePath,
-        lockfile: newLockfile,
+        lockfile: written,
         resolutionVerifiers: opts.resolutionVerifiers,
       })
     }
@@ -2299,7 +2301,7 @@ async function installFromPnpmRegistry (
       storeIndex.close()
     }
 
-    await writeWantedLockfile(lockfileDir, lockfile)
+    const written = await writeWantedLockfile(lockfileDir, lockfile)
     // The agent enforces minimumReleaseAge server-side (and no-downgrade
     // is refused upstream at the agent gate), so the agent-resolved
     // lockfile is policy-clean under the verifiers we'd run locally.
@@ -2310,7 +2312,7 @@ async function installFromPnpmRegistry (
     recordLockfileVerified({
       cacheDir: opts.cacheDir,
       lockfilePath: path.resolve(lockfileDir, agentLockfileName),
-      lockfile,
+      lockfile: written,
       resolutionVerifiers: opts.resolutionVerifiers,
     })
 

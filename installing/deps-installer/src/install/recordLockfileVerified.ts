@@ -1,7 +1,7 @@
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
-import { hashLockfile } from './lockfileHash.js'
 import { recordVerification } from './verifyLockfileResolutionsCache.js'
 
 export interface RecordLockfileVerifiedOptions {
@@ -14,6 +14,14 @@ export interface RecordLockfileVerifiedOptions {
    * before calling.
    */
   lockfilePath: string
+  /**
+   * The post-write canonical lockfile object — i.e. the value returned
+   * by `writeWantedLockfile` / `writeLockfiles`, not the in-memory
+   * object handed to those functions. The writer YAML-round-trips its
+   * output so this value is structurally identical to what the next
+   * install's `readWantedLockfile` will produce, which is what makes
+   * `hashObject` stable across the two ends.
+   */
   lockfile: LockfileObject
   resolutionVerifiers: readonly ResolutionVerifier[] | undefined
 }
@@ -31,10 +39,6 @@ export interface RecordLockfileVerifiedOptions {
  * every entry in the just-written lockfile is policy-clean by
  * construction; we record that fact instead of re-discovering it.
  *
- * Hashes the lockfile via {@link hashLockfile} so the recorded hash
- * matches what the next install will compute on its loaded copy
- * without re-reading the file we just wrote.
- *
  * No-op when the cache isn't wired or when no verifiers are active,
  * mirroring the gate in verifyLockfileResolutions.
  */
@@ -45,6 +49,6 @@ export function recordLockfileVerified (opts: RecordLockfileVerifiedOptions): vo
   recordVerification(opts.cacheDir, {
     lockfilePath: opts.lockfilePath,
     verifiers: opts.resolutionVerifiers,
-    hashLockfile: () => hashLockfile(opts.lockfile),
+    hashLockfile: () => hashObject(opts.lockfile),
   })
 }

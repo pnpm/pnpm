@@ -98,6 +98,63 @@ test('writeLockfiles() when no specifiers but dependencies present', async () =>
   expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
 })
 
+test('writeWantedLockfile() returns the canonical lockfile — matches what readWantedLockfile produces from the same file', async () => {
+  // Cache-key contract: callers (today, the verification cache) need a
+  // hash of the *as-saved* lockfile, not the in-memory write object.
+  // Those two diverge when the input carries `undefined` values that
+  // YAML drops on serialize — the writer's return value runs the input
+  // through the same converter chain the reader does so the two ends
+  // line up.
+  const projectPath = temporaryDirectory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        specifiers: { 'is-positive': '^1.0.0' },
+        dependencies: { 'is-positive': '1.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+  const written = await writeWantedLockfile(projectPath, wantedLockfile)
+  const loaded = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  expect(written).toEqual(loaded)
+})
+
+test('writeLockfiles() return matches readWantedLockfile/readCurrentLockfile output', async () => {
+  const projectPath = temporaryDirectory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        specifiers: { 'is-positive': '^1.0.0' },
+        dependencies: { 'is-positive': '1.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/is-positive@1.0.0': {
+        resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+      },
+    },
+  }
+  const written = await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
+  const loadedWanted = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  const loadedCurrent = await readCurrentLockfile(projectPath, { ignoreIncompatible: false })
+  expect(written.wantedLockfile).toEqual(loadedWanted)
+  expect(written.currentLockfile).toEqual(loadedCurrent)
+})
+
 test('write does not use yaml anchors/aliases', async () => {
   const projectPath = temporaryDirectory()
   const wantedLockfile = {
