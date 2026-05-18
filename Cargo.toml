@@ -13,30 +13,33 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
-pacquet-cli                    = { path = "pacquet/crates/cli" }
-pacquet-cmd-shim               = { path = "pacquet/crates/cmd-shim" }
-pacquet-fs                     = { path = "pacquet/crates/fs" }
-pacquet-registry               = { path = "pacquet/crates/registry" }
-pacquet-tarball                = { path = "pacquet/crates/tarball" }
-pacquet-testing-utils          = { path = "pacquet/crates/testing-utils" }
-pacquet-package-manifest       = { path = "pacquet/crates/package-manifest" }
-pacquet-package-manager        = { path = "pacquet/crates/package-manager" }
-pacquet-package-is-installable = { path = "pacquet/crates/package-is-installable" }
-pacquet-lockfile               = { path = "pacquet/crates/lockfile" }
-pacquet-modules-yaml           = { path = "pacquet/crates/modules-yaml" }
-pacquet-network                = { path = "pacquet/crates/network" }
-pacquet-config                 = { path = "pacquet/crates/config" }
-pacquet-executor               = { path = "pacquet/crates/executor" }
-pacquet-directory-fetcher      = { path = "pacquet/crates/directory-fetcher" }
-pacquet-git-fetcher            = { path = "pacquet/crates/git-fetcher" }
-pacquet-diagnostics            = { path = "pacquet/crates/diagnostics" }
-pacquet-graph-hasher           = { path = "pacquet/crates/graph-hasher" }
-pacquet-store-dir              = { path = "pacquet/crates/store-dir" }
-pacquet-reporter               = { path = "pacquet/crates/reporter" }
-pacquet-patching               = { path = "pacquet/crates/patching" }
-pacquet-real-hoist             = { path = "pacquet/crates/real-hoist" }
-pacquet-workspace              = { path = "pacquet/crates/workspace" }
-pacquet-workspace-state        = { path = "pacquet/crates/workspace-state" }
+pacquet-cli                     = { path = "pacquet/crates/cli" }
+pacquet-cmd-shim                = { path = "pacquet/crates/cmd-shim" }
+pacquet-fs                      = { path = "pacquet/crates/fs" }
+pacquet-registry                = { path = "pacquet/crates/registry" }
+pacquet-tarball                 = { path = "pacquet/crates/tarball" }
+pacquet-testing-utils           = { path = "pacquet/crates/testing-utils" }
+pacquet-package-manifest        = { path = "pacquet/crates/package-manifest" }
+pacquet-package-manager         = { path = "pacquet/crates/package-manager" }
+pacquet-package-is-installable  = { path = "pacquet/crates/package-is-installable" }
+pacquet-lockfile                = { path = "pacquet/crates/lockfile" }
+pacquet-lockfile-verification   = { path = "pacquet/crates/lockfile-verification" }
+pacquet-modules-yaml            = { path = "pacquet/crates/modules-yaml" }
+pacquet-network                 = { path = "pacquet/crates/network" }
+pacquet-config                  = { path = "pacquet/crates/config" }
+pacquet-executor                = { path = "pacquet/crates/executor" }
+pacquet-directory-fetcher       = { path = "pacquet/crates/directory-fetcher" }
+pacquet-git-fetcher             = { path = "pacquet/crates/git-fetcher" }
+pacquet-diagnostics             = { path = "pacquet/crates/diagnostics" }
+pacquet-graph-hasher            = { path = "pacquet/crates/graph-hasher" }
+pacquet-store-dir               = { path = "pacquet/crates/store-dir" }
+pacquet-reporter                = { path = "pacquet/crates/reporter" }
+pacquet-patching                = { path = "pacquet/crates/patching" }
+pacquet-real-hoist              = { path = "pacquet/crates/real-hoist" }
+pacquet-resolving-npm-resolver  = { path = "pacquet/crates/resolving-npm-resolver" }
+pacquet-resolving-resolver-base = { path = "pacquet/crates/resolving-resolver-base" }
+pacquet-workspace               = { path = "pacquet/crates/workspace" }
+pacquet-workspace-state         = { path = "pacquet/crates/workspace-state" }
 
 # Tasks
 pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }
@@ -46,6 +49,7 @@ async-recursion = { version = "1.1.1" }
 clap = { version = "4", features = ["derive", "string"] }
 command-extra = { version = "1.0.0" }
 base64 = { version = "0.22.1" }
+chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 dashmap = { version = "6.1.0" }
 derive_more = { version = "2.1.1", features = ["full"] }
 diffy = { version = "0.5.0" }
@@ -100,7 +104,6 @@ zune-inflate       = { version = "0.2.54" }
 
 # Dev dependencies
 assert_cmd        = { version = "2.2.1" }
-chrono            = { version = "0.4.44", default-features = false, features = ["clock"] }
 criterion         = { version = "0.8.2", features = ["async_tokio"] }
 pretty_assertions = { version = "1.4.1" }
 project-root      = { version = "0.2.2" }

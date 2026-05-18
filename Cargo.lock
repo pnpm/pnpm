@@ -2028,6 +2028,7 @@ dependencies = [
  "indexmap",
  "libc",
  "miette 7.6.0",
+ "node-semver",
  "pacquet-network",
  "pacquet-package-is-installable",
  "pacquet-patching",
@@ -2163,6 +2164,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-lockfile-verification"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "futures-util",
+ "insta",
+ "miette 7.6.0",
+ "pacquet-diagnostics",
+ "pacquet-lockfile",
+ "pacquet-reporter",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-micro-benchmark"
 version = "0.0.0"
 dependencies = [
@@ -2249,6 +2273,7 @@ dependencies = [
  "pacquet-git-fetcher",
  "pacquet-graph-hasher",
  "pacquet-lockfile",
+ "pacquet-lockfile-verification",
  "pacquet-modules-yaml",
  "pacquet-network",
  "pacquet-package-is-installable",
@@ -2258,6 +2283,8 @@ dependencies = [
  "pacquet-registry",
  "pacquet-registry-mock",
  "pacquet-reporter",
+ "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-resolver-base",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
@@ -2365,6 +2392,42 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "pacquet-resolving-npm-resolver"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pacquet-config",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-registry",
+ "pacquet-resolving-resolver-base",
+ "pipe-trait",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pacquet-resolving-resolver-base"
+version = "0.0.1"
+dependencies = [
+ "pacquet-lockfile",
+ "serde_json",
+ "ssri",
+ "tokio",
 ]
 
 [[package]]

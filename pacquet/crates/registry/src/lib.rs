@@ -4,9 +4,9 @@ mod package_tag;
 mod package_version;
 
 pub use package::Package;
-pub use package_distribution::PackageDistribution;
+pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
 pub use package_tag::PackageTag;
-pub use package_version::PackageVersion;
+pub use package_version::{NpmUser, PackageVersion, TrustedPublisher};
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;

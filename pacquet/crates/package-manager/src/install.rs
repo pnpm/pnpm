@@ -1,14 +1,18 @@
-use std::{collections::BTreeMap, sync::atomic::AtomicU8, time::SystemTime};
+use std::{collections::BTreeMap, path::Path, sync::Arc, sync::atomic::AtomicU8, time::SystemTime};
 
 use crate::{
-    HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError, InstallWithoutLockfile,
-    InstallWithoutLockfileError, ResolvedPackages,
+    BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
+    InstallWithoutLockfile, InstallWithoutLockfileError, ResolvedPackages,
+    build_resolution_verifiers,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
+};
+use pacquet_lockfile_verification::{
+    VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
 };
 use pacquet_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, LayoutVersion, Modules,
@@ -35,9 +39,26 @@ where
     pub tarball_mem_cache: &'a MemCache,
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
+    /// Same client behind an [`Arc`] for the lockfile-verification
+    /// gate (which owns its `ThrottledClient` to outlive the
+    /// per-call lifetime of [`Self::http_client`]). The CLI builds
+    /// both from a single source; the duplicate is the smallest
+    /// change that bridges the borrowed `&` shape every existing
+    /// sub-installer expects with the owned `Arc` the verifier
+    /// needs.
+    pub http_client_arc: Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
+    /// Absolute path of the loaded `pnpm-lock.yaml`. Threaded into
+    /// the lockfile-verification gate so the per-path stat shortcut
+    /// in `<cache_dir>/lockfile-verified.jsonl` can fire on repeat
+    /// installs, and into the `pnpm:lockfile-verification` reporter
+    /// payload. `None` disables the cache for this run (every call
+    /// re-verifies) and falls back to deriving the path from
+    /// `workspace_root`. Mirrors upstream's `lockfilePath` argument
+    /// at <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/index.ts#L355-L383>.
+    pub lockfile_path: Option<&'a Path>,
     pub dependency_groups: DependencyGroupList,
     pub frozen_lockfile: bool,
     /// When `true`, runtime dependencies (`node@runtime:` /
@@ -145,6 +166,24 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
 
+    /// Building the verifier list from config rejected a
+    /// `minimumReleaseAgeExclude` or `trustPolicyExclude` pattern.
+    /// Mirrors upstream's `INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` /
+    /// `INVALID_TRUST_POLICY_EXCLUDE` codes; the inner diagnostic
+    /// carries the offending pattern.
+    #[diagnostic(transparent)]
+    BuildVerifiers(#[error(source)] BuildVerifiersError),
+
+    /// The lockfile-verification gate rejected one or more lockfile
+    /// entries — the lockfile contains versions weaker than the
+    /// active `minimumReleaseAge` / `trustPolicy='no-downgrade'`
+    /// policies allow. Transparent so the inner miette code
+    /// (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`,
+    /// `LOCKFILE_RESOLUTION_VERIFICATION`) is what the user sees,
+    /// matching upstream's `PnpmError` codes byte-for-byte.
+    #[diagnostic(transparent)]
+    LockfileVerification(#[error(source)] VerifyError),
+
     /// Surfaces a failure to persist `.pnpm-workspace-state-v1.json`.
     /// Missing or unreadable state forces `pnpm run`'s
     /// `verifyDepsBeforeRun` check to fall back to "outdated", which
@@ -165,9 +204,11 @@ where
             tarball_mem_cache,
             resolved_packages,
             http_client,
+            http_client_arc,
             config,
             manifest,
             lockfile,
+            lockfile_path,
             dependency_groups,
             frozen_lockfile,
             skip_runtimes,
@@ -239,6 +280,33 @@ where
         let current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::LoadCurrentLockfile)?;
+
+        // Lockfile-verification gate: re-apply `minimumReleaseAge` /
+        // `trustPolicy='no-downgrade'` to every entry in the loaded
+        // `pnpm-lock.yaml` before any resolver or fetcher runs.
+        // Mirrors upstream's wiring at
+        // <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/index.ts#L355-L383>.
+        // `lockfile.is_none()` (writable-lockfile path) skips the
+        // gate entirely — fresh local resolution is already filtered
+        // by the resolver's per-version gate (when pacquet's
+        // resolver lands).
+        if let Some(loaded_lockfile) = lockfile {
+            let derived_lockfile_path = lockfile_path
+                .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf);
+            let verifiers = build_resolution_verifiers(config, Arc::clone(&http_client_arc))
+                .map_err(InstallError::BuildVerifiers)?;
+            verify_lockfile_resolutions::<Reporter>(
+                loaded_lockfile,
+                &verifiers,
+                &VerifyLockfileResolutionsOptions {
+                    concurrency: None,
+                    lockfile_path: Some(&derived_lockfile_path),
+                    cache_dir: Some(&config.cache_dir),
+                },
+            )
+            .await
+            .map_err(InstallError::LockfileVerification)?;
+        }
 
         // `pnpm:context` carries the directories pnpm's reporter prints
         // in the install header. `currentLockfileExists` mirrors

@@ -123,6 +123,41 @@ pub fn default_modules_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules")
 }
 
+/// Resolve the default packument-cache directory.
+///
+/// Port of pnpm's
+/// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
+/// Resolution order:
+///
+/// 1. `$XDG_CACHE_HOME/pnpm` — set on Linux desktops following the
+///    XDG base-dir spec.
+/// 2. macOS: `~/Library/Caches/pnpm`.
+/// 3. Other non-Windows: `~/.cache/pnpm`.
+/// 4. Windows: `%LOCALAPPDATA%/pnpm-cache`, falling back to
+///    `~/.pnpm-cache` when `LOCALAPPDATA` is unset.
+///
+/// Generic over [`EnvVar`] and the home-dir closure for the same
+/// reason as [`default_store_dir`]: unit tests drive every branch
+/// without mutating the process environment. Production callers
+/// pass [`crate::Host`] with `home::home_dir`.
+pub fn default_cache_dir<Sys, HomeDir>(home_dir: HomeDir) -> PathBuf
+where
+    Sys: EnvVar,
+    HomeDir: FnOnce() -> Option<PathBuf>,
+{
+    if let Some(xdg_cache_home) = Sys::var("XDG_CACHE_HOME") {
+        return PathBuf::from(xdg_cache_home).join("pnpm");
+    }
+    let home_dir = home_dir().expect("Home directory is not available");
+    match env::consts::OS {
+        "macos" => home_dir.join("Library/Caches/pnpm"),
+        "windows" => Sys::var("LOCALAPPDATA")
+            .map(|local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"))
+            .unwrap_or_else(|| home_dir.join(".pnpm-cache")),
+        _ => home_dir.join(".cache/pnpm"),
+    }
+}
+
 pub fn default_virtual_store_dir() -> PathBuf {
     // TODO: find directory with package.json
     env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")

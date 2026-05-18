@@ -617,3 +617,123 @@ Rust port notes:
 
 - Frozen install should not resolve git specs, but it must materialize git-hosted package entries from the lockfile.
 - Port store/fetcher handling before resolver tests if Stage 1 stays strictly lockfile-driven.
+
+## Lockfile Verification Gate (`minimumReleaseAge`, `trustPolicy`)
+
+The gate ported in pacquet/#11722 re-applies the resolver's policy
+checks to every lockfile entry before resolution or fetch, so a
+lockfile resolved elsewhere can't reach the install path under a
+weaker policy. Spans three new crates
+(`pacquet-resolving-resolver-base`, `pacquet-resolving-npm-resolver`,
+`pacquet-lockfile-verification`) plus install-side wiring in
+`pacquet-package-manager`. Reference: upstream `2a9bd897bf`.
+
+### Trust check (`failIfTrustDowngraded`)
+
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:8` `returns "trustedPublisher" when _npmUser.trustedPublisher exists` — `pacquet-resolving-npm-resolver`: implicit in `trust_checks::tests::trusted_publisher_to_provenance_downgrade_fails` (covers the rank assignment).
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:28` `returns "trustedPublisher" even when attestations.provenance exists` — same coverage as above (the rank function prefers `trustedPublisher`).
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:53` `returns true when provenance exists` — `trust_checks::tests::provenance_to_unsigned_downgrade_fails` exercises the same rank path.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:70` `returns undefined when provenance and attestations are undefined` — covered by `trust_checks::tests::first_version_passes_with_no_history`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:100` `succeeds when no versions have attestation` — `trust_checks::tests::first_version_passes_with_no_history`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:132` `succeeds for version published before first attested version` — `trust_checks::tests::later_publish_does_not_downgrade_earlier_version`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:169` `throws an error when downgrading from provenance to none` — `trust_checks::tests::provenance_to_unsigned_downgrade_fails`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:215` `does not throw an error when only prerelease versions had provenance` — `trust_checks::tests::stable_version_ignores_prerelease_history`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:261` `throws an error when downgrading from trustedPublisher to provenance` — `trust_checks::tests::trusted_publisher_to_provenance_downgrade_fails`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:315` `throws an error when downgrading from trustedPublisher to none` — covered by the same `trusted_publisher_to_provenance_downgrade_fails` plus `provenance_to_unsigned_downgrade_fails` rank logic.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:364` `succeeds when maintaining same trust level` — `trust_checks::tests::equal_rank_passes`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:421` `throws an error when version time is missing` — `trust_checks::tests::missing_time_surfaces_trust_check_failed`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:459` `allows downgrade when package@version is in exclude list` — `trust_checks::tests::exclude_exact_version_short_circuits_check`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:501` `allows downgrade when package name is in exclude list (all versions)` — `trust_checks::tests::exclude_any_version_short_circuits_check`.
+- [ ] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:542` `does not fail with ERR_PNPM_MISSING_TIME when package@version is excluded and time field is missing` — exclude-then-missing-time interplay isn't pinned yet; an upstream-style test still needs to land in `trust_checks::tests`.
+- [ ] `TypeScript repo: resolving/npm-resolver/test/trustChecks.test.ts:564` `does not fail with ERR_PNPM_MISSING_TIME when package name is excluded and time field is missing` — same as above (name-pattern variant).
+
+### Attestation publish-time fetcher
+
+- [x] `TypeScript repo: resolving/npm-resolver/test/fetchAttestationPublishedAt.test.ts:35` `returns an ISO timestamp built from tlogEntries[].integratedTime` — `fetch_attestation_published_at::tests::finds_publish_time_from_single_bundle`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/fetchAttestationPublishedAt.test.ts:75` `returns undefined when the registry has no attestations for the package (404)` — `fetch_attestation_published_at::tests::returns_none_on_404`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/fetchAttestationPublishedAt.test.ts:86` `returns undefined on 5xx — caller falls back to full metadata` — `fetch_attestation_published_at::tests::returns_none_on_5xx`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/fetchAttestationPublishedAt.test.ts:110` `returns undefined when the body is malformed JSON` — `fetch_attestation_published_at::tests::returns_none_on_malformed_body`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/fetchAttestationPublishedAt.test.ts:153` `picks the earliest integratedTime across multiple attestations` — `fetch_attestation_published_at::tests::earliest_wins_across_multiple_bundles`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/fetchAttestationPublishedAt.test.ts:169` `accepts integratedTime as a number too (defensive against schema drift)` — `fetch_attestation_published_at::tests::accepts_integrated_time_as_number`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/fetchAttestationPublishedAt.test.ts:198` `strips a trailing slash on the registry URL` — `fetch_attestation_published_at::tests::trims_trailing_slash_from_registry_root`.
+
+### `createNpmResolutionVerifier`
+
+- [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:48` `createNpmResolutionVerifier() returns undefined when no policy is active` — `create_npm_resolution_verifier::tests::returns_none_when_no_policy_active` (plus the `returns_none_when_min_age_is_zero` / `returns_none_when_trust_policy_off` siblings that pin the off-by-one cases).
+- [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:52` `createNpmResolutionVerifier() flags a trustedPublisher → provenance downgrade` — `create_npm_resolution_verifier::tests::trust_downgrade_publisher_to_provenance_fails`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:99` `createNpmResolutionVerifier() passes a same-evidence-level version` — `create_npm_resolution_verifier::tests::trust_downgrade_pass_when_no_weaker_evidence`.
+- [ ] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:141` `abbreviated shortcut requires the pinned version to be in metadata` — the abbreviated-modified shortcut is deferred (Phase 4 stubs that layer); rerun when Phase 5+ ports `fetchAbbreviatedMetadataCached`.
+- [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:187` `ignoreMissingTimeField passes the entry when no source surfaces a timestamp` — `create_npm_resolution_verifier::tests::min_age_missing_time_passes_when_ignored` (plus the fail-closed sibling `min_age_missing_time_fails_closed_by_default`).
+- [x] `TypeScript repo: resolving/npm-resolver/test/createNpmResolutionVerifier.test.ts:220` `canTrustPastCheck rejects when the trust-exclude list shrinks` — `create_npm_resolution_verifier::tests::can_trust_past_check_rejects_changed_exclude_list` (covers any shape change, not only shrinkage; matches the stricter upstream contract).
+
+### Cached full-metadata fetcher
+
+- [x] cold cache → 200 → mirror written — `fetch_full_metadata_cached::tests::cold_cache_writes_mirror_on_200`.
+- [x] warm cache → 304 → mirror used — `fetch_full_metadata_cached::tests::warm_cache_serves_from_mirror_on_304`.
+- [x] stale cache → 200 → mirror overwritten — `fetch_full_metadata_cached::tests::stale_cache_refreshes_mirror_on_200`.
+- [x] no cache directory → straight fetch — `fetch_full_metadata_cached::tests::no_cache_dir_skips_mirror_io`.
+- [x] read-only cache directory → call still succeeds — `fetch_full_metadata_cached::tests::read_only_cache_dir_does_not_fail_the_call`.
+
+### `verifyLockfileResolutions` runner
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:35` `no-op when the verifier list is empty` — `verify_lockfile_resolutions::tests::no_verifiers_is_a_noop`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:42` `no-op when lockfile has no packages` — `verify_lockfile_resolutions::tests::no_packages_section_is_a_noop`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:47` `passes when every entry is verified ok` — `verify_lockfile_resolutions::tests::all_ok_emits_started_then_done`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:55` `throws with the verifier-supplied code and reason on a single failure` — `verify_lockfile_resolutions::tests::single_violation_picks_per_policy_variant`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:71` `throws a generic code with per-entry codes in the breakdown when violations span policies` — `verify_lockfile_resolutions::tests::mixed_code_batch_escalates`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:94` `lists violations in stable order across multiple failures` — implicit in `verify_lockfile_resolutions::tests::mixed_code_batch_escalates` (asserts alphabetical name ordering in the breakdown).
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:109` `caps printed violations at 20 with an "…and N more" summary` — `errors::tests::over_cap_adds_and_n_more_summary`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:127` `dedupes peer/patch-suffix variants and invokes the verifier once per (name, version)` — `verify_lockfile_resolutions::tests::one_packages_entry_yields_one_verification`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:183` `keeps the per-policy code when every violation in the batch shares it` — `verify_lockfile_resolutions::tests::single_violation_picks_per_policy_variant`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:202` `runs every active verifier per entry and stops at the first failure` — `verify_lockfile_resolutions::tests::per_candidate_fan_out_stops_at_first_failure`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:232` `skips the verifier when the cache holds an unchanged lockfile + matching policy` — `verify_lockfile_resolutions::tests::second_run_with_cache_skips_fan_out`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:143` `does not collapse same (name, version) with different resolutions` — pacquet's collector keys by `(name, version, JSON(resolution))` (see `collect_candidates` in `verify_lockfile_resolutions.rs`), but a regression test pinning that contract is not yet written.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:166` `the verifier sees the resolution shape verbatim` — same gap (the protocol-pass-through is exercised today only via the npm-verifier's own tarball-vs-registry tests).
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutions.ts:264` `does not write a cache record when verification rejects` — currently relies on inspection of the cache file being absent; a dedicated test still needs to land in `cache::tests`.
+
+### Cache (`tryLockfileVerificationCache`, `recordVerification`)
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:46` `miss when the cache file does not exist` — `cache::tests::cold_cache_misses_with_populated_stat`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:69` `stat-only hit when size, mtime, and inode all match` — `cache::tests::stat_shortcut_hits_same_path_same_stat`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:132` `miss when a verifier rejects the cached policy` — `cache::tests::policy_invalidation_misses_even_when_stat_matches`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:205` `hit at a new path when the content matches a cached hash (worktree case)` — `cache::tests::content_hash_lookup_finds_same_lockfile_at_different_path`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:256` `malformed lines are ignored, not propagated` — `cache::tests::malformed_lines_are_tolerated_on_read`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:273` `writes a JSONL record with a merged policy bag` — `cache::tests::record_verification_merges_policies`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:341` `appends without rewriting previous lines` — `cache::tests::append_only_log_records_each_call`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:55` `miss when the lockfile path is not in the cache` — implicitly covered by `cold_cache_misses_with_populated_stat`, but an upstream-style explicit test is missing.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:80` `stat shortcut bails on size mismatch and falls through to hash lookup` — not yet ported.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:97` `hash-fallback hit when size matches but mtime/inode were reset` — not yet ported.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:116` `miss when content changed even if size happens to match` — not yet ported.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:144` `hit when a verifier accepts the cached policy` — implicit in the round-trip tests; explicit upstream-style test missing.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:176` `hit when every verifier trusts its share of the merged cached policy` — multi-verifier merge happy-path is not yet pinned.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/verifyLockfileResolutionsCache.ts:193` `miss when the lockfile no longer exists` — missing-lockfile branch returns `hit: false`, not yet pinned.
+- [x] cache compaction past 1.5 MB — `cache::tests::compaction_dedupes_by_path_and_hash`.
+
+### `recordLockfileVerified` wrapper
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/recordLockfileVerified.ts:62` `no-op when cacheDir is undefined` — `record_lockfile_verified` short-circuits on `cache_dir.is_none()`; pinned indirectly via the runner's `second_run_with_cache_skips_fan_out` (which exercises the recorder when caching is on).
+- [x] `TypeScript repo: installing/deps-installer/test/install/recordLockfileVerified.ts:72` `no-op when resolutionVerifiers is empty` — same shape as the cache-dir guard.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/recordLockfileVerified.ts:103` `records the load-equivalent hash — matches what the next install computes off-disk` — would benefit from a dedicated round-trip test that loads a written lockfile and reads it back; pacquet's `hash_lockfile::tests::key_order_in_yaml_does_not_affect_hash` is close but not the same path.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/recordLockfileVerified.ts:141` `respects the caller-supplied lockfilePath` — git-branch-suffixed lockfile case is not yet pinned.
+
+### `minimumReleaseAge` install-side behavior
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:15` `prevents installation of versions that do not meet the required publish date cutoff` — covered end-to-end by `pacquet-package-manager::install::tests::frozen_lockfile_gate_rejects_under_huge_minimum_release_age` and the CLI integration test `cli::lockfile_verification::install_fails_under_huge_minimum_release_age`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:23` `ignored for packages in the minimumReleaseAgeExclude array` — `create_npm_resolution_verifier::tests::verify_skips_age_check_when_package_excluded`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:128` `throws error when semver range is used in minimumReleaseAgeExclude` — `pacquet-package-manager::install::tests::install_rejects_invalid_minimum_release_age_exclude_pattern`.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:32` `ignored using a pattern` — wildcard exclude (`foo-*`) isn't pinned in pacquet's tests today; the exclude policy supports it.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:41` `ignored for specific exact versions in minimumReleaseAgeExclude` — version-union excludes (`foo@1.0.0 || 1.1.0`) aren't pinned end-to-end yet.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:68` `falls back to immature version when no mature version satisfies the range (non-strict mode)` — the fall-back-on-non-strict path lives in the resolver, which pacquet doesn't have yet; out of scope until the resolver lands.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:86` `strict minimumReleaseAge surfaces every immature pick via handleResolutionPolicyViolations, then aborts` — same gating; resolver-dependent.
+- [ ] `TypeScript repo: installing/deps-installer/test/install/minimumReleaseAge.ts:140` `enforced on an existing lockfile entry that does not meet the cutoff` — partially covered by the existing e2e tests (the gate runs from a lockfile); a closer mirror of upstream's fixture-with-timestamps shape isn't ported yet.
+
+### Version-policy parser
+
+- [x] `TypeScript repo: config/version-policy/test/index.ts:8` `createPackageVersionPolicy()` — `pacquet-config::version_policy::tests` exhaustive coverage of the parsing + matcher contract.
+- [x] `TypeScript repo: config/version-policy/test/index.ts:57` `createPackageVersionPolicyOrThrow() rewraps parser errors with INVALID_<KEY>` — handled at the install boundary in `pacquet-package-manager::build_resolution_verifiers` (wraps `VersionPolicyError` → `BuildVerifiersError::InvalidMinimumReleaseAgeExclude` / `InvalidTrustPolicyExclude`).
+
+Rust port notes:
+
+- The abbreviated-modified shortcut and the on-disk `local_meta` layer are stubbed in Phase 4 / Phase 5 (no `fetchAbbreviatedMetadataCached` port yet). Upstream tests that depend on those layers stay unchecked until the abbreviated-cache fetcher lands.
+- The cache cross-stack contract is content-divergent on hash format only — pacquet writes sha256-**hex** where pnpm writes sha256-**base64** (object-hash's default). Each stack reads its own records out of the shared JSONL; cross-stack hits aren't expected and aren't tested.
+- The end-to-end CLI test uses a 100-year `minimumReleaseAge` to sidestep the mocked registry's real-world `time` field. A finer-grained fixture with controlled `time` values lives in the unit tests (`fetch_full_metadata_cached::tests`, `create_npm_resolution_verifier::tests`).

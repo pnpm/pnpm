@@ -22,10 +22,12 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
             tarball: format!("https://registry.npmjs.org/{name}/-/{name}-{version}.tgz"),
             file_count: None,
             unpacked_size: None,
+            attestations: None,
         },
         dependencies: None,
         dev_dependencies: None,
         peer_dependencies: None,
+        npm_user: None,
     }
 }
 

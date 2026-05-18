@@ -1,5 +1,6 @@
 use crate::{
-    Config, NodeLinker, PackageImportMethod, ScriptsPrependNodePath, resolve_child_concurrency,
+    Config, NodeLinker, PackageImportMethod, ScriptsPrependNodePath, TrustPolicy,
+    resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -223,6 +224,34 @@ pub struct WorkspaceSettings {
     /// and the lockfile-side drift check at
     /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
     pub ignored_optional_dependencies: Option<Vec<String>>,
+
+    /// `cacheDir` from `pnpm-workspace.yaml`. Resolved against the
+    /// workspace dir like the other path-valued fields. Drives
+    /// the lockfile-verified JSONL cache + packument mirror used
+    /// by the verifier.
+    pub cache_dir: Option<String>,
+
+    /// `minimumReleaseAge` from `pnpm-workspace.yaml`. Milliseconds;
+    /// see [`Config::minimum_release_age`].
+    pub minimum_release_age: Option<u64>,
+
+    /// `minimumReleaseAgeExclude` from `pnpm-workspace.yaml`.
+    pub minimum_release_age_exclude: Option<Vec<String>>,
+
+    /// `minimumReleaseAgeIgnoreMissingTime` from `pnpm-workspace.yaml`.
+    pub minimum_release_age_ignore_missing_time: Option<bool>,
+
+    /// `minimumReleaseAgeStrict` from `pnpm-workspace.yaml`.
+    pub minimum_release_age_strict: Option<bool>,
+
+    /// `trustPolicy` from `pnpm-workspace.yaml`. See [`TrustPolicy`].
+    pub trust_policy: Option<TrustPolicy>,
+
+    /// `trustPolicyExclude` from `pnpm-workspace.yaml`.
+    pub trust_policy_exclude: Option<Vec<String>>,
+
+    /// `trustPolicyIgnoreAfter` from `pnpm-workspace.yaml`. Minutes.
+    pub trust_policy_ignore_after: Option<u64>,
 }
 
 /// Basename of the file pnpm reads; exported for test use.
@@ -408,6 +437,30 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.ignored_optional_dependencies {
             config.ignored_optional_dependencies = Some(v);
+        }
+        if let Some(v) = self.cache_dir {
+            config.cache_dir = resolve(base_dir, &v);
+        }
+        if let Some(v) = self.minimum_release_age {
+            config.minimum_release_age = Some(v);
+        }
+        if let Some(v) = self.minimum_release_age_exclude {
+            config.minimum_release_age_exclude = Some(v);
+        }
+        if let Some(v) = self.minimum_release_age_ignore_missing_time {
+            config.minimum_release_age_ignore_missing_time = v;
+        }
+        if let Some(v) = self.minimum_release_age_strict {
+            config.minimum_release_age_strict = Some(v);
+        }
+        if let Some(v) = self.trust_policy {
+            config.trust_policy = v;
+        }
+        if let Some(v) = self.trust_policy_exclude {
+            config.trust_policy_exclude = Some(v);
+        }
+        if let Some(v) = self.trust_policy_ignore_after {
+            config.trust_policy_ignore_after = Some(v);
         }
     }
 }

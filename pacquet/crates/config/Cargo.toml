@@ -20,6 +20,7 @@ derive_more   = { workspace = true }
 home          = { workspace = true }
 indexmap      = { workspace = true }
 miette        = { workspace = true }
+node-semver   = { workspace = true }
 pipe-trait    = { workspace = true }
 serde         = { workspace = true }
 serde-saphyr  = { workspace = true }
