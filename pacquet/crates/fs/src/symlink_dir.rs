@@ -38,13 +38,55 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 ///
 /// Callers in pacquet always pass absolute paths; if `pathdiff` cannot
 /// produce a relative form (one side is relative, or they live on
-/// different roots — only possible on Windows), fall back to the
-/// absolute `original` so the kernel still gets a valid path. This
-/// matches upstream's behavior when `path.relative` returns an
-/// absolute path because the two arguments share no common root.
+/// different roots), fall back to the absolute `original` so the kernel
+/// still gets a valid path. This matches upstream's behavior when
+/// `path.relative` returns an absolute path because the two arguments
+/// share no common root.
+///
+/// On Windows the "different roots" guard has to be explicit:
+/// `pathdiff::diff_paths` walks components and treats two unequal
+/// `Component::Prefix` values (e.g. `C:` vs. `D:`) as just another
+/// mismatch, producing a path that climbs out with `..` and then
+/// re-anchors with a drive letter (`..\..\C:\Users\...`). Windows
+/// rejects such a target with `ERROR_INVALID_PARAMETER` (os error 87),
+/// which is the failure mode CI on Windows hits when the project lives
+/// on `D:` and the global store (installed by `setup-pnpm`) lives on
+/// `C:`. Node.js's `path.win32.relative` returns the absolute `to`
+/// argument in this case; we do the same.
 fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
     let parent = link.parent().unwrap_or_else(|| Path::new(""));
+    #[cfg(windows)]
+    if !same_path_root(original, parent) {
+        return original.to_path_buf();
+    }
     pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
+}
+
+/// Whether `a` and `b` share a Windows path root, meaning the same
+/// drive letter, the same UNC share, or both rootless. Drive letters
+/// are compared case-insensitively because NTFS is case-insensitive
+/// and Node.js's `path.win32.relative` lowercases before comparing.
+#[cfg(windows)]
+fn same_path_root(a: &Path, b: &Path) -> bool {
+    fn first_prefix(path: &Path) -> Option<std::path::Prefix<'_>> {
+        match path.components().next()? {
+            std::path::Component::Prefix(p) => Some(p.kind()),
+            _ => None,
+        }
+    }
+    fn case_normalize(prefix: std::path::Prefix<'_>) -> std::path::Prefix<'_> {
+        use std::path::Prefix::{Disk, VerbatimDisk};
+        match prefix {
+            Disk(d) => Disk(d.to_ascii_uppercase()),
+            VerbatimDisk(d) => VerbatimDisk(d.to_ascii_uppercase()),
+            other => other,
+        }
+    }
+    match (first_prefix(a), first_prefix(b)) {
+        (Some(pa), Some(pb)) => case_normalize(pa) == case_normalize(pb),
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 /// Remove a symlink (or junction on Windows) previously created with

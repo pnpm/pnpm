@@ -7,7 +7,11 @@
 //! idempotent re-symlink, retargeting a stale link, and renaming a
 //! non-symlink occupant out of the way.
 
+#[cfg(windows)]
+use super::relative_target_for;
 use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir, symlink_dir};
+#[cfg(windows)]
+use std::path::Path;
 use std::{fs, path::PathBuf};
 use tempfile::tempdir;
 
@@ -143,6 +147,50 @@ fn force_symlink_dir_creates_missing_parent_directories() {
     let resolved_link = fs::canonicalize(&link).expect("canonicalize the new symlink");
     let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
     assert_eq!(resolved_link, resolved_target);
+}
+
+/// On Windows, a target and link that live on different drives have
+/// no relative path between them. Node.js's `path.win32.relative`
+/// returns the absolute target in that case, and so must pacquet.
+/// Pre-fix, `pathdiff::diff_paths` would walk the components and emit
+/// a nonsense path that re-anchored mid-string (`..\..\C:\Users\...`),
+/// which Windows rejects with `ERROR_INVALID_PARAMETER` (os error 87).
+/// This is the failure mode CI hits when the workspace lives on `D:`
+/// and the global store (set up by `setup-pnpm`) lives on `C:`.
+///
+/// The test runs as a pure-function check, with no real symlink
+/// created, so it stays portable across hosts. Only the Windows
+/// path-parser arithmetic is being exercised, and `Path` parses
+/// drive-letter prefixes on every target.
+#[cfg(windows)]
+#[test]
+fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
+    let target = Path::new(r"C:\Users\runneradmin\setup-pnpm\store\@babel\plugin-x");
+    let link = Path::new(r"D:\a\pnpm\pnpm\node_modules\@babel\plugin-x");
+
+    let computed = relative_target_for(target, link);
+
+    assert_eq!(
+        computed, target,
+        "cross-drive target must be passed through as absolute, not a fabricated `..` chain",
+    );
+}
+
+/// Sanity-check the same-drive happy path: when target and link share
+/// a drive root, `relative_target_for` still emits a relative path
+/// (the pnpm `symlink-dir` parity that the Unix tests exercise too).
+#[cfg(windows)]
+#[test]
+fn windows_same_drive_symlink_target_stays_relative() {
+    let target = Path::new(r"C:\workspace\packages\pkg-a");
+    let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
+
+    let computed = relative_target_for(target, link);
+
+    assert!(
+        computed.is_relative(),
+        "same-drive target should still be encoded relative to the link parent, got {computed:?}",
+    );
 }
 
 /// After [`force_symlink_dir`] places a symlink, [`read_symlink_dir`]
