@@ -249,21 +249,27 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   return formatGlobalVirtualStorePath(name, version, hexDigest)
 }
 
+export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string, version: string): string {
+  const depsHash = hashObject({ id: fullPkgId, deps: {} })
+  const hexDigest = hashObjectWithoutSorting({ engine: null, deps: depsHash }, { encoding: 'hex' })
+  return formatGlobalVirtualStorePath(name, version, hexDigest)
+}
+
 /**
- * `deps` maps each direct child's alias to its full pkg id
- * (`${name}@${version}:${integrity}`); pass `{}` when the package has no
- * traversable dependency subtree. Children themselves are treated as leaves —
- * one level deep only, matching the config-dependency surface where this is
- * used today.
+ * `subdepIds` maps each direct child's alias to its full pkg id
+ * (`${name}@${version}:${integrity}`). Each child contributes a leaf hash
+ * (no transitive walk) to the parent's hash, so the resulting path differs
+ * whenever the set or versions of children change. One level deep only —
+ * use {@link calcGraphNodeHash} when full graph traversal is needed.
  */
-export function calcLeafGlobalVirtualStorePath (
+export function calcGlobalVirtualStorePathWithSubdeps (
   fullPkgId: string,
   name: string,
   version: string,
-  deps: Record<string, string> = {}
+  subdepIds: Record<string, string>
 ): string {
   const childHashes: Record<string, string> = {}
-  for (const [alias, childFullPkgId] of Object.entries(deps)) {
+  for (const [alias, childFullPkgId] of Object.entries(subdepIds)) {
     childHashes[alias] = hashObject({ id: childFullPkgId, deps: {} })
   }
   const depsHash = hashObject({ id: fullPkgId, deps: childHashes })

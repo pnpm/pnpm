@@ -4,7 +4,7 @@ import path from 'node:path'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
-import { calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
+import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
@@ -56,7 +56,7 @@ export async function installConfigDeps (
     for (const subdep of pkg.optionalSubdeps ?? []) {
       optionalSubdepIds[subdep.name] = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
     }
-    const relPath = calcLeafGlobalVirtualStorePath(fullPkgId, pkgName, pkg.version, optionalSubdepIds)
+    const relPath = calcGlobalVirtualStorePathWithSubdeps(fullPkgId, pkgName, pkg.version, optionalSubdepIds)
     const pkgDirInGlobalVirtualStore = path.join(globalVirtualStoreDir, relPath, 'node_modules', pkgName)
     // The leaf hash captures parent+subdep identities from the lockfile but
     // not the host's `process.arch`/`process.platform` selection. So even if
