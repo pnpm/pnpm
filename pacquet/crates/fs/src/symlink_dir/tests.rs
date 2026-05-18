@@ -193,6 +193,29 @@ fn windows_same_drive_symlink_target_stays_relative() {
     );
 }
 
+/// When one side is a verbatim Windows path (`\\?\C:\...`) and the
+/// other is the plain form (`C:\...`), `relative_target_for` must
+/// still recognize them as the same physical drive and emit a
+/// relative target. Pre-fix, `Prefix::VerbatimDisk('C')` and
+/// `Prefix::Disk('C')` compared unequal, so the cross-root fallback
+/// would fire and the symlink would carry an absolute target even
+/// though the two paths share a drive. The `dunce::simplified`
+/// normalization in `relative_target_for` collapses both forms onto
+/// `Prefix::Disk`.
+#[cfg(windows)]
+#[test]
+fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
+    let target = Path::new(r"\\?\C:\workspace\packages\pkg-a");
+    let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
+
+    let computed = relative_target_for(target, link);
+
+    assert!(
+        computed.is_relative(),
+        "verbatim and plain disk forms of the same drive must produce a relative target, got {computed:?}",
+    );
+}
+
 /// After [`force_symlink_dir`] places a symlink, [`read_symlink_dir`]
 /// returns the same contents. The combination covers the round-trip
 /// pacquet's prune sweep needs (write a slot link with

@@ -53,12 +53,25 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 /// on `D:` and the global store (installed by `setup-pnpm`) lives on
 /// `C:`. Node.js's `path.win32.relative` returns the absolute `to`
 /// argument in this case; we do the same.
+///
+/// Inputs are run through [`dunce::simplified`](https://docs.rs/dunce/latest/dunce/fn.simplified.html)
+/// before the prefix comparison so that mixed verbatim and non-verbatim
+/// forms of the same drive (`\\?\C:\foo` and `C:\bar`) normalize to a
+/// common `Prefix::Disk`. Without that, `pathdiff::diff_paths` would
+/// emit garbage even when both paths name the same physical drive, and
+/// the relative-target branch would never be taken.
 fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
     let parent = link.parent().unwrap_or_else(|| Path::new(""));
     #[cfg(windows)]
-    if !same_path_root(original, parent) {
-        return original.to_path_buf();
+    {
+        let original = dunce::simplified(original);
+        let parent = dunce::simplified(parent);
+        if !same_path_root(original, parent) {
+            return original.to_path_buf();
+        }
+        return pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf());
     }
+    #[cfg(not(windows))]
     pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
 }
 
@@ -66,6 +79,9 @@ fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
 /// drive letter, the same UNC share, or both rootless. Drive letters
 /// are compared case-insensitively because NTFS is case-insensitive
 /// and Node.js's `path.win32.relative` lowercases before comparing.
+/// Callers should pre-simplify inputs with `dunce::simplified` so
+/// `Prefix::Disk('C')` and `Prefix::VerbatimDisk('C')` (and the UNC
+/// analogues) don't fall on opposite sides of this check.
 #[cfg(windows)]
 fn same_path_root(a: &Path, b: &Path) -> bool {
     fn first_prefix(path: &Path) -> Option<std::path::Prefix<'_>> {
@@ -77,8 +93,7 @@ fn same_path_root(a: &Path, b: &Path) -> bool {
     fn case_normalize(prefix: std::path::Prefix<'_>) -> std::path::Prefix<'_> {
         use std::path::Prefix::{Disk, VerbatimDisk};
         match prefix {
-            Disk(d) => Disk(d.to_ascii_uppercase()),
-            VerbatimDisk(d) => VerbatimDisk(d.to_ascii_uppercase()),
+            Disk(d) | VerbatimDisk(d) => Disk(d.to_ascii_uppercase()),
             other => other,
         }
     }
