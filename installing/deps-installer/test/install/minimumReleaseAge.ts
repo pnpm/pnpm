@@ -72,7 +72,13 @@ test('minimumReleaseAge falls back to immature version when no mature version sa
   // The fallback picks the lowest matching version (0.1.0), which differs from
   // normal resolution without minimumReleaseAge that would pick the highest (0.1.2).
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    // Acknowledge the policy violations without aborting — this test
+    // only inspects the resolved manifest. resolveDependencies refuses
+    // to proceed if violations fire and no handler is wired.
+    handleResolutionPolicyViolations: async () => {},
+  })
 
   expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
 })
@@ -229,7 +235,12 @@ test('loose mode surfaces immature fresh picks in the install result', async () 
   // `resolutionPolicyViolations`. The CLI command filters by code to
   // persist the entries to `minimumReleaseAgeExclude`.
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
-  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    // Acknowledge the violations without aborting so the install
+    // proceeds and the result can be inspected.
+    handleResolutionPolicyViolations: async () => {},
+  })
 
   expect(result.resolutionPolicyViolations).toContainEqual(
     expect.objectContaining({
@@ -247,7 +258,13 @@ test('versions excluded via minimumReleaseAgeExclude are not surfaced as violati
     minimumReleaseAge: allImmatureMinimumReleaseAge,
     minimumReleaseAgeExclude: ['is-odd'],
   })
-  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
+  // is-odd is excluded, but `is-odd@0.1.2` pulls in is-buffer / is-number /
+  // kind-of transitively — those still produce policy violations. Wire a
+  // no-op handler to acknowledge them.
+  const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    handleResolutionPolicyViolations: async () => {},
+  })
 
   // is-odd is excluded by policy — the install installed 0.1.2 (the highest in
   // range) treating it as fully trusted. The verifier short-circuits on the
@@ -272,6 +289,20 @@ test('handleResolutionPolicyViolations throwing aborts the install before the lo
   // The lockfile must NOT have been written — the throw fires before the
   // resolver finishes, so no on-disk side effects.
   await expect(readWantedLockfile('.', { ignoreIncompatible: false })).resolves.toBeNull()
+})
+
+test('resolveDependencies throws if violations fire but no handleResolutionPolicyViolations is wired', async () => {
+  // Safety net: the policy contract is "every pick that trips a check
+  // produces a violation that gets handled". A caller that opted into a
+  // policy but forgot to wire the handler would otherwise silently drop
+  // the violations and land policy-rejected versions in the lockfile.
+  prepareEmpty()
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
+    ...opts,
+    // Explicitly omit handleResolutionPolicyViolations.
+    handleResolutionPolicyViolations: undefined,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED' })
 })
 
 test('handleResolutionPolicyViolations approval lets the install proceed cleanly', async () => {

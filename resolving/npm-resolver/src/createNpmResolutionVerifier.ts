@@ -18,7 +18,7 @@ import {
   type FetchFullMetadataCachedOptions,
 } from './fetchFullMetadataCached.js'
 import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
-import { getPkgMirrorPath, loadMeta } from './pickPackage.js'
+import { getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnce } from './pickPackage.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
@@ -41,6 +41,17 @@ export interface CreateNpmResolutionVerifierOptions {
    */
   minimumReleaseAgeStrict?: boolean
   minimumReleaseAgeExclude?: string[]
+  /**
+   * When the registry's metadata lacks the per-version `time` field
+   * (some self-hosted registries strip it), the verifier can't apply
+   * the maturity cutoff. Set this to `true` to mirror the resolver's
+   * `pickMatchingVersionFinal` warn-and-skip behavior — the verifier
+   * passes the entry with a one-time `globalWarn`, instead of failing
+   * closed. Defaults to `false` so the verifier stays stricter than
+   * the resolver only when the user has explicitly opted in to the
+   * skip on the resolver side.
+   */
+  ignoreMissingTimeField?: boolean
   /**
    * `'no-downgrade'` rejects a lockfile entry whose version has weaker
    * trust evidence (no attestations) than an earlier-published version
@@ -166,7 +177,7 @@ export function createNpmResolutionVerifier (
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
 
     if (ageApplies) {
-      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff)
+      const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, opts.ignoreMissingTimeField === true)
       if (ageViolation) return ageViolation
     }
 
@@ -246,7 +257,8 @@ async function runAgeCheck (
   registry: string,
   name: string,
   version: string,
-  cutoff: number
+  cutoff: number,
+  ignoreMissingTimeField: boolean
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
   let published: string | undefined
   try {
@@ -260,9 +272,16 @@ async function runAgeCheck (
   }
   if (!published) {
     // No source — attestation, local mirror, or full metadata —
-    // surfaced a publish timestamp for this version. Either it's
-    // unpublished or the registry doesn't expose per-version
-    // timestamps. Report a violation rather than silently passing.
+    // surfaced a publish timestamp for this version. The resolver's
+    // pickMatchingVersionFinal honors `minimumReleaseAgeIgnoreMissingTime`
+    // for the same shape (some self-hosted registries strip per-version
+    // `time`); the verifier mirrors that so it can't be stricter than
+    // fresh resolution. Without the flag we still fail closed — better
+    // a false reject than silent bypass when the user hasn't opted in.
+    if (ignoreMissingTimeField) {
+      warnMissingTimeFieldOnce(name)
+      return undefined
+    }
     return {
       ok: false,
       code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,

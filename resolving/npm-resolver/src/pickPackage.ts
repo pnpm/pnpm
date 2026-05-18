@@ -593,7 +593,7 @@ function isMissingTimeError (err: unknown): boolean {
 const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
-function warnMissingTimeFieldOnce (pkgName: string): void {
+export function warnMissingTimeFieldOnce (pkgName: string): void {
   if (warnedMissingTimeFor.has(pkgName)) return
   if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
     // Set preserves insertion order, so the first entry is the oldest.

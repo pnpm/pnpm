@@ -184,6 +184,39 @@ test('createNpmResolutionVerifier() abbreviated shortcut requires the pinned ver
   expect(fullMeta.versions['0.0.1'].version).toBe('0.0.1')
 })
 
+test('createNpmResolutionVerifier() ignoreMissingTimeField passes the entry when no source surfaces a timestamp', async () => {
+  // Mirrors the resolver-side `pickMatchingVersionFinal` warn-and-skip
+  // behavior: when the registry strips the per-version `time` field and
+  // the user has opted into `minimumReleaseAgeIgnoreMissingTime`, the
+  // verifier shouldn't be stricter than fresh resolution.
+  const abbreviatedMeta = {
+    name: 'time-free-pkg',
+    'dist-tags': {},
+    versions: {
+      '1.0.0': {
+        name: 'time-free-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/time-free-pkg/-/time-free-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2010-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  // Full meta also lacks `time`, so no layer surfaces a publish timestamp.
+  pool.intercept({ path: '/time-free-pkg', method: 'GET' }).reply(200, abbreviatedMeta).persist()
+  pool.intercept({ path: '/-/npm/v1/attestations/time-free-pkg@1.0.0', method: 'GET' }).reply(404, {}).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+    ignoreMissingTimeField: true,
+  }))!
+  const result = await verifier.verify(
+    makeTarballResolution('time-free-pkg', '1.0.0'),
+    { name: 'time-free-pkg', version: '1.0.0' }
+  )
+  expect(result).toEqual({ ok: true })
+})
+
 test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exclude list shrinks', () => {
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     trustPolicy: 'no-downgrade',

@@ -6,6 +6,7 @@ import {
 } from '@pnpm/core-loggers'
 import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import type {
   LockfileObject,
   ProjectSnapshot,
@@ -182,7 +183,24 @@ export async function resolveDependencies (
   // the cost of peer resolution. Dispatch stays policy-neutral: each
   // resolver owns its violation codes, and the hook implementer
   // decides what to do with them.
-  await opts.handleResolutionPolicyViolations?.(resolutionPolicyViolations)
+  //
+  // If violations fired but no hook was wired, throw rather than
+  // silently dropping them — the resolver-policy contract is "every
+  // pick that trips a check produces a violation that gets handled";
+  // a missing handler means the caller forgot to opt in and would
+  // otherwise see policy-rejected versions land in the lockfile.
+  if (resolutionPolicyViolations.length > 0) {
+    if (!opts.handleResolutionPolicyViolations) {
+      throw new PnpmError(
+        'RESOLUTION_POLICY_VIOLATIONS_UNHANDLED',
+        `${resolutionPolicyViolations.length} resolution-policy ${resolutionPolicyViolations.length === 1 ? 'violation was' : 'violations were'} produced but no handleResolutionPolicyViolations callback was wired to react to them.`,
+        {
+          hint: 'Internal: resolveDependencies needs a handleResolutionPolicyViolations callback whenever a policy that can produce violations (today: minimumReleaseAge) is active. Wire setupPolicyHandlers (in @pnpm/installing.commands) or supply a callback directly.',
+        }
+      )
+    }
+    await opts.handleResolutionPolicyViolations(resolutionPolicyViolations)
+  }
 
   opts.storeController.clearResolutionCache()
 

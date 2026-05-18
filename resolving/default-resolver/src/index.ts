@@ -151,6 +151,7 @@ export type ResolutionVerifierFactoryOptions =
   | 'minimumReleaseAge'
   | 'minimumReleaseAgeStrict'
   | 'minimumReleaseAgeExclude'
+  | 'ignoreMissingTimeField'
   | 'trustPolicy'
   | 'trustPolicyExclude'
   | 'trustPolicyIgnoreAfter'
@@ -187,6 +188,7 @@ export function createResolutionVerifiers (
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    ignoreMissingTimeField: opts.ignoreMissingTimeField,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,

@@ -44,6 +44,7 @@ export type ClientOptions = {
   | 'minimumReleaseAge'
   | 'minimumReleaseAgeStrict'
   | 'minimumReleaseAgeExclude'
+  | 'ignoreMissingTimeField'
   | 'trustPolicy'
   | 'trustPolicyExclude'
   | 'trustPolicyIgnoreAfter'
