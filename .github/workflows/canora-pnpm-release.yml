@@ -1,0 +1,167 @@
+name: canora-pnpm-release
+
+# Maintains the canora-sync patched pnpm.
+#
+# Branch model:
+#   fix/graph-builder-missing-resolution  — the upstream PR branch
+#                                           (pnpm/pnpm#11662), keeps review
+#                                           history. Do NOT build from it.
+#   canora-patch (this branch)            — the pnpm#11662 fix carried on
+#                                           top of an upstream pnpm release;
+#                                           the build source.
+#
+# What it does: (optionally) rebase the patch onto a newer upstream pnpm
+# tag, run the gate, pack the bundle (esbuild bakes the version), and
+# publish a sha256-pinned GitHub release that canora-sync's Dockerfiles +
+# workflows consume (PNPM_FORK_URL / PNPM_FORK_SHA256).
+#
+# Triggers:
+#   workflow_dispatch — explicit upstream bump: pass upstream_ref (a pnpm
+#                        tag) + rev. Rebase runs and FAILS LOUD on conflict
+#                        (upstream touched convertToLockfileObject /
+#                        runLifecycleHooksConcurrently — never ship an
+#                        unverified patch).
+#   schedule (weekly) — rebuilds the *current* canora-patch as-is (no
+#                        rebase, no force-push) and republishes a
+#                        date-stamped rev, so the pinned artifact stays
+#                        fresh and the gate keeps running.
+#
+# The rebase is ephemeral (CI workspace only) — advancing canora-patch in
+# git is a deliberate manual step, not auto-force-pushed from CI.
+#
+# Drop-out: when pnpm/pnpm#11662 merges, the drop-out-watch job flags it;
+# switch canora-sync back to stock pnpm and delete canora-patch + this file.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "Upstream pnpm tag to rebase onto (blank = build current canora-patch as-is)"
+        required: false
+        default: ""
+      rev:
+        description: "canora rev N  ->  v<pnpmVersion>-canora.N"
+        required: true
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: canora-pnpm-release
+  cancel-in-progress: false
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: canora-patch
+          fetch-depth: 0
+
+      - name: Configure git + fetch upstream tags
+        run: |
+          git remote add upstream https://github.com/pnpm/pnpm.git 2>/dev/null || true
+          git fetch --tags --quiet upstream
+          git config user.email "canora-bot@users.noreply.github.com"
+          git config user.name  "canora-bot"
+
+      - name: Rebase patch onto upstream ref (FAIL LOUD on conflict)
+        if: ${{ github.event.inputs.upstream_ref != '' }}
+        run: |
+          target='${{ github.event.inputs.upstream_ref }}'
+          echo "Rebasing canora-patch onto ${target} (ephemeral; not pushed)"
+          if ! git rebase "${target}"; then
+            git rebase --abort || true
+            echo "::error::Rebase onto ${target} conflicts — upstream changed the patched code. Resolve canora-patch manually; refusing to ship an unverified patch."
+            exit 1
+          fi
+
+      - name: Resolve version
+        id: ver
+        run: |
+          base=$(node -p "require('./pnpm/package.json').version")
+          base=${base%%-canora*}
+          rev='${{ github.event.inputs.rev }}'
+          [ -z "$rev" ] && rev="$(date -u +%Y%m%d)"
+          echo "version=${base}-canora.${rev}" >> "$GITHUB_OUTPUT"
+          echo "base=${base}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm (repo packageManager)
+        run: npm install -g pnpm@11.1.1 && pnpm --version
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Gate - compile (tsgo typecheck across monorepo)
+        run: pnpm compile
+
+      - name: Gate - Bug-1 regression (deps.restorer peer-variant)
+        id: bug1
+        continue-on-error: true
+        run: pnpm --filter "@pnpm/deps.restorer" test
+
+      - name: Gate - Bug-2 regression (deps.installer inject re-import)
+        id: bug2
+        continue-on-error: true
+        run: pnpm --filter "@pnpm/deps.installer" test -- injectLocalPackages
+
+      - name: Pack bundle (esbuild bakes the version) + sha256
+        id: pack
+        run: |
+          V='${{ steps.ver.outputs.version }}'
+          node -e "const f='pnpm/package.json',p=require('./'+f);p.version='${V}';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          # esbuild `define` inlines npm_package_version at bundle time;
+          # incremental tsgo won't rebundle on a package.json-only change,
+          # so force a clean rebundle (proven canora.14/.15/.16 sequence).
+          rm -rf pnpm/dist pnpm/bin/nodes pnpm/*.tsbuildinfo tsconfig.tsbuildinfo
+          export npm_package_version="${V}" npm_package_name=pnpm
+          cd pnpm && pnpm run prepublishOnly && pnpm pack
+          tgz="pnpm-${V}.tgz"
+          tar -xzOf "$tgz" package/dist/pnpm.mjs > /tmp/pnpm.mjs
+          if ! grep -q "${V}" /tmp/pnpm.mjs; then
+            echo "::error::bundle baked version is NOT ${V}"
+            grep -oE "11\.[0-9.]+[^\"']*" /tmp/pnpm.mjs | sort -u | head
+            exit 1
+          fi
+          sha=$(sha256sum "$tgz" | cut -d' ' -f1)
+          echo "$sha  $tgz" > "$tgz.sha256"
+          echo "sha256=${sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish sha256-pinned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V='${{ steps.ver.outputs.version }}'
+          tag="v${V}"
+          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" \
+            "pnpm/pnpm-${V}.tgz" "pnpm/pnpm-${V}.tgz.sha256" \
+            --title "pnpm ${{ steps.ver.outputs.base }} + canora patch (${V})" \
+            --notes "Rebased pnpm#11662 patch. compile gate passed. Bug-1 test: ${{ steps.bug1.outcome }}; Bug-2 test: ${{ steps.bug2.outcome }}. sha256 ${{ steps.pack.outputs.sha256 }}"
+          {
+            echo "### canora-sync bump (paste into the Dockerfile ARGs / workflow env)"
+            echo '```'
+            echo "PNPM_FORK_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/pnpm-${V}.tgz"
+            echo "PNPM_FORK_SHA256=${{ steps.pack.outputs.sha256 }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  drop-out-watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Flag fork retirement if pnpm/pnpm#11662 merged
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh pr view 11662 --repo pnpm/pnpm --json state --jq '.state' 2>/dev/null || echo UNKNOWN)
+          echo "pnpm/pnpm#11662 state: ${state}"
+          if [ "$state" = "MERGED" ]; then
+            echo "::warning::pnpm/pnpm#11662 is MERGED — retire the fork: point canora-sync at stock pnpm@<ver>, delete canora-patch + this workflow."
+          fi
