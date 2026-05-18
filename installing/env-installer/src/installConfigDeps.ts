@@ -300,8 +300,15 @@ async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promis
 
 async function symlinkPointsTo (linkPath: string, expectedTarget: string): Promise<boolean> {
   try {
-    const realPath = await fs.promises.realpath(linkPath)
-    return realPath === expectedTarget
+    // Realpath both sides: the expected target itself may live under a
+    // symlinked storeDir, and on case-insensitive filesystems the literal
+    // string forms can disagree about casing even when they refer to the
+    // same inode.
+    const [linkReal, targetReal] = await Promise.all([
+      fs.promises.realpath(linkPath),
+      fs.promises.realpath(expectedTarget),
+    ])
+    return linkReal === targetReal
   } catch {
     return false
   }
