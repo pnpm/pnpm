@@ -171,6 +171,8 @@ export interface ResolutionContext {
   storeController: StoreController
   // the IDs of packages that are not installable
   skipped: Set<PkgResolutionId>
+  /** See {@link import('./resolveDependencyTree.js').ResolveDependenciesOptions.suppressResolveProgress}. */
+  suppressResolveProgress: boolean
   dependenciesTree: DependenciesTree<ResolvedPackage>
   force: boolean
   preferWorkspacePackages?: boolean
@@ -1603,11 +1605,13 @@ async function resolveDependency (
     if (pkgResponse.body.isInstallable === false || !parentIsInstallable) {
       ctx.skipped.add(pkgResponse.body.id)
     }
-    progressLogger.debug({
-      packageId: pkgResponse.body.id,
-      requester: ctx.lockfileDir,
-      status: 'resolved',
-    })
+    if (!ctx.suppressResolveProgress) {
+      progressLogger.debug({
+        packageId: pkgResponse.body.id,
+        requester: ctx.lockfileDir,
+        status: 'resolved',
+      })
+    }
 
     // WARN: It is very important to keep this sync
     // Otherwise, deprecation messages for the same package might get written several times

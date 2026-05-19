@@ -1416,6 +1416,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
       catalogs: opts.catalogs,
       currentLockfile: ctx.currentLockfile,
+      // When pacquet is going to take over the materialization, mute
+      // the resolver's per-package `pnpm:progress status:resolved`
+      // events — pacquet emits its own once it walks the lockfile, and
+      // without the suppression the reporter doubles the count.
+      suppressResolveProgress: opts.runPacquet != null,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
