@@ -118,19 +118,19 @@ pub fn default_modules_dir() -> PathBuf {
 /// 4. Windows: `%LOCALAPPDATA%/pnpm-cache`, falling back to
 ///    `~/.pnpm-cache` when `LOCALAPPDATA` is unset.
 ///
-/// Generic over [`EnvVar`] and the home-dir closure for the same
-/// reason as [`default_store_dir`]: unit tests drive every branch
-/// without mutating the process environment. Production callers
-/// pass [`crate::Host`] with `home::home_dir`.
-pub fn default_cache_dir<Sys, HomeDir>(home_dir: HomeDir) -> PathBuf
+/// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
+/// as [`default_store_dir`]: unit tests drive every branch without
+/// mutating the process environment. Production callers pass
+/// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
+/// the [`GetHomeDir`] impl.
+pub fn default_cache_dir<Sys>() -> PathBuf
 where
-    Sys: EnvVar,
-    HomeDir: FnOnce() -> Option<PathBuf>,
+    Sys: EnvVar + GetHomeDir,
 {
     if let Some(xdg_cache_home) = Sys::var("XDG_CACHE_HOME") {
         return PathBuf::from(xdg_cache_home).join("pnpm");
     }
-    let home_dir = home_dir().expect("Home directory is not available");
+    let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
         "windows" => Sys::var("LOCALAPPDATA")

@@ -123,9 +123,9 @@ fn test_default_store_dir_falls_back_to_home_dir() {
 /// `XDG_CACHE_HOME` is the first branch and takes precedence over
 /// the platform-default fallback. Exercised through the same
 /// dependency-injection seam `default_store_dir` uses — no
-/// `std::env::set_var`, no `EnvGuard` lock. The home-dir closure
-/// is `unreachable!` because the `XDG_CACHE_HOME` branch short-
-/// circuits before it is consumed.
+/// `std::env::set_var`, no `EnvGuard` lock. The [`GetHomeDir`] impl
+/// is `unreachable!` because the `XDG_CACHE_HOME` branch
+/// short-circuits before it is consumed.
 #[test]
 fn test_default_cache_dir_with_xdg_cache_home_env() {
     struct EnvWithXdgCacheHome;
@@ -134,9 +134,12 @@ fn test_default_cache_dir_with_xdg_cache_home_env() {
             (name == "XDG_CACHE_HOME").then(|| "/tmp/xdg-cache-home".to_owned())
         }
     }
-    let cache_dir = default_cache_dir::<EnvWithXdgCacheHome, _>(|| {
-        unreachable!("home_dir must not be called when XDG_CACHE_HOME is set")
-    });
+    impl GetHomeDir for EnvWithXdgCacheHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("home_dir must not be called when XDG_CACHE_HOME is set");
+        }
+    }
+    let cache_dir = default_cache_dir::<EnvWithXdgCacheHome>();
     let display = cache_dir.display().to_string().replace('\\', "/");
     assert_eq!(display, "/tmp/xdg-cache-home/pnpm");
 }
@@ -150,9 +153,18 @@ fn test_default_cache_dir_with_xdg_cache_home_env() {
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[test]
 fn test_default_cache_dir_falls_back_to_platform_default() {
-    use std::path::PathBuf;
-
-    let cache_dir = default_cache_dir::<NoEnv, _>(|| Some(PathBuf::from("/home/test-user")));
+    struct NoEnvWithHome;
+    impl EnvVar for NoEnvWithHome {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    impl GetHomeDir for NoEnvWithHome {
+        fn home_dir() -> Option<PathBuf> {
+            Some(PathBuf::from("/home/test-user"))
+        }
+    }
+    let cache_dir = default_cache_dir::<NoEnvWithHome>();
     let expected = if cfg!(target_os = "macos") {
         PathBuf::from("/home/test-user/Library/Caches/pnpm")
     } else {

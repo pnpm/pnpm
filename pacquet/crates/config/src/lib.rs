@@ -658,7 +658,7 @@ pub struct Config {
     /// [`cacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L159);
     /// the default resolution chain ports
     /// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
-    #[default(_code = "default_cache_dir::<Host, _>(home::home_dir)")]
+    #[default(_code = "default_cache_dir::<Host>()")]
     pub cache_dir: PathBuf,
 
     /// Minimum age, in **minutes**, a published version must reach
