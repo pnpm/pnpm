@@ -70,8 +70,8 @@ async fn main() {
     };
 
     verify::ensure_git_repo(&repository);
-    let has_pacquet_target = targets.iter().any(|t| t.kind == TargetKind::Pacquet);
-    let has_pnpm_target = targets.iter().any(|t| t.kind == TargetKind::Pnpm);
+    let has_pacquet_target = targets.iter().any(|target| target.kind == TargetKind::Pacquet);
+    let has_pnpm_target = targets.iter().any(|target| target.kind == TargetKind::Pnpm);
     if let Some(scenario) = scenario
         && has_pacquet_target
         && !scenario.supports_pacquet()
@@ -85,7 +85,7 @@ async fn main() {
         let pnpm_repo = pnpm_repository.as_deref().unwrap_or(&repository);
         verify::ensure_git_repo(pnpm_repo);
     }
-    verify::validate_revision_list(targets.iter().map(|t| t.rev.as_str()));
+    verify::validate_revision_list(targets.iter().map(|target| target.rev.as_str()));
     verify::ensure_program("bash");
     verify::ensure_program("git");
     verify::ensure_program("hyperfine");

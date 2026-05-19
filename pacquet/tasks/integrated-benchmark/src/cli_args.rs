@@ -80,14 +80,14 @@ pub enum TargetKind {
 impl FromStr for TargetSpec {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.is_empty() {
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        if input.is_empty() {
             return Err("target spec must not be empty".to_string());
         }
         // Split on the first `@` so that a rev containing `@` (unusual
         // but possible — e.g. `v1.0.0@sha`) is preserved verbatim when no
         // recognized kind prefix is present.
-        if let Some((prefix, rest)) = s.split_once('@') {
+        if let Some((prefix, rest)) = input.split_once('@') {
             match prefix {
                 "pacquet" => {
                     if rest.is_empty() {
@@ -104,7 +104,7 @@ impl FromStr for TargetSpec {
                 _ => {}
             }
         }
-        Ok(TargetSpec { kind: TargetKind::Pacquet, rev: s.to_string() })
+        Ok(TargetSpec { kind: TargetKind::Pacquet, rev: input.to_string() })
     }
 }
 

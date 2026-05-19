@@ -352,13 +352,13 @@ fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
 /// covering every bench dir's removal paths, then a `cp` for each
 /// pristine file that needs restoring. Failures abort the iteration
 /// via `&&`.
-fn build_cleanup_command<'a, I, BenchDir>(
+fn build_cleanup_command<'a, Ids, BenchDir>(
     cleanup: &Cleanup,
-    ids: I,
+    ids: Ids,
     mut bench_dir: BenchDir,
 ) -> String
 where
-    I: Iterator<Item = BenchId<'a>>,
+    Ids: Iterator<Item = BenchId<'a>>,
     BenchDir: FnMut(BenchId<'a>) -> PathBuf,
 {
     let dirs: Vec<PathBuf> = ids.map(&mut bench_dir).collect();
