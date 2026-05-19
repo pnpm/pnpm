@@ -100,7 +100,7 @@ impl CliArgs {
         // for the pattern and rationale.
         let config = || -> miette::Result<&'static mut Config> {
             Config::default()
-                .current_dir::<Host>(&dir)
+                .current::<Host>(&dir)
                 .map(Config::leak)
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")

@@ -18,7 +18,7 @@ use reqwest::Url;
 /// Resolved proxy configuration after the `.npmrc` + env cascade has run.
 ///
 /// All three fields are `None` when no proxy is configured. Built once
-/// inside `pacquet_config::Config::current_dir` and threaded into the
+/// inside `pacquet_config::Config::current` and threaded into the
 /// install client by [`crate::ThrottledClient::for_installs`]. Lives in
 /// `pacquet-network` (rather than `pacquet-config`) because
 /// `pacquet-config` already depends on `pacquet-network` for the auth

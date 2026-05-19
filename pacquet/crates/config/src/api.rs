@@ -4,7 +4,7 @@
 //! a generic seam declares its own capability traits and its own
 //! `Host` provider; this is the one for `pacquet-config`. Production
 //! callers turbofish the real provider explicitly
-//! (e.g. `Config::default().current_dir::<Host>(...)`); tests substitute a per-test
+//! (e.g. `Config::default().current::<Host>(...)`); tests substitute a per-test
 //! unit struct that implements only the bounds the function actually
 //! declares, with any per-test scenario data stored in a `static`
 //! inside the test fn.
@@ -66,7 +66,7 @@ pub trait GetHomeDir {
 /// genuinely needs the cwd — the SmartDefault for
 /// [`crate::Config::store_dir`] consults it on Windows for the
 /// drive-letter derivation. Code that needs a "starting path" — like
-/// [`crate::Config::current_dir`] — takes a direct path parameter
+/// [`crate::Config::current`] — takes a direct path parameter
 /// instead, because production passes a caller-supplied path (the
 /// canonicalized `--dir`) rather than the host's cwd.
 pub trait GetCurrentDir {
@@ -80,7 +80,7 @@ pub trait GetCurrentDir {
 /// explicit turbofish:
 ///
 /// ```ignore
-/// let config = Config::default().current_dir::<Host>(&dir);
+/// let config = Config::default().current::<Host>(&dir);
 /// ```
 ///
 /// Tests substitute their own zero-sized struct that implements only
