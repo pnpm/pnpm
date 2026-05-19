@@ -1840,6 +1840,32 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
   return projects.every((project) => project.mutation === 'install' && !project.update && !project.updateMatching)
 }
 
+/**
+ * Run the pacquet binary if it's configured, otherwise run the JS
+ * `headlessInstall`. Callers can hand off any code path that materializes
+ * an already-resolved lockfile (workspace partial install, hoisted
+ * linker, agent-server install, frozen install) without restating the
+ * delegation choice.
+ *
+ * Pacquet reads the wanted lockfile from disk and produces its own
+ * `pnpm:stats` / `pnpm:ignored-scripts` log events that drive the
+ * reporter. The structured stats / ignoredBuilds return values that
+ * `headlessInstall` produces aren't recovered here — pacquet doesn't
+ * surface them through any return path — so callers get `undefined` for
+ * both. `mutateModules` already tolerates that (it falls back to a zero
+ * stats record and a no-op ignoredBuilds iteration).
+ */
+async function materializeOrDelegate (
+  opts: { runPacquet?: () => Promise<void> },
+  runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>
+): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
+  if (opts.runPacquet != null) {
+    await opts.runPacquet()
+    return {}
+  }
+  return runHeadlessInstall()
+}
+
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
     const isPathInsideWorkspace = isSubdir.bind(null, opts.lockfileDir)
@@ -1876,7 +1902,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           ...opts,
           lockfileOnly: true,
         })
-        const { stats, ignoredBuilds } = await headlessInstall({
+        const { stats, ignoredBuilds } = await materializeOrDelegate(opts, () => headlessInstall({
           ...ctx,
           ...opts,
           currentEngine: {
@@ -1890,7 +1916,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           wantedLockfile: result.newLockfile,
           useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
           hoistWorkspacePackages: opts.hoistWorkspacePackages,
-        })
+        }))
         return {
           ...result,
           stats,
@@ -1903,7 +1929,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...opts,
         lockfileOnly: true,
       })
-      const { stats, ignoredBuilds } = await headlessInstall({
+      const { stats, ignoredBuilds } = await materializeOrDelegate(opts, () => headlessInstall({
         ...ctx,
         ...opts,
         currentEngine: {
@@ -1917,7 +1943,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedLockfile: result.newLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
-      })
+      }))
       return {
         ...result,
         stats,
@@ -2415,14 +2441,21 @@ async function installFromPnpmRegistry (
       skipped: new Set<DepPath>(),
       wantedLockfile: lockfile,
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { ignoredBuilds, stats } = await headlessInstall(headlessOpts as any)
+    const { ignoredBuilds, stats } = await materializeOrDelegate(
+      opts,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => headlessInstall(headlessOpts as any)
+    )
 
     return {
       updatedCatalogs: undefined,
       updatedManifest: manifest,
       ignoredBuilds,
-      stats,
+      // Pacquet doesn't surface a structured stats return; default to
+      // zeros so the agent-path's non-optional `stats` slot is filled.
+      // The reporter still renders accurate counts from pacquet's
+      // `pnpm:stats` log events.
+      stats: stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
       lockfile,
       // Server-side resolution (pnpm agent) enforces `minimumReleaseAge`
       // itself — the agent picks only mature versions and the lockfile
