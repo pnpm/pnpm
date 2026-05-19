@@ -7,6 +7,7 @@ import type { Writable } from 'node:stream'
 
 import { PnpmError } from '@pnpm/error'
 import { logger, streamParser } from '@pnpm/logger'
+import chalk from 'chalk'
 
 // The runtime `streamParser` is a `Transform` stream (split2 + JSON.parse).
 // Its public typing only exposes `on`/`removeListener`, so we narrow to the
@@ -81,7 +82,16 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacque
         prefix: opts.lockfileDir,
       })
     }
-    logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
+    // Banner so users can tell at a glance their install is going
+    // through the Rust engine rather than the JS path. Chalk is the
+    // same dependency the default reporter uses for the "+ pkg
+    // version" summary, so colorization respects the user's TTY
+    // settings consistently.
+    const banner = [
+      chalk.magentaBright('▶ Using pacquet for this install'),
+      chalk.gray('  pacquet is pnpm\'s Rust install engine (preview); declared in configDependencies.'),
+    ].join('\n')
+    logger.info({ message: banner, prefix: opts.lockfileDir })
     const child = spawn(pacquetBin, args, {
       cwd: opts.lockfileDir,
       stdio: ['ignore', 'inherit', 'pipe'],

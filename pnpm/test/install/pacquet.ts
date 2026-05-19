@@ -52,7 +52,7 @@ test('pnpm install --frozen-lockfile delegates to pacquet when declared in confi
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
   )
   expect(status).toBe(0)
-  expect(stderr.toString()).toContain('Delegating install to pacquet')
+  expect(stderr.toString()).toContain('Using pacquet for this install')
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
@@ -69,7 +69,7 @@ test('bare `pnpm install` (no --frozen-lockfile) delegates the materialization t
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
   )
   expect(status).toBe(0)
-  expect(stderr.toString()).toContain('Delegating install to pacquet')
+  expect(stderr.toString()).toContain('Using pacquet for this install')
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
@@ -84,7 +84,7 @@ test('`pnpm add <pkg>` resolves the new dep with pnpm and materializes with pacq
   // Pnpm's resolver handles the new package; pacquet performs the
   // fetch / import. The delegation log fires on the materialization
   // pass that follows the resolve.
-  expect(stderr.toString()).toContain('Delegating install to pacquet')
+  expect(stderr.toString()).toContain('Using pacquet for this install')
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
   // Package.json must record the new dep so subsequent installs see it.
   const manifest = JSON.parse(await fs.promises.readFile('package.json', 'utf8'))
@@ -103,7 +103,7 @@ test('`pnpm update <pkg>` resolves a new version with pnpm and materializes with
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
   )
   expect(status).toBe(0)
-  expect(stderr.toString()).toContain('Delegating install to pacquet')
+  expect(stderr.toString()).toContain('Using pacquet for this install')
   const newVersion = JSON.parse(
     await fs.promises.readFile('node_modules/is-positive/package.json', 'utf8')
   ).version as string
@@ -129,6 +129,6 @@ test.skip('the `@pnpm/pacquet` scoped alias is recognized in configDependencies'
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
   )
   expect(status).toBe(0)
-  expect(stderr.toString()).toContain('Delegating install to pacquet')
+  expect(stderr.toString()).toContain('Using pacquet for this install')
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
