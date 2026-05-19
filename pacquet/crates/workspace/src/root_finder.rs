@@ -21,14 +21,10 @@
 //! still resolve correctly because the upward walk operates on the
 //! canonical components Node hands us. Revisit if a regression turns up.
 
-use crate::manifest::WORKSPACE_MANIFEST_FILENAME;
+use crate::{api::EnvVarOs, manifest::WORKSPACE_MANIFEST_FILENAME};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use std::{
-    env,
-    ffi::OsString,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 /// Misnamed `pnpm-workspace.yaml` variants that upstream specifically
 /// rejects rather than silently treating as "no workspace manifest". Order
@@ -47,6 +43,10 @@ pub(crate) const INVALID_WORKSPACE_MANIFEST_FILENAMES: &[&str] = &[
 /// Env var that overrides the upward walk. Matches upstream's
 /// `WORKSPACE_DIR_ENV_VAR`.
 pub(crate) const WORKSPACE_DIR_ENV_VAR: &str = "NPM_CONFIG_WORKSPACE_DIR";
+
+/// Lowercase alias for [`WORKSPACE_DIR_ENV_VAR`], pre-allocated so the
+/// fallback lookup doesn't allocate a fresh `String` on every call.
+pub(crate) const WORKSPACE_DIR_ENV_VAR_LOWER: &str = "npm_config_workspace_dir";
 
 /// Raised when an ancestor contains a misnamed workspace manifest
 /// before any `pnpm-workspace.yaml`. Same code as upstream's
@@ -106,24 +106,26 @@ pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDi
 /// the upward walk and force the install into an invalid empty
 /// workspace dir.
 pub fn find_workspace_dir_from_env() -> Option<PathBuf> {
-    find_workspace_dir_from_env_with(|name| env::var_os(name))
+    find_workspace_dir_from_env_with::<crate::api::Host>()
 }
 
-/// Variant of [`find_workspace_dir_from_env`] that reads from a
-/// caller-supplied env accessor instead of [`std::env::var_os`].
+/// Variant of [`find_workspace_dir_from_env`] generic over an
+/// [`EnvVarOs`] capability seam instead of the process [`Host`].
 ///
 /// Exposed for tests: `std::env::set_var` has documented undefined
 /// behavior when other threads access the process environment
 /// concurrently, and Rust's default test runner is multi-threaded.
-/// Threading an accessor through here lets the test exercise the
-/// "empty value falls through" branch without touching the
-/// process-wide env at all.
-pub(crate) fn find_workspace_dir_from_env_with<Func>(mut env: Func) -> Option<PathBuf>
+/// Routing the env lookup through this trait lets a test exercise
+/// the "empty value falls through" branch without touching the
+/// process-wide env at all. Production turbofishes [`Host`].
+///
+/// [`Host`]: crate::api::Host
+pub(crate) fn find_workspace_dir_from_env_with<Sys>() -> Option<PathBuf>
 where
-    Func: FnMut(&str) -> Option<OsString>,
+    Sys: EnvVarOs,
 {
-    env(WORKSPACE_DIR_ENV_VAR)
-        .or_else(|| env(&WORKSPACE_DIR_ENV_VAR.to_lowercase()))
+    Sys::var_os(WORKSPACE_DIR_ENV_VAR)
+        .or_else(|| Sys::var_os(WORKSPACE_DIR_ENV_VAR_LOWER))
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
 }
