@@ -1,6 +1,7 @@
 use super::{
     BadWorkspaceManifestNameError, FindWorkspaceDirError, INVALID_WORKSPACE_MANIFEST_FILENAMES,
-    WORKSPACE_DIR_ENV_VAR, find_workspace_dir, find_workspace_dir_from_env_with,
+    WORKSPACE_DIR_ENV_VAR, WORKSPACE_DIR_ENV_VAR_LOWER, find_workspace_dir,
+    find_workspace_dir_from_env_with,
 };
 use crate::{WORKSPACE_MANIFEST_FILENAME, api::EnvVarOs};
 use pretty_assertions::assert_eq;
@@ -118,8 +119,7 @@ fn lowercase_env_var_is_honored_as_fallback() {
     struct EnvWithLowercaseWorkspaceDir;
     impl EnvVarOs for EnvWithLowercaseWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            (name == WORKSPACE_DIR_ENV_VAR.to_lowercase())
-                .then(|| OsString::from("/lowercase/root"))
+            (name == WORKSPACE_DIR_ENV_VAR_LOWER).then(|| OsString::from("/lowercase/root"))
         }
     }
     assert_eq!(

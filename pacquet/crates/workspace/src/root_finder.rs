@@ -44,6 +44,10 @@ pub(crate) const INVALID_WORKSPACE_MANIFEST_FILENAMES: &[&str] = &[
 /// `WORKSPACE_DIR_ENV_VAR`.
 pub(crate) const WORKSPACE_DIR_ENV_VAR: &str = "NPM_CONFIG_WORKSPACE_DIR";
 
+/// Lowercase alias for [`WORKSPACE_DIR_ENV_VAR`], pre-allocated so the
+/// fallback lookup doesn't allocate a fresh `String` on every call.
+pub(crate) const WORKSPACE_DIR_ENV_VAR_LOWER: &str = "npm_config_workspace_dir";
+
 /// Raised when an ancestor contains a misnamed workspace manifest
 /// before any `pnpm-workspace.yaml`. Same code as upstream's
 /// `BAD_WORKSPACE_MANIFEST_NAME`.
@@ -121,7 +125,7 @@ where
     Sys: EnvVarOs,
 {
     Sys::var_os(WORKSPACE_DIR_ENV_VAR)
-        .or_else(|| Sys::var_os(&WORKSPACE_DIR_ENV_VAR.to_lowercase()))
+        .or_else(|| Sys::var_os(WORKSPACE_DIR_ENV_VAR_LOWER))
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
 }

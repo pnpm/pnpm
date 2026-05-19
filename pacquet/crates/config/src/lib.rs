@@ -970,8 +970,13 @@ mod tests {
         }
     }
     impl EnvVarOs for HostNoHome {
-        fn var_os(name: &str) -> Option<OsString> {
-            Host::var_os(name)
+        fn var_os(_: &str) -> Option<OsString> {
+            // Return `None` rather than delegating to [`Host`] so an
+            // ambient `NPM_CONFIG_WORKSPACE_DIR` on a developer
+            // machine can't steer unrelated tests into the env-var
+            // workspace-dir branch. Tests that exercise that branch
+            // declare their own [`EnvVarOs`] fakes.
+            None
         }
     }
     impl GetHomeDir for HostNoHome {
@@ -990,8 +995,10 @@ mod tests {
         }
     }
     impl EnvVarOs for HostUnreachableHome {
-        fn var_os(name: &str) -> Option<OsString> {
-            Host::var_os(name)
+        fn var_os(_: &str) -> Option<OsString> {
+            // See [`HostNoHome`]'s [`EnvVarOs`] impl for the
+            // ambient-env-isolation rationale.
+            None
         }
     }
     impl GetHomeDir for HostUnreachableHome {
@@ -1173,8 +1180,8 @@ mod tests {
             }
         }
         impl EnvVarOs for HostWithHome {
-            fn var_os(name: &str) -> Option<OsString> {
-                Host::var_os(name)
+            fn var_os(_: &str) -> Option<OsString> {
+                None
             }
         }
         impl GetHomeDir for HostWithHome {
@@ -1231,8 +1238,8 @@ mod tests {
             }
         }
         impl EnvVarOs for HostWithHome {
-            fn var_os(name: &str) -> Option<OsString> {
-                Host::var_os(name)
+            fn var_os(_: &str) -> Option<OsString> {
+                None
             }
         }
         impl GetHomeDir for HostWithHome {
