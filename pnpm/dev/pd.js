@@ -95,7 +95,7 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirn
   const { status } = childProcess.spawnSync(nodeBin, [
     '--enable-source-maps',
     pathLib.resolve(import.meta.dirname, 'dist/pnpm.mjs'),
-    // '--pm-on-fail=ignore',
+    '--pm-on-fail=ignore',
     ...process.argv.slice(2),
   ], {
     stdio: 'inherit',
