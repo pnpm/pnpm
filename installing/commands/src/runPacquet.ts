@@ -101,9 +101,13 @@ function resolvePacquetBin (lockfileDir: string): string {
  * user's flags pass through unchanged — pacquet's CLI surface mirrors
  * pnpm's by design — with two adjustments:
  *
- *   1. argv[0] (pnpm's subcommand alias, e.g. `i`) is dropped and
- *      replaced with the literal `install`. Pacquet doesn't share
- *      pnpm's aliases.
+ *   1. The pnpm subcommand alias (`install` / `i`) is dropped and
+ *      replaced with the literal `install` we always prepend. Pacquet
+ *      doesn't share pnpm's aliases. We strip the *first non-flag*
+ *      argument rather than `argv[0]` because dev wrappers (notably
+ *      `pnpm/dev/pd.js`) inject global flags like
+ *      `--pm-on-fail=ignore` ahead of the user's command, so the
+ *      command name doesn't always sit at index 0.
  *   2. `--frozen-lockfile` is appended if absent. We only delegate
  *      from `tryFrozenInstall`, which has already established the
  *      lockfile is good — but the user may have arrived via the
@@ -115,7 +119,14 @@ function resolvePacquetBin (lockfileDir: string): string {
  * `silent`, so without this the reporter pipe would see nothing.
  */
 function buildArgs (argv: string[]): string[] {
-  const forwarded = argv.slice(1)
+  let dropped = false
+  const forwarded = argv.filter((arg) => {
+    if (!dropped && !arg.startsWith('-')) {
+      dropped = true
+      return false
+    }
+    return true
+  })
   const args = ['--reporter=ndjson', 'install']
   if (!forwarded.includes('--frozen-lockfile')) args.push('--frozen-lockfile')
   args.push(...forwarded)
