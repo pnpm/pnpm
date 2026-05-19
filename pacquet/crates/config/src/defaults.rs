@@ -113,6 +113,41 @@ pub fn default_modules_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules")
 }
 
+/// Resolve the directory pnpm reads `config.yaml` (the global config
+/// file) from.
+///
+/// Port of pnpm's
+/// [`getConfigDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L67-L86).
+/// Resolution order:
+///
+/// 1. `$XDG_CONFIG_HOME/pnpm`.
+/// 2. macOS: `~/Library/Preferences/pnpm`.
+/// 3. Other non-Windows: `~/.config/pnpm`.
+/// 4. Windows: `%LOCALAPPDATA%/pnpm/config`, falling back to
+///    `~/.config/pnpm` when `LOCALAPPDATA` is unset.
+///
+/// Returns `None` when the home directory is unavailable and the env
+/// vars that bypass it are also unset — the caller treats that as
+/// "no global config file."
+pub fn default_config_dir<Sys>() -> Option<PathBuf>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    if let Some(xdg_config_home) = Sys::var("XDG_CONFIG_HOME") {
+        return Some(PathBuf::from(xdg_config_home).join("pnpm"));
+    }
+    if env::consts::OS == "windows"
+        && let Some(local_app_data) = Sys::var("LOCALAPPDATA")
+    {
+        return Some(PathBuf::from(local_app_data).join("pnpm/config"));
+    }
+    let home_dir = Sys::home_dir()?;
+    Some(match env::consts::OS {
+        "macos" => home_dir.join("Library/Preferences/pnpm"),
+        _ => home_dir.join(".config/pnpm"),
+    })
+}
+
 /// Resolve the default packument-cache directory.
 ///
 /// Port of pnpm's

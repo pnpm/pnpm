@@ -1,6 +1,6 @@
 use super::{
-    default_cache_dir, default_child_concurrency_with_parallelism, default_store_dir,
-    default_unsafe_perm, is_unsafe_perm_posix, resolve_child_concurrency,
+    default_cache_dir, default_child_concurrency_with_parallelism, default_config_dir,
+    default_store_dir, default_unsafe_perm, is_unsafe_perm_posix, resolve_child_concurrency,
     resolve_child_concurrency_with_parallelism,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
@@ -171,6 +171,83 @@ fn test_default_cache_dir_falls_back_to_platform_default() {
         PathBuf::from("/home/test-user/.cache/pnpm")
     };
     assert_eq!(cache_dir, expected);
+}
+
+/// `$XDG_CONFIG_HOME/pnpm` wins the config-dir resolution chain,
+/// matching upstream's
+/// [`getConfigDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L67-L86).
+/// The `XDG_CONFIG_HOME` branch is checked first so home-dir
+/// resolution can be short-circuited entirely; the `home_dir` impl
+/// uses `unreachable!` to document that precondition.
+#[test]
+fn test_default_config_dir_with_xdg_config_home_env() {
+    struct EnvWithXdgConfigHome;
+    impl EnvVar for EnvWithXdgConfigHome {
+        fn var(name: &str) -> Option<String> {
+            (name == "XDG_CONFIG_HOME").then(|| "/tmp/xdg-config-home".to_owned())
+        }
+    }
+    impl GetHomeDir for EnvWithXdgConfigHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("home_dir must not be called when XDG_CONFIG_HOME is set");
+        }
+    }
+    let config_dir =
+        default_config_dir::<EnvWithXdgConfigHome>().expect("XDG_CONFIG_HOME bypasses home_dir");
+    let display = config_dir.display().to_string().replace('\\', "/");
+    assert_eq!(display, "/tmp/xdg-config-home/pnpm");
+}
+
+/// Without `XDG_CONFIG_HOME` (or `LOCALAPPDATA` on Windows), the
+/// resolver falls back to the platform default. On macOS that's
+/// `~/Library/Preferences/pnpm`; on other Unix-y platforms it's
+/// `~/.config/pnpm`. The Windows-without-`LOCALAPPDATA` branch
+/// also lands on `~/.config/pnpm` (matching upstream's `else`
+/// branch at
+/// [`dirs.ts:85`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L85)).
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[test]
+fn test_default_config_dir_falls_back_to_platform_default() {
+    struct NoEnvWithHome;
+    impl EnvVar for NoEnvWithHome {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    impl GetHomeDir for NoEnvWithHome {
+        fn home_dir() -> Option<PathBuf> {
+            Some(PathBuf::from("/home/test-user"))
+        }
+    }
+    let config_dir = default_config_dir::<NoEnvWithHome>().expect("home dir supplied");
+    let expected = if cfg!(target_os = "macos") {
+        PathBuf::from("/home/test-user/Library/Preferences/pnpm")
+    } else {
+        PathBuf::from("/home/test-user/.config/pnpm")
+    };
+    assert_eq!(config_dir, expected);
+}
+
+/// When neither `XDG_CONFIG_HOME` nor `LOCALAPPDATA` is set AND the
+/// home directory is unavailable, `default_config_dir` returns
+/// `None` — the caller treats that as "no global config file."
+/// Differs from `default_store_dir` / `default_cache_dir`, which
+/// panic on missing home, because the global `config.yaml` is
+/// strictly optional whereas a store path must always exist.
+#[test]
+fn test_default_config_dir_without_home_returns_none() {
+    struct NoEnvNoHome;
+    impl EnvVar for NoEnvNoHome {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    impl GetHomeDir for NoEnvNoHome {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    assert_eq!(default_config_dir::<NoEnvNoHome>(), None);
 }
 
 /// Port of upstream

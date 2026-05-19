@@ -24,6 +24,7 @@ node-semver   = { workspace = true }
 pipe-trait    = { workspace = true }
 serde         = { workspace = true }
 serde-saphyr  = { workspace = true }
+serde_json    = { workspace = true }
 smart-default = { workspace = true }
 tracing       = { workspace = true }
 
