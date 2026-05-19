@@ -4,59 +4,109 @@ mod verify;
 mod work_env;
 mod workspace_manifest;
 
+use cli_args::{RegistryMode, TargetKind};
+
 #[tokio::main]
 async fn main() {
     use pipe_trait::Pipe;
 
+    let cli: cli_args::CliArgs = clap::Parser::parse();
+    let registry_mode = cli.effective_registry_mode();
     let cli_args::CliArgs {
         scenario,
         registry_port,
-        verdaccio,
+        verdaccio: _,
+        registry: _,
         repository,
+        pnpm_repository,
         fixture_dir,
         hyperfine_options,
         work_env,
         with_pnpm,
         build_only,
-        revisions,
-    } = clap::Parser::parse();
-    let repository = std::fs::canonicalize(repository).expect("get absolute path to repository");
+        targets,
+    } = cli;
+
+    let repository = std::fs::canonicalize(&repository).expect("get absolute path to repository");
+    let pnpm_repository = pnpm_repository
+        .as_ref()
+        .map(|path| std::fs::canonicalize(path).expect("get absolute path to pnpm repository"));
     if !work_env.exists() {
         std::fs::create_dir_all(&work_env).expect("create work env");
     }
-    let work_env = std::fs::canonicalize(work_env).expect("get absolute path to work env");
-    let registry = format!("http://localhost:{registry_port}/");
+    let work_env = std::fs::canonicalize(&work_env).expect("get absolute path to work env");
+    let registry = match registry_mode {
+        RegistryMode::Verdaccio | RegistryMode::Virtual => {
+            format!("http://localhost:{registry_port}/")
+        }
+        RegistryMode::Npm => "https://registry.npmjs.org/".to_string(),
+    };
+
     let verdaccio = if build_only {
         None
-    } else if verdaccio {
-        verify::ensure_program("just").arg("install").pipe(verify::executor("just install"));
-        pacquet_registry_mock::MockInstanceOptions {
-            client: &Default::default(),
-            port: registry_port,
-            stdout: work_env.join("verdaccio.stdout.log").pipe(Some).as_deref(),
-            stderr: work_env.join("verdaccio.stderr.log").pipe(Some).as_deref(),
-            max_retries: 10,
-            retry_delay: tokio::time::Duration::from_millis(500),
-        }
-        .spawn_if_necessary()
-        .await
     } else {
-        verify::ensure_virtual_registry(&registry).await;
-        None
+        match registry_mode {
+            RegistryMode::Verdaccio => {
+                verify::ensure_program("just")
+                    .arg("install")
+                    .pipe(verify::executor("just install"));
+                pacquet_registry_mock::MockInstanceOptions {
+                    client: &Default::default(),
+                    port: registry_port,
+                    stdout: work_env.join("verdaccio.stdout.log").pipe(Some).as_deref(),
+                    stderr: work_env.join("verdaccio.stderr.log").pipe(Some).as_deref(),
+                    max_retries: 10,
+                    retry_delay: tokio::time::Duration::from_millis(500),
+                }
+                .spawn_if_necessary()
+                .await
+            }
+            RegistryMode::Virtual => {
+                verify::ensure_virtual_registry(&registry).await;
+                None
+            }
+            RegistryMode::Npm => None,
+        }
     };
+
     verify::ensure_git_repo(&repository);
-    verify::validate_revision_list(&revisions);
+    let has_pacquet_target = targets.iter().any(|t| t.kind == TargetKind::Pacquet);
+    let has_pnpm_target = targets.iter().any(|t| t.kind == TargetKind::Pnpm);
+    if let Some(scenario) = scenario
+        && has_pacquet_target
+        && !scenario.supports_pacquet()
+    {
+        panic!(
+            "scenario {scenario:?} doesn't apply to pacquet targets — drop the pacquet@* \
+             targets or pick a different --scenario",
+        );
+    }
+    if has_pnpm_target {
+        let pnpm_repo = pnpm_repository.as_deref().unwrap_or(&repository);
+        verify::ensure_git_repo(pnpm_repo);
+    }
+    verify::validate_revision_list(targets.iter().map(|t| t.rev.as_str()));
     verify::ensure_program("bash");
-    verify::ensure_program("cargo");
     verify::ensure_program("git");
     verify::ensure_program("hyperfine");
-    verify::ensure_program("pnpm");
+    if has_pacquet_target {
+        verify::ensure_program("cargo");
+    }
+    if has_pnpm_target || with_pnpm {
+        verify::ensure_program("pnpm");
+    }
+    if has_pnpm_target {
+        verify::ensure_program("node");
+    }
+
     let env = work_env::WorkEnv {
         root: work_env,
         with_pnpm,
-        revisions,
+        targets,
         registry,
+        registry_mode,
         repository,
+        pnpm_repository,
         scenario,
         hyperfine_options,
         fixture_dir,
