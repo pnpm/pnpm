@@ -223,8 +223,14 @@ export interface StrictInstallOptions {
    * installer treats it as an opaque "do the install" hook so it
    * doesn't need to know about pacquet's binary path, CLI surface, or
    * any settings that only pacquet consumes.
+   *
+   * `filterResolvedProgress` tells the helper to drop the engine's
+   * own `pnpm:progress status:resolved` events because pnpm already
+   * emitted one per package during a preceding lockfileOnly resolve
+   * pass. The frozen-install path passes `false` (or nothing): no
+   * resolve pass ran, so the engine's events are the only source.
    */
-  runPacquet?: () => Promise<void>
+  runPacquet?: (opts?: { filterResolvedProgress?: boolean }) => Promise<void>
   /**
    * If true, `mutateModules` does not emit the per-install `summary` log
    * event. Used by `pnpm add -g` when it runs multiple isolated installs

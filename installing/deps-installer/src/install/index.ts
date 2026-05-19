@@ -1872,11 +1872,16 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
  * stats record and a no-op ignoredBuilds iteration).
  */
 async function materializeOrDelegate (
-  opts: { runPacquet?: () => Promise<void> },
+  opts: { runPacquet?: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> },
   runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (opts.runPacquet != null) {
-    await opts.runPacquet()
+    // Reached only from the resolve-then-materialize callsites
+    // (workspace-partial, hoisted-linker, agent install). Each ran a
+    // lockfileOnly resolve pass that emitted one
+    // `pnpm:progress status:resolved` per package, so pacquet's
+    // duplicate `resolved` events would double the reporter's count.
+    await opts.runPacquet({ filterResolvedProgress: true })
     return {}
   }
   return runHeadlessInstall()
@@ -1977,7 +1982,9 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // is configured this falls through to the full single-pass install.
     if (opts.runPacquet != null && !opts.lockfileOnly) {
       const result = await _installInContext(projects, ctx, { ...opts, lockfileOnly: true })
-      await opts.runPacquet()
+      // The resolve pass above emitted a `pnpm:progress status:resolved`
+      // per package; ask pacquet to drop its own duplicates.
+      await opts.runPacquet({ filterResolvedProgress: true })
       return result
     }
     return await _installInContext(projects, ctx, opts)

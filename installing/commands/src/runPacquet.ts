@@ -40,8 +40,23 @@ export interface MakeRunPacquetOpts {
  * (panic backtraces, unexpected diagnostics) are forwarded to the
  * real stderr verbatim so they reach the user.
  */
-export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
-  return async () => {
+/** Args the deps-installer passes per pacquet invocation. */
+export interface RunPacquetCallOpts {
+  /**
+   * `true` when pnpm has already run a lockfileOnly resolve pass and
+   * the reporter has already accumulated one `pnpm:progress
+   * status:resolved` per package. Pacquet's own `resolved` events
+   * (emitted for wire-format parity as it walks the lockfile) are
+   * dropped on the way back through the reader so the reporter
+   * doesn't double-count. The frozen-install path passes `false`:
+   * pnpm did no resolution there, so pacquet's events are the only
+   * source.
+   */
+  filterResolvedProgress?: boolean
+}
+
+export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
+  return async (callOpts) => {
     const pacquetBin = resolvePacquetBin(opts.lockfileDir)
     const args = buildArgs(opts.argv)
     logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
@@ -49,6 +64,7 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
       cwd: opts.lockfileDir,
       stdio: ['ignore', 'inherit', 'pipe'],
     })
+    const filterResolved = callOpts?.filterResolvedProgress === true
     const rl = readline.createInterface({ input: child.stderr!, crlfDelay: Infinity })
     rl.on('line', (line) => {
       if (!line) return
@@ -59,15 +75,8 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
         process.stderr.write(`${line}\n`)
         return
       }
-      // Drop pacquet's `pnpm:progress status:resolved` events. Pnpm's
-      // resolver already emitted one `resolved` event per package
-      // during the lockfileOnly resolve pass that runs ahead of
-      // pacquet; both share the same `requester` (the lockfile dir),
-      // so forwarding pacquet's would double the reporter's resolved
-      // counter. The other status values (`fetched`,
-      // `found_in_store`, `imported`) are pacquet-only and pass
-      // through.
       if (
+        filterResolved &&
         typeof parsed === 'object' && parsed !== null &&
         (parsed as { name?: string }).name === 'pnpm:progress' &&
         (parsed as { status?: string }).status === 'resolved'
