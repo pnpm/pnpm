@@ -362,25 +362,37 @@ export async function mutateModules (
   // resolver's own filters already cover fresh resolution. We run this
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
-  const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
-  const wantedLockfilePath = cacheActive
-    ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    }))
-    : undefined
-  try {
-    await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-      cacheDir: opts.cacheDir,
-      lockfilePath: wantedLockfilePath,
-    })
-  } catch (err) {
-    // verifyLockfileResolutions is the one throw site in this function
-    // that's part of normal user-facing operation (a rejected lockfile);
-    // other throws here are unexpected. Detach the reporter listener so
-    // long-lived processes don't leak it on every rejected install.
-    detachReporter()
-    throw err
+  //
+  // Skipped when we already know pacquet will run the install: pacquet's
+  // frozen-install path applies the same resolver-policy gate (port of
+  // this function), so re-running here would duplicate the work. The
+  // optimistic frozen-like path (`preferFrozenLockfile` + all projects
+  // up-to-date) decides whether to delegate later, inside
+  // `tryFrozenInstall`, so verification still runs there — the duplicate
+  // is bounded to that narrow window.
+  const willDelegateToPacquet = opts.configDependencies?.pacquet != null &&
+    (opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && ctx.existsNonEmptyWantedLockfile))
+  if (!willDelegateToPacquet) {
+    const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
+    const wantedLockfilePath = cacheActive
+      ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
+        useGitBranchLockfile: opts.useGitBranchLockfile,
+        mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      }))
+      : undefined
+    try {
+      await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
+        cacheDir: opts.cacheDir,
+        lockfilePath: wantedLockfilePath,
+      })
+    } catch (err) {
+      // verifyLockfileResolutions is the one throw site in this function
+      // that's part of normal user-facing operation (a rejected lockfile);
+      // other throws here are unexpected. Detach the reporter listener so
+      // long-lived processes don't leak it on every rejected install.
+      detachReporter()
+      throw err
+    }
   }
 
   if (opts.hooks.preResolution) {
