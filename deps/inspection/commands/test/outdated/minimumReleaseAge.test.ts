@@ -58,29 +58,17 @@ test('pnpm outdated baseline (no minimumReleaseAge): newer versions are offered'
   expect(stripAnsi(output)).toContain('2.1.0')
 })
 
-// Repro for: `pnpm outdated` does not apply a configured `minimumReleaseAge`.
-//
-// Observed in the field on pnpm 11.1.2 with `minimumReleaseAge: 10080` (7d) in
-// pnpm-workspace.yaml: `pnpm -r outdated` still surfaced a dependency upgrade
-// whose target version was published ~3 days earlier, well inside the window.
-// The install/resolution path honors the same setting, so the gap is specific
-// to the `outdated` command's age filtering.
-//
-// With every version immature, a working age filter means there is no mature
-// version newer than what is installed, so `outdated` must report nothing for
-// is-negative (getManifest returns null on NO_(MATURE_)MATCHING_VERSION). If
-// the bug is present, the configured age policy is ignored and `outdated`
-// still offers is-negative@2.1.0 — this test goes red.
 test('pnpm outdated honors minimumReleaseAge: immature newer versions are not offered', async () => {
   loadHasOutdatedDeps()
 
-  const { output } = await outdated.handler({
+  const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
     minimumReleaseAge: allImmatureMinimumReleaseAge,
   })
 
-  // 2.1.0 is far newer than the (epoch) cutoff, so a correct age filter must
-  // not present it as an available upgrade.
+  // With every version immature, no upgrade target is mature, so outdated has
+  // nothing to report — exitCode 0 and 2.1.0 must not appear as available.
+  expect(exitCode).toBe(0)
   expect(stripAnsi(output)).not.toContain('2.1.0')
 })
