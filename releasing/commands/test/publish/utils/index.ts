@@ -1,4 +1,5 @@
 import http from 'node:http'
+import util from 'node:util'
 
 import { expect } from '@jest/globals'
 import { DEFAULT_OPTS as BASE_OPTS, REGISTRY_URL } from '@pnpm/testing.command-defaults'
@@ -28,7 +29,12 @@ export async function getPackageMetadata (packageName: string): Promise<Record<s
           reject(new Error(`Failed to fetch package metadata: ${res.statusCode ?? 'unknown status'}`))
           return
         }
-        resolve(JSON.parse(body) as Record<string, unknown>)
+        try {
+          resolve(JSON.parse(body) as Record<string, unknown>)
+        } catch (err: unknown) {
+          const message = util.types.isNativeError(err) ? err.message : String(err)
+          reject(new Error(`Failed to parse package metadata response: ${message}. Response body: ${body}`))
+        }
       })
     })
     req.on('error', reject)
