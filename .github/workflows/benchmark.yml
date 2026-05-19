@@ -52,13 +52,15 @@ jobs:
       with:
         runtime: node@26.0.0
 
-    - name: Install hyperfine
-      run: |
-        wget -q https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
-        sudo dpkg -i hyperfine_1.18.0_amd64.deb
+    - name: Install Rust Toolchain
+      uses: ./.github/actions/rustup
+      with:
+        shared-key: pnpm-benchmark
 
-    - name: Compile
-      run: pnpm run compile
+    - name: Install hyperfine
+      uses: ./.github/actions/binstall
+      with:
+        packages: hyperfine@1.18.0
 
     - name: Run benchmarks
       id: bench
