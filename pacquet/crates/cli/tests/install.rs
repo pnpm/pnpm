@@ -7,6 +7,7 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_files, get_all_folders, is_symlink_or_junction},
 };
+#[cfg(unix)]
 use pipe_trait::Pipe;
 use std::fs;
 

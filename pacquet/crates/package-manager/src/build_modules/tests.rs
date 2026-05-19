@@ -6,10 +6,9 @@ use pacquet_lockfile::{
     PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec, SnapshotEntry,
 };
-use pacquet_reporter::{
-    IgnoredScriptsLog, LogEvent, Reporter, SilentReporter, SkippedOptionalPackage,
-    SkippedOptionalReason,
-};
+use pacquet_reporter::{IgnoredScriptsLog, LogEvent, Reporter, SilentReporter};
+#[cfg(unix)]
+use pacquet_reporter::{SkippedOptionalPackage, SkippedOptionalReason};
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
@@ -786,6 +785,7 @@ fn fail_when_failing_postinstall_is_required() {
 /// `optionalDependencies.ts` exercises against the live mock
 /// registry, without dragging the lockfile-with-real-integrity
 /// machinery into a `BuildModules`-unit test.
+#[cfg(unix)]
 fn create_failing_postinstall_fixture(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
@@ -1301,6 +1301,7 @@ fn create_postinstall_with_unreadable_fixture(
 /// stores digests as raw hex (no `sha512-` prefix); using the same
 /// shape here keeps the test's pre-seeded base row in lockstep with
 /// what `add_files_from_dir` will compute.
+#[cfg(unix)]
 fn sha512_hex(buf: &[u8]) -> String {
     use sha2::{Digest, Sha512};
     let digest = Sha512::digest(buf);
