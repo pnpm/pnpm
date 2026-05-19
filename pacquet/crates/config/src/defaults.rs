@@ -1,4 +1,4 @@
-use crate::api::EnvVar;
+use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pacquet_store_dir::StoreDir;
 use std::{env, path::PathBuf};
 
@@ -59,35 +59,19 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
 /// On macOS: `~/Library/pnpm/store`.
 /// On Linux: `~/.local/share/pnpm/store`.
 ///
-/// Generic over [`EnvVar`] (and over closures producing the home
-/// and current directories) so unit tests can drive every branch
-/// — `PNPM_HOME` set, `XDG_DATA_HOME` set, neither set — without
-/// mutating the process environment. Mirrors the seam established
-/// in pnpm/pacquet#339 and consolidated in
+/// Generic over [`EnvVar`], [`GetHomeDir`], and [`GetCurrentDir`]
+/// so unit tests can drive every branch — `PNPM_HOME` set,
+/// `XDG_DATA_HOME` set, neither set — without mutating the process
+/// environment. Mirrors the trait-based DI seam established in
+/// pnpm/pacquet#339 and consolidated in
 /// [pnpm/pnpm#11708](https://github.com/pnpm/pnpm/pull/11708).
-/// Production callers pass [`crate::Host`] for `Sys` together
-/// with `home::home_dir` and `env::current_dir` for the
-/// closures — see the `SmartDefault` expression on
+/// Production callers pass [`crate::Host`] for `Sys`, which threads
+/// `home::home_dir` and `env::current_dir` through the
+/// capability impls — see the `SmartDefault` expression on
 /// [`crate::Config::store_dir`].
-pub fn default_store_dir<Sys, HomeDir, CurrentDir, Error>(
-    home_dir: HomeDir,
-    current_dir: CurrentDir,
-) -> StoreDir
+pub fn default_store_dir<Sys>() -> StoreDir
 where
-    Sys: EnvVar,
-    HomeDir: FnOnce() -> Option<PathBuf>,
-    CurrentDir: FnOnce() -> Result<PathBuf, Error>,
-    // `.expect(...)` on the `current_dir` result inside the Windows
-    // branch needs `Error: Debug`. Production callers pass
-    // `env::current_dir` (Error = `io::Error`, which has `Debug`);
-    // test fakes that don't drive the Windows branch pin
-    // `Error = std::io::Error` via turbofish for the same reason.
-    // The bound would ideally be gated `#[cfg(windows)]` so non-Windows
-    // callers stayed free of the `Debug` requirement, but
-    // `#[cfg(...)]` on where-clause predicates is still unstable
-    // (rust-lang/rust#115590) — keep the bound unconditional until
-    // that stabilises.
-    Error: std::fmt::Debug,
+    Sys: EnvVar + GetHomeDir + GetCurrentDir,
 {
     // TODO: If env variables start with ~, make sure to resolve it into home_dir.
     if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
@@ -100,15 +84,13 @@ where
 
     // Using ~ (tilde) for defining home path is not supported in Rust and
     // needs to be resolved into an absolute path.
-    let home_dir = home_dir().expect("Home directory is not available");
+    let home_dir = Sys::home_dir().expect("Home directory is not available");
 
     #[cfg(windows)]
     if cfg!(windows) {
-        let current_dir = current_dir().expect("current directory is unavailable");
+        let current_dir = Sys::current_dir().expect("current directory is unavailable");
         return default_store_dir_windows(&home_dir, &current_dir).into();
     }
-    #[cfg(not(windows))]
-    let _ = current_dir;
 
     // https://doc.rust-lang.org/std/env/consts/constant.OS.html
     match env::consts::OS {
@@ -136,19 +118,19 @@ pub fn default_modules_dir() -> PathBuf {
 /// 4. Windows: `%LOCALAPPDATA%/pnpm-cache`, falling back to
 ///    `~/.pnpm-cache` when `LOCALAPPDATA` is unset.
 ///
-/// Generic over [`EnvVar`] and the home-dir closure for the same
-/// reason as [`default_store_dir`]: unit tests drive every branch
-/// without mutating the process environment. Production callers
-/// pass [`crate::Host`] with `home::home_dir`.
-pub fn default_cache_dir<Sys, HomeDir>(home_dir: HomeDir) -> PathBuf
+/// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
+/// as [`default_store_dir`]: unit tests drive every branch without
+/// mutating the process environment. Production callers pass
+/// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
+/// the [`GetHomeDir`] impl.
+pub fn default_cache_dir<Sys>() -> PathBuf
 where
-    Sys: EnvVar,
-    HomeDir: FnOnce() -> Option<PathBuf>,
+    Sys: EnvVar + GetHomeDir,
 {
     if let Some(xdg_cache_home) = Sys::var("XDG_CACHE_HOME") {
         return PathBuf::from(xdg_cache_home).join("pnpm");
     }
-    let home_dir = home_dir().expect("Home directory is not available");
+    let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
         "windows" => Sys::var("LOCALAPPDATA")

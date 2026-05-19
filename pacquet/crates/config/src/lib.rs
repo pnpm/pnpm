@@ -6,7 +6,7 @@ mod npmrc_auth;
 pub mod version_policy;
 mod workspace_yaml;
 
-pub use crate::api::{EnvVar, Host};
+pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host};
 
 use indexmap::IndexMap;
 use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
@@ -16,7 +16,7 @@ use serde::Deserialize;
 use smart_default::SmartDefault;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    env, fs,
+    fs,
     path::PathBuf,
 };
 
@@ -205,7 +205,7 @@ pub struct Config {
     pub shamefully_hoist: bool,
 
     /// The location where all the packages are saved on the disk.
-    #[default(_code = "default_store_dir::<Host, _, _, _>(home::home_dir, env::current_dir)")]
+    #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
 
     /// The directory in which dependencies will be installed (instead of node_modules).
@@ -658,7 +658,7 @@ pub struct Config {
     /// [`cacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L159);
     /// the default resolution chain ports
     /// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
-    #[default(_code = "default_cache_dir::<Host, _>(home::home_dir)")]
+    #[default(_code = "default_cache_dir::<Host>()")]
     pub cache_dir: PathBuf,
 
     /// Minimum age, in **minutes**, a published version must reach
@@ -893,38 +893,33 @@ impl Config {
     /// `pnpm-workspace.yaml` cannot be read or parsed, matching pnpm's
     /// [`readWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts).
     /// A missing file is not an error.
-    pub fn current<Sys, Error, CurrentDir, HomeDir, Default>(
-        current_dir: CurrentDir,
-        home_dir: HomeDir,
+    pub fn current<Sys, Default>(
+        start_dir: &std::path::Path,
         default: Default,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
-        Sys: EnvVar,
-        CurrentDir: FnOnce() -> Result<PathBuf, Error>,
-        HomeDir: FnOnce() -> Option<PathBuf>,
+        Sys: EnvVar + EnvVarOs + GetHomeDir,
         Default: FnOnce() -> Config,
     {
         let mut config = default();
 
-        let cwd = current_dir().ok();
         // Re-anchor the path-valued defaults (`modules_dir`,
-        // `virtual_store_dir`) onto the caller-supplied cwd. SmartDefault
-        // populates them via [`defaults::default_modules_dir`] /
+        // `virtual_store_dir`) onto the caller-supplied starting directory.
+        // SmartDefault populates them via [`defaults::default_modules_dir`] /
         // [`defaults::default_virtual_store_dir`], which both anchor at
-        // `env::current_dir()`. That diverges from `cwd` whenever the
+        // `env::current_dir()`. That diverges from `start_dir` whenever the
         // caller passed a different directory (notably
         // `pacquet --dir <path>` from elsewhere), so without this fixup
         // pacquet would load config from `<path>` while still installing
         // to the process-cwd `node_modules`. Matches pnpm 11, whose
         // `modulesDir`/`virtualStoreDir` defaults are resolved against
         // `pnpmConfig.dir`.
-        if let Some(start) = &cwd {
-            config.modules_dir = start.join("node_modules");
-            config.virtual_store_dir = start.join("node_modules/.pnpm");
-        }
+        config.modules_dir = start_dir.join("node_modules");
+        config.virtual_store_dir = start_dir.join("node_modules/.pnpm");
 
-        // Read the nearest .npmrc (cwd first, home second) and apply only
-        // the auth/network subset. Everything else is intentionally ignored.
+        // Read the nearest .npmrc (start_dir first, home second) and apply
+        // only the auth/network subset. Everything else is intentionally
+        // ignored.
         //
         // Two-phase apply: write the resolved `registry` (and emit any
         // ${VAR}-substitution warnings) *before* layering
@@ -932,10 +927,8 @@ impl Config {
         // had a chance to override `registry`. Pnpm keys default-registry
         // creds at the final resolved URL, not the `.npmrc` literal — see
         // [`getAuthHeadersFromConfig`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
-        let auth_source = cwd
-            .as_ref()
-            .and_then(|dir| read_npmrc(dir))
-            .or_else(|| home_dir().and_then(|dir| read_npmrc(&dir)));
+        let auth_source =
+            read_npmrc(start_dir).or_else(|| Sys::home_dir().and_then(|dir| read_npmrc(&dir)));
         let mut npmrc_auth = auth_source
             .map(|text| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text))
             .unwrap_or_default();
@@ -979,8 +972,8 @@ impl Config {
         // (SmartDefault wrote them in) and would either always or never
         // re-point them, neither of which matches upstream's
         // [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355).
-        let env_workspace_dir = std::env::var_os("NPM_CONFIG_WORKSPACE_DIR")
-            .or_else(|| std::env::var_os("npm_config_workspace_dir"))
+        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
+            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
             .filter(|value| !value.is_empty())
             .map(PathBuf::from);
         let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
@@ -1002,13 +995,11 @@ impl Config {
                     return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
                 }
             }
-        } else if let Some(start) = &cwd {
-            WorkspaceSettings::find_and_load(start)?.map(|(path, settings)| {
-                let base_dir = path.parent().unwrap_or(start).to_path_buf();
+        } else {
+            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
+                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
                 (base_dir, Some(settings))
             })
-        } else {
-            None
         };
 
         let mut virtual_store_dir_explicit = false;
@@ -1073,19 +1064,70 @@ fn read_npmrc(dir: &std::path::Path) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
+    use std::{env, ffi::OsString, io, path::PathBuf};
 
     use pretty_assertions::assert_eq;
     use tempfile::tempdir;
 
-    use super::{Config, EnvVar, Host, NodeLinker, PackageImportMethod, fs};
+    use super::{
+        Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, NodeLinker, PackageImportMethod,
+        fs,
+    };
     use crate::defaults::default_store_dir;
     use pacquet_store_dir::StoreDir;
     use pacquet_testing_utils::env_guard::EnvGuard;
-    use pipe_trait::Pipe;
 
     fn display_store_dir(store_dir: &StoreDir) -> String {
         store_dir.display().to_string().replace('\\', "/")
+    }
+
+    /// Common test [`crate::api::Sys`]-shaped fake: env reads delegate
+    /// to [`Host`], home dir resolves to `None`. Lets a test exercise
+    /// `Config::current`'s `.npmrc`-in-`start_dir` and yaml-walk paths
+    /// without consulting the developer's real home directory.
+    struct HostNoHome;
+    impl EnvVar for HostNoHome {
+        fn var(name: &str) -> Option<String> {
+            Host::var(name)
+        }
+    }
+    impl EnvVarOs for HostNoHome {
+        fn var_os(_: &str) -> Option<OsString> {
+            // Return `None` rather than delegating to [`Host`] so an
+            // ambient `NPM_CONFIG_WORKSPACE_DIR` on a developer
+            // machine can't steer unrelated tests into the env-var
+            // workspace-dir branch. Tests that exercise that branch
+            // declare their own [`EnvVarOs`] fakes.
+            None
+        }
+    }
+    impl GetHomeDir for HostNoHome {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+
+    /// Variant of [`HostNoHome`] that panics if [`GetHomeDir::home_dir`]
+    /// is consulted — documents the precondition that
+    /// [`Config::current`] should not fall through to the home-dir
+    /// lookup on the input the test supplies.
+    struct HostUnreachableHome;
+    impl EnvVar for HostUnreachableHome {
+        fn var(name: &str) -> Option<String> {
+            Host::var(name)
+        }
+    }
+    impl EnvVarOs for HostUnreachableHome {
+        fn var_os(_: &str) -> Option<OsString> {
+            // See [`HostNoHome`]'s [`EnvVarOs`] impl for the
+            // ambient-env-isolation rationale.
+            None
+        }
+    }
+    impl GetHomeDir for HostUnreachableHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("shouldn't reach home dir");
+        }
     }
 
     #[test]
@@ -1097,19 +1139,15 @@ mod tests {
         assert!(value.symlink);
         assert!(value.hoist);
         // The SmartDefault expression for `store_dir` resolves to
-        // `default_store_dir::<Host, _, _, _>(home::home_dir, env::current_dir)`
-        // directly (no wrapper), so calling the generic helper here
-        // with the same `Host` capability and the same OS closures
-        // must produce the same value — even on a developer machine
-        // with `PNPM_HOME` / `XDG_DATA_HOME` set. This is the wiring
-        // assertion that proves the SmartDefault field still goes
-        // through the production capability; the per-branch behaviour
-        // of `default_store_dir` is exercised with fake-`Sys` structs
-        // in `defaults::tests`.
-        assert_eq!(
-            value.store_dir,
-            default_store_dir::<Host, _, _, _>(home::home_dir, env::current_dir),
-        );
+        // `default_store_dir::<Host>()` directly (no wrapper), so
+        // calling the generic helper here with the same `Host`
+        // capability must produce the same value — even on a developer
+        // machine with `PNPM_HOME` / `XDG_DATA_HOME` set. This is the
+        // wiring assertion that proves the SmartDefault field still
+        // goes through the production capability; the per-branch
+        // behaviour of `default_store_dir` is exercised with fake-`Sys`
+        // structs in `defaults::tests`.
+        assert_eq!(value.store_dir, default_store_dir::<Host>());
         assert_eq!(value.registry, "https://registry.npmjs.org/");
     }
 
@@ -1132,9 +1170,10 @@ mod tests {
     /// test set `PNPM_HOME` via `std::env::set_var` and called
     /// `Config::new()`; with the DI seam from pnpm/pacquet#339 +
     /// pnpm/pnpm#11708 the same precedence is checked by passing a
-    /// per-test unit struct that satisfies [`EnvVar`].
+    /// per-test unit struct that satisfies [`EnvVar`], [`GetHomeDir`],
+    /// and [`GetCurrentDir`].
     ///
-    /// The `home_dir` and `current_dir` closures both call
+    /// The `home_dir` and `current_dir` capability impls both call
     /// `unreachable!` because `default_store_dir` short-circuits on
     /// `PNPM_HOME` before consulting either — the panic-on-call
     /// documents that precondition. Tracks pnpm/pacquet#343.
@@ -1146,10 +1185,17 @@ mod tests {
                 (name == "PNPM_HOME").then(|| "/hello".to_owned())
             }
         }
-        let store_dir = default_store_dir::<EnvWithPnpmHome, _, _, std::io::Error>(
-            || unreachable!("home_dir must not be called when PNPM_HOME is set"),
-            || unreachable!("current_dir must not be called when PNPM_HOME is set"),
-        );
+        impl GetHomeDir for EnvWithPnpmHome {
+            fn home_dir() -> Option<PathBuf> {
+                unreachable!("home_dir must not be called when PNPM_HOME is set");
+            }
+        }
+        impl GetCurrentDir for EnvWithPnpmHome {
+            fn current_dir() -> io::Result<PathBuf> {
+                unreachable!("current_dir must not be called when PNPM_HOME is set");
+            }
+        }
+        let store_dir = default_store_dir::<EnvWithPnpmHome>();
         assert_eq!(display_store_dir(&store_dir), "/hello/store");
     }
 
@@ -1167,10 +1213,17 @@ mod tests {
                 (name == "XDG_DATA_HOME").then(|| "/hello".to_owned())
             }
         }
-        let store_dir = default_store_dir::<EnvWithXdgDataHome, _, _, std::io::Error>(
-            || unreachable!("home_dir must not be called when XDG_DATA_HOME is set"),
-            || unreachable!("current_dir must not be called when XDG_DATA_HOME is set"),
-        );
+        impl GetHomeDir for EnvWithXdgDataHome {
+            fn home_dir() -> Option<PathBuf> {
+                unreachable!("home_dir must not be called when XDG_DATA_HOME is set");
+            }
+        }
+        impl GetCurrentDir for EnvWithXdgDataHome {
+            fn current_dir() -> io::Result<PathBuf> {
+                unreachable!("current_dir must not be called when XDG_DATA_HOME is set");
+            }
+        }
+        let store_dir = default_store_dir::<EnvWithXdgDataHome>();
         assert_eq!(display_store_dir(&store_dir), "/hello/pnpm/store");
     }
 
@@ -1179,12 +1232,8 @@ mod tests {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join(".npmrc"), "registry=https://cwd.example")
             .expect("write to .npmrc");
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || unreachable!("shouldn't reach home dir"),
-            Config::new,
-        )
-        .expect("workspace yaml absent => no error");
+        let config = Config::current::<HostUnreachableHome, _>(tmp.path(), Config::new)
+            .expect("workspace yaml absent => no error");
         assert_eq!(config.registry, "https://cwd.example/");
     }
 
@@ -1197,12 +1246,8 @@ mod tests {
         let non_auth_ini = "symlink=false\nlockfile=true\nhoist=false\nnode-linker=hoisted\n";
         fs::write(tmp.path().join(".npmrc"), non_auth_ini).expect("write to .npmrc");
         let defaults = Config::new();
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("workspace yaml absent => no error");
+        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+            .expect("workspace yaml absent => no error");
         assert_eq!(config.symlink, defaults.symlink);
         assert_eq!(config.lockfile, defaults.lockfile);
         assert_eq!(config.hoist, defaults.hoist);
@@ -1221,12 +1266,8 @@ mod tests {
         let ini = "fetch-retries=99\nfetch-retry-factor=99\nfetch-retry-mintimeout=99\nfetch-retry-maxtimeout=99\n";
         fs::write(tmp.path().join(".npmrc"), ini).expect("write to .npmrc");
         let defaults = Config::new();
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("workspace yaml absent => no error");
+        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+            .expect("workspace yaml absent => no error");
         assert_eq!(config.fetch_retries, defaults.fetch_retries);
         assert_eq!(config.fetch_retry_factor, defaults.fetch_retry_factor);
         assert_eq!(config.fetch_retry_mintimeout, defaults.fetch_retry_mintimeout);
@@ -1238,12 +1279,8 @@ mod tests {
         let tmp = tempdir().unwrap();
         // write invalid utf-8 value to npmrc
         fs::write(tmp.path().join(".npmrc"), b"Hello \xff World").expect("write to .npmrc");
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("workspace yaml absent => no error");
+        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+            .expect("workspace yaml absent => no error");
         assert!(config.symlink); // default — invalid .npmrc is silently ignored
     }
 
@@ -1253,12 +1290,30 @@ mod tests {
         let home_dir = tempdir().unwrap();
         fs::write(home_dir.path().join(".npmrc"), "registry=https://home.example")
             .expect("write to .npmrc");
-        let config = Config::current::<Host, _, _, _, _>(
-            || current_dir.path().to_path_buf().pipe(Ok::<_, ()>),
-            || home_dir.path().to_path_buf().pipe(Some),
-            Config::new,
-        )
-        .expect("workspace yaml absent => no error");
+        // Per-test fake: home_dir is a tempdir, so it can't be a
+        // module-level constant — stash it in a per-test `OnceLock`
+        // so `GetHomeDir::home_dir`'s associated-function shape (no
+        // `&self`) can still resolve it at call time.
+        static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+        HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
+        struct HostWithHome;
+        impl EnvVar for HostWithHome {
+            fn var(name: &str) -> Option<String> {
+                Host::var(name)
+            }
+        }
+        impl EnvVarOs for HostWithHome {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithHome {
+            fn home_dir() -> Option<PathBuf> {
+                HOME_PATH.get().cloned()
+            }
+        }
+        let config = Config::current::<HostWithHome, _>(current_dir.path(), Config::new)
+            .expect("workspace yaml absent => no error");
         assert_eq!(config.registry, "https://home.example/");
     }
 
@@ -1272,12 +1327,8 @@ mod tests {
             .expect("write to .npmrc");
         fs::write(tmp.path().join("pnpm-workspace.yaml"), "registry: https://from-yaml.test\n")
             .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || unreachable!("shouldn't reach home dir"),
-            Config::new,
-        )
-        .expect("yaml is valid");
+        let config = Config::current::<HostUnreachableHome, _>(tmp.path(), Config::new)
+            .expect("yaml is valid");
         assert_eq!(config.registry, "https://from-yaml.test/");
     }
 
@@ -1290,24 +1341,39 @@ mod tests {
             .expect("write to pnpm-workspace.yaml");
         // No `.npmrc` anywhere, but a parent dir has `pnpm-workspace.yaml` —
         // the yaml should still be applied.
-        let config = Config::current::<Host, _, _, _, _>(
-            || nested.clone().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("yaml is valid");
+        let config = Config::current::<HostNoHome, _>(&nested, Config::new).expect("yaml is valid");
         assert!(!config.symlink);
     }
 
     #[test]
     pub fn test_current_folder_fallback_to_default() {
         let current_dir = tempdir().unwrap();
+        // Home dir is supplied but contains no `.npmrc`, so the
+        // fallback to the caller-supplied default Config (the
+        // `symlink: false` override) is what surfaces.
         let home_dir = tempdir().unwrap();
-        let config = Config::current::<Host, _, _, _, _>(
-            || current_dir.path().to_path_buf().pipe(Ok::<_, ()>),
-            || home_dir.path().to_path_buf().pipe(Some),
-            || Config { symlink: false, ..Config::new() },
-        )
+        static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+        HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
+        struct HostWithHome;
+        impl EnvVar for HostWithHome {
+            fn var(name: &str) -> Option<String> {
+                Host::var(name)
+            }
+        }
+        impl EnvVarOs for HostWithHome {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithHome {
+            fn home_dir() -> Option<PathBuf> {
+                HOME_PATH.get().cloned()
+            }
+        }
+        let config = Config::current::<HostWithHome, _>(current_dir.path(), || Config {
+            symlink: false,
+            ..Config::new()
+        })
         .expect("workspace yaml absent => no error");
         assert!(!config.symlink);
     }
@@ -1328,12 +1394,8 @@ mod tests {
     #[test]
     pub fn gvs_default_is_off_and_paths_derive_cleanly() {
         let tmp = tempdir().unwrap();
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("workspace yaml absent => no error");
+        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+            .expect("workspace yaml absent => no error");
         assert!(
             !config.enable_global_virtual_store,
             "GVS defaults to false (matches pnpm v11 for non-global installs)",
@@ -1356,12 +1418,8 @@ mod tests {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
             .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("yaml is valid");
+        let config =
+            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("yaml is valid");
         assert!(!config.enable_global_virtual_store);
         assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
         assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
@@ -1381,12 +1439,8 @@ mod tests {
             format!("enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n", user_path.display()),
         )
         .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("yaml is valid");
+        let config =
+            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("yaml is valid");
         assert!(config.enable_global_virtual_store);
         assert_eq!(config.virtual_store_dir, user_path);
         assert_eq!(config.global_virtual_store_dir, user_path);
@@ -1419,12 +1473,8 @@ mod tests {
             ),
         )
         .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("yaml is valid");
+        let config =
+            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("yaml is valid");
         assert!(config.enable_global_virtual_store);
         // `virtual_store_dir` stays at the project-local default,
         // because the user didn't pin `virtualStoreDir`.
@@ -1475,12 +1525,8 @@ mod tests {
             env::remove_var("npm_config_workspace_dir");
             env::set_var("HTTPS_PROXY", "http://env.example:8080");
         }
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("workspace yaml absent => no error");
+        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+            .expect("workspace yaml absent => no error");
         assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://env.example:8080"));
         assert_eq!(
             config.proxy.http_proxy.as_deref(),
@@ -1499,11 +1545,7 @@ mod tests {
         // `: : :` is rejected by saphyr.
         fs::write(tmp.path().join("pnpm-workspace.yaml"), ": : :\n")
             .expect("write to pnpm-workspace.yaml");
-        let result = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        );
+        let result = Config::current::<HostNoHome, _>(tmp.path(), Config::new);
         let err = result.expect_err("invalid yaml should error");
         assert!(
             matches!(err, crate::LoadWorkspaceYamlError::ParseYaml { .. }),
@@ -1528,12 +1570,7 @@ mod tests {
         fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
             .expect("write to pnpm-workspace.yaml");
 
-        let config = Config::current::<Host, _, _, _, _>(
-            || subdir.clone().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("config loads");
+        let config = Config::current::<HostNoHome, _>(&subdir, Config::new).expect("config loads");
 
         assert_eq!(
             config.modules_dir,
@@ -1550,27 +1587,17 @@ mod tests {
     /// A single-project install (no `pnpm-workspace.yaml` anywhere)
     /// keeps the CLI `--dir` as the anchor. Guards against the
     /// re-anchor block accidentally firing when no workspace exists.
+    ///
+    /// [`HostNoHome`] already pins the `NPM_CONFIG_WORKSPACE_DIR`
+    /// lookup to `None`, so the test never reads the host's real
+    /// environment. Replaces the earlier shape that snapshotted both
+    /// spellings of the env variable through `EnvGuard` and called
+    /// `unsafe { env::remove_var(...) }`.
     #[test]
     pub fn single_project_anchors_modules_at_cwd() {
-        // Even though this test doesn't `set_var`, hold the env
-        // guard so a *concurrent* `NPM_CONFIG_WORKSPACE_DIR` test
-        // can't make this one fall into the env-var override path.
-        let _guard = EnvGuard::snapshot(["NPM_CONFIG_WORKSPACE_DIR", "npm_config_workspace_dir"]);
-        // SAFETY: lock held by `_guard`. Two removes are fine on
-        // both POSIX (case-sensitive: two distinct vars) and Windows
-        // (case-insensitive: the second remove is a no-op on an
-        // already-absent variable).
-        unsafe {
-            env::remove_var("NPM_CONFIG_WORKSPACE_DIR");
-            env::remove_var("npm_config_workspace_dir");
-        }
         let tmp = tempdir().unwrap();
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("config loads");
+        let config =
+            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("config loads");
         assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
         assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
     }
@@ -1583,35 +1610,37 @@ mod tests {
     /// path, producing two `node_modules` layouts for the same
     /// install. Matches the consistency guarantee Copilot flagged
     /// during PR #443 review.
+    ///
+    /// Exercises the [`EnvVarOs`] DI seam: a per-test fake returns the
+    /// `env_workspace` path for the `NPM_CONFIG_WORKSPACE_DIR` lookup.
+    /// No `EnvGuard`, no `unsafe { env::set_var(...) }`.
     #[test]
     pub fn npm_config_workspace_dir_re_anchors_modules() {
-        let _guard = EnvGuard::snapshot(["NPM_CONFIG_WORKSPACE_DIR", "npm_config_workspace_dir"]);
-
         let env_workspace = tempdir().unwrap();
         let cwd_dir = tempdir().unwrap();
-        // SAFETY: lock held by `_guard`. Cleared on drop.
-        //
-        // Set the uppercase name only and let the lowercase name
-        // keep whatever the inherited environment had. Touching the
-        // lowercase name here would corrupt the test on Windows,
-        // where env vars are case-insensitive: `remove_var` on
-        // either spelling clears the *same* variable that
-        // `set_var("NPM_CONFIG_WORKSPACE_DIR", ...)` just set, and
-        // the test would observe "no env override" instead of the
-        // env path. Since [`Config::current`] checks the uppercase
-        // spelling first via `or_else` (matching pnpm), an
-        // externally-set lowercase value is unobservable here, so
-        // leaving it alone keeps both platforms green.
-        unsafe {
-            env::set_var("NPM_CONFIG_WORKSPACE_DIR", env_workspace.path());
+        static ENV_WORKSPACE_PATH: std::sync::OnceLock<OsString> = std::sync::OnceLock::new();
+        ENV_WORKSPACE_PATH.set(env_workspace.path().as_os_str().to_owned()).expect("set once");
+        struct HostWithEnvWorkspaceDir;
+        impl EnvVar for HostWithEnvWorkspaceDir {
+            fn var(name: &str) -> Option<String> {
+                Host::var(name)
+            }
+        }
+        impl EnvVarOs for HostWithEnvWorkspaceDir {
+            fn var_os(name: &str) -> Option<OsString> {
+                (name == "NPM_CONFIG_WORKSPACE_DIR").then(|| {
+                    ENV_WORKSPACE_PATH.get().expect("ENV_WORKSPACE_PATH initialised").clone()
+                })
+            }
+        }
+        impl GetHomeDir for HostWithEnvWorkspaceDir {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
         }
 
-        let config = Config::current::<Host, _, _, _, _>(
-            || cwd_dir.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("config loads");
+        let config = Config::current::<HostWithEnvWorkspaceDir, _>(cwd_dir.path(), Config::new)
+            .expect("config loads");
         assert_eq!(
             config.modules_dir,
             env_workspace.path().join("node_modules"),
@@ -1628,26 +1657,33 @@ mod tests {
     /// upward walk, matching pnpm's truthy `if (workspaceDir)` check.
     /// Pairs with `pacquet_workspace`'s
     /// `empty_env_var_is_treated_as_unset`.
+    ///
+    /// Drives the [`EnvVarOs`] DI seam with a fake that returns an
+    /// empty `OsString` for both spellings of the env var. The truthy
+    /// filter in `Config::current` should reject both, and the
+    /// install should fall through to the `start_dir`-walk.
     #[test]
     pub fn empty_npm_config_workspace_dir_falls_through() {
-        let _guard = EnvGuard::snapshot(["NPM_CONFIG_WORKSPACE_DIR", "npm_config_workspace_dir"]);
-        // SAFETY: lock held by `_guard`. Setting *both* names to
-        // empty handles both platforms: on POSIX they're distinct
-        // vars (clear each); on Windows they're aliases for the
-        // same variable (the second `set_var` is a no-op). Either
-        // way, both reads return empty, the truthy filter rejects
-        // both, and the install falls through to the cwd-walk.
-        unsafe {
-            env::set_var("NPM_CONFIG_WORKSPACE_DIR", "");
-            env::set_var("npm_config_workspace_dir", "");
+        struct HostWithEmptyEnvWorkspaceDir;
+        impl EnvVar for HostWithEmptyEnvWorkspaceDir {
+            fn var(name: &str) -> Option<String> {
+                Host::var(name)
+            }
+        }
+        impl EnvVarOs for HostWithEmptyEnvWorkspaceDir {
+            fn var_os(name: &str) -> Option<OsString> {
+                matches!(name, "NPM_CONFIG_WORKSPACE_DIR" | "npm_config_workspace_dir")
+                    .then(OsString::new)
+            }
+        }
+        impl GetHomeDir for HostWithEmptyEnvWorkspaceDir {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
         }
         let tmp = tempdir().unwrap();
-        let config = Config::current::<Host, _, _, _, _>(
-            || tmp.path().to_path_buf().pipe(Ok::<_, ()>),
-            || None,
-            Config::new,
-        )
-        .expect("config loads");
+        let config = Config::current::<HostWithEmptyEnvWorkspaceDir, _>(tmp.path(), Config::new)
+            .expect("config loads");
         // No yaml in tmp → no re-anchor → cwd-anchored defaults.
         assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
         assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));

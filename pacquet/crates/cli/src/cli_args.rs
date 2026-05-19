@@ -99,14 +99,10 @@ impl CliArgs {
         // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
         // for the pattern and rationale.
         let config = || -> miette::Result<&'static mut Config> {
-            Config::current::<Host, _, _, _, _>(
-                || Ok::<_, std::convert::Infallible>(dir.clone()),
-                home::home_dir,
-                Default::default,
-            )
-            .map(Config::leak)
-            .map_err(miette::Report::new)
-            .wrap_err("load configuration")
+            Config::current::<Host, _>(&dir, Default::default)
+                .map(Config::leak)
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
         };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override

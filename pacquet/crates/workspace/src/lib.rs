@@ -17,11 +17,13 @@
 //! - `projects`    — glob-expand `packages:` into [`Project`]s.
 //!   Public entry point: [`find_workspace_projects`].
 
+mod api;
 mod manifest;
 mod project_manifest;
 mod projects;
 mod root_finder;
 
+pub use api::{EnvVarOs, Host};
 pub use manifest::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceManifest, read_workspace_manifest,
