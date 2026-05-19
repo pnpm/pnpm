@@ -127,14 +127,14 @@ test('recursive publish uses publishConfig.access per package', async () => {
     name: `@pnpmtest/test-recursive-publish-restricted-${suffix}`,
     version: '1.0.0',
     publishConfig: {
-      access: 'restricted',
+      access: 'restricted' as const,
     },
   }
   const publicPkg = {
     name: `@pnpmtest/test-recursive-publish-public-${suffix}`,
     version: '1.0.0',
     publishConfig: {
-      access: 'public',
+      access: 'public' as const,
     },
   }
 
