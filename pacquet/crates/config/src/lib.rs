@@ -1168,9 +1168,9 @@ mod tests {
         fs::write(home_dir.path().join(".npmrc"), "registry=https://home.example")
             .expect("write to .npmrc");
         // Per-test fake: home_dir is a tempdir, so it can't be a
-        // module-level constant — declare a `LazyLock` in the test
-        // body to give the static-initialised home_dir something to
-        // resolve to before the trait impl runs.
+        // module-level constant — stash it in a per-test `OnceLock`
+        // so `GetHomeDir::home_dir`'s associated-function shape (no
+        // `&self`) can still resolve it at call time.
         static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
         HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
         struct HostWithHome;
@@ -1465,33 +1465,16 @@ mod tests {
     /// keeps the CLI `--dir` as the anchor. Guards against the
     /// re-anchor block accidentally firing when no workspace exists.
     ///
-    /// Drives the [`EnvVarOs`] DI seam with a per-test fake that
-    /// pins the `NPM_CONFIG_WORKSPACE_DIR` lookup to `None`, so the
-    /// test never reads the host's real environment. Replaces the
-    /// earlier shape that snapshotted both spellings of the env
-    /// variable through `EnvGuard` and called `unsafe {
-    /// env::remove_var(...) }`.
+    /// [`HostNoHome`] already pins the `NPM_CONFIG_WORKSPACE_DIR`
+    /// lookup to `None`, so the test never reads the host's real
+    /// environment. Replaces the earlier shape that snapshotted both
+    /// spellings of the env variable through `EnvGuard` and called
+    /// `unsafe { env::remove_var(...) }`.
     #[test]
     pub fn single_project_anchors_modules_at_cwd() {
-        struct HostNoEnvNoHome;
-        impl EnvVar for HostNoEnvNoHome {
-            fn var(name: &str) -> Option<String> {
-                Host::var(name)
-            }
-        }
-        impl EnvVarOs for HostNoEnvNoHome {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostNoEnvNoHome {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
         let tmp = tempdir().unwrap();
         let config =
-            Config::current::<HostNoEnvNoHome, _>(tmp.path(), Config::new).expect("config loads");
+            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("config loads");
         assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
         assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
     }
