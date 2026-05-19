@@ -109,7 +109,7 @@ impl FromStr for TargetSpec {
 }
 
 /// Where the installs fetch packages from.
-#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum RegistryMode {
     /// Spawn (or expect a running) verdaccio on the configured port,
     /// proxying npmjs.com with an on-disk cache.
