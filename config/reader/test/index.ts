@@ -1488,10 +1488,7 @@ test('getConfig() should read cafile', async () => {
 -----END CERTIFICATE-----`])
 })
 
-// Repro for https://github.com/pnpm/pnpm/issues/11624 — a relative `cafile=`
-// in a project .npmrc used to resolve against process.cwd() instead of the
-// .npmrc's own directory, silently dropping the CA when pnpm was invoked from
-// elsewhere with --dir (e.g. CI wrappers, monorepo scripts).
+// Regression for https://github.com/pnpm/pnpm/issues/11624.
 test('getConfig() resolves a relative cafile= from .npmrc against the npmrc directory, not process.cwd()', async () => {
   prepareEmpty()
   const projectDir = path.resolve('project')

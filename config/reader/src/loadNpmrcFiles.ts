@@ -148,11 +148,9 @@ function readAndFilterNpmrc (
 
     // Only keep auth/registry related keys
     if (isNpmrcReadableKey(key)) {
-      // Resolve a relative `cafile=` against the directory of the .npmrc that
-      // declared it, not against process.cwd(). Without this, `pnpm --dir
-      // <project>` invoked from a different cwd reads `cafile=certs/ca.pem`
-      // from the wrong place, silently drops the CA, and TLS to private
-      // registries fails with no log line tying back to the wrong path.
+      // A relative `cafile=` resolves against the .npmrc's directory rather
+      // than process.cwd(), so `pnpm --dir <project>` from a different cwd
+      // still finds it. See https://github.com/pnpm/pnpm/issues/11624.
       if (key === 'cafile' && typeof value === 'string' && value !== '' && !path.isAbsolute(value)) {
         value = path.resolve(npmrcDir, value)
       }
