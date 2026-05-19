@@ -162,9 +162,9 @@ export function createResolver (
         (await resolveLatestFromGit(query)) ??
         (await resolveLatestFromTarball(query)) ??
         (await resolveLatestFromLocal(query)) ??
-        (await _resolveLatestNodeRuntime(query)) ??
-        (await _resolveLatestDenoRuntime(query)) ??
-        (await _resolveLatestBunRuntime(query)) ??
+        (await _resolveLatestNodeRuntime(query, opts)) ??
+        (await _resolveLatestDenoRuntime(query, opts)) ??
+        (await _resolveLatestBunRuntime(query, opts)) ??
         (await resolveLatestFromNamedRegistry(query, opts))
       return info
     },

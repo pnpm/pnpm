@@ -83,7 +83,8 @@ export async function resolveNodeRuntime (
 
 export async function resolveLatestNodeRuntime (
   ctx: { fetchFromRegistry: FetchFromRegistry, nodeDownloadMirrors?: Record<string, string> },
-  query: LatestQuery
+  query: LatestQuery,
+  _opts: ResolveOptions
 ): Promise<LatestInfo | undefined> {
   const manifestSpec = query.wantedDependency.bareSpecifier
   if (query.wantedDependency.alias !== 'node' || !manifestSpec?.startsWith('runtime:')) return undefined
