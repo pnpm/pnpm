@@ -152,7 +152,7 @@ fn reconstructs_dropped_directory_resolution_for_pruned_file_peer_variant() {
         let key: PackageKey = tarball_key.parse().expect("parse tarball key");
         assert!(
             packages.get(&key).is_none(),
-            "tarball `{tarball_key}` must not get a synthesized directory resolution"
+            "tarball `{tarball_key}` must not get a synthesized directory resolution",
         );
     }
 }
