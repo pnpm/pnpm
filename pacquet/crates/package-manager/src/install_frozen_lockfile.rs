@@ -1300,7 +1300,7 @@ fn find_runtime_node_major(snapshots: Option<&HashMap<PackageKey, SnapshotEntry>
         // `engine_name` argument is `u32`, matching upstream's
         // `process.version.split('.')[0].substring(1)`-derived
         // integer.
-        let major = key.suffix.version().major;
+        let major = key.suffix.version_semver()?.major;
         return Some(major as u32);
     }
     None
@@ -1340,7 +1340,7 @@ pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u3
         }
         // Same cast as `find_runtime_node_major` above; see the
         // comment there for why `u64 → u32` is lossless in practice.
-        return Some(ver_peer.version().major as u32);
+        return Some(ver_peer.version_semver()?.major as u32);
     }
     None
 }

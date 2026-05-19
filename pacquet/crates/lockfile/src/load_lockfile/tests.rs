@@ -1,4 +1,4 @@
-use crate::Lockfile;
+use crate::{DirectoryResolution, Lockfile, LockfileResolution, PackageKey};
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 use text_block_macros::text_block;
@@ -107,4 +107,52 @@ fn env_only_lockfile_loads_as_none() {
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
     assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
+}
+
+/// Parity port of the TS heuristic-boundary test
+/// `lockfile/fs/test/lockfileV6Converters.test.ts::convertToLockfileObject()
+/// reconstructs a dropped directory resolution for a pruned file:
+/// peer-variant, but never for a file: tarball`.
+#[test]
+fn reconstructs_dropped_directory_resolution_for_pruned_file_peer_variant() {
+    let pruned = text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "importers: {}"
+        ""
+        "snapshots:"
+        ""
+        "  dir@file:packages/dir(peer@1.0.0): {}"
+        "  tar@file:vendor/tar-1.0.0.tgz(peer@1.0.0): {}"
+        "  upper@file:vendor/upper-1.0.0.TGZ(peer@1.0.0): {}"
+        "  mixed@file:vendor/mixed-1.0.0.Tar.Gz(peer@1.0.0): {}"
+    };
+    let tmp = write_lockfile(pruned);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load pruned lockfile")
+        .expect("pruned lockfile should be present");
+
+    let packages = lockfile.packages.as_ref().expect("packages synthesized for dir entry");
+
+    let dir_key: PackageKey = "dir@file:packages/dir".parse().expect("parse dir key");
+    let dir_metadata = packages.get(&dir_key).expect("dir entry synthesized");
+    assert_eq!(
+        dir_metadata.resolution,
+        LockfileResolution::Directory(DirectoryResolution {
+            directory: "packages/dir".to_string()
+        }),
+    );
+
+    for tarball_key in [
+        "tar@file:vendor/tar-1.0.0.tgz",
+        "upper@file:vendor/upper-1.0.0.TGZ",
+        "mixed@file:vendor/mixed-1.0.0.Tar.Gz",
+    ] {
+        let key: PackageKey = tarball_key.parse().expect("parse tarball key");
+        assert!(
+            packages.get(&key).is_none(),
+            "tarball `{tarball_key}` must not get a synthesized directory resolution"
+        );
+    }
 }
