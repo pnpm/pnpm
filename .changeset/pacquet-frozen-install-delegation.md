@@ -1,4 +1,5 @@
 ---
+"@pnpm/installing.commands": minor
 "@pnpm/installing.deps-installer": minor
 "pnpm": minor
 ---

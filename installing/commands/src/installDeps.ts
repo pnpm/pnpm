@@ -50,6 +50,7 @@ import {
   type RecursiveOptions,
   type UpdateDepsMatcher,
 } from './recursive.js'
+import { makeRunPacquet } from './runPacquet.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -292,6 +293,17 @@ export async function installDeps (
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
     handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
+    // When `configDependencies` declares pacquet, build the alternative
+    // install engine the deps-installer's frozen-install path delegates
+    // to. The CLI layer owns the construction so the installer doesn't
+    // need to know about pacquet's binary path, CLI surface, or any
+    // settings that only pacquet consumes.
+    runPacquet: opts.configDependencies?.pacquet != null
+      ? makeRunPacquet({
+        lockfileDir: opts.lockfileDir ?? opts.dir,
+        argv: opts.argv.original,
+      })
+      : undefined,
   }
 
   let updateMatch: UpdateDepsMatcher | null

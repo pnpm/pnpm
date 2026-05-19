@@ -96,7 +96,6 @@ import {
 } from './extendInstallOptions.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
-import { runPacquet } from './runPacquet.js'
 import { validateModules } from './validateModules.js'
 import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
@@ -376,7 +375,7 @@ export async function mutateModules (
   // whether to delegate later (based on `allProjectsAreUpToDate`), which
   // isn't known here — so verification still runs in that window, the
   // duplicate is bounded to it.
-  const willDelegateToPacquet = opts.configDependencies?.pacquet != null &&
+  const willDelegateToPacquet = opts.runPacquet != null &&
     installsOnly &&
     !opts.lockfileOnly &&
     !opts.fixLockfile &&
@@ -984,18 +983,9 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-    if (opts.configDependencies?.pacquet) {
-      logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
+    if (opts.runPacquet != null) {
       try {
-        await runPacquet({
-          lockfileDir: opts.lockfileDir,
-          include: opts.include,
-          nodeLinker: opts.nodeLinker,
-          offline: opts.offline,
-          preferOffline: opts.preferOffline,
-          skipRuntimes: opts.skipRuntimes,
-          supportedArchitectures: opts.supportedArchitectures,
-        })
+        await opts.runPacquet()
       } catch (err) {
         // Same reasoning as the verifyLockfileResolutions catch above: this
         // is the user-facing failure path, so detach the reporter listener

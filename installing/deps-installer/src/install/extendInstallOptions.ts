@@ -15,7 +15,6 @@ import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages }
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
-  ConfigDependencies,
   PackageExtension,
   PackageVulnerabilityAudit,
   PeerDependencyRules,
@@ -217,18 +216,15 @@ export interface StrictInstallOptions {
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
   /**
-   * configDependencies from the workspace manifest, threaded through so the
-   * frozen-install path can detect `pacquet` and delegate to its binary.
+   * Optional alternative install engine. When set, the frozen-install
+   * path invokes this callback instead of `headlessInstall`. The CLI
+   * layer constructs it (today: spawning the pacquet binary installed
+   * via `configDependencies` and forwarding pnpm's own CLI argv); the
+   * installer treats it as an opaque "do the install" hook so it
+   * doesn't need to know about pacquet's binary path, CLI surface, or
+   * any settings that only pacquet consumes.
    */
-  configDependencies?: ConfigDependencies
-  /**
-   * Network preferences forwarded to the spawned pacquet process when the
-   * frozen-install path delegates to it. Mirror pnpm's own `--offline` /
-   * `--prefer-offline` flags. Consumed only by `runPacquet`; the JS
-   * installer reads these off the store controller it was given.
-   */
-  offline?: boolean
-  preferOffline?: boolean
+  runPacquet?: () => Promise<void>
   /**
    * If true, `mutateModules` does not emit the per-install `summary` log
    * event. Used by `pnpm add -g` when it runs multiple isolated installs
