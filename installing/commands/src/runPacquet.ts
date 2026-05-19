@@ -26,10 +26,9 @@ export interface MakeRunPacquetOpts {
    */
   packageName: 'pacquet' | '@pnpm/pacquet'
   /**
-   * The user's original `pnpm` argv (`process.argv.slice(2)`). Forwarded
-   * to pacquet verbatim — except for argv[0], which is pnpm's
-   * subcommand alias (`install` / `i`) and is always replaced with
-   * `install` because pacquet doesn't share pnpm's aliases.
+   * The user's original `pnpm` argv (`process.argv.slice(2)`). Not
+   * forwarded to pacquet — we only inspect it to warn about flags
+   * pacquet won't see.
    */
   argv: string[]
 }
@@ -67,7 +66,21 @@ export interface RunPacquetCallOpts {
 export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
   return async (callOpts) => {
     const pacquetBin = resolvePacquetBin(opts.lockfileDir, opts.packageName)
-    const args = buildArgs(opts.argv)
+    // Always the same fixed args. We don't forward pnpm's CLI flags
+    // even though pacquet's `install` subcommand mirrors most of them:
+    // pnpm has commands like `add` and `update` that carry flags
+    // pacquet's `install` doesn't recognize (e.g., `--save-dev`,
+    // `--save-peer`), and clap would reject them. The settings users
+    // care about live in `pnpm-workspace.yaml` / `.npmrc`, which
+    // pacquet reads on its own.
+    const args = ['--reporter=ndjson', 'install', '--frozen-lockfile']
+    const droppedFlags = collectDroppedFlags(opts.argv)
+    if (droppedFlags.length > 0) {
+      logger.warn({
+        message: `The following CLI flags are not forwarded to pacquet and may not be honored: ${droppedFlags.join(' ')}. Move the equivalent settings into pnpm-workspace.yaml (or .npmrc for auth/registry) if pacquet needs them.`,
+        prefix: opts.lockfileDir,
+      })
+    }
     logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
     const child = spawn(pacquetBin, args, {
       cwd: opts.lockfileDir,
@@ -131,38 +144,24 @@ function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm
 }
 
 /**
- * Translate pnpm's invocation argv into the pacquet command line. The
- * user's flags pass through unchanged — pacquet's CLI surface mirrors
- * pnpm's by design — with two adjustments:
+ * Pull the CLI flags out of pnpm's argv so we can warn about them
+ * before pacquet runs. We don't forward any of them — pacquet always
+ * gets `install --frozen-lockfile --reporter=ndjson` — but most are
+ * handled by pnpm itself before delegation (`--save-dev` rewrites
+ * `package.json`, `--filter` selects projects, etc.) so listing them
+ * to the user makes the "not forwarded" surface concrete.
  *
- *   1. The pnpm subcommand alias (`install` / `i`) is dropped and
- *      replaced with the literal `install` we always prepend. Pacquet
- *      doesn't share pnpm's aliases. We strip the *first non-flag*
- *      argument rather than `argv[0]` because dev wrappers (notably
- *      `pnpm/dev/pd.js`) inject global flags like
- *      `--pm-on-fail=ignore` ahead of the user's command, so the
- *      command name doesn't always sit at index 0.
- *   2. `--frozen-lockfile` is appended if absent. We only delegate
- *      from `tryFrozenInstall`, which has already established the
- *      lockfile is good — but the user may have arrived via the
- *      optimistic `preferFrozenLockfile` path without passing the
- *      flag explicitly, in which case pacquet still needs it (its
- *      only supported install mode is frozen).
- *
- * `--reporter=ndjson` is always prepended — pacquet's default is
- * `silent`, so without this the reporter pipe would see nothing.
+ * Flags we explicitly emit ourselves (`--frozen-lockfile`,
+ * `--reporter=ndjson`) are filtered out: they're honored, so warning
+ * about them would be misleading. `--config.*` is filtered too —
+ * those configure pnpm's runtime and aren't intended for the install
+ * engine.
  */
-function buildArgs (argv: string[]): string[] {
-  let dropped = false
-  const forwarded = argv.filter((arg) => {
-    if (!dropped && !arg.startsWith('-')) {
-      dropped = true
-      return false
-    }
+function collectDroppedFlags (argv: string[]): string[] {
+  return argv.filter((arg) => {
+    if (!arg.startsWith('-')) return false
+    if (arg === '--frozen-lockfile' || arg === '--reporter=ndjson') return false
+    if (arg.startsWith('--config.')) return false
     return true
   })
-  const args = ['--reporter=ndjson', 'install']
-  if (!forwarded.includes('--frozen-lockfile')) args.push('--frozen-lockfile')
-  args.push(...forwarded)
-  return args
 }
