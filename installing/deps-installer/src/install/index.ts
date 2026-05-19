@@ -1950,6 +1950,20 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ignoredBuilds,
       }
     }
+    // Isolated `nodeLinker` (the default) with a non-frozen install:
+    // pacquet doesn't ship a resolver yet, so split the install in two —
+    // ask `_installInContext` for a `lockfileOnly` resolve pass (writes
+    // `pnpm-lock.yaml`), then hand the freshly-written lockfile to
+    // pacquet for the fetch / import / link / build phases. The frozen
+    // branch is handled earlier in `tryFrozenInstall`; the hoisted
+    // branch above already runs the same resolve-then-materialize
+    // sequence (it had to even before pacquet existed). When no pacquet
+    // is configured this falls through to the full single-pass install.
+    if (opts.runPacquet != null && !opts.lockfileOnly) {
+      const result = await _installInContext(projects, ctx, { ...opts, lockfileOnly: true })
+      await opts.runPacquet()
+      return result
+    }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line
     if (
