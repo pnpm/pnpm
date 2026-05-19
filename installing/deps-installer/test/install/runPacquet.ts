@@ -70,7 +70,7 @@ test('runPacquet throws PACQUET_INSTALL_FAILED when the binary exits non-zero', 
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-run-pacquet-'))
   try {
     await setupFakePacquet(tmpDir, { ndjsonLines: [], exitCode: 1 })
-    await expect(runPacquet({ lockfileDir: tmpDir, frozenLockfile: true }))
+    await expect(runPacquet({ lockfileDir: tmpDir }))
       .rejects.toMatchObject({ code: 'ERR_PNPM_PACQUET_INSTALL_FAILED' })
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
