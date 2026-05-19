@@ -99,7 +99,8 @@ impl CliArgs {
         // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
         // for the pattern and rationale.
         let config = || -> miette::Result<&'static mut Config> {
-            Config::current::<Host, _>(&dir, Default::default)
+            Config::default()
+                .current_dir::<Host>(&dir)
                 .map(Config::leak)
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")

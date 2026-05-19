@@ -383,7 +383,7 @@ impl NpmrcAuth {
     /// [`apply_proxy_cascade`], and [`build_auth_headers`] in one call.
     /// Used by tests and other callers that don't layer additional
     /// config sources on top of `.npmrc`. Production code in
-    /// [`crate::Config::current`] inserts `pnpm-workspace.yaml` between
+    /// [`crate::Config::current_dir`] inserts `pnpm-workspace.yaml` between
     /// phase 1 and phase 2 so default-registry creds key at the final
     /// URL.
     ///
