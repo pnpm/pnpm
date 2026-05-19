@@ -7,6 +7,13 @@ import { streamParser } from '@pnpm/logger'
 
 import { makeRunPacquet } from '../src/runPacquet.js'
 
+// Skipped on Windows: the test's fake pacquet binary is a JS file with a
+// `#!/usr/bin/env node` shebang. Linux and macOS spawn it via the
+// shebang; Windows doesn't honor shebangs, so direct `spawn(file)`
+// fails with `spawn UNKNOWN`. The production code is unaffected — on
+// Windows the real pacquet ships as a native `.exe`.
+const testOrSkipOnWindows = process.platform === 'win32' ? test.skip : test
+
 interface FakePacquetOpts {
   ndjsonLines: string[]
   exitCode: number
@@ -36,7 +43,7 @@ async function setupFakePacquet (tmpDir: string, opts: FakePacquetOpts): Promise
   return { argsPath }
 }
 
-test('makeRunPacquet forwards pacquet NDJSON events through the global streamParser', async () => {
+testOrSkipOnWindows('makeRunPacquet forwards pacquet NDJSON events through the global streamParser', async () => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-run-pacquet-'))
   try {
     await setupFakePacquet(tmpDir, {
@@ -66,7 +73,7 @@ test('makeRunPacquet forwards pacquet NDJSON events through the global streamPar
   }
 })
 
-test('makeRunPacquet forwards the user pnpm argv to pacquet, replacing argv[0] with `install` and ensuring --frozen-lockfile', async () => {
+testOrSkipOnWindows('makeRunPacquet forwards the user pnpm argv to pacquet, replacing argv[0] with `install` and ensuring --frozen-lockfile', async () => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-run-pacquet-'))
   try {
     const { argsPath } = await setupFakePacquet(tmpDir, { ndjsonLines: [], exitCode: 0 })
@@ -81,7 +88,7 @@ test('makeRunPacquet forwards the user pnpm argv to pacquet, replacing argv[0] w
   }
 })
 
-test('makeRunPacquet does not duplicate --frozen-lockfile when the user already passed it', async () => {
+testOrSkipOnWindows('makeRunPacquet does not duplicate --frozen-lockfile when the user already passed it', async () => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-run-pacquet-'))
   try {
     const { argsPath } = await setupFakePacquet(tmpDir, { ndjsonLines: [], exitCode: 0 })
@@ -93,7 +100,7 @@ test('makeRunPacquet does not duplicate --frozen-lockfile when the user already 
   }
 })
 
-test('makeRunPacquet throws PACQUET_INSTALL_FAILED when the binary exits non-zero', async () => {
+testOrSkipOnWindows('makeRunPacquet throws PACQUET_INSTALL_FAILED when the binary exits non-zero', async () => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-run-pacquet-'))
   try {
     await setupFakePacquet(tmpDir, { ndjsonLines: [], exitCode: 1 })
@@ -104,7 +111,7 @@ test('makeRunPacquet throws PACQUET_INSTALL_FAILED when the binary exits non-zer
   }
 })
 
-test('makeRunPacquet forwards non-JSON stderr lines to the real stderr without breaking parsing', async () => {
+testOrSkipOnWindows('makeRunPacquet forwards non-JSON stderr lines to the real stderr without breaking parsing', async () => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-run-pacquet-'))
   try {
     await setupFakePacquet(tmpDir, {
