@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import readline from 'node:readline'
@@ -81,12 +82,17 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
  * not inside its own `node_modules` (pacquet's own `node_modules` is
  * empty after configDependencies install). Use Node's resolver rooted
  * at pacquet's own `package.json` so we follow the same path the
- * wrapper would have, including the symlink hop the configDependencies
- * install introduces (`.pnpm-config/pacquet` → global virtual store).
+ * wrapper would have.
+ *
+ * The `realpathSync` is required: `.pnpm-config/pacquet` is a symlink
+ * into the global virtual store, and Node's `createRequire` builds its
+ * search paths from the *literal* ancestors of the path it's given —
+ * it won't follow the symlink up into the store dir where the
+ * `@pacquet/<plat>-<arch>` sibling actually lives.
  */
 function resolvePacquetBin (lockfileDir: string): string {
   const ext = process.platform === 'win32' ? '.exe' : ''
-  const pacquetPkg = path.join(lockfileDir, 'node_modules/.pnpm-config/pacquet/package.json')
+  const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config/pacquet/package.json'))
   return createRequire(pacquetPkg).resolve(`@pacquet/${process.platform}-${process.arch}/pacquet${ext}`)
 }
 
