@@ -52,7 +52,7 @@ fmt:
 
 # Run cargo check
 check:
-  cargo check --locked
+  cargo check --locked --workspace --all-targets
 
 # Run all the tests
 test:
@@ -68,7 +68,7 @@ known-failures:
   @cargo test --workspace known_failures -- --list 2>nul | rg '^known_failures::'
 # Lint the whole project
 lint:
-  cargo clippy --locked -- --deny warnings
+  cargo clippy --locked --workspace --all-targets -- --deny warnings
 
 # Run perfectionist dylint rules. Requires `cargo-dylint` and `dylint-link`
 # (install with `cargo binstall cargo-dylint dylint-link`). The lint library

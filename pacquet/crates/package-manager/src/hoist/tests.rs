@@ -58,10 +58,19 @@ fn pats<const N: usize>(patterns: [&str; N]) -> Vec<String> {
     patterns.iter().map(|text| text.to_string()).collect()
 }
 
+/// `(alias, dep_name, dep_version)` triple describing one entry in
+/// a snapshot's dependency map. `alias == dep_name` for plain deps;
+/// `alias != dep_name` denotes an npm-alias.
+type LockfileDataDep<'a> = (&'a str, &'a str, &'a str);
+
+/// `(name, version, dependencies, has_bin)` row describing one
+/// snapshot entry to be assembled by [`make_lockfile_data`].
+type LockfileDataRow<'a> = (&'a str, &'a str, &'a [LockfileDataDep<'a>], bool);
+
 /// Helper: build (snapshots, packages) from a flat list of
 /// `(name, ver, deps_by_alias_to_(name,ver), has_bin)` tuples.
 fn make_lockfile_data(
-    rows: &[(&str, &str, &[(&str, &str, &str)], bool)],
+    rows: &[LockfileDataRow<'_>],
 ) -> (HashMap<PackageKey, SnapshotEntry>, HashMap<PackageKey, PackageMetadata>) {
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
@@ -141,7 +150,7 @@ fn star_pattern_hoists_all_transitives_privately() {
         vec![("b".to_string(), HoistKind::Private)],
     );
     assert!(
-        result.hoisted_dependencies.get("a@1.0.0").is_none(),
+        !result.hoisted_dependencies.contains_key("a@1.0.0"),
         "direct deps must not be hoisted: {:?}",
         result.hoisted_dependencies.get("a@1.0.0"),
     );
@@ -293,7 +302,7 @@ fn direct_dep_blocks_same_alias_transitive() {
     // The transitive `shared@2.0.0` must NOT be hoisted under that
     // alias, because the root already owns it at v1.
     assert!(
-        result.hoisted_dependencies.get("shared@2.0.0").is_none(),
+        !result.hoisted_dependencies.contains_key("shared@2.0.0"),
         "direct-dep `shared@1` must block hoisting of transitive `shared@2`",
     );
 }
@@ -321,7 +330,7 @@ fn skipped_snapshot_is_excluded() {
     .expect("non-empty graph");
 
     assert!(
-        result.hoisted_dependencies.get("opt@1.0.0").is_none(),
+        !result.hoisted_dependencies.contains_key("opt@1.0.0"),
         "skipped snapshot must not appear in hoistedDependencies",
     );
     // ...but the symlink-by-node-id map DOES carry the entry —

@@ -482,8 +482,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     }
 
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
-    let mut optional_snapshot = SnapshotEntry::default();
-    optional_snapshot.optional = true;
+    let optional_snapshot = SnapshotEntry { optional: true, ..Default::default() };
     let snapshots = HashMap::from([(pkg_key.clone(), optional_snapshot)]);
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
     // `dangerouslyAllowAllBuilds` so the policy lets the failing
