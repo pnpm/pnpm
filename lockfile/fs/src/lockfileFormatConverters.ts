@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { refToRelative, removeSuffix } from '@pnpm/deps.path'
+import { parse, refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
   LockfileFile,
   LockfileFileProjectResolvedDependencies,
@@ -138,13 +138,31 @@ function pruneTimeInLockfile (time: Record<string, string>, importers: Record<st
   return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
 }
 
+// Mirrors `isFilename` in `resolving/local-resolver/src/parseBareSpecifier.ts`
+// so the directory-vs-tarball boundary applied at lockfile load time
+// matches the resolver's at resolve time.
+const LOCAL_TARBALL_RE = /\.(?:tgz|tar\.gz|tar)$/i
+
 export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject {
   const { importers, ...rest } = lockfile
 
   const packages: PackageSnapshots = {}
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
     const pkgId = removeSuffix(depPath)
-    packages[depPath as DepPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
+    const snapshot = Object.assign(pkg, lockfile.packages?.[pkgId])
+    // Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
+    // pre vercel/turborepo#12825): a peer-variant injected workspace
+    // snapshot whose base `packages:` entry was dropped now has a null
+    // `resolution`. Reconstruct it from the `file:` depPath — same value
+    // pnpm's writer emits — so every downstream reader sees a complete
+    // snapshot without per-reader guards.
+    if (snapshot.resolution == null) {
+      const ref = parse(depPath).nonSemverVersion
+      if (ref != null && ref.startsWith('file:') && !LOCAL_TARBALL_RE.test(ref)) {
+        snapshot.resolution = { directory: ref.slice('file:'.length), type: 'directory' }
+      }
+    }
+    packages[depPath as DepPath] = snapshot
     enrichGitHostedFlag(packages[depPath as DepPath]?.resolution as TarballResolution | undefined)
   }
   return {

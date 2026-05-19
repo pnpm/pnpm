@@ -125,4 +125,62 @@ impl Lockfile {
                 && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
         })
     }
+
+    /// Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
+    /// pre vercel/turborepo#12825): a peer-variant injected workspace
+    /// snapshot whose base `packages:` entry was dropped is missing its
+    /// inherited `resolution`. Reconstruct a directory resolution from
+    /// the `file:` depPath so [`crate::PackageMetadata::resolution`]
+    /// stays non-optional for downstream callers. Mirrors upstream
+    /// `convertToLockfileObject` in `lockfile/fs/src/lockfileFormatConverters.ts`.
+    pub fn reconstruct_missing_directory_resolutions(&mut self) {
+        let Some(snapshots) = self.snapshots.as_ref() else { return };
+        let to_insert: Vec<(PackageKey, DirectoryResolution)> = snapshots
+            .keys()
+            .filter_map(|snapshot_key| {
+                let metadata_key = snapshot_key.without_peer();
+                let packages = self.packages.as_ref();
+                if packages.is_some_and(|p| p.contains_key(&metadata_key)) {
+                    return None;
+                }
+                let VersionPart::File(path) = metadata_key.suffix.version() else { return None };
+                if is_local_tarball_path(path) {
+                    return None;
+                }
+                let directory = path.clone();
+                Some((metadata_key, DirectoryResolution { directory }))
+            })
+            .collect();
+        if to_insert.is_empty() {
+            return;
+        }
+        let packages = self.packages.get_or_insert_with(HashMap::new);
+        for (key, directory_resolution) in to_insert {
+            packages.entry(key).or_insert_with(|| PackageMetadata {
+                resolution: LockfileResolution::Directory(directory_resolution),
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            });
+        }
+    }
+}
+
+/// Mirrors `isFilename` (`/\.(?:tgz|tar\.gz|tar)$/i`) in
+/// `resolving/local-resolver/src/parseBareSpecifier.ts` so the directory-vs-
+/// tarball boundary applied here matches the resolver's at resolve time.
+fn is_local_tarball_path(path: &str) -> bool {
+    let lower = path.as_bytes();
+    let ends_with_ci = |suffix: &str| {
+        let bytes = suffix.as_bytes();
+        lower.len() >= bytes.len() && lower[lower.len() - bytes.len()..].eq_ignore_ascii_case(bytes)
+    };
+    ends_with_ci(".tgz") || ends_with_ci(".tar.gz") || ends_with_ci(".tar")
 }
