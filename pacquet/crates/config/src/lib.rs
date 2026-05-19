@@ -1637,9 +1637,8 @@ mod tests {
             }
         }
 
-        let config = Config::new()
-            .current::<HostWithEnvWorkspaceDir>(cwd_dir.path())
-            .expect("config loads");
+        let config =
+            Config::new().current::<HostWithEnvWorkspaceDir>(cwd_dir.path()).expect("config loads");
         assert_eq!(
             config.modules_dir,
             env_workspace.path().join("node_modules"),
