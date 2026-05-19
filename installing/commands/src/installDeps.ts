@@ -196,6 +196,18 @@ export async function installDeps (
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
   const store = await createStoreController(opts)
+  // When `configDependencies` declares pacquet, build the alternative
+  // install engine the deps-installer delegates to. The CLI layer owns
+  // the construction so the installer doesn't need to know about
+  // pacquet's binary path, CLI surface, or any settings that only
+  // pacquet consumes. Threaded through both the workspace recursive
+  // path and the single-project path below.
+  const runPacquet = opts.configDependencies?.pacquet != null
+    ? makeRunPacquet({
+      lockfileDir: opts.lockfileDir ?? opts.dir,
+      argv: opts.argv.original,
+    })
+    : undefined
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
@@ -244,6 +256,7 @@ export async function installDeps (
           selectedProjectsGraph,
           storeControllerAndDir: store,
           workspaceDir: opts.workspaceDir,
+          runPacquet,
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
       )
@@ -293,17 +306,7 @@ export async function installDeps (
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
     handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
-    // When `configDependencies` declares pacquet, build the alternative
-    // install engine the deps-installer's frozen-install path delegates
-    // to. The CLI layer owns the construction so the installer doesn't
-    // need to know about pacquet's binary path, CLI surface, or any
-    // settings that only pacquet consumes.
-    runPacquet: opts.configDependencies?.pacquet != null
-      ? makeRunPacquet({
-        lockfileDir: opts.lockfileDir ?? opts.dir,
-        argv: opts.argv.original,
-      })
-      : undefined,
+    runPacquet,
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -440,6 +443,7 @@ export async function installDeps (
       allProjectsGraph: opts.allProjectsGraph!,
       selectedProjectsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
+      runPacquet,
     }, 'install')
 
     if (opts.ignoreScripts) return
