@@ -5,12 +5,12 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use tempfile::{NamedTempFile, tempdir};
 
+#[cfg(unix)]
+use super::safe_read_package_json_from_dir;
 use super::{
     BundleDependencies, PackageManifest, PackageManifestError,
     convert_engines_runtime_to_dependencies,
 };
-#[cfg(unix)]
-use super::safe_read_package_json_from_dir;
 use crate::DependencyGroup;
 use serde_json::json;
 use std::io::Write;
