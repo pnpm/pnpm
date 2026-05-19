@@ -1876,7 +1876,7 @@ async function materializeOrDelegate (
   runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (opts.runPacquet != null) {
-    // Reached only from the resolve-then-materialize callsites
+    // Reached only from the resolve-then-materialize call sites
     // (workspace-partial, hoisted-linker, agent install). Each ran a
     // lockfileOnly resolve pass that emitted one
     // `pnpm:progress status:resolved` per package, so pacquet's
