@@ -326,13 +326,17 @@ function createResolveLatest (
 ) {
   return async (query: LatestQuery, opts: ResolveOptions): Promise<LatestInfo | undefined> => {
     if (!matches(query)) return undefined
+    // bareSpecifier drives the resolution: in --compatible mode we pass the
+    // manifest's own range so latest-within-range wins; otherwise 'latest'
+    // resolves the dist-tag. Don't pass `update`; that flag bypasses the
+    // range and picks the absolute newest.
     const latestSpec = query.compatible
       ? query.wantedDependency.bareSpecifier ?? 'latest'
       : 'latest'
     try {
       const result = await resolve(
         { alias: query.wantedDependency.alias, bareSpecifier: latestSpec },
-        { ...opts, update: 'latest' }
+        opts
       )
       // Policy-blocked: handled but no latest to surface.
       if (result?.policyViolation?.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
