@@ -12,7 +12,7 @@ import crossSpawn from 'cross-spawn'
 import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
 
-import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
+import { checkPkgExists, DEFAULT_OPTS, getPackageMetadata } from './utils/index.js'
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
@@ -119,6 +119,40 @@ test('recursive publish', async () => {
     const { stdout } = await execa('pnpm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
     expect(stdout?.toString()).toContain('next: 2.0.0')
   }
+})
+
+test('recursive publish uses publishConfig.access per package', async () => {
+  const suffix = Date.now()
+  const restrictedPkg = {
+    name: `@pnpmtest/test-recursive-publish-restricted-${suffix}`,
+    version: '1.0.0',
+    publishConfig: {
+      access: 'restricted',
+    },
+  }
+  const publicPkg = {
+    name: `@pnpmtest/test-recursive-publish-public-${suffix}`,
+    version: '1.0.0',
+    publishConfig: {
+      access: 'public',
+    },
+  }
+
+  preparePackages([
+    restrictedPkg,
+    publicPkg,
+  ])
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    recursive: true,
+  }, [])
+
+  expect((await getPackageMetadata(restrictedPkg.name)).access).toBe('restricted')
+  expect((await getPackageMetadata(publicPkg.name)).access).toBe('public')
 })
 
 test('print info when no packages are published', async () => {

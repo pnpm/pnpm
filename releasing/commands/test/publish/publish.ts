@@ -14,7 +14,7 @@ import isWindows from 'is-windows'
 import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
+import { checkPkgExists, DEFAULT_OPTS, getPackageMetadata } from './utils/index.js'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
@@ -324,6 +324,27 @@ test('publish: package with publishConfig.registry overrides the default registr
   }, [])
 
   await checkPkgExists(pkgName, '1.0.0')
+})
+
+test('publish: package with publishConfig.access', async () => {
+  const pkgName = `@pnpmtest/test-publish-config-access-${Date.now()}`
+  prepare({
+    name: pkgName,
+    version: '1.0.0',
+    publishConfig: {
+      access: 'restricted',
+    },
+  })
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+  }, [])
+
+  const metadata = await getPackageMetadata(pkgName)
+  expect(metadata.access).toBe('restricted')
 })
 
 test('publish: package with publishConfig.directory', async () => {

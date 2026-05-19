@@ -64,6 +64,7 @@ type DevEngineKey = 'os' | 'cpu' | 'libc' | 'runtime' | 'packageManager'
 export type DevEngines = Partial<Record<DevEngineKey, EngineDependency | EngineDependency[]>>
 
 export interface PublishConfig extends Record<string, unknown> {
+  access?: 'public' | 'restricted'
   directory?: string
   linkDirectory?: boolean
   executableFiles?: string[]
