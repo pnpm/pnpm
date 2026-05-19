@@ -7,7 +7,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't
-// carry it (or its platform-specific binary subpackages). Pinned to a
+// carry it (or its platform-specific binary sub-packages). Pinned to a
 // version known to ship the `configDependencies` integration surface this
 // PR depends on; the test is gated on the public registry being reachable.
 const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
