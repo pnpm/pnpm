@@ -48,7 +48,7 @@ test('runPacquet forwards pacquet NDJSON events through the global streamParser'
     }
     streamParser.on('data', reporter)
     try {
-      await runPacquet({ lockfileDir: tmpDir, frozenLockfile: true })
+      await runPacquet({ lockfileDir: tmpDir })
     } finally {
       streamParser.removeListener('data', reporter)
     }
@@ -95,7 +95,7 @@ test('runPacquet forwards non-JSON stderr lines to the real stderr without break
     }
     streamParser.on('data', reporter)
     try {
-      await runPacquet({ lockfileDir: tmpDir, frozenLockfile: true })
+      await runPacquet({ lockfileDir: tmpDir })
     } finally {
       streamParser.removeListener('data', reporter)
     }

@@ -962,7 +962,7 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     if (opts.configDependencies?.pacquet) {
       logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
-      await runPacquet({ lockfileDir: opts.lockfileDir, frozenLockfile })
+      await runPacquet({ lockfileDir: opts.lockfileDir })
       return {
         updatedProjects: projects.map((mutatedProject) => {
           const project = ctx.projects[mutatedProject.rootDir]

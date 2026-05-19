@@ -14,7 +14,6 @@ const streamParserWritable = streamParser as unknown as Writable
 
 export interface RunPacquetOpts {
   lockfileDir: string
-  frozenLockfile: boolean
 }
 
 /**
@@ -25,13 +24,16 @@ export interface RunPacquetOpts {
  * same reporter that handles pnpm's own events. Non-JSON stderr lines
  * (panic backtraces, unexpected diagnostics) are forwarded to the real
  * stderr verbatim so they reach the user.
+ *
+ * `--frozen-lockfile` is always passed: pacquet only implements the
+ * frozen-install path, and we only delegate inside `tryFrozenInstall`,
+ * which already established the lockfile is usable.
  */
 export async function runPacquet (opts: RunPacquetOpts): Promise<void> {
   const pacquetBin = path.join(opts.lockfileDir, 'node_modules/.pnpm-config/pacquet/bin/pacquet')
   // Pacquet defaults to `--reporter=silent`. Asking for `ndjson` is what
   // makes it emit the `pnpm:*` log events the loop below forwards.
-  const args = ['--reporter=ndjson', 'install']
-  if (opts.frozenLockfile) args.push('--frozen-lockfile')
+  const args = ['--reporter=ndjson', 'install', '--frozen-lockfile']
   const child = spawn(process.execPath, [pacquetBin, ...args], {
     cwd: opts.lockfileDir,
     stdio: ['ignore', 'inherit', 'pipe'],
