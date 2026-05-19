@@ -986,8 +986,9 @@ mod tests {
     }
 
     /// Variant of [`HostNoHome`] that panics if [`GetHomeDir::home_dir`]
-    /// is consulted — documents the precondition that the test under
-    /// test should never fall through to the home-dir lookup.
+    /// is consulted — documents the precondition that
+    /// [`Config::current`] should not fall through to the home-dir
+    /// lookup on the input the test supplies.
     struct HostUnreachableHome;
     impl EnvVar for HostUnreachableHome {
         fn var(name: &str) -> Option<String> {
