@@ -222,6 +222,14 @@ export interface StrictInstallOptions {
    */
   configDependencies?: ConfigDependencies
   /**
+   * Network preferences forwarded to the spawned pacquet process when the
+   * frozen-install path delegates to it. Mirror pnpm's own `--offline` /
+   * `--prefer-offline` flags. Consumed only by `runPacquet`; the JS
+   * installer reads these off the store controller it was given.
+   */
+  offline?: boolean
+  preferOffline?: boolean
+  /**
    * If true, `mutateModules` does not emit the per-install `summary` log
    * event. Used by `pnpm add -g` when it runs multiple isolated installs
    * inside a single command and wants to emit a single consolidated

@@ -365,13 +365,25 @@ export async function mutateModules (
   //
   // Skipped when we already know pacquet will run the install: pacquet's
   // frozen-install path applies the same resolver-policy gate (port of
-  // this function), so re-running here would duplicate the work. The
-  // optimistic frozen-like path (`preferFrozenLockfile` + all projects
-  // up-to-date) decides whether to delegate later, inside
-  // `tryFrozenInstall`, so verification still runs there — the duplicate
-  // is bounded to that narrow window.
+  // this function), so re-running here would duplicate the work — and
+  // for `minimumReleaseAge` in strict mode each lockfile entry is an
+  // HTTP probe.
+  //
+  // The predicate mirrors every short-circuit `tryFrozenInstall` checks
+  // before reaching the pacquet branch: anything that would make it
+  // return null, throw, or fall through to the JS path must keep
+  // verification on. The optimistic `preferFrozenLockfile` path decides
+  // whether to delegate later (based on `allProjectsAreUpToDate`), which
+  // isn't known here — so verification still runs in that window, the
+  // duplicate is bounded to it.
   const willDelegateToPacquet = opts.configDependencies?.pacquet != null &&
-    (opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && ctx.existsNonEmptyWantedLockfile))
+    installsOnly &&
+    !opts.lockfileOnly &&
+    !opts.fixLockfile &&
+    !opts.dedupe &&
+    !ctx.lockfileHadConflicts &&
+    ctx.existsNonEmptyWantedLockfile &&
+    (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)
   if (!willDelegateToPacquet) {
     const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
     const wantedLockfilePath = cacheActive
@@ -974,7 +986,23 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     if (opts.configDependencies?.pacquet) {
       logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
-      await runPacquet({ lockfileDir: opts.lockfileDir })
+      try {
+        await runPacquet({
+          lockfileDir: opts.lockfileDir,
+          include: opts.include,
+          nodeLinker: opts.nodeLinker,
+          offline: opts.offline,
+          preferOffline: opts.preferOffline,
+          skipRuntimes: opts.skipRuntimes,
+          supportedArchitectures: opts.supportedArchitectures,
+        })
+      } catch (err) {
+        // Same reasoning as the verifyLockfileResolutions catch above: this
+        // is the user-facing failure path, so detach the reporter listener
+        // before rethrowing so long-lived processes don't leak it.
+        detachReporter()
+        throw err
+      }
       return {
         updatedProjects: projects.map((mutatedProject) => {
           const project = ctx.projects[mutatedProject.rootDir]

@@ -5,7 +5,13 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { streamParser } from '@pnpm/logger'
 
-import { runPacquet } from '../../src/install/runPacquet.js'
+import { runPacquet, type RunPacquetOpts } from '../../src/install/runPacquet.js'
+
+const baseOpts: Omit<RunPacquetOpts, 'lockfileDir'> = {
+  include: { dependencies: true, devDependencies: true, optionalDependencies: true },
+  nodeLinker: 'isolated',
+  skipRuntimes: false,
+}
 
 interface FakePacquetOpts {
   ndjsonLines: string[]
@@ -48,7 +54,7 @@ test('runPacquet forwards pacquet NDJSON events through the global streamParser'
     }
     streamParser.on('data', reporter)
     try {
-      await runPacquet({ lockfileDir: tmpDir })
+      await runPacquet({ lockfileDir: tmpDir, ...baseOpts })
     } finally {
       streamParser.removeListener('data', reporter)
     }
@@ -70,8 +76,41 @@ test('runPacquet throws PACQUET_INSTALL_FAILED when the binary exits non-zero', 
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-run-pacquet-'))
   try {
     await setupFakePacquet(tmpDir, { ndjsonLines: [], exitCode: 1 })
-    await expect(runPacquet({ lockfileDir: tmpDir }))
+    await expect(runPacquet({ lockfileDir: tmpDir, ...baseOpts }))
       .rejects.toMatchObject({ code: 'ERR_PNPM_PACQUET_INSTALL_FAILED' })
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('runPacquet forwards opts.include / nodeLinker / offline / supportedArchitectures to pacquet CLI flags', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-run-pacquet-'))
+  try {
+    const { argsPath } = await setupFakePacquet(tmpDir, { ndjsonLines: [], exitCode: 0 })
+    await runPacquet({
+      lockfileDir: tmpDir,
+      include: { dependencies: true, devDependencies: false, optionalDependencies: false },
+      nodeLinker: 'hoisted',
+      offline: true,
+      preferOffline: true,
+      skipRuntimes: true,
+      supportedArchitectures: { cpu: ['x64', 'arm64'], os: ['linux'], libc: ['glibc'] },
+    })
+    const passedArgs = JSON.parse(await fs.promises.readFile(argsPath, 'utf8'))
+    expect(passedArgs).toEqual([
+      '--reporter=ndjson',
+      'install',
+      '--frozen-lockfile',
+      '--prod',
+      '--no-optional',
+      '--node-linker=hoisted',
+      '--offline',
+      '--prefer-offline',
+      '--no-runtime',
+      '--cpu', 'x64,arm64',
+      '--os', 'linux',
+      '--libc', 'glibc',
+    ])
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
   }
@@ -95,7 +134,7 @@ test('runPacquet forwards non-JSON stderr lines to the real stderr without break
     }
     streamParser.on('data', reporter)
     try {
-      await runPacquet({ lockfileDir: tmpDir })
+      await runPacquet({ lockfileDir: tmpDir, ...baseOpts })
     } finally {
       streamParser.removeListener('data', reporter)
     }
