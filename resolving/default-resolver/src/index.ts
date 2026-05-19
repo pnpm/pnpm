@@ -1,12 +1,12 @@
-import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
-import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
-import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
+import { type BunRuntimeResolveResult, outdatedBunRuntime, resolveBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
+import { type DenoRuntimeResolveResult, outdatedDenoRuntime, resolveDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
+import { type NodeRuntimeResolveResult, outdatedNodeRuntime, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
-import { type LocalResolveResult, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
+import { createGitResolver, type GitResolveResult, outdatedGit } from '@pnpm/resolving.git-resolver'
+import { type LocalResolveResult, outdatedLocal, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import {
   createNpmResolutionVerifier,
   type CreateNpmResolutionVerifierOptions,
@@ -21,13 +21,15 @@ import {
   type WorkspaceResolveResult,
 } from '@pnpm/resolving.npm-resolver'
 import type {
+  OutdatedInfo,
+  OutdatedQuery,
   ResolutionVerifier,
   ResolveFunction,
   ResolveOptions,
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolving.resolver-base'
-import { resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
+import { outdatedTarball, resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
 import type { RegistryConfig } from '@pnpm/types'
 
 export type {
@@ -90,6 +92,8 @@ async function resolveFromCustomResolvers (
   return null
 }
 
+export type OutdatedDispatcher = (query: OutdatedQuery, opts: ResolveOptions) => Promise<OutdatedInfo | undefined>
+
 export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
@@ -97,8 +101,16 @@ export function createResolver (
     nodeDownloadMirrors?: Record<string, string>
     customResolvers?: CustomResolver[]
   }
-): { resolve: DefaultResolver, clearCache: () => void } {
-  const { resolveFromNpm, resolveFromJsr, resolveFromNamedRegistry, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
+): { resolve: DefaultResolver, outdated: OutdatedDispatcher, clearCache: () => void } {
+  const {
+    resolveFromNpm,
+    resolveFromJsr,
+    resolveFromNamedRegistry,
+    outdatedFromNpm,
+    outdatedFromJsr,
+    outdatedFromNamedRegistry,
+    clearCache,
+  } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
   const localCtx = { preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths }
   const _resolveFromLocalScheme = resolveFromLocalScheme.bind(null, localCtx)
@@ -106,6 +118,9 @@ export function createResolver (
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
+  const _outdatedNodeRuntime = outdatedNodeRuntime.bind(null, { fetchFromRegistry, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
+  const _outdatedDenoRuntime = outdatedDenoRuntime.bind(null, { resolveFromNpm })
+  const _outdatedBunRuntime = outdatedBunRuntime.bind(null, { resolveFromNpm })
   const _resolveFromCustomResolvers = pnpmOpts.customResolvers
     ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
     : null
@@ -140,6 +155,17 @@ export function createResolver (
           `${specifier} isn't supported by any available resolver.`)
       }
       return resolution
+    },
+    outdated: async (query, opts) => {
+      return (await outdatedFromNpm(query, opts)) ??
+        (await outdatedFromJsr(query, opts)) ??
+        (await outdatedGit(query)) ??
+        (await outdatedTarball(query)) ??
+        (await outdatedLocal(query)) ??
+        (await _outdatedNodeRuntime(query)) ??
+        (await _outdatedDenoRuntime(query)) ??
+        (await _outdatedBunRuntime(query)) ??
+        outdatedFromNamedRegistry(query, opts)
     },
     clearCache,
   }

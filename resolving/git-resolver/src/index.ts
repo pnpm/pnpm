@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import type { DispatcherOptions } from '@pnpm/network.fetch'
-import type { GitResolution, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { GitResolution, OutdatedInfo, OutdatedQuery, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import { gracefulGit as git } from 'graceful-git'
 import semver from 'semver'
 
@@ -98,6 +98,21 @@ export function createGitResolver (
       resolution,
       resolvedVia: 'git-repository',
     }
+  }
+}
+
+// Git deps lock to a commit-resolved URL, not a semver. Use the raw ref so
+// `current` vs `wanted` reflects what actually changed in the lockfile (URL or
+// commit), not the snapshot's version metadata.
+export async function outdatedGit (query: OutdatedQuery): Promise<OutdatedInfo | undefined> {
+  const bareSpecifier = query.wantedDependency.bareSpecifier
+  if (!bareSpecifier) return undefined
+  const parsedSpecFunc = parseBareSpecifier(bareSpecifier, {})
+  if (parsedSpecFunc == null) return undefined
+  return {
+    packageName: query.wantedDependency.alias ?? bareSpecifier,
+    current: query.currentRef,
+    wanted: query.ref,
   }
 }
 

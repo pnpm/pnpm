@@ -4,6 +4,8 @@ import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { NpmResolver } from '@pnpm/resolving.npm-resolver'
 import type {
   BinaryResolution,
+  OutdatedInfo,
+  OutdatedQuery,
   PlatformAssetResolution,
   PlatformAssetTarget,
   ResolveOptions,
@@ -62,6 +64,28 @@ export async function resolveBunRuntime (
       type: 'variations',
       variants: assets,
     },
+  }
+}
+
+export async function outdatedBunRuntime (
+  ctx: { resolveFromNpm: NpmResolver },
+  query: OutdatedQuery
+): Promise<OutdatedInfo | undefined> {
+  if (query.wantedDependency.alias !== 'bun' || !query.ref.startsWith('runtime:')) return undefined
+  const manifestSpec = query.wantedDependency.bareSpecifier
+  const wanted = query.wantedVersion ?? query.ref.substring('runtime:'.length)
+  const current = query.currentVersion
+    ?? (query.currentRef?.startsWith('runtime:') ? query.currentRef.substring('runtime:'.length) : undefined)
+  const versionSpec = query.compatible && manifestSpec?.startsWith('runtime:')
+    ? manifestSpec.substring('runtime:'.length)
+    : 'latest'
+  const npmResolution = await ctx.resolveFromNpm({ alias: 'bun', bareSpecifier: versionSpec }, {})
+  if (!npmResolution?.manifest) return { packageName: 'bun', current, wanted }
+  return {
+    packageName: 'bun',
+    current,
+    wanted,
+    latestManifest: { name: 'bun', version: npmResolution.manifest.version },
   }
 }
 

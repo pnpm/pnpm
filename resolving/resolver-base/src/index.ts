@@ -1,5 +1,6 @@
 import type {
   DependencyManifest,
+  PackageManifest,
   PackageVersionPolicy,
   PinnedVersion,
   PkgResolutionId,
@@ -312,3 +313,41 @@ export type WantedDependency = {
 })
 
 export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>
+
+/**
+ * Input to a resolver's outdated function. `ref`/`currentRef` are the
+ * lockfile references for the wanted/current lockfile entries.
+ * `wantedVersion`/`currentVersion` are the semver versions parsed off
+ * the package snapshot (already extracted by the caller so each
+ * resolver doesn't repeat the parsing).
+ */
+export interface OutdatedQuery {
+  wantedDependency: WantedDependency
+  ref: string
+  currentRef?: string
+  wantedVersion?: string
+  currentVersion?: string
+  compatible?: boolean
+  registry: string
+}
+
+/**
+ * Result of a resolver's outdated check.
+ *
+ * - `undefined` from the resolver function means "this resolver does
+ *   not handle this dep — try the next one".
+ * - An `OutdatedInfo` (even when `current === wanted` and no
+ *   `latestManifest`) tells the caller "I handled this; here's what I
+ *   know" — the caller decides whether to surface it to the user.
+ */
+export interface OutdatedInfo {
+  packageName: string
+  current?: string
+  wanted: string
+  latestManifest?: PackageManifest
+}
+
+export type OutdatedFunction = (
+  query: OutdatedQuery,
+  opts: ResolveOptions
+) => Promise<OutdatedInfo | undefined>

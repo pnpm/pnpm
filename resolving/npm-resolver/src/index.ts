@@ -10,10 +10,13 @@ import type {
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
+  OutdatedInfo,
+  OutdatedQuery,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
   ResolutionPolicyViolation,
+  ResolveOptions,
   ResolveResult,
   TarballResolution,
   WantedDependency,
@@ -181,11 +184,24 @@ export type NpmResolver = (
   opts: ResolveFromNpmOptions
 ) => Promise<NpmResolveResult | JsrResolveResult | NamedRegistryResolveResult | WorkspaceResolveResult | null>
 
+export type OutdatedFromNpmStyle = (
+  query: OutdatedQuery,
+  opts: ResolveOptions
+) => Promise<OutdatedInfo | undefined>
+
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): { resolveFromNpm: NpmResolver, resolveFromJsr: NpmResolver, resolveFromNamedRegistry: NpmResolver, clearCache: () => void } {
+): {
+  resolveFromNpm: NpmResolver
+  resolveFromJsr: NpmResolver
+  resolveFromNamedRegistry: NpmResolver
+  outdatedFromNpm: OutdatedFromNpmStyle
+  outdatedFromJsr: OutdatedFromNpmStyle
+  outdatedFromNamedRegistry: OutdatedFromNpmStyle
+  clearCache: () => void
+} {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -250,16 +266,88 @@ export function createNpmResolver (
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
   }
+  const boundResolveFromNpm = resolveNpm.bind(null, ctx)
+  const boundResolveFromJsr = resolveJsr.bind(null, ctx)
+  const boundResolveFromNamedRegistry = resolveFromNamedRegistry.bind(null, ctx)
   return {
-    resolveFromNpm: resolveNpm.bind(null, ctx),
-    resolveFromJsr: resolveJsr.bind(null, ctx),
-    resolveFromNamedRegistry: resolveFromNamedRegistry.bind(null, ctx),
+    resolveFromNpm: boundResolveFromNpm,
+    resolveFromJsr: boundResolveFromJsr,
+    resolveFromNamedRegistry: boundResolveFromNamedRegistry,
+    outdatedFromNpm: createOutdated(boundResolveFromNpm, isNpmSpec),
+    outdatedFromJsr: createOutdated(boundResolveFromJsr, isJsrSpec),
+    outdatedFromNamedRegistry: createOutdated(boundResolveFromNamedRegistry,
+      (query) => isNamedRegistrySpec(query, ctx.namedRegistryNames)),
     clearCache: () => {
       if ('clear' in metaCache && typeof metaCache.clear === 'function') {
         metaCache.clear()
       }
       pMemoizeClear(fetch)
     },
+  }
+}
+
+function isNpmSpec (query: OutdatedQuery): string | undefined {
+  const { alias, bareSpecifier } = query.wantedDependency
+  if (!bareSpecifier) return alias
+  const parsed = parseBareSpecifier(bareSpecifier, alias, 'latest', query.registry)
+  return parsed?.name
+}
+
+function isJsrSpec (query: OutdatedQuery): string | undefined {
+  if (!query.wantedDependency.bareSpecifier?.startsWith('jsr:')) return undefined
+  const parsed = parseJsrSpecifierToRegistryPackageSpec(
+    query.wantedDependency.bareSpecifier,
+    query.wantedDependency.alias,
+    'latest'
+  )
+  return parsed?.name
+}
+
+function isNamedRegistrySpec (
+  query: OutdatedQuery,
+  knownRegistryNames: ReadonlySet<string>
+): string | undefined {
+  if (!query.wantedDependency.bareSpecifier) return undefined
+  try {
+    const parsed = parseNamedRegistrySpecifierToRegistryPackageSpec(
+      query.wantedDependency.bareSpecifier,
+      knownRegistryNames,
+      query.wantedDependency.alias,
+      'latest'
+    )
+    return parsed?.name
+  } catch {
+    return undefined
+  }
+}
+
+function createOutdated (
+  resolve: NpmResolver,
+  matchSpec: (query: OutdatedQuery) => string | undefined
+) {
+  return async (query: OutdatedQuery, opts: ResolveOptions): Promise<OutdatedInfo | undefined> => {
+    const packageName = matchSpec(query)
+    if (!packageName) return undefined
+    const wanted = query.wantedVersion ?? query.ref
+    const current = query.currentVersion ?? query.currentRef
+    const latestSpec = query.compatible
+      ? query.wantedDependency.bareSpecifier ?? 'latest'
+      : 'latest'
+    try {
+      const result = await resolve(
+        { alias: query.wantedDependency.alias, bareSpecifier: latestSpec },
+        { ...opts, update: 'latest' }
+      )
+      if (result?.policyViolation?.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
+        return { packageName, current, wanted }
+      }
+      return { packageName, current, wanted, latestManifest: result?.manifest }
+    } catch (err) {
+      if (opts.publishedBy && (err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION') {
+        return { packageName, current, wanted }
+      }
+      throw err
+    }
   }
 }
 

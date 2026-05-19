@@ -1,7 +1,19 @@
 ---
 "@pnpm/deps.inspection.outdated": minor
+"@pnpm/installing.client": minor
+"@pnpm/resolving.default-resolver": minor
+"@pnpm/resolving.resolver-base": minor
+"@pnpm/resolving.npm-resolver": minor
+"@pnpm/resolving.git-resolver": minor
+"@pnpm/resolving.tarball-resolver": minor
+"@pnpm/resolving.local-resolver": minor
+"@pnpm/engine.runtime.node-resolver": minor
+"@pnpm/engine.runtime.bun-resolver": minor
+"@pnpm/engine.runtime.deno-resolver": minor
 "@pnpm/pkg-manifest.utils": minor
 "pnpm": minor
 ---
 
-`pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser does not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+`pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines an `OutdatedFunction` shape, and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own outdated function. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).outdated`. The outdated command is now protocol-agnostic — each resolver decides what "latest" means for its own protocol, how to extract current/wanted versions, and whether the dep is in scope for the check at all.

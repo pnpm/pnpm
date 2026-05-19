@@ -3,6 +3,8 @@ import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { NpmResolver } from '@pnpm/resolving.npm-resolver'
 import type {
   BinaryResolution,
+  OutdatedInfo,
+  OutdatedQuery,
   PlatformAssetResolution,
   PlatformAssetTarget,
   ResolveOptions,
@@ -93,6 +95,28 @@ export async function resolveDenoRuntime (
       type: 'variations',
       variants: assets,
     },
+  }
+}
+
+export async function outdatedDenoRuntime (
+  ctx: { resolveFromNpm: NpmResolver },
+  query: OutdatedQuery
+): Promise<OutdatedInfo | undefined> {
+  if (query.wantedDependency.alias !== 'deno' || !query.ref.startsWith('runtime:')) return undefined
+  const manifestSpec = query.wantedDependency.bareSpecifier
+  const wanted = query.wantedVersion ?? query.ref.substring('runtime:'.length)
+  const current = query.currentVersion
+    ?? (query.currentRef?.startsWith('runtime:') ? query.currentRef.substring('runtime:'.length) : undefined)
+  const versionSpec = query.compatible && manifestSpec?.startsWith('runtime:')
+    ? manifestSpec.substring('runtime:'.length)
+    : 'latest'
+  const npmResolution = await ctx.resolveFromNpm({ alias: 'deno', bareSpecifier: versionSpec }, {})
+  if (!npmResolution?.manifest) return { packageName: 'deno', current, wanted }
+  return {
+    packageName: 'deno',
+    current,
+    wanted,
+    latestManifest: { name: 'deno', version: npmResolution.manifest.version },
   }
 }
 

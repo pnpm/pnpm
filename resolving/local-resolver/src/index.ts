@@ -4,7 +4,7 @@ import path from 'node:path'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import type { DirectoryResolution, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { DirectoryResolution, OutdatedInfo, OutdatedQuery, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
 import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
@@ -62,6 +62,13 @@ export async function resolveFromLocalPath (
     preserveAbsolutePaths: ctx.preserveAbsolutePaths ?? false,
   })
   return resolveSpec(spec, opts)
+}
+
+// link:/file:/workspace: dependencies don't have a "latest" — leave them out of
+// outdated reporting. Returning undefined lets the dispatcher try the next
+// resolver (none of which will claim these), so the dep is silently skipped.
+export async function outdatedLocal (_query: OutdatedQuery): Promise<OutdatedInfo | undefined> {
+  return undefined
 }
 
 async function resolveSpec (
