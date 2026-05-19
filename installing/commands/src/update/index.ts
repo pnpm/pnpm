@@ -20,9 +20,8 @@ import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
-import { setupPolicyHandlers } from '../policyHandlers.js'
 import { parseUpdateParam } from '../recursive.js'
-import { createResolutionPolicyManifestUpdater } from '../resolutionPolicyManifest.js'
+import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -180,11 +179,9 @@ export async function handler (
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
-    const policyHandlers = setupPolicyHandlers(opts)
     return handleGlobalUpdate({
       ...opts,
-      handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
-      updateResolutionPolicyManifest: createResolutionPolicyManifestUpdater(policyHandlers),
+      ...createGlobalPolicyCallbacks(opts),
     }, params, commands ?? {})
   }
   const rebuildHandler = commands?.rebuild

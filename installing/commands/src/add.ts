@@ -13,8 +13,7 @@ import { renderHelp } from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
-import { setupPolicyHandlers } from './policyHandlers.js'
-import { createResolutionPolicyManifestUpdater } from './resolutionPolicyManifest.js'
+import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
@@ -259,11 +258,9 @@ export async function handler (
     if (params.includes('pnpm') || params.includes('@pnpm/exe')) {
       throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
     }
-    const policyHandlers = setupPolicyHandlers(opts)
     return handleGlobalAdd({
       ...opts,
-      handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
-      updateResolutionPolicyManifest: createResolutionPolicyManifestUpdater(policyHandlers),
+      ...createGlobalPolicyCallbacks(opts),
     }, params, commands ?? {})
   }
 

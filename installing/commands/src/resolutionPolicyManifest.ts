@@ -1,15 +1,26 @@
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
-import type { PolicyHandlersPlan, PolicyViolation } from './policyHandlers.js'
+import {
+  type PolicyHandlersOptions,
+  type PolicyViolation,
+  setupPolicyHandlers,
+} from './policyHandlers.js'
 
-export function createResolutionPolicyManifestUpdater (
-  policyHandlers: PolicyHandlersPlan | undefined
-): ((violations: readonly PolicyViolation[], dir: string) => Promise<void>) | undefined {
-  if (policyHandlers == null) return undefined
-  return async (violations, dir) => {
-    const policyUpdates = policyHandlers.pickManifestUpdates(violations)
-    if (policyUpdates != null) {
-      await updateWorkspaceManifest(dir, policyUpdates)
-    }
+export interface GlobalPolicyCallbacks {
+  handleResolutionPolicyViolations?: (violations: readonly PolicyViolation[]) => Promise<void>
+  updateResolutionPolicyManifest?: (violations: readonly PolicyViolation[], dir: string) => Promise<void>
+}
+
+export function createGlobalPolicyCallbacks (opts: PolicyHandlersOptions): GlobalPolicyCallbacks {
+  const policyHandlers = setupPolicyHandlers(opts)
+  if (policyHandlers == null) return {}
+  return {
+    handleResolutionPolicyViolations: policyHandlers.handleResolutionPolicyViolations,
+    updateResolutionPolicyManifest: async (violations, dir) => {
+      const policyUpdates = policyHandlers.pickManifestUpdates(violations)
+      if (policyUpdates != null) {
+        await updateWorkspaceManifest(dir, policyUpdates)
+      }
+    },
   }
 }
