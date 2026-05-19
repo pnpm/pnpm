@@ -30,37 +30,42 @@ use serde::de::DeserializeOwned;
 fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());
-    Sys::var(&upper).or_else(|| Sys::var(&lower)).filter(|s| !s.is_empty())
+    Sys::var(&upper).or_else(|| Sys::var(&lower)).filter(|value| !value.is_empty())
 }
 
-/// Parse `s` as JSON. Returns `None` on parse failure so caller falls
-/// through to its default (skip the field).
-fn parse_json<T: DeserializeOwned>(s: &str) -> Option<T> {
-    serde_json::from_str(s).ok()
+/// Parse `value` as JSON. Returns `None` on parse failure so the
+/// caller falls through to its default (skip the field).
+fn parse_json<Target: DeserializeOwned>(value: &str) -> Option<Target> {
+    serde_json::from_str(value).ok()
 }
 
-/// Parse `s` as JSON; if that fails, retry with the value wrapped as a
-/// JSON string. Used for enum fields whose serde representation is a
+/// Parse `value` as JSON; if that fails, retry with `value` wrapped as
+/// a JSON string. Used for enum fields whose serde representation is a
 /// bare identifier (`hoisted`, `warn-only`, `no-downgrade`, …) — the
-/// raw env var value isn't valid JSON on its own but becomes valid once
-/// quoted.
-fn parse_json_or_string<T: DeserializeOwned>(s: &str) -> Option<T> {
-    parse_json(s).or_else(|| {
-        let quoted = serde_json::to_string(s).ok()?;
+/// raw env var value isn't valid JSON on its own but becomes valid
+/// once quoted.
+fn parse_json_or_string<Target: DeserializeOwned>(value: &str) -> Option<Target> {
+    parse_json(value).or_else(|| {
+        let quoted = serde_json::to_string(value).ok()?;
         parse_json(&quoted)
     })
 }
 
-/// Specialised parser for the tri-state `Option<Option<Vec<String>>>`
-/// shape used by `hoist_pattern` / `public_hoist_pattern`. The env-var
-/// surface only supports the "explicit list" and "explicit null" cases
-/// — there is no fourth state for "leave the config default in place"
-/// because not setting the env var already does that.
-fn parse_tri_array(s: &str) -> Option<Option<Vec<String>>> {
-    if s == "null" {
-        return Some(None);
-    }
-    parse_json::<Vec<String>>(s).map(Some)
+/// Parse a `hoist_pattern` / `public_hoist_pattern` env var into the
+/// tri-state `Option<Option<Vec<String>>>` shape used by
+/// [`WorkspaceSettings`].
+///
+/// Env vars cannot express the "explicit null disable" state that yaml
+/// supports — pnpm's
+/// [`parseValueByConstructor`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/env.ts#L111-L115)
+/// for the `Array` schema runs `JSON.parse(envVar)` and then requires
+/// `Array.isArray(value)`. `PNPM_CONFIG_HOIST_PATTERN=null` therefore
+/// fails the `Array.isArray` check upstream and the value is silently
+/// dropped. The tri-state's `Some(None)` branch stays reachable
+/// through yaml only; from env we either return `None` (parse failed,
+/// leave config default) or `Some(Some(vec))` (explicit list).
+fn parse_tri_array(value: &str) -> Option<Option<Vec<String>>> {
+    parse_json::<Vec<String>>(value).map(Some)
 }
 
 impl WorkspaceSettings {
@@ -218,7 +223,7 @@ mod tests {
         assert_eq!(parse_json_or_string::<NodeLinker>("hoisted"), Some(NodeLinker::Hoisted));
         assert_eq!(
             parse_json_or_string::<TrustPolicy>("no-downgrade"),
-            Some(TrustPolicy::NoDowngrade)
+            Some(TrustPolicy::NoDowngrade),
         );
     }
 
@@ -245,18 +250,20 @@ mod tests {
     }
 
     /// Tri-state arrays (used by `hoist_pattern` /
-    /// `public_hoist_pattern`): a literal `null` env var
-    /// distinguishes "disable hoisting on this side" from "explicit
-    /// list," matching pnpm's `Option<Option<Vec<String>>>` shape.
-    /// Plain non-JSON garbage falls through to `None` rather than
-    /// being mistaken for a list.
+    /// `public_hoist_pattern`): env vars carrying a JSON array
+    /// populate the explicit-list slot. Pnpm's `Array` schema
+    /// rejects `null` via its `Array.isArray` check at
+    /// [`env.ts:111-115`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/env.ts#L111-L115),
+    /// so `parse_tri_array("null")` returns `None` (= "leave the
+    /// config default in place"), matching upstream. Plain non-JSON
+    /// strings fall through the same way.
     #[test]
-    fn tri_array_env_var_parses_null_and_arrays() {
-        assert_eq!(parse_tri_array("null"), Some(None));
+    fn tri_array_env_var_parses_arrays_and_rejects_null() {
         assert_eq!(
             parse_tri_array(r#"["a","b"]"#),
             Some(Some(vec!["a".to_owned(), "b".to_owned()])),
         );
+        assert_eq!(parse_tri_array("null"), None);
         assert_eq!(parse_tri_array("not-json"), None);
     }
 }

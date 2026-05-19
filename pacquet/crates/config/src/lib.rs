@@ -1048,8 +1048,21 @@ impl Config {
             // Applied *before* `settings.apply_to` so an explicit
             // `modulesDir` / `virtualStoreDir` in `pnpm-workspace.yaml`
             // still wins.
+            //
+            // `virtual_store_dir_explicit` guards the re-anchor for
+            // `virtual_store_dir` — without it, a `virtualStoreDir`
+            // already set in the global `config.yaml` would be
+            // clobbered by the workspace-root default whenever the
+            // workspace yaml itself leaves the field unset. `modules_dir`
+            // needs no such guard because pnpm's `excludedPnpmKeys`
+            // (and pacquet's `clear_workspace_only_fields`) keep it
+            // out of the global-config surface, so it can only come
+            // from workspace yaml or env vars, and env vars haven't
+            // been applied yet at this point in the cascade.
             self.modules_dir = base_dir.join("node_modules");
-            self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+            if !virtual_store_dir_explicit {
+                self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+            }
             if let Some(settings) = settings {
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
@@ -1775,7 +1788,9 @@ mod tests {
         impl EnvVar for HostWithXdgConfigHome {
             fn var(name: &str) -> Option<String> {
                 if name == "XDG_CONFIG_HOME" {
-                    return XDG_CONFIG_HOME_PATH.get().map(|p| p.to_string_lossy().into_owned());
+                    return XDG_CONFIG_HOME_PATH
+                        .get()
+                        .map(|path| path.to_string_lossy().into_owned());
                 }
                 safe_host_var(name)
             }
@@ -1830,7 +1845,9 @@ mod tests {
         impl EnvVar for HostWithXdgConfigHome {
             fn var(name: &str) -> Option<String> {
                 if name == "XDG_CONFIG_HOME" {
-                    return XDG_CONFIG_HOME_PATH.get().map(|p| p.to_string_lossy().into_owned());
+                    return XDG_CONFIG_HOME_PATH
+                        .get()
+                        .map(|path| path.to_string_lossy().into_owned());
                 }
                 safe_host_var(name)
             }
@@ -1851,6 +1868,67 @@ mod tests {
         assert!(
             !config.enable_global_virtual_store,
             "pnpm-workspace.yaml must win over global config.yaml",
+        );
+    }
+
+    /// `virtualStoreDir` set in the global `config.yaml` is preserved
+    /// even when the workspace yaml doesn't repeat it. Without the
+    /// `!virtual_store_dir_explicit` guard on the re-anchor, the
+    /// workspace-root default (`<workspace>/node_modules/.pnpm`)
+    /// would overwrite the global value any time a `pnpm-workspace.yaml`
+    /// is present. Regression test for a CodeRabbit review finding on
+    /// pnpm/pnpm#11752.
+    #[test]
+    pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
+        let xdg = tempdir().unwrap();
+        let config_dir = xdg.path().join("pnpm");
+        fs::create_dir_all(&config_dir).unwrap();
+        let global_path = xdg.path().join("shared-virtual-store");
+        fs::write(
+            config_dir.join("config.yaml"),
+            format!(
+                "enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n",
+                global_path.display(),
+            ),
+        )
+        .expect("write global config.yaml");
+
+        let project = tempdir().unwrap();
+        // Empty workspace yaml — present so the workspace block fires,
+        // but it doesn't redeclare `virtualStoreDir`.
+        fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+            .expect("write workspace yaml");
+
+        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+
+        struct HostWithXdgConfigHome;
+        impl EnvVar for HostWithXdgConfigHome {
+            fn var(name: &str) -> Option<String> {
+                if name == "XDG_CONFIG_HOME" {
+                    return XDG_CONFIG_HOME_PATH
+                        .get()
+                        .map(|path| path.to_string_lossy().into_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithXdgConfigHome {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithXdgConfigHome {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let config =
+            Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
+        assert_eq!(
+            config.virtual_store_dir, global_path,
+            "virtualStoreDir from global config.yaml must survive the workspace-root re-anchor",
         );
     }
 
@@ -1883,7 +1961,9 @@ mod tests {
         impl EnvVar for HostWithXdgConfigHome {
             fn var(name: &str) -> Option<String> {
                 if name == "XDG_CONFIG_HOME" {
-                    return XDG_CONFIG_HOME_PATH.get().map(|p| p.to_string_lossy().into_owned());
+                    return XDG_CONFIG_HOME_PATH
+                        .get()
+                        .map(|path| path.to_string_lossy().into_owned());
                 }
                 safe_host_var(name)
             }
