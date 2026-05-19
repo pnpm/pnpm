@@ -127,7 +127,7 @@ export async function outdated (
           const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
 
           const info = await opts.resolveLatest(
-            { wantedDependency: { alias, bareSpecifier }, wantedRef, compatible: opts.compatible },
+            { wantedDependency: { alias, bareSpecifier }, compatible: opts.compatible },
             resolveOpts
           )
           if (info == null) return // resolver doesn't claim this dep — skip silently

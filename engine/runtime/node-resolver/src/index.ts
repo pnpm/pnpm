@@ -85,11 +85,9 @@ export async function resolveLatestNodeRuntime (
   ctx: { fetchFromRegistry: FetchFromRegistry, nodeDownloadMirrors?: Record<string, string> },
   query: LatestQuery
 ): Promise<LatestInfo | undefined> {
-  if (query.wantedDependency.alias !== 'node' || !query.wantedRef.startsWith('runtime:')) return undefined
   const manifestSpec = query.wantedDependency.bareSpecifier
-  const versionSpec = query.compatible && manifestSpec?.startsWith('runtime:')
-    ? manifestSpec.substring('runtime:'.length)
-    : 'latest'
+  if (query.wantedDependency.alias !== 'node' || !manifestSpec?.startsWith('runtime:')) return undefined
+  const versionSpec = query.compatible ? manifestSpec.substring('runtime:'.length) : 'latest'
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)

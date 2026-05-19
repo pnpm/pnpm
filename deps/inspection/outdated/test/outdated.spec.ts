@@ -25,7 +25,7 @@ function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher 
       return { latestManifest: latestManifest ?? undefined }
     }
     if (
-      query.wantedRef.startsWith('http://') || query.wantedRef.startsWith('https://') ||
+      bareSpecifier?.startsWith('http://') || bareSpecifier?.startsWith('https://') ||
       bareSpecifier?.startsWith('github:') || bareSpecifier?.startsWith('git+') || bareSpecifier?.startsWith('git:')
     ) {
       return {}

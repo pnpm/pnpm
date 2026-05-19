@@ -316,13 +316,12 @@ export type ResolveFunction = (wantedDependency: WantedDependency & { optional?:
 
 /**
  * Input to a resolver's `resolveLatest` function. The resolver decides
- * whether it owns this dep from `wantedDependency` + `wantedRef`; the
- * caller handles current/wanted display from lockfile snapshots, so the
- * resolver doesn't see `currentRef`.
+ * whether it owns this dep purely from `wantedDependency` (its alias and
+ * manifest specifier) — the lockfile-resolved ref is the caller's
+ * concern, not the resolver's.
  */
 export interface LatestQuery {
   wantedDependency: WantedDependency
-  wantedRef: string
   compatible?: boolean
 }
 

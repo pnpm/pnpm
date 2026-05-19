@@ -102,11 +102,9 @@ export async function resolveLatestDenoRuntime (
   ctx: { resolveFromNpm: NpmResolver },
   query: LatestQuery
 ): Promise<LatestInfo | undefined> {
-  if (query.wantedDependency.alias !== 'deno' || !query.wantedRef.startsWith('runtime:')) return undefined
   const manifestSpec = query.wantedDependency.bareSpecifier
-  const versionSpec = query.compatible && manifestSpec?.startsWith('runtime:')
-    ? manifestSpec.substring('runtime:'.length)
-    : 'latest'
+  if (query.wantedDependency.alias !== 'deno' || !manifestSpec?.startsWith('runtime:')) return undefined
+  const versionSpec = query.compatible ? manifestSpec.substring('runtime:'.length) : 'latest'
   const npmResolution = await ctx.resolveFromNpm({ alias: 'deno', bareSpecifier: versionSpec }, {})
   if (!npmResolution?.manifest) return {}
   return { latestManifest: { name: 'deno', version: npmResolution.manifest.version } }
