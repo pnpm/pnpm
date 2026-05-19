@@ -18,7 +18,7 @@ import {
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
+import { getAllDependenciesFromManifest, isRuntimeAlias } from '@pnpm/pkg-manifest.utils'
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DEPENDENCIES_FIELDS,
@@ -135,6 +135,41 @@ export async function outdated (
           const name = dp.parse(relativeDepPath).name ?? packageName
 
           const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
+
+          if (isRuntimeAlias(alias) && ref.startsWith('runtime:')) {
+            const wantedVersion = pkgSnapshot.version ?? ref.substring('runtime:'.length)
+            const currentPkgSnapshot = currentRelative ? currentLockfile.packages?.[currentRelative] : undefined
+            const currentVersion = currentPkgSnapshot?.version
+              ?? (typeof currentRef === 'string' && currentRef.startsWith('runtime:') ? currentRef.substring('runtime:'.length) : undefined)
+            const latestManifest = await opts.getLatestManifest(
+              alias,
+              opts.compatible ? (bareSpecifier ?? 'runtime:latest') : 'runtime:latest'
+            )
+            if (latestManifest == null) return
+            if (!currentVersion) {
+              outdated.push({
+                alias,
+                belongsTo: depType,
+                latestManifest,
+                packageName: alias,
+                wanted: wantedVersion,
+                workspace: opts.manifest.name,
+              })
+              return
+            }
+            if (currentVersion !== wantedVersion || semver.lt(currentVersion, latestManifest.version)) {
+              outdated.push({
+                alias,
+                belongsTo: depType,
+                current: currentVersion,
+                latestManifest,
+                packageName: alias,
+                wanted: wantedVersion,
+                workspace: opts.manifest.name,
+              })
+            }
+            return
+          }
           // If the npm resolve parser cannot parse the spec of the dependency,
           // it means that the package is not from a npm-compatible registry.
           // In that case, we can't check whether the package is up-to-date

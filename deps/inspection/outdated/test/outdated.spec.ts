@@ -899,3 +899,187 @@ test('should ignore dependencies as expected', async () => {
     },
   ])
 })
+
+test('outdated() lists outdated runtimes (node, deno, bun)', async () => {
+  const runtimeLatestManifest = async (packageName: string, range: string) => {
+    expect(range).toBe('runtime:latest')
+    return ({
+      node: { name: 'node', version: '23.0.0' },
+      deno: { name: 'deno', version: '2.5.0' },
+      bun: { name: 'bun', version: '1.1.42' },
+    } as Record<string, { name: string, version: string }>)[packageName] ?? null
+  }
+
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          node: 'runtime:22.0.0',
+          deno: 'runtime:2.4.2',
+        },
+        devDependencies: {
+          bun: 'runtime:1.1.40',
+        },
+        specifiers: {
+          node: 'runtime:^22.0.0',
+          deno: 'runtime:2.4.2',
+          bun: 'runtime:^1.1.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      ['node@runtime:22.0.0' as DepPath]: {
+        version: '22.0.0',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+      ['deno@runtime:2.4.2' as DepPath]: {
+        version: '2.4.2',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+      ['bun@runtime:1.1.40' as DepPath]: {
+        version: '1.1.40',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    getLatestManifest: runtimeLatestManifest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'has-runtimes',
+      version: '1.0.0',
+      dependencies: {
+        node: 'runtime:^22.0.0',
+        deno: 'runtime:2.4.2',
+      },
+      devDependencies: {
+        bun: 'runtime:^1.1.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+    registries: { default: 'https://registry.npmjs.org/' },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'bun',
+      belongsTo: 'devDependencies',
+      current: '1.1.40',
+      latestManifest: { name: 'bun', version: '1.1.42' },
+      packageName: 'bun',
+      wanted: '1.1.40',
+      workspace: 'has-runtimes',
+    },
+    {
+      alias: 'deno',
+      belongsTo: 'dependencies',
+      current: '2.4.2',
+      latestManifest: { name: 'deno', version: '2.5.0' },
+      packageName: 'deno',
+      wanted: '2.4.2',
+      workspace: 'has-runtimes',
+    },
+    {
+      alias: 'node',
+      belongsTo: 'dependencies',
+      current: '22.0.0',
+      latestManifest: { name: 'node', version: '23.0.0' },
+      packageName: 'node',
+      wanted: '22.0.0',
+      workspace: 'has-runtimes',
+    },
+  ])
+})
+
+test('outdated() runtime in --compatible mode resolves within the declared range', async () => {
+  const getLatestForCompat = async (packageName: string, range: string) => {
+    expect(packageName).toBe('node')
+    expect(range).toBe('runtime:^22.0.0')
+    return { name: 'node', version: '22.5.0' }
+  }
+
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { node: 'runtime:22.0.0' },
+        specifiers: { node: 'runtime:^22.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      ['node@runtime:22.0.0' as DepPath]: {
+        version: '22.0.0',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    compatible: true,
+    currentLockfile: lockfile,
+    getLatestManifest: getLatestForCompat,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'with-runtime-range',
+      version: '1.0.0',
+      dependencies: { node: 'runtime:^22.0.0' },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+    registries: { default: 'https://registry.npmjs.org/' },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'node',
+      belongsTo: 'dependencies',
+      current: '22.0.0',
+      latestManifest: { name: 'node', version: '22.5.0' },
+      packageName: 'node',
+      wanted: '22.0.0',
+      workspace: 'with-runtime-range',
+    },
+  ])
+})
+
+test('outdated() does not list runtime that is already up to date', async () => {
+  const getLatestManifestUpToDate = async (packageName: string) => {
+    return packageName === 'node' ? { name: 'node', version: '22.0.0' } : null
+  }
+
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { node: 'runtime:22.0.0' },
+        specifiers: { node: 'runtime:22.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      ['node@runtime:22.0.0' as DepPath]: {
+        version: '22.0.0',
+        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      },
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    getLatestManifest: getLatestManifestUpToDate,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'up-to-date',
+      version: '1.0.0',
+      dependencies: { node: 'runtime:22.0.0' },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+    registries: { default: 'https://registry.npmjs.org/' },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([])
+})

@@ -5,7 +5,13 @@ import type {
   ProjectManifest,
 } from '@pnpm/types'
 
-const RUNTIME_NAMES = ['node', 'deno', 'bun'] as const
+export const RUNTIME_NAMES = ['node', 'deno', 'bun'] as const
+
+export type RuntimeName = typeof RUNTIME_NAMES[number]
+
+export function isRuntimeAlias (alias: string): alias is RuntimeName {
+  return (RUNTIME_NAMES as readonly string[]).includes(alias)
+}
 
 export function convertEnginesRuntimeToDependencies (
   manifest: ProjectManifest,
