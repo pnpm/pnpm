@@ -64,10 +64,15 @@ export async function resolveFromLocalPath (
   return resolveSpec(spec, opts)
 }
 
-// link:/file:/workspace: dependencies don't have a "latest" — leave them out of
-// outdated reporting. Returning undefined lets the dispatcher try the next
-// resolver (none of which will claim these), so the dep is silently skipped.
-export async function resolveLatestFromLocal (_query: LatestQuery): Promise<LatestInfo | undefined> {
+// link:/file:/workspace: dependencies don't have a "latest" — claim them so
+// the dispatcher stops here. Returning undefined would let downstream
+// resolvers try; in particular, a user-configured named-registry alias
+// called `link`, `file`, or `workspace` could otherwise hijack these.
+export async function resolveLatestFromLocal (query: LatestQuery): Promise<LatestInfo | undefined> {
+  const spec = query.wantedDependency.bareSpecifier
+  if (spec?.startsWith('link:') || spec?.startsWith('file:') || spec?.startsWith('workspace:')) {
+    return {}
+  }
   return undefined
 }
 

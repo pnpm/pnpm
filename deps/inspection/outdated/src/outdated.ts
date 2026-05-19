@@ -137,8 +137,13 @@ export async function outdated (
           const current = currentRef ? displayVersion(currentRef, currentRelative, currentSnapshot?.version) : undefined
           const { latestManifest } = info
 
+          // Compare the parsed `wanted` / `current` rather than raw refs.
+          // For npm-style deps that means peer-graph-only changes (same
+          // semver, different `(peer-hash)`) don't surface as fake
+          // "outdated" entries; for URL/git refs the display values *are*
+          // the refs, so a commit/path change still fires correctly.
           if (latestManifest == null) {
-            if (wantedRef !== currentRef) {
+            if (wanted !== current) {
               outdated.push({
                 alias,
                 belongsTo: depType,
@@ -162,7 +167,7 @@ export async function outdated (
             })
             return
           }
-          if (wantedRef !== currentRef || isLowerVersion(wanted, latestManifest.version) || latestManifest.deprecated) {
+          if (wanted !== current || isLowerVersion(wanted, latestManifest.version) || latestManifest.deprecated) {
             outdated.push({
               alias,
               belongsTo: depType,
@@ -191,20 +196,23 @@ function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
 }
 
-// URL/git-shaped refs change per commit even when the package's self-reported
-// version doesn't, so keep the ref for those — the user needs to see what
-// actually shifted. For everything else, prefer `snapshot.version` (already
-// the clean semver the resolver populated), then the dep-path's parsed
-// version (covers aliased deps where the snapshot doesn't record a version),
-// then the raw ref as a last resort.
+// Pick a clean display string for a lockfile ref.
+//
+//   - If the dep-path parses to a semver, that's the value (handles
+//     `pkg@1.0.0(peer-hash)` and aliased `positive: is-positive@3.1.0`).
+//   - If the dep-path's non-semver version contains a `/`, it's a
+//     URL/git-shape (`https://`, `git+ssh://`, scheme-less `github.com/…/sha`,
+//     `link:../foo`, etc.) — return the raw ref so a commit/path change is
+//     visible to the user.
+//   - Otherwise prefer `snapshot.version` (clean semver for `runtime:`-style
+//     refs); fall back to the raw ref when the snapshot didn't record one.
 function displayVersion (ref: string, relativeDepPath: DepPath | null, snapshotVersion: string | undefined): string {
-  if (/^(?:https?:|git[+:]|github:)/.test(ref)) return ref
-  if (snapshotVersion != null) return snapshotVersion
   if (relativeDepPath != null) {
-    const parsed = dp.parse(relativeDepPath).version
-    if (parsed != null) return parsed
+    const parsed = dp.parse(relativeDepPath)
+    if (parsed.version != null) return parsed.version
+    if (parsed.nonSemverVersion?.includes('/')) return ref
   }
-  return ref
+  return snapshotVersion ?? ref
 }
 
 // semver.lt throws on non-semver strings (e.g. URL refs from git/tarball).
