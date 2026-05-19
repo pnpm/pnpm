@@ -146,15 +146,6 @@ export interface ResolveDependenciesOptions {
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
-  /**
-   * Suppress the per-package `pnpm:progress status:resolved` event the
-   * resolver emits on first resolution. Set when the caller intends to
-   * hand the materialization to a downstream engine (today: pacquet)
-   * that emits its own `pnpm:progress status:resolved` for every
-   * package — without the suppression the default reporter doubles the
-   * resolved counter.
-   */
-  suppressResolveProgress?: boolean
 }
 
 export interface ResolveDependencyTreeResult {
@@ -222,7 +213,6 @@ export async function resolveDependencyTree<T> (
     resolutionMode: opts.resolutionMode,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
-    suppressResolveProgress: opts.suppressResolveProgress === true,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     wantedLockfile: opts.wantedLockfile,
