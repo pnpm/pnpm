@@ -4,7 +4,7 @@
 //! a generic seam declares its own capability traits and its own
 //! `Host` provider; this is the one for `pacquet-config`. Production
 //! callers turbofish the real provider explicitly
-//! (e.g. `Config::current::<Host, _>(...)`); tests substitute a per-test
+//! (e.g. `Config::default().current::<Host>(...)`); tests substitute a per-test
 //! unit struct that implements only the bounds the function actually
 //! declares, with any per-test scenario data stored in a `static`
 //! inside the test fn.
@@ -80,7 +80,7 @@ pub trait GetCurrentDir {
 /// explicit turbofish:
 ///
 /// ```ignore
-/// let config = Config::current::<Host, _>(&dir, Default::default);
+/// let config = Config::default().current::<Host>(&dir);
 /// ```
 ///
 /// Tests substitute their own zero-sized struct that implements only

@@ -893,16 +893,13 @@ impl Config {
     /// `pnpm-workspace.yaml` cannot be read or parsed, matching pnpm's
     /// [`readWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts).
     /// A missing file is not an error.
-    pub fn current<Sys, Default>(
+    pub fn current<Sys>(
+        mut self,
         start_dir: &std::path::Path,
-        default: Default,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
         Sys: EnvVar + EnvVarOs + GetHomeDir,
-        Default: FnOnce() -> Config,
     {
-        let mut config = default();
-
         // Re-anchor the path-valued defaults (`modules_dir`,
         // `virtual_store_dir`) onto the caller-supplied starting directory.
         // SmartDefault populates them via [`defaults::default_modules_dir`] /
@@ -914,8 +911,8 @@ impl Config {
         // to the process-cwd `node_modules`. Matches pnpm 11, whose
         // `modulesDir`/`virtualStoreDir` defaults are resolved against
         // `pnpmConfig.dir`.
-        config.modules_dir = start_dir.join("node_modules");
-        config.virtual_store_dir = start_dir.join("node_modules/.pnpm");
+        self.modules_dir = start_dir.join("node_modules");
+        self.virtual_store_dir = start_dir.join("node_modules/.pnpm");
 
         // Read the nearest .npmrc (start_dir first, home second) and apply
         // only the auth/network subset. Everything else is intentionally
@@ -932,21 +929,21 @@ impl Config {
         let mut npmrc_auth = auth_source
             .map(|text| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text))
             .unwrap_or_default();
-        npmrc_auth.apply_registry_and_warn(&mut config);
+        npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
         // is found — because the env-var fallback in pnpm's
         // [`config/reader/src/index.ts:591-600`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L591-L600)
         // is a normalization step on the resolved config, not a
         // function of `.npmrc` presence.
-        npmrc_auth.apply_proxy_cascade::<Sys>(&mut config);
+        npmrc_auth.apply_proxy_cascade::<Sys>(&mut self);
         // TLS + local-address are sourced from `.npmrc` only — pnpm
         // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
         // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
         // (Node's runtime does, but pnpm's reader does not). When
         // there is no `.npmrc`, `npmrc_auth` is the default value and
         // this is a no-op write of `TlsConfig::default()` onto the
-        // already-default `config.tls`.
-        npmrc_auth.apply_tls_and_local_address(&mut config);
+        // already-default `self.tls`.
+        npmrc_auth.apply_tls_and_local_address(&mut self);
 
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
         // silent. Read or parse failures propagate to the caller.
@@ -1019,12 +1016,12 @@ impl Config {
             // Applied *before* `settings.apply_to` so an explicit
             // `modulesDir` / `virtualStoreDir` in `pnpm-workspace.yaml`
             // still wins.
-            config.modules_dir = base_dir.join("node_modules");
-            config.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+            self.modules_dir = base_dir.join("node_modules");
+            self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
             if let Some(settings) = settings {
                 virtual_store_dir_explicit = settings.virtual_store_dir.is_some();
                 global_virtual_store_dir_explicit = settings.global_virtual_store_dir.is_some();
-                settings.apply_to(&mut config, &base_dir);
+                settings.apply_to(&mut self, &base_dir);
             }
         }
 
@@ -1032,7 +1029,7 @@ impl Config {
         // overridden the `.npmrc` value), build the per-URI auth
         // header lookup so default-registry creds key at the final
         // URL.
-        npmrc_auth.build_auth_headers(&mut config);
+        npmrc_auth.build_auth_headers(&mut self);
 
         // Derive `global_virtual_store_dir` last so it sees the final
         // `store_dir` / `virtual_store_dir` after yaml has been
@@ -1041,12 +1038,12 @@ impl Config {
         // user's pinned `virtualStoreDir` (under GVS-on) or to
         // `<store_dir>/links`. See
         // [`Self::apply_global_virtual_store_derivation`].
-        config.apply_global_virtual_store_derivation(
+        self.apply_global_virtual_store_derivation(
             virtual_store_dir_explicit,
             global_virtual_store_dir_explicit,
         );
 
-        Ok(config)
+        Ok(self)
     }
 
     /// Persist the config data until the program terminates.
@@ -1232,7 +1229,8 @@ mod tests {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join(".npmrc"), "registry=https://cwd.example")
             .expect("write to .npmrc");
-        let config = Config::current::<HostUnreachableHome, _>(tmp.path(), Config::new)
+        let config = Config::new()
+            .current::<HostUnreachableHome>(tmp.path())
             .expect("workspace yaml absent => no error");
         assert_eq!(config.registry, "https://cwd.example/");
     }
@@ -1246,7 +1244,8 @@ mod tests {
         let non_auth_ini = "symlink=false\nlockfile=true\nhoist=false\nnode-linker=hoisted\n";
         fs::write(tmp.path().join(".npmrc"), non_auth_ini).expect("write to .npmrc");
         let defaults = Config::new();
-        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+        let config = Config::new()
+            .current::<HostNoHome>(tmp.path())
             .expect("workspace yaml absent => no error");
         assert_eq!(config.symlink, defaults.symlink);
         assert_eq!(config.lockfile, defaults.lockfile);
@@ -1266,7 +1265,8 @@ mod tests {
         let ini = "fetch-retries=99\nfetch-retry-factor=99\nfetch-retry-mintimeout=99\nfetch-retry-maxtimeout=99\n";
         fs::write(tmp.path().join(".npmrc"), ini).expect("write to .npmrc");
         let defaults = Config::new();
-        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+        let config = Config::new()
+            .current::<HostNoHome>(tmp.path())
             .expect("workspace yaml absent => no error");
         assert_eq!(config.fetch_retries, defaults.fetch_retries);
         assert_eq!(config.fetch_retry_factor, defaults.fetch_retry_factor);
@@ -1279,7 +1279,8 @@ mod tests {
         let tmp = tempdir().unwrap();
         // write invalid utf-8 value to npmrc
         fs::write(tmp.path().join(".npmrc"), b"Hello \xff World").expect("write to .npmrc");
-        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+        let config = Config::new()
+            .current::<HostNoHome>(tmp.path())
             .expect("workspace yaml absent => no error");
         assert!(config.symlink); // default — invalid .npmrc is silently ignored
     }
@@ -1312,7 +1313,8 @@ mod tests {
                 HOME_PATH.get().cloned()
             }
         }
-        let config = Config::current::<HostWithHome, _>(current_dir.path(), Config::new)
+        let config = Config::new()
+            .current::<HostWithHome>(current_dir.path())
             .expect("workspace yaml absent => no error");
         assert_eq!(config.registry, "https://home.example/");
     }
@@ -1327,8 +1329,8 @@ mod tests {
             .expect("write to .npmrc");
         fs::write(tmp.path().join("pnpm-workspace.yaml"), "registry: https://from-yaml.test\n")
             .expect("write to pnpm-workspace.yaml");
-        let config = Config::current::<HostUnreachableHome, _>(tmp.path(), Config::new)
-            .expect("yaml is valid");
+        let config =
+            Config::new().current::<HostUnreachableHome>(tmp.path()).expect("yaml is valid");
         assert_eq!(config.registry, "https://from-yaml.test/");
     }
 
@@ -1341,7 +1343,7 @@ mod tests {
             .expect("write to pnpm-workspace.yaml");
         // No `.npmrc` anywhere, but a parent dir has `pnpm-workspace.yaml` —
         // the yaml should still be applied.
-        let config = Config::current::<HostNoHome, _>(&nested, Config::new).expect("yaml is valid");
+        let config = Config::new().current::<HostNoHome>(&nested).expect("yaml is valid");
         assert!(!config.symlink);
     }
 
@@ -1370,11 +1372,9 @@ mod tests {
                 HOME_PATH.get().cloned()
             }
         }
-        let config = Config::current::<HostWithHome, _>(current_dir.path(), || Config {
-            symlink: false,
-            ..Config::new()
-        })
-        .expect("workspace yaml absent => no error");
+        let config = Config { symlink: false, ..Config::new() }
+            .current::<HostWithHome>(current_dir.path())
+            .expect("workspace yaml absent => no error");
         assert!(!config.symlink);
     }
 
@@ -1394,7 +1394,8 @@ mod tests {
     #[test]
     pub fn gvs_default_is_off_and_paths_derive_cleanly() {
         let tmp = tempdir().unwrap();
-        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+        let config = Config::new()
+            .current::<HostNoHome>(tmp.path())
             .expect("workspace yaml absent => no error");
         assert!(
             !config.enable_global_virtual_store,
@@ -1418,8 +1419,7 @@ mod tests {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
             .expect("write to pnpm-workspace.yaml");
-        let config =
-            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("yaml is valid");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
         assert!(!config.enable_global_virtual_store);
         assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
         assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
@@ -1439,8 +1439,7 @@ mod tests {
             format!("enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n", user_path.display()),
         )
         .expect("write to pnpm-workspace.yaml");
-        let config =
-            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("yaml is valid");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
         assert!(config.enable_global_virtual_store);
         assert_eq!(config.virtual_store_dir, user_path);
         assert_eq!(config.global_virtual_store_dir, user_path);
@@ -1473,8 +1472,7 @@ mod tests {
             ),
         )
         .expect("write to pnpm-workspace.yaml");
-        let config =
-            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("yaml is valid");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
         assert!(config.enable_global_virtual_store);
         // `virtual_store_dir` stays at the project-local default,
         // because the user didn't pin `virtualStoreDir`.
@@ -1525,7 +1523,8 @@ mod tests {
             env::remove_var("npm_config_workspace_dir");
             env::set_var("HTTPS_PROXY", "http://env.example:8080");
         }
-        let config = Config::current::<HostNoHome, _>(tmp.path(), Config::new)
+        let config = Config::new()
+            .current::<HostNoHome>(tmp.path())
             .expect("workspace yaml absent => no error");
         assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://env.example:8080"));
         assert_eq!(
@@ -1545,7 +1544,7 @@ mod tests {
         // `: : :` is rejected by saphyr.
         fs::write(tmp.path().join("pnpm-workspace.yaml"), ": : :\n")
             .expect("write to pnpm-workspace.yaml");
-        let result = Config::current::<HostNoHome, _>(tmp.path(), Config::new);
+        let result = Config::new().current::<HostNoHome>(tmp.path());
         let err = result.expect_err("invalid yaml should error");
         assert!(
             matches!(err, crate::LoadWorkspaceYamlError::ParseYaml { .. }),
@@ -1570,7 +1569,7 @@ mod tests {
         fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
             .expect("write to pnpm-workspace.yaml");
 
-        let config = Config::current::<HostNoHome, _>(&subdir, Config::new).expect("config loads");
+        let config = Config::new().current::<HostNoHome>(&subdir).expect("config loads");
 
         assert_eq!(
             config.modules_dir,
@@ -1596,8 +1595,7 @@ mod tests {
     #[test]
     pub fn single_project_anchors_modules_at_cwd() {
         let tmp = tempdir().unwrap();
-        let config =
-            Config::current::<HostNoHome, _>(tmp.path(), Config::new).expect("config loads");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
         assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
         assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
     }
@@ -1639,8 +1637,8 @@ mod tests {
             }
         }
 
-        let config = Config::current::<HostWithEnvWorkspaceDir, _>(cwd_dir.path(), Config::new)
-            .expect("config loads");
+        let config =
+            Config::new().current::<HostWithEnvWorkspaceDir>(cwd_dir.path()).expect("config loads");
         assert_eq!(
             config.modules_dir,
             env_workspace.path().join("node_modules"),
@@ -1682,7 +1680,8 @@ mod tests {
             }
         }
         let tmp = tempdir().unwrap();
-        let config = Config::current::<HostWithEmptyEnvWorkspaceDir, _>(tmp.path(), Config::new)
+        let config = Config::new()
+            .current::<HostWithEmptyEnvWorkspaceDir>(tmp.path())
             .expect("config loads");
         // No yaml in tmp → no re-anchor → cwd-anchored defaults.
         assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
