@@ -52,10 +52,26 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
     const rl = readline.createInterface({ input: child.stderr!, crlfDelay: Infinity })
     rl.on('line', (line) => {
       if (!line) return
+      let parsed: unknown
       try {
-        JSON.parse(line)
+        parsed = JSON.parse(line)
       } catch {
         process.stderr.write(`${line}\n`)
+        return
+      }
+      // Drop pacquet's `pnpm:progress status:resolved` events. Pnpm's
+      // resolver already emitted one `resolved` event per package
+      // during the lockfileOnly resolve pass that runs ahead of
+      // pacquet; both share the same `requester` (the lockfile dir),
+      // so forwarding pacquet's would double the reporter's resolved
+      // counter. The other status values (`fetched`,
+      // `found_in_store`, `imported`) are pacquet-only and pass
+      // through.
+      if (
+        typeof parsed === 'object' && parsed !== null &&
+        (parsed as { name?: string }).name === 'pnpm:progress' &&
+        (parsed as { status?: string }).status === 'resolved'
+      ) {
         return
       }
       streamParserWritable.write(`${line}\n`)
