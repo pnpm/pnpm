@@ -11,9 +11,7 @@ pub struct CliArgs {
     #[clap(long, short = 'p', default_value_t = 4873)]
     pub registry_port: u16,
 
-    /// Automatically launch verdaccio if local registry doesn't response.
-    /// Equivalent to `--registry=verdaccio`. Kept for back-compat with the
-    /// existing CI invocation; overrides `--registry` when both are passed.
+    /// Equivalent to `--registry=verdaccio`. Overrides `--registry` when both are passed.
     #[clap(long, short = 'V')]
     pub verdaccio: bool,
 
@@ -25,10 +23,7 @@ pub struct CliArgs {
     #[clap(long, short = 'R', default_value = ".")]
     pub repository: PathBuf,
 
-    /// Path to the git repository of pnpm. Required only when one of the
-    /// benchmarked targets is `pnpm@<rev>`. Defaults to the same value as
-    /// `--repository` so a monorepo checkout containing both works
-    /// out of the box.
+    /// Path to pnpm's git repository. Required when a target is `pnpm@<rev>`. Defaults to `--repository`.
     #[clap(long)]
     pub pnpm_repository: Option<PathBuf>,
 
@@ -44,8 +39,7 @@ pub struct CliArgs {
     #[clap(long, short, default_value = "bench-work-env")]
     pub work_env: PathBuf,
 
-    /// Benchmark against a system-installed pnpm in addition to the
-    /// specified targets.
+    /// Also benchmark the system-installed pnpm.
     #[clap(long)]
     pub with_pnpm: bool,
 
@@ -53,12 +47,7 @@ pub struct CliArgs {
     #[clap(long)]
     pub build_only: bool,
 
-    /// Targets to benchmark. Each entry is a revision spec:
-    ///
-    /// - `<rev>` or `pacquet@<rev>`: a pacquet revision (branch, tag, or
-    ///   commit id of the pacquet repo).
-    /// - `pnpm@<rev>`: a pnpm revision (branch, tag, or commit id of the
-    ///   pnpm repo).
+    /// Targets to benchmark. Each is `<rev>` (= `pacquet@<rev>`), `pacquet@<rev>`, or `pnpm@<rev>`.
     #[clap(required = true)]
     pub targets: Vec<TargetSpec>,
 }
@@ -111,45 +100,36 @@ impl FromStr for TargetSpec {
 /// Where the installs fetch packages from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum RegistryMode {
-    /// Spawn (or expect a running) verdaccio on the configured port,
-    /// proxying npmjs.com with an on-disk cache.
+    /// Spawn or attach to a local verdaccio proxy of npmjs.com.
     Verdaccio,
-    /// Hit `https://registry.npmjs.org/` directly. No proxy.
+    /// Hit `registry.npmjs.org` directly. No proxy.
     Npm,
-    /// Assume an external mock/virtual registry is already running on
-    /// the configured `--registry-port`.
+    /// Assume an external mock registry on `--registry-port`.
     Virtual,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum BenchmarkScenario {
-    /// Benchmark clean install without lockfile and without local cache.
+    /// Clean install: no lockfile, cold cache.
     CleanInstall,
-    /// Benchmark install with a frozen lockfile and without local cache.
+    /// Frozen lockfile, cold cache.
     FrozenLockfile,
-    /// Benchmark install with a frozen lockfile and a warm local store.
+    /// Frozen lockfile, warm cache.
     FrozenLockfileHotCache,
-    /// Benchmark re-resolution: add a new dep to a project with an
-    /// existing lockfile, warm store and cache. Pnpm-only.
+    /// Re-resolution: add a dep to an existing lockfile, warm cache. Pnpm-only.
     Peek,
-    /// Benchmark full resolution without a lockfile, warm store and
-    /// cache. Pnpm-only.
+    /// Full resolution without a lockfile, warm cache. Pnpm-only.
     FullResolution,
-    /// Benchmark GVS warm reinstall: frozen lockfile, warm global
-    /// virtual store. Pnpm-only.
+    /// GVS warm reinstall: frozen lockfile, warm GVS. Pnpm-only.
     GvsWarm,
 }
 
-/// Per-iteration cleanup applied by hyperfine's `--prepare` before each
-/// timed (and warmup) run.
+/// Per-iteration cleanup applied by hyperfine's `--prepare`.
 pub struct Cleanup {
-    /// Paths inside the bench dir to `rm -rf` before each iteration.
+    /// Paths in the bench dir to `rm -rf` before each iteration.
     pub remove: &'static [&'static str],
-    /// Files inside the bench dir to overwrite with a saved copy before
-    /// each iteration. Pairs of (destination, source); both are paths
-    /// relative to the bench dir. Use this when the benchmarked
-    /// command mutates `pnpm-lock.yaml` or `package.json` and the
-    /// next iteration needs the pristine version.
+    /// `(dst, src)` pairs (relative to the bench dir) to `cp` before
+    /// each iteration — restores files the install mutates.
     pub restore: &'static [(&'static str, &'static str)],
 }
 
