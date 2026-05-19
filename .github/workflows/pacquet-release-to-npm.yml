@@ -166,7 +166,7 @@ jobs:
         run: |
           node pacquet/npm/pacquet/scripts/generate-packages.mjs
           cat pacquet/npm/pacquet/package.json
-          for package in pacquet/npm/pacquet*; do cat $package/package.json ; echo ; done
+          for package in pacquet/npm/pacquet* pacquet/npm/pnpm-pacquet; do cat $package/package.json ; echo ; done
 
       - name: Publish npm packages as latest
         # Auth is via npm's trusted publishing: `id-token: write` above grants
@@ -174,7 +174,12 @@ jobs:
         # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
         # token to a provenance attestation on each tarball.
         # The trailing slash on $package/ changes it to publishing the directory.
+        # `pnpm-pacquet` is the `@pnpm/pacquet` scoped alias mirror —
+        # same shim and same `@pacquet/<plat>-<arch>` optional deps as the
+        # unscoped `pacquet`. Published alongside so users can adopt
+        # either name; the per-platform binary sub-packages stay under
+        # the `@pacquet/` scope (no need to mirror those).
         run: |
-          for package in pacquet/npm/pacquet*; do
+          for package in pacquet/npm/pacquet* pacquet/npm/pnpm-pacquet; do
             pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
           done

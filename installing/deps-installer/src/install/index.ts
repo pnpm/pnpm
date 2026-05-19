@@ -361,25 +361,49 @@ export async function mutateModules (
   // resolver's own filters already cover fresh resolution. We run this
   // exactly once, right after the lockfile is loaded from disk, before any
   // path branches.
-  const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
-  const wantedLockfilePath = cacheActive
-    ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    }))
-    : undefined
-  try {
-    await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-      cacheDir: opts.cacheDir,
-      lockfilePath: wantedLockfilePath,
-    })
-  } catch (err) {
-    // verifyLockfileResolutions is the one throw site in this function
-    // that's part of normal user-facing operation (a rejected lockfile);
-    // other throws here are unexpected. Detach the reporter listener so
-    // long-lived processes don't leak it on every rejected install.
-    detachReporter()
-    throw err
+  //
+  // Skipped when we already know pacquet will run the install: pacquet's
+  // frozen-install path applies the same resolver-policy gate (port of
+  // this function), so re-running here would duplicate the work — and
+  // for `minimumReleaseAge` in strict mode each lockfile entry is an
+  // HTTP probe.
+  //
+  // The predicate mirrors every short-circuit `tryFrozenInstall` checks
+  // before reaching the pacquet branch: anything that would make it
+  // return null, throw, or fall through to the JS path must keep
+  // verification on. The optimistic `preferFrozenLockfile` path decides
+  // whether to delegate later (based on `allProjectsAreUpToDate`), which
+  // isn't known here — so verification still runs in that window, the
+  // duplicate is bounded to it.
+  const willDelegateToPacquet = opts.runPacquet != null &&
+    installsOnly &&
+    !opts.lockfileOnly &&
+    !opts.fixLockfile &&
+    !opts.dedupe &&
+    !ctx.lockfileHadConflicts &&
+    ctx.existsNonEmptyWantedLockfile &&
+    (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)
+  if (!willDelegateToPacquet) {
+    const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
+    const wantedLockfilePath = cacheActive
+      ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
+        useGitBranchLockfile: opts.useGitBranchLockfile,
+        mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      }))
+      : undefined
+    try {
+      await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
+        cacheDir: opts.cacheDir,
+        lockfilePath: wantedLockfilePath,
+      })
+    } catch (err) {
+      // verifyLockfileResolutions is the one throw site in this function
+      // that's part of normal user-facing operation (a rejected lockfile);
+      // other throws here are unexpected. Detach the reporter listener so
+      // long-lived processes don't leak it on every rejected install.
+      detachReporter()
+      throw err
+    }
   }
 
   if (opts.hooks.preResolution) {
@@ -958,6 +982,27 @@ Note that in CI environments, this setting is enabled by default.`,
       logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
+    }
+    if (opts.runPacquet != null) {
+      try {
+        await opts.runPacquet()
+      } catch (err) {
+        // Same reasoning as the verifyLockfileResolutions catch above: this
+        // is the user-facing failure path, so detach the reporter listener
+        // before rethrowing so long-lived processes don't leak it.
+        detachReporter()
+        throw err
+      }
+      return {
+        updatedProjects: projects.map((mutatedProject) => {
+          const project = ctx.projects[mutatedProject.rootDir]
+          return {
+            ...project,
+            manifest: project.originalManifest ?? project.manifest,
+          }
+        }),
+        ignoredBuilds: undefined,
+      }
     }
     try {
       const { stats, ignoredBuilds } = await headlessInstall({
@@ -1737,8 +1782,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
     }
 
-    if (opts.nodeLinker !== 'hoisted') {
-      // This is only needed because otherwise the reporter will hang
+    if (opts.nodeLinker !== 'hoisted' && opts.runPacquet == null) {
+      // This is only needed because otherwise the reporter will hang.
+      // Skipped when pacquet is about to take over the materialization
+      // phase: the default reporter completes the progress stream for
+      // this prefix on `importing_done`, so emitting it from the
+      // lockfileOnly resolve pass would prematurely close the stream
+      // and pacquet's own `importing_started` / progress events would
+      // render to a stale stream. Pacquet emits its own
+      // `importing_done` after the install, which closes the stream
+      // normally.
       stageLogger.debug({
         prefix: opts.lockfileDir,
         stage: 'importing_done',
@@ -1764,7 +1817,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     rules: opts.peerDependencyRules,
   })
 
-  if (!opts.omitSummaryLog) {
+  // Skipped when pacquet will take over the materialization. The
+  // default reporter's `reportSummary` `take(1)`s the first summary
+  // event and combines it with whatever `pkgsDiff` it has at that
+  // moment — which is empty here, since pacquet hasn't emitted its
+  // per-direct-dep `pnpm:root` events yet. Letting pnpm fire summary
+  // now would lock in an empty diff. Pacquet emits its own
+  // `pnpm:summary` after the install completes, by which point its
+  // root events have populated the diff.
+  if (!opts.omitSummaryLog && opts.runPacquet == null) {
     summaryLogger.debug({ prefix: opts.lockfileDir })
   }
 
@@ -1793,6 +1854,37 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
   return projects.every((project) => project.mutation === 'install' && !project.update && !project.updateMatching)
+}
+
+/**
+ * Run the pacquet binary if it's configured, otherwise run the JS
+ * `headlessInstall`. Callers can hand off any code path that materializes
+ * an already-resolved lockfile (workspace partial install, hoisted
+ * linker, agent-server install, frozen install) without restating the
+ * delegation choice.
+ *
+ * Pacquet reads the wanted lockfile from disk and produces its own
+ * `pnpm:stats` / `pnpm:ignored-scripts` log events that drive the
+ * reporter. The structured stats / ignoredBuilds return values that
+ * `headlessInstall` produces aren't recovered here — pacquet doesn't
+ * surface them through any return path — so callers get `undefined` for
+ * both. `mutateModules` already tolerates that (it falls back to a zero
+ * stats record and a no-op ignoredBuilds iteration).
+ */
+async function materializeOrDelegate (
+  opts: { runPacquet?: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> },
+  runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>
+): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
+  if (opts.runPacquet != null) {
+    // Reached only from the resolve-then-materialize call sites
+    // (workspace-partial, hoisted-linker, agent install). Each ran a
+    // lockfileOnly resolve pass that emitted one
+    // `pnpm:progress status:resolved` per package, so pacquet's
+    // duplicate `resolved` events would double the reporter's count.
+    await opts.runPacquet({ filterResolvedProgress: true })
+    return {}
+  }
+  return runHeadlessInstall()
 }
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
@@ -1831,7 +1923,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           ...opts,
           lockfileOnly: true,
         })
-        const { stats, ignoredBuilds } = await headlessInstall({
+        const { stats, ignoredBuilds } = await materializeOrDelegate(opts, () => headlessInstall({
           ...ctx,
           ...opts,
           currentEngine: {
@@ -1845,7 +1937,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           wantedLockfile: result.newLockfile,
           useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
           hoistWorkspacePackages: opts.hoistWorkspacePackages,
-        })
+        }))
         return {
           ...result,
           stats,
@@ -1858,7 +1950,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...opts,
         lockfileOnly: true,
       })
-      const { stats, ignoredBuilds } = await headlessInstall({
+      const { stats, ignoredBuilds } = await materializeOrDelegate(opts, () => headlessInstall({
         ...ctx,
         ...opts,
         currentEngine: {
@@ -1872,12 +1964,28 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedLockfile: result.newLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
-      })
+      }))
       return {
         ...result,
         stats,
         ignoredBuilds,
       }
+    }
+    // Isolated `nodeLinker` (the default) with a non-frozen install:
+    // pacquet doesn't ship a resolver yet, so split the install in two —
+    // ask `_installInContext` for a `lockfileOnly` resolve pass (writes
+    // `pnpm-lock.yaml`), then hand the freshly-written lockfile to
+    // pacquet for the fetch / import / link / build phases. The frozen
+    // branch is handled earlier in `tryFrozenInstall`; the hoisted
+    // branch above already runs the same resolve-then-materialize
+    // sequence (it had to even before pacquet existed). When no pacquet
+    // is configured this falls through to the full single-pass install.
+    if (opts.runPacquet != null && !opts.lockfileOnly) {
+      const result = await _installInContext(projects, ctx, { ...opts, lockfileOnly: true })
+      // The resolve pass above emitted a `pnpm:progress status:resolved`
+      // per package; ask pacquet to drop its own duplicates.
+      await opts.runPacquet({ filterResolvedProgress: true })
+      return result
     }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line
@@ -2370,14 +2478,21 @@ async function installFromPnpmRegistry (
       skipped: new Set<DepPath>(),
       wantedLockfile: lockfile,
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { ignoredBuilds, stats } = await headlessInstall(headlessOpts as any)
+    const { ignoredBuilds, stats } = await materializeOrDelegate(
+      opts,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => headlessInstall(headlessOpts as any)
+    )
 
     return {
       updatedCatalogs: undefined,
       updatedManifest: manifest,
       ignoredBuilds,
-      stats,
+      // Pacquet doesn't surface a structured stats return; default to
+      // zeros so the agent-path's non-optional `stats` slot is filled.
+      // The reporter still renders accurate counts from pacquet's
+      // `pnpm:stats` log events.
+      stats: stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
       lockfile,
       // Server-side resolution (pnpm agent) enforces `minimumReleaseAge`
       // itself — the agent picks only mature versions and the lockfile
