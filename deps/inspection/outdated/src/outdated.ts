@@ -21,6 +21,7 @@ import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,
+  type DepPath,
   type IncludedDependencies,
   type PackageManifest,
   type PackageVersionPolicy,
@@ -132,8 +133,8 @@ export async function outdated (
           )
           if (info == null) return // resolver doesn't claim this dep — skip silently
 
-          const wanted = displayVersion(wantedRef, wantedSnapshot?.version)
-          const current = currentRef ? displayVersion(currentRef, currentSnapshot?.version) : undefined
+          const wanted = displayVersion(wantedRef, wantedRelative, wantedSnapshot?.version)
+          const current = currentRef ? displayVersion(currentRef, currentRelative, currentSnapshot?.version) : undefined
           const { latestManifest } = info
 
           if (latestManifest == null) {
@@ -190,14 +191,20 @@ function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
 }
 
-// URL-shaped refs (git tarball, plain tarball) change per commit even when
-// the package's self-reported version doesn't, so keep the ref for those.
-// For everything else, `snapshot.version` is the clean semver each resolver
-// already populated — falls back to the raw ref if the snapshot didn't
-// record one (e.g. corrupted or partial lockfile).
-function displayVersion (ref: string, snapshotVersion: string | undefined): string {
-  if (/^https?:/.test(ref)) return ref
-  return snapshotVersion ?? ref
+// URL/git-shaped refs change per commit even when the package's self-reported
+// version doesn't, so keep the ref for those — the user needs to see what
+// actually shifted. For everything else, prefer `snapshot.version` (already
+// the clean semver the resolver populated), then the dep-path's parsed
+// version (covers aliased deps where the snapshot doesn't record a version),
+// then the raw ref as a last resort.
+function displayVersion (ref: string, relativeDepPath: DepPath | null, snapshotVersion: string | undefined): string {
+  if (/^(?:https?:|git[+:]|github:)/.test(ref)) return ref
+  if (snapshotVersion != null) return snapshotVersion
+  if (relativeDepPath != null) {
+    const parsed = dp.parse(relativeDepPath).version
+    if (parsed != null) return parsed
+  }
+  return ref
 }
 
 // semver.lt throws on non-semver strings (e.g. URL refs from git/tarball).

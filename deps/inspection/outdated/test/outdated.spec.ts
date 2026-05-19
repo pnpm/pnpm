@@ -7,9 +7,6 @@ import { outdated } from '../lib/outdated.js'
 
 type ManifestGetter = (packageName: string) => Promise<PackageManifest | null>
 
-// Test stand-in for the real protocol dispatcher (default-resolver's outdated
-// composition). Mirrors the protocol routing so tests can keep mocking
-// "what does the registry say is latest?" without booting a real resolver.
 // Test stand-in for the real dispatcher: route by protocol shape, look up
 // "latest" through the per-test mock. Resolvers for non-latest protocols
 // (git, tarball) return `{}` to claim the dep with no latest available;
@@ -17,7 +14,7 @@ type ManifestGetter = (packageName: string) => Promise<PackageManifest | null>
 function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher {
   return async (query) => {
     const { alias, bareSpecifier } = query.wantedDependency
-    if (bareSpecifier?.startsWith('file:') || bareSpecifier?.startsWith('link:')) {
+    if (bareSpecifier?.startsWith('file:') || bareSpecifier?.startsWith('link:') || bareSpecifier?.startsWith('workspace:')) {
       return undefined
     }
     if (bareSpecifier?.startsWith('runtime:') && (alias === 'node' || alias === 'bun' || alias === 'deno')) {

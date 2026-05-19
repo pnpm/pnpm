@@ -157,7 +157,7 @@ export function createResolver (
       return resolution
     },
     resolveLatest: async (query, opts) => {
-      return (await resolveLatestFromNpm(query, opts)) ??
+      const info = (await resolveLatestFromNpm(query, opts)) ??
         (await resolveLatestFromJsr(query, opts)) ??
         (await resolveLatestFromGit(query)) ??
         (await resolveLatestFromTarball(query)) ??
@@ -165,7 +165,8 @@ export function createResolver (
         (await _resolveLatestNodeRuntime(query)) ??
         (await _resolveLatestDenoRuntime(query)) ??
         (await _resolveLatestBunRuntime(query)) ??
-        resolveLatestFromNamedRegistry(query, opts)
+        (await resolveLatestFromNamedRegistry(query, opts))
+      return info
     },
     clearCache,
   }
