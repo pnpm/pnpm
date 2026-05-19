@@ -145,7 +145,11 @@ function extractBundledDependencies (manifest: ExportedManifest): string[] {
   return []
 }
 
-async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
+/**
+ * @internal Exported for unit testing of the access / registry / auth fallback rules. Not part of the package's
+ *   public API.
+ */
+export async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
   const publishConfigRegistry = typeof manifest.publishConfig?.registry === 'string'
     ? manifest.publishConfig.registry
     : undefined
