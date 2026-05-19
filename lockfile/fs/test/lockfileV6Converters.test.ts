@@ -104,6 +104,12 @@ test('convertToLockfileObject() reconstructs a dropped directory resolution for 
     snapshots: {
       'dir@file:packages/dir(peer@1.0.0)': {},
       'tar@file:vendor/tar-1.0.0.tgz(peer@1.0.0)': {},
+      // Uppercase tarball extensions must be treated as tarballs too — the
+      // resolver in resolving/local-resolver/src/parseBareSpecifier.ts
+      // matches /\.(?:tgz|tar.gz|tar)$/i, so the boundary applied here at
+      // load time has to be case-insensitive in lockstep.
+      'upper@file:vendor/upper-1.0.0.TGZ(peer@1.0.0)': {},
+      'mixed@file:vendor/mixed-1.0.0.Tar.Gz(peer@1.0.0)': {},
     },
   }
   const lockfile = convertToLockfileObject(prunedLockfileV6)
@@ -114,6 +120,8 @@ test('convertToLockfileObject() reconstructs a dropped directory resolution for 
   })
   // `file:` tarball ref → must NOT be turned into a directory resolution.
   expect(lockfile.packages?.['tar@file:vendor/tar-1.0.0.tgz(peer@1.0.0)' as DepPath]?.resolution).toBeUndefined()
+  expect(lockfile.packages?.['upper@file:vendor/upper-1.0.0.TGZ(peer@1.0.0)' as DepPath]?.resolution).toBeUndefined()
+  expect(lockfile.packages?.['mixed@file:vendor/mixed-1.0.0.Tar.Gz(peer@1.0.0)' as DepPath]?.resolution).toBeUndefined()
 })
 
 test('convertToLockfileFile() with lockfile v6', () => {

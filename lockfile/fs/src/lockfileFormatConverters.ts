@@ -138,6 +138,11 @@ function pruneTimeInLockfile (time: Record<string, string>, importers: Record<st
   return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
 }
 
+// Mirrors `isFilename` in `resolving/local-resolver/src/parseBareSpecifier.ts`
+// so the directory-vs-tarball boundary applied at lockfile load time
+// matches the resolver's at resolve time.
+const LOCAL_TARBALL_RE = /\.(?:tgz|tar\.gz|tar)$/i
+
 export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject {
   const { importers, ...rest } = lockfile
 
@@ -145,22 +150,15 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
     const pkgId = removeSuffix(depPath)
     const snapshot = Object.assign(pkg, lockfile.packages?.[pkgId])
-    // Peer-variant snapshots (`pkg@file:packages/pkg(peer@1)`) inherit
-    // `resolution` from their base `packages:` entry, merged above via
-    // pkgId. If a pruned lockfile dropped that base entry (older
-    // `turbo prune --docker` — fixed upstream in vercel/turborepo#12825),
-    // synthesize the directory resolution from the `file:` depPath: this
-    // is exactly what pnpm's own writer emits for an injected workspace
-    // dep, so it's reconstruction, not a guess. Doing it here — the single
-    // load-time normalization point — means every downstream reader sees a
-    // complete snapshot (no per-reader guards needed).
+    // Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
+    // pre vercel/turborepo#12825): a peer-variant injected workspace
+    // snapshot whose base `packages:` entry was dropped now has a null
+    // `resolution`. Reconstruct it from the `file:` depPath — same value
+    // pnpm's writer emits — so every downstream reader sees a complete
+    // snapshot without per-reader guards.
     if (snapshot.resolution == null) {
       const ref = parse(depPath).nonSemverVersion
-      // Local-directory file: only — never a local tarball
-      // (file:*.tgz/.tar/.tar.gz reach a different code path and must not
-      // get a directory resolution synthesized).
-      if (ref != null && ref.startsWith('file:') &&
-        !(ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))) {
+      if (ref != null && ref.startsWith('file:') && !LOCAL_TARBALL_RE.test(ref)) {
         snapshot.resolution = { directory: ref.slice('file:'.length), type: 'directory' }
       }
     }
