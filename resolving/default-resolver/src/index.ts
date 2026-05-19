@@ -1,12 +1,12 @@
-import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
-import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
-import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
+import { type BunRuntimeResolveResult, resolveBunRuntime, resolveLatestBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
+import { type DenoRuntimeResolveResult, resolveDenoRuntime, resolveLatestDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
+import { type NodeRuntimeResolveResult, resolveLatestNodeRuntime, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
-import { type LocalResolveResult, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
+import { createGitResolver, type GitResolveResult, resolveLatestFromGit } from '@pnpm/resolving.git-resolver'
+import { type LocalResolveResult, resolveFromLocalPath, resolveFromLocalScheme, resolveLatestFromLocal } from '@pnpm/resolving.local-resolver'
 import {
   createNpmResolutionVerifier,
   type CreateNpmResolutionVerifierOptions,
@@ -21,13 +21,15 @@ import {
   type WorkspaceResolveResult,
 } from '@pnpm/resolving.npm-resolver'
 import type {
+  LatestInfo,
+  LatestQuery,
   ResolutionVerifier,
   ResolveFunction,
   ResolveOptions,
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolving.resolver-base'
-import { resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
+import { resolveFromTarball, resolveLatestFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
 import type { RegistryConfig } from '@pnpm/types'
 
 export type {
@@ -90,6 +92,8 @@ async function resolveFromCustomResolvers (
   return null
 }
 
+export type ResolveLatestDispatcher = (query: LatestQuery, opts: ResolveOptions) => Promise<LatestInfo | undefined>
+
 export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
@@ -97,8 +101,16 @@ export function createResolver (
     nodeDownloadMirrors?: Record<string, string>
     customResolvers?: CustomResolver[]
   }
-): { resolve: DefaultResolver, clearCache: () => void } {
-  const { resolveFromNpm, resolveFromJsr, resolveFromNamedRegistry, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
+): { resolve: DefaultResolver, resolveLatest: ResolveLatestDispatcher, clearCache: () => void } {
+  const {
+    resolveFromNpm,
+    resolveFromJsr,
+    resolveFromNamedRegistry,
+    resolveLatestFromNpm,
+    resolveLatestFromJsr,
+    resolveLatestFromNamedRegistry,
+    clearCache,
+  } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
   const localCtx = { preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths }
   const _resolveFromLocalScheme = resolveFromLocalScheme.bind(null, localCtx)
@@ -106,6 +118,9 @@ export function createResolver (
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
+  const _resolveLatestNodeRuntime = resolveLatestNodeRuntime.bind(null, { fetchFromRegistry, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
+  const _resolveLatestDenoRuntime = resolveLatestDenoRuntime.bind(null, { resolveFromNpm })
+  const _resolveLatestBunRuntime = resolveLatestBunRuntime.bind(null, { resolveFromNpm })
   const _resolveFromCustomResolvers = pnpmOpts.customResolvers
     ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
     : null
@@ -140,6 +155,18 @@ export function createResolver (
           `${specifier} isn't supported by any available resolver.`)
       }
       return resolution
+    },
+    resolveLatest: async (query, opts) => {
+      const info = (await resolveLatestFromNpm(query, opts)) ??
+        (await resolveLatestFromJsr(query, opts)) ??
+        (await resolveLatestFromGit(query)) ??
+        (await resolveLatestFromTarball(query)) ??
+        (await resolveLatestFromLocal(query)) ??
+        (await _resolveLatestNodeRuntime(query, opts)) ??
+        (await _resolveLatestDenoRuntime(query, opts)) ??
+        (await _resolveLatestBunRuntime(query, opts)) ??
+        (await resolveLatestFromNamedRegistry(query, opts))
+      return info
     },
     clearCache,
   }

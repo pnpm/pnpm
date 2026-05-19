@@ -1,5 +1,5 @@
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
-import type { PkgResolutionId, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { LatestInfo, LatestQuery, PkgResolutionId, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 
 export interface TarballResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
@@ -35,4 +35,13 @@ export async function resolveFromTarball (
     },
     resolvedVia: 'url',
   }
+}
+
+// URL tarballs lock to the exact URL — no concept of "latest". Claim the dep
+// so the dispatcher stops; the caller still surfaces a ref-mismatch report
+// if the lockfile points at a different URL than before.
+export async function resolveLatestFromTarball (query: LatestQuery): Promise<LatestInfo | undefined> {
+  const bareSpecifier = query.wantedDependency.bareSpecifier
+  if (!bareSpecifier?.startsWith('http:') && !bareSpecifier?.startsWith('https:')) return undefined
+  return {}
 }

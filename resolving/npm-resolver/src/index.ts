@@ -10,10 +10,13 @@ import type {
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
+  LatestInfo,
+  LatestQuery,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
   ResolutionPolicyViolation,
+  ResolveOptions,
   ResolveResult,
   TarballResolution,
   WantedDependency,
@@ -181,11 +184,24 @@ export type NpmResolver = (
   opts: ResolveFromNpmOptions
 ) => Promise<NpmResolveResult | JsrResolveResult | NamedRegistryResolveResult | WorkspaceResolveResult | null>
 
+export type ResolveLatestFromNpmStyle = (
+  query: LatestQuery,
+  opts: ResolveOptions
+) => Promise<LatestInfo | undefined>
+
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): { resolveFromNpm: NpmResolver, resolveFromJsr: NpmResolver, resolveFromNamedRegistry: NpmResolver, clearCache: () => void } {
+): {
+  resolveFromNpm: NpmResolver
+  resolveFromJsr: NpmResolver
+  resolveFromNamedRegistry: NpmResolver
+  resolveLatestFromNpm: ResolveLatestFromNpmStyle
+  resolveLatestFromJsr: ResolveLatestFromNpmStyle
+  resolveLatestFromNamedRegistry: ResolveLatestFromNpmStyle
+  clearCache: () => void
+} {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -250,16 +266,89 @@ export function createNpmResolver (
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
   }
+  const boundResolveFromNpm = resolveNpm.bind(null, ctx)
+  const boundResolveFromJsr = resolveJsr.bind(null, ctx)
+  const boundResolveFromNamedRegistry = resolveFromNamedRegistry.bind(null, ctx)
+  const defaultRegistry = opts.registries.default
   return {
-    resolveFromNpm: resolveNpm.bind(null, ctx),
-    resolveFromJsr: resolveJsr.bind(null, ctx),
-    resolveFromNamedRegistry: resolveFromNamedRegistry.bind(null, ctx),
+    resolveFromNpm: boundResolveFromNpm,
+    resolveFromJsr: boundResolveFromJsr,
+    resolveFromNamedRegistry: boundResolveFromNamedRegistry,
+    resolveLatestFromNpm: createResolveLatest(boundResolveFromNpm,
+      (query) => isNpmSpec(query, defaultRegistry)),
+    resolveLatestFromJsr: createResolveLatest(boundResolveFromJsr, isJsrSpec),
+    resolveLatestFromNamedRegistry: createResolveLatest(boundResolveFromNamedRegistry,
+      (query) => isNamedRegistrySpec(query, ctx.namedRegistryNames)),
     clearCache: () => {
       if ('clear' in metaCache && typeof metaCache.clear === 'function') {
         metaCache.clear()
       }
       pMemoizeClear(fetch)
     },
+  }
+}
+
+function isNpmSpec (query: LatestQuery, defaultRegistry: string): boolean {
+  const { alias, bareSpecifier } = query.wantedDependency
+  if (!bareSpecifier) return alias != null
+  return parseBareSpecifier(bareSpecifier, alias, 'latest', defaultRegistry) != null
+}
+
+function isJsrSpec (query: LatestQuery): boolean {
+  if (!query.wantedDependency.bareSpecifier?.startsWith('jsr:')) return false
+  return parseJsrSpecifierToRegistryPackageSpec(
+    query.wantedDependency.bareSpecifier,
+    query.wantedDependency.alias,
+    'latest'
+  ) != null
+}
+
+function isNamedRegistrySpec (
+  query: LatestQuery,
+  knownRegistryNames: ReadonlySet<string>
+): boolean {
+  if (!query.wantedDependency.bareSpecifier) return false
+  try {
+    return parseNamedRegistrySpecifierToRegistryPackageSpec(
+      query.wantedDependency.bareSpecifier,
+      knownRegistryNames,
+      query.wantedDependency.alias,
+      'latest'
+    ) != null
+  } catch {
+    return false
+  }
+}
+
+function createResolveLatest (
+  resolve: NpmResolver,
+  matches: (query: LatestQuery) => boolean
+) {
+  return async (query: LatestQuery, opts: ResolveOptions): Promise<LatestInfo | undefined> => {
+    if (!matches(query)) return undefined
+    // Always pass the manifest's bareSpecifier so protocol-prefixed specs
+    // (`jsr:@scope/pkg@^1.0.0`, `gh:owner/repo@^1.0.0`) still match their
+    // resolver. In --compatible mode that range drives the pick; otherwise
+    // `update: 'latest'` tells the resolver to ignore the range and take
+    // the absolute newest.
+    const bareSpecifier = query.wantedDependency.bareSpecifier ?? 'latest'
+    const resolveOpts = query.compatible ? opts : { ...opts, update: 'latest' as const }
+    try {
+      const result = await resolve(
+        { alias: query.wantedDependency.alias, bareSpecifier },
+        resolveOpts
+      )
+      // Policy-blocked: handled but no latest to surface.
+      if (result?.policyViolation?.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
+        return {}
+      }
+      return { latestManifest: result?.manifest }
+    } catch (err) {
+      if (opts.publishedBy && (err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION') {
+        return {}
+      }
+      throw err
+    }
   }
 }
 
