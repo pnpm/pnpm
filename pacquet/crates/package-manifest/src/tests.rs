@@ -7,8 +7,10 @@ use tempfile::{NamedTempFile, tempdir};
 
 use super::{
     BundleDependencies, PackageManifest, PackageManifestError,
-    convert_engines_runtime_to_dependencies, safe_read_package_json_from_dir,
+    convert_engines_runtime_to_dependencies,
 };
+#[cfg(unix)]
+use super::safe_read_package_json_from_dir;
 use crate::DependencyGroup;
 use serde_json::json;
 use std::io::Write;
