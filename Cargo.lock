@@ -2038,6 +2038,7 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "smart-default",
  "tempfile",
  "tracing",
