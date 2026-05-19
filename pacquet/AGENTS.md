@@ -172,8 +172,8 @@ by crate or name — see below).
 - `just ready` — run the same checks CI runs (typos, fmt, check, test, lint).
   Run this before declaring a task complete.
 - `just test` — `cargo nextest run`.
-- `just lint` — `cargo clippy --locked -- --deny warnings`.
-- `just check` — `cargo check --locked`.
+- `just lint` — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
+- `just check` — `cargo check --locked --workspace --all-targets`.
 - `just fmt` — `cargo fmt` + `taplo format`.
 - `just cli -- <args>` — run the pacquet binary.
 - `just registry-mock <args>` — manage the mock registry used by tests.

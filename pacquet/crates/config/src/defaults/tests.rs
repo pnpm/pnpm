@@ -199,9 +199,9 @@ fn default_child_concurrency_with_parallelism_at_four() {
 
 /// Port of upstream
 /// [`'default workspace concurrency'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L48-L52).
-/// `getWorkspaceConcurrency(undefined)` on a >=4-core host yields 4
+/// `getWorkspaceConcurrency(undefined)` on a `>=4`-core host yields 4
 /// (the upstream test runs on the default Jest host; on a host with
-/// >=4 cores the default is 4). Pin a >=4 parallelism so the
+/// `>=4` cores the default is 4). Pin a `>=4` parallelism so the
 /// expectation is deterministic.
 #[test]
 fn resolve_child_concurrency_default_with_four_or_more_cores() {
@@ -327,7 +327,7 @@ fn test_default_store_dir_with_windows_diff_drive() {
     let current_dir = Path::new("D:\\Users\\user\\project");
     let home_dir = Path::new("C:\\Users\\user");
 
-    let store_dir = default_store_dir_windows(&home_dir, &current_dir);
+    let store_dir = default_store_dir_windows(home_dir, current_dir);
     assert_eq!(store_dir, Path::new("D:\\.pnpm-store"));
 }
 
@@ -337,6 +337,6 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
     let current_dir = Path::new("C:\\Users\\user\\project");
     let home_dir = Path::new("C:\\Users\\user");
 
-    let store_dir = default_store_dir_windows(&home_dir, &current_dir);
+    let store_dir = default_store_dir_windows(home_dir, current_dir);
     assert_eq!(store_dir, Path::new("C:\\Users\\user\\AppData\\Local\\pnpm\\store"));
 }

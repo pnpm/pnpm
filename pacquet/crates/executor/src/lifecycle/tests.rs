@@ -1,9 +1,10 @@
 use super::{LifecycleScriptError, RunPostinstallHooks, run_postinstall_hooks};
 use crate::extend_path::ScriptsPrependNodePath;
 use pacquet_package_manifest::PackageManifestError;
-use pacquet_reporter::{
-    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter, SilentReporter,
-};
+use pacquet_reporter::{LifecycleMessage, LogEvent, Reporter, SilentReporter};
+#[cfg(unix)]
+use pacquet_reporter::{LifecycleStdio, LogLevel};
+#[cfg(unix)]
 use pretty_assertions::assert_eq;
 use std::{collections::HashMap, fs, sync::Mutex};
 use tempfile::tempdir;

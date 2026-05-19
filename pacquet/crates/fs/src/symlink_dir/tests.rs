@@ -9,10 +9,14 @@
 
 #[cfg(windows)]
 use super::relative_target_for;
-use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir, symlink_dir};
+#[cfg(unix)]
+use super::symlink_dir;
+use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
+use std::fs;
 #[cfg(windows)]
 use std::path::Path;
-use std::{fs, path::PathBuf};
+#[cfg(unix)]
+use std::path::PathBuf;
 use tempfile::tempdir;
 
 /// On Unix, [`symlink_dir`] writes the symlink contents as a path
