@@ -15,6 +15,7 @@ import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { ConfigDependencies, ConfigDependencySpecifiers, RegistryConfig } from '@pnpm/types'
 
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
+import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
@@ -68,7 +69,13 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
         registry
       ),
     }
-    envLockfile.snapshots[pkgKey] = {}
+    const optionalSubdeps = await resolveOptionalSubdeps(pkgName, resolution.manifest, {
+      envLockfile,
+      lockfileDir: opts.rootDir,
+      registries: opts.registries,
+      resolveFromNpm,
+    })
+    envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
   }))
 
   await Promise.all([

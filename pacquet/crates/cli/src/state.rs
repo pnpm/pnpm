@@ -13,8 +13,11 @@ use std::path::PathBuf;
 pub struct State {
     /// Shared cache that store downloaded tarballs.
     pub tarball_mem_cache: MemCache,
-    /// HTTP client to make HTTP requests.
-    pub http_client: ThrottledClient,
+    /// HTTP client to make HTTP requests. Held behind [`std::sync::Arc`] so
+    /// the lockfile-verification gate can own a clone for the
+    /// `NpmResolutionVerifier`'s lifetime while every install
+    /// sub-pipeline takes a borrowed `&ThrottledClient` via deref.
+    pub http_client: std::sync::Arc<ThrottledClient>,
     /// Merged runtime configuration: built-in defaults, with overlays from
     /// the auth subset of `.npmrc` and from `pnpm-workspace.yaml`.
     pub config: &'static Config,
@@ -62,12 +65,10 @@ impl State {
                 .map_err(InitStateError::Manifest)?,
             lockfile: call_load_lockfile(should_load, Lockfile::load_from_current_dir)
                 .map_err(InitStateError::Lockfile)?,
-            http_client: ThrottledClient::for_installs(
-                &config.proxy,
-                &config.tls,
-                &config.tls_by_uri,
-            )
-            .map_err(InitStateError::Network)?,
+            http_client: std::sync::Arc::new(
+                ThrottledClient::for_installs(&config.proxy, &config.tls, &config.tls_by_uri)
+                    .map_err(InitStateError::Network)?,
+            ),
             tarball_mem_cache: MemCache::new(),
             resolved_packages: ResolvedPackages::new(),
         })

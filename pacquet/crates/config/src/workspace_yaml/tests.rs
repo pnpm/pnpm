@@ -1,5 +1,5 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
-use crate::{Config, NodeLinker, ScriptsPrependNodePath};
+use crate::{Config, NodeLinker, ScriptsPrependNodePath, TrustPolicy};
 use pacquet_store_dir::StoreDir;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -712,4 +712,76 @@ fn omitting_hoisting_limits_and_external_dependencies_keeps_defaults() {
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(config.hoisting_limits.is_empty());
     assert!(config.external_dependencies.is_empty());
+}
+
+/// Lockfile-verification policy keys all live in `pnpm-workspace.yaml`
+/// alongside the rest of the install settings. This test asserts the
+/// camelCase rename + `apply_to` wiring for every new field
+/// introduced by the gate: `cacheDir` (path-resolved against the
+/// workspace dir), `minimumReleaseAge` / `…Exclude` / `…Strict` /
+/// `…IgnoreMissingTime`, and `trustPolicy` / `…Exclude` /
+/// `…IgnoreAfter`. Mirrors the upstream key list at
+/// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L264-L272>.
+#[test]
+fn parses_supply_chain_policy_settings_from_yaml_and_applies() {
+    let yaml = r#"
+cacheDir: ./.pacquet-cache
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - lodash
+  - "is-*"
+minimumReleaseAgeIgnoreMissingTime: true
+minimumReleaseAgeStrict: true
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - "@scope/legacy"
+trustPolicyIgnoreAfter: 525600
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.cache_dir.as_deref(), Some("./.pacquet-cache"));
+    assert_eq!(settings.minimum_release_age, Some(1440));
+    assert_eq!(
+        settings.minimum_release_age_exclude.as_deref(),
+        Some(&["lodash".to_string(), "is-*".to_string()][..]),
+    );
+    assert_eq!(settings.minimum_release_age_ignore_missing_time, Some(true));
+    assert_eq!(settings.minimum_release_age_strict, Some(true));
+    assert_eq!(settings.trust_policy, Some(TrustPolicy::NoDowngrade));
+    assert_eq!(settings.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]));
+    assert_eq!(settings.trust_policy_ignore_after, Some(525_600));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/proj"));
+    assert_eq!(config.cache_dir, Path::new("/proj/.pacquet-cache"));
+    assert_eq!(config.minimum_release_age, Some(1440));
+    assert_eq!(
+        config.minimum_release_age_exclude.as_deref(),
+        Some(&["lodash".to_string(), "is-*".to_string()][..]),
+    );
+    assert!(config.minimum_release_age_ignore_missing_time);
+    assert_eq!(config.minimum_release_age_strict, Some(true));
+    assert!(config.resolved_minimum_release_age_strict());
+    assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
+    assert_eq!(config.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]));
+    assert_eq!(config.trust_policy_ignore_after, Some(525_600));
+}
+
+/// `trustPolicy` accepts the two upstream string values; an absent
+/// key leaves the [`TrustPolicy::Off`] default in place.
+#[test]
+fn trust_policy_yaml_values_round_trip() {
+    let yaml = "trustPolicy: off\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.trust_policy, Some(TrustPolicy::Off));
+
+    let yaml = "trustPolicy: no-downgrade\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.trust_policy, Some(TrustPolicy::NoDowngrade));
+
+    let yaml = "";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert!(settings.trust_policy.is_none());
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.trust_policy, TrustPolicy::Off, "default stays off when key is absent");
 }

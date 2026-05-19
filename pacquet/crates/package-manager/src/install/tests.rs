@@ -51,9 +51,11 @@ async fn should_install_dependencies() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: None,
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
         skip_runtimes: false,
@@ -106,9 +108,11 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     let result = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: None,
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -144,9 +148,11 @@ async fn should_error_when_writable_lockfile_mode_is_used() {
     let result = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: None,
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
         skip_runtimes: false,
@@ -211,9 +217,11 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -271,9 +279,11 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: None,
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
         skip_runtimes: false,
@@ -348,9 +358,11 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: None,
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
         skip_runtimes: false,
@@ -410,9 +422,11 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     let result = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: None,
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -492,9 +506,11 @@ async fn install_emits_pnpm_event_sequence() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -628,9 +644,11 @@ async fn install_writes_modules_yaml() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         // Drive a non-default `included`: prod + optional, no dev,
         // so the assertion below pins the mapping of dispatched
         // groups to the on-disk `included` field.
@@ -723,9 +741,11 @@ async fn install_writes_workspace_state() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         // Same `included` shape as `install_writes_modules_yaml` so the
         // dev/optional/production assertions below line up with the
         // dispatched groups.
@@ -838,9 +858,11 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: None,
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: false,
         skip_runtimes: false,
@@ -955,9 +977,11 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1047,9 +1071,11 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     let _ = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1147,9 +1173,11 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1191,9 +1219,11 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1277,9 +1307,11 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1365,9 +1397,11 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
     let result = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1417,9 +1451,11 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
     let result = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1499,9 +1535,11 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1571,9 +1609,11 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1649,9 +1689,11 @@ async fn frozen_lockfile_under_gvs_registers_each_workspace_importer() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1845,9 +1887,11 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -1948,6 +1992,13 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     // Keep retries minimal — 127.0.0.1:1 fails immediately on every
     // try, but a long retry schedule would dominate the test runtime.
     config.fetch_retries = 0;
+    // The lockfile-verification gate is unrelated to what this test
+    // exercises (optional-tarball swallow path). Disable
+    // `minimumReleaseAge` so the gate doesn't try to fetch metadata
+    // for `broken-pkg` against the unreachable default registry
+    // (which would fail closed with a verifier violation and abort
+    // the install before the optional-snapshot code path runs).
+    config.minimum_release_age = None;
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(BROKEN_OPTIONAL_LOCKFILE)
@@ -1956,9 +2007,11 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -2050,9 +2103,11 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
     let result = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -2150,9 +2205,11 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -2235,9 +2292,11 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
     let result = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -2322,9 +2381,11 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
     let result = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         // `--no-optional` shape: Optional NOT in the dispatch list.
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2408,9 +2469,11 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -2490,9 +2553,11 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -2578,9 +2643,11 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     let err = Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
         skip_runtimes: false,
@@ -2664,9 +2731,11 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     Install {
         tarball_mem_cache: &Default::default(),
         http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
         lockfile: Some(&lockfile),
+        lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
         skip_runtimes: true,
@@ -2701,4 +2770,192 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     );
 
     drop(dir);
+}
+
+/// End-to-end wiring smoke for the lockfile-verification gate
+/// (Phase 7). An invalid `minimumReleaseAgeExclude` pattern (the
+/// glob form is rejected when paired with a version part, per
+/// upstream's `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` arm) trips
+/// `build_resolution_verifiers` before the frozen-lockfile dispatch
+/// runs. The resulting `InstallError::BuildVerifiers` proves:
+///
+/// 1. `build_resolution_verifiers` actually fires during install.
+/// 2. The error short-circuits the install — no virtual-store
+///    materialization, no registry round-trip.
+///
+/// The gate's positive / negative `verify_lockfile_resolutions`
+/// branches are exercised by the unit tests in
+/// `pacquet-lockfile-verification`; this test pins only the install
+/// wiring so it stays fast and doesn't depend on the mocked
+/// packument shape.
+#[tokio::test]
+async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    // Activate the verifier with an invalid exclude entry — the
+    // version-part-with-wildcard combination is rejected by
+    // `create_package_version_policy`.
+    config.minimum_release_age = Some(60);
+    config.minimum_release_age_exclude = Some(vec!["is-*@1.0.0".to_string()]);
+    let config = config.leak();
+
+    // Empty lockfile is enough — the gate runs as soon as
+    // `lockfile.is_some()` regardless of the snapshot count.
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies: {}"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse minimal v9 lockfile");
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    let err = result.expect_err("invalid exclude pattern must surface");
+    assert!(matches!(err, InstallError::BuildVerifiers(_)), "expected BuildVerifiers, got {err:?}");
+    // The build error must short-circuit the install before any
+    // virtual-store materialization runs.
+    assert!(
+        !project_root.join("node_modules/.pacquet").exists(),
+        "BuildVerifiers must abort before virtual-store materialization",
+    );
+
+    drop(dir);
+}
+
+/// Positive-path proof that `verify_lockfile_resolutions` runs from
+/// inside `Install::run`. With `minimumReleaseAge` set absurdly high
+/// (100 years), every version the mocked registry knows about is
+/// inside the cutoff, so the gate rejects every lockfile entry
+/// before any tarball is fetched.
+///
+/// Asserts:
+///
+/// 1. `Install::run` returns `Err(InstallError::LockfileVerification(...))`
+///    with the inner `VerifyError::MinimumReleaseAgeViolation` —
+///    i.e. the verifier code path actually ran and returned a
+///    violation, the wiring is correct, and the dispatch maps the
+///    inner code to the per-policy variant rather than collapsing
+///    to the generic envelope.
+/// 2. No virtual-store materialization. The gate fails before
+///    `InstallFrozenLockfile` runs, so neither the slot nor the
+///    project's `node_modules` symlink exist.
+#[tokio::test]
+async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    // 100 years in minutes. Anything the registry has shipped to
+    // date is inside the cutoff, so the publish-time check rejects
+    // every lockfile entry regardless of what the mocked packument's
+    // `time` map actually says.
+    config.minimum_release_age = Some(60 * 24 * 365 * 100);
+    let config = config.leak();
+
+    // The integrity hash here is placeholder text — the gate fails
+    // before the tarball is fetched, so checksum verification never
+    // runs and the value doesn't have to match the mock's actual
+    // payload. The lockfile only needs to deserialize.
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      '@pnpm.e2e/hello-world-js-bin':"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "packages:"
+        "  '@pnpm.e2e/hello-world-js-bin@1.0.0':"
+        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}"
+        "snapshots:"
+        "  '@pnpm.e2e/hello-world-js-bin@1.0.0': {}"
+    })
+    .expect("parse lockfile fixture");
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    let err = result.expect_err("100-year cutoff must reject every entry");
+    let InstallError::LockfileVerification(ref verify_err) = err else {
+        panic!("expected InstallError::LockfileVerification, got {err:?}");
+    };
+    assert!(
+        matches!(
+            verify_err,
+            pacquet_lockfile_verification::VerifyError::MinimumReleaseAgeViolation { .. }
+        ),
+        "expected MinimumReleaseAgeViolation, got {verify_err:?}",
+    );
+
+    // The gate must short-circuit before any virtual-store
+    // materialization — no slot, no project-side symlink.
+    let slot = project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
+    assert!(!slot.exists(), "the gate must fail before any virtual-store materialization");
+    assert!(
+        !project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
+        "the gate must fail before any project-side symlinks are created",
+    );
+
+    drop((dir, mock_instance));
 }

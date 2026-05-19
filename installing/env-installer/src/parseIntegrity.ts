@@ -6,6 +6,19 @@ export interface NormalizedConfigDep {
     integrity: string
     tarball: string
   }
+  optionalSubdeps?: NormalizedSubdep[]
+}
+
+export interface NormalizedSubdep {
+  name: string
+  version: string
+  resolution: {
+    integrity: string
+    tarball: string
+  }
+  os?: string[]
+  cpu?: string[]
+  libc?: string[]
 }
 
 export function parseIntegrity (pkgName: string, pkgSpec: string): { version: string, integrity: string } {
