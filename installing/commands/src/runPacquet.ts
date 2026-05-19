@@ -77,27 +77,17 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
  * pacquet npm package ships a Node wrapper at `bin/pacquet` that resolves
  * `@pacquet/<platform>-<arch>/pacquet[.exe]` and execs it; resolving the
  * same path here lets us skip the wrapper's extra Node startup and spawn
- * the native binary directly.
- *
- * Layout under `configDependencies`: pacquet is symlinked at
- * `node_modules/.pnpm-config/pacquet`, with its optional platform deps
- * symlinked into its own `node_modules/`. Pacquet's npm `bin/pacquet`
- * (linked at commit `1f6cb5f4c0`) is the source of the platform table.
+ * the native binary directly. An unsupported host falls through to the
+ * spawn `ENOENT`, which surfaces the missing-binary path on its own.
  */
 function resolvePacquetBin (lockfileDir: string): string {
-  const platforms: Record<string, Record<string, string>> = {
-    win32: { x64: 'win32-x64/pacquet.exe', arm64: 'win32-arm64/pacquet.exe' },
-    darwin: { x64: 'darwin-x64/pacquet', arm64: 'darwin-arm64/pacquet' },
-    linux: { x64: 'linux-x64/pacquet', arm64: 'linux-arm64/pacquet' },
-  }
-  const subpath = platforms[process.platform]?.[process.arch]
-  if (!subpath) {
-    throw new PnpmError(
-      'UNSUPPORTED_PACQUET_PLATFORM',
-      `pacquet does not ship a prebuilt binary for ${process.platform}-${process.arch} yet.`
-    )
-  }
-  return path.join(lockfileDir, 'node_modules/.pnpm-config/pacquet/node_modules/@pacquet', subpath)
+  const ext = process.platform === 'win32' ? '.exe' : ''
+  return path.join(
+    lockfileDir,
+    'node_modules/.pnpm-config/pacquet/node_modules/@pacquet',
+    `${process.platform}-${process.arch}`,
+    `pacquet${ext}`
+  )
 }
 
 /**
