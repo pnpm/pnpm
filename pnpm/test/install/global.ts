@@ -7,6 +7,7 @@ import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import PATH_NAME from 'path-name'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import {
@@ -14,6 +15,9 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
+
+const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
+const IMMATURE_FOR_EVERYTHING = 1_000_000_000
 
 function globalPkgDir (pnpmHome: string): string {
   return path.join(pnpmHome, 'global', GLOBAL_LAYOUT_VERSION)
@@ -344,6 +348,111 @@ test('global update should not crash if there are no global packages', async () 
   const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
   expect(execPnpmSync(['update', '--global'], { env }).status).toBe(0)
+})
+
+test('global add in loose minimumReleaseAge mode persists immature picks', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+  const globalDir = globalPkgDir(pnpmHome)
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_minimum_release_age: String(IMMATURE_FOR_EVERYTHING),
+    pnpm_config_minimum_release_age_strict: 'false',
+  }
+
+  execPnpmSync([
+    'add',
+    '--global',
+    'is-positive@1.0.0',
+    PUBLIC_REGISTRY,
+    '--ignore-scripts',
+  ], {
+    env,
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+    expectSuccess: true,
+  })
+
+  expect(findGlobalPkg(globalDir, 'is-positive')).toBeTruthy()
+  const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(path.join(globalDir, 'pnpm-workspace.yaml'))
+  expect(workspaceManifest.minimumReleaseAgeExclude).toContain('is-positive@1.0.0')
+})
+
+test('global add in strict minimumReleaseAge mode reports the user-facing error', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_minimum_release_age: String(IMMATURE_FOR_EVERYTHING),
+    pnpm_config_minimum_release_age_strict: 'true',
+  }
+
+  const result = execPnpmSync([
+    'add',
+    '--global',
+    'is-positive@1.0.0',
+    PUBLIC_REGISTRY,
+    '--ignore-scripts',
+  ], {
+    env,
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+  })
+  const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+
+  expect(result.status).toBe(1)
+  expect(output).toContain('ERR_PNPM_NO_MATURE_MATCHING_VERSION')
+  expect(output).not.toContain('ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED')
+})
+
+test('global update in loose minimumReleaseAge mode persists immature picks', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+  const globalDir = globalPkgDir(pnpmHome)
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+  execPnpmSync([
+    'add',
+    '--global',
+    'is-positive@1.0.0',
+    PUBLIC_REGISTRY,
+    '--ignore-scripts',
+  ], { env, expectSuccess: true })
+
+  execPnpmSync([
+    'update',
+    '--global',
+    '--latest',
+    PUBLIC_REGISTRY,
+    '--ignore-scripts',
+  ], {
+    env: {
+      ...env,
+      pnpm_config_minimum_release_age: String(IMMATURE_FOR_EVERYTHING),
+      pnpm_config_minimum_release_age_strict: 'false',
+    },
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+    expectSuccess: true,
+  })
+
+  const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(path.join(globalDir, 'pnpm-workspace.yaml'))
+  expect(workspaceManifest.minimumReleaseAgeExclude).toEqual(expect.arrayContaining([
+    expect.stringMatching(/^is-positive@/),
+  ]))
 })
 
 test('global add cleans up stale bins when re-adding a package with different bins', async () => {
