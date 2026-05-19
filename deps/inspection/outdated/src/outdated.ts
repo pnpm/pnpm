@@ -8,7 +8,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
@@ -119,21 +119,20 @@ export async function outdated (
           const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
           if (ignoreDependenciesMatcher?.(alias)) return
 
+          // A missing pkgSnapshot here means the ref doesn't have a packages entry — true for
+          // link:/file:/workspace: deps. The query is still dispatched, and the local-resolver
+          // returns undefined for those so they're silently skipped.
           const relativeDepPath = dp.refToRelative(ref, alias)
-          if (relativeDepPath === null) return // linked packages
-
-          const pkgSnapshot = opts.wantedLockfile!.packages?.[relativeDepPath]
-          if (pkgSnapshot == null) {
-            throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
-          }
+          const pkgSnapshot = relativeDepPath != null ? opts.wantedLockfile!.packages?.[relativeDepPath] : undefined
 
           const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
           const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
           const currentPkgSnapshot = currentRelative ? currentLockfile.packages?.[currentRelative] : undefined
-          const wantedVersion = dp.parse(relativeDepPath).version ?? pkgSnapshot.version
+          const parsedDepPath = relativeDepPath != null ? dp.parse(relativeDepPath) : {}
+          const wantedVersion = parsedDepPath.version ?? pkgSnapshot?.version
           const currentVersion = (currentRelative && dp.parse(currentRelative).version) ?? currentPkgSnapshot?.version
-          const { name: packageNameFromSnapshot } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
-          const name = dp.parse(relativeDepPath).name ?? packageNameFromSnapshot
+          const name = parsedDepPath.name
+            ?? (relativeDepPath != null && pkgSnapshot ? nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot).name : alias)
 
           const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
 
