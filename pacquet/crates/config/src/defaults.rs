@@ -23,8 +23,16 @@ pub fn default_git_shallow_hosts() -> Vec<String> {
     ]
 }
 
+/// Default for `public-hoist-pattern`. Matches pnpm v11's empty-list
+/// default at
+/// <https://github.com/pnpm/pnpm/blob/1627943d2a/config/reader/src/index.ts#L184>.
+/// Writing a non-empty list on a fresh install would record a
+/// `publicHoistPattern` in `.modules.yaml` that the next `pnpm`
+/// invocation in the same project rejects with
+/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF` — see
+/// [pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750).
 pub fn default_public_hoist_pattern() -> Vec<String> {
-    vec!["*eslint*".to_string(), "*prettier*".to_string()]
+    Vec::new()
 }
 
 // Get the drive letter from a path on Windows. If it's not a Windows path, return None.

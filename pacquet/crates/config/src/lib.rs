@@ -193,7 +193,12 @@ pub struct Config {
     /// Same `Option` semantics as [`Self::hoist_pattern`] — `None`
     /// disables public hoisting, `Some([])` runs the hoist pass with
     /// no public matches, `Some(non-empty)` is the standard case.
-    /// Default is `Some(["*eslint*", "*prettier*"])`.
+    /// Default is `Some([])`, mirroring pnpm v11's
+    /// [`'public-hoist-pattern': []`](https://github.com/pnpm/pnpm/blob/1627943d2a/config/reader/src/index.ts#L184)
+    /// — any non-empty default would write a `publicHoistPattern`
+    /// into `.modules.yaml` that the next `pnpm` invocation rejects
+    /// with `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`
+    /// ([pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750)).
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
 
