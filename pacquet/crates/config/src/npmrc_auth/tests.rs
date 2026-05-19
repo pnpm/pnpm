@@ -600,11 +600,11 @@ fn parses_cert_and_key_from_ini() {
 fn parses_strict_ssl_true_and_false() {
     assert_eq!(
         NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).strict_ssl,
-        Some(true)
+        Some(true),
     );
     assert_eq!(
         NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n", Path::new("")).strict_ssl,
-        Some(false)
+        Some(false),
     );
 }
 
