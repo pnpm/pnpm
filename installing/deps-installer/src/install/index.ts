@@ -1817,7 +1817,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     rules: opts.peerDependencyRules,
   })
 
-  if (!opts.omitSummaryLog) {
+  // Skipped when pacquet will take over the materialization. The
+  // default reporter's `reportSummary` `take(1)`s the first summary
+  // event and combines it with whatever `pkgsDiff` it has at that
+  // moment — which is empty here, since pacquet hasn't emitted its
+  // per-direct-dep `pnpm:root` events yet. Letting pnpm fire summary
+  // now would lock in an empty diff. Pacquet emits its own
+  // `pnpm:summary` after the install completes, by which point its
+  // root events have populated the diff.
+  if (!opts.omitSummaryLog && opts.runPacquet == null) {
     summaryLogger.debug({ prefix: opts.lockfileDir })
   }
 
