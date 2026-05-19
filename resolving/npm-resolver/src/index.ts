@@ -269,11 +269,13 @@ export function createNpmResolver (
   const boundResolveFromNpm = resolveNpm.bind(null, ctx)
   const boundResolveFromJsr = resolveJsr.bind(null, ctx)
   const boundResolveFromNamedRegistry = resolveFromNamedRegistry.bind(null, ctx)
+  const defaultRegistry = opts.registries.default
   return {
     resolveFromNpm: boundResolveFromNpm,
     resolveFromJsr: boundResolveFromJsr,
     resolveFromNamedRegistry: boundResolveFromNamedRegistry,
-    resolveLatestFromNpm: createResolveLatest(boundResolveFromNpm, isNpmSpec),
+    resolveLatestFromNpm: createResolveLatest(boundResolveFromNpm,
+      (query) => isNpmSpec(query, defaultRegistry)),
     resolveLatestFromJsr: createResolveLatest(boundResolveFromJsr, isJsrSpec),
     resolveLatestFromNamedRegistry: createResolveLatest(boundResolveFromNamedRegistry,
       (query) => isNamedRegistrySpec(query, ctx.namedRegistryNames)),
@@ -286,50 +288,44 @@ export function createNpmResolver (
   }
 }
 
-function isNpmSpec (query: LatestQuery): string | undefined {
+function isNpmSpec (query: LatestQuery, defaultRegistry: string): boolean {
   const { alias, bareSpecifier } = query.wantedDependency
-  if (!bareSpecifier) return alias
-  const parsed = parseBareSpecifier(bareSpecifier, alias, 'latest', query.registry)
-  return parsed?.name
+  if (!bareSpecifier) return alias != null
+  return parseBareSpecifier(bareSpecifier, alias, 'latest', defaultRegistry) != null
 }
 
-function isJsrSpec (query: LatestQuery): string | undefined {
-  if (!query.wantedDependency.bareSpecifier?.startsWith('jsr:')) return undefined
-  const parsed = parseJsrSpecifierToRegistryPackageSpec(
+function isJsrSpec (query: LatestQuery): boolean {
+  if (!query.wantedDependency.bareSpecifier?.startsWith('jsr:')) return false
+  return parseJsrSpecifierToRegistryPackageSpec(
     query.wantedDependency.bareSpecifier,
     query.wantedDependency.alias,
     'latest'
-  )
-  return parsed?.name
+  ) != null
 }
 
 function isNamedRegistrySpec (
   query: LatestQuery,
   knownRegistryNames: ReadonlySet<string>
-): string | undefined {
-  if (!query.wantedDependency.bareSpecifier) return undefined
+): boolean {
+  if (!query.wantedDependency.bareSpecifier) return false
   try {
-    const parsed = parseNamedRegistrySpecifierToRegistryPackageSpec(
+    return parseNamedRegistrySpecifierToRegistryPackageSpec(
       query.wantedDependency.bareSpecifier,
       knownRegistryNames,
       query.wantedDependency.alias,
       'latest'
-    )
-    return parsed?.name
+    ) != null
   } catch {
-    return undefined
+    return false
   }
 }
 
 function createResolveLatest (
   resolve: NpmResolver,
-  matchSpec: (query: LatestQuery) => string | undefined
+  matches: (query: LatestQuery) => boolean
 ) {
   return async (query: LatestQuery, opts: ResolveOptions): Promise<LatestInfo | undefined> => {
-    const packageName = matchSpec(query)
-    if (!packageName) return undefined
-    const wanted = query.wantedVersion ?? query.ref
-    const current = query.currentVersion ?? query.currentRef
+    if (!matches(query)) return undefined
     const latestSpec = query.compatible
       ? query.wantedDependency.bareSpecifier ?? 'latest'
       : 'latest'
@@ -338,13 +334,14 @@ function createResolveLatest (
         { alias: query.wantedDependency.alias, bareSpecifier: latestSpec },
         { ...opts, update: 'latest' }
       )
+      // Policy-blocked: handled but no latest to surface.
       if (result?.policyViolation?.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
-        return { packageName, current, wanted }
+        return {}
       }
-      return { packageName, current, wanted, latestManifest: result?.manifest }
+      return { latestManifest: result?.manifest }
     } catch (err) {
       if (opts.publishedBy && (err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION') {
-        return { packageName, current, wanted }
+        return {}
       }
       throw err
     }

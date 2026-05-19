@@ -101,19 +101,16 @@ export function createGitResolver (
   }
 }
 
-// Git deps lock to a commit-resolved URL, not a semver. Use the raw ref so
-// `current` vs `wanted` reflects what actually changed in the lockfile (URL or
-// commit), not the snapshot's version metadata.
+// Git deps have no concept of "latest" — we'd need to query the host's tag list
+// to know about newer commits, which isn't a uniform thing across protocols.
+// Claim the dep so the dispatcher stops; the caller still surfaces a
+// ref-mismatch report if the lockfile shifted to a different commit.
 export async function resolveLatestFromGit (query: LatestQuery): Promise<LatestInfo | undefined> {
   const bareSpecifier = query.wantedDependency.bareSpecifier
   if (!bareSpecifier) return undefined
   const parsedSpecFunc = parseBareSpecifier(bareSpecifier, {})
   if (parsedSpecFunc == null) return undefined
-  return {
-    packageName: query.wantedDependency.alias ?? bareSpecifier,
-    current: query.currentRef,
-    wanted: query.ref,
-  }
+  return {}
 }
 
 function resolveVTags (vTags: string[], range: string): string | null {

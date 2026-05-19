@@ -71,22 +71,14 @@ export async function resolveLatestBunRuntime (
   ctx: { resolveFromNpm: NpmResolver },
   query: LatestQuery
 ): Promise<LatestInfo | undefined> {
-  if (query.wantedDependency.alias !== 'bun' || !query.ref.startsWith('runtime:')) return undefined
+  if (query.wantedDependency.alias !== 'bun' || !query.wantedRef.startsWith('runtime:')) return undefined
   const manifestSpec = query.wantedDependency.bareSpecifier
-  const wanted = query.wantedVersion ?? query.ref.substring('runtime:'.length)
-  const current = query.currentVersion
-    ?? (query.currentRef?.startsWith('runtime:') ? query.currentRef.substring('runtime:'.length) : undefined)
   const versionSpec = query.compatible && manifestSpec?.startsWith('runtime:')
     ? manifestSpec.substring('runtime:'.length)
     : 'latest'
   const npmResolution = await ctx.resolveFromNpm({ alias: 'bun', bareSpecifier: versionSpec }, {})
-  if (!npmResolution?.manifest) return { packageName: 'bun', current, wanted }
-  return {
-    packageName: 'bun',
-    current,
-    wanted,
-    latestManifest: { name: 'bun', version: npmResolution.manifest.version },
-  }
+  if (!npmResolution?.manifest) return {}
+  return { latestManifest: { name: 'bun', version: npmResolution.manifest.version } }
 }
 
 async function readBunAssets (fetch: FetchFromRegistry, version: string): Promise<PlatformAssetResolution[]> {

@@ -78,7 +78,6 @@ export async function outdatedDepsOfProjects (
       prefix: rootDir,
       publishedBy,
       publishedByExclude,
-      registries: opts.registries,
       wantedLockfile,
     })
   }))

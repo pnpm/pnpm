@@ -85,24 +85,16 @@ export async function resolveLatestNodeRuntime (
   ctx: { fetchFromRegistry: FetchFromRegistry, nodeDownloadMirrors?: Record<string, string> },
   query: LatestQuery
 ): Promise<LatestInfo | undefined> {
-  if (query.wantedDependency.alias !== 'node' || !query.ref.startsWith('runtime:')) return undefined
+  if (query.wantedDependency.alias !== 'node' || !query.wantedRef.startsWith('runtime:')) return undefined
   const manifestSpec = query.wantedDependency.bareSpecifier
-  const wanted = query.wantedVersion ?? query.ref.substring('runtime:'.length)
-  const current = query.currentVersion
-    ?? (query.currentRef?.startsWith('runtime:') ? query.currentRef.substring('runtime:'.length) : undefined)
   const versionSpec = query.compatible && manifestSpec?.startsWith('runtime:')
     ? manifestSpec.substring('runtime:'.length)
     : 'latest'
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
-  if (!version) return { packageName: 'node', current, wanted }
-  return {
-    packageName: 'node',
-    current,
-    wanted,
-    latestManifest: { name: 'node', version },
-  }
+  if (!version) return {}
+  return { latestManifest: { name: 'node', version } }
 }
 
 async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {

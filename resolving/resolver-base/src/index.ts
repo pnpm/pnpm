@@ -315,35 +315,29 @@ export type WantedDependency = {
 export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>
 
 /**
- * Input to a resolver's `resolveLatest` function. `ref`/`currentRef` are the
- * lockfile references for the wanted/current lockfile entries.
- * `wantedVersion`/`currentVersion` are the semver versions parsed off
- * the package snapshot (already extracted by the caller so each
- * resolver doesn't repeat the parsing).
+ * Input to a resolver's `resolveLatest` function. The resolver decides
+ * whether it owns this dep from `wantedDependency` + `wantedRef`; the
+ * caller handles current/wanted display from lockfile snapshots, so the
+ * resolver doesn't see `currentRef`.
  */
 export interface LatestQuery {
   wantedDependency: WantedDependency
-  ref: string
-  currentRef?: string
-  wantedVersion?: string
-  currentVersion?: string
+  wantedRef: string
   compatible?: boolean
-  registry: string
 }
 
 /**
  * Result of a resolver's `resolveLatest` call.
  *
- * - `undefined` from the resolver function means "this resolver does
- *   not handle this dep — try the next one".
- * - A `LatestInfo` (even when `current === wanted` and no
- *   `latestManifest`) tells the caller "I handled this; here's what I
- *   know" — the caller decides whether to surface it to the user.
+ * - `undefined` means "this resolver does not handle this dep — try
+ *   the next one".
+ * - An object (even without a `latestManifest`) means "I claim this
+ *   dep, but I can't tell you what's latest" (e.g. policy blocked,
+ *   network unavailable, no concept of latest for this protocol).
+ *   The caller still surfaces a ref-mismatch report if the lockfile
+ *   shifted.
  */
 export interface LatestInfo {
-  packageName: string
-  current?: string
-  wanted: string
   latestManifest?: PackageManifest
 }
 

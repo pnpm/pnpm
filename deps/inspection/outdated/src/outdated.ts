@@ -7,7 +7,6 @@ import {
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
@@ -18,7 +17,6 @@ import {
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import {
   DEPENDENCIES_FIELDS,
@@ -27,7 +25,6 @@ import {
   type PackageManifest,
   type PackageVersionPolicy,
   type ProjectManifest,
-  type Registries,
 } from '@pnpm/types'
 import semver from 'semver'
 
@@ -59,7 +56,6 @@ export async function outdated (
     prefix: string
     publishedBy?: Date
     publishedByExclude?: PackageVersionPolicy
-    registries: Registries
     wantedLockfile: LockfileObject | null
   }
 ): Promise<OutdatedPackage[]> {
@@ -116,43 +112,32 @@ export async function outdated (
       await Promise.all(
         pkgs.map(async (alias) => {
           if (!allDeps[alias]) return
-          const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
+          const wantedRef = opts.wantedLockfile!.importers[importerId][depType]![alias]
           if (ignoreDependenciesMatcher?.(alias)) return
 
-          // A missing pkgSnapshot here means the ref doesn't have a packages entry — true for
-          // link:/file:/workspace: deps. The query is still dispatched, and the local-resolver
-          // returns undefined for those so they're silently skipped.
-          const relativeDepPath = dp.refToRelative(ref, alias)
-          const pkgSnapshot = relativeDepPath != null ? opts.wantedLockfile!.packages?.[relativeDepPath] : undefined
-
           const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
-          const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
-          const currentPkgSnapshot = currentRelative ? currentLockfile.packages?.[currentRelative] : undefined
-          const parsedDepPath = relativeDepPath != null ? dp.parse(relativeDepPath) : {}
-          const wantedVersion = parsedDepPath.version ?? pkgSnapshot?.version
-          const currentVersion = (currentRelative && dp.parse(currentRelative).version) ?? currentPkgSnapshot?.version
-          const name = parsedDepPath.name
-            ?? (relativeDepPath != null && pkgSnapshot ? nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot).name : alias)
+          const wantedRelative = dp.refToRelative(wantedRef, alias)
+          const currentRelative = currentRef ? dp.refToRelative(currentRef, alias) : null
+          const wantedSnapshot = wantedRelative != null ? opts.wantedLockfile!.packages?.[wantedRelative] : undefined
+          const currentSnapshot = currentRelative != null ? currentLockfile.packages?.[currentRelative] : undefined
+          // Aliased npm deps lock under their real name (e.g. `positive: is-positive@3.1.0`);
+          // pull the name off the depPath so the report shows the real package.
+          const packageName = (wantedRelative != null ? dp.parse(wantedRelative).name : undefined) ?? alias
 
           const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
 
           const info = await opts.resolveLatest(
-            {
-              wantedDependency: { alias, bareSpecifier },
-              ref,
-              currentRef,
-              wantedVersion,
-              currentVersion,
-              compatible: opts.compatible,
-              registry: pickRegistryForPackage(opts.registries, name),
-            },
+            { wantedDependency: { alias, bareSpecifier }, wantedRef, compatible: opts.compatible },
             resolveOpts
           )
-          if (info == null) return
-          const { packageName, current, wanted, latestManifest } = info
+          if (info == null) return // resolver doesn't claim this dep — skip silently
+
+          const wanted = displayVersion(wantedRef, wantedSnapshot?.version)
+          const current = currentRef ? displayVersion(currentRef, currentSnapshot?.version) : undefined
+          const { latestManifest } = info
 
           if (latestManifest == null) {
-            if (current !== wanted) {
+            if (wantedRef !== currentRef) {
               outdated.push({
                 alias,
                 belongsTo: depType,
@@ -176,7 +161,7 @@ export async function outdated (
             })
             return
           }
-          if (current !== wanted || isLowerVersion(current, latestManifest.version) || latestManifest.deprecated) {
+          if (wantedRef !== currentRef || isLowerVersion(wanted, latestManifest.version) || latestManifest.deprecated) {
             outdated.push({
               alias,
               belongsTo: depType,
@@ -205,9 +190,19 @@ function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
 }
 
-// semver.lt throws on non-semver strings (e.g. when current is a URL because
-// the resolver couldn't normalize it). Treat those as "not lower" so a ref
-// change still gets surfaced via the current !== wanted branch above.
+// URL-shaped refs (git tarball, plain tarball) change per commit even when
+// the package's self-reported version doesn't, so keep the ref for those.
+// For everything else, `snapshot.version` is the clean semver each resolver
+// already populated — falls back to the raw ref if the snapshot didn't
+// record one (e.g. corrupted or partial lockfile).
+function displayVersion (ref: string, snapshotVersion: string | undefined): string {
+  if (/^https?:/.test(ref)) return ref
+  return snapshotVersion ?? ref
+}
+
+// semver.lt throws on non-semver strings (e.g. URL refs from git/tarball).
+// Treat those as "not lower" so a ref change still gets surfaced via the
+// `wantedRef !== currentRef` check above.
 function isLowerVersion (current: string, latest: string): boolean {
   if (!semver.valid(current) || !semver.valid(latest)) return false
   return semver.lt(current, latest)

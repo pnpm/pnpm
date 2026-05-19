@@ -37,15 +37,11 @@ export async function resolveFromTarball (
   }
 }
 
-// URL tarballs lock to the exact URL — no concept of "latest". Use the raw
-// ref so a ref change (different URL or content hash) is what triggers an
-// outdated report.
+// URL tarballs lock to the exact URL — no concept of "latest". Claim the dep
+// so the dispatcher stops; the caller still surfaces a ref-mismatch report
+// if the lockfile points at a different URL than before.
 export async function resolveLatestFromTarball (query: LatestQuery): Promise<LatestInfo | undefined> {
   const bareSpecifier = query.wantedDependency.bareSpecifier
   if (!bareSpecifier?.startsWith('http:') && !bareSpecifier?.startsWith('https:')) return undefined
-  return {
-    packageName: query.wantedDependency.alias ?? bareSpecifier,
-    current: query.currentRef,
-    wanted: query.ref,
-  }
+  return {}
 }

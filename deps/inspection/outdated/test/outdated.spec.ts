@@ -10,6 +10,10 @@ type ManifestGetter = (packageName: string) => Promise<PackageManifest | null>
 // Test stand-in for the real protocol dispatcher (default-resolver's outdated
 // composition). Mirrors the protocol routing so tests can keep mocking
 // "what does the registry say is latest?" without booting a real resolver.
+// Test stand-in for the real dispatcher: route by protocol shape, look up
+// "latest" through the per-test mock. Resolvers for non-latest protocols
+// (git, tarball) return `{}` to claim the dep with no latest available;
+// local refs return undefined so the dispatcher falls through and skips.
 function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher {
   return async (query) => {
     const { alias, bareSpecifier } = query.wantedDependency
@@ -17,17 +21,14 @@ function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher 
       return undefined
     }
     if (bareSpecifier?.startsWith('runtime:') && (alias === 'node' || alias === 'bun' || alias === 'deno')) {
-      const wanted = query.wantedVersion ?? query.ref.substring('runtime:'.length)
-      const current = query.currentVersion
-        ?? (query.currentRef?.startsWith('runtime:') ? query.currentRef.substring('runtime:'.length) : undefined)
       const latestManifest = await getLatest(alias)
-      return { packageName: alias, current, wanted, latestManifest: latestManifest ?? undefined }
+      return { latestManifest: latestManifest ?? undefined }
     }
     if (
-      query.ref.startsWith('http://') || query.ref.startsWith('https://') ||
+      query.wantedRef.startsWith('http://') || query.wantedRef.startsWith('https://') ||
       bareSpecifier?.startsWith('github:') || bareSpecifier?.startsWith('git+') || bareSpecifier?.startsWith('git:')
     ) {
-      return { packageName: alias ?? '', current: query.currentRef, wanted: query.ref }
+      return {}
     }
     let pkgName = alias ?? ''
     if (bareSpecifier?.startsWith('npm:')) {
@@ -35,10 +36,8 @@ function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher 
       const atIdx = inner.lastIndexOf('@')
       pkgName = (atIdx > 0 ? inner.slice(0, atIdx) : inner) || pkgName
     }
-    const wanted = query.wantedVersion ?? query.ref
-    const current = query.currentVersion ?? query.currentRef
     const latestManifest = await getLatest(pkgName)
-    return { packageName: pkgName, current, wanted, latestManifest: latestManifest ?? undefined }
+    return { latestManifest: latestManifest ?? undefined }
   }
 }
 
@@ -176,9 +175,6 @@ test('outdated()', async () => {
         },
       },
     },
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -261,9 +257,6 @@ test('outdated() should return deprecated package even if its current version is
     },
     prefix: 'project',
     wantedLockfile: lockfile,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -363,9 +356,6 @@ test('outdated() with minimumReleaseAge', async () => {
           },
         },
       },
-    },
-    registries: {
-      default: 'https://registry.npmjs.org/',
     },
     minimumReleaseAge: 10080,
   })
@@ -479,9 +469,6 @@ test('outdated() with minimumReleaseAgeExclude', async () => {
           },
         },
       },
-    },
-    registries: {
-      default: 'https://registry.npmjs.org/',
     },
     minimumReleaseAge: 10080,
     minimumReleaseAgeExclude: ['is-negative'],
@@ -615,9 +602,6 @@ test('using a matcher', async () => {
         },
       },
     },
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -687,9 +671,6 @@ test('outdated() aliased dependency', async () => {
           },
         },
       },
-    },
-    registries: {
-      default: 'https://registry.npmjs.org/',
     },
   })
   expect(outdatedPkgs).toStrictEqual([
@@ -778,9 +759,6 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     },
     prefix: 'project',
     wantedLockfile: lockfile,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
   })
   expect(outdatedPkgs).toStrictEqual([])
 })
@@ -798,9 +776,6 @@ test('outdated() should [] when there is no dependency', async () => {
     },
     prefix: 'project',
     wantedLockfile: null,
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
   })
   expect(outdatedPkgs).toStrictEqual([])
 })
@@ -916,9 +891,6 @@ test('should ignore dependencies as expected', async () => {
         },
       },
     },
-    registries: {
-      default: 'https://registry.npmjs.org/',
-    },
     ignoreDependencies: [
       'from-*',
       'is-negative',
@@ -1000,7 +972,6 @@ test('outdated() lists outdated runtimes (node, deno, bun)', async () => {
     },
     prefix: 'project',
     wantedLockfile: lockfile,
-    registries: { default: 'https://registry.npmjs.org/' },
   })
 
   expect(outdatedPkgs).toStrictEqual([
@@ -1068,7 +1039,6 @@ test('outdated() runtime in --compatible mode resolves within the declared range
     },
     prefix: 'project',
     wantedLockfile: lockfile,
-    registries: { default: 'https://registry.npmjs.org/' },
   })
 
   expect(outdatedPkgs).toStrictEqual([
@@ -1116,7 +1086,6 @@ test('outdated() does not list runtime that is already up to date', async () => 
     },
     prefix: 'project',
     wantedLockfile: lockfile,
-    registries: { default: 'https://registry.npmjs.org/' },
   })
 
   expect(outdatedPkgs).toStrictEqual([])
