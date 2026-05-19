@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import readline from 'node:readline'
 import type { Writable } from 'node:stream'
@@ -74,20 +75,19 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
 
 /**
  * Path of the platform-specific native pacquet binary for the host. The
- * pacquet npm package ships a Node wrapper at `bin/pacquet` that resolves
- * `@pacquet/<platform>-<arch>/pacquet[.exe]` and execs it; resolving the
- * same path here lets us skip the wrapper's extra Node startup and spawn
- * the native binary directly. An unsupported host falls through to the
- * spawn `ENOENT`, which surfaces the missing-binary path on its own.
+ * pacquet npm package ships a Node wrapper at `bin/pacquet` that uses
+ * `require.resolve('@pacquet/<platform>-<arch>/pacquet[.exe]')` to find
+ * the binary — so the platform package lands as a *sibling* of pacquet,
+ * not inside its own `node_modules` (pacquet's own `node_modules` is
+ * empty after configDependencies install). Use Node's resolver rooted
+ * at pacquet's own `package.json` so we follow the same path the
+ * wrapper would have, including the symlink hop the configDependencies
+ * install introduces (`.pnpm-config/pacquet` → global virtual store).
  */
 function resolvePacquetBin (lockfileDir: string): string {
   const ext = process.platform === 'win32' ? '.exe' : ''
-  return path.join(
-    lockfileDir,
-    'node_modules/.pnpm-config/pacquet/node_modules/@pacquet',
-    `${process.platform}-${process.arch}`,
-    `pacquet${ext}`
-  )
+  const pacquetPkg = path.join(lockfileDir, 'node_modules/.pnpm-config/pacquet/package.json')
+  return createRequire(pacquetPkg).resolve(`@pacquet/${process.platform}-${process.arch}/pacquet${ext}`)
 }
 
 /**
