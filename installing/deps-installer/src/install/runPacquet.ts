@@ -28,7 +28,9 @@ export interface RunPacquetOpts {
  */
 export async function runPacquet (opts: RunPacquetOpts): Promise<void> {
   const pacquetBin = path.join(opts.lockfileDir, 'node_modules/.pnpm-config/pacquet/bin/pacquet')
-  const args = ['install']
+  // Pacquet defaults to `--reporter=silent`. Asking for `ndjson` is what
+  // makes it emit the `pnpm:*` log events the loop below forwards.
+  const args = ['--reporter=ndjson', 'install']
   if (opts.frozenLockfile) args.push('--frozen-lockfile')
   const child = spawn(process.execPath, [pacquetBin, ...args], {
     cwd: opts.lockfileDir,
