@@ -931,10 +931,11 @@ impl Config {
         // had a chance to override `registry`. Pnpm keys default-registry
         // creds at the final resolved URL, not the `.npmrc` literal — see
         // [`getAuthHeadersFromConfig`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
-        let auth_source =
-            read_npmrc(start_dir).or_else(|| Sys::home_dir().and_then(|dir| read_npmrc(&dir)));
+        let auth_source = read_npmrc(start_dir)
+            .map(|text| (text, start_dir.to_path_buf()))
+            .or_else(|| Sys::home_dir().and_then(|dir| read_npmrc(&dir).map(|text| (text, dir))));
         let mut npmrc_auth = auth_source
-            .map(|text| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text))
+            .map(|(text, dir)| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir))
             .unwrap_or_default();
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`

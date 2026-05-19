@@ -1525,6 +1525,27 @@ test('getConfig() should read cafile', async () => {
 -----END CERTIFICATE-----`])
 })
 
+// Regression for https://github.com/pnpm/pnpm/issues/11624.
+test('getConfig() resolves a relative cafile= from .npmrc against the npmrc directory, not process.cwd()', async () => {
+  prepareEmpty()
+  const projectDir = path.resolve('project')
+  fs.mkdirSync(path.join(projectDir, 'certs'), { recursive: true })
+  fs.writeFileSync(
+    path.join(projectDir, 'certs', 'ca.pem'),
+    'relative-ca\n-----END CERTIFICATE-----'
+  )
+  fs.writeFileSync(path.join(projectDir, '.npmrc'), 'cafile=certs/ca.pem\n')
+
+  // process.cwd() is the prepareEmpty() root, *not* projectDir — i.e. the same
+  // shape as `pnpm --dir <projectDir> install` invoked from a sibling cwd.
+  const { config } = await getConfig({
+    cliOptions: { dir: projectDir },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.ca).toStrictEqual(['relative-ca\n-----END CERTIFICATE-----'])
+})
+
 test('getConfig() should read inline SSL certificates from .npmrc', async () => {
   prepareEmpty()
 
