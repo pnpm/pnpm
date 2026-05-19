@@ -48,6 +48,9 @@ concurrency:
 jobs:
   test:
     name: Lint and Test
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
@@ -83,7 +86,34 @@ jobs:
         continue-on-error: true
 
       - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+        id: clippy
+        shell: bash
+        run: |
+          set +e
+          cargo clippy --locked --workspace --all-targets -- -D warnings >clippy.log 2>&1
+          status=$?
+          cat clippy.log
+          exit "$status"
+
+      - name: Post Clippy log on failure
+        if: failure() && steps.clippy.outcome == 'failure' && github.event_name == 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          OS: ${{ matrix.os }}
+        run: |
+          if [ ! -s clippy.log ]; then
+            echo "clippy.log empty or missing — skipping comment"
+            exit 0
+          fi
+          {
+            printf '<!-- clippy-diagnostic:%s -->\n' "$OS"
+            printf '## Clippy log on %s\n\n```\n' "$OS"
+            head -c 60000 clippy.log
+            printf '\n```\n'
+          } > comment.md
+          gh pr comment "$PR" --repo "${{ github.repository }}" --body-file comment.md
 
       - name: Install just
         uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
