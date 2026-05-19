@@ -622,6 +622,43 @@ test('pnpm-workspace.yaml registries override the same scope from .npmrc (#11492
   expect(config.registries['@my-org']).toBe('https://from-workspace-yaml.example.com/')
 })
 
+test('pnpm-workspace.yaml registries.default is reflected in config.registry (#10099)', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      default: 'https://private.example.com/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://private.example.com/')
+  expect(config.registries.default).toBe('https://private.example.com/')
+})
+
+test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      default: 'https://workspace.example.com/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: { registry: 'https://cli.example.com/' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://cli.example.com/')
+})
+
 test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   prepareEmpty()
 
