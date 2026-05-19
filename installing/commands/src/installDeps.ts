@@ -201,10 +201,21 @@ export async function installDeps (
   // the construction so the installer doesn't need to know about
   // pacquet's binary path, CLI surface, or any settings that only
   // pacquet consumes. Threaded through both the workspace recursive
-  // path and the single-project path below.
-  const runPacquet = opts.configDependencies?.pacquet != null
+  // path and the single-project path below. Two declaration names are
+  // accepted: the original unscoped `pacquet` and the official scoped
+  // `@pnpm/pacquet` mirror. Both packages ship the same JS shim and
+  // optional `@pacquet/<plat>-<arch>` binary sub-packages, so the
+  // resolved \`node_modules/.pnpm-config/<name>\` layout pacquet's
+  // wrapper expects is identical either way.
+  const pacquetConfigDepName = opts.configDependencies?.['@pnpm/pacquet'] != null
+    ? '@pnpm/pacquet'
+    : opts.configDependencies?.pacquet != null
+      ? 'pacquet'
+      : undefined
+  const runPacquet = pacquetConfigDepName != null
     ? makeRunPacquet({
       lockfileDir: opts.lockfileDir ?? opts.dir,
+      packageName: pacquetConfigDepName,
       argv: opts.argv.original,
     })
     : undefined

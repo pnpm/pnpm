@@ -17,6 +17,15 @@ const streamParserWritable = streamParser as unknown as Writable
 export interface MakeRunPacquetOpts {
   lockfileDir: string
   /**
+   * Which `configDependencies` entry installed pacquet: either the
+   * original unscoped `pacquet` or the official scoped
+   * `@pnpm/pacquet` mirror. Drives the directory we look in under
+   * `node_modules/.pnpm-config/<packageName>/`. Both packages ship
+   * the same shim and the same `@pacquet/<plat>-<arch>` binary
+   * sub-packages, so the rest of the lookup is identical.
+   */
+  packageName: 'pacquet' | '@pnpm/pacquet'
+  /**
    * The user's original `pnpm` argv (`process.argv.slice(2)`). Forwarded
    * to pacquet verbatim — except for argv[0], which is pnpm's
    * subcommand alias (`install` / `i`) and is always replaced with
@@ -57,7 +66,7 @@ export interface RunPacquetCallOpts {
 
 export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
   return async (callOpts) => {
-    const pacquetBin = resolvePacquetBin(opts.lockfileDir)
+    const pacquetBin = resolvePacquetBin(opts.lockfileDir, opts.packageName)
     const args = buildArgs(opts.argv)
     logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
     const child = spawn(pacquetBin, args, {
@@ -115,9 +124,9 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacque
  * it won't follow the symlink up into the store dir where the
  * `@pacquet/<plat>-<arch>` sibling actually lives.
  */
-function resolvePacquetBin (lockfileDir: string): string {
+function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacquet'): string {
   const ext = process.platform === 'win32' ? '.exe' : ''
-  const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config/pacquet/package.json'))
+  const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config', packageName, 'package.json'))
   return createRequire(pacquetPkg).resolve(`@pacquet/${process.platform}-${process.arch}/pacquet${ext}`)
 }
 

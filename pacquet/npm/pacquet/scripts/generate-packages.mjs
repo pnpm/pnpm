@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 
 const BIN_NAME = "pacquet";
+// The wrapper package is published under two names: the original
+// `pacquet` (kept for back-compat) and `@pnpm/pacquet` (the official
+// pnpm-scoped alias). Both ship the same JS shim and depend on the
+// same `@pacquet/<platform>-<arch>` binary sub-packages.
+const SCOPED_ALIAS_NAME = "@pnpm/pacquet";
+const SCOPED_ALIAS_DIR = "pnpm-pacquet";
 const PACQUET_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PACQUET_ROOT, "..");
 const REPO_ROOT = resolve(PACKAGES_ROOT, "../..");
@@ -83,6 +89,33 @@ function writeManifest() {
   fs.writeFileSync(manifestPath, content);
 }
 
+function generateScopedAliasPackage() {
+  const aliasRoot = resolve(PACKAGES_ROOT, SCOPED_ALIAS_DIR);
+  fs.rmSync(aliasRoot, { recursive: true, force: true });
+  fs.mkdirSync(resolve(aliasRoot, "bin"), { recursive: true });
+
+  // Mirror the JS shim 1:1. Copying instead of symlinking keeps the
+  // tarball self-contained for `pnpm publish`.
+  fs.copyFileSync(
+    resolve(PACQUET_ROOT, "bin", BIN_NAME),
+    resolve(aliasRoot, "bin", BIN_NAME),
+  );
+
+  // The pacquet manifest at this point already carries the version and
+  // optionalDependencies that `writeManifest` patched in. Reuse it and
+  // swap only the package name + repo.directory pointer.
+  const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
+  const aliasManifest = {
+    ...baseManifest,
+    name: SCOPED_ALIAS_NAME,
+    repository: { ...baseManifest.repository, directory: `pacquet/npm/${SCOPED_ALIAS_DIR}` },
+  };
+  fs.writeFileSync(
+    resolve(aliasRoot, "package.json"),
+    JSON.stringify(aliasManifest),
+  );
+}
+
 const PLATFORMS = ["win32", "darwin", "linux"];
 const ARCHITECTURES = ["x64", "arm64"];
 
@@ -93,3 +126,7 @@ for (const platform of PLATFORMS) {
 }
 
 writeManifest();
+// Must run after `writeManifest`: the alias mirrors the patched
+// pacquet manifest (version + optionalDependencies), so reading it
+// before the patch would copy stale values.
+generateScopedAliasPackage();
