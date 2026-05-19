@@ -3,8 +3,8 @@ import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type {
   BinaryResolution,
-  OutdatedInfo,
-  OutdatedQuery,
+  LatestInfo,
+  LatestQuery,
   PlatformAssetResolution,
   PlatformAssetTarget,
   ResolveOptions,
@@ -81,10 +81,10 @@ export async function resolveNodeRuntime (
   }
 }
 
-export async function outdatedNodeRuntime (
+export async function resolveLatestNodeRuntime (
   ctx: { fetchFromRegistry: FetchFromRegistry, nodeDownloadMirrors?: Record<string, string> },
-  query: OutdatedQuery
-): Promise<OutdatedInfo | undefined> {
+  query: LatestQuery
+): Promise<LatestInfo | undefined> {
   if (query.wantedDependency.alias !== 'node' || !query.ref.startsWith('runtime:')) return undefined
   const manifestSpec = query.wantedDependency.bareSpecifier
   const wanted = query.wantedVersion ?? query.ref.substring('runtime:'.length)

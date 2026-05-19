@@ -1,5 +1,5 @@
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
-import type { OutdatedInfo, OutdatedQuery, PkgResolutionId, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { LatestInfo, LatestQuery, PkgResolutionId, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 
 export interface TarballResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
@@ -40,7 +40,7 @@ export async function resolveFromTarball (
 // URL tarballs lock to the exact URL — no concept of "latest". Use the raw
 // ref so a ref change (different URL or content hash) is what triggers an
 // outdated report.
-export async function outdatedTarball (query: OutdatedQuery): Promise<OutdatedInfo | undefined> {
+export async function resolveLatestFromTarball (query: LatestQuery): Promise<LatestInfo | undefined> {
   const bareSpecifier = query.wantedDependency.bareSpecifier
   if (!bareSpecifier?.startsWith('http:') && !bareSpecifier?.startsWith('https:')) return undefined
   return {

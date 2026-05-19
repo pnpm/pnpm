@@ -315,13 +315,13 @@ export type WantedDependency = {
 export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>
 
 /**
- * Input to a resolver's outdated function. `ref`/`currentRef` are the
+ * Input to a resolver's `resolveLatest` function. `ref`/`currentRef` are the
  * lockfile references for the wanted/current lockfile entries.
  * `wantedVersion`/`currentVersion` are the semver versions parsed off
  * the package snapshot (already extracted by the caller so each
  * resolver doesn't repeat the parsing).
  */
-export interface OutdatedQuery {
+export interface LatestQuery {
   wantedDependency: WantedDependency
   ref: string
   currentRef?: string
@@ -332,22 +332,22 @@ export interface OutdatedQuery {
 }
 
 /**
- * Result of a resolver's outdated check.
+ * Result of a resolver's `resolveLatest` call.
  *
  * - `undefined` from the resolver function means "this resolver does
  *   not handle this dep — try the next one".
- * - An `OutdatedInfo` (even when `current === wanted` and no
+ * - A `LatestInfo` (even when `current === wanted` and no
  *   `latestManifest`) tells the caller "I handled this; here's what I
  *   know" — the caller decides whether to surface it to the user.
  */
-export interface OutdatedInfo {
+export interface LatestInfo {
   packageName: string
   current?: string
   wanted: string
   latestManifest?: PackageManifest
 }
 
-export type OutdatedFunction = (
-  query: OutdatedQuery,
+export type ResolveLatestFunction = (
+  query: LatestQuery,
   opts: ResolveOptions
-) => Promise<OutdatedInfo | undefined>
+) => Promise<LatestInfo | undefined>

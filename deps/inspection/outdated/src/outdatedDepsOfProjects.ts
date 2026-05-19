@@ -53,7 +53,7 @@ export async function outdatedDepsOfProjects (
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
 
-  const { outdated: checkOutdated } = createResolver({
+  const { resolveLatest } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
     filterMetadata: false,
@@ -67,7 +67,7 @@ export async function outdatedDepsOfProjects (
       catalogs: opts.catalogs,
       compatible: opts.compatible,
       currentLockfile,
-      checkOutdated,
+      resolveLatest,
       ignoreDependencies: opts.ignoreDependencies,
       include: opts.include,
       lockfileDir,

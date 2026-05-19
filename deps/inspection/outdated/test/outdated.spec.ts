@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import type { OutdatedDispatcher } from '@pnpm/installing.client'
+import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
 import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
 
 import { outdated } from '../lib/outdated.js'
@@ -10,7 +10,7 @@ type ManifestGetter = (packageName: string) => Promise<PackageManifest | null>
 // Test stand-in for the real protocol dispatcher (default-resolver's outdated
 // composition). Mirrors the protocol routing so tests can keep mocking
 // "what does the registry say is latest?" without booting a real resolver.
-function makeChecker (getLatest: ManifestGetter): OutdatedDispatcher {
+function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher {
   return async (query) => {
     const { alias, bareSpecifier } = query.wantedDependency
     if (bareSpecifier?.startsWith('file:') || bareSpecifier?.startsWith('link:')) {
@@ -64,7 +64,7 @@ async function getLatestManifest (packageName: string): Promise<PackageManifest 
   } as Record<string, PackageManifest>)[packageName] ?? null
 }
 
-const checkOutdated = makeChecker(getLatestManifest)
+const resolveLatest = makeResolveLatest(getLatestManifest)
 
 test('outdated()', async () => {
   const outdatedPkgs = await outdated({
@@ -110,7 +110,7 @@ test('outdated()', async () => {
         },
       },
     },
-    checkOutdated,
+    resolveLatest,
     lockfileDir: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -249,7 +249,7 @@ test('outdated() should return deprecated package even if its current version is
   }
   const outdatedPkgs = await outdated({
     currentLockfile: lockfile,
-    checkOutdated,
+    resolveLatest,
     lockfileDir: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -326,7 +326,7 @@ test('outdated() with minimumReleaseAge', async () => {
         },
       },
     },
-    checkOutdated: makeChecker(getLatestManifestForMinimumAge),
+    resolveLatest: makeResolveLatest(getLatestManifestForMinimumAge),
     lockfileDir: 'project',
     manifest: {
       name: 'with-min-age',
@@ -442,7 +442,7 @@ test('outdated() with minimumReleaseAgeExclude', async () => {
         },
       },
     },
-    checkOutdated: makeChecker(getLatestManifestWithExclude),
+    resolveLatest: makeResolveLatest(getLatestManifestWithExclude),
     lockfileDir: 'project',
     manifest: {
       name: 'with-exclude',
@@ -555,7 +555,7 @@ test('using a matcher', async () => {
         },
       },
     },
-    checkOutdated,
+    resolveLatest,
     lockfileDir: 'wanted-shrinkwrap',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -657,7 +657,7 @@ test('outdated() aliased dependency', async () => {
         },
       },
     },
-    checkOutdated,
+    resolveLatest,
     lockfileDir: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -745,7 +745,7 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
   }
   const outdatedPkgs = await outdated({
     currentLockfile: lockfile,
-    checkOutdated: makeChecker( async (packageName) => {
+    resolveLatest: makeResolveLatest( async (packageName) => {
       switch (packageName) {
         case 'foo':
           return {
@@ -788,7 +788,7 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
 test('outdated() should [] when there is no dependency', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: null,
-    checkOutdated: makeChecker( async () => {
+    resolveLatest: makeResolveLatest( async () => {
       return null
     }),
     lockfileDir: 'project',
@@ -850,7 +850,7 @@ test('should ignore dependencies as expected', async () => {
         },
       },
     },
-    checkOutdated,
+    resolveLatest,
     lockfileDir: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -985,7 +985,7 @@ test('outdated() lists outdated runtimes (node, deno, bun)', async () => {
 
   const outdatedPkgs = await outdated({
     currentLockfile: lockfile,
-    checkOutdated: makeChecker(runtimeLatestManifest),
+    resolveLatest: makeResolveLatest(runtimeLatestManifest),
     lockfileDir: 'project',
     manifest: {
       name: 'has-runtimes',
@@ -1059,7 +1059,7 @@ test('outdated() runtime in --compatible mode resolves within the declared range
   const outdatedPkgs = await outdated({
     compatible: true,
     currentLockfile: lockfile,
-    checkOutdated: makeChecker(getLatestForCompat),
+    resolveLatest: makeResolveLatest(getLatestForCompat),
     lockfileDir: 'project',
     manifest: {
       name: 'with-runtime-range',
@@ -1107,7 +1107,7 @@ test('outdated() does not list runtime that is already up to date', async () => 
 
   const outdatedPkgs = await outdated({
     currentLockfile: lockfile,
-    checkOutdated: makeChecker(getLatestManifestUpToDate),
+    resolveLatest: makeResolveLatest(getLatestManifestUpToDate),
     lockfileDir: 'project',
     manifest: {
       name: 'up-to-date',

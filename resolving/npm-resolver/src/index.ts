@@ -10,8 +10,8 @@ import type {
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
-  OutdatedInfo,
-  OutdatedQuery,
+  LatestInfo,
+  LatestQuery,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
@@ -184,10 +184,10 @@ export type NpmResolver = (
   opts: ResolveFromNpmOptions
 ) => Promise<NpmResolveResult | JsrResolveResult | NamedRegistryResolveResult | WorkspaceResolveResult | null>
 
-export type OutdatedFromNpmStyle = (
-  query: OutdatedQuery,
+export type ResolveLatestFromNpmStyle = (
+  query: LatestQuery,
   opts: ResolveOptions
-) => Promise<OutdatedInfo | undefined>
+) => Promise<LatestInfo | undefined>
 
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
@@ -197,9 +197,9 @@ export function createNpmResolver (
   resolveFromNpm: NpmResolver
   resolveFromJsr: NpmResolver
   resolveFromNamedRegistry: NpmResolver
-  outdatedFromNpm: OutdatedFromNpmStyle
-  outdatedFromJsr: OutdatedFromNpmStyle
-  outdatedFromNamedRegistry: OutdatedFromNpmStyle
+  resolveLatestFromNpm: ResolveLatestFromNpmStyle
+  resolveLatestFromJsr: ResolveLatestFromNpmStyle
+  resolveLatestFromNamedRegistry: ResolveLatestFromNpmStyle
   clearCache: () => void
 } {
   if (typeof opts.cacheDir !== 'string') {
@@ -273,9 +273,9 @@ export function createNpmResolver (
     resolveFromNpm: boundResolveFromNpm,
     resolveFromJsr: boundResolveFromJsr,
     resolveFromNamedRegistry: boundResolveFromNamedRegistry,
-    outdatedFromNpm: createOutdated(boundResolveFromNpm, isNpmSpec),
-    outdatedFromJsr: createOutdated(boundResolveFromJsr, isJsrSpec),
-    outdatedFromNamedRegistry: createOutdated(boundResolveFromNamedRegistry,
+    resolveLatestFromNpm: createResolveLatest(boundResolveFromNpm, isNpmSpec),
+    resolveLatestFromJsr: createResolveLatest(boundResolveFromJsr, isJsrSpec),
+    resolveLatestFromNamedRegistry: createResolveLatest(boundResolveFromNamedRegistry,
       (query) => isNamedRegistrySpec(query, ctx.namedRegistryNames)),
     clearCache: () => {
       if ('clear' in metaCache && typeof metaCache.clear === 'function') {
@@ -286,14 +286,14 @@ export function createNpmResolver (
   }
 }
 
-function isNpmSpec (query: OutdatedQuery): string | undefined {
+function isNpmSpec (query: LatestQuery): string | undefined {
   const { alias, bareSpecifier } = query.wantedDependency
   if (!bareSpecifier) return alias
   const parsed = parseBareSpecifier(bareSpecifier, alias, 'latest', query.registry)
   return parsed?.name
 }
 
-function isJsrSpec (query: OutdatedQuery): string | undefined {
+function isJsrSpec (query: LatestQuery): string | undefined {
   if (!query.wantedDependency.bareSpecifier?.startsWith('jsr:')) return undefined
   const parsed = parseJsrSpecifierToRegistryPackageSpec(
     query.wantedDependency.bareSpecifier,
@@ -304,7 +304,7 @@ function isJsrSpec (query: OutdatedQuery): string | undefined {
 }
 
 function isNamedRegistrySpec (
-  query: OutdatedQuery,
+  query: LatestQuery,
   knownRegistryNames: ReadonlySet<string>
 ): string | undefined {
   if (!query.wantedDependency.bareSpecifier) return undefined
@@ -321,11 +321,11 @@ function isNamedRegistrySpec (
   }
 }
 
-function createOutdated (
+function createResolveLatest (
   resolve: NpmResolver,
-  matchSpec: (query: OutdatedQuery) => string | undefined
+  matchSpec: (query: LatestQuery) => string | undefined
 ) {
-  return async (query: OutdatedQuery, opts: ResolveOptions): Promise<OutdatedInfo | undefined> => {
+  return async (query: LatestQuery, opts: ResolveOptions): Promise<LatestInfo | undefined> => {
     const packageName = matchSpec(query)
     if (!packageName) return undefined
     const wanted = query.wantedVersion ?? query.ref

@@ -12,17 +12,17 @@ import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.f
 import {
   createResolutionVerifiers,
   createResolver as _createResolver,
-  type OutdatedDispatcher,
   type ResolutionVerifierFactoryOptions,
   type ResolveFunction,
+  type ResolveLatestDispatcher,
   type ResolverFactoryOptions,
 } from '@pnpm/resolving.default-resolver'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
-import type { OutdatedInfo, OutdatedQuery, ResolutionPolicyViolation, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import type { LatestInfo, LatestQuery, ResolutionPolicyViolation, ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { RegistryConfig } from '@pnpm/types'
 
-export type { OutdatedDispatcher, OutdatedInfo, OutdatedQuery, ResolutionVerifier, ResolveFunction }
+export type { LatestInfo, LatestQuery, ResolutionVerifier, ResolveFunction, ResolveLatestDispatcher }
 
 export type ClientOptions = {
   configByUri: Record<string, RegistryConfig>
@@ -78,7 +78,7 @@ export function createClient (opts: ClientOptions): Client {
   }
 }
 
-export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { resolve: ResolveFunction, outdated: OutdatedDispatcher, clearCache: () => void } {
+export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { resolve: ResolveFunction, resolveLatest: ResolveLatestDispatcher, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 

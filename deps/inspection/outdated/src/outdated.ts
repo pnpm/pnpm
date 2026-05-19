@@ -12,7 +12,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import type { OutdatedDispatcher } from '@pnpm/installing.client'
+import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
 import {
   getLockfileImporterId,
   type LockfileObject,
@@ -48,7 +48,7 @@ export async function outdated (
     catalogs?: Catalogs
     compatible?: boolean
     currentLockfile: LockfileObject | null
-    checkOutdated: OutdatedDispatcher
+    resolveLatest: ResolveLatestDispatcher
     ignoreDependencies?: string[]
     include?: IncludedDependencies
     lockfileDir: string
@@ -137,7 +137,7 @@ export async function outdated (
 
           const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
 
-          const info = await opts.checkOutdated(
+          const info = await opts.resolveLatest(
             {
               wantedDependency: { alias, bareSpecifier },
               ref,
