@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-resolver-base"
+name                  = "pacquet-resolving-parse-wanted-dependency"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,14 +11,6 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-lockfile = { workspace = true }
-
-serde      = { workspace = true }
-serde_json = { workspace = true }
-
-[dev-dependencies]
-ssri  = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

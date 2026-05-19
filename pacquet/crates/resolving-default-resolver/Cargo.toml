@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-resolving-resolver-base"
+name                  = "pacquet-resolving-default-resolver"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,12 +11,14 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-lockfile = { workspace = true }
+pacquet-resolving-resolver-base = { workspace = true }
 
-serde      = { workspace = true }
-serde_json = { workspace = true }
+derive_more = { workspace = true }
+miette      = { workspace = true }
 
 [dev-dependencies]
+pacquet-lockfile = { workspace = true }
+
 ssri  = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
