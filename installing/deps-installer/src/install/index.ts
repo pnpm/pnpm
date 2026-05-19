@@ -1782,8 +1782,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       })
     }
 
-    if (opts.nodeLinker !== 'hoisted') {
-      // This is only needed because otherwise the reporter will hang
+    if (opts.nodeLinker !== 'hoisted' && opts.runPacquet == null) {
+      // This is only needed because otherwise the reporter will hang.
+      // Skipped when pacquet is about to take over the materialization
+      // phase: the default reporter completes the progress stream for
+      // this prefix on `importing_done`, so emitting it from the
+      // lockfileOnly resolve pass would prematurely close the stream
+      // and pacquet's own `importing_started` / progress events would
+      // render to a stale stream. Pacquet emits its own
+      // `importing_done` after the install, which closes the stream
+      // normally.
       stageLogger.debug({
         prefix: opts.lockfileDir,
         stage: 'importing_done',
