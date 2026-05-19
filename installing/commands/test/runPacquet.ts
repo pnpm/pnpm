@@ -14,7 +14,11 @@ interface FakePacquetOpts {
 }
 
 async function setupFakePacquet (tmpDir: string, opts: FakePacquetOpts): Promise<{ argsPath: string }> {
-  const binDir = path.join(tmpDir, 'node_modules/.pnpm-config/pacquet/bin')
+  const ext = process.platform === 'win32' ? '.exe' : ''
+  const binDir = path.join(
+    tmpDir,
+    `node_modules/.pnpm-config/pacquet/node_modules/@pacquet/${process.platform}-${process.arch}`
+  )
   await fs.promises.mkdir(binDir, { recursive: true })
   const argsPath = path.join(tmpDir, 'fake-pacquet-args.json')
   const lines = opts.ndjsonLines.map((line) => JSON.stringify(line))
@@ -27,7 +31,7 @@ async function setupFakePacquet (tmpDir: string, opts: FakePacquetOpts): Promise
     tail ? `process.stderr.write(${tail} + "\\n")` : '',
     `process.exit(${opts.exitCode})`,
   ].join('\n')
-  const binPath = path.join(binDir, 'pacquet')
+  const binPath = path.join(binDir, `pacquet${ext}`)
   await fs.promises.writeFile(binPath, script, { mode: 0o755 })
   return { argsPath }
 }

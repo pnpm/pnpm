@@ -40,15 +40,10 @@ export interface MakeRunPacquetOpts {
  */
 export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
   return async () => {
-    const pacquetBin = path.join(opts.lockfileDir, 'node_modules/.pnpm-config/pacquet/bin/pacquet')
+    const pacquetBin = resolvePacquetBin(opts.lockfileDir)
     const args = buildArgs(opts.argv)
     logger.info({ message: 'Delegating install to pacquet (configured via configDependencies)', prefix: opts.lockfileDir })
-    // `pacquetBin` is the npm package's `bin/pacquet` Node wrapper
-    // script (resolves `@pacquet/<platform>-<arch>/pacquet` and execs
-    // it). Invoke via `process.execPath` so the launcher runs under
-    // the same Node binary on every platform — direct spawn would
-    // rely on shebang support, which Windows doesn't have.
-    const child = spawn(process.execPath, [pacquetBin, ...args], {
+    const child = spawn(pacquetBin, args, {
       cwd: opts.lockfileDir,
       stdio: ['ignore', 'inherit', 'pipe'],
     })
@@ -75,6 +70,34 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): () => Promise<void> {
       })
     })
   }
+}
+
+/**
+ * Path of the platform-specific native pacquet binary for the host. The
+ * pacquet npm package ships a Node wrapper at `bin/pacquet` that resolves
+ * `@pacquet/<platform>-<arch>/pacquet[.exe]` and execs it; resolving the
+ * same path here lets us skip the wrapper's extra Node startup and spawn
+ * the native binary directly.
+ *
+ * Layout under `configDependencies`: pacquet is symlinked at
+ * `node_modules/.pnpm-config/pacquet`, with its optional platform deps
+ * symlinked into its own `node_modules/`. Pacquet's npm `bin/pacquet`
+ * (linked at commit `1f6cb5f4c0`) is the source of the platform table.
+ */
+function resolvePacquetBin (lockfileDir: string): string {
+  const platforms: Record<string, Record<string, string>> = {
+    win32: { x64: 'win32-x64/pacquet.exe', arm64: 'win32-arm64/pacquet.exe' },
+    darwin: { x64: 'darwin-x64/pacquet', arm64: 'darwin-arm64/pacquet' },
+    linux: { x64: 'linux-x64/pacquet', arm64: 'linux-arm64/pacquet' },
+  }
+  const subpath = platforms[process.platform]?.[process.arch]
+  if (!subpath) {
+    throw new PnpmError(
+      'UNSUPPORTED_PACQUET_PLATFORM',
+      `pacquet does not ship a prebuilt binary for ${process.platform}-${process.arch} yet.`
+    )
+  }
+  return path.join(lockfileDir, 'node_modules/.pnpm-config/pacquet/node_modules/@pacquet', subpath)
 }
 
 /**
