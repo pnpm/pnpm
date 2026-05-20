@@ -94,37 +94,33 @@ pub fn pick_registry_for_version(
 }
 
 /// Default-vs-scope routing for an npm package. Mirrors pnpm's
-/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts).
+/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package/src/index.ts).
 ///
-/// Scope sources, in order:
+/// Routing rules:
 ///
-/// 1. The npm-alias form (`npm:@scope/name@<spec>`) embedded in
-///    `bare_specifier`. This wins so a manifest entry like
-///    `"foo": "npm:@acme/foo@^1"` routes through
-///    `registries[@acme]` even though the local key is `foo`.
-/// 2. `pkg_name` itself when it carries a scope (`@scope/foo`).
-///
-/// Falls through to `registries["default"]` when no scope is
-/// detected or no per-scope registry is configured.
+/// 1. **`npm:` alias.** When `bare_specifier` is an `npm:` alias the
+///    *alias target* decides routing, not the local key:
+///    - `npm:@scope/name@<spec>` → `registries[@scope]`.
+///    - `npm:name@<spec>` (unscoped target) → `registries["default"]`,
+///      never the local alias's scope, because the fetched package is
+///      unscoped and doesn't live on a scoped registry.
+/// 2. **Plain spec.** Falls back to `pkg_name`'s scope when present;
+///    otherwise `registries["default"]`.
 pub fn pick_registry_for_package(
     registries: &HashMap<String, String>,
     pkg_name: &str,
     bare_specifier: Option<&str>,
 ) -> String {
-    if let Some(scope) = scope_from_bare_specifier(bare_specifier).or_else(|| scope_of(pkg_name))
+    let scope = match bare_specifier.and_then(|spec| spec.strip_prefix("npm:")) {
+        Some(target) => scope_of(target),
+        None => scope_of(pkg_name),
+    };
+    if let Some(scope) = scope
         && let Some(url) = registries.get(scope)
     {
         return url.clone();
     }
     registries.get("default").cloned().unwrap_or_default()
-}
-
-fn scope_from_bare_specifier(bare_specifier: Option<&str>) -> Option<&str> {
-    let rest = bare_specifier?.strip_prefix("npm:")?;
-    if !rest.starts_with('@') {
-        return None;
-    }
-    rest.find('/').map(|sep| &rest[..sep])
 }
 
 fn scope_of(name: &str) -> Option<&str> {
