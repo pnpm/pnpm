@@ -42,11 +42,65 @@ pub struct PackageVersion {
     /// highest version satisfying the range is deprecated, retry the
     /// pick against the non-deprecated subset.
     ///
-    /// Mirrors pnpm's
-    /// [`PackageInRegistry.deprecated`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts)
-    /// — exposed via the abbreviated metadata document.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// **Wire format:** the field is declared as a string upstream
+    /// (`PackageInRegistry.deprecated?: string`) but the real npm
+    /// registry occasionally serves `"deprecated": false` for
+    /// never-deprecated versions — JavaScript stores the boolean and
+    /// the upstream `if (info.deprecated)` truthiness check happens
+    /// to handle both shapes silently. Rust serde is strict, so we
+    /// route through a custom deserializer that normalizes the field
+    /// to `Option<String>`: a string stays a string, `false` becomes
+    /// `None`, `true` becomes `Some("")` (deprecated without a
+    /// recorded reason). Mirrors pnpm's
+    /// [`PackageInRegistry.deprecated`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts).
+    #[serde(
+        default,
+        deserialize_with = "deserialize_deprecated_field",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub deprecated: Option<String>,
+}
+
+/// Accept either a string or a boolean for the `deprecated` field.
+/// A bool `true` becomes `Some("")`, a bool `false` becomes `None`;
+/// a string stays as `Some(s)`. Missing field defaults to `None` via
+/// the `#[serde(default)]` on the field itself.
+fn deserialize_deprecated_field<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct DeprecatedVisitor;
+    impl<'de> Visitor<'de> for DeprecatedVisitor {
+        type Value = Option<String>;
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("a deprecation reason (string), a boolean, or null")
+        }
+        fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+            Ok(Some(value.to_string()))
+        }
+        fn visit_string<E: de::Error>(self, value: String) -> Result<Self::Value, E> {
+            Ok(Some(value))
+        }
+        fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
+            Ok(if value { Some(String::new()) } else { None })
+        }
+        fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+        fn visit_some<D2: serde::Deserializer<'de>>(
+            self,
+            deserializer: D2,
+        ) -> Result<Self::Value, D2::Error> {
+            deserializer.deserialize_any(DeprecatedVisitor)
+        }
+    }
+    deserializer.deserialize_any(DeprecatedVisitor)
 }
 
 /// `_npmUser` field on a per-version manifest. The verifier reads

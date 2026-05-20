@@ -246,6 +246,92 @@ fn package_deserializes_without_npm_user_or_attestations() {
     assert!(pkg.etag.is_none(), "missing etag stays None");
 }
 
+/// The npm registry sometimes serves `"deprecated": false` (a
+/// boolean) on never-deprecated versions even though the upstream
+/// type declares the field as a string. JavaScript silently stores
+/// the boolean (and the upstream truthiness check happens to do the
+/// right thing). Rust serde is strict, so we route through a custom
+/// deserializer that normalizes the wire shape: `string` stays a
+/// string, `false` becomes `None`, `true` becomes `Some("")`. This
+/// regression pinned the entire integrated-benchmark workload, which
+/// fails to deserialize `react`, `react-dom`, `scheduler`, and other
+/// real-world packages without the normalization.
+#[test]
+fn package_deserializes_deprecated_boolean_false() {
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "deprecated": false,
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let pkg: Package =
+        serde_json::from_str(body).expect("deserialize packument with deprecated:false");
+    let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
+    assert!(version.deprecated.is_none(), "deprecated:false maps to None");
+}
+
+#[test]
+fn package_deserializes_deprecated_boolean_true() {
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "deprecated": true,
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let pkg: Package =
+        serde_json::from_str(body).expect("deserialize packument with deprecated:true");
+    let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
+    assert_eq!(
+        version.deprecated.as_deref(),
+        Some(""),
+        "deprecated:true maps to Some(\"\") — recorded as deprecated without a reason",
+    );
+}
+
+#[test]
+fn package_deserializes_deprecated_reason_string() {
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "deprecated": "use acme@2 instead",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let pkg: Package =
+        serde_json::from_str(body).expect("deserialize packument with deprecation reason");
+    let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
+    assert_eq!(version.deprecated.as_deref(), Some("use acme@2 instead"));
+}
+
 /// A packument missing the `time` field entirely still
 /// deserializes — abbreviated metadata responses omit it, and the
 /// verifier falls through to the attestation / full-metadata
