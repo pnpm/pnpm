@@ -49,8 +49,8 @@ pub use dependencies_graph::{
     DependenciesGraph, DependenciesGraphNode, MissingPeer, PeerDependencyIssue,
     PeerDependencyIssues,
 };
-pub use pacquet_deps_path::DepPath;
 pub use node_id::NodeId;
+pub use pacquet_deps_path::DepPath;
 pub use resolve_dependency_tree::{
     ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
 };

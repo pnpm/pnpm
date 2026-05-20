@@ -233,9 +233,9 @@ mod peers {
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
-    use pacquet_deps_path::DepPath;
     use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
     use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
+    use pacquet_deps_path::DepPath;
 
     /// A pure leaf — no peer dependencies — should land in the graph
     /// with its depPath equal to its pkgIdWithPatchHash.
@@ -454,9 +454,8 @@ mod peers {
         );
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
         // Manifest order puts react-dom first.
-        let (_tmp, manifest) = fake_manifest(
-            serde_json::json!({ "react-dom": "18.0.0", "react": "18.0.0" }),
-        );
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "react-dom": "18.0.0", "react": "18.0.0" }));
         let tree = resolve_dependency_tree(
             &resolver,
             &manifest,
@@ -479,9 +478,6 @@ mod peers {
         // Without the post-pass, this edge would be missing because
         // `node_dep_paths` doesn't yet contain react when react-dom is
         // being walked.
-        assert_eq!(
-            node.children.get("react"),
-            Some(&DepPath::from("react@18.0.0".to_string())),
-        );
+        assert_eq!(node.children.get("react"), Some(&DepPath::from("react@18.0.0".to_string())),);
     }
 }
