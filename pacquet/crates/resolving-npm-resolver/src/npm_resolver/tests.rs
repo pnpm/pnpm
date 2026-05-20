@@ -45,9 +45,15 @@ const PACKAGE_BODY: &str = r#"{
 }"#;
 
 fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
-    let cache_dir = TempDir::new().expect("tempdir");
     let mut registries = HashMap::new();
     registries.insert("default".to_string(), registry.to_string());
+    build_resolver_with_registries(registries)
+}
+
+fn build_resolver_with_registries(
+    registries: HashMap<String, String>,
+) -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
+    let cache_dir = TempDir::new().expect("tempdir");
     let resolver = NpmResolver {
         registries,
         named_registries: HashMap::new(),
@@ -61,6 +67,39 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
     };
     (resolver, cache_dir)
 }
+
+/// Packument body for `@jsr/foo__bar` — the npm-shaped name JSR
+/// serves `@foo/bar` under
+/// ([source](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/jsr-specifier-parser/src/index.ts#L53-L64)).
+const JSR_PACKAGE_BODY: &str = r#"{
+    "name": "@jsr/foo__bar",
+    "dist-tags": { "latest": "1.1.0" },
+    "modified": "2025-01-15T12:00:00.000Z",
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z",
+        "1.1.0": "2024-12-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "@jsr/foo__bar",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==",
+                "shasum": "2222222222222222222222222222222222222222",
+                "tarball": "https://registry/foo__bar-1.0.0.tgz"
+            }
+        },
+        "1.1.0": {
+            "name": "@jsr/foo__bar",
+            "version": "1.1.0",
+            "dist": {
+                "integrity": "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD==",
+                "shasum": "3333333333333333333333333333333333333333",
+                "tarball": "https://registry/foo__bar-1.1.0.tgz"
+            }
+        }
+    }
+}"#;
 
 #[tokio::test]
 async fn range_specifier_picks_max_in_range() {
@@ -183,4 +222,81 @@ async fn resolve_latest_under_compatible_does_not_override_update_to_latest() {
     let info = resolver.resolve_latest(&query, &opts).await.unwrap().expect("latest info");
     let manifest = info.latest_manifest.expect("manifest present");
     assert_eq!(manifest["version"].as_str(), Some("1.1.0"));
+}
+
+#[tokio::test]
+async fn jsr_specifier_routes_through_jsr_registry() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@jsr%2Ffoo__bar")
+        .with_status(200)
+        .with_body(JSR_PACKAGE_BODY)
+        .create_async()
+        .await;
+    let jsr_registry = format!("{}/", server.url());
+    let mut registries = HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
+    registries.insert("@jsr".to_string(), jsr_registry);
+    let (resolver, _tempdir) = build_resolver_with_registries(registries);
+
+    let wanted = WantedDependency {
+        // The user-facing dependency alias is the JSR-style scoped
+        // name. The resolver folds it into `@jsr/foo__bar` for the
+        // metadata fetch but restores `@foo/bar` on the result.
+        alias: Some("@foo/bar".to_string()),
+        bare_specifier: Some("jsr:@foo/bar@^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.id.name.to_string(), "@jsr/foo__bar");
+    assert_eq!(result.id.suffix.to_string(), "1.1.0");
+    assert_eq!(result.resolved_via, "jsr-registry");
+    assert_eq!(result.alias.as_deref(), Some("@foo/bar"));
+    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+#[tokio::test]
+async fn jsr_specifier_without_selector_uses_default_tag() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@jsr%2Ffoo__bar")
+        .with_status(200)
+        .with_body(JSR_PACKAGE_BODY)
+        .create_async()
+        .await;
+    let jsr_registry = format!("{}/", server.url());
+    let mut registries = HashMap::new();
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
+    registries.insert("@jsr".to_string(), jsr_registry);
+    let (resolver, _tempdir) = build_resolver_with_registries(registries);
+
+    let wanted = WantedDependency {
+        alias: Some("@foo/bar".to_string()),
+        bare_specifier: Some("jsr:@foo/bar".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.id.suffix.to_string(), "1.1.0");
+    assert_eq!(result.resolved_via, "jsr-registry");
+}
+
+#[tokio::test]
+async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
+    let server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("foo".to_string()),
+        bare_specifier: Some("jsr:foo@^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    let msg = err.to_string();
+    // Asserting the upstream-defined error message ties the test to
+    // the public `ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE` contract; the
+    // resolver seam returns the parser error as a boxed `dyn Error`
+    // so we can't downcast to the variant directly.
+    assert_eq!(msg, "Package names from JSR must have a scope", "unexpected error message: {msg}");
 }

@@ -37,11 +37,29 @@ use pacquet_resolving_resolver_base::{
 
 use crate::{
     named_registry::pick_registry_for_package,
-    parse_bare_specifier::parse_bare_specifier,
+    parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
+
+/// Default `@jsr` registry URL. Mirrors upstream's
+/// [`DEFAULT_REGISTRIES['@jsr']`](https://github.com/pnpm/pnpm/blob/1627943d2a/config/normalize-registries/src/index.ts#L5-L8):
+/// every `normalizeRegistries` call always populates `'@jsr'`, so the
+/// TS dispatcher reads `ctx.registries['@jsr']!` unconditionally. This
+/// constant is the fallback for pacquet callers that haven't routed
+/// the `@jsr` entry through their `registries` map yet.
+const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
+
+/// Provenance tag for [`ResolveResult::resolved_via`] when the picker
+/// drove a JSR-prefixed specifier through the `@jsr` registry. Mirrors
+/// upstream's
+/// [`resolveJsr`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/index.ts#L629).
+const JSR_REGISTRY_RESOLVED_VIA: &str = "jsr-registry";
+
+/// Provenance tag for npm-registry resolutions. Mirrors upstream's
+/// [`resolveNpm`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/index.ts#L595-L601).
+const NPM_REGISTRY_RESOLVED_VIA: &str = "npm-registry";
 
 /// npm-registry resolver.
 ///
@@ -114,6 +132,17 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(None);
         }
 
+        // `jsr:` resolves through the `@jsr` registry under the
+        // `@jsr/<scope>__<name>` folded name. Mirrors upstream's
+        // [`resolveJsr`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/index.ts#L613-L632),
+        // which is dispatched alongside `resolveNpm` from the same
+        // factory.
+        if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
+            && bare.starts_with("jsr:")
+        {
+            return self.resolve_jsr_impl(wanted_dependency, opts, bare, default_tag).await;
+        }
+
         // Pick registry from `(alias, bare_specifier)` so an npm-alias
         // entry like `"foo": "npm:@scope/bar@^1"` routes through
         // `registries[@scope]` instead of the alias's own scope.
@@ -143,8 +172,80 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             },
         };
 
+        let picked = match self.pick_from_registry(&registry, &spec, opts).await? {
+            Some(picked) => picked,
+            None => return Ok(None),
+        };
+
+        let result = build_resolve_result(
+            &picked.meta,
+            &picked.version,
+            &spec,
+            wanted_dependency.alias.as_deref(),
+            NPM_REGISTRY_RESOLVED_VIA,
+            opts.published_by,
+            opts.published_by_exclude.as_ref(),
+        )?;
+
+        Ok(Some(result))
+    }
+
+    /// JSR counterpart to the npm path. Mirrors upstream's
+    /// [`resolveJsr`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/index.ts#L613-L632):
+    /// runs the JSR-specifier parser, picks against the `@jsr`
+    /// registry, then stamps `resolved_via = "jsr-registry"` and
+    /// `alias = spec.jsr_pkg_name` on the result so the install layer
+    /// records the dependency under its JSR-style name.
+    async fn resolve_jsr_impl(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        bare_specifier: &str,
+        default_tag: &str,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
+        let jsr_spec = parse_jsr_specifier_to_registry_package_spec(
+            bare_specifier,
+            wanted_dependency.alias.as_deref(),
+            default_tag,
+        )
+        .map_err(|err| Box::new(err) as ResolveError)?;
+        let Some(jsr_spec) = jsr_spec else {
+            return Ok(None);
+        };
+
+        let registry =
+            self.registries.get("@jsr").map(String::as_str).unwrap_or(DEFAULT_JSR_REGISTRY);
+
+        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts).await? {
+            Some(picked) => picked,
+            None => return Ok(None),
+        };
+
+        let result = build_resolve_result(
+            &picked.meta,
+            &picked.version,
+            &jsr_spec.spec,
+            Some(jsr_spec.jsr_pkg_name.as_str()),
+            JSR_REGISTRY_RESOLVED_VIA,
+            opts.published_by,
+            opts.published_by_exclude.as_ref(),
+        )?;
+
+        Ok(Some(result))
+    }
+
+    /// Common picker invocation shared by [`Self::resolve_impl`] and
+    /// [`Self::resolve_jsr_impl`]. Returns `Ok(None)` when the picker
+    /// finds no matching version so each caller can fold that into
+    /// its own `Ok(None)` short-circuit.
+    async fn pick_from_registry(
+        &self,
+        registry: &str,
+        spec: &RegistryPackageSpec,
+        opts: &ResolveOptions,
+    ) -> Result<Option<PickedFromRegistry>, ResolveError> {
         let pick_opts = PickPackageOptions {
-            registry: &registry,
+            registry,
             preferred_version_selectors: opts.preferred_versions.get(&spec.name),
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
@@ -163,24 +264,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             ignore_missing_time_field: self.ignore_missing_time_field,
         };
 
-        let pick_result = pick_package(&ctx, &spec, &pick_opts)
+        let pick_result = pick_package(&ctx, spec, &pick_opts)
             .await
             .map_err(|err| Box::new(err) as ResolveError)?;
 
-        let Some(picked) = pick_result.picked_package else {
+        let Some(version) = pick_result.picked_package else {
             return Ok(None);
         };
 
-        let result = build_resolve_result(
-            &pick_result.meta,
-            &picked,
-            &spec,
-            wanted_dependency.alias.as_deref(),
-            opts.published_by,
-            opts.published_by_exclude.as_ref(),
-        )?;
-
-        Ok(Some(result))
+        Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }))
     }
 
     /// Latest-version companion. Mirrors upstream's
@@ -234,11 +326,18 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
     }
 }
 
+/// Picker output threaded through to [`build_resolve_result`].
+struct PickedFromRegistry {
+    meta: Package,
+    version: PackageVersion,
+}
+
 fn build_resolve_result(
     meta: &Package,
     picked: &PackageVersion,
     spec: &RegistryPackageSpec,
     alias: Option<&str>,
+    resolved_via: &str,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
 ) -> Result<ResolveResult, ResolveError> {
@@ -275,7 +374,7 @@ fn build_resolve_result(
         published_at,
         manifest,
         resolution,
-        resolved_via: "npm-registry".to_string(),
+        resolved_via: resolved_via.to_string(),
         normalized_bare_specifier: spec.normalized_bare_specifier.clone(),
         alias: alias.map(str::to_string),
         policy_violation,

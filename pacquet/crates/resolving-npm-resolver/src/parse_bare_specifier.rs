@@ -1,13 +1,19 @@
 //! Pacquet port of pnpm's
-//! [`parseBareSpecifier`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/parseBareSpecifier.ts).
+//! [`parseBareSpecifier`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts).
 //!
 //! Routes a raw bare specifier (`"^1.0.0"`, `"latest"`,
 //! `"npm:lodash@^4"`, `"https://registry.npmjs.org/foo/-/foo-1.0.0.tgz"`)
 //! to a [`RegistryPackageSpec`] the npm picker can consume, or `None`
 //! when no npm-shaped interpretation applies — that's the signal to the
 //! resolver chain to try the next resolver in the chain.
+//!
+//! The sibling [`parse_jsr_specifier_to_registry_package_spec`] routes
+//! `jsr:` specifiers the same way: parser-package output through the
+//! version-selector classifier, then folded into an npm-shaped spec
+//! the picker can drive against the `@jsr` registry.
 
 use node_semver::{Range, Version};
+use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use reqwest::Url;
 
 use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
@@ -90,6 +96,56 @@ pub fn parse_bare_specifier(
     }
 
     None
+}
+
+/// JSR-specifier counterpart of [`RegistryPackageSpec`]. Carries the
+/// JSR-style scoped name alongside the npm-shaped fields so the
+/// resolver can record the dependency under its JSR alias while
+/// driving the picker against the `@jsr` registry.
+///
+/// Mirrors upstream's `JsrRegistryPackageSpec`
+/// ([source](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L64-L66)).
+#[derive(Debug, Clone)]
+pub struct JsrRegistryPackageSpec {
+    pub spec: RegistryPackageSpec,
+    pub jsr_pkg_name: String,
+}
+
+/// Parse a `jsr:` specifier into a picker-ready
+/// [`JsrRegistryPackageSpec`].
+///
+/// Defers the `jsr:` syntax to the
+/// [`pacquet_resolving_jsr_specifier_parser`] crate, then runs the
+/// version-selector classifier on the parsed selector (falling back
+/// to `default_tag` when the specifier omits one). Returns
+/// `Ok(None)` for any non-`jsr:` specifier so the caller can fall
+/// through to the npm bare-specifier parser.
+///
+/// Mirrors upstream's
+/// [`parseJsrSpecifierToRegistryPackageSpec`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L68-L85).
+pub fn parse_jsr_specifier_to_registry_package_spec(
+    raw_specifier: &str,
+    alias: Option<&str>,
+    default_tag: &str,
+) -> Result<Option<JsrRegistryPackageSpec>, ParseJsrSpecifierError> {
+    let Some(spec) = parse_jsr_specifier(raw_specifier, alias)? else {
+        return Ok(None);
+    };
+
+    let selector_input = spec.version_selector.as_deref().unwrap_or(default_tag);
+    let Some(selector) = get_version_selector_type(selector_input) else {
+        return Ok(None);
+    };
+
+    Ok(Some(JsrRegistryPackageSpec {
+        spec: RegistryPackageSpec {
+            name: spec.npm_pkg_name,
+            fetch_spec: selector.normalized,
+            spec_type: selector.spec_type,
+            normalized_bare_specifier: None,
+        },
+        jsr_pkg_name: spec.jsr_pkg_name,
+    }))
 }
 
 /// Discriminate between an exact version, a semver range, and a
