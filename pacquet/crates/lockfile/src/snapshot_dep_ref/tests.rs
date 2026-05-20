@@ -58,10 +58,6 @@ fn resolve_alias_uses_alias_target_name_not_key() {
     assert_eq!(resolved.to_string(), "string-width@4.2.3");
 }
 
-/// `link:` deps live outside the virtual store, so `resolve` returns
-/// `None` — mirroring upstream's `refToRelative` returning `null` for
-/// `link:` references. Callers that build snapshot graphs use this as
-/// the signal to skip the entry.
 #[test]
 fn resolve_link_returns_none() {
     let dep: SnapshotDepRef = "link:packages/c".parse().unwrap();
@@ -97,12 +93,6 @@ fn deserialize_ok() {
     }
 }
 
-/// `link:` references parse into the dedicated [`SnapshotDepRef::Link`]
-/// variant. Pnpm writes this shape into a snapshot's `dependencies:`
-/// map when an injected workspace package (e.g. `b@file:packages/b`)
-/// depends on another workspace project via `workspace:` — the
-/// dependency lives outside the virtual store, so the lockfile records
-/// the path with a `link:` prefix instead of a snapshot version.
 #[test]
 fn parse_link_workspace_path() {
     let dep: SnapshotDepRef = "link:packages/c".parse().unwrap();
