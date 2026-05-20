@@ -192,7 +192,7 @@ pub enum ParseNamedRegistrySpecifierError {
 /// a [`NamedRegistryPackageSpec`].
 ///
 /// Returns `Ok(None)` for any specifier that does not use one of the
-/// configured aliases (no colon, alias unknown, body unparseable) so
+/// configured aliases (no colon, alias unknown, body unparsable) so
 /// the caller can fall through to other resolvers. Errors only for
 /// recoverable-by-the-user input — a scoped name with no `/<name>`
 /// segment.

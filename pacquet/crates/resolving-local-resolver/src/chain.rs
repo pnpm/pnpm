@@ -29,7 +29,7 @@ use crate::parse_bare_specifier::WantedLocalDependency;
 /// [`_resolveFromLocalScheme`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L135).
 ///
 /// `resolve_latest` routes through
-/// [`resolve_latest_from_local`](crate::resolve_latest_from_local)
+/// [`resolve_latest_from_local`]
 /// so a `link:` / `file:` / `workspace:` spec stops here instead of
 /// falling through into a user-configured named-registry alias of
 /// the same name.
@@ -79,7 +79,7 @@ impl Resolver for LocalSchemeResolver {
 /// `/abs/path`, `~/dir`, `C:\drive`). Runs **last** in the chain —
 /// after named-registry — so a `<alias>:@scope/pkg` specifier reaches
 /// the named-registry resolver instead of being misrouted here on
-/// the strength of an embedded `/` ([`contains_path_sep`] in
+/// the strength of an embedded `/` (`contains_path_sep` in
 /// `parse_bare_specifier.rs`). Mirrors
 /// [`_resolveFromLocalPath`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L146).
 ///
