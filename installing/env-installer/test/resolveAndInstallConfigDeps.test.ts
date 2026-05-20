@@ -3,6 +3,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { type LogBase, streamParser } from '@pnpm/logger'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
@@ -19,6 +20,24 @@ function createOpts () {
     userConfig: {},
     store: storeController,
     storeDir,
+  }
+}
+
+interface InstallingConfigDepsEvent { status: string, deps?: Array<{ name: string, version: string }> }
+
+function captureConfigDepLogs (): { stop: () => void, events: InstallingConfigDepsEvent[] } {
+  const events: InstallingConfigDepsEvent[] = []
+  const handler = (msg: LogBase): void => {
+    const log = msg as { name?: string, status?: string, deps?: Array<{ name: string, version: string }> }
+    if (log.name !== 'pnpm:installing-config-deps' || log.status == null) return
+    events.push({ status: log.status, deps: log.deps })
+  }
+  streamParser.on('data', handler)
+  return {
+    stop: () => {
+      streamParser.removeListener('data', handler)
+    },
+    events,
   }
 }
 
@@ -220,6 +239,48 @@ test('fails with frozenLockfile when new-format deps need resolution', async () 
   await expect(resolveAndInstallConfigDeps({
     '@pnpm.e2e/foo': '100.0.0',
   }, { ...opts, frozenLockfile: true })).rejects.toThrow('Cannot update configDependencies with "frozen-lockfile"')
+})
+
+test('emits installing-config-deps events only when work is needed', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  const firstRun = captureConfigDepLogs()
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+  }, opts)
+  firstRun.stop()
+
+  expect(firstRun.events.map(e => e.status)).toEqual(['started', 'done'])
+  expect(firstRun.events.find(e => e.status === 'done')?.deps).toEqual([
+    { name: '@pnpm.e2e/foo', version: '100.0.0' },
+  ])
+
+  const secondRun = captureConfigDepLogs()
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+  }, opts)
+  secondRun.stop()
+
+  expect(secondRun.events).toStrictEqual([])
+})
+
+test('emits installing-config-deps events when a config dep is removed', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+    '@pnpm.e2e/bar': '100.0.0',
+  }, opts)
+
+  const removalRun = captureConfigDepLogs()
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+  }, opts)
+  removalRun.stop()
+
+  expect(removalRun.events.map(e => e.status)).toEqual(['started'])
 })
 
 test('succeeds with frozenLockfile when env lockfile is up-to-date', async () => {
