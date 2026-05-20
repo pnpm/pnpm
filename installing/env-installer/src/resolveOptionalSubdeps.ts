@@ -97,7 +97,7 @@ export async function resolveOptionalSubdeps (
       ...pickPlatformFields(resolution.manifest),
     }
     if (opts.envLockfile.snapshots[subdepKey] == null) {
-      opts.envLockfile.snapshots[subdepKey] = {}
+      opts.envLockfile.snapshots[subdepKey] = { optional: true }
     }
     resolved[subdepName] = subdepVersion
   }))
