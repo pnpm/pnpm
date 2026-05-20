@@ -184,9 +184,15 @@ where
                 // enough. Otherwise we can't decide and have to
                 // signal a missing-time error to the orchestrator,
                 // which then upgrades the fetch to full metadata.
+                //
+                // Cutoff is inclusive (`<=`) to match the per-version
+                // filter in `filter_pkg_metadata_by_publish_date`: a
+                // version published exactly at the cutoff is mature,
+                // so `modified == cutoff` (which means no version is
+                // newer than the cutoff) is also safe to shortcut.
                 let modified_date = meta.modified.as_deref().and_then(parse_iso_8601);
                 match modified_date {
-                    Some(date) if date < cutoff => meta,
+                    Some(date) if date <= cutoff => meta,
                     _ => {
                         return Err(PickPackageFromMetaError::MissingTime {
                             pkg_name: meta.name.clone(),

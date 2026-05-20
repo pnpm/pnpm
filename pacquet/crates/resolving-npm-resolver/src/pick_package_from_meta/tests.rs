@@ -384,6 +384,29 @@ fn pick_from_meta_published_by_modified_shortcut() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.0.0"));
 }
 
+/// Boundary case: `modified == cutoff` is *inclusive* — every
+/// version was published at most at the cutoff, which the
+/// per-version filter would treat as mature. Shortcut accepts it
+/// rather than fetching full metadata.
+#[test]
+fn pick_from_meta_modified_shortcut_inclusive_at_cutoff() {
+    let mut pkg = make_package("acme", &[("1.0.0", None)], &[("latest", "1.0.0")]);
+    pkg.modified = Some("2025-01-01T00:00:00.000Z".to_string());
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions {
+            preferred_version_selectors: None,
+            published_by: Some(cutoff),
+            published_by_exclude: None,
+        },
+        &pkg,
+        &spec("acme", "^1.0.0", RegistryPackageSpecType::Range),
+    )
+    .expect("ok");
+    assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.0.0"));
+}
+
 /// `publishedBy` + full metadata: versions past the cutoff drop out,
 /// and the picker only considers mature versions.
 #[test]
