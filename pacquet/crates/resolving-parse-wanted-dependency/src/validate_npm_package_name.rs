@@ -76,9 +76,9 @@ fn matches_ignore_ascii_case(input: &str, target: &str) -> bool {
 /// characters JS leaves unescaped is ASCII alphanumerics plus
 /// `- _ . ! ~ * ' ( )`.
 fn is_url_friendly(string: &str) -> bool {
-    string.chars().all(|c| {
-        c.is_ascii_alphanumeric()
-            || matches!(c, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
+    string.chars().all(|ch| {
+        ch.is_ascii_alphanumeric()
+            || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
     })
 }
 
