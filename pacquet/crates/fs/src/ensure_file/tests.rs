@@ -301,22 +301,11 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
     }
 }
 
-/// Many concurrent writers of the *same* path with the same content
-/// must all return `Ok(())` and leave the file on disk with the
-/// correct contents. Without the per-path serialization mutex,
-/// writer N's `O_CREAT|O_EXCL` would land mid-`write_all` of writer
-/// 1, fall into `verify_or_rewrite`'s size-mismatch arm, and rewrite
-/// the file via `rename` — leaving a window during which a
-/// concurrent `link_file` could observe a transient `NotFound` on
-/// the source. The fix is to serialize writers so the second caller
-/// only sees the *final* file, never a partial one. The test fires
-/// 32 threads against one path; on the pre-fix code a hard-asserted
-/// invariant was that the file remained continuously present, which
-/// even without the lock holds for `rename`'s atomicity — what the
-/// fix actually buys is that `verify_or_rewrite` never has to
-/// rewrite, which we observe by checking that the file's inode
-/// remains the *same* across all writers (no `rename`-induced inode
-/// swap).
+/// Concurrent writers of the same CAS path must all return `Ok(())`
+/// with the file unchanged after the first writer's `write_all`.
+/// Inode invariance is the observable proof that `verify_or_rewrite`
+/// never took the `write_atomic` rename branch — i.e. no writer
+/// observed a partial file from another writer.
 #[cfg(unix)]
 #[test]
 fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
@@ -349,12 +338,8 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
 
     let final_meta = fs::metadata(&*path).unwrap();
     assert_eq!(fs::read(&*path).unwrap(), *content);
-    // Inode invariance is the observable signal that no writer ever
-    // took the `write_atomic` rename path — only the first writer's
-    // original inode survived.
-    let final_ino = final_meta.ino();
     assert_eq!(final_meta.len(), content.len() as u64);
-    assert_eq!(final_ino, fs::metadata(&*path).unwrap().ino());
+    assert_eq!(final_meta.ino(), fs::metadata(&*path).unwrap().ino());
 }
 
 /// Errors that aren't fd-pressure must propagate immediately —

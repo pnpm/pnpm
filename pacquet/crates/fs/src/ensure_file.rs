@@ -152,20 +152,13 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 ///   buffer we were about to write, so comparing against it
 ///   implicitly verifies the sha512 without a second hash pass. Same
 ///   correctness guarantee, one fewer full-buffer walk.
-/// * **Process-local per-path mutex for serialization**: pnpm's
-///   `locker: Map<string, number>` skips re-verifying the same file
-///   within one install. Pacquet uses a slightly stronger form — a
-///   per-path mutex that *serializes* concurrent writers — because
-///   two snapshots whose tarballs ship the same file content (e.g.
-///   a shared `LICENSE`) hash to the same CAS path and would
-///   otherwise race here. Without serialization the second writer
-///   can observe the first's partial file via `O_CREAT|O_EXCL` →
-///   `AlreadyExists` → `verify_or_rewrite` with `meta.len() <
-///   content.len()` → `write_atomic`, leaving a brief window
-///   where another concurrent reader (`link_file`'s
-///   `fs::hard_link` / `reflink_copy::reflink`) can observe a
-///   `NotFound` on the source while the rename is in flight. See
-///   the docstring on `cas_write_lock`.
+/// * **Process-local per-path mutex for serialization**: two
+///   snapshots whose tarballs ship identical file content
+///   (e.g. a shared `LICENSE`) compute the same CAS path and would
+///   race in `verify_or_rewrite`. The mutex makes the second
+///   writer wait for the first's `write_all` so the byte-match
+///   fast path always applies. Pacquet's stronger form of pnpm
+///   v11's [`locker: Map<string, number>`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts).
 ///
 /// Matches pnpm's guarantee: a successful return means `file_path`
 /// exists on disk with contents equal to `content`. A torn mid-write
@@ -175,21 +168,8 @@ pub fn ensure_file(
     content: &[u8],
     #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
-    // Serialize concurrent writers of the same CAS path. Two snapshots
-    // whose tarballs ship identical file content (e.g. a shared
-    // `LICENSE` across sibling packages in the same install) compute
-    // the same SHA-512 → same CAS path → call `ensure_file` with the
-    // same `file_path`. Without serialization the second writer's
-    // `O_CREAT|O_EXCL` hits `AlreadyExists` while the first writer is
-    // mid-`write_all`, falls into `verify_or_rewrite`'s size-mismatch
-    // arm, runs `write_atomic`, and `rename`s a temp file over the
-    // live source — opening a brief window where a third thread's
-    // `link_file` (`fs::hard_link` / `reflink_copy::reflink`) can
-    // observe a transient `NotFound` on the source. The mutex closes
-    // that window: by the time the second caller's `O_CREAT|O_EXCL`
-    // runs, the first caller's `write_all` has completed and the
-    // existing file already has correct content, so `verify_or_rewrite`
-    // takes the byte-match fast path and never has to rewrite.
+    // See the "Process-local per-path mutex" bullet above and
+    // [`cas_write_lock`] for the rationale.
     let lock = cas_write_lock(file_path);
     let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
@@ -220,33 +200,11 @@ pub fn ensure_file(
 
 /// Borrow the process-local write mutex for `file_path`.
 ///
-/// Ports the spirit of pnpm v11's
-/// [`locker: Map<string, number>`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts)
-/// — pnpm uses it to skip re-verifying a path already touched in the
-/// current install; pacquet uses it as a true mutex so a second writer
-/// for the same CAS digest *waits* for the first writer's `write_all`
-/// to finish instead of observing a partial file.
-///
-/// The map is keyed by `PathBuf` (the CAS write target) and never
-/// shrinks within a process — the map is one entry per unique CAS
-/// path the install touched. A typical install writes ~10k unique
-/// files; with a `(PathBuf, Arc<Mutex<()>>)` per entry that's a
-/// fraction of a megabyte, which is dwarfed by the rest of the
-/// install's working set. Releasing entries lazily would add
-/// complexity (need to gate on no-locks-outstanding) for no real win
-/// on a CLI's process lifetime.
-///
-/// Acquiring the lock under contention is rare: only shared-content
-/// files (LICENSE, identical `README.md`, etc.) ever see two writers,
-/// so the bulk of the hot path takes the lock uncontended. The
-/// `DashMap`'s sharded lock means even the lookup itself doesn't
-/// serialize across the whole install — different paths land in
-/// different shards.
-///
-/// Returning `Arc<Mutex<()>>` (rather than a `Ref` into the map) lets
-/// the caller `.lock()` after the entry helper has released its
-/// shard guard, so a recursive lookup on the same shard can't
-/// deadlock.
+/// Returning `Arc<Mutex<()>>` (rather than a `Ref` into the map) so
+/// the caller `.lock()`s after the shard guard from `entry()` is
+/// released — otherwise a recursive lookup on the same shard could
+/// deadlock. The map is never pruned: entries are one per unique
+/// CAS path the install wrote, bounded by the working set.
 fn cas_write_lock(file_path: &Path) -> Arc<Mutex<()>> {
     static LOCKS: OnceLock<DashMap<PathBuf, Arc<Mutex<()>>>> = OnceLock::new();
     let locks = LOCKS.get_or_init(DashMap::new);
