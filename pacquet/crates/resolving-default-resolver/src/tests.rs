@@ -124,10 +124,7 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
         ..WantedDependency::default()
     });
     assert_eq!(with_both.specifier, "foo@1.2.3");
-    assert_eq!(
-        with_both.to_string(),
-        r#""foo@1.2.3" isn't supported by any available resolver."#,
-    );
+    assert_eq!(with_both.to_string(), r#""foo@1.2.3" isn't supported by any available resolver."#);
 
     let bare_only = SpecNotSupportedByAnyResolverError::new(&WantedDependency {
         alias: None,

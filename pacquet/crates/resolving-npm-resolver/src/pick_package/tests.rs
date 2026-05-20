@@ -329,7 +329,7 @@ async fn dry_run_skips_in_memory_cache() {
     opts.dry_run = true;
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
     assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
-    assert!(meta_cache.get("acme").is_none(), "dry_run must not poison the in-memory cache",);
+    assert!(meta_cache.get("acme").is_none(), "dry_run must not poison the in-memory cache");
 }
 
 /// `pick_lowest_version=true` picks the min satisfying version.
