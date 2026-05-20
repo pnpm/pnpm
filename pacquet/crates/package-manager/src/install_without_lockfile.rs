@@ -14,8 +14,8 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
-    DepPath, DependenciesGraph, ResolveDependencyTreeError, ResolveDependencyTreeOptions,
-    ResolvePeersOptions, resolve_dependency_tree, resolve_peers,
+    DepPath, DependenciesGraph, ResolveDependencyTreeError, ResolveImporterError,
+    ResolveImporterOptions, resolve_importer,
 };
 use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{LocalResolver, LocalResolverContext};
@@ -95,6 +95,13 @@ pub enum InstallWithoutLockfileError {
     #[display("Failed to resolve dependency tree: {_0}")]
     #[diagnostic(code(pacquet_package_manager::resolve_dependency_tree))]
     ResolveDependencyTree(#[error(not(source))] ResolveDependencyTreeError),
+
+    /// The hoist-loop orchestrator failed. Wraps the tree-walk error
+    /// (the only failure source today) plus any future orchestrator-
+    /// specific failures.
+    #[display("Failed to resolve importer: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::resolve_importer))]
+    ResolveImporter(#[error(not(source))] ResolveImporterError),
 
     /// `minimumReleaseAgeExclude` patterns rejected at compile time.
     /// Mirrors upstream's `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
@@ -227,8 +234,21 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             .transpose()
             .map_err(InstallWithoutLockfileError::MinimumReleaseAgeExclude)?;
 
-        let tree_opts = ResolveDependencyTreeOptions {
+        // Seed `allPreferredVersions` from the importer manifest. No
+        // wanted lockfile is available on this path (install-without-
+        // lockfile), so the lockfile-snapshot arm of upstream's
+        // `getPreferredVersionsFromLockfileAndManifests` is skipped.
+        let all_preferred_versions =
+            pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                None,
+                &[manifest],
+            );
+
+        let importer_opts = ResolveImporterOptions {
             auto_install_peers: config.auto_install_peers,
+            auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
+            resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+            all_preferred_versions,
             base_opts: ResolveOptions {
                 default_tag: Some("latest".to_string()),
                 published_by,
@@ -237,13 +257,16 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             },
         };
 
-        let tree = resolve_dependency_tree(&*resolver, manifest, dependency_groups, tree_opts)
-            .await
-            .map_err(InstallWithoutLockfileError::ResolveDependencyTree)?;
+        let importer_result =
+            resolve_importer(&*resolver, manifest, dependency_groups, importer_opts)
+                .await
+                .map_err(InstallWithoutLockfileError::ResolveImporter)?;
 
         // Drop the resolver (and its meta cache) before the install
         // pass: the tree captures every `ResolveResult` we need.
         drop(resolver);
+
+        let peers_result = importer_result.peers_result;
 
         // Open the read-only SQLite index once per install, shared across
         // every `DownloadTarballToStore`. See the matching comment in
@@ -279,15 +302,11 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // for any later package referencing the same blob.
         let verified_files_cache = SharedVerifiedFilesCache::default();
 
-        // Peer-resolution pass. Walks the per-occurrence tree built
-        // above, matches each visited package's `peerDependencies`
-        // against its parent chain, and emits a depPath-keyed graph
-        // the install pass consumes. Peer issues collected here are
-        // not fatal — they are reported (TODO: wire into the reporter
-        // once the issue renderer is ported) and the install proceeds
-        // with whichever candidate was reachable.
-        let peers_result =
-            resolve_peers(&tree, ResolvePeersOptions { peers_suffix_max_length: 1000 });
+        // Peer-resolution result (collected by `resolve_importer` after
+        // the hoist loop converged). Peer issues collected here are not
+        // fatal — they are reported (TODO: wire into the reporter once
+        // the issue renderer is ported) and the install proceeds with
+        // whichever candidate was reachable.
         if !peers_result.peer_dependency_issues.missing.is_empty()
             || !peers_result.peer_dependency_issues.bad.is_empty()
         {
