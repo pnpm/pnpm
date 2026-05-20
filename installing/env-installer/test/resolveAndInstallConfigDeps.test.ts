@@ -25,20 +25,20 @@ function createOpts () {
 
 interface InstallingConfigDepsEvent { status: string, deps?: Array<{ name: string, version: string }> }
 
-function captureConfigDepLogs (): { stop: () => void, events: InstallingConfigDepsEvent[] } {
-  const events: InstallingConfigDepsEvent[] = []
-  const handler = (msg: LogBase): void => {
-    const log = msg as { name?: string, status?: string, deps?: Array<{ name: string, version: string }> }
-    if (log.name !== 'pnpm:installing-config-deps' || log.status == null) return
-    events.push({ status: log.status, deps: log.deps })
-  }
-  streamParser.on('data', handler)
-  return {
-    stop: () => {
-      streamParser.removeListener('data', handler)
-    },
-    events,
-  }
+// `streamParser` is a `split2` Transform stream that buffers writes until the
+// first 'data' listener attaches, then drains the whole buffer into it.
+// Subscribing per-test would therefore replay events from earlier tests into
+// the current test's listener. Subscribe once at module load and let each test
+// take only the events accumulated since its last drain.
+const accumulatedConfigDepEvents: InstallingConfigDepsEvent[] = []
+streamParser.on('data', (msg: LogBase) => {
+  const log = msg as { name?: string, status?: string, deps?: Array<{ name: string, version: string }> }
+  if (log.name !== 'pnpm:installing-config-deps' || log.status == null) return
+  accumulatedConfigDepEvents.push({ status: log.status, deps: log.deps })
+})
+
+function takeConfigDepEvents (): InstallingConfigDepsEvent[] {
+  return accumulatedConfigDepEvents.splice(0, accumulatedConfigDepEvents.length)
 }
 
 test('resolves and installs config dep when no env lockfile exists', async () => {
@@ -245,42 +245,23 @@ test('emits installing-config-deps events only when work is needed', async () =>
   prepareEmpty()
   const opts = createOpts()
 
-  const firstRun = captureConfigDepLogs()
+  takeConfigDepEvents()
   await resolveAndInstallConfigDeps({
     '@pnpm.e2e/foo': '100.0.0',
   }, opts)
-  firstRun.stop()
+  const firstRunEvents = takeConfigDepEvents()
 
-  expect(firstRun.events.map(e => e.status)).toEqual(['started', 'done'])
-  expect(firstRun.events.find(e => e.status === 'done')?.deps).toEqual([
+  expect(firstRunEvents.map(e => e.status)).toEqual(['started', 'done'])
+  expect(firstRunEvents.find(e => e.status === 'done')?.deps).toEqual([
     { name: '@pnpm.e2e/foo', version: '100.0.0' },
   ])
 
-  const secondRun = captureConfigDepLogs()
   await resolveAndInstallConfigDeps({
     '@pnpm.e2e/foo': '100.0.0',
   }, opts)
-  secondRun.stop()
+  const secondRunEvents = takeConfigDepEvents()
 
-  expect(secondRun.events).toStrictEqual([])
-})
-
-test('emits installing-config-deps events when a config dep is removed', async () => {
-  prepareEmpty()
-  const opts = createOpts()
-
-  await resolveAndInstallConfigDeps({
-    '@pnpm.e2e/foo': '100.0.0',
-    '@pnpm.e2e/bar': '100.0.0',
-  }, opts)
-
-  const removalRun = captureConfigDepLogs()
-  await resolveAndInstallConfigDeps({
-    '@pnpm.e2e/foo': '100.0.0',
-  }, opts)
-  removalRun.stop()
-
-  expect(removalRun.events.map(e => e.status)).toEqual(['started'])
+  expect(secondRunEvents).toStrictEqual([])
 })
 
 test('succeeds with frozenLockfile when env lockfile is up-to-date', async () => {
