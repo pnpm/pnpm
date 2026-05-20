@@ -316,10 +316,15 @@ impl WorkEnv {
 /// paths — both follow the same fetch-by-SHA discipline that PR #321
 /// established for pacquet revisions.
 fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
-    let mut existed_before = false;
+    // Three entry states for `revision_repo`:
+    //   1. doesn't exist          → clone (HEAD set by clone, worktree empty)
+    //   2. exists, has `.git`     → reuse: fetch + reset worktree + checkout
+    //   3. exists, no `.git`      → init + fetch + checkout (no reset — HEAD
+    //                               is unborn until checkout, so `git reset
+    //                               --hard` would fatal-error here)
+    let had_existing_git = revision_repo.exists() && revision_repo.join(".git").exists();
     if revision_repo.exists() {
-        existed_before = true;
-        if !revision_repo.join(".git").exists() {
+        if !had_existing_git {
             eprintln!("Initializing a git repository at {revision_repo:?}...");
             Command::new("git")
                 .current_dir(revision_repo)
@@ -346,7 +351,7 @@ fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
             .pipe(executor("git clone"));
     }
 
-    if existed_before {
+    if had_existing_git {
         // `pnpm install` and `pnpm run compile` from a previous orchestrator
         // run can leave tracked files dirty (e.g. `pnpm-lock.yaml` rewritten,
         // generated `dist/*`). A fresh `git checkout <commit>` against a dirty
