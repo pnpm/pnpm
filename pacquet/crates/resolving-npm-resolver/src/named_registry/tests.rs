@@ -104,6 +104,25 @@ fn falls_back_to_pkg_name_scope_without_npm_alias() {
     assert_eq!(picked, "https://internal/registry/");
 }
 
+/// `"@private/foo": "npm:lodash@^1"` keeps routing through the
+/// **local alias's** scope, not the unscoped npm-alias target. The
+/// alias slot itself signals which registry the user expects to
+/// fetch from (e.g. a private fork of lodash they re-publish under
+/// `@private/`). Mirrors upstream's `getScope` at
+/// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts#L8-L19>:
+/// the npm-alias branch only returns when the alias target is itself
+/// scoped (`npm:@scope/...`); otherwise it falls through to the
+/// `pkgName[0] === '@'` branch.
+#[test]
+fn unscoped_npm_alias_under_scoped_local_name_keeps_local_scope() {
+    let regs = registries(&[
+        ("default", "https://registry.npmjs.org/"),
+        ("@private", "https://internal/registry/"),
+    ]);
+    let picked = pick_registry_for_package(&regs, "@private/foo", Some("npm:lodash@^1"));
+    assert_eq!(picked, "https://internal/registry/");
+}
+
 /// A tarball URL that's *almost* a prefix match — same host, but
 /// without the trailing slash on the prefix — must not silently
 /// route. The trailing-slash on every built prefix is what makes
