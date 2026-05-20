@@ -98,7 +98,7 @@ impl TarballResolver {
             }),
             resolved_via: "url".to_string(),
             normalized_bare_specifier: Some(normalized_bare_specifier),
-            alias: None,
+            alias: wanted_dependency.alias.clone(),
             policy_violation: None,
         }))
     }

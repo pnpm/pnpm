@@ -2308,6 +2308,7 @@ dependencies = [
  "pacquet-resolving-git-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",
+ "pacquet-resolving-tarball-resolver",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
