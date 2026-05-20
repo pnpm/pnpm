@@ -145,6 +145,7 @@ pub async fn should_install_package_from_pre_resolved_result() {
         alias: "@pnpm.e2e/hello-world-js-bin",
         resolution: &resolution,
         node_modules_dir: modules_dir.path(),
+        first_visit: true,
     }
     .run::<SilentReporter>()
     .await
@@ -168,6 +169,111 @@ pub async fn should_install_package_from_pre_resolved_result() {
     );
 
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
+}
+
+/// Second-edge install for the same `(name, version)` must NOT emit
+/// `pnpm:progress resolved` or `pnpm:progress imported` — those are
+/// per-package signals upstream, not per-edge. The second visitor
+/// only refreshes the per-parent symlink. Pin the contract here so a
+/// future refactor that moves the gate can't quietly reintroduce
+/// per-edge spam.
+#[tokio::test]
+async fn second_visit_skips_progress_emits_but_still_links() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let mock_instance = AutoMockInstance::load_or_init();
+    let store_dir = tempdir().unwrap();
+    let modules_dir = tempdir().unwrap();
+    let second_parent_dir = tempdir().unwrap();
+    let virtual_store_dir = tempdir().unwrap();
+    let cache_dir = tempdir().unwrap();
+
+    let mut config = create_config(store_dir.path(), modules_dir.path(), virtual_store_dir.path());
+    config.registry = mock_instance.url();
+    let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
+
+    let http_client = Arc::new(ThrottledClient::new_for_installs());
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let logged_methods = AtomicU8::new(0);
+
+    let resolution = resolve_via_mock(
+        &config.registry,
+        cache_dir.path(),
+        Arc::clone(&http_client),
+        "@pnpm.e2e/hello-world-js-bin",
+        "1.0.0",
+    )
+    .await;
+
+    // First edge: full path. Run, then clear events for the assertion
+    // on the second edge.
+    InstallPackageFromRegistry {
+        tarball_mem_cache: &Default::default(),
+        config,
+        http_client: &http_client,
+        store_index: None,
+        store_index_writer: None,
+        verified_files_cache: &verified_files_cache,
+        logged_methods: &logged_methods,
+        requester: "/proj",
+        alias: "first-alias",
+        resolution: &resolution,
+        node_modules_dir: modules_dir.path(),
+        first_visit: true,
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("first visit installs cleanly");
+    EVENTS.lock().unwrap().clear();
+
+    // Second edge: same `(name, version)`, different parent dir.
+    InstallPackageFromRegistry {
+        tarball_mem_cache: &Default::default(),
+        config,
+        http_client: &http_client,
+        store_index: None,
+        store_index_writer: None,
+        verified_files_cache: &verified_files_cache,
+        logged_methods: &logged_methods,
+        requester: "/proj",
+        alias: "second-alias",
+        resolution: &resolution,
+        node_modules_dir: second_parent_dir.path(),
+        first_visit: false,
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("second visit symlinks cleanly");
+
+    let kinds: Vec<&'static str> = EVENTS
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Progress(log) => Some(match &log.message {
+                ProgressMessage::Resolved { .. } => "resolved",
+                ProgressMessage::Fetched { .. } => "fetched",
+                ProgressMessage::FoundInStore { .. } => "found_in_store",
+                ProgressMessage::Imported { .. } => "imported",
+            }),
+            _ => None,
+        })
+        .collect();
+    assert!(kinds.is_empty(), "second visit must not emit progress events, got {kinds:?}");
+
+    // The second-parent symlink must exist after the call.
+    let symlink_path = second_parent_dir.path().join("second-alias");
+    assert!(symlink_path.exists() || symlink_path.is_symlink(), "per-parent symlink missing");
+
+    drop((store_dir, modules_dir, second_parent_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
 /// `InstallPackageFromRegistry::run` emits the `pnpm:progress` per-
@@ -226,6 +332,7 @@ async fn install_emits_progress_sequence() {
         alias: "@pnpm.e2e/hello-world-js-bin",
         resolution: &resolution,
         node_modules_dir: modules_dir.path(),
+        first_visit: true,
     }
     .run::<RecordingReporter>()
     .await

@@ -320,15 +320,15 @@ where
         package.result.id.suffix,
     );
 
-    // Always materialize this edge: `install_package_from_registry`
-    // creates the per-parent symlink under `node_modules_dir/<alias>`,
-    // which a duplicate `(name, version)` hit needs just as much as a
-    // first-time hit. Repeated calls for the same `(name, version)`
-    // are idempotent on the heavy paths — the tarball is keyed by
-    // integrity (CAS short-circuit), `import_indexed_dir` is a no-op
-    // on an already-populated slot, and `symlink_package` is
-    // idempotent on the parent's symlink. The dedup gate below only
-    // controls whether we descend into this package's *children*.
+    // `first_visit` is the `(name, version)`-level signal: gates the
+    // tarball download, the virtual-store import, and the
+    // `pnpm:progress resolved` / `pnpm:progress imported` emits so
+    // they fire once per package (matching pnpm's reporter contract).
+    // The per-parent symlink runs on every edge regardless, so a
+    // dependency reached from two different parents still gets a
+    // working `node_modules/<alias>` entry under each parent.
+    let first_visit = ctx.resolved_packages.insert(virtual_store_name.clone());
+
     InstallPackageFromRegistry {
         tarball_mem_cache: ctx.tarball_mem_cache,
         http_client: ctx.http_client,
@@ -341,6 +341,7 @@ where
         node_modules_dir,
         alias: &dep.alias,
         resolution: &package.result,
+        first_visit,
     }
     .run::<Reporter>()
     .await
@@ -349,9 +350,8 @@ where
     // Dedup the recursion only. The first visitor walks this
     // package's children into its virtual-store node_modules slot;
     // subsequent visitors share that slot and don't need to repeat
-    // the walk. Mirrors the original install loop's call placement
-    // before the resolveDependencyTree refactor.
-    if !ctx.resolved_packages.insert(virtual_store_name.clone()) {
+    // the walk.
+    if !first_visit {
         tracing::info!(target: "pacquet::install", package = %virtual_store_name, "Skip subset");
         return Ok(());
     }

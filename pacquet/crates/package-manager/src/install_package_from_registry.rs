@@ -52,6 +52,15 @@ pub struct InstallPackageFromRegistry<'a> {
     pub alias: &'a str,
     /// Pre-resolved package returned by the resolver chain.
     pub resolution: &'a ResolveResult,
+    /// `true` when this is the first edge encountered for this
+    /// `(name, version)` slot. Gates the per-package work: the tarball
+    /// download, the virtual-store import, and the
+    /// `pnpm:progress resolved` / `pnpm:progress imported` emits all
+    /// fire on the first visit. Subsequent visitors only refresh the
+    /// per-parent symlink under `node_modules_dir/<alias>`, mirroring
+    /// upstream's per-package (not per-edge) progress signalling at
+    /// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>.
+    pub first_visit: bool,
 }
 
 /// Error type of [`InstallPackageFromRegistry`].
@@ -91,51 +100,13 @@ impl<'a> InstallPackageFromRegistry<'a> {
             node_modules_dir,
             alias,
             resolution,
+            first_visit,
         } = self;
-
-        let (tarball_url, integrity) = extract_tarball(&resolution.resolution)?;
-        let unpacked_size = manifest_unpacked_size(resolution.manifest.as_ref());
 
         let real_name = resolution.id.name.to_string();
         let version = resolution.id.suffix.to_string();
         let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), version);
         let package_id = format!("{real_name}@{version}");
-
-        // `pnpm:progress resolved` mirrors pnpm's emit at
-        // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>:
-        // one event per package once the resolver has picked a
-        // version. Emit before the tarball download so consumers see
-        // resolved → fetched/found_in_store → imported in order.
-        Reporter::emit(&LogEvent::Progress(ProgressLog {
-            level: LogLevel::Debug,
-            message: ProgressMessage::Resolved {
-                package_id: package_id.clone(),
-                requester: requester.to_owned(),
-            },
-        }));
-
-        // TODO: skip when it already exists in store?
-        let cas_paths = DownloadTarballToStore {
-            http_client,
-            store_dir: &config.store_dir,
-            store_index: store_index.cloned(),
-            store_index_writer: store_index_writer.cloned(),
-            verify_store_integrity: config.verify_store_integrity,
-            verified_files_cache: SharedVerifiedFilesCache::clone(verified_files_cache),
-            package_integrity: &integrity,
-            package_unpacked_size: unpacked_size,
-            package_url: tarball_url,
-            package_id: &package_id,
-            requester,
-            prefetched_cas_paths: None,
-            retry_opts: retry_opts_from_config(config),
-            auth_headers: &config.auth_headers,
-            ignore_file_pattern: None,
-            offline: config.offline,
-        }
-        .run_with_mem_cache::<Reporter>(tarball_mem_cache)
-        .await
-        .map_err(InstallPackageFromRegistryError::DownloadTarballToStore)?;
 
         // The virtual store always uses the registry-returned name
         // so npm-alias entries share a single virtual store directory
@@ -150,33 +121,78 @@ impl<'a> InstallPackageFromRegistry<'a> {
 
         let symlink_path = node_modules_dir.join(alias);
 
-        tracing::info!(target: "pacquet::import", ?save_path, ?symlink_path, "Import package");
+        if first_visit {
+            let (tarball_url, integrity) = extract_tarball(&resolution.resolution)?;
+            let unpacked_size = manifest_unpacked_size(resolution.manifest.as_ref());
 
-        import_indexed_dir::<Reporter>(
-            logged_methods,
-            config.package_import_method,
-            &save_path,
-            &cas_paths,
-            ImportIndexedDirOpts::default(),
-        )
-        .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
+            // `pnpm:progress resolved` mirrors pnpm's emit at
+            // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>:
+            // one event per package once the resolver has picked a
+            // version. Emit before the tarball download so consumers
+            // see resolved → fetched/found_in_store → imported in
+            // order.
+            Reporter::emit(&LogEvent::Progress(ProgressLog {
+                level: LogLevel::Debug,
+                message: ProgressMessage::Resolved {
+                    package_id: package_id.clone(),
+                    requester: requester.to_owned(),
+                },
+            }));
 
+            // TODO: skip when it already exists in store?
+            let cas_paths = DownloadTarballToStore {
+                http_client,
+                store_dir: &config.store_dir,
+                store_index: store_index.cloned(),
+                store_index_writer: store_index_writer.cloned(),
+                verify_store_integrity: config.verify_store_integrity,
+                verified_files_cache: SharedVerifiedFilesCache::clone(verified_files_cache),
+                package_integrity: &integrity,
+                package_unpacked_size: unpacked_size,
+                package_url: tarball_url,
+                package_id: &package_id,
+                requester,
+                prefetched_cas_paths: None,
+                retry_opts: retry_opts_from_config(config),
+                auth_headers: &config.auth_headers,
+                ignore_file_pattern: None,
+                offline: config.offline,
+            }
+            .run_with_mem_cache::<Reporter>(tarball_mem_cache)
+            .await
+            .map_err(InstallPackageFromRegistryError::DownloadTarballToStore)?;
+
+            tracing::info!(target: "pacquet::import", ?save_path, ?symlink_path, "Import package");
+
+            import_indexed_dir::<Reporter>(
+                logged_methods,
+                config.package_import_method,
+                &save_path,
+                &cas_paths,
+                ImportIndexedDirOpts::default(),
+            )
+            .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
+
+            // `pnpm:progress imported` — see the matching emit in
+            // `create_virtual_dir_by_snapshot::run` for the rationale
+            // on the optimistic `method` value. `to` is the per-
+            // package virtual-store directory the symlink under
+            // `node_modules/{alias}` resolves to.
+            Reporter::emit(&LogEvent::Progress(ProgressLog {
+                level: LogLevel::Debug,
+                message: ProgressMessage::Imported {
+                    method: crate::optimistic_wire_method(config.package_import_method),
+                    requester: requester.to_owned(),
+                    to: save_path.to_string_lossy().into_owned(),
+                },
+            }));
+        }
+
+        // The per-parent symlink is the only step that runs on every
+        // visit. Mirrors pnpm: one `pnpm:progress` sequence per
+        // package, plus one symlink per direct edge.
         symlink_package(&save_path, &symlink_path)
             .map_err(InstallPackageFromRegistryError::SymlinkPackage)?;
-
-        // `pnpm:progress imported` — see the matching emit in
-        // `create_virtual_dir_by_snapshot::run` for the rationale on
-        // the optimistic `method` value. `to` is the per-package
-        // virtual-store directory the symlink under
-        // `node_modules/{alias}` resolves to.
-        Reporter::emit(&LogEvent::Progress(ProgressLog {
-            level: LogLevel::Debug,
-            message: ProgressMessage::Imported {
-                method: crate::optimistic_wire_method(config.package_import_method),
-                requester: requester.to_owned(),
-                to: save_path.to_string_lossy().into_owned(),
-            },
-        }));
 
         Ok(())
     }
