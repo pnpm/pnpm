@@ -17,8 +17,8 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveOptions, ResolveResult, Resolver,
-    WantedDependency,
+    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, WantedDependency,
 };
 
 /// Composed-chain analog of pnpm's
@@ -75,6 +75,39 @@ impl DefaultResolver {
             }
         }
         Ok(None)
+    }
+}
+
+/// `DefaultResolver` doubles as a [`Resolver`] so callers can compose
+/// it into another dispatcher (or hand it to a consumer that already
+/// accepts the trait, like `resolve_dependency_tree`). Through the
+/// trait, the "no resolver claimed" branch surfaces as `Ok(None)` so
+/// the caller chooses how to react — the inherent
+/// [`Self::resolve`](DefaultResolver::resolve) method keeps raising
+/// [`SpecNotSupportedByAnyResolverError`] for callers that prefer the
+/// error form.
+impl Resolver for DefaultResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        Box::pin(async move {
+            for resolver in &self.chain {
+                if let Some(result) = resolver.resolve(wanted_dependency, opts).await? {
+                    return Ok(Some(result));
+                }
+            }
+            Ok(None)
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        query: &'a LatestQuery,
+        opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(self.resolve_latest(query, opts))
     }
 }
 

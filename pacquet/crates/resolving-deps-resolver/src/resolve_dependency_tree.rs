@@ -177,8 +177,12 @@ where
         return Ok(None);
     }
 
-    let alias =
-        result.alias.clone().or(wanted.alias.clone()).unwrap_or_else(|| result.id.name.to_string());
+    let alias = result
+        .alias
+        .clone()
+        .or(wanted.alias.clone())
+        .or_else(|| result.name_ver.as_ref().map(|nv| nv.name.to_string()))
+        .unwrap_or_else(|| id.clone());
 
     // Build (or look up) the ResolvedPackage envelope. The first
     // visitor populates it; later visitors collapse onto it.

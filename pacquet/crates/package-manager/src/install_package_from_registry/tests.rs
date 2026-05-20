@@ -152,8 +152,9 @@ pub async fn should_install_package_from_pre_resolved_result() {
     .await
     .unwrap();
 
-    let real_name = resolution.id.name.to_string();
-    let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), resolution.id.suffix);
+    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let real_name = name_ver.name.to_string();
+    let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
     let virtual_store_path =
         virtual_store_dir.path().join(virtual_store_name).join("node_modules").join(&real_name);
     assert!(virtual_store_path.is_dir());

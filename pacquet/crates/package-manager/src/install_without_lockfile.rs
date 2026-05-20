@@ -12,12 +12,14 @@ use pacquet_config::Config;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     DepPath, DependenciesGraph, ResolveDependencyTreeError, ResolveDependencyTreeOptions,
     ResolvePeersOptions, resolve_dependency_tree, resolve_peers,
 };
+use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
-use pacquet_resolving_resolver_base::ResolveOptions;
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
 use pacquet_tarball::MemCache;
 use pipe_trait::Pipe;
@@ -171,6 +173,16 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         };
+        let git_resolver = GitResolver::new(
+            Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
+            Arc::new(RealGitRunner::new()),
+        );
+        // Order mirrors upstream's chain at
+        // <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/default-resolver/src/index.ts#L97-L173>:
+        // npm before git. Local/tarball/workspace/runtimes will slot
+        // in as those crates land.
+        let resolver: Box<dyn Resolver> =
+            Box::new(DefaultResolver::new(vec![Box::new(npm_resolver), Box::new(git_resolver)]));
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)
         // for the resolve pass. Mirrors the verifier wiring in
@@ -205,13 +217,13 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             },
         };
 
-        let tree = resolve_dependency_tree(&npm_resolver, manifest, dependency_groups, tree_opts)
+        let tree = resolve_dependency_tree(&*resolver, manifest, dependency_groups, tree_opts)
             .await
             .map_err(InstallWithoutLockfileError::ResolveDependencyTree)?;
 
         // Drop the resolver (and its meta cache) before the install
         // pass: the tree captures every `ResolveResult` we need.
-        drop(npm_resolver);
+        drop(resolver);
 
         // Open the read-only SQLite index once per install, shared across
         // every `DownloadTarballToStore`. See the matching comment in

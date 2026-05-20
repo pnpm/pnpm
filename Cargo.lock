@@ -2303,7 +2303,9 @@ dependencies = [
  "pacquet-registry",
  "pacquet-registry-mock",
  "pacquet-reporter",
+ "pacquet-resolving-default-resolver",
  "pacquet-resolving-deps-resolver",
+ "pacquet-resolving-git-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",
  "pacquet-store-dir",
@@ -2448,6 +2450,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-git-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-resolving-jsr-specifier-parser"
 version = "0.0.1"
 dependencies = [
@@ -2493,6 +2511,7 @@ name = "pacquet-resolving-resolver-base"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "derive_more",
  "pacquet-config",
  "pacquet-lockfile",
  "serde",

@@ -11,11 +11,56 @@
 use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin};
 
 use chrono::{DateTime, Utc};
+use derive_more::{Display, From};
 use pacquet_config::version_policy::PackageVersionPolicy;
 use pacquet_lockfile::{LockfileResolution, PkgNameVer};
 use serde::{Deserialize, Serialize};
 
 use crate::verifier::ResolutionPolicyViolation;
+
+/// Branded resolution identifier the resolver chain emits on every
+/// successful pick. Mirrors pnpm's
+/// [`PkgResolutionId`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/core/types/src/misc.ts#L59)
+/// — a phantom-typed string with no runtime validator.
+///
+/// Two shapes appear in the wild:
+/// * `name@version` from the npm-registry resolver.
+/// * URL-shaped (`git+https://…#sha`, `https://codeload.github.com/…/tar.gz/sha`,
+///   `file:…`) from the git / local / tarball resolvers.
+///
+/// Consumers that need the structured `name@version` form read
+/// [`ResolveResult::name_ver`] instead.
+#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, From, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PkgResolutionId(String);
+
+impl PkgResolutionId {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+impl From<&str> for PkgResolutionId {
+    fn from(value: &str) -> Self {
+        PkgResolutionId(value.to_string())
+    }
+}
+
+impl From<&PkgNameVer> for PkgResolutionId {
+    fn from(value: &PkgNameVer) -> Self {
+        PkgResolutionId(value.to_string())
+    }
+}
+
+impl From<PkgNameVer> for PkgResolutionId {
+    fn from(value: PkgNameVer) -> Self {
+        PkgResolutionId(value.to_string())
+    }
+}
 
 /// An entry from a project's manifest that the resolver chain will
 /// route to a concrete protocol. Mirrors pnpm's
@@ -189,11 +234,17 @@ pub type DependencyManifest = serde_json::Value;
 /// [`ResolveResult`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L212-L237).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolveResult {
-    /// Branded `{name}@{version}` identifier upstream calls
-    /// `PkgResolutionId`. Pacquet reuses
-    /// [`pacquet_lockfile::PkgNameVer`], which already pins the same
-    /// shape used elsewhere in the codebase.
-    pub id: PkgNameVer,
+    /// Branded resolution identifier — see [`PkgResolutionId`].
+    pub id: PkgResolutionId,
+    /// Structured `name@version` when the resolver knows both at
+    /// resolve time. The npm-registry resolver always fills this;
+    /// resolvers that learn the package name from the manifest only
+    /// after the fetch (git / tarball / local) leave it `None` and
+    /// downstream consumers (virtual-store layout, dedupe keys) must
+    /// fall back to reading the manifest. Mirrors the upstream
+    /// pattern where `result.manifest.name` and `result.manifest.version`
+    /// are the canonical name/version sources for non-npm resolutions.
+    pub name_ver: Option<PkgNameVer>,
     /// `latest` tag at the moment of resolution. Filled by the npm
     /// resolver; absent for protocols that have no notion of latest
     /// (git, file, link, …).

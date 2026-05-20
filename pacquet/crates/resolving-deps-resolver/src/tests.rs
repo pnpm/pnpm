@@ -44,12 +44,13 @@ impl Resolver for StubResolver {
 
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
     use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-    let id = PkgNameVer::new(
+    let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
     );
     ResolveResult {
-        id,
+        id: (&name_ver).into(),
+        name_ver: Some(name_ver),
         latest: Some(version.to_string()),
         published_at: None,
         manifest: Some(manifest),
