@@ -28,10 +28,10 @@
 //! Concurrency: upstream uses `p-limit(1)` keyed on the mirror path
 //! to serialize disk operations. Pacquet relies on the atomic
 //! rename in [`crate::mirror::save_meta`] for write safety, and on
-//! `tokio::sync::Mutex`-guarded in-memory caches for reader
+//! [`std::sync::Mutex`]-guarded in-memory caches for reader
 //! coordination. The per-mirror limiter is omitted; if a future
 //! issue forces serialization (Windows file-lock contention, e.g.)
-//! it would land here as a Dashmap of `tokio::sync::Mutex`.
+//! it would land here as a map of `tokio::sync::Mutex` values.
 
 use std::{
     collections::HashMap,
@@ -233,9 +233,9 @@ impl From<FetchMetadataError> for PickPackageError {
 ///    and `include_latest_tag` is off, an on-disk cache that
 ///    contains that exact version satisfies the call without
 ///    refetching.
-/// 4. **publishedBy mtime shortcut**: if the maturity cutoff is
-///    after the mirror's last-modified time, the cached document
-///    is fresh enough.
+/// 4. **publishedBy mtime shortcut**: if the mirror file was written
+///    after the maturity cutoff, reuse it before attempting another
+///    conditional fetch. This mirrors pnpm's cache freshness shortcut.
 ///
 /// Cache-miss / forced-fetch goes through
 /// [`fetch_full_metadata_cached`], which sends the conditional
@@ -373,8 +373,7 @@ pub async fn pick_package<C: PackageMetaCache>(
     // gates the on-disk save behind `!opts.dryRun`. Pacquet's
     // `fetch_full_metadata_cached` already wrote the response body
     // to the mirror by the time it returned, so `opts.dry_run` only
-    // suppresses the post-fetch warm path (the in-memory cache set
-    // still runs to keep one-install lookups stable). A future
+    // suppresses the in-memory cache write. A future
     // refactor that threads `dry_run` into the fetcher can restore
     // upstream's no-disk-side-effect dry-run.
     if !opts.dry_run {

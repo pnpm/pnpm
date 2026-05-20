@@ -135,9 +135,7 @@ pub enum PickPackageFromMetaError {
 ///
 /// Returns:
 ///
-/// - `Ok(Some(version))` — the picked version's manifest. The
-///   returned `PackageVersion` is borrowed from `meta` (or from the
-///   internally-filtered copy when `publishedBy` is active).
+/// - `Ok(Some(version))` — the picked version's cloned manifest.
 /// - `Ok(None)` — no version satisfies the spec. The orchestrator
 ///   layer above propagates this as "resolver returned nothing,"
 ///   not as an error.
