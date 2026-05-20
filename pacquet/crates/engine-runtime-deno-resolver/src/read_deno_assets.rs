@@ -128,8 +128,17 @@ pub async fn read_deno_assets(
     for asset in &assets {
         let Some(targets) = parse_asset_name(&asset.name) else { continue };
         let sha256 = fetch_sha256(http_client, &asset.browser_download_url).await?;
-        let integrity_string =
-            format!("sha256-{}", BASE64_STANDARD.encode(decode_hex(&sha256).unwrap_or_default()));
+        // `fetch_sha256` already validates that `sha256` is a 64-char
+        // lower-case hex run via `extract_sha256`, so `decode_hex`
+        // cannot fail here. Map the impossible-failure branch to
+        // `DENO_PARSE_HASH` rather than silently falling back to an
+        // empty byte slice so a future change to `extract_sha256`
+        // that loosens the validator surfaces with the right error
+        // code instead of an opaque integrity-parse failure.
+        let hex_bytes = decode_hex(&sha256).ok_or_else(|| ReadDenoAssetsError::ParseHash {
+            url: asset.browser_download_url.clone(),
+        })?;
+        let integrity_string = format!("sha256-{}", BASE64_STANDARD.encode(hex_bytes));
         let integrity: Integrity =
             integrity_string.parse().map_err(|error| ReadDenoAssetsError::Integrity {
                 url: asset.browser_download_url.clone(),
