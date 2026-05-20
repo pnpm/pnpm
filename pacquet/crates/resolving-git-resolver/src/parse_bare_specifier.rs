@@ -315,7 +315,9 @@ fn strip_committish(mut hosted: HostedGit) -> HostedGit {
 }
 
 fn percent_decode_str(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
+    // See [`crate::hosted_git`]'s `percent_decode` for the same UTF-8
+    // reassembly rationale.
+    let mut buf: Vec<u8> = Vec::with_capacity(input.len());
     let bytes = input.as_bytes();
     let mut idx = 0;
     while idx < bytes.len() {
@@ -324,14 +326,14 @@ fn percent_decode_str(input: &str) -> String {
             && let (Some(hi), Some(lo)) =
                 ((bytes[idx + 1] as char).to_digit(16), (bytes[idx + 2] as char).to_digit(16))
         {
-            out.push((hi * 16 + lo) as u8 as char);
+            buf.push((hi * 16 + lo) as u8);
             idx += 3;
             continue;
         }
-        out.push(bytes[idx] as char);
+        buf.push(bytes[idx]);
         idx += 1;
     }
-    out
+    String::from_utf8(buf).unwrap_or_else(|_| input.to_string())
 }
 
 #[cfg(test)]

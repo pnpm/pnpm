@@ -104,10 +104,15 @@ impl<'a> InstallPackageFromRegistry<'a> {
             first_visit,
         } = self;
 
-        let name_ver = resolution.name_ver.as_ref().expect(
-            "install_package_from_registry requires a structured name@version — git/tarball/local \
-             resolvers need a separate install path that derives name/version from the fetched manifest",
-        );
+        let name_ver = resolution.name_ver.as_ref().ok_or_else(|| {
+            InstallPackageFromRegistryError::UnsupportedResolution {
+                detail: format!(
+                    "resolver {resolved_via} produced a resolution without a structured \
+                     name@version; the npm install path needs both (alias={alias})",
+                    resolved_via = resolution.resolved_via,
+                ),
+            }
+        })?;
         let real_name = name_ver.name.to_string();
         let version = name_ver.suffix.to_string();
         let virtual_store_name = shorten_virtual_store_name(

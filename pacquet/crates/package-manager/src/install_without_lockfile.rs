@@ -114,6 +114,28 @@ pub enum InstallWithoutLockfileError {
         #[error(not(source))]
         virtual_store_name: String,
     },
+
+    /// The resolver chain produced a resolution whose name/version
+    /// the without-lockfile install path can't derive at resolve time
+    /// (today: every non-npm resolver — git, tarball, local — leaves
+    /// [`pacquet_resolving_resolver_base::ResolveResult::name_ver`]
+    /// `None`, since their name lives in the fetched manifest). The
+    /// matching install path that reads the manifest hasn't landed
+    /// yet, so we surface this as a typed error instead of panicking.
+    /// Mirrors the role of upstream's "spec not yet supported by this
+    /// install path" failure.
+    #[display(
+        "Resolution for {alias} via {resolved_via} can't be materialized by the without-lockfile install path yet ({reason})"
+    )]
+    #[diagnostic(code(pacquet_package_manager::unsupported_install_resolution))]
+    UnsupportedInstallResolution {
+        #[error(not(source))]
+        alias: String,
+        #[error(not(source))]
+        resolved_via: String,
+        #[error(not(source))]
+        reason: &'static str,
+    },
 }
 
 impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {

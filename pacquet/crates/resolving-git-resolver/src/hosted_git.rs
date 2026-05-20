@@ -637,7 +637,13 @@ fn extract_gitlab(parsed: &ParsedUrl) -> Option<Segments> {
 /// malformed input — the affected URLs are caught elsewhere when the
 /// downstream parse fails.
 fn percent_decode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
+    // Decode `%XX` triples to raw bytes first, then reassemble as
+    // UTF-8 so multibyte sequences (e.g. a `%E2%80%A6` ellipsis) are
+    // reconstructed correctly. Fall back to the original input if the
+    // resulting byte stream isn't valid UTF-8 — that matches Node's
+    // `decodeURIComponent` throwing a `URIError`, which upstream's
+    // `try/catch` in `hosted-git-info`'s `fromUrl` swallows.
+    let mut buf: Vec<u8> = Vec::with_capacity(input.len());
     let bytes = input.as_bytes();
     let mut idx = 0;
     while idx < bytes.len() {
@@ -646,14 +652,14 @@ fn percent_decode(input: &str) -> String {
             && let (Some(hi), Some(lo)) =
                 ((bytes[idx + 1] as char).to_digit(16), (bytes[idx + 2] as char).to_digit(16))
         {
-            out.push((hi * 16 + lo) as u8 as char);
+            buf.push((hi * 16 + lo) as u8);
             idx += 3;
             continue;
         }
-        out.push(bytes[idx] as char);
+        buf.push(bytes[idx]);
         idx += 1;
     }
-    out
+    String::from_utf8(buf).unwrap_or_else(|_| input.to_string())
 }
 
 /// Match Node's `encodeURIComponent`. Percent-encode every byte
@@ -852,5 +858,16 @@ mod tests {
             "https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git",
         );
         assert!(h.auth.is_some());
+    }
+
+    #[test]
+    fn percent_decode_reassembles_utf8_sequences() {
+        // `%E2%80%A6` is U+2026 (ellipsis) in UTF-8. A byte-wise
+        // decoder would emit two Latin-1 chars; a UTF-8-aware decoder
+        // restores the original ellipsis.
+        assert_eq!(super::percent_decode("a%E2%80%A6b"), "a\u{2026}b");
+        // Branch / tag with a percent-encoded scope-style slash
+        // (`@foo/bar` → `%40foo%2Fbar`).
+        assert_eq!(super::percent_decode("%40foo%2Fbar"), "@foo/bar");
     }
 }
