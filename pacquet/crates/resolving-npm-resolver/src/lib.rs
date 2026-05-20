@@ -47,7 +47,9 @@ pub use named_registry::{
     pick_registry_for_version,
 };
 pub use npm_resolver::NpmResolver;
-pub use parse_bare_specifier::parse_bare_specifier;
+pub use parse_bare_specifier::{
+    JsrRegistryPackageSpec, parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
+};
 pub use pick_package::{
     InMemoryPackageMetaCache, MirrorPersistError, PackageMetaCache, PickPackageContext,
     PickPackageError, PickPackageOptions, PickPackageResult, persist_meta_to_mirror, pick_package,

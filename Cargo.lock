@@ -2439,6 +2439,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-jsr-specifier-parser"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+]
+
+[[package]]
 name = "pacquet-resolving-npm-resolver"
 version = "0.0.1"
 dependencies = [
@@ -2453,6 +2461,7 @@ dependencies = [
  "pacquet-lockfile",
  "pacquet-network",
  "pacquet-registry",
+ "pacquet-resolving-jsr-specifier-parser",
  "pacquet-resolving-resolver-base",
  "pipe-trait",
  "pretty_assertions",

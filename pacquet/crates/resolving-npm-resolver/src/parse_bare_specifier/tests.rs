@@ -1,5 +1,8 @@
+use pacquet_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
+
 use crate::{
-    parse_bare_specifier::parse_bare_specifier, pick_package_from_meta::RegistryPackageSpecType,
+    parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
+    pick_package_from_meta::RegistryPackageSpecType,
 };
 
 const DEFAULT_TAG: &str = "latest";
@@ -148,4 +151,59 @@ fn npm_prefix_without_alias_uses_bare_as_name_and_falls_back_to_default_tag() {
     assert_eq!(spec.name, "^1.0.0");
     assert_eq!(spec.fetch_spec, "latest");
     assert_eq!(spec.spec_type, RegistryPackageSpecType::Tag);
+}
+
+#[test]
+fn jsr_specifier_with_scope_name_and_range() {
+    let spec = parse_jsr_specifier_to_registry_package_spec("jsr:@foo/bar@^1.0.0", None, "latest")
+        .unwrap()
+        .unwrap();
+    assert_eq!(spec.spec.name, "@jsr/foo__bar");
+    assert_eq!(spec.spec.fetch_spec, "^1.0.0");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
+    assert_eq!(spec.jsr_pkg_name, "@foo/bar");
+}
+
+#[test]
+fn jsr_specifier_without_selector_falls_back_to_default_tag() {
+    let spec = parse_jsr_specifier_to_registry_package_spec("jsr:@foo/bar", None, "latest")
+        .unwrap()
+        .unwrap();
+    assert_eq!(spec.spec.name, "@jsr/foo__bar");
+    assert_eq!(spec.spec.fetch_spec, "latest");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Tag);
+    assert_eq!(spec.jsr_pkg_name, "@foo/bar");
+}
+
+#[test]
+fn jsr_version_only_specifier_borrows_alias_for_jsr_pkg_name() {
+    let spec =
+        parse_jsr_specifier_to_registry_package_spec("jsr:^1.0.0", Some("@foo/bar"), "latest")
+            .unwrap()
+            .unwrap();
+    assert_eq!(spec.spec.name, "@jsr/foo__bar");
+    assert_eq!(spec.spec.fetch_spec, "^1.0.0");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
+    assert_eq!(spec.jsr_pkg_name, "@foo/bar");
+}
+
+#[test]
+fn jsr_specifier_declines_for_non_jsr_input() {
+    assert!(
+        parse_jsr_specifier_to_registry_package_spec("npm:lodash@^4", None, "latest")
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        parse_jsr_specifier_to_registry_package_spec("^1.0.0", Some("foo"), "latest")
+            .unwrap()
+            .is_none(),
+    );
+}
+
+#[test]
+fn jsr_specifier_with_unscoped_name_errors() {
+    let err = parse_jsr_specifier_to_registry_package_spec("jsr:foo@^1.0.0", None, "latest")
+        .expect_err("unscoped JSR name must error");
+    assert!(matches!(err, ParseJsrSpecifierError::MissingScope), "got {err:?}");
 }
