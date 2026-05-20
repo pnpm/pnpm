@@ -1334,7 +1334,11 @@ pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u3
         if alias.scope.is_some() || alias.bare != "node" {
             continue;
         }
-        let ver_peer = dep_ref.ver_peer();
+        // `link:` deps have no version slot and can't carry a
+        // `runtime:` pin — skip them.
+        let Some(ver_peer) = dep_ref.ver_peer() else {
+            continue;
+        };
         if ver_peer.prefix() != Prefix::Runtime {
             continue;
         }

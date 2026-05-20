@@ -86,7 +86,11 @@ pub fn build_hoist_graph(
                 .flat_map(|m| m.iter())
                 .chain(snapshot.optional_dependencies.iter().flat_map(|m| m.iter()));
             let children: HashMap<String, PackageKey> = dep_entries
-                .map(|(alias, dep_ref)| (alias.to_string(), dep_ref.resolve(alias)))
+                // `dep_ref.resolve` is `None` for `link:` deps —
+                // workspace siblings that live outside the virtual
+                // store. Mirrors upstream's `if (childDepPath)`
+                // check in `getChildren`.
+                .filter_map(|(alias, dep_ref)| Some((alias.to_string(), dep_ref.resolve(alias)?)))
                 .collect();
             Some((
                 key.clone(),

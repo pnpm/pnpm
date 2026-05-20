@@ -342,7 +342,10 @@ fn merge_into_children(
     deps: &HashMap<PkgName, SnapshotDepRef>,
 ) {
     for (alias, dep_ref) in deps {
-        let resolved = dep_ref.resolve(alias);
+        // `link:` deps have no snapshot key — skip them.
+        let Some(resolved) = dep_ref.resolve(alias) else {
+            continue;
+        };
         children.insert(alias.to_string(), resolved);
     }
 }

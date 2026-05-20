@@ -501,7 +501,14 @@ fn collect_snapshot_deps(
         // snapshot lookup hits the right entry. The node's exposed
         // `name` stays `alias`; only the lookup uses the resolved
         // target name.
-        let dep_key = dep_ref.resolve(alias);
+        //
+        // `link:` deps return `None` — they have no snapshot to
+        // hoist (the install layer materialises them as direct
+        // directory symlinks), so we skip them here, mirroring
+        // upstream's `if (childDepPath)` check in `getChildren`.
+        let Some(dep_key) = dep_ref.resolve(alias) else {
+            continue;
+        };
         let node = build_dep_node(alias, &dep_key, lockfile, opts, nodes)?;
         out.insert(RcByPtr(node));
     }

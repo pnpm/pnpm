@@ -211,7 +211,10 @@ fn resolve_child(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     skipped: &SkippedSnapshots,
 ) -> Option<PackageKey> {
-    let resolved = dep_ref.resolve(alias);
+    // `link:` deps live outside the virtual store and have no
+    // snapshot to reach — they aren't part of the reachable-snapshot
+    // graph this helper computes.
+    let resolved = dep_ref.resolve(alias)?;
     if skipped.contains(&resolved) {
         return None;
     }
