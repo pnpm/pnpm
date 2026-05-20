@@ -69,7 +69,6 @@ async fn main() {
         }
     };
 
-    verify::ensure_git_repo(&repository);
     let has_pacquet_target = targets.iter().any(|target| target.kind == TargetKind::Pacquet);
     let has_pnpm_target = targets.iter().any(|target| target.kind == TargetKind::Pnpm);
     if let Some(scenario) = scenario
@@ -81,9 +80,12 @@ async fn main() {
              targets or pick a different --scenario",
         );
     }
+    if has_pacquet_target {
+        verify::ensure_pacquet_git_repo(&repository);
+    }
     if has_pnpm_target {
         let pnpm_repo = pnpm_repository.as_deref().unwrap_or(&repository);
-        verify::ensure_git_repo(pnpm_repo);
+        verify::ensure_pnpm_git_repo(pnpm_repo);
     }
     verify::validate_revision_list(targets.iter().map(|target| target.rev.as_str()));
     verify::ensure_program("bash");
@@ -92,7 +94,15 @@ async fn main() {
     if has_pacquet_target {
         verify::ensure_program("cargo");
     }
-    if has_pnpm_target || with_pnpm {
+    // `pnpm` is needed by pnpm targets (build script invokes `pnpm install`
+    // and `pnpm run compile`), by `--with-pnpm` (the system pnpm bench
+    // target), and by the proxy-cache populator that runs whenever the
+    // registry is verdaccio or virtual (its `install.bash` shells out to
+    // `pnpm install` to warm the cache).
+    let needs_pnpm = has_pnpm_target
+        || with_pnpm
+        || matches!(registry_mode, RegistryMode::Verdaccio | RegistryMode::Virtual);
+    if needs_pnpm {
         verify::ensure_program("pnpm");
     }
     if has_pnpm_target {

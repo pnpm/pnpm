@@ -15,7 +15,6 @@ use std::{
     fmt,
     fs::{self, File},
     io::Write,
-    iter,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -137,9 +136,17 @@ impl WorkEnv {
     fn init(&self) {
         let scenario = self.scenario.expect("scenario set when init() is reached");
         eprintln!("Initializing...");
+        // The proxy-cache populator only runs against a local
+        // verdaccio/virtual registry to warm its on-disk cache. With
+        // `--registry=npm`, no proxy exists, so skip writing the
+        // INIT_PROXY_CACHE bench dir entirely — its files (npmrc,
+        // workspace, install script, saved-pristine copies) would be
+        // unreferenced overhead.
+        let populate_proxy_cache =
+            matches!(self.registry_mode, RegistryMode::Verdaccio | RegistryMode::Virtual);
         let id_list = self
             .target_ids()
-            .chain(iter::once(WorkEnv::INIT_PROXY_CACHE))
+            .chain(populate_proxy_cache.then_some(WorkEnv::INIT_PROXY_CACHE))
             .chain(self.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM));
         for id in id_list {
             eprintln!("ID: {id}");
@@ -153,7 +160,7 @@ impl WorkEnv {
             save_pristine_copies(&dir);
         }
 
-        if matches!(self.registry_mode, RegistryMode::Verdaccio | RegistryMode::Virtual) {
+        if populate_proxy_cache {
             eprintln!("Populating proxy registry cache...");
             Command::new("bash")
                 .arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))

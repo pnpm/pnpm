@@ -7,7 +7,7 @@ pub struct CliArgs {
     #[clap(long, short, required_unless_present = "build_only", conflicts_with = "build_only")]
     pub scenario: Option<BenchmarkScenario>,
 
-    /// Port of the local virtual registry.
+    /// Port of the local virtual registry. Ignored when `--registry=npm`.
     #[clap(long, short = 'p', default_value_t = 4873)]
     pub registry_port: u16,
 

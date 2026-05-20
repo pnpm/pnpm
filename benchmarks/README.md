@@ -11,8 +11,8 @@ stay consistent with the pacquet benchmark.
 
 ## Prerequisites
 
-- `cargo`, `hyperfine`, `pnpm`, `node`, `git` on `$PATH`.
-- The Rust toolchain is bootstrapped automatically by `cargo build`.
+- `cargo` (install Rust via [rustup](https://rustup.rs) if you don't have it).
+- `hyperfine`, `pnpm`, `node`, `git` on `$PATH`.
 
 ## Usage
 

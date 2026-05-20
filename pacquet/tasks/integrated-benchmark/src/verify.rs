@@ -12,11 +12,32 @@ pub async fn ensure_virtual_registry(registry: &str) {
     };
 }
 
-pub fn ensure_git_repo(path: &Path) {
-    assert!(path.is_dir());
-    assert!(path.join(".git").is_dir());
-    assert!(path.join("Cargo.toml").is_file());
-    assert!(path.join("Cargo.lock").is_file());
+/// Common git-repo check. Asserts `<path>/.git` exists.
+fn ensure_git_repo_common(path: &Path) {
+    assert!(path.is_dir(), "{path:?} is not a directory");
+    assert!(path.join(".git").is_dir(), "{path:?} is not a git repository");
+}
+
+/// Assert that `path` is a git checkout of the pacquet codebase.
+pub fn ensure_pacquet_git_repo(path: &Path) {
+    ensure_git_repo_common(path);
+    assert!(path.join("Cargo.toml").is_file(), "{path:?} has no Cargo.toml — pacquet checkout?");
+    assert!(path.join("Cargo.lock").is_file(), "{path:?} has no Cargo.lock — pacquet checkout?");
+}
+
+/// Assert that `path` is a git checkout of the pnpm codebase. Recognizes both
+/// a standalone pnpm clone (top-level `pnpm/package.json`) and the
+/// pnpm-as-monorepo layout this repo uses (a `pnpm-workspace.yaml` at the
+/// root), so the same orchestrator binary works for both shapes.
+pub fn ensure_pnpm_git_repo(path: &Path) {
+    ensure_git_repo_common(path);
+    let has_pnpm_dir = path.join("pnpm").join("package.json").is_file();
+    let has_workspace_yaml = path.join("pnpm-workspace.yaml").is_file();
+    assert!(
+        has_pnpm_dir || has_workspace_yaml,
+        "{path:?} doesn't look like a pnpm checkout — \
+         expected `pnpm/package.json` or `pnpm-workspace.yaml` at the root",
+    );
 }
 
 pub fn ensure_program(program: &str) -> Command {
@@ -38,7 +59,12 @@ where
             eprintln!("Revision {revision:?} is invalid");
             panic!("Revision cannot start with a dot");
         }
-        let invalid_char = revision.chars().find(|char| !matches!(char, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '+' | '.' | '~' | '^'));
+        // `@` is allowed so `git rev-parse` reflog syntax (`HEAD@{1}`, etc.)
+        // and tag-with-suffix revisions reach git intact; `/` is allowed so
+        // remote-tracking refs like `origin/main` work as a target. None of
+        // these are shell metacharacters in the contexts where we pass the
+        // revision verbatim (git CLI args and bench dir names).
+        let invalid_char = revision.chars().find(|char| !matches!(char, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '+' | '.' | '~' | '^' | '@' | '/'));
         if let Some(char) = invalid_char {
             eprintln!("Revision {revision:?} is invalid");
             panic!("Invalid character: {char:?}");

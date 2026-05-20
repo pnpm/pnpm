@@ -31,6 +31,15 @@ echo "── Building integrated-benchmark ──"
 cargo build --release --bin=integrated-benchmark --manifest-path "$REPO_ROOT/Cargo.toml"
 BIN="$REPO_ROOT/target/release/integrated-benchmark"
 
+# Ensure `pnpm@main` resolves locally. `actions/checkout` only creates a
+# local ref for the branch it checked out; on a workflow_dispatch run from
+# a non-main branch (or after the optional PR-head checkout below in
+# `benchmark.yml`) there's no `refs/heads/main` for `git rev-parse` to
+# hit. The fetch is a no-op when `main` is already local.
+git -C "$REPO_ROOT" fetch --no-tags --quiet origin main:main 2>/dev/null \
+  || git -C "$REPO_ROOT" fetch --no-tags --quiet origin main 2>/dev/null \
+  || true
+
 # Scenario list mirrors bench.sh's original six. Order = the order they
 # were measured before; `generate-results.js` used this same order.
 SCENARIOS=(
@@ -42,16 +51,35 @@ SCENARIOS=(
   "gvs-warm:GVS warm reinstall (warm global store)"
 )
 
-# Pre-build both revisions once. Subsequent scenario invocations reuse
-# the cloned source dirs and per-revision pnpm bundles, so the per-
-# scenario build step is a no-op (pnpm install / tsgo --build are
-# incremental).
+# Pre-build both revisions once. Subsequent scenario invocations still
+# re-enter the orchestrator's build step (sync_bench_repo + pnpm install
+# + pnpm run compile), but `pnpm install` is a no-op on the populated
+# node_modules and `tsgo --build` is incremental. `pnpm run bundle`
+# (which produces pnpm/dist/pnpm.mjs) does run each time and is not
+# incremental — accepted overhead in exchange for keeping the build
+# path in one consistent place across pacquet and pnpm benches.
 echo "── Pre-building pnpm revisions ──"
 "$BIN" \
   --pnpm-repository "$REPO_ROOT" \
   --work-env "$BENCH_DIR/work-env" \
   --build-only \
   pnpm@HEAD pnpm@main
+
+# Pull mean ± stddev for each variant out of a hyperfine JSON into one
+# table cell. Falls back to "n/a" if jq isn't on PATH or the file is
+# missing.
+read_cell() {
+  local target=$1
+  local json=$2
+  if ! command -v jq >/dev/null; then
+    echo "n/a"
+    return
+  fi
+  jq -r --arg t "$target" '
+    .results[] | select(.command == $t) |
+    "\((.mean*1000|round)/1000)s ± \((.stddev*1000|round)/1000)s"
+  ' "$json" 2>/dev/null || echo "n/a"
+}
 
 results_md="$BENCH_DIR/results.md"
 {
@@ -83,24 +111,9 @@ for entry in "${SCENARIOS[@]}"; do
   cp "$BENCH_DIR/work-env/BENCHMARK_REPORT.md"   "$BENCH_DIR/${scenario}.md"
   cp "$BENCH_DIR/work-env/BENCHMARK_REPORT.json" "$BENCH_DIR/${scenario}.json"
 
-  # Pull mean ± stddev for each variant out of the hyperfine JSON for
-  # the consolidated table. Falls back to "n/a" if jq isn't on PATH or
-  # the file is missing.
-  read_cell() {
-    local target=$1
-    if ! command -v jq >/dev/null; then
-      echo "n/a"
-      return
-    fi
-    jq -r --arg t "$target" '
-      .results[] | select(.command == $t) |
-      "\((.mean*1000|floor)/1000)s ± \((.stddev*1000|floor)/1000)s"
-    ' "$BENCH_DIR/${scenario}.json" 2>/dev/null || echo "n/a"
-  }
-
-  main_cell=$(read_cell "pnpm@main")
-  head_cell=$(read_cell "pnpm@HEAD")
-  echo "| $i | $label | ${main_cell:-n/a} | ${head_cell:-n/a} |" >> "$results_md"
+  main_cell=$(read_cell "pnpm@main" "$BENCH_DIR/${scenario}.json")
+  head_cell=$(read_cell "pnpm@HEAD" "$BENCH_DIR/${scenario}.json")
+  echo "| $i | $label | $main_cell | $head_cell |" >> "$results_md"
 
   i=$((i + 1))
 done
