@@ -76,10 +76,26 @@ pub enum PatchApplyError {
 /// read, write, or delete outside the package directory.
 ///
 /// `Create` refuses to overwrite an existing file (matches `patch`
-/// and `git apply` semantics for `--- /dev/null` hunks). `Delete`
+/// and `git apply` semantics for `--- /dev/null` hunks) — unless the
+/// file already contains exactly the post-patch content, in which
+/// case the operation is treated as already applied. `Delete`
 /// validates the hunks via `diffy::apply` and only unlinks when the
 /// result is empty — a stale patch would otherwise silently delete
-/// a file whose contents diverged from what the patch expects.
+/// a file whose contents diverged from what the patch expects. A
+/// missing target on `Delete` is treated as already applied.
+///
+/// Apply is **idempotent**: when forward apply fails, the patch is
+/// reverse-applied against the on-disk content. If the reverse
+/// succeeds, the file is already in the post-patch state and the
+/// hunk is treated as no-op. Mirrors upstream
+/// [`@pnpm/patch-package`'s `applyPatch`](https://github.com/ds300/patch-package/blob/master/src/applyPatches.ts),
+/// which on failure retries `executeEffects(reversePatch(patch), { dryRun: true })`
+/// and returns success when the reverse cleanly verifies. Without
+/// this, a second `pnpm install` (or a parallel snapshot whose
+/// hardlinked store file has already been mutated by a sibling
+/// snapshot's apply) errors with `ERR_PNPM_PATCH_FAILED` "error
+/// applying hunk #1" even though the on-disk state already matches
+/// what the patch produces.
 pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
@@ -166,19 +182,43 @@ fn apply_one_file(
                 .patch()
                 .as_text()
                 .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let updated = diffy::apply(&original, text_patch)
-                .map_err(|source| failed(format!("apply to {}: {source}", target.display())))?;
-            fs::write(&target, updated)
-                .map_err(|source| failed(format!("write {}: {source}", target.display())))?;
+            match diffy::apply(&original, text_patch) {
+                Ok(updated) => fs::write(&target, updated)
+                    .map_err(|source| failed(format!("write {}: {source}", target.display())))?,
+                Err(_) if diffy::apply(&original, &text_patch.reverse()).is_ok() => {
+                    // File is already in the post-patch state — reverse
+                    // applies cleanly, so treat as no-op.
+                }
+                Err(source) => {
+                    return Err(failed(format!("apply to {}: {source}", target.display())));
+                }
+            }
         }
         FileOperation::Create(path) => {
             let target = resolve_target(Path::new(path.as_ref()))?;
+            let text_patch = file_patch
+                .patch()
+                .as_text()
+                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
+            let created = diffy::apply("", text_patch)
+                .map_err(|source| failed(format!("create {}: {source}", target.display())))?;
             // A "new file" patch (`--- /dev/null`) means upstream
             // expects the target NOT to exist. Refusing to overwrite
             // matches `patch`'s and `git apply`'s behavior — silently
             // clobbering a real file would be a data-loss footgun if
             // the patch was authored against the wrong base.
+            //
+            // Idempotency exception: if the target already contains
+            // exactly the post-patch content, the patch has already
+            // been applied (e.g. a re-run) and we no-op. Matches
+            // upstream's reverse-dry-run check in
+            // `@pnpm/patch-package`'s `applyPatch`.
             if target.try_exists().unwrap_or(false) {
+                let existing = fs::read(&target)
+                    .map_err(|source| failed(format!("read {}: {source}", target.display())))?;
+                if String::from_utf8_lossy(&existing) == created {
+                    return Ok(());
+                }
                 return Err(failed(format!(
                     "cannot create {}: target already exists",
                     target.display(),
@@ -189,12 +229,6 @@ fn apply_one_file(
                     failed(format!("create parent of {}: {source}", target.display()))
                 })?;
             }
-            let text_patch = file_patch
-                .patch()
-                .as_text()
-                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let created = diffy::apply("", text_patch)
-                .map_err(|source| failed(format!("create {}: {source}", target.display())))?;
             fs::write(&target, created)
                 .map_err(|source| failed(format!("write {}: {source}", target.display())))?;
         }
@@ -209,8 +243,18 @@ fn apply_one_file(
             // Lossy UTF-8 decoding for the same reason as the
             // `Modify` branch above: match the patch-file reader
             // and Node's `fs.readFile(..., 'utf8')`.
-            let bytes = fs::read(&target)
-                .map_err(|source| failed(format!("read {}: {source}", target.display())))?;
+            //
+            // Idempotency: a missing target means the file was
+            // already removed by an earlier apply of the same
+            // patch — treat as no-op. Matches upstream's
+            // reverse-dry-run check in `@pnpm/patch-package`.
+            let bytes = match fs::read(&target) {
+                Ok(b) => b,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+                Err(source) => {
+                    return Err(failed(format!("read {}: {source}", target.display())));
+                }
+            };
             let original = String::from_utf8_lossy(&bytes).into_owned();
             let text_patch = file_patch
                 .patch()

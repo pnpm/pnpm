@@ -458,3 +458,106 @@ fn create_with_unwritable_parent_path_errors() {
         other => panic!("expected PatchFailed, got {other:?}"),
     }
 }
+
+/// Re-applying a Modify patch over a file that already contains the
+/// post-patch content must succeed (no-op), matching upstream
+/// `@pnpm/patch-package`'s
+/// [retry-with-reverse-in-dry-run](https://github.com/ds300/patch-package/blob/master/src/applyPatches.ts)
+/// idempotency. Triggers in practice when two snapshots of the same
+/// patched package share a hardlinked store file: the first apply
+/// mutates the store inode through the hardlink, so the second
+/// snapshot's apply sees already-patched content and would otherwise
+/// fail with "error applying hunk #1". Reported against pacquet's
+/// configDependencies preview engine for `msw@2.12.14`.
+///
+/// The patch substitutes one line (`old` → `new`) so forward apply
+/// against the already-patched file fails to find the `-old` context
+/// line — the case that exercises the reverse-apply idempotency
+/// branch. A purely additive patch wouldn't reach the reverse
+/// branch: diffy's fuzz matching shifts the insertion point and
+/// double-applies the addition, producing duplicate content.
+#[test]
+fn modify_on_already_patched_file_is_noop() {
+    let original = "alpha\nbravo\nold\ndelta\necho\n";
+    let already_patched = "alpha\nbravo\nnew\ndelta\necho\n";
+    let patch_text = "\
+diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -1,5 +1,5 @@
+ alpha
+ bravo
+-old
++new
+ delta
+ echo
+";
+
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("file.txt"), already_patched).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), patch_text);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+
+    // Content stays at the post-patch state — we didn't double-patch.
+    let after = fs::read_to_string(patched.path().join("file.txt")).unwrap();
+    assert_eq!(after, already_patched);
+
+    // Sanity: a fresh file at the original state still applies normally.
+    let fresh = tempdir().unwrap();
+    fs::write(fresh.path().join("file.txt"), original).unwrap();
+    apply_patch_to_dir(fresh.path(), &patch).expect("fresh apply must succeed");
+    assert_eq!(fs::read_to_string(fresh.path().join("file.txt")).unwrap(), already_patched);
+}
+
+/// Re-applying a Create patch over a file that already exists with the
+/// expected post-patch content is treated as no-op. A genuine
+/// pre-existing file with different content still errors (covered by
+/// [`create_on_existing_file_errors`]).
+#[test]
+fn create_on_already_created_file_with_matching_content_is_noop() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("created.txt");
+    fs::write(&target, "first line\nsecond line\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/created.txt b/created.txt
+new file mode 100644
+--- /dev/null
++++ b/created.txt
+@@ -0,0 +1,2 @@
++first line
++second line
+",
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+    assert_eq!(fs::read_to_string(&target).unwrap(), "first line\nsecond line\n");
+}
+
+/// Re-applying a Delete patch when the target is already gone is a
+/// no-op. Mirrors upstream's `@pnpm/patch-package` reverse-dry-run
+/// idempotency: re-running `pnpm install` after a previously
+/// successful delete must not error.
+#[test]
+fn delete_on_already_deleted_file_is_noop() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/to-delete.txt b/to-delete.txt
+deleted file mode 100644
+--- a/to-delete.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-going away
+",
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+    assert!(!patched.path().join("to-delete.txt").exists());
+}
