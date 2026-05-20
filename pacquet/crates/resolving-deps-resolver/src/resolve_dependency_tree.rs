@@ -15,7 +15,7 @@ use crate::{
     resolved_tree::{DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree},
 };
 
-/// Options threaded into [`resolve_dependency_tree`].
+/// Options threaded into [`fn@resolve_dependency_tree`].
 ///
 /// Mirrors upstream's per-importer options; pacquet's slice is single-
 /// importer so the bag is smaller. `base_opts` is the [`ResolveOptions`]
@@ -29,7 +29,7 @@ pub struct ResolveDependencyTreeOptions {
     /// upstream's
     /// [`hoistPeers`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/hoistPeers.ts)
     /// pre-pass until that full algorithm lands. Independent of
-    /// peer-suffix construction in [`crate::resolve_peers`] — that
+    /// peer-suffix construction in [`fn@crate::resolve_peers`] — that
     /// stage runs regardless and produces the same depPath shape
     /// whether peers were installed automatically or supplied by the
     /// user.

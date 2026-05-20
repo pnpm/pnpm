@@ -83,7 +83,7 @@ mod tests {
 
     #[test]
     fn file_scheme_keeps_path_separators_via_plus_escape() {
-        assert_eq!(dep_path_to_filename("file:packages/foo", 120), "file+packages+foo",);
+        assert_eq!(dep_path_to_filename("file:packages/foo", 120), "file+packages+foo");
     }
 
     #[test]

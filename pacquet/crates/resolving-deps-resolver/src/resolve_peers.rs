@@ -44,7 +44,7 @@ use crate::{
     resolved_tree::{PeerDep, ResolvedPackage, ResolvedTree},
 };
 
-/// Options threaded into [`resolve_peers`].
+/// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone, Copy)]
 pub struct ResolvePeersOptions {
     /// Cap on the rendered peer-suffix length before pacquet swaps the
@@ -59,7 +59,7 @@ impl Default for ResolvePeersOptions {
     }
 }
 
-/// Output bag of [`resolve_peers`]. Mirrors upstream's
+/// Output bag of [`fn@resolve_peers`]. Mirrors upstream's
 /// [`resolvePeers` return shape](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L101-L102).
 #[derive(Debug, Default)]
 pub struct ResolvePeersResult {
@@ -577,7 +577,7 @@ mod tests {
     }
 
     #[test]
-    fn satisfies_falls_back_to_equality_for_unparseable_ranges() {
+    fn satisfies_falls_back_to_equality_for_unparsable_ranges() {
         assert!(satisfies_with_prereleases("workspace:^1.0.0", "workspace:^1.0.0"));
         assert!(!satisfies_with_prereleases("1.0.0", "workspace:^1.0.0"));
     }

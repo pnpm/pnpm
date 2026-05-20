@@ -4,7 +4,13 @@ use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
 
 use crate::node_id::NodeId;
 
-/// Output of [`crate::resolve_dependency_tree`].
+/// Per-occurrence tree carried by [`ResolvedTree::dependencies_tree`].
+/// Mirrors upstream's
+/// [`DependenciesTree`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L103-L109)
+/// type alias.
+pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;
+
+/// Output of [`fn@crate::resolve_dependency_tree`].
 ///
 /// Mirrors upstream's
 /// [`ResolveDependencyTreeResult`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencyTree.ts#L151-L170)
@@ -27,7 +33,7 @@ use crate::node_id::NodeId;
 pub struct ResolvedTree {
     pub direct: Vec<DirectDep>,
     pub packages: HashMap<String, ResolvedPackage>,
-    pub dependencies_tree: HashMap<NodeId, DependenciesTreeNode>,
+    pub dependencies_tree: DependenciesTree,
     pub all_peer_dep_names: HashSet<String>,
     pub policy_violations: Vec<ResolutionPolicyViolation>,
 }
@@ -98,7 +104,7 @@ pub struct PeerDep {
 /// `children: () => ChildrenMap` arm so cycles can be broken inside
 /// `buildTree`. Pacquet's port detects cycles by tracking the chain of
 /// `pkgIdWithPatchHash` ancestors directly inside
-/// [`crate::resolve_dependency_tree`], so children are always materialised.
+/// [`fn@crate::resolve_dependency_tree`], so children are always materialised.
 #[derive(Debug, Clone)]
 pub struct DependenciesTreeNode {
     /// Key into [`ResolvedTree::packages`].

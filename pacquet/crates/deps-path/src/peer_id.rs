@@ -1,4 +1,4 @@
-/// One peer entry fed to [`crate::create_peer_dep_graph_hash`]. Mirrors
+/// One peer entry fed to [`fn@crate::create_peer_dep_graph_hash`]. Mirrors
 /// pnpm's
 /// [`PeerId`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L195)
 /// union: either `{ name, version }` or a pre-rendered depPath string.

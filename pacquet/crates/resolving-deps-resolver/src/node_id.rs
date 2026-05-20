@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// workspace-link resolution hasn't been ported yet, and the peer
 /// resolver only needs equality / hashing of opaque ids.
 ///
-/// [`DependenciesTree`]: super::DependenciesTree
+/// [`DependenciesTree`]: super::resolved_tree::DependenciesTree
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(u64);
 

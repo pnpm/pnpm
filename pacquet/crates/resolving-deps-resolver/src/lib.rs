@@ -3,7 +3,7 @@
 //!
 //! Two passes live here:
 //!
-//! 1. **Tree pass** ([`resolve_dependency_tree`]). Walks a project
+//! 1. **Tree pass** ([`fn@resolve_dependency_tree`]). Walks a project
 //!    manifest's direct dependencies through a
 //!    [`Resolver`](pacquet_resolving_resolver_base::Resolver) chain
 //!    and recurses on every resolved package's own manifest
@@ -21,7 +21,7 @@
 //!    tree pass. They are recorded on [`ResolvedPackage::peer_dependencies`]
 //!    and consumed by the peer pass.
 //!
-//! 2. **Peer pass** ([`resolve_peers`]). Walks the tree, matches each
+//! 2. **Peer pass** ([`fn@resolve_peers`]). Walks the tree, matches each
 //!    package's peer requirements against the parent chain, and
 //!    produces [`DependenciesGraph`] — keyed by `DepPath` (one entry per
 //!    `(pkgIdWithPatchHash, peer-suffix)` combination) and the entry
@@ -54,7 +54,9 @@ pub use resolve_dependency_tree::{
     ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
 };
 pub use resolve_peers::{ResolvePeersOptions, resolve_peers};
-pub use resolved_tree::{DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree};
+pub use resolved_tree::{
+    DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+};
 
 #[cfg(test)]
 mod tests;

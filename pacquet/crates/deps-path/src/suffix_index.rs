@@ -30,8 +30,8 @@ pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
     // starts at `length - 2` and stops at `>= 0`; we mirror it byte-for-
     // byte (depPath is ASCII outside of the package-name slot, and pnpm
     // doesn't permit non-ASCII there either).
-    let mut i = bytes.len().checked_sub(2);
-    while let Some(idx) = i {
+    let mut cursor = bytes.len().checked_sub(2);
+    while let Some(idx) = cursor {
         match bytes[idx] {
             b'(' => open -= 1,
             b')' => open += 1,
@@ -50,7 +50,7 @@ pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
             }
             _ => {}
         }
-        i = idx.checked_sub(1);
+        cursor = idx.checked_sub(1);
     }
     absent
 }
