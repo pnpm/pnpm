@@ -26,7 +26,8 @@ use pacquet_network::ThrottledClient;
 use serde::Deserialize;
 use ssri::Integrity;
 
-/// Errors raised by [`read_deno_assets`].
+/// Errors raised by the asset enumerator. Surfaced through
+/// [`DenoResolverError::ReadAssets`](crate::DenoResolverError::ReadAssets).
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ReadDenoAssetsError {
     #[display("No assets found for Deno v{version}")]

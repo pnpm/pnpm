@@ -16,9 +16,8 @@
 //! Architecture differs slightly from upstream: pacquet's resolver
 //! trait owns an [`Arc<dyn Resolver>`](pacquet_resolving_resolver_base::Resolver)
 //! for the npm side rather than taking a function reference, so the
-//! same instance can plug into [`DefaultResolver`](pacquet_resolving_default_resolver::DefaultResolver)
-//! chains both directly and as the version-selection dependency of
-//! this resolver.
+//! same instance can plug into the default-resolver chain both
+//! directly and as the version-selection dependency of this resolver.
 
 mod deno_resolver;
 mod read_deno_assets;

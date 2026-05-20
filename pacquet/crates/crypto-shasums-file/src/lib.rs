@@ -6,7 +6,7 @@
 //! binary releases. The file's format is one `<hex-sha256>  <filename>`
 //! row per line; pacquet converts each row into an SRI-style
 //! `sha256-<base64>` integrity string the lockfile records on the
-//! emitted [`BinaryResolution`](pacquet_lockfile::BinaryResolution).
+//! emitted `BinaryResolution`.
 //!
 //! Two surfaces:
 //!
