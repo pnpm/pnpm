@@ -45,6 +45,7 @@ pacquet-resolving-jsr-specifier-parser    = { path = "pacquet/crates/resolving-j
 pacquet-resolving-npm-resolver            = { path = "pacquet/crates/resolving-npm-resolver" }
 pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-parse-wanted-dependency" }
 pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }
+pacquet-resolving-tarball-resolver        = { path = "pacquet/crates/resolving-tarball-resolver" }
 pacquet-workspace                         = { path = "pacquet/crates/workspace" }
 pacquet-workspace-state                   = { path = "pacquet/crates/workspace-state" }
 

@@ -2308,6 +2308,7 @@ dependencies = [
  "pacquet-resolving-git-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",
+ "pacquet-resolving-tarball-resolver",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
@@ -2517,6 +2518,19 @@ dependencies = [
  "serde",
  "serde_json",
  "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-resolving-tarball-resolver"
+version = "0.0.1"
+dependencies = [
+ "mockito",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
  "tokio",
 ]
 

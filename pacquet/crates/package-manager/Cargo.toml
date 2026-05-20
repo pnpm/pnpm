@@ -35,6 +35,7 @@ pacquet-resolving-deps-resolver    = { workspace = true }
 pacquet-resolving-git-resolver     = { workspace = true }
 pacquet-resolving-npm-resolver     = { workspace = true }
 pacquet-resolving-resolver-base    = { workspace = true }
+pacquet-resolving-tarball-resolver = { workspace = true }
 pacquet-store-dir                  = { workspace = true }
 pacquet-tarball                    = { workspace = true }
 pacquet-workspace                  = { workspace = true }
