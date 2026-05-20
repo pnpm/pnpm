@@ -164,7 +164,16 @@ pub fn create_npm_resolution_verifier(
     let cutoff = if age_check_active {
         let minutes = opts.minimum_release_age.unwrap_or(0);
         let now = opts.now.unwrap_or_else(Utc::now);
-        Some(now - chrono::Duration::minutes(minutes as i64))
+        // Checked arithmetic at every step so an absurd `u64` value
+        // can't wrap on cast, overflow inside `chrono::Duration`, or
+        // underflow the wall-clock subtraction. None means the cutoff
+        // couldn't be represented; the verifier degrades to "no age
+        // check" rather than fabricating a cutoff pointing the wrong
+        // direction.
+        i64::try_from(minutes)
+            .ok()
+            .and_then(chrono::Duration::try_minutes)
+            .and_then(|duration| now.checked_sub_signed(duration))
     } else {
         None
     };
@@ -335,7 +344,7 @@ impl NpmResolutionVerifier {
                 }
             }
         }
-        pick_registry_for_package(&self.registries, &name.to_string())
+        pick_registry_for_package(&self.registries, &name.to_string(), None)
     }
 
     async fn run_age_check(

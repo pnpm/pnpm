@@ -1,15 +1,22 @@
-//! Pacquet port of the verifier surface of pnpm's
-//! [`@pnpm/resolving.npm-resolver`](https://github.com/pnpm/pnpm/tree/2a9bd897bf/resolving/npm-resolver/src/).
+//! Pacquet port of pnpm's
+//! [`@pnpm/resolving.npm-resolver`](https://github.com/pnpm/pnpm/tree/f657b5cb44/resolving/npm-resolver/src/).
 //!
-//! Today this crate ports the [`createNpmResolutionVerifier`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts)
-//! pipeline: a [`pacquet_resolving_resolver_base::ResolutionVerifier`]
-//! that re-applies `minimumReleaseAge` and `trustPolicy='no-downgrade'`
-//! to every npm-resolved lockfile entry the install loads.
+//! Two surfaces:
 //!
-//! The full upstream package also exposes resolution helpers
-//! (`pickPackage`, `parseBareSpecifier`, …) that pacquet doesn't have
-//! a use for yet — those land alongside a real resolver when one
-//! arrives.
+//! - **Resolver.** [`NpmResolver`] implements the
+//!   [`Resolver`](pacquet_resolving_resolver_base::Resolver) trait.
+//!   Ports upstream's
+//!   [`createNpmResolver` → `resolveNpm`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L192-L611):
+//!   takes a [`WantedDependency`](pacquet_resolving_resolver_base::WantedDependency),
+//!   runs [`parse_bare_specifier()`], picks a version through
+//!   [`pick_package()`], and returns the
+//!   [`ResolveResult`](pacquet_resolving_resolver_base::ResolveResult)
+//!   the install layer consumes.
+//! - **Verifier.** [`create_npm_resolution_verifier()`] is the
+//!   [`ResolutionVerifier`](pacquet_resolving_resolver_base::ResolutionVerifier)
+//!   the lockfile-verification gate uses. Re-applies
+//!   `minimumReleaseAge` and `trustPolicy='no-downgrade'` to every
+//!   npm-resolved lockfile entry the install loads.
 
 mod create_npm_resolution_verifier;
 mod errors;
@@ -19,6 +26,8 @@ mod fetch_full_metadata_cached;
 mod lookup_context;
 mod mirror;
 mod named_registry;
+mod npm_resolver;
+mod parse_bare_specifier;
 mod pick_package;
 mod pick_package_from_meta;
 mod registry_url;
@@ -37,6 +46,8 @@ pub use named_registry::{
     BUILTIN_NAMED_REGISTRIES, build_named_registry_prefixes, pick_registry_for_package,
     pick_registry_for_version,
 };
+pub use npm_resolver::NpmResolver;
+pub use parse_bare_specifier::parse_bare_specifier;
 pub use pick_package::{
     InMemoryPackageMetaCache, MirrorPersistError, PackageMetaCache, PickPackageContext,
     PickPackageError, PickPackageOptions, PickPackageResult, persist_meta_to_mirror, pick_package,

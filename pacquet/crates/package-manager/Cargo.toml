@@ -28,6 +28,7 @@ pacquet-patching                = { workspace = true }
 pacquet-real-hoist              = { workspace = true }
 pacquet-registry                = { workspace = true }
 pacquet-reporter                = { workspace = true }
+pacquet-resolving-deps-resolver = { workspace = true }
 pacquet-resolving-npm-resolver  = { workspace = true }
 pacquet-resolving-resolver-base = { workspace = true }
 pacquet-store-dir               = { workspace = true }
@@ -36,6 +37,7 @@ pacquet-workspace               = { workspace = true }
 pacquet-workspace-state         = { workspace = true }
 
 async-recursion = { workspace = true }
+chrono          = { workspace = true }
 dashmap         = { workspace = true }
 derive_more     = { workspace = true }
 futures-util    = { workspace = true }

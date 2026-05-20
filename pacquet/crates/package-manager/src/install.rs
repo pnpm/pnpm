@@ -513,6 +513,7 @@ where
                 tarball_mem_cache,
                 resolved_packages,
                 http_client,
+                http_client_arc: Arc::clone(&http_client_arc),
                 config,
                 manifest,
                 dependency_groups,

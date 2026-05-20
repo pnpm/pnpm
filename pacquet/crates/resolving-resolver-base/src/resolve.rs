@@ -10,6 +10,8 @@
 
 use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin};
 
+use chrono::{DateTime, Utc};
+use pacquet_config::version_policy::PackageVersionPolicy;
 use pacquet_lockfile::{LockfileResolution, PkgNameVer};
 use serde::{Deserialize, Serialize};
 
@@ -143,11 +145,6 @@ pub enum UpdateBehavior {
 
 /// Options the dispatcher hands a resolver per-resolve. Mirrors pnpm's
 /// [`ResolveOptions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L277-L302).
-///
-/// Trust / published-at fields are not modeled yet — they belong to
-/// the npm resolver's verifier surface, which already lives at
-/// `resolving-npm-resolver`. They'll be added here when the
-/// dispatcher's npm leg actually needs to pass them through.
 #[derive(Debug, Default, Clone)]
 pub struct ResolveOptions {
     pub project_dir: PathBuf,
@@ -161,6 +158,18 @@ pub struct ResolveOptions {
     pub update: UpdateBehavior,
     pub inject_workspace_packages: bool,
     pub calc_specifier: bool,
+    /// `minimumReleaseAge` cutoff. Versions published after this point
+    /// are filtered out by the npm picker (or reported inline via
+    /// [`ResolveResult::policy_violation`] when no mature pick exists).
+    /// `None` disables the maturity filter.
+    pub published_by: Option<DateTime<Utc>>,
+    /// Per-package exclude policy for the maturity filter. `None`
+    /// applies the filter uniformly.
+    pub published_by_exclude: Option<PackageVersionPolicy>,
+    /// `true` suppresses on-disk and in-memory cache write-back during
+    /// resolution. Mirrors upstream's `dryRun` flag at the resolver
+    /// boundary.
+    pub dry_run: bool,
 }
 
 /// In-memory manifest shape a resolver may attach to its

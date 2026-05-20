@@ -2258,6 +2258,7 @@ name = "pacquet-package-manager"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
+ "chrono",
  "dashmap",
  "derive_more",
  "dunce",
@@ -2285,6 +2286,7 @@ dependencies = [
  "pacquet-registry",
  "pacquet-registry-mock",
  "pacquet-reporter",
+ "pacquet-resolving-deps-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",
  "pacquet-store-dir",
@@ -2409,6 +2411,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-deps-resolver"
+version = "0.0.1"
+dependencies = [
+ "async-recursion",
+ "derive_more",
+ "futures-util",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-resolving-resolver-base",
+ "pipe-trait",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-resolving-npm-resolver"
 version = "0.0.1"
 dependencies = [
@@ -2444,6 +2465,8 @@ version = "0.0.1"
 name = "pacquet-resolving-resolver-base"
 version = "0.0.1"
 dependencies = [
+ "chrono",
+ "pacquet-config",
  "pacquet-lockfile",
  "serde",
  "serde_json",
