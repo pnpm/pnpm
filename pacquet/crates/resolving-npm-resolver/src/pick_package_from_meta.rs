@@ -551,7 +551,11 @@ static RANGE_CACHE: LazyLock<DashMap<String, Option<Arc<Range>>>> = LazyLock::ne
 
 fn cached_range(range: &str) -> Option<Arc<Range>> {
     if let Some(entry) = RANGE_CACHE.get(range) {
-        return entry.clone();
+        // `entry` is a `dashmap::Ref` guard around the stored
+        // `Option<Arc<Range>>`. `value()` projects out the `&Option<...>`
+        // so the clone runs on the inner value (Arc bump + Option clone),
+        // not on the guard.
+        return entry.value().clone();
     }
     let parsed = Range::parse(range).ok().map(Arc::new);
     RANGE_CACHE.insert(range.to_string(), parsed.clone());

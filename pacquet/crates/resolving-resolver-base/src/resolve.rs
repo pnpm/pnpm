@@ -19,11 +19,18 @@ use crate::verifier::ResolutionPolicyViolation;
 /// route to a concrete protocol. Mirrors pnpm's
 /// [`WantedDependency`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L304-L313).
 ///
-/// At least one of `alias` and `bare_specifier` is always populated;
-/// upstream models this with a discriminated union, while pacquet keeps
-/// both fields as `Option<String>` for ergonomic field access and
-/// relies on construction sites (the parse-wanted-dependency port and
-/// the deps-resolver's manifest reader) to maintain the invariant.
+/// At least one of `alias` and `bare_specifier` is *expected* to be
+/// populated. Upstream models this with a discriminated union;
+/// pacquet keeps both fields as `Option<String>` for ergonomic field
+/// access and uses `#[derive(Default)]` only so call sites can write
+/// `..WantedDependency::default()` in struct literals — a bare
+/// `WantedDependency::default()` with both halves `None` is a
+/// programming error the type system doesn't catch. The invariant is
+/// upheld by construction sites (the parse-wanted-dependency port
+/// and the deps-resolver's manifest reader); resolvers that walk a
+/// `WantedDependency` with both halves empty should return
+/// `Ok(None)` so the chain falls through to the
+/// "spec not supported" terminal.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct WantedDependency {
     /// Local install name in `node_modules/`. For `foo@1.2.3` this is
