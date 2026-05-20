@@ -13,16 +13,13 @@ use miette::Diagnostic;
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 
-/// Subset of [`pacquet_resolving_resolver_base::WantedDependency`] that
-/// catalog resolution needs. Modeled as its own type so this crate
-/// doesn't depend on the resolver-base crate; the conversion is a
-/// trivial field copy at the call site.
+/// Subset of `pacquet-resolving-resolver-base`'s `WantedDependency`
+/// that catalog resolution needs. Modeled as its own type so this
+/// crate doesn't depend on the resolver-base crate; the conversion
+/// is a trivial field copy at the call site.
 ///
 /// Mirrors upstream's `WantedDependency` interface
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L5-L8)).
-///
-/// (Not a rustdoc link — `pacquet-resolving-resolver-base` is not a
-/// dependency of this crate.)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WantedDependency {
     pub alias: String,
@@ -80,7 +77,7 @@ pub struct CatalogResolutionMisconfiguration {
 ///
 /// Mirrors the four errors raised by upstream's `resolveFromCatalog`
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L60-L120)).
-#[derive(Debug, Clone, Display, Error, Diagnostic, PartialEq, Eq)]
+#[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CatalogResolutionError {
     #[display("No catalog entry '{alias}' was found for catalog '{catalog_name}'.")]

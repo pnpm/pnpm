@@ -17,7 +17,7 @@ use pacquet_workspace::WorkspaceManifest;
 ///
 /// Mirrors upstream's `INVALID_CATALOGS_CONFIGURATION` `PnpmError`
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/src/getCatalogsFromWorkspaceManifest.ts#L32-L37)).
-#[derive(Debug, Clone, Display, Error, Diagnostic, PartialEq, Eq)]
+#[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum InvalidCatalogsConfigurationError {
     #[display(
