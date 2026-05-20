@@ -130,6 +130,7 @@ pub enum PolicyMatch {
 /// exact version unions (`lodash@4.17.21 || 4.17.22`) — different from
 /// `allowBuilds`, which lands as a literal set via
 /// [`expand_package_version_specs`].
+#[derive(Clone)]
 pub struct PackageVersionPolicy {
     rules: Vec<VersionPolicyRule>,
 }
@@ -145,6 +146,7 @@ impl std::fmt::Debug for PackageVersionPolicy {
     }
 }
 
+#[derive(Clone)]
 struct VersionPolicyRule {
     name_matcher: Matcher,
     exact_versions: Vec<String>,

@@ -37,6 +37,7 @@ pacquet-reporter                          = { path = "pacquet/crates/reporter" }
 pacquet-patching                          = { path = "pacquet/crates/patching" }
 pacquet-real-hoist                        = { path = "pacquet/crates/real-hoist" }
 pacquet-resolving-default-resolver        = { path = "pacquet/crates/resolving-default-resolver" }
+pacquet-resolving-deps-resolver           = { path = "pacquet/crates/resolving-deps-resolver" }
 pacquet-resolving-npm-resolver            = { path = "pacquet/crates/resolving-npm-resolver" }
 pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-parse-wanted-dependency" }
 pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }

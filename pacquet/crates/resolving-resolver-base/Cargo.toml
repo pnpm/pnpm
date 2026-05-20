@@ -11,8 +11,10 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-config   = { workspace = true }
 pacquet-lockfile = { workspace = true }
 
+chrono     = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 
