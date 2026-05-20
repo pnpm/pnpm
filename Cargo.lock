@@ -2475,6 +2475,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-local-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "home",
+ "miette 7.6.0",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-resolving-default-resolver",
+ "pacquet-resolving-resolver-base",
+ "pacquet-testing-utils",
+ "pathdiff",
+ "pretty_assertions",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-resolving-npm-resolver"
 version = "0.0.1"
 dependencies = [
