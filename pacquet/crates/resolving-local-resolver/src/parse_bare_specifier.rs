@@ -14,7 +14,7 @@ use pacquet_resolving_resolver_base::PkgResolutionId;
 /// The wanted-dependency slice the local resolver consumes. Mirrors
 /// pnpm's
 /// [`WantedLocalDependency`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L21-L24).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WantedLocalDependency {
     pub bare_specifier: String,
     /// `dependenciesMeta[*].injected` for this entry. When set on a
@@ -55,7 +55,7 @@ pub(crate) enum LocalSpecKind {
 /// Mirrors upstream's
 /// [`{ preserveAbsolutePaths }`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L40-L44)
 /// option bag.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct ParseOptions {
     pub preserve_absolute_paths: bool,
 }
@@ -63,7 +63,7 @@ pub(crate) struct ParseOptions {
 /// `path:` is rejected so users get the same nudge they'd get from
 /// pnpm. Mirrors upstream's
 /// [`PathIsUnsupportedProtocolError`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L27-L36).
-#[derive(Debug, Clone, Display, Error, Diagnostic)]
+#[derive(Debug, Display, Error, Diagnostic, Clone)]
 #[display(
     "Local dependencies via `path:` protocol are not supported. \
      Use the `link:` protocol for folder dependencies and `file:` for local tarballs"
@@ -164,7 +164,7 @@ fn from_local(
         } else {
             let relative = forward_slashes(
                 pathdiff::diff_paths(&fetched, project_dir)
-                    .map(|p| p.display().to_string())
+                    .map(|path| path.display().to_string())
                     .unwrap_or_else(|| fetched.display().to_string()),
             );
             let fetch_spec = fetched;
@@ -190,12 +190,12 @@ fn from_local(
     {
         format!(
             "{protocol}{}",
-            normalize_relative_or_absolute(project_dir, &fetch_spec, &spec, opts)
+            normalize_relative_or_absolute(project_dir, &fetch_spec, &spec, opts),
         )
     } else {
         format!(
             "{protocol}{}",
-            normalize_relative_or_absolute(lockfile_dir, &fetch_spec, &spec, opts)
+            normalize_relative_or_absolute(lockfile_dir, &fetch_spec, &spec, opts),
         )
     };
 
@@ -293,7 +293,7 @@ fn normalize_relative_or_absolute(
         return forward_slashes(from_path.display().to_string());
     }
     let relative = pathdiff::diff_paths(from_path, relative_to)
-        .map(|p| p.display().to_string())
+        .map(|path| path.display().to_string())
         .unwrap_or_else(|| from_path.display().to_string());
     forward_slashes(relative)
 }

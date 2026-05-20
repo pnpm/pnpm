@@ -106,8 +106,8 @@ impl From<LocalResolveResult> for ResolveResult {
     }
 }
 
-/// Error returned when [`parse_local_scheme`] / [`parse_local_path`]
-/// itself fails (today: the `path:` protocol case). Surfaces as
+/// Error returned when bare-specifier parsing itself fails (today:
+/// the `path:` protocol case). Surfaces as
 /// [`PathProtocolNotSupportedError`] downstream.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LocalSpecError {
@@ -278,15 +278,19 @@ fn synthesize_fallback_manifest(
         // Match upstream's `logger.warn({ message, prefix })` emit
         // via `tracing::warn!` until pacquet's reporter grows a
         // generic `pnpm:logger` channel. Same payload shape.
+        let prefix = opts.project_dir.display();
+        let fetch_spec = spec.fetch_spec.display();
         tracing::warn!(
             target: "pacquet::resolving-local-resolver",
-            prefix = %opts.project_dir.display(),
-            "Installing a dependency from a non-existent directory: {}",
-            spec.fetch_spec.display(),
+            prefix = %prefix,
+            "Installing a dependency from a non-existent directory: {fetch_spec}",
         );
     }
-    let name =
-        spec.fetch_spec.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = spec
+        .fetch_spec
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
     Ok(serde_json::json!({ "name": name, "version": "0.0.0" }))
 }
 

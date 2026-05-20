@@ -57,8 +57,8 @@ async fn resolve_directory() {
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("link:.."));
     let manifest = result.manifest.as_ref().expect("manifest");
     assert_eq!(
-        manifest.get("name").and_then(|v| v.as_str()),
-        Some("@pnpm/resolving.local-resolver")
+        manifest.get("name").and_then(|value| value.as_str()),
+        Some("@pnpm/resolving.local-resolver"),
     );
     let LockfileResolution::Directory(dir) = &result.resolution else {
         panic!("expected directory resolution, got {:?}", result.resolution);
@@ -358,7 +358,7 @@ async fn fail_when_resolving_tarball_specified_with_the_link_protocol() {
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
         .await
         .expect_err("expected NOT_PACKAGE_DIRECTORY");
-    assert!(matches!(err, ResolveLocalError::NotPackageDirectory { .. }), "got {err:?}",);
+    assert!(matches!(err, ResolveLocalError::NotPackageDirectory { .. }), "got {err:?}");
 }
 
 #[tokio::test]
@@ -394,8 +394,8 @@ async fn do_not_fail_when_resolving_from_not_existing_directory() {
         .expect("resolve")
         .expect("claims");
     let manifest = result.manifest.as_ref().expect("manifest");
-    assert_eq!(manifest.get("name").and_then(|v| v.as_str()), Some("dir-does-not-exist"));
-    assert_eq!(manifest.get("version").and_then(|v| v.as_str()), Some("0.0.0"));
+    assert_eq!(manifest.get("name").and_then(|value| value.as_str()), Some("dir-does-not-exist"));
+    assert_eq!(manifest.get("version").and_then(|value| value.as_str()), Some("0.0.0"));
 }
 
 #[tokio::test]
