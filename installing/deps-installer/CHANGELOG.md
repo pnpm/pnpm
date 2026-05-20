@@ -1,5 +1,64 @@
 # @pnpm/core
 
+## 1101.3.0
+
+### Minor Changes
+
+- b206a15: Adding [`pacquet`](https://github.com/pnpm/pnpm/tree/main/pacquet) (the Rust port of pnpm) to `configDependencies` in `pnpm-workspace.yaml` now delegates the materialization phase of `pnpm install` to the pacquet binary instead of running the JS installer's headless path. Pacquet emits the same `pnpm:*` NDJSON log events that `@pnpm/cli.default-reporter` already parses, so the install renders identically. Absent the `pacquet` entry, behavior is unchanged.
+
+  ```yaml
+  # pnpm-workspace.yaml
+  configDependencies:
+    pacquet: "^0.1.0"
+  ```
+
+  Pacquet takes over every place pnpm would otherwise call `headlessInstall`: the frozen-install path, the hoisted-`nodeLinker` install, the workspace partial-install (where pnpm runs a `lockfileOnly` resolve pass first), and the agent-server install. In all cases pnpm still owns dependency resolution; pacquet only fetches and imports from the freshly-written lockfile. This is an opt-in preview of the Rust install engine [#11723](https://github.com/pnpm/pnpm/issues/11723).
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/building.after-install@1101.0.14
+  - @pnpm/building.during-install@1101.0.12
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/installing.deps-restorer@1101.1.4
+  - @pnpm/lockfile.to-pnp@1100.0.10
+  - @pnpm/installing.deps-resolver@1100.1.1
+  - @pnpm/installing.package-requester@1101.0.8
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/lockfile.preferred-versions@1100.0.11
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/lockfile.verification@1100.0.12
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/agent.client@1.0.7
+  - @pnpm/bins.remover@1100.0.5
+  - @pnpm/building.policy@1100.0.6
+  - @pnpm/config.normalize-registries@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.5
+  - @pnpm/hooks.read-package-hook@1100.0.4
+  - @pnpm/installing.linking.hoist@1100.0.8
+  - @pnpm/installing.linking.modules-cleaner@1100.1.3
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/lockfile.filtering@1100.1.2
+  - @pnpm/lockfile.pruner@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.7
+  - @pnpm/worker@1100.1.7
+  - @pnpm/lockfile.settings-checker@1100.0.12
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.5
+  - @pnpm/patching.config@1100.0.4
+
 ## 1101.2.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/deps.security.signatures
 
+## 1101.1.3
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.0.6
+
 ## 1101.1.2
 
 ### Patch Changes

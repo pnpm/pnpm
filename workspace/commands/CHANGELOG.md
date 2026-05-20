@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-init
 
+## 1100.1.13
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/types@1101.1.1
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/cli.meta@1100.0.4
+  - @pnpm/workspace.project-manifest-writer@1100.0.4
+
 ## 1100.1.12
 
 ### Patch Changes
