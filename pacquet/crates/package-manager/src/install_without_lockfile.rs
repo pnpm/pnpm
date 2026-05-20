@@ -9,6 +9,9 @@ use futures_util::future;
 use miette::Diagnostic;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
 use pacquet_config::Config;
+use pacquet_engine_runtime_bun_resolver::BunResolver;
+use pacquet_engine_runtime_deno_resolver::DenoResolver;
+use pacquet_engine_runtime_node_resolver::NodeResolver;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
@@ -25,7 +28,9 @@ use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
     merge_named_registries,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
+use pacquet_resolving_resolver_base::{
+    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
+};
 use pacquet_resolving_tarball_resolver::TarballResolver;
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
 use pacquet_tarball::MemCache;
@@ -201,7 +206,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
 
         let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
 
-        let npm_resolver = NpmResolver {
+        let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
             named_registries: merged_named_registries.clone(),
             http_client: Arc::clone(&http_client_arc),
@@ -211,7 +216,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-        };
+        });
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
             Arc::new(RealGitRunner::new()),
@@ -226,6 +231,12 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
         let local_scheme_resolver = LocalSchemeResolver::new(local_ctx);
         let local_path_resolver = LocalPathResolver::new(local_ctx);
+        let mut node_resolver = NodeResolver::new(Arc::clone(&http_client_arc));
+        node_resolver.offline = config.offline;
+        let deno_resolver =
+            DenoResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
+        let bun_resolver =
+            BunResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
         let named_registry_resolver = NamedRegistryResolver {
             named_registries: merged_named_registries,
             registry_names: named_registry_aliases,
@@ -238,20 +249,23 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         };
         // Order mirrors upstream's chain at
-        // <https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L97-L173>:
-        // npm → git → tarball → local-scheme → named-registry →
-        // local-path. The local-resolver split is required by
-        // named-registry: a `<alias>:@scope/pkg` specifier carries an
-        // embedded `/`, which the path-shape detector
+        // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:
+        // npm → jsr (folded into npm) → git → tarball → localScheme →
+        // node → deno → bun → namedRegistry → localPath. The
+        // local-resolver split is required by named-registry: a
+        // `<alias>:@scope/pkg` specifier carries an embedded `/`,
+        // which the path-shape detector
         // (`contains_path_sep` in `parse_bare_specifier.rs`) would
         // otherwise claim and prevent the named-registry resolver
-        // from running. Runtimes (node / deno / bun) slot in between
-        // local-scheme and named-registry as those crates land.
+        // from running.
         let resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(vec![
-            Box::new(npm_resolver),
+            Box::new(ArcResolver(Arc::clone(&npm_resolver))),
             Box::new(git_resolver),
             Box::new(tarball_resolver),
             Box::new(local_scheme_resolver),
+            Box::new(node_resolver),
+            Box::new(deno_resolver),
+            Box::new(bun_resolver),
             Box::new(named_registry_resolver),
             Box::new(local_path_resolver),
         ]));
@@ -597,4 +611,33 @@ where
         .await?;
 
     Ok(())
+}
+
+/// [`Resolver`] adapter that delegates to a shared `Arc<dyn Resolver>`.
+///
+/// [`DefaultResolver::new`] takes `Vec<Box<dyn Resolver>>` — one owner
+/// per chain slot. The npm resolver, however, is also handed to the
+/// runtime resolvers (`Node` / `Deno` / `Bun` reuse it for version
+/// picking) via `Arc<dyn Resolver>`, so the same instance owns its
+/// metadata cache across both call paths. This wrapper bridges
+/// the two by implementing [`Resolver`] on a `Box<ArcResolver>`,
+/// forwarding every call to the shared backing resolver.
+struct ArcResolver(Arc<dyn Resolver>);
+
+impl Resolver for ArcResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        self.0.resolve(wanted_dependency, opts)
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        query: &'a LatestQuery,
+        opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        self.0.resolve_latest(query, opts)
+    }
 }
