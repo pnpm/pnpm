@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { describe, expect, test } from '@jest/globals'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
@@ -149,21 +149,26 @@ test('package manager from the packageManager field is not saved into the lockfi
   expect(envLockfile!.importers['.'].packageManagerDependencies).toBeUndefined()
 })
 
-test('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
-  const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
-  prepare({
-    devEngines: {
-      packageManager: {
-        name: 'pnpm',
-        version: pnpmVersion,
+// These tests resolve the running pnpm version's integrity from registry-mock,
+// which proxies pnpm to npmjs. They fail between a release commit and the
+// matching npm publish ("No matching version found for pnpm@<version>"), and
+// pass again once the version lands on npmjs.
+describe('release-brittle: may fail until current version is published to npm', () => {
+  test('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
+    const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
+    prepare({
+      devEngines: {
+        packageManager: {
+          name: 'pnpm',
+          version: pnpmVersion,
+        },
       },
-    },
-  })
+    })
 
-  // Seed the lockfile with a stale packageManagerDependencies entry that no
-  // longer satisfies devEngines.packageManager. Multi-document YAML: env
-  // lockfile is the first doc, the (empty) installer lockfile is the second.
-  fs.writeFileSync('pnpm-lock.yaml', `---
+    // Seed the lockfile with a stale packageManagerDependencies entry that no
+    // longer satisfies devEngines.packageManager. Multi-document YAML: env
+    // lockfile is the first doc, the (empty) installer lockfile is the second.
+    fs.writeFileSync('pnpm-lock.yaml', `---
 lockfileVersion: '9.0'
 importers:
   '.':
@@ -178,16 +183,17 @@ snapshots: {}
 ---
 `)
 
-  // COREPACK_ROOT used to skip the entire pm-handling block, leaving the stale
-  // 0.0.1 entry untouched. The sync must run regardless of how pnpm was
-  // invoked.
-  await execPnpm(['install'], {
-    env: { COREPACK_ROOT: '/fake/corepack' },
-  })
+    // COREPACK_ROOT used to skip the entire pm-handling block, leaving the
+    // stale 0.0.1 entry untouched. The sync must run regardless of how pnpm
+    // was invoked.
+    await execPnpm(['install'], {
+      env: { COREPACK_ROOT: '/fake/corepack' },
+    })
 
-  const envLockfile = await readEnvLockfile(process.cwd())
-  expect(envLockfile).not.toBeNull()
-  expect(envLockfile!.importers['.'].packageManagerDependencies?.['pnpm'].version).toBe(pnpmVersion)
+    const envLockfile = await readEnvLockfile(process.cwd())
+    expect(envLockfile).not.toBeNull()
+    expect(envLockfile!.importers['.'].packageManagerDependencies?.['pnpm'].version).toBe(pnpmVersion)
+  })
 })
 
 test('installing a new configurational dependency', async () => {
