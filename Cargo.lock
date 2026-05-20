@@ -2521,6 +2521,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-tarball-resolver"
+version = "0.0.1"
+dependencies = [
+ "mockito",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-store-dir"
 version = "0.0.1"
 dependencies = [

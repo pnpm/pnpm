@@ -62,6 +62,7 @@ impl From<PkgNameVer> for PkgResolutionId {
     }
 }
 
+
 /// An entry from a project's manifest that the resolver chain will
 /// route to a concrete protocol. Mirrors pnpm's
 /// [`WantedDependency`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L304-L313).
