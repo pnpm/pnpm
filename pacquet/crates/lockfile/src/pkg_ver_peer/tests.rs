@@ -249,7 +249,7 @@ fn parse_non_semver_with_peer_suffix() {
     assert_eq!(parsed.prefix(), Prefix::None);
     assert_eq!(
         parsed.version(),
-        &VersionPart::NonSemver("https://example.com/foo.tgz".to_string())
+        &VersionPart::NonSemver("https://example.com/foo.tgz".to_string()),
     );
     assert_eq!(parsed.peer(), "(peer@1.0.0)");
     assert_eq!(parsed.to_string(), "https://example.com/foo.tgz(peer@1.0.0)");

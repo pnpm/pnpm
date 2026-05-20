@@ -190,7 +190,7 @@ packages:
 snapshots:
 
   libsignal@{url}: {{}}
-"
+",
     );
     let tmp = write_lockfile(&yaml);
     let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
