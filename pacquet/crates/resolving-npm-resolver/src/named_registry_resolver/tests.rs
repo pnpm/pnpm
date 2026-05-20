@@ -77,6 +77,103 @@ fn build_resolver(
 }
 
 #[tokio::test]
+async fn resolves_via_builtin_gh_alias() {
+    // The `gh:` alias is built in; configure a mock server and tell
+    // `merge_named_registries` to redirect `gh` at it. Mirrors
+    // upstream's first test in `resolveNamedRegistry.test.ts` —
+    // confirms the resolver picks up the built-in entry without the
+    // user having to declare it.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@2.1.0");
+    assert_eq!(result.latest.as_deref(), Some("2.1.0"));
+    assert_eq!(result.alias.as_deref(), Some("@acme/private"));
+}
+
+#[tokio::test]
+async fn preserves_scoped_pkg_name_when_alias_differs() {
+    // `my-private` is the local manifest alias; the registry serves
+    // the package under `@acme/private`. The resolver records the
+    // resolution under the registry name so the lockfile / install
+    // tree match how the package is published. Mirrors upstream's
+    // "preserves the scoped package name when the alias is a
+    // different name" test.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("my-private".to_string()),
+        bare_specifier: Some("gh:@acme/private@^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@1.0.0");
+    assert_eq!(
+        result.alias.as_deref(),
+        Some("@acme/private"),
+        "alias must follow the registry name, not the local `my-private`",
+    );
+}
+
+#[tokio::test]
+async fn user_config_overrides_builtin_gh_alias() {
+    // GHES users point `gh` at their enterprise host. The user-
+    // supplied entry overrides the built-in default. Mirrors
+    // upstream's "allows user config to override the built-in gh
+    // alias (GHES)" test.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let enterprise_registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), enterprise_registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@2.1.0");
+}
+
+#[tokio::test]
 async fn resolves_user_defined_named_registry() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server
