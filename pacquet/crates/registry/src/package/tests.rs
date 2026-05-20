@@ -20,6 +20,7 @@ pub fn package_version_should_include_peers() {
         dev_dependencies: None,
         peer_dependencies: Some(peer_dependencies),
         npm_user: None,
+        deprecated: None,
     };
 
     let dependencies = |peer| version.dependencies(peer).collect::<HashMap<_, _>>();
@@ -40,6 +41,7 @@ pub fn serialized_according_to_params() {
         dev_dependencies: None,
         peer_dependencies: None,
         npm_user: None,
+        deprecated: None,
     };
 
     assert_eq!(version.serialize(true), "3.2.1");
@@ -94,6 +96,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
                     dev_dependencies: None,
                     peer_dependencies: None,
                     npm_user: None,
+                    deprecated: None,
                 },
             )
         })

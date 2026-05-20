@@ -34,6 +34,19 @@ pub struct PackageVersion {
         alias = "_npm_user"
     )]
     pub npm_user: Option<NpmUser>,
+
+    /// `deprecated` field on a per-version manifest. When present the
+    /// version has been marked deprecated on the registry and carries
+    /// the maintainer-supplied reason. The resolver uses this for the
+    /// deprecated-fallback in `pickVersionByVersionRange`: if the
+    /// highest version satisfying the range is deprecated, retry the
+    /// pick against the non-deprecated subset.
+    ///
+    /// Mirrors pnpm's
+    /// [`PackageInRegistry.deprecated`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts)
+    /// — exposed via the abbreviated metadata document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<String>,
 }
 
 /// `_npmUser` field on a per-version manifest. The verifier reads
