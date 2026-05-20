@@ -168,7 +168,10 @@ pub fn get_hoistable_optional_peers(
             }
             let Ok(version) = version_str.parse::<Version>() else { continue };
             if !ranges.iter().all(|range| {
-                range.parse::<Range>().map(|parsed| parsed.satisfies(&version)).unwrap_or(false)
+                range
+                    .parse::<Range>()
+                    .map(|parsed| satisfies_including_prerelease(&parsed, &version))
+                    .unwrap_or(false)
             }) {
                 continue;
             }
@@ -190,15 +193,39 @@ fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
     let parsed_range = range.parse::<Range>().ok()?;
     let mut best: Option<(&str, Version)> = None;
     for spec in versions {
-        let Ok(v) = spec.parse::<Version>() else { continue };
-        if !parsed_range.satisfies(&v) {
+        let Ok(parsed_version) = spec.parse::<Version>() else { continue };
+        if !satisfies_including_prerelease(&parsed_range, &parsed_version) {
             continue;
         }
-        if best.as_ref().is_none_or(|(_, cur)| v > *cur) {
-            best = Some((*spec, v));
+        if best.as_ref().is_none_or(|(_, cur)| parsed_version > *cur) {
+            best = Some((*spec, parsed_version));
         }
     }
     best.map(|(spec, _)| spec)
+}
+
+/// Check whether `version` satisfies `range`, with the
+/// `includePrerelease: true` behavior `semver.maxSatisfying` uses in
+/// upstream's hoist-peers picker. The default `Range::satisfies` skips
+/// prereleases when the range has none of its own (matching strict
+/// semver semantics); the retry with the prerelease tag stripped
+/// recovers the candidates upstream accepts. Matches the
+/// `satisfies_with_prereleases` pattern in [`crate::resolve_peers`].
+fn satisfies_including_prerelease(range: &Range, version: &Version) -> bool {
+    if range.satisfies(version) {
+        return true;
+    }
+    if version.pre_release.is_empty() {
+        return false;
+    }
+    let base = Version {
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+        pre_release: Vec::new(),
+        build: Vec::new(),
+    };
+    range.satisfies(&base)
 }
 
 /// Highest version overall from `versions` (the `*` range that
