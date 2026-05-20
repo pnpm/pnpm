@@ -47,15 +47,25 @@ fn parse_alias_with_peer_suffix() {
 #[test]
 fn resolve_plain_uses_alias_key_as_target_name() {
     let dep: SnapshotDepRef = "5.1.2".parse().unwrap();
-    let resolved = dep.resolve(&pkg_name("string-width"));
+    let resolved = dep.resolve(&pkg_name("string-width")).expect("plain resolves");
     assert_eq!(resolved.to_string(), "string-width@5.1.2");
 }
 
 #[test]
 fn resolve_alias_uses_alias_target_name_not_key() {
     let dep: SnapshotDepRef = "string-width@4.2.3".parse().unwrap();
-    let resolved = dep.resolve(&pkg_name("string-width-cjs"));
+    let resolved = dep.resolve(&pkg_name("string-width-cjs")).expect("alias resolves");
     assert_eq!(resolved.to_string(), "string-width@4.2.3");
+}
+
+/// `link:` deps live outside the virtual store, so `resolve` returns
+/// `None` — mirroring upstream's `refToRelative` returning `null` for
+/// `link:` references. Callers that build snapshot graphs use this as
+/// the signal to skip the entry.
+#[test]
+fn resolve_link_returns_none() {
+    let dep: SnapshotDepRef = "link:packages/c".parse().unwrap();
+    assert_eq!(dep.resolve(&pkg_name("c")), None);
 }
 
 #[test]
@@ -66,6 +76,8 @@ fn display_roundtrip() {
         "string-width@4.2.3",
         "@types/react@17.0.49",
         "react-dom@17.0.2(react@17.0.2)",
+        "link:packages/c",
+        "link:../sibling",
     ] {
         let dep: SnapshotDepRef = input.parse().unwrap();
         assert_eq!(dep.to_string(), input);
@@ -78,10 +90,24 @@ fn deserialize_ok() {
         ("5.1.2", "5.1.2"),
         ("string-width@4.2.3", "string-width@4.2.3"),
         (r#""17.0.2(react@17.0.2)""#, "17.0.2(react@17.0.2)"),
+        ("link:packages/c", "link:packages/c"),
     ] {
         let dep: SnapshotDepRef = serde_saphyr::from_str(yaml).unwrap();
         assert_eq!(dep.to_string(), expected);
     }
+}
+
+/// `link:` references parse into the dedicated [`SnapshotDepRef::Link`]
+/// variant. Pnpm writes this shape into a snapshot's `dependencies:`
+/// map when an injected workspace package (e.g. `b@file:packages/b`)
+/// depends on another workspace project via `workspace:` — the
+/// dependency lives outside the virtual store, so the lockfile records
+/// the path with a `link:` prefix instead of a snapshot version.
+#[test]
+fn parse_link_workspace_path() {
+    let dep: SnapshotDepRef = "link:packages/c".parse().unwrap();
+    assert_eq!(dep, SnapshotDepRef::Link("packages/c".to_string()));
+    assert_eq!(dep.as_link_target(), Some("packages/c"));
 }
 
 #[test]
@@ -104,14 +130,18 @@ fn looks_like_alias_rules() {
 /// `ver_peer` accesses the version-with-peer portion of either
 /// variant: the inner `PkgVerPeer` for `Plain`, and the alias's
 /// `suffix` for `Alias`. Used by snapshot lookups that only care
-/// about the version slot.
+/// about the version slot. Returns `None` for the `Link` variant —
+/// `link:` deps have no version slot.
 #[test]
 fn ver_peer_returns_inner_version_for_each_variant() {
     let plain: SnapshotDepRef = "17.0.2(react@17.0.2)".parse().unwrap();
-    assert_eq!(plain.ver_peer().to_string(), "17.0.2(react@17.0.2)");
+    assert_eq!(plain.ver_peer().map(ToString::to_string), Some("17.0.2(react@17.0.2)".to_string()));
 
     let alias: SnapshotDepRef = "react-dom@17.0.2(react@17.0.2)".parse().unwrap();
-    assert_eq!(alias.ver_peer().to_string(), "17.0.2(react@17.0.2)");
+    assert_eq!(alias.ver_peer().map(ToString::to_string), Some("17.0.2(react@17.0.2)".to_string()));
+
+    let link: SnapshotDepRef = "link:packages/c".parse().unwrap();
+    assert_eq!(link.ver_peer(), None);
 }
 
 /// `From<PkgVerPeer>` is the infallible promotion path used by

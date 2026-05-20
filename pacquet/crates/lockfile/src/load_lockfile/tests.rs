@@ -1,5 +1,6 @@
 use crate::{
     DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey, PkgName,
+    SnapshotDepRef,
 };
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
@@ -214,4 +215,69 @@ snapshots:
     assert!(packages.contains_key(&key));
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
     assert!(snapshots.contains_key(&key));
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/11775>.
+/// An injected workspace package's snapshot can hold a `link:<path>`
+/// value in its `dependencies:` map when the dep is a workspace
+/// sibling. Pnpm's own parser accepts the shape — `refToRelative`
+/// short-circuits to `null` for `link:` references at use time — so
+/// pacquet must too.
+#[test]
+fn parses_link_dep_in_injected_snapshot() {
+    let lockfile_text = text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "settings:"
+        "  autoInstallPeers: true"
+        "  excludeLinksFromLockfile: false"
+        ""
+        "importers:"
+        ""
+        "  .: {}"
+        ""
+        "  packages/a:"
+        "    dependencies:"
+        "      b:"
+        "        specifier: workspace:^"
+        "        version: file:packages/b"
+        "    dependenciesMeta:"
+        "      b:"
+        "        injected: true"
+        ""
+        "  packages/b:"
+        "    dependencies:"
+        "      c:"
+        "        specifier: workspace:^"
+        "        version: link:../c"
+        ""
+        "  packages/c: {}"
+        ""
+        "packages:"
+        ""
+        "  b@file:packages/b:"
+        "    resolution: {directory: packages/b, type: directory}"
+        ""
+        "snapshots:"
+        ""
+        "  b@file:packages/b:"
+        "    dependencies:"
+        "      c: link:packages/c"
+    };
+    let tmp = write_lockfile(lockfile_text);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+
+    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load lockfile with link: snapshot dep")
+        .expect("lockfile should be present");
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
+    let b_key: PackageKey = "b@file:packages/b".parse().expect("parse b key");
+    let b_snapshot = snapshots.get(&b_key).expect("b snapshot present");
+    let deps = b_snapshot.dependencies.as_ref().expect("b deps present");
+
+    let c_name = PkgName::parse("c").expect("parse c");
+    let c_ref = deps.get(&c_name).expect("c entry present");
+    assert_eq!(c_ref, &SnapshotDepRef::Link("packages/c".to_string()));
+    assert_eq!(c_ref.resolve(&c_name), None);
 }

@@ -48,8 +48,10 @@ pub struct ResolvedDependencySpec {
 ///
 /// Snapshot-level dependencies (the values inside `snapshots.*.dependencies`)
 /// use [`crate::SnapshotDepRef`] instead, which carries the same
-/// plain/alias distinction but never holds a `link:` value — `link:`
-/// only appears at the importer level.
+/// plain / alias / link distinction. `link:` can appear at the snapshot
+/// level too, for injected workspace packages whose own dependencies
+/// resolve to other workspace projects (see
+/// [`crate::SnapshotDepRef::Link`]).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ImporterDepVersion {
     /// Bare semver-with-peer; resolves to a snapshot in `snapshots:`

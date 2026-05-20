@@ -102,7 +102,9 @@ fn build_children_map(
             [snap.dependencies.as_ref(), snap.optional_dependencies.as_ref()].into_iter().flatten()
         {
             for (alias, dep_ref) in deps {
-                let resolved = dep_ref.resolve(alias);
+                let Some(resolved) = dep_ref.resolve(alias) else {
+                    continue;
+                };
                 if snapshots.contains_key(&resolved) {
                     child_keys.push(resolved);
                 }

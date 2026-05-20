@@ -150,8 +150,12 @@ fn build_children(snapshot: &SnapshotEntry) -> HashMap<String, PackageKey> {
     for (alias, dep_ref) in dep_entries {
         // `SnapshotDepRef::resolve` returns the `PkgNameVerPeer`
         // (= `PackageKey`) the alias points at in the `snapshots:`
-        // map.
-        let resolved: PackageKey = dep_ref.resolve(alias);
+        // map. `link:` deps don't have a snapshot key — skip them,
+        // mirroring upstream's `if (childDepPath)` guard in
+        // `lockfileDepsToGraphChildren`.
+        let Some(resolved) = dep_ref.resolve(alias) else {
+            continue;
+        };
         children.insert(alias.to_string(), resolved);
     }
     children
