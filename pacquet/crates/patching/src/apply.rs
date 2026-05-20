@@ -1,7 +1,10 @@
 use derive_more::{Display, Error};
 use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
 use miette::Diagnostic;
+use std::fs::{OpenOptions, Permissions};
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{fs, io};
 
 /// Error from [`apply_patch_to_dir`].
@@ -84,15 +87,21 @@ pub enum PatchApplyError {
 /// a file whose contents diverged from what the patch expects. A
 /// missing target on `Delete` is treated as already applied.
 ///
-/// `Modify` unlinks the target before writing the patched content,
-/// breaking any hardlink (or reflink) back to the content-addressable
-/// store. A plain truncating write would otherwise corrupt the store
-/// copy that every other snapshot of the same package shares, and
-/// leak patched content into sibling snapshots. The patched output
-/// lives in the side-effects cache after this call returns; nothing
-/// requires the store copy to carry it. The original mode is restored
-/// after the rewrite so patched shebang scripts in `bin/` keep their
-/// executable bit.
+/// `Modify` writes the patched content via a sibling temp file +
+/// `rename` (the same pattern
+/// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs)
+/// uses for the lockfile), which both makes the rewrite crash-safe
+/// — a failed write leaves the original on disk instead of an empty
+/// dirent — and breaks any hardlink (or reflink) back to the
+/// content-addressable store as a side effect of the rename creating
+/// a new dirent → inode mapping. A plain truncating write would
+/// otherwise corrupt the store copy that every other snapshot of the
+/// same package shares, and leak patched content into sibling
+/// snapshots. The patched output lives in the side-effects cache
+/// after this call returns; nothing requires the store copy to carry
+/// it. The temp file is chmoded to match the original before rename so
+/// patched shebang scripts in `bin/` keep their executable bit
+/// atomically — no window where the file has the wrong mode.
 ///
 /// Apply is **idempotent**: when forward apply fails, the patch is
 /// reverse-applied against the on-disk content. If the reverse
@@ -211,25 +220,31 @@ fn apply_one_file(
                     return Err(failed(format!("apply to {}: {source}", target.display())));
                 }
             };
-            // Break any hardlinks before writing. Files in
-            // `node_modules/.pnpm/<slot>/node_modules/<pkg>` are
-            // hardlinked (or reflinked, depending on import method) to
-            // the content-addressable store; a plain `fs::write`
-            // truncates and writes through the shared inode, which
-            // would (a) corrupt the on-disk store copy and (b) leak
-            // patched content into every other snapshot that linked
-            // the same file. `remove_file` unlinks only this dirent —
-            // the store inode (and any other hardlinks pointing at it)
-            // stays untouched. The patched output is captured by the
-            // side-effects cache after this returns; nothing requires
-            // the store copy to carry it.
-            fs::remove_file(&target)
-                .map_err(|source| failed(format!("unlink {}: {source}", target.display())))?;
-            fs::write(&target, updated)
+            // Stage the patched bytes in a sibling temp file, then
+            // atomically rename over the target. `rename` creates a new
+            // dirent → inode mapping at `target`, which both:
+            //
+            //   1. **Breaks the hardlink to the store.** Files in
+            //      `node_modules/.pnpm/<slot>/node_modules/<pkg>` are
+            //      hardlinked (or reflinked) from the content-
+            //      addressable store; a plain truncating `fs::write`
+            //      would mutate the shared inode, corrupting the store
+            //      copy and every other snapshot's hardlink to it. The
+            //      patched output is captured by the side-effects cache
+            //      after this returns; nothing requires the store copy
+            //      to carry it.
+            //   2. **Is crash-safe.** If the write fails after we've
+            //      unlinked the target, the package is broken until
+            //      reinstall — `unlink → write` would have that
+            //      window. With temp + rename, a mid-write failure
+            //      just leaves a stale temp file (cleaned up best-
+            //      effort) and the original target intact, so the next
+            //      install can retry from the same baseline.
+            //
+            // CodeRabbit flagged the prior `unlink → write` ordering
+            // during review of pnpm/pnpm#11782.
+            write_atomic_with_mode(&target, updated.as_bytes(), &permissions)
                 .map_err(|source| failed(format!("write {}: {source}", target.display())))?;
-            fs::set_permissions(&target, permissions).map_err(|source| {
-                failed(format!("restore mode of {}: {source}", target.display()))
-            })?;
         }
         FileOperation::Create(path) => {
             let target = resolve_target(Path::new(path.as_ref()))?;
@@ -316,6 +331,84 @@ fn apply_one_file(
         }
     }
     Ok(())
+}
+
+/// Atomic write: stage `content` in a sibling temp file (with
+/// `permissions` applied before the rename so the final file has the
+/// right mode atomically), then `rename` over `target`. Mirrors the
+/// pattern in
+/// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs):
+/// `create_new(true)` rather than `create + truncate` so we never
+/// follow a symlink or truncate a file an attacker (or a crashed prior
+/// install) pre-seeded at our predicted temp path; on `AlreadyExists`
+/// the counter advances and we retry up to `MAX_TEMP_ATTEMPTS` times.
+///
+/// `rename` is atomic on Unix and replaces in-place on Windows, so a
+/// crash mid-write leaves either the original file or the rewritten
+/// one — never an empty dirent. As a side effect, `rename` creates a
+/// fresh inode at `target`, breaking any hardlink the path previously
+/// shared with the content-addressable store; the store inode (and
+/// every other hardlink to it) stays untouched.
+fn write_atomic_with_mode(
+    target: &Path,
+    content: &[u8],
+    permissions: &Permissions,
+) -> io::Result<()> {
+    /// Sixteen fresh counter values is plenty — under benign
+    /// conditions we never collide; under shared-store-across-
+    /// containers the chance of 16 consecutive same-pid same-counter
+    /// collisions is negligible. Matches the constant in
+    /// `pacquet_lockfile::save_lockfile::write_atomic`.
+    const MAX_TEMP_ATTEMPTS: usize = 16;
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let pid = std::process::id();
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = target
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| String::from("patched"));
+
+    let mut last_already_exists: Option<io::Error> = None;
+    for _ in 0..MAX_TEMP_ATTEMPTS {
+        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.pacquet-tmp"));
+
+        let mut file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                last_already_exists = Some(error);
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+
+        if let Err(error) = file.write_all(content) {
+            drop(file);
+            let _ = fs::remove_file(&tmp);
+            return Err(error);
+        }
+        // Close before chmod / rename so the kernel commits dirty
+        // buffers and Windows doesn't block the rename on the open
+        // handle (matches `save_lockfile::write_atomic`).
+        drop(file);
+
+        if let Err(error) = fs::set_permissions(&tmp, permissions.clone()) {
+            let _ = fs::remove_file(&tmp);
+            return Err(error);
+        }
+
+        return fs::rename(&tmp, target).inspect_err(|_| {
+            let _ = fs::remove_file(&tmp);
+        });
+    }
+
+    Err(last_already_exists.unwrap_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "exhausted temp-path attempts for atomic patch write",
+        )
+    }))
 }
 
 #[cfg(test)]

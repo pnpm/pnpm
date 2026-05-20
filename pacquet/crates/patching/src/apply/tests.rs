@@ -587,6 +587,45 @@ fn modify_preserves_executable_mode() {
     assert_eq!(fs::read_to_string(&target).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
 }
 
+/// `Modify` must NOT destroy the target when the rewrite can't finish.
+/// Simulate the write failure by making the patched directory read-
+/// only after staging the target: the temp file open fails with
+/// `PermissionDenied`, and the original target must still be on disk
+/// with its original content. Mirrors the crash-safety guarantee of
+/// the atomic-replace pattern in
+/// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs).
+/// CodeRabbit flagged the prior `unlink → write` ordering as a
+/// data-loss risk during review of pnpm/pnpm#11782.
+#[cfg(unix)]
+#[test]
+fn modify_does_not_destroy_target_on_write_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("index.js");
+    fs::write(&target, IS_POSITIVE_INDEX_JS).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+
+    // Make the directory read-only so the sibling temp file open in
+    // `write_atomic_with_mode` fails with `PermissionDenied`.
+    let dir_mode = fs::metadata(patched.path()).unwrap().permissions().mode();
+    fs::set_permissions(patched.path(), fs::Permissions::from_mode(0o555)).unwrap();
+
+    let err = apply_patch_to_dir(patched.path(), &patch);
+
+    // Restore write perms so tempdir cleanup works.
+    fs::set_permissions(patched.path(), fs::Permissions::from_mode(dir_mode)).unwrap();
+
+    err.expect_err("apply must surface the write failure");
+    // The crucial invariant: the original target survives untouched.
+    assert_eq!(
+        fs::read_to_string(&target).unwrap(),
+        IS_POSITIVE_INDEX_JS,
+        "target must NOT be destroyed when the rewrite can't finish",
+    );
+}
+
 /// Re-applying a Create patch over a file that already exists with the
 /// expected post-patch content is treated as no-op. A genuine
 /// pre-existing file with different content still errors (covered by
