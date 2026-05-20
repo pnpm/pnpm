@@ -343,12 +343,20 @@ fn apply_one_file(
 /// install) pre-seeded at our predicted temp path; on `AlreadyExists`
 /// the counter advances and we retry up to `MAX_TEMP_ATTEMPTS` times.
 ///
-/// `rename` is atomic on Unix and replaces in-place on Windows, so a
-/// crash mid-write leaves either the original file or the rewritten
-/// one — never an empty dirent. As a side effect, `rename` creates a
-/// fresh inode at `target`, breaking any hardlink the path previously
-/// shared with the content-addressable store; the store inode (and
-/// every other hardlink to it) stays untouched.
+/// `rename` is atomic on Unix and replaces in-place on Windows, so an
+/// IO failure mid-write leaves either the original file or the
+/// rewritten one — never an empty dirent. **This is atomic against IO
+/// errors, not against power loss**: we don't `fsync` the temp file
+/// or the parent directory, so a host crash between rename and the
+/// kernel's writeback flush can lose the rename. Matches upstream
+/// `@pnpm/patch-package`'s `fs.writeFileSync` semantics — Node's
+/// writeFileSync doesn't fsync either, and a partially-written patched
+/// install is recoverable by re-running `pnpm install` anyway.
+///
+/// As a side effect, `rename` creates a fresh inode at `target`,
+/// breaking any hardlink the path previously shared with the content-
+/// addressable store; the store inode (and every other hardlink to it)
+/// stays untouched.
 fn write_atomic_with_mode(
     target: &Path,
     content: &[u8],
@@ -388,9 +396,12 @@ fn write_atomic_with_mode(
             let _ = fs::remove_file(&tmp);
             return Err(error);
         }
-        // Close before chmod / rename so the kernel commits dirty
-        // buffers and Windows doesn't block the rename on the open
-        // handle (matches `save_lockfile::write_atomic`).
+        // Close before chmod / rename. Required on Windows: `MoveFileEx`
+        // over a still-open source handle fails with a sharing
+        // violation. Not strictly required on Unix but matches the
+        // pattern in `save_lockfile::write_atomic`. No `sync_all`: this
+        // routine is atomic against IO errors, not power loss — see
+        // the `fn` doc above.
         drop(file);
 
         if let Err(error) = fs::set_permissions(&tmp, permissions.clone()) {
