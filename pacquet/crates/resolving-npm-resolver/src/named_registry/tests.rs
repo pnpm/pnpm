@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use pretty_assertions::assert_eq;
 
-use super::{build_named_registry_prefixes, pick_registry_for_version};
+use super::{build_named_registry_prefixes, pick_registry_for_package, pick_registry_for_version};
 
 fn registries(entries: &[(&str, &str)]) -> HashMap<String, String> {
     entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
@@ -74,6 +74,34 @@ fn falls_back_to_scope_routing_without_tarball() {
 
     let bare = pick_registry_for_version(&regs, &prefixes, "lodash", None);
     assert_eq!(bare, "https://registry.npmjs.org/");
+}
+
+/// `pick_registry_for_package` consults the `npm:@scope/...` form of
+/// `bare_specifier` for the scope override before falling back to the
+/// scope of the local package name. Without this, an npm-alias entry
+/// like `"foo": "npm:@acme/bar@^1"` would route through the empty
+/// scope of `foo` and miss the user's `registries[@acme]` override.
+#[test]
+fn npm_alias_uses_bare_specifier_scope_over_local_name() {
+    let regs = registries(&[
+        ("default", "https://registry.npmjs.org/"),
+        ("@acme", "https://npm.acme.example/"),
+    ]);
+    let picked = pick_registry_for_package(&regs, "foo", Some("npm:@acme/bar@^1"));
+    assert_eq!(picked, "https://npm.acme.example/");
+}
+
+/// When no `npm:` prefix is in play, the local package name's scope
+/// still drives routing (preserves the legacy behavior for plain
+/// `"@scope/foo": "^1"` manifest entries).
+#[test]
+fn falls_back_to_pkg_name_scope_without_npm_alias() {
+    let regs = registries(&[
+        ("default", "https://registry.npmjs.org/"),
+        ("@private", "https://internal/registry/"),
+    ]);
+    let picked = pick_registry_for_package(&regs, "@private/foo", Some("^1.0.0"));
+    assert_eq!(picked, "https://internal/registry/");
 }
 
 /// A tarball URL that's *almost* a prefix match — same host, but

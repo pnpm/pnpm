@@ -105,7 +105,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let default_tag = opts.default_tag.as_deref().unwrap_or("latest");
-        let registry = self.pick_registry(wanted_dependency.alias.as_deref());
 
         // `workspace:` is owned by the workspace resolver. Decline so
         // the chain dispatches there once that crate lands.
@@ -116,6 +115,17 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         {
             return Ok(None);
         }
+
+        // Pick registry from `(alias, bare_specifier)` so an npm-alias
+        // entry like `"foo": "npm:@scope/bar@^1"` routes through
+        // `registries[@scope]` instead of the alias's own scope.
+        // Mirrors upstream's
+        // [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts).
+        let registry = pick_registry_for_package(
+            &self.registries,
+            wanted_dependency.alias.as_deref().unwrap_or_default(),
+            wanted_dependency.bare_specifier.as_deref(),
+        );
 
         let spec = match wanted_dependency.bare_specifier.as_deref() {
             Some(bare) => {
@@ -208,13 +218,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(LatestInfo { latest_manifest: None }));
         }
         Ok(Some(LatestInfo { latest_manifest: result.manifest }))
-    }
-
-    fn pick_registry(&self, alias: Option<&str>) -> String {
-        match alias {
-            Some(name) => pick_registry_for_package(&self.registries, name),
-            None => self.registries.get("default").cloned().unwrap_or_default(),
-        }
     }
 }
 

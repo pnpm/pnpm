@@ -90,20 +90,41 @@ pub fn pick_registry_for_version(
             }
         }
     }
-    pick_registry_for_package(registries, name)
+    pick_registry_for_package(registries, name, None)
 }
 
 /// Default-vs-scope routing for an npm package. Mirrors pnpm's
-/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts#L3-L6).
-/// `@scope/foo` consults `registries[@scope]`; everything else
-/// (including unscoped) falls through to `registries["default"]`.
-pub fn pick_registry_for_package(registries: &HashMap<String, String>, name: &str) -> String {
-    if let Some(scope) = scope_of(name)
+/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts).
+///
+/// Scope sources, in order:
+///
+/// 1. The npm-alias form (`npm:@scope/name@<spec>`) embedded in
+///    `bare_specifier`. This wins so a manifest entry like
+///    `"foo": "npm:@acme/foo@^1"` routes through
+///    `registries[@acme]` even though the local key is `foo`.
+/// 2. `pkg_name` itself when it carries a scope (`@scope/foo`).
+///
+/// Falls through to `registries["default"]` when no scope is
+/// detected or no per-scope registry is configured.
+pub fn pick_registry_for_package(
+    registries: &HashMap<String, String>,
+    pkg_name: &str,
+    bare_specifier: Option<&str>,
+) -> String {
+    if let Some(scope) = scope_from_bare_specifier(bare_specifier).or_else(|| scope_of(pkg_name))
         && let Some(url) = registries.get(scope)
     {
         return url.clone();
     }
     registries.get("default").cloned().unwrap_or_default()
+}
+
+fn scope_from_bare_specifier(bare_specifier: Option<&str>) -> Option<&str> {
+    let rest = bare_specifier?.strip_prefix("npm:")?;
+    if !rest.starts_with('@') {
+        return None;
+    }
+    rest.find('/').map(|sep| &rest[..sep])
 }
 
 fn scope_of(name: &str) -> Option<&str> {

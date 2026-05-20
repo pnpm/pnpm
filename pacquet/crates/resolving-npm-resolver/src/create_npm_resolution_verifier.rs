@@ -335,7 +335,7 @@ impl NpmResolutionVerifier {
                 }
             }
         }
-        pick_registry_for_package(&self.registries, &name.to_string())
+        pick_registry_for_package(&self.registries, &name.to_string(), None)
     }
 
     async fn run_age_check(

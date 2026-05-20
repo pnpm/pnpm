@@ -37,6 +37,7 @@ pacquet-workspace               = { workspace = true }
 pacquet-workspace-state         = { workspace = true }
 
 async-recursion = { workspace = true }
+chrono          = { workspace = true }
 dashmap         = { workspace = true }
 derive_more     = { workspace = true }
 futures-util    = { workspace = true }

@@ -3,7 +3,7 @@ use crate::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, store_init::init_store_dir_best_effort,
 };
 use async_recursion::async_recursion;
-use dashmap::DashSet;
+use dashmap::{DashMap, mapref::entry::Entry};
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
@@ -26,10 +26,22 @@ use std::{
     path::Path,
     sync::{Arc, atomic::AtomicU8},
 };
+use tokio::sync::watch;
 
-/// In-memory dedupe set for packages already materialized this
-/// install. Keyed by virtual-store name (`{name-with-slashes-replaced}@{version}`).
-pub type ResolvedPackages = DashSet<String>;
+/// In-memory dedup gate for packages materialized during this install.
+/// Keyed by virtual-store name (`{name-with-slashes-replaced}@{version}`).
+///
+/// The value is a [`watch::Sender<bool>`] whose state transitions from
+/// `false` (slot reserved, first writer running) to `true` (the first
+/// writer's materialization is complete, save_path is on disk).
+/// Second visitors subscribe to the sender before issuing their
+/// per-parent symlink so they don't race ahead of the first writer's
+/// `import_indexed_dir` — critical on Windows where `symlink_package`
+/// may fall back to a junction, which requires the target directory
+/// to exist at creation time. Mirrors the implicit "wait until the
+/// shared slot is on disk" sequencing pnpm gets from running one
+/// resolveDependencyTree pass before the install pass.
+pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 
 /// This subroutine install packages from a `package.json` without reading or writing a lockfile.
 ///
@@ -79,6 +91,27 @@ pub enum InstallWithoutLockfileError {
     #[display("Failed to resolve dependency tree: {_0}")]
     #[diagnostic(code(pacquet_package_manager::resolve_dependency_tree))]
     ResolveDependencyTree(#[error(not(source))] ResolveDependencyTreeError),
+
+    /// `minimumReleaseAgeExclude` patterns rejected at compile time.
+    /// Mirrors upstream's `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
+    #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
+    MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
+
+    /// The first writer of a shared `(name, version)` slot dropped its
+    /// completion signal without sending `true`. In practice this only
+    /// fires when the first writer's task panicked / was cancelled
+    /// mid-import; a second visitor that was waiting on the slot can't
+    /// safely create its per-parent symlink (the virtual-store target
+    /// directory may not exist), so the install fails closed.
+    #[display(
+        "First writer for virtual-store slot {virtual_store_name} dropped before signalling completion"
+    )]
+    #[diagnostic(code(pacquet_package_manager::first_writer_aborted))]
+    FirstWriterAborted {
+        #[error(not(source))]
+        virtual_store_name: String,
+    },
 }
 
 impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
@@ -139,10 +172,27 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         };
 
+        // Compile `minimumReleaseAge` (and its exclude pattern set)
+        // for the resolve pass. Mirrors the verifier wiring in
+        // `build_resolution_verifiers` so the resolver-time pick and
+        // the lockfile-verification check enforce the same policy.
+        let published_by = config
+            .minimum_release_age
+            .map(|minutes| chrono::Utc::now() - chrono::Duration::minutes(minutes as i64));
+        let published_by_exclude = config
+            .minimum_release_age_exclude
+            .as_deref()
+            .filter(|patterns| !patterns.is_empty())
+            .map(pacquet_config::version_policy::create_package_version_policy)
+            .transpose()
+            .map_err(InstallWithoutLockfileError::MinimumReleaseAgeExclude)?;
+
         let tree_opts = ResolveDependencyTreeOptions {
             auto_install_peers: config.auto_install_peers,
             base_opts: ResolveOptions {
                 default_tag: Some("latest".to_string()),
+                published_by,
+                published_by_exclude,
                 ..ResolveOptions::default()
             },
         };
@@ -320,14 +370,33 @@ where
         package.result.id.suffix,
     );
 
-    // `first_visit` is the `(name, version)`-level signal: gates the
-    // tarball download, the virtual-store import, and the
-    // `pnpm:progress resolved` / `pnpm:progress imported` emits so
-    // they fire once per package (matching pnpm's reporter contract).
-    // The per-parent symlink runs on every edge regardless, so a
-    // dependency reached from two different parents still gets a
-    // working `node_modules/<alias>` entry under each parent.
-    let first_visit = ctx.resolved_packages.insert(virtual_store_name.clone());
+    // Claim the `(name, version)` slot. `first_visit` is true iff this
+    // task created the watch sender; later visitors get a receiver and
+    // await the first writer's completion before continuing — without
+    // that gate, a second visitor's `symlink_package` could land
+    // before the first writer's `import_indexed_dir` has created the
+    // target directory, which `force_symlink_dir`'s Windows junction
+    // fallback rejects (junctions require an existing target).
+    let (first_visit, completion_rx) = match ctx.resolved_packages.entry(virtual_store_name.clone())
+    {
+        Entry::Vacant(slot) => {
+            let (tx, _initial_rx) = watch::channel(false);
+            slot.insert(tx);
+            (true, None)
+        }
+        Entry::Occupied(slot) => (false, Some(slot.get().subscribe())),
+    };
+
+    if let Some(mut rx) = completion_rx {
+        loop {
+            if *rx.borrow_and_update() {
+                break;
+            }
+            if rx.changed().await.is_err() {
+                return Err(InstallWithoutLockfileError::FirstWriterAborted { virtual_store_name });
+            }
+        }
+    }
 
     InstallPackageFromRegistry {
         tarball_mem_cache: ctx.tarball_mem_cache,
@@ -347,11 +416,17 @@ where
     .await
     .map_err(InstallWithoutLockfileError::InstallPackageFromRegistry)?;
 
-    // Dedup the recursion only. The first visitor walks this
-    // package's children into its virtual-store node_modules slot;
-    // subsequent visitors share that slot and don't need to repeat
-    // the walk.
-    if !first_visit {
+    if first_visit {
+        // Wake any second visitors blocked on the slot. The sender
+        // lives in the map for the rest of the install so late
+        // subscribers see `true` immediately via `borrow_and_update`.
+        if let Some(slot) = ctx.resolved_packages.get(&virtual_store_name) {
+            let _ = slot.send(true);
+        }
+    } else {
+        // Second visitor: the per-parent symlink is the only step
+        // that needed to run; the first writer is already walking
+        // this package's children.
         tracing::info!(target: "pacquet::install", package = %virtual_store_name, "Skip subset");
         return Ok(());
     }
