@@ -15,7 +15,7 @@ fn resolves_workspace_only_version_aliases() {
 fn resolves_package_name_aliases() {
     assert_eq!(
         workspace_pref_to_npm("workspace:is-positive@3.0.0").unwrap(),
-        "npm:is-positive@3.0.0"
+        "npm:is-positive@3.0.0",
     );
     assert_eq!(workspace_pref_to_npm("workspace:is-positive@*").unwrap(), "npm:is-positive@*");
     assert_eq!(workspace_pref_to_npm("workspace:is-positive@^").unwrap(), "npm:is-positive@*");

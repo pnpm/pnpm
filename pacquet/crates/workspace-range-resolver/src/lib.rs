@@ -10,7 +10,7 @@ use node_semver::{Range, Version};
 /// Pick the highest workspace-sibling version matching `range`.
 ///
 /// `range` is the `<version>` portion of a `workspace:` specifier (see
-/// [`pacquet_workspace_spec::WorkspaceSpec`]). The four sentinel tokens
+/// `pacquet-workspace-spec`'s `WorkspaceSpec`). The four sentinel tokens
 /// (`*`, `^`, `~`, `""`) widen the search to *all* versions, prereleases
 /// included — mirroring the
 /// [`includePrerelease: true`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/range-resolver/src/index.ts#L4-L8)

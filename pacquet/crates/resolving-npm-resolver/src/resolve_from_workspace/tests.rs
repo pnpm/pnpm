@@ -132,9 +132,10 @@ fn missing_workspace_package_surfaces_pnpm_error_code() {
     let packages = build_packages();
     let opts = opts(&packages);
     let err = try_resolve_from_workspace(&wanted("missing", "workspace:*"), &opts).unwrap_err();
-    assert!(
-        matches!(err, ResolveFromWorkspaceError::WorkspacePkgNotFound { ref name, .. } if name == "missing")
-    );
+    assert!(matches!(
+        err,
+        ResolveFromWorkspaceError::WorkspacePkgNotFound { ref name, .. } if name == "missing",
+    ));
 }
 
 #[test]

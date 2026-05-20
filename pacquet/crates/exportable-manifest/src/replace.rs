@@ -106,7 +106,7 @@ pub fn replace_workspace_protocol(
         return Ok(format!(
             "npm:{name}@{version}",
             name = manifest.name,
-            version = manifest.version
+            version = manifest.version,
         ));
     }
 
@@ -222,8 +222,12 @@ fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch> {
     let sentinel = match after_alias.chars().count() {
         0 => None,
         1 => {
-            let c = after_alias.chars().next().expect("char count == 1");
-            if matches!(c, '^' | '~' | '*') { Some(c) } else { return None }
+            let first_char = after_alias.chars().next().expect("char count == 1");
+            if matches!(first_char, '^' | '~' | '*') {
+                Some(first_char)
+            } else {
+                return None;
+            }
         }
         _ => return None,
     };
@@ -313,7 +317,7 @@ fn parse_peer_version_part(bytes: &[u8], start: usize) -> Option<usize> {
         b'x' | b'X' | b'*' => Some(start + 1),
         b if b.is_ascii_digit() => {
             let mut end = start + 1;
-            while bytes.get(end).is_some_and(|b| b.is_ascii_digit()) {
+            while bytes.get(end).is_some_and(u8::is_ascii_digit) {
                 end += 1;
             }
             Some(end)

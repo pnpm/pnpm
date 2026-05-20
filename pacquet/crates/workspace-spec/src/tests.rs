@@ -69,8 +69,8 @@ fn mutate_alias_and_version() {
 fn empty_version_is_preserved() {
     assert_eq!(WorkspaceSpec::parse("workspace:"), Some(ws("", None)));
     assert_eq!(
-        WorkspaceSpec::parse("workspace:").map(|s| s.to_string()).as_deref(),
-        Some("workspace:")
+        WorkspaceSpec::parse("workspace:").map(|spec| spec.to_string()).as_deref(),
+        Some("workspace:"),
     );
 }
 

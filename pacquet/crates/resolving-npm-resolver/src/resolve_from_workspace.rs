@@ -281,9 +281,11 @@ fn resolve_from_local_package(
 /// is unset or `true`; otherwise the project's own `rootDir`.
 fn resolve_local_package_dir(local_package: &WorkspacePackage) -> PathBuf {
     let publish_config = local_package.manifest.get("publishConfig");
-    let publish_dir = publish_config.and_then(|cfg| cfg.get("directory")).and_then(|v| v.as_str());
-    let link_directory =
-        publish_config.and_then(|cfg| cfg.get("linkDirectory")).and_then(|v| v.as_bool());
+    let publish_dir =
+        publish_config.and_then(|cfg| cfg.get("directory")).and_then(serde_json::Value::as_str);
+    let link_directory = publish_config
+        .and_then(|cfg| cfg.get("linkDirectory"))
+        .and_then(serde_json::Value::as_bool);
     if publish_dir.is_none() || link_directory == Some(false) {
         return local_package.root_dir.clone();
     }
@@ -319,7 +321,7 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
     target_components.drain(..common);
 
     let mut out = PathBuf::new();
-    for _ in base_components.iter().filter(|c| !matches!(c, Component::CurDir)) {
+    for _ in base_components.iter().filter(|component| !matches!(component, Component::CurDir)) {
         out.push("..");
     }
     for component in target_components {
@@ -334,10 +336,10 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
 /// Compare semver versions in *descending* order for the "available
 /// versions" hint. Versions that don't parse fall back to lexicographic
 /// reverse so the message at least stays stable.
-fn rcompare_versions(a: &str, b: &str) -> std::cmp::Ordering {
-    match (Version::parse(a), Version::parse(b)) {
-        (Ok(va), Ok(vb)) => vb.cmp(&va),
-        _ => b.cmp(a),
+fn rcompare_versions(left: &str, right: &str) -> std::cmp::Ordering {
+    match (Version::parse(left), Version::parse(right)) {
+        (Ok(left_parsed), Ok(right_parsed)) => right_parsed.cmp(&left_parsed),
+        _ => right.cmp(left),
     }
 }
 

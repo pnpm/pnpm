@@ -16,7 +16,7 @@
 //! The parser is deliberately permissive — it just splits the
 //! `<alias>@<version>` shape. Validity of `<version>` (semver vs.
 //! `*`/`^`/`~`/empty) is the caller's responsibility; see
-//! [`pacquet_workspace_range_resolver::resolve_workspace_range`] for
+//! `pacquet-workspace-range-resolver`'s `resolve_workspace_range` for
 //! the matching range-pick logic.
 
 use std::fmt;
