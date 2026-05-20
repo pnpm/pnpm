@@ -57,7 +57,7 @@ impl PkgNameVerPeer {
         let bare_input = format!("{}{}", prefix, self.suffix.version());
         let bare = bare_input
             .parse::<PkgVerPeer>()
-            .expect("a prefix + bare semver version is always a valid PkgVerPeer");
+            .expect("a prefix + the displayed version is always a valid PkgVerPeer");
         PkgNameVerPeer::new(self.name.clone(), bare)
     }
 }
