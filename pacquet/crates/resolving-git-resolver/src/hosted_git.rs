@@ -13,7 +13,7 @@
 //!   `git:` / `http:` / `https:` protocol families. Anything else
 //!   (Gitea, self-hosted, generic git+file, …) returns `None` so the
 //!   caller can fall back to the protocol-prefix dispatch in
-//!   [`crate::parse_bare_specifier`].
+//!   [`crate::parse_bare_specifier()`].
 //! - The output exposes the URL templates the resolver consumes —
 //!   `https`, `ssh`, `sshurl`, `tarball`, `shortcut` — each accepting
 //!   the `no_committish` / `no_git_plus` flags upstream's `_fill`

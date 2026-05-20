@@ -10,10 +10,10 @@
 //!
 //! Three pieces:
 //!
-//! - [`create_git_hosted_pkg_id`] — pure ID builder for git resolutions.
+//! - [`create_git_hosted_pkg_id()`] — pure ID builder for git resolutions.
 //!   Ports
 //!   [`createGitHostedPkgId.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/createGitHostedPkgId.ts).
-//! - [`parse_bare_specifier`] — recognise + normalise the input string,
+//! - [`parse_bare_specifier()`] — recognise + normalise the input string,
 //!   resolve hosted-vs-private (HTTP HEAD probe + `git ls-remote --exit-code`
 //!   reachability check), pick a `fetchSpec`. Ports
 //!   [`parseBareSpecifier.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts).

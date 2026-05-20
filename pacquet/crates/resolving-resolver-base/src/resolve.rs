@@ -30,7 +30,7 @@ use crate::verifier::ResolutionPolicyViolation;
 ///
 /// Consumers that need the structured `name@version` form read
 /// [`ResolveResult::name_ver`] instead.
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, From, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, From)]
 #[serde(transparent)]
 pub struct PkgResolutionId(String);
 
