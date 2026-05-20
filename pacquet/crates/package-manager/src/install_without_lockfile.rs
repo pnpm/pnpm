@@ -323,7 +323,15 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
 
         // Drop the resolver (and its meta cache) before the install
         // pass: the tree captures every `ResolveResult` we need.
+        // Dropping `resolver` releases the `ArcResolver` wrapper's
+        // strong reference to `npm_resolver`; the standalone
+        // `npm_resolver` binding holds a second strong reference
+        // because the deno- and bun-resolvers were handed a clone of
+        // the same `Arc` for their version-selection delegate. Drop
+        // both so the `NpmResolver` (and its packument cache) can be
+        // freed before the install pass starts allocating tarballs.
         drop(resolver);
+        drop(npm_resolver);
 
         let peers_result = importer_result.peers_result;
 

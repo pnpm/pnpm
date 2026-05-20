@@ -11,6 +11,11 @@ fn maps_quirky_arches_to_the_published_tarball_directory_name() {
     assert_eq!(get_normalized_arch("win32", "ia32", None), "x86");
     assert_eq!(get_normalized_arch("linux", "arm", None), "armv7l");
     assert_eq!(get_normalized_arch("linux", "x64", None), "x64");
+    // Pacquet matches upstream's unconditional `arm → armv7l` mapping
+    // — non-Linux `arm` is normalised the same way, so the assertion
+    // is a regression guard against accidentally adding a platform
+    // guard that diverges from pnpm.
+    assert_eq!(get_normalized_arch("darwin", "arm", None), "armv7l");
 }
 
 /// Apple Silicon (`darwin arm64`) only has its own tarball from

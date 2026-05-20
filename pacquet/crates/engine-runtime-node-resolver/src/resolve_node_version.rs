@@ -114,7 +114,9 @@ pub async fn resolve_node_versions(
     Ok(versions
         .into_iter()
         .filter(|version| {
-            Version::parse(version).map(|parsed| parsed.satisfies(&parsed_range)).unwrap_or(false)
+            Version::parse(version)
+                .map(|parsed| satisfies_with_prereleases(&parsed, &parsed_range))
+                .unwrap_or(false)
         })
         .collect())
 }
@@ -125,9 +127,16 @@ async fn fetch_all_versions(
 ) -> Result<Vec<NodeVersion>, ResolveNodeVersionError> {
     let base = node_mirror_base_url.unwrap_or("https://nodejs.org/download/release/");
     let url = format!("{base}index.json");
-    let response =
-        http_client.acquire_for_url(&url).await.get(&url).send().await.map_err(|error| {
-            ResolveNodeVersionError::FetchIndex { url: url.clone(), error: Arc::new(error) }
+    let response = http_client
+        .acquire_for_url(&url)
+        .await
+        .get(&url)
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|error| ResolveNodeVersionError::FetchIndex {
+            url: url.clone(),
+            error: Arc::new(error),
         })?;
     let body = response.text().await.map_err(|error| ResolveNodeVersionError::FetchIndex {
         url: url.clone(),
@@ -196,7 +205,7 @@ fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
     let mut best: Option<(Version, String)> = None;
     for version in versions {
         let Ok(parsed) = Version::parse(version) else { continue };
-        if !parsed.satisfies(&parsed_range) {
+        if !satisfies_with_prereleases(&parsed, &parsed_range) {
             continue;
         }
         match &best {
@@ -205,6 +214,39 @@ fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
         }
     }
     best.map(|(_, raw)| raw)
+}
+
+/// Range-satisfaction check that mirrors upstream's
+/// `semver.maxSatisfying(versions, range, { includePrerelease: true, … })`
+/// call at
+/// [`engine/runtime/node-resolver/src/index.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L185-L196).
+///
+/// `node-semver`'s [`Version::satisfies`] rejects prerelease versions
+/// against non-prerelease comparators by default — for example
+/// `18.0.0-rc.1` against `^18.0.0` returns `false`. JavaScript's
+/// `semver` library exposes an `includePrerelease` opt-in that lets
+/// that pairing match, which the upstream node-resolver enables
+/// unconditionally. Pacquet approximates the same opt-in by retrying
+/// with the prerelease suffix stripped when the straight check fails:
+/// if `version` is a prerelease and `MAJOR.MINOR.PATCH` satisfies
+/// `range`, treat the candidate as satisfying. Mirrors the strategy
+/// already used by `satisfies_with_prereleases` in
+/// `resolving-deps-resolver`.
+fn satisfies_with_prereleases(version: &Version, range: &Range) -> bool {
+    if version.satisfies(range) {
+        return true;
+    }
+    if version.pre_release.is_empty() {
+        return false;
+    }
+    let base = Version {
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+        pre_release: Vec::new(),
+        build: Vec::new(),
+    };
+    base.satisfies(range)
 }
 
 #[cfg(test)]

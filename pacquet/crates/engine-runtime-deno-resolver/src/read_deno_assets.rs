@@ -106,6 +106,7 @@ pub async fn read_deno_assets(
         .get(&release_index_url)
         .send()
         .await
+        .and_then(reqwest::Response::error_for_status)
         .map_err(|error| ReadDenoAssetsError::FetchReleaseIndex {
             version: version.to_string(),
             error: Arc::new(error),

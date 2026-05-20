@@ -181,7 +181,12 @@ fn encode_sri(hex: &str) -> String {
 }
 
 fn is_sha256_hex(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    // Upstream regex is `^[a-f0-9]{64}$` — lowercase only. Matching
+    // that explicitly keeps a malformed mixed-case hex row from
+    // sneaking through the validator that the upstream parser would
+    // have rejected.
+    value.len() == 64
+        && value.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
 }
 
 fn decode_hex(hex: &str) -> Option<Vec<u8>> {
