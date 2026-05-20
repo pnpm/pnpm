@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-deps-path               = { workspace = true }
 pacquet-package-manifest        = { workspace = true }
 pacquet-resolving-resolver-base = { workspace = true }
 
@@ -18,6 +19,7 @@ async-recursion = { workspace = true }
 derive_more     = { workspace = true }
 futures-util    = { workspace = true }
 miette          = { workspace = true }
+node-semver     = { workspace = true }
 pipe-trait      = { workspace = true }
 serde_json      = { workspace = true }
 tokio           = { workspace = true, features = ["sync"] }

@@ -9,13 +9,12 @@ use futures_util::future;
 use miette::Diagnostic;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
 use pacquet_config::Config;
-use pacquet_crypto_hash::shorten_virtual_store_name;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_deps_resolver::{
-    DirectDep, ResolveDependencyTreeError, ResolveDependencyTreeOptions, ResolvedTree,
-    resolve_dependency_tree,
+    DepPath, DependenciesGraph, ResolveDependencyTreeError, ResolveDependencyTreeOptions,
+    ResolvePeersOptions, resolve_dependency_tree, resolve_peers,
 };
 use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
 use pacquet_resolving_resolver_base::ResolveOptions;
@@ -248,11 +247,31 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // for any later package referencing the same blob.
         let verified_files_cache = SharedVerifiedFilesCache::default();
 
+        // Peer-resolution pass. Walks the per-occurrence tree built
+        // above, matches each visited package's `peerDependencies`
+        // against its parent chain, and emits a depPath-keyed graph
+        // the install pass consumes. Peer issues collected here are
+        // not fatal — they are reported (TODO: wire into the reporter
+        // once the issue renderer is ported) and the install proceeds
+        // with whichever candidate was reachable.
+        let peers_result =
+            resolve_peers(&tree, ResolvePeersOptions { peers_suffix_max_length: 1000 });
+        if !peers_result.peer_dependency_issues.missing.is_empty()
+            || !peers_result.peer_dependency_issues.bad.is_empty()
+        {
+            tracing::warn!(
+                target: "pacquet::install",
+                missing = peers_result.peer_dependency_issues.missing.len(),
+                bad = peers_result.peer_dependency_issues.bad.len(),
+                "Peer dependency issues detected (issue renderer not ported yet)",
+            );
+        }
+
         let install_ctx = InstallCtx {
             tarball_mem_cache,
             http_client,
             config,
-            tree: &tree,
+            graph: &peers_result.graph,
             store_index: store_index_ref,
             store_index_writer: store_index_writer_ref,
             verified_files_cache: &verified_files_cache,
@@ -261,9 +280,12 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             requester,
         };
 
-        tree.direct
+        peers_result
+            .direct_dependencies_by_alias
             .iter()
-            .map(|dep| install_subtree::<Reporter>(&install_ctx, dep, &config.modules_dir))
+            .map(|(alias, dep_path)| {
+                install_subtree::<Reporter>(&install_ctx, alias, dep_path, &config.modules_dir)
+            })
             .pipe(future::try_join_all)
             .await?;
 
@@ -344,12 +366,12 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
 
 /// Per-install state threaded into [`install_subtree`]. Holds every
 /// shared handle the per-package installer needs plus a borrowed view
-/// of the resolved tree the resolve pass produced.
+/// of the depPath-keyed graph the peer-resolution pass produced.
 struct InstallCtx<'a> {
     tarball_mem_cache: &'a MemCache,
     http_client: &'a ThrottledClient,
     config: &'static Config,
-    tree: &'a ResolvedTree,
+    graph: &'a DependenciesGraph,
     store_index: Option<&'a pacquet_store_dir::SharedReadonlyStoreIndex>,
     store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
     verified_files_cache: &'a SharedVerifiedFilesCache,
@@ -358,30 +380,37 @@ struct InstallCtx<'a> {
     requester: &'a str,
 }
 
-/// Install the package referenced by `dep` plus its transitive
+/// Install the package referenced by `dep_path` plus its transitive
 /// children. Recurses into each child's `node_modules/.pacquet/<vsn>/
 /// node_modules/` so transitive symlinks land in their parent's slot.
+///
+/// `dep_path` is the depPath key produced by [`resolve_peers`] —
+/// `pkgIdWithPatchHash` for pure packages, `pkgId(peer1@v)(peer2@v)`
+/// when peer-suffix variation applies. The virtual-store slot name is
+/// derived via [`pacquet_deps_path::dep_path_to_filename`] so it stays
+/// stable across peer variants of the same package.
 #[async_recursion]
 async fn install_subtree<'ctx, Reporter>(
     ctx: &InstallCtx<'ctx>,
-    dep: &DirectDep,
+    alias: &str,
+    dep_path: &DepPath,
     node_modules_dir: &Path,
 ) -> Result<(), InstallWithoutLockfileError>
 where
     Reporter: self::Reporter,
 {
-    let package = ctx
-        .tree
-        .packages
-        .get(&dep.id)
-        .expect("resolve_dependency_tree must populate every referenced id");
+    let node =
+        ctx.graph.get(dep_path).expect("resolve_peers must populate every referenced depPath");
 
-    let virtual_store_name = shorten_virtual_store_name(
-        format!(
-            "{}@{}",
-            package.result.id.name.to_string().replace('/', "+"),
-            package.result.id.suffix,
-        ),
+    // Slot name = the depPath flattened to a filesystem-safe form.
+    // Mirrors upstream's `depPathToFilename(depPath, virtualStoreDirMaxLength)`.
+    // `dep_path_to_filename` already applies the same trailing length /
+    // case shortening that `pacquet_crypto_hash::shorten_virtual_store_name`
+    // exposes for the flat-name call sites; consume the configured cap
+    // from `ctx.config.virtual_store_dir_max_length` so users can override
+    // via `pnpm-workspace.yaml` / env.
+    let virtual_store_name = pacquet_deps_path::dep_path_to_filename(
+        dep_path.as_str(),
         ctx.config.virtual_store_dir_max_length as usize,
     );
 
@@ -423,8 +452,8 @@ where
         logged_methods: ctx.logged_methods,
         requester: ctx.requester,
         node_modules_dir,
-        alias: &dep.alias,
-        resolution: &package.result,
+        alias,
+        resolution: &node.resolve_result,
         first_visit,
     }
     .run::<Reporter>()
@@ -460,10 +489,13 @@ where
     let child_node_modules =
         ctx.config.virtual_store_dir.join(&virtual_store_name).join("node_modules");
 
-    package
-        .children
+    let child_node_modules_ref = &child_node_modules;
+    node.children
         .iter()
-        .map(|child| install_subtree::<Reporter>(ctx, child, &child_node_modules))
+        .map(|(child_alias, child_dep_path)| async move {
+            install_subtree::<Reporter>(ctx, child_alias, child_dep_path, child_node_modules_ref)
+                .await
+        })
         .pipe(future::try_join_all)
         .await?;
 

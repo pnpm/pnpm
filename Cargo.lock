@@ -2052,6 +2052,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-deps-path"
+version = "0.0.1"
+dependencies = [
+ "pacquet-crypto-hash",
+]
+
+[[package]]
 name = "pacquet-diagnostics"
 version = "0.0.1"
 dependencies = [
@@ -2279,6 +2286,7 @@ dependencies = [
  "pacquet-cmd-shim",
  "pacquet-config",
  "pacquet-crypto-hash",
+ "pacquet-deps-path",
  "pacquet-directory-fetcher",
  "pacquet-executor",
  "pacquet-fs",
@@ -2428,6 +2436,7 @@ dependencies = [
  "futures-util",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-deps-path",
  "pacquet-lockfile",
  "pacquet-package-manifest",
  "pacquet-resolving-resolver-base",

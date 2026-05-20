@@ -124,9 +124,13 @@ async fn walks_dependencies_and_builds_flat_tree() {
     assert_eq!(tree.direct[0].alias, "foo");
     assert_eq!(tree.direct[0].id, "foo@1.2.0");
     assert_eq!(tree.packages.len(), 2);
-    let foo = tree.packages.get("foo@1.2.0").unwrap();
-    assert_eq!(foo.children.len(), 1);
-    assert_eq!(foo.children[0].id, "bar@2.3.0");
+    assert!(tree.packages.contains_key("foo@1.2.0"));
+    let foo_node_id = tree.direct[0].node_id;
+    let foo_tree_node = tree.dependencies_tree.get(&foo_node_id).unwrap();
+    assert_eq!(foo_tree_node.children.len(), 1);
+    let bar_node_id = foo_tree_node.children.get("bar").unwrap();
+    let bar_tree_node = tree.dependencies_tree.get(bar_node_id).unwrap();
+    assert_eq!(bar_tree_node.resolved_package_id, "bar@2.3.0");
     assert!(tree.policy_violations.is_empty());
 }
 
@@ -217,5 +221,263 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
             assert_eq!(specifier, "foo@git+ssh://example.com");
         }
         other => panic!("expected SpecNotSupported, got {other:?}"),
+    }
+}
+
+mod peers {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    use pacquet_package_manifest::DependencyGroup;
+    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pretty_assertions::assert_eq;
+
+    use super::{StubResolver, fake_manifest, fake_result};
+    use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
+    use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
+    use pacquet_deps_path::DepPath;
+
+    /// A pure leaf — no peer dependencies — should land in the graph
+    /// with its depPath equal to its pkgIdWithPatchHash.
+    #[tokio::test]
+    async fn pure_package_has_dep_path_equal_to_pkg_id() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("foo".to_string(), "^1.0.0".to_string()),
+            fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                auto_install_peers: false,
+                base_opts: ResolveOptions::default(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        assert_eq!(
+            result.direct_dependencies_by_alias.get("foo"),
+            Some(&DepPath::from("foo@1.0.0".to_string())),
+        );
+        assert!(result.peer_dependency_issues.missing.is_empty());
+        assert!(result.peer_dependency_issues.bad.is_empty());
+    }
+
+    /// `parent → child` where `child` declares `react` as a peer and
+    /// `parent` also depends on `react`: the peer resolves against the
+    /// sibling, and `child`'s depPath gains a `(react@…)` suffix.
+    #[tokio::test]
+    async fn peer_resolved_against_sibling_at_parent_level() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("react".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react",
+                "18.0.0",
+                serde_json::json!({ "name": "react", "version": "18.0.0" }),
+            ),
+        );
+        table.insert(
+            ("react-dom".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react-dom",
+                "18.0.0",
+                serde_json::json!({
+                    "name": "react-dom",
+                    "version": "18.0.0",
+                    "peerDependencies": { "react": "^18.0.0" }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "react": "18.0.0", "react-dom": "18.0.0" }));
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                auto_install_peers: false,
+                base_opts: ResolveOptions::default(),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(tree.all_peer_dep_names.contains("react"));
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let react_dom_dep_path = result
+            .direct_dependencies_by_alias
+            .get("react-dom")
+            .cloned()
+            .expect("react-dom is a direct dep");
+        assert_eq!(react_dom_dep_path, DepPath::from("react-dom@18.0.0(react@18.0.0)".to_string()));
+        // react itself stays pure.
+        assert_eq!(
+            result.direct_dependencies_by_alias.get("react"),
+            Some(&DepPath::from("react@18.0.0".to_string())),
+        );
+        assert!(result.peer_dependency_issues.missing.is_empty());
+        assert!(result.peer_dependency_issues.bad.is_empty());
+    }
+
+    /// Missing peer: `react-dom` requires `react` but the importer
+    /// doesn't include it. We expect an issue + no resolved peer.
+    #[tokio::test]
+    async fn missing_peer_is_reported() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("react-dom".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react-dom",
+                "18.0.0",
+                serde_json::json!({
+                    "name": "react-dom",
+                    "version": "18.0.0",
+                    "peerDependencies": { "react": "^18.0.0" }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                auto_install_peers: false,
+                base_opts: ResolveOptions::default(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        assert!(result.peer_dependency_issues.missing.contains_key("react"));
+        // No resolved peer ⇒ react-dom stays pure.
+        assert_eq!(
+            result.direct_dependencies_by_alias.get("react-dom"),
+            Some(&DepPath::from("react-dom@18.0.0".to_string())),
+        );
+    }
+
+    /// Bad peer: the importer carries `react@17` but `react-dom@18`
+    /// requires `react@^18`. An issue surfaces; the peer is still
+    /// recorded as resolved (the pick is intentional, the warning is
+    /// informational).
+    #[tokio::test]
+    async fn bad_peer_version_is_reported() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("react".to_string(), "17.0.0".to_string()),
+            fake_result(
+                "react",
+                "17.0.0",
+                serde_json::json!({ "name": "react", "version": "17.0.0" }),
+            ),
+        );
+        table.insert(
+            ("react-dom".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react-dom",
+                "18.0.0",
+                serde_json::json!({
+                    "name": "react-dom",
+                    "version": "18.0.0",
+                    "peerDependencies": { "react": "^18.0.0" }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "react": "17.0.0", "react-dom": "18.0.0" }));
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                auto_install_peers: false,
+                base_opts: ResolveOptions::default(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        assert!(result.peer_dependency_issues.bad.contains_key("react"));
+        let bad = &result.peer_dependency_issues.bad["react"];
+        assert_eq!(bad.len(), 1);
+        assert_eq!(bad[0].found_version, "17.0.0");
+        assert_eq!(bad[0].wanted_range, "^18.0.0");
+        // Peer-suffix uses the resolved (17.0.0) version — the install
+        // proceeds with the picked candidate.
+        assert_eq!(
+            result.direct_dependencies_by_alias.get("react-dom"),
+            Some(&DepPath::from("react-dom@18.0.0(react@17.0.0)".to_string())),
+        );
+    }
+
+    /// Regression test for the post-walk peer-edge patch. With manifest
+    /// order `{ react-dom: …, react: … }`, react-dom is walked before
+    /// react and the peer's depPath isn't known yet at the time
+    /// `graph_children` is built. The post-pass has to patch the edge
+    /// in so the install layer's recursion finds react when descending
+    /// into react-dom's slot.
+    #[tokio::test]
+    async fn peer_edge_is_patched_when_peer_walked_after_consumer() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("react-dom".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react-dom",
+                "18.0.0",
+                serde_json::json!({
+                    "name": "react-dom",
+                    "version": "18.0.0",
+                    "peerDependencies": { "react": "^18.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("react".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react",
+                "18.0.0",
+                serde_json::json!({ "name": "react", "version": "18.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        // Manifest order puts react-dom first.
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "react-dom": "18.0.0", "react": "18.0.0" }));
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                auto_install_peers: false,
+                base_opts: ResolveOptions::default(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let react_dom_dep_path = result
+            .direct_dependencies_by_alias
+            .get("react-dom")
+            .cloned()
+            .expect("react-dom is a direct dep");
+        let node = result.graph.get(&react_dom_dep_path).expect("graph entry for react-dom");
+        // Without the post-pass, this edge would be missing because
+        // `node_dep_paths` doesn't yet contain react when react-dom is
+        // being walked.
+        assert_eq!(node.children.get("react"), Some(&DepPath::from("react@18.0.0".to_string())));
     }
 }
