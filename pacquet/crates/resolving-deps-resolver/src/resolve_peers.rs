@@ -33,11 +33,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use node_semver::{Range, Version};
-use pacquet_deps_path::{PeerId, create_peer_dep_graph_hash};
+use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash};
 
 use crate::{
     dependencies_graph::{
-        DepPath, DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef,
+        DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef,
         PeerDependencyIssue, PeerDependencyIssues,
     },
     node_id::NodeId,
@@ -79,6 +79,7 @@ pub fn resolve_peers(tree: &ResolvedTree, opts: ResolvePeersOptions) -> ResolveP
         node_external_peers: HashMap::new(),
         node_missing_peers: HashMap::new(),
         in_progress: HashSet::new(),
+        pending_peer_edges: Vec::new(),
     };
     walker.walk()
 }
@@ -136,6 +137,24 @@ struct Walker<'tree> {
     /// is a cycle — the recursion bottoms out with a `name@version`
     /// peer-id and the original visit drives the actual graph insert.
     in_progress: HashSet<NodeId>,
+    /// Peer edges whose target `NodeId` had no `DepPath` yet at the
+    /// time we built the parent's `graph_children` map — typically
+    /// because the peer is a later sibling direct dep that the walker
+    /// hasn't reached yet. `walk()` drains this list once every direct
+    /// dep is walked and patches the recorded entries with the now-
+    /// known peer `DepPath`. Without this post-pass the install layer
+    /// would walk the parent's `children` map and find no symlink edge
+    /// for the peer, leaving the package without the peer in its slot.
+    pending_peer_edges: Vec<PendingPeerEdge>,
+}
+
+/// One `parent → peer` edge whose peer target wasn't walked yet at the
+/// time the parent's `graph_children` was built. Patched up by
+/// [`Walker::patch_pending_peer_edges`] after the main walk completes.
+struct PendingPeerEdge {
+    parent_dep_path: DepPath,
+    peer_alias: String,
+    peer_node_id: NodeId,
 }
 
 /// Sentinel for "this node's subtree is still missing peer `X`". The
@@ -173,10 +192,34 @@ impl<'tree> Walker<'tree> {
                 self.resolve_node(direct.node_id, &importer_parents, &parent_chain_names, 0);
             direct_by_alias.insert(direct.alias.clone(), output.dep_path);
         }
+        self.patch_pending_peer_edges();
         ResolvePeersResult {
             graph: self.graph,
             direct_dependencies_by_alias: direct_by_alias,
             peer_dependency_issues: self.issues,
+        }
+    }
+
+    /// Fill in `graph_children` edges that were skipped during the main
+    /// walk because the peer target's `DepPath` hadn't been computed
+    /// yet. Each direct dep's subtree is fully walked by the time
+    /// `walk()` drains this list, so every peer that was reachable
+    /// from an ancestor's `ParentRefs` has a `DepPath` now. Peers that
+    /// still don't resolve here came from a `parent_chain` outside the
+    /// walked set — there's nothing to patch, and the absence already
+    /// surfaced via [`PeerDependencyIssues::missing`].
+    fn patch_pending_peer_edges(&mut self) {
+        for edge in std::mem::take(&mut self.pending_peer_edges) {
+            let Some(peer_dep_path) = self.node_dep_paths.get(&edge.peer_node_id).cloned() else {
+                continue;
+            };
+            if let Some(node) = self.graph.get_mut(&edge.parent_dep_path) {
+                // `entry().or_insert` rather than unconditional insert:
+                // if a later walk of the same `dep_path` already
+                // populated the edge (e.g. via the cycle path), we
+                // don't want to overwrite a more specific entry.
+                node.children.entry(edge.peer_alias).or_insert(peer_dep_path);
+            }
         }
     }
 
@@ -296,9 +339,15 @@ impl<'tree> Walker<'tree> {
             );
             child_dep_paths.insert(alias.clone(), child_output.dep_path);
             for (peer_alias, peer_node_id) in child_output.external_resolved_peers {
-                if tree_node.children.contains_key(&peer_alias) {
+                if tree_node.children.values().any(|id| *id == peer_node_id) {
                     // Resolved against one of *this node's* children —
                     // not external from this node's perspective.
+                    // Compare by NodeId (not alias) because `children`
+                    // is keyed by install alias while `peer_alias` can
+                    // be the resolved package's real name (the
+                    // [`ParentRefs`] map indexes parents under both
+                    // alias and real name when they differ). An
+                    // alias-only check misses npm-aliased children.
                     continue;
                 }
                 external_from_children.insert(peer_alias, peer_node_id);
@@ -369,11 +418,22 @@ impl<'tree> Walker<'tree> {
         self.node_missing_peers.insert(node_id, all_missing_peers.clone());
 
         // The children's depPath edges become this node's graph children.
-        // Resolved peers become extra edges, aliased by peer name.
+        // Resolved peers become extra edges, aliased by peer name. If a
+        // peer's depPath isn't known yet — typically a later sibling
+        // direct dep — defer the edge to the post-walk patch pass; the
+        // install layer drives off `graph_children`, so skipping the
+        // edge entirely would leave the peer un-symlinked in the
+        // parent's slot.
         let mut graph_children = child_dep_paths.clone();
         for (peer_alias, peer_node_id) in &all_resolved_peers {
             if let Some(peer_dep_path) = self.node_dep_paths.get(peer_node_id) {
                 graph_children.insert(peer_alias.clone(), peer_dep_path.clone());
+            } else {
+                self.pending_peer_edges.push(PendingPeerEdge {
+                    parent_dep_path: dep_path.clone(),
+                    peer_alias: peer_alias.clone(),
+                    peer_node_id: *peer_node_id,
+                });
             }
         }
 
@@ -421,10 +481,15 @@ impl<'tree> Walker<'tree> {
 
         // External resolved peers reported up: this node's collected
         // peers minus any that map to this node's own children
-        // (already covered by the children's depPaths).
+        // (already covered by the children's depPaths). Filter by
+        // NodeId rather than alias for the same reason as the
+        // `external_from_children` filter above — `children` is keyed
+        // by install alias while peers may be keyed by the resolved
+        // package's real name.
+        let own_child_ids: HashSet<NodeId> = tree_node.children.values().copied().collect();
         let external_to_report: HashMap<String, NodeId> = all_resolved_peers
             .into_iter()
-            .filter(|(alias, _)| !tree_node.children.contains_key(alias))
+            .filter(|(_, peer_node_id)| !own_child_ids.contains(peer_node_id))
             .collect();
 
         NodeOutput {
@@ -489,7 +554,7 @@ impl<'tree> Walker<'tree> {
     /// `name@version` from the resolved package.
     fn build_peer_id(&self, peer_node_id: NodeId) -> PeerId {
         if let Some(dep_path) = self.node_dep_paths.get(&peer_node_id) {
-            return PeerId::DepPath(dep_path.as_str().to_string());
+            return PeerId::DepPath(dep_path.clone());
         }
         let tree_node = &self.tree.dependencies_tree[&peer_node_id];
         let pkg = &self.tree.packages[&tree_node.resolved_package_id];
@@ -552,6 +617,18 @@ fn parents_from_chain(chain_names: &[String], _pkg_name: &str) -> Vec<ParentPack
 /// match. Mirrors upstream's
 /// [`semverUtils.satisfiesWithPrereleases`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L922)
 /// call site.
+///
+/// **Prerelease tolerance.** `node-semver`'s [`Range::satisfies`]
+/// rejects prerelease versions against non-prerelease comparators —
+/// `18.0.0-rc.1` against `^18.0.0` returns `false`. Yarn's
+/// `satisfiesWithPrereleases` (which pnpm imports here) explicitly
+/// allows that pairing. We approximate it by retrying with the
+/// prerelease tag stripped: if `version` is a prerelease and the
+/// straight check fails, see whether the base `MAJOR.MINOR.PATCH`
+/// satisfies the range. That covers the cases pnpm cares about for
+/// peer-range matching (a candidate with a `-rc.N` / `-alpha.N` suffix
+/// satisfying a regular `^X.Y` peer requirement) without pulling in
+/// Yarn's full per-comparator algorithm.
 fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
     if range == "*" {
         return true;
@@ -562,7 +639,20 @@ fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
     let Ok(parsed_range) = Range::parse(range) else {
         return version == range;
     };
-    parsed_version.satisfies(&parsed_range)
+    if parsed_version.satisfies(&parsed_range) {
+        return true;
+    }
+    if !parsed_version.is_prerelease() {
+        return false;
+    }
+    let base = Version {
+        major: parsed_version.major,
+        minor: parsed_version.minor,
+        patch: parsed_version.patch,
+        pre_release: Vec::new(),
+        build: Vec::new(),
+    };
+    base.satisfies(&parsed_range)
 }
 
 #[cfg(test)]
@@ -580,5 +670,17 @@ mod tests {
     fn satisfies_falls_back_to_equality_for_unparsable_ranges() {
         assert!(satisfies_with_prereleases("workspace:^1.0.0", "workspace:^1.0.0"));
         assert!(!satisfies_with_prereleases("1.0.0", "workspace:^1.0.0"));
+    }
+
+    #[test]
+    fn satisfies_accepts_prerelease_against_non_prerelease_range() {
+        // Mirrors Yarn's `satisfiesWithPrereleases` carve-out: a peer
+        // candidate at `18.0.0-rc.1` should satisfy a `^18.0.0` peer
+        // requirement. node-semver's default `satisfies` rejects this
+        // pairing, so the prerelease-strip retry has to catch it.
+        assert!(satisfies_with_prereleases("18.0.0-rc.1", "^18.0.0"));
+        assert!(satisfies_with_prereleases("1.2.3-beta.0", "^1.2.0"));
+        // Out-of-range prereleases still fail.
+        assert!(!satisfies_with_prereleases("19.0.0-rc.1", "^18.0.0"));
     }
 }

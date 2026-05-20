@@ -65,7 +65,7 @@ mod tests {
     #[test]
     fn dep_path_strings_with_leading_slash_have_it_stripped() {
         let got = create_peer_dep_graph_hash(
-            &[PeerId::DepPath("/foo@1.0.0(bar@2.0.0)".to_string())],
+            &[PeerId::DepPath("/foo@1.0.0(bar@2.0.0)".into())],
             1000,
         );
         assert_eq!(got, "(foo@1.0.0(bar@2.0.0))");
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn dep_path_strings_without_leading_slash_pass_through() {
         let got = create_peer_dep_graph_hash(
-            &[PeerId::DepPath("foo@1.0.0(bar@2.0.0)".to_string())],
+            &[PeerId::DepPath("foo@1.0.0(bar@2.0.0)".into())],
             1000,
         );
         assert_eq!(got, "(foo@1.0.0(bar@2.0.0))");

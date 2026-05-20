@@ -46,9 +46,10 @@ mod resolve_peers;
 mod resolved_tree;
 
 pub use dependencies_graph::{
-    DepPath, DependenciesGraph, DependenciesGraphNode, MissingPeer, PeerDependencyIssue,
+    DependenciesGraph, DependenciesGraphNode, MissingPeer, PeerDependencyIssue,
     PeerDependencyIssues,
 };
+pub use pacquet_deps_path::DepPath;
 pub use node_id::NodeId;
 pub use resolve_dependency_tree::{
     ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,

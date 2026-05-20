@@ -13,11 +13,13 @@
 //! to locate the peer-suffix / `(patch_hash=…)` boundary.
 
 mod create_peer_dep_graph_hash;
+mod dep_path;
 mod dep_path_to_filename;
 mod peer_id;
 mod suffix_index;
 
 pub use create_peer_dep_graph_hash::create_peer_dep_graph_hash;
+pub use dep_path::DepPath;
 pub use dep_path_to_filename::dep_path_to_filename;
 pub use peer_id::PeerId;
 pub use suffix_index::{

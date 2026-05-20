@@ -256,11 +256,18 @@ fn render_specifier(wanted: &WantedDependency) -> String {
     }
 }
 
-/// Extract regular `dependencies` from a resolved package's manifest,
-/// optionally folding in `peerDependencies` when `auto_install_peers`
-/// is on. Peers are still recorded on
-/// [`ResolvedPackage::peer_dependencies`] regardless so the peer-
-/// resolution stage can compute the correct depPath suffix.
+/// Extract regular `dependencies` + `optionalDependencies` from a
+/// resolved package's manifest, optionally folding in `peerDependencies`
+/// when `auto_install_peers` is on. Peers that name an existing own dep
+/// are skipped here because the regular edge already supplies the same
+/// package — `BTreeMap` collection of the result by alias would
+/// otherwise silently drop the optional edge. Mirrors the filter
+/// upstream's [`peerDependenciesWithoutOwn`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1791-L1815)
+/// applies on the peer side.
+///
+/// Peers are still recorded on [`ResolvedPackage::peer_dependencies`]
+/// (via [`extract_peer_dependencies`]) regardless of this flag so the
+/// peer-resolution stage can compute the correct depPath suffix.
 fn extract_children(
     result: &pacquet_resolving_resolver_base::ResolveResult,
     auto_install_peers: bool,
@@ -268,8 +275,20 @@ fn extract_children(
     let Some(manifest) = result.manifest.as_ref() else { return Vec::new() };
     let mut out = Vec::new();
     collect_deps(manifest, "dependencies", &mut out);
+    collect_deps(manifest, "optionalDependencies", &mut out);
     if auto_install_peers {
-        collect_deps(manifest, "peerDependencies", &mut out);
+        let own_deps: HashSet<String> = out.iter().map(|(name, _)| name.clone()).collect();
+        let Some(map) = manifest.get("peerDependencies").and_then(Value::as_object) else {
+            return out;
+        };
+        for (name, range) in map {
+            if own_deps.contains(name) {
+                continue;
+            }
+            if let Some(range_str) = range.as_str() {
+                out.push((name.clone(), range_str.to_string()));
+            }
+        }
     }
     out
 }

@@ -42,9 +42,15 @@ fn dep_path_to_filename_unescaped(dep_path: &str) -> String {
         return dep_path.replacen(':', "+", 1);
     }
     let trimmed = dep_path.strip_prefix('/').unwrap_or(dep_path);
-    // Find the `@` separator after position 1 (upstream's
-    // `depPath.indexOf('@', 1)` — position 1 skips a scope marker
-    // `@scope/...`).
+    // Upstream's `depPath.indexOf('@', 1)` skips position 0 so a leading
+    // `@` on a scoped name (`@scope/foo`) doesn't get treated as the
+    // version separator. The `len() < 2` guard mirrors that
+    // out-of-range scan returning -1: nothing to rebuild, return the
+    // string as-is. Without it the `[1..]` slice panics on empty /
+    // single-byte input.
+    if trimmed.len() < 2 {
+        return trimmed.to_string();
+    }
     let after_first = &trimmed.as_bytes()[1..];
     let Some(rel) = after_first.iter().position(|&b| b == b'@') else {
         return trimmed.to_string();
@@ -110,5 +116,16 @@ mod tests {
         // filesystem casing of `file:` paths is part of the install
         // address, so hashing it would split the cache.
         assert_eq!(dep_path_to_filename("file:Pkg", 120), "file+Pkg");
+    }
+
+    #[test]
+    fn empty_input_does_not_panic() {
+        assert_eq!(dep_path_to_filename("", 120), "");
+    }
+
+    #[test]
+    fn single_byte_input_does_not_panic() {
+        assert_eq!(dep_path_to_filename("/", 120), "");
+        assert_eq!(dep_path_to_filename("a", 120), "a");
     }
 }

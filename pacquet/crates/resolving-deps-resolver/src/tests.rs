@@ -233,7 +233,7 @@ mod peers {
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
-    use crate::dependencies_graph::DepPath;
+    use pacquet_deps_path::DepPath;
     use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
     use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
 
@@ -420,6 +420,68 @@ mod peers {
         assert_eq!(
             result.direct_dependencies_by_alias.get("react-dom"),
             Some(&DepPath::from("react-dom@18.0.0(react@17.0.0)".to_string())),
+        );
+    }
+
+    /// Regression test for the post-walk peer-edge patch. With manifest
+    /// order `{ react-dom: …, react: … }`, react-dom is walked before
+    /// react and the peer's depPath isn't known yet at the time
+    /// `graph_children` is built. The post-pass has to patch the edge
+    /// in so the install layer's recursion finds react when descending
+    /// into react-dom's slot.
+    #[tokio::test]
+    async fn peer_edge_is_patched_when_peer_walked_after_consumer() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("react-dom".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react-dom",
+                "18.0.0",
+                serde_json::json!({
+                    "name": "react-dom",
+                    "version": "18.0.0",
+                    "peerDependencies": { "react": "^18.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("react".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react",
+                "18.0.0",
+                serde_json::json!({ "name": "react", "version": "18.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        // Manifest order puts react-dom first.
+        let (_tmp, manifest) = fake_manifest(
+            serde_json::json!({ "react-dom": "18.0.0", "react": "18.0.0" }),
+        );
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                auto_install_peers: false,
+                base_opts: ResolveOptions::default(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let react_dom_dep_path = result
+            .direct_dependencies_by_alias
+            .get("react-dom")
+            .cloned()
+            .expect("react-dom is a direct dep");
+        let node = result.graph.get(&react_dom_dep_path).expect("graph entry for react-dom");
+        // Without the post-pass, this edge would be missing because
+        // `node_dep_paths` doesn't yet contain react when react-dom is
+        // being walked.
+        assert_eq!(
+            node.children.get("react"),
+            Some(&DepPath::from("react@18.0.0".to_string())),
         );
     }
 }

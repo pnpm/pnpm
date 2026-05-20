@@ -1,33 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use pacquet_deps_path::DepPath;
 use pacquet_resolving_resolver_base::ResolveResult;
 
 use crate::resolved_tree::PeerDep;
-
-/// Branded depPath string. Mirrors pnpm's
-/// [`DepPath`](https://github.com/pnpm/pnpm/blob/097983fbca/packages/types/src/misc.ts).
-/// Today this is a plain wrapper; future tightening could enforce the
-/// `name@version(peer)*` shape at the parser boundary.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DepPath(pub String);
-
-impl DepPath {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl std::fmt::Display for DepPath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl From<String> for DepPath {
-    fn from(value: String) -> DepPath {
-        DepPath(value)
-    }
-}
 
 /// Post-peer-resolution graph keyed by depPath. Mirrors upstream's
 /// [`GenericDependenciesGraphWithResolvedChildren`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L66-L68).
