@@ -364,3 +364,84 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// `catalog:` on a direct dep should be dereferenced through
+/// `pnpm-workspace.yaml`'s `catalog` section before the npm resolver
+/// sees it. The fetched virtual-store entry is the catalog's resolved
+/// version, not the literal `catalog:` string.
+///
+/// Mirrors the upstream end-to-end coverage in
+/// [`installing/deps-installer/test/catalogs.ts`](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-installer/test/catalogs.ts).
+#[test]
+fn install_resolves_catalog_protocol() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Appending catalog to pnpm-workspace.yaml...");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing.push_str("catalog:\n  '@pnpm.e2e/hello-world-js-bin-parent': '1.0.0'\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    eprintln!("Creating package.json that uses the catalog protocol...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "catalog:",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command...");
+    pacquet.with_arg("install").assert().success();
+
+    eprintln!("Make sure the package is installed at the catalog's version");
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    assert!(is_symlink_or_junction(&symlink_path).unwrap());
+    let virtual_path =
+        workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0");
+    assert!(virtual_path.exists(), "expected virtual store entry at {virtual_path:?}");
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// A misconfigured catalog (specifier points at a missing entry) must
+/// fail the install with the upstream `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`
+/// rather than the chain's `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+#[test]
+fn install_surfaces_catalog_misconfiguration() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json with a catalog: dep but no matching catalog entry...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "catalog:",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command...");
+    let output = pacquet.with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    // The miette report hard-wraps the message and inserts a leading
+    // `│` on the wrapped line. Strip all whitespace and box-drawing
+    // characters before substring-matching so wrap position can't
+    // make the assertion brittle.
+    let flattened: String = stderr
+        .chars()
+        .filter(|c| !c.is_whitespace() && !matches!(c, '│' | '├' | '╰' | '─' | '▶' | '×'))
+        .collect();
+    assert!(
+        flattened.contains(
+            "Nocatalogentry'@pnpm.e2e/hello-world-js-bin-parent'wasfoundforcatalog'default'.",
+        ),
+        "stderr did not mention the missing-catalog-entry error: {stderr}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}

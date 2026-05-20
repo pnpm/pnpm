@@ -11,6 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-catalogs-config              = { workspace = true }
+pacquet-catalogs-types               = { workspace = true }
 pacquet-cmd-shim                     = { workspace = true }
 pacquet-crypto-hash                  = { workspace = true }
 pacquet-deps-path                    = { workspace = true }

@@ -24,6 +24,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
@@ -36,7 +37,9 @@ use crate::{
         HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
         hoist_peers,
     },
-    resolve_dependency_tree::{ResolveDependencyTreeError, TreeCtx, extend_tree},
+    resolve_dependency_tree::{
+        ResolveDependencyTreeError, TreeCtx, extend_tree, resolve_catalog_specifiers,
+    },
     resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
     resolved_tree::ResolvedTree,
 };
@@ -72,6 +75,12 @@ pub struct ResolveImporterOptions {
     pub all_preferred_versions: PreferredVersions,
 
     pub base_opts: ResolveOptions,
+
+    /// Catalogs parsed from `pnpm-workspace.yaml`. Applied only to the
+    /// importer's direct dependencies; transitive `catalog:` entries
+    /// are not resolved through the catalog, matching upstream's
+    /// [importer-only catalog scope](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L600).
+    pub catalogs: Catalogs,
 }
 
 /// Result of [`fn@resolve_importer`] — the fully-walked tree plus the
@@ -113,6 +122,7 @@ where
         resolve_peers_from_workspace_root,
         mut all_preferred_versions,
         base_opts,
+        catalogs,
     } = opts;
 
     let ctx = TreeCtx::new(base_opts);
@@ -131,6 +141,7 @@ where
         .dependencies(groups)
         .map(|(name, range)| (name.to_string(), range.to_string()))
         .collect();
+    let initial_wanted = resolve_catalog_specifiers(initial_wanted, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions).await;
 

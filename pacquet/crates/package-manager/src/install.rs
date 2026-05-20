@@ -7,6 +7,9 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_catalogs_config::{
+    InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
+};
 use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
@@ -166,6 +169,17 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
 
+    /// Reading `pnpm-workspace.yaml` to extract its `catalog` /
+    /// `catalogs` sections failed.
+    #[diagnostic(transparent)]
+    ReadWorkspaceManifest(#[error(source)] pacquet_workspace::ReadWorkspaceManifestError),
+
+    /// `pnpm-workspace.yaml` defined the `default` catalog twice
+    /// (once via the top-level `catalog:` field and once via
+    /// `catalogs.default`).
+    #[diagnostic(transparent)]
+    InvalidCatalogsConfiguration(#[error(source)] InvalidCatalogsConfigurationError),
+
     /// Building the verifier list from config rejected a
     /// `minimumReleaseAgeExclude` or `trustPolicyExclude` pattern.
     /// Mirrors upstream's `INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` /
@@ -239,9 +253,24 @@ where
         //
         // [bunyan]: https://github.com/trentm/node-bunyan
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let workspace_root = pacquet_workspace::find_workspace_dir(manifest_dir)
-            .map_err(InstallError::FindWorkspaceDir)?
-            .unwrap_or_else(|| manifest_dir.to_path_buf());
+        let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
+            .map_err(InstallError::FindWorkspaceDir)?;
+        let workspace_root =
+            workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+
+        // Read `pnpm-workspace.yaml` for the catalog sections. Only
+        // consulted when a workspace manifest exists — single-project
+        // installs have no `catalog:` to honor. Mirrors upstream's
+        // `getCatalogsFromWorkspaceManifest(readWorkspaceManifest(...))`
+        // pipeline at
+        // <https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/src/getCatalogsFromWorkspaceManifest.ts>.
+        let workspace_manifest = match workspace_dir_opt.as_deref() {
+            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+                .map_err(InstallError::ReadWorkspaceManifest)?,
+            None => None,
+        };
+        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+            .map_err(InstallError::InvalidCatalogsConfiguration)?;
         // Use `to_string_lossy` rather than `to_str().expect(...)` so a
         // valid filesystem path with non-UTF-8 bytes (possible on Unix)
         // doesn't panic the installer. `prefix` is used only for
@@ -519,6 +548,7 @@ where
                 dependency_groups,
                 logged_methods: &logged_methods,
                 requester: &prefix,
+                catalogs,
             }
             .run::<Reporter>()
             .await
