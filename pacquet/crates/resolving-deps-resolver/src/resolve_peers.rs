@@ -43,6 +43,29 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{PeerDep, ResolvedPackage, ResolvedTree},
 };
+use pacquet_resolving_resolver_base::ResolveResult;
+
+/// Pull `(name, version)` out of a `ResolveResult` the peer-resolution
+/// stage can hash and compare on.
+///
+/// The npm-registry resolver always fills [`ResolveResult::name_ver`],
+/// so the fast path lifts it straight out. The git / tarball / local
+/// resolvers leave it `None` (their canonical name lives in the
+/// fetched manifest, which the resolver doesn't read at resolve
+/// time); for those, fall back to `(alias, id-as-string)`. The peer
+/// graph machinery only ever looks the name up in
+/// [`ResolvedTree::all_peer_dep_names`] — a set that comes from
+/// upstream's `parsePeerDependencies` over npm-shaped packages — so
+/// the fallback's "name" will simply miss every lookup, naturally
+/// short-circuiting peer propagation for non-npm packages without
+/// panicking on `name_ver = None`.
+fn pkg_name_version(result: &ResolveResult) -> (String, String) {
+    if let Some(name_ver) = result.name_ver.as_ref() {
+        return (name_ver.name.to_string(), name_ver.suffix.to_string());
+    }
+    let fallback_name = result.alias.clone().unwrap_or_else(|| result.id.as_str().to_string());
+    (fallback_name, result.id.as_str().to_string())
+}
 
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone, Copy)]
@@ -284,7 +307,7 @@ impl<'tree> Walker<'tree> {
 
         let tree_node = self.tree.dependencies_tree[&node_id].clone();
         let pkg = self.tree.packages[&tree_node.resolved_package_id].clone();
-        let pkg_name = pkg.result.id.name.to_string();
+        let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
 
         // Build the ParentRefs map that descendants of this node see:
         // parent's view + this node's own children, restricted to
@@ -295,7 +318,7 @@ impl<'tree> Walker<'tree> {
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
-            let child_real_name = child_pkg.result.id.name.to_string();
+            let (child_real_name, child_version) = pkg_name_version(&child_pkg.result);
             // Only peer-relevant aliases need to land in `parentRefs`.
             // Pnpm filters with `allPeerDepNames` to keep the propagated
             // map small.
@@ -304,7 +327,6 @@ impl<'tree> Walker<'tree> {
             if !alias_relevant && !real_relevant {
                 continue;
             }
-            let child_version = child_pkg.result.id.suffix.to_string();
             let parent_ref = ParentRef {
                 version: child_version,
                 node_id: Some(*child_node_id),
@@ -558,10 +580,8 @@ impl<'tree> Walker<'tree> {
         }
         let tree_node = &self.tree.dependencies_tree[&peer_node_id];
         let pkg = &self.tree.packages[&tree_node.resolved_package_id];
-        PeerId::Pair {
-            name: pkg.result.id.name.to_string(),
-            version: pkg.result.id.suffix.to_string(),
-        }
+        let (name, version) = pkg_name_version(&pkg.result);
+        PeerId::Pair { name, version }
     }
 }
 
@@ -575,8 +595,7 @@ fn insert_parent_ref(
     pkg: &ResolvedPackage,
     tree: &ResolvedTree,
 ) {
-    let real_name = pkg.result.id.name.to_string();
-    let version = pkg.result.id.suffix.to_string();
+    let (real_name, version) = pkg_name_version(&pkg.result);
     let alias_relevant = tree.all_peer_dep_names.contains(&direct.alias);
     let real_relevant = tree.all_peer_dep_names.contains(&real_name);
     if !alias_relevant && !real_relevant {

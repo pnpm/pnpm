@@ -115,8 +115,10 @@ async fn range_specifier_picks_max_in_range() {
         ..WantedDependency::default()
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    assert_eq!(result.id.name.to_string(), "acme");
-    assert_eq!(result.id.suffix.to_string(), "1.1.0");
+    let name_ver = result.name_ver.as_ref().expect("npm resolver fills name_ver");
+    assert_eq!(name_ver.name.to_string(), "acme");
+    assert_eq!(name_ver.suffix.to_string(), "1.1.0");
+    assert_eq!(result.id.as_str(), "acme@1.1.0");
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.alias.as_deref(), Some("acme"));
@@ -150,7 +152,7 @@ async fn missing_bare_specifier_synthesizes_default_tag_query() {
     let wanted =
         WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    assert_eq!(result.id.suffix.to_string(), "1.1.0");
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
 }
 
 #[tokio::test]
@@ -248,8 +250,9 @@ async fn jsr_specifier_routes_through_jsr_registry() {
         ..WantedDependency::default()
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    assert_eq!(result.id.name.to_string(), "@jsr/foo__bar");
-    assert_eq!(result.id.suffix.to_string(), "1.1.0");
+    let name_ver = result.name_ver.as_ref().expect("npm resolver fills name_ver");
+    assert_eq!(name_ver.name.to_string(), "@jsr/foo__bar");
+    assert_eq!(name_ver.suffix.to_string(), "1.1.0");
     assert_eq!(result.resolved_via, "jsr-registry");
     assert_eq!(result.alias.as_deref(), Some("@foo/bar"));
     assert_eq!(result.latest.as_deref(), Some("1.1.0"));
@@ -277,7 +280,10 @@ async fn jsr_specifier_without_selector_uses_default_tag() {
         ..WantedDependency::default()
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    assert_eq!(result.id.suffix.to_string(), "1.1.0");
+    assert_eq!(
+        result.name_ver.as_ref().expect("npm resolver fills name_ver").suffix.to_string(),
+        "1.1.0",
+    );
     assert_eq!(result.resolved_via, "jsr-registry");
 }
 

@@ -343,7 +343,8 @@ fn build_resolve_result(
 ) -> Result<ResolveResult, ResolveError> {
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
-    let id = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
+    let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
+    let id = (&name_ver).into();
     // The picker always carries a tarball URL on its `dist` payload —
     // every npm registry serves `dist.tarball` on a successful pick
     // and pacquet's deserializer requires it (`dist.tarball: String`,
@@ -370,6 +371,7 @@ fn build_resolve_result(
     );
     Ok(ResolveResult {
         id,
+        name_ver: Some(name_ver),
         latest: meta.dist_tag("latest").map(str::to_string),
         published_at,
         manifest,

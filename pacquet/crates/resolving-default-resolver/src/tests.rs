@@ -15,7 +15,7 @@ fn fake_resolution() -> LockfileResolution {
     })
 }
 
-fn fake_id() -> PkgNameVer {
+fn fake_name_ver() -> PkgNameVer {
     "lodash@4.17.21".parse().expect("parse fake PkgNameVer")
 }
 
@@ -38,8 +38,10 @@ impl Resolver for PrefixResolver {
             if !bare.starts_with(self.prefix) {
                 return Ok(None);
             }
+            let name_ver = fake_name_ver();
             Ok(Some(ResolveResult {
-                id: fake_id(),
+                id: (&name_ver).into(),
+                name_ver: Some(name_ver),
                 latest: None,
                 published_at: None,
                 manifest: None,

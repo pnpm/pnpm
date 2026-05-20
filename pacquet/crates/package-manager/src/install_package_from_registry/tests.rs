@@ -1,10 +1,11 @@
-use super::InstallPackageFromRegistry;
+use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
 use pacquet_config::Config;
+use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_network::ThrottledClient;
 use pacquet_registry_mock::AutoMockInstance;
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -152,8 +153,9 @@ pub async fn should_install_package_from_pre_resolved_result() {
     .await
     .unwrap();
 
-    let real_name = resolution.id.name.to_string();
-    let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), resolution.id.suffix);
+    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let real_name = name_ver.name.to_string();
+    let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
     let virtual_store_path =
         virtual_store_dir.path().join(virtual_store_name).join("node_modules").join(&real_name);
     assert!(virtual_store_path.is_dir());
@@ -381,4 +383,70 @@ async fn install_emits_progress_sequence() {
     }
 
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
+}
+
+/// Regression test: a `ResolveResult` whose `name_ver` is `None`
+/// (every non-npm resolver — git / tarball / local) must surface as
+/// [`InstallPackageFromRegistryError::UnsupportedResolution`] rather
+/// than panicking. Pins the install path's contract once the git
+/// resolver is wired into the chain.
+#[tokio::test]
+async fn install_returns_unsupported_resolution_when_name_ver_missing() {
+    let store_dir = tempdir().unwrap();
+    let modules_dir = tempdir().unwrap();
+    let virtual_store_dir = tempdir().unwrap();
+
+    let config = create_config(store_dir.path(), modules_dir.path(), virtual_store_dir.path());
+    let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
+
+    let http_client = Arc::new(ThrottledClient::new_for_installs());
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let logged_methods = AtomicU8::new(0);
+
+    let resolution = ResolveResult {
+        id: "git+ssh://git@example.com/foo/bar.git#deadbeef".into(),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: None,
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "https://example.com/foo.tar.gz".to_string(),
+            integrity: None,
+            git_hosted: Some(true),
+            path: None,
+        }),
+        resolved_via: "git-repository".to_string(),
+        normalized_bare_specifier: Some("github:foo/bar#deadbeef".to_string()),
+        alias: Some("bar".to_string()),
+        policy_violation: None,
+    };
+
+    let result = InstallPackageFromRegistry {
+        tarball_mem_cache: &Default::default(),
+        config,
+        http_client: &http_client,
+        store_index: None,
+        store_index_writer: None,
+        verified_files_cache: &verified_files_cache,
+        logged_methods: &logged_methods,
+        requester: "",
+        alias: "bar",
+        resolution: &resolution,
+        node_modules_dir: modules_dir.path(),
+        first_visit: true,
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    match result {
+        Err(InstallPackageFromRegistryError::UnsupportedResolution { detail }) => {
+            assert!(
+                detail.contains("git-repository"),
+                "error should name the resolver tag: {detail}",
+            );
+        }
+        other => panic!("expected UnsupportedResolution, got {other:?}"),
+    }
+
+    drop((store_dir, modules_dir, virtual_store_dir));
 }
