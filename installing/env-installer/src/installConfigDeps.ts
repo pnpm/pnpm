@@ -39,8 +39,17 @@ export async function installConfigDeps (
 
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
   const existingConfigDeps: string[] = await readModulesDir(configModulesDir) ?? []
+
+  let startedEmitted = false
+  const reportStarted = (): void => {
+    if (startedEmitted) return
+    startedEmitted = true
+    installingConfigDepsLogger.debug({ status: 'started' })
+  }
+
   await Promise.all(existingConfigDeps.map(async (existingConfigDep) => {
     if (!normalizedDeps[existingConfigDep]) {
+      reportStarted()
       await rimraf(path.join(configModulesDir, existingConfigDep))
     }
   }))
@@ -68,8 +77,8 @@ export async function installConfigDeps (
     // get pruned and relinked.
     const parentSymlinkAlreadyCorrect = existingConfigDeps.includes(pkgName) &&
       await symlinkPointsTo(configDepPath, pkgDirInGlobalVirtualStore)
-    installingConfigDepsLogger.debug({ status: 'started' })
     if (!fs.existsSync(path.join(pkgDirInGlobalVirtualStore, 'package.json'))) {
+      reportStarted()
       const { fetching } = await opts.store.fetchPackage({
         force: true,
         lockfileDir: opts.rootDir,
@@ -96,11 +105,13 @@ export async function installConfigDeps (
         globalVirtualStoreDir,
         rootDir: opts.rootDir,
         store: opts.store,
+        reportStarted,
       })
     }
     if (parentSymlinkAlreadyCorrect) {
       return
     }
+    reportStarted()
     if (existingConfigDeps.includes(pkgName)) {
       await rimraf(configDepPath)
     }
@@ -240,6 +251,7 @@ interface InstallOptionalSubdepsOpts {
   globalVirtualStoreDir: string
   rootDir: string
   store: StoreController
+  reportStarted: () => void
 }
 
 async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promise<void> {
@@ -268,15 +280,18 @@ async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promis
 
   const expectedSiblings = new Set([opts.parentName, ...compatibleSubdeps.map((s) => s.name)])
   const existingSiblings = await readModulesDir(opts.parentNodeModulesDir) ?? []
-  await Promise.all(existingSiblings
-    .filter((name) => !expectedSiblings.has(name))
-    .map((name) => rimraf(path.join(opts.parentNodeModulesDir, name))))
+  const orphanSiblings = existingSiblings.filter((name) => !expectedSiblings.has(name))
+  if (orphanSiblings.length > 0) {
+    opts.reportStarted()
+  }
+  await Promise.all(orphanSiblings.map((name) => rimraf(path.join(opts.parentNodeModulesDir, name))))
 
   await Promise.all(compatibleSubdeps.map(async (subdep) => {
     const subdepFullPkgId = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
     const subdepRelPath = calcLeafGlobalVirtualStorePath(subdepFullPkgId, subdep.name, subdep.version)
     const subdepDirInGlobalVirtualStore = path.join(opts.globalVirtualStoreDir, subdepRelPath, 'node_modules', subdep.name)
     if (!fs.existsSync(path.join(subdepDirInGlobalVirtualStore, 'package.json'))) {
+      opts.reportStarted()
       const { fetching } = await opts.store.fetchPackage({
         force: true,
         lockfileDir: opts.rootDir,
