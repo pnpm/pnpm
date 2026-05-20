@@ -388,6 +388,7 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
     include,
     includeDirect: include,
     fetchFullMetadata: getFetchFullMetadata(opts),
+    isInstallCommand: true,
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true

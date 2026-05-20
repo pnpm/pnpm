@@ -160,6 +160,13 @@ export type InstallDepsOptions = Pick<Config,
   rebuildHandler?: CommandHandler
   pnpmfile: string[]
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
+  /**
+   * `true` when this call originated from `pnpm install` (or `pnpm i`),
+   * `false`/`undefined` for `add`, `update`, `dedupe`, etc. Used to gate
+   * which pnpm CLI flags are safe to forward to pacquet's `install`
+   * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
+   */
+  isInstallCommand?: boolean
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
@@ -217,6 +224,7 @@ export async function installDeps (
       lockfileDir: opts.lockfileDir ?? opts.dir,
       packageName: pacquetConfigDepName,
       argv: opts.argv.original,
+      isInstallCommand: opts.isInstallCommand === true,
     })
     : undefined
   const includeDirect = opts.includeDirect ?? {

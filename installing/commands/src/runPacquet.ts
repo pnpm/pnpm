@@ -27,27 +27,37 @@ export interface MakeRunPacquetOpts {
    */
   packageName: 'pacquet' | '@pnpm/pacquet'
   /**
-   * The user's original `pnpm` argv (`process.argv.slice(2)`). Not
-   * forwarded to pacquet — we only inspect it to warn about flags
-   * pacquet won't see.
+   * The user's original `pnpm` argv (`process.argv.slice(2)`). When
+   * `isInstallCommand` is true the flags (everything after the
+   * `install`/`i` token) ride along to pacquet's own `install`
+   * subcommand verbatim; otherwise we only inspect it to warn about
+   * flags pacquet won't see.
    */
   argv: string[]
+  /**
+   * `true` when the user invoked `pnpm install` (or `pnpm i`). Gates
+   * flag forwarding: pacquet's `install` subcommand mirrors pnpm's
+   * surface closely enough that the user's flags are safe to pass
+   * along on that command, but not from `add`/`update`/`dedupe` (whose
+   * own flag surface doesn't line up with pacquet's `install`).
+   */
+  isInstallCommand: boolean
 }
 
 /**
  * Build the install-engine callback `mutateModules` invokes when
- * `configDependencies` declares pacquet. Returns `undefined` when no
- * pacquet binary is on disk — the caller falls back to the JS path in
- * that case.
+ * `configDependencies` declares pacquet.
  *
  * The callback spawns the pacquet binary installed under
- * `node_modules/.pnpm-config/pacquet` and forwards the user's own
- * pnpm CLI flags. Pacquet's NDJSON stderr is parsed line-by-line and
- * the valid JSON records are re-emitted on pnpm's global
- * `streamParser` so `@pnpm/cli.default-reporter` renders pacquet's
- * events the same way it renders pnpm's own. Non-JSON stderr lines
- * (panic backtraces, unexpected diagnostics) are forwarded to the
- * real stderr verbatim so they reach the user.
+ * `node_modules/.pnpm-config/pacquet`. From `pnpm install`/`pnpm i` it
+ * forwards the user's own pnpm CLI flags to pacquet's `install`
+ * subcommand; from `add`/`update`/`dedupe` it doesn't forward (warning
+ * instead). Pacquet's NDJSON stderr is parsed line-by-line and the
+ * valid JSON records are re-emitted on pnpm's global `streamParser` so
+ * `@pnpm/cli.default-reporter` renders pacquet's events the same way it
+ * renders pnpm's own. Non-JSON stderr lines (panic backtraces,
+ * unexpected diagnostics) are forwarded to the real stderr verbatim so
+ * they reach the user.
  */
 /** Args the deps-installer passes per pacquet invocation. */
 export interface RunPacquetCallOpts {
@@ -67,15 +77,18 @@ export interface RunPacquetCallOpts {
 export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
   return async (callOpts) => {
     const pacquetBin = resolvePacquetBin(opts.lockfileDir, opts.packageName)
-    // Always the same fixed args. We don't forward pnpm's CLI flags
-    // even though pacquet's `install` subcommand mirrors most of them:
-    // pnpm has commands like `add` and `update` that carry flags
-    // pacquet's `install` doesn't recognize (e.g., `--save-dev`,
-    // `--save-peer`), and clap would reject them. The settings users
-    // care about live in `pnpm-workspace.yaml` / `.npmrc`, which
-    // pacquet reads on its own.
-    const args = ['--reporter=ndjson', 'install', '--frozen-lockfile']
-    const droppedFlags = collectDroppedFlags(opts.argv)
+    // From `pnpm install`/`pnpm i` we forward the user's flags through to
+    // pacquet's own `install` subcommand verbatim — pacquet mirrors pnpm's
+    // surface closely enough on that command that they're safe to pass
+    // along. From `add`/`update`/`dedupe` we don't forward anything: those
+    // commands carry flags pacquet's `install` doesn't recognize
+    // (`--save-dev`, `--save-peer`, etc.) which clap would reject. Either
+    // way pacquet picks up the settings users care about from
+    // `pnpm-workspace.yaml` / `.npmrc` on its own, so a non-install
+    // delegation isn't broken by the omission.
+    const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
+    const args = ['--reporter=ndjson', 'install', '--frozen-lockfile', ...forwardedFlags]
+    const droppedFlags = opts.isInstallCommand ? [] : collectDroppedFlags(opts.argv)
     if (droppedFlags.length > 0) {
       logger.warn({
         message: `The following CLI flags are not forwarded to pacquet and may not be honored: ${droppedFlags.join(' ')}. Move the equivalent settings into pnpm-workspace.yaml (or .npmrc for auth/registry) if pacquet needs them.`,
@@ -154,12 +167,33 @@ function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm
 }
 
 /**
- * Pull the CLI flags out of pnpm's argv so we can warn about them
- * before pacquet runs. We don't forward any of them — pacquet always
- * gets `install --frozen-lockfile --reporter=ndjson` — but most are
- * handled by pnpm itself before delegation (`--save-dev` rewrites
- * `package.json`, `--filter` selects projects, etc.) so listing them
- * to the user makes the "not forwarded" surface concrete.
+ * From `pnpm install`/`pnpm i`, return everything in argv that should
+ * ride along to pacquet's own `install` subcommand. That's every entry
+ * after the leading command-name token (`install` / `i` / nothing) —
+ * pacquet's clap parser walks the same `--prod`, `--dev`, `--no-optional`,
+ * `--no-runtime`, `--node-linker`, `--offline`, `--prefer-offline`,
+ * `--cpu`, `--os`, `--libc`, `--frozen-lockfile` surface pnpm itself
+ * accepts on `install`, so we don't reshape them.
+ *
+ * `--reporter=ndjson` is dropped if the user passed it explicitly: we
+ * always emit our own copy at the head of the args, and clap's
+ * "last-value-wins" parse for options-with-value would otherwise let a
+ * user-supplied `--reporter=...` override the one we depend on for
+ * NDJSON-to-streamParser plumbing.
+ */
+function collectForwardedFlags (argv: string[]): string[] {
+  const first = argv[0]
+  const flags = first === 'install' || first === 'i' ? argv.slice(1) : argv
+  return flags.filter((arg) => arg !== '--reporter=ndjson')
+}
+
+/**
+ * From a non-install command (`add`, `update`, `dedupe`, ...), pull the
+ * CLI flags out of pnpm's argv so we can warn that pacquet won't see
+ * them. They're still handled by pnpm itself before delegation
+ * (`--save-dev` rewrites `package.json`, `--filter` selects projects,
+ * etc.) so listing them to the user makes the "not forwarded" surface
+ * concrete.
  *
  * Flags we explicitly emit ourselves (`--frozen-lockfile`,
  * `--reporter=ndjson`) are filtered out: they're honored, so warning
