@@ -210,7 +210,7 @@ fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
 /// prereleases when the range has none of its own (matching strict
 /// semver semantics); the retry with the prerelease tag stripped
 /// recovers the candidates upstream accepts. Matches the
-/// `satisfies_with_prereleases` pattern in [`crate::resolve_peers`].
+/// `satisfies_with_prereleases` pattern in the `resolve_peers` module.
 fn satisfies_including_prerelease(range: &Range, version: &Version) -> bool {
     if range.satisfies(version) {
         return true;
