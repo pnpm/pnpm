@@ -417,11 +417,22 @@ where
     .map_err(InstallWithoutLockfileError::InstallPackageFromRegistry)?;
 
     if first_visit {
-        // Wake any second visitors blocked on the slot. The sender
-        // lives in the map for the rest of the install so late
-        // subscribers see `true` immediately via `borrow_and_update`.
+        // `send_replace` (not `send`) is critical here: `Sender::send`
+        // returns `Err` when the channel has zero receivers, leaving
+        // the sender's stored value unchanged. The initial receiver
+        // from `watch::channel` is dropped at the Vacant arm above to
+        // avoid keeping a live receiver in the map, so the channel
+        // really *does* have zero receivers when the first writer
+        // races ahead of every subscriber (common for cyclic and
+        // diamond graphs where the second visitor only enters the map
+        // after the first writer has already finished `IPFR::run`).
+        // Under `send`, that race left the stored value at `false` and
+        // any later subscriber's `borrow_and_update()` would see
+        // `false` and `changed().await` would block forever — the
+        // hang the cycle tests hit. `send_replace` always writes the
+        // value and returns the old one regardless of receiver count.
         if let Some(slot) = ctx.resolved_packages.get(&virtual_store_name) {
-            let _ = slot.send(true);
+            slot.send_replace(true);
         }
     } else {
         // Second visitor: the per-parent symlink is the only step
