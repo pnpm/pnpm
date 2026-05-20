@@ -2181,6 +2181,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-lockfile-preferred-versions"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "pacquet-lockfile-verification"
 version = "0.0.1"
 dependencies = [
@@ -2293,6 +2306,7 @@ dependencies = [
  "pacquet-git-fetcher",
  "pacquet-graph-hasher",
  "pacquet-lockfile",
+ "pacquet-lockfile-preferred-versions",
  "pacquet-lockfile-verification",
  "pacquet-modules-yaml",
  "pacquet-network",

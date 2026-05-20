@@ -422,6 +422,13 @@ pub struct Config {
     #[default = true]
     pub auto_install_peers: bool,
 
+    /// When `true`, conflicting peer-dependency ranges from multiple
+    /// consumers are merged with `||` (so the resolver may pick the
+    /// highest version that satisfies any one of them) instead of
+    /// being dropped when their intersection is empty. Mirrors pnpm's
+    /// [`autoInstallPeersFromHighestMatch`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L796-L818).
+    pub auto_install_peers_from_highest_match: bool,
+
     /// Under `nodeLinker: hoisted`, controls whether non-root
     /// workspace importers are added as children of the virtual
     /// `.` root in the hoist tree. Default `true` matches pnpm —

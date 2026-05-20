@@ -21,19 +21,14 @@ use crate::{
 /// importer so the bag is smaller. `base_opts` is the [`ResolveOptions`]
 /// every per-package `resolve()` call sees; the tree walker doesn't
 /// mutate it.
+///
+/// Peer auto-installation lives one layer up in
+/// [`fn@crate::resolve_importer`] — this entry point is a pure tree walker
+/// over the manifest's explicit dependencies plus their transitive
+/// children. The orchestrator extends the same tree with hoisted peers
+/// via [`extend_tree`].
 #[derive(Debug)]
 pub struct ResolveDependencyTreeOptions {
-    /// When `true`, fold each visited package's `peerDependencies`
-    /// into the regular dependency walk so peer packages get
-    /// installed alongside their hosts. Pacquet's stand-in for
-    /// upstream's
-    /// [`hoistPeers`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/hoistPeers.ts)
-    /// pre-pass until that full algorithm lands. Independent of
-    /// peer-suffix construction in [`fn@crate::resolve_peers`] — that
-    /// stage runs regardless and produces the same depPath shape
-    /// whether peers were installed automatically or supplied by the
-    /// user.
-    pub auto_install_peers: bool,
     pub base_opts: ResolveOptions,
 }
 
@@ -82,21 +77,106 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     Chain: Resolver + ?Sized,
 {
-    let ctx = Ctx {
-        auto_install_peers: opts.auto_install_peers,
-        base_opts: opts.base_opts,
-        packages: Mutex::new(HashMap::new()),
-        dependencies_tree: Mutex::new(HashMap::new()),
-        all_peer_dep_names: Mutex::new(HashSet::new()),
-        policy_violations: Mutex::new(Vec::new()),
-    };
-
-    let direct_specs: Vec<(String, String)> = manifest
+    let ctx = TreeCtx::new(opts.base_opts);
+    let wanted: Vec<(String, String)> = manifest
         .dependencies(dependency_groups)
         .map(|(name, range)| (name.to_string(), range.to_string()))
         .collect();
+    let direct = extend_tree(&ctx, resolver, wanted).await?;
+    Ok(ctx.into_resolved_tree(direct))
+}
 
-    let direct_results = direct_specs
+/// Mutable workspace for an in-flight tree walk. The orchestrator
+/// (`resolve_importer`) holds one of these across hoist iterations and
+/// extends it via [`extend_tree`] so newly-hoisted peer dependencies
+/// reuse the existing per-id dedup map instead of restarting the walk.
+pub struct TreeCtx {
+    base_opts: ResolveOptions,
+    packages: Mutex<HashMap<String, ResolvedPackage>>,
+    dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
+    all_peer_dep_names: Mutex<HashSet<String>>,
+    policy_violations: Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
+}
+
+impl TreeCtx {
+    /// Construct an empty context. Calls to [`extend_tree`] populate
+    /// `packages` / `dependencies_tree` / `all_peer_dep_names`.
+    pub fn new(base_opts: ResolveOptions) -> Self {
+        TreeCtx {
+            base_opts,
+            packages: Mutex::new(HashMap::new()),
+            dependencies_tree: Mutex::new(HashMap::new()),
+            all_peer_dep_names: Mutex::new(HashSet::new()),
+            policy_violations: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Take ownership of `self` and emit the final [`ResolvedTree`]
+    /// the peer-resolution stage consumes. The orchestrator passes its
+    /// cumulative [`DirectDep`] list (initial walk + each hoist
+    /// iteration's contributions) as `direct`.
+    pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
+        ResolvedTree {
+            direct,
+            packages: self.packages.into_inner(),
+            dependencies_tree: self.dependencies_tree.into_inner(),
+            all_peer_dep_names: self.all_peer_dep_names.into_inner(),
+            policy_violations: self.policy_violations.into_inner(),
+        }
+    }
+
+    /// Build a snapshot of the current tree state without consuming
+    /// `self`. The orchestrator's hoist loop snapshots after each
+    /// [`extend_tree`] call to run [`fn@crate::resolve_peers`] over the
+    /// growing tree and find missing peers to hoist next.
+    pub async fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+        ResolvedTree {
+            direct,
+            packages: self.packages.lock().await.clone(),
+            dependencies_tree: self.dependencies_tree.lock().await.clone(),
+            all_peer_dep_names: self.all_peer_dep_names.lock().await.clone(),
+            policy_violations: self.policy_violations.lock().await.clone(),
+        }
+    }
+
+    /// Iterate over every `(name, version)` pair the walk has resolved
+    /// so far. Used by the orchestrator to keep `allPreferredVersions`
+    /// in sync — mirrors upstream's resolveDependency-time push at
+    /// [`resolveDependencies.ts:1440`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1440).
+    pub async fn resolved_versions(&self) -> Vec<(String, String)> {
+        self.packages
+            .lock()
+            .await
+            .values()
+            .filter_map(|pkg| {
+                let name_ver = pkg.result.name_ver.as_ref()?;
+                Some((name_ver.name.to_string(), name_ver.suffix.to_string()))
+            })
+            .collect()
+    }
+}
+
+/// Walk an additional set of `(alias, range)` pairs as new direct
+/// dependencies of the importer, extending `ctx` in place. Returns the
+/// per-edge [`DirectDep`] envelopes for the freshly-walked deps; the
+/// orchestrator concatenates these into the cumulative direct list it
+/// hands to [`TreeCtx::into_resolved_tree`].
+///
+/// The per-id dedup gate in the per-node walker means already-resolved
+/// packages reuse their existing [`ResolvedPackage`]; only the new
+/// subtree is actually traversed. Top-level cycles can't occur (the
+/// importer can't appear in its own ancestor chain), but the walker
+/// may still return `None` for any spec the cycle break gated out;
+/// those are filtered here.
+pub async fn extend_tree<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: Vec<(String, String)>,
+) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    let results = wanted
         .into_iter()
         .map(|(name, range)| async {
             let wanted = WantedDependency {
@@ -104,31 +184,11 @@ where
                 bare_specifier: Some(range),
                 ..WantedDependency::default()
             };
-            resolve_node(&ctx, resolver, wanted, &[], 0).await
+            resolve_node(ctx, resolver, wanted, &[], 0).await
         })
         .pipe(future::try_join_all)
         .await?;
-    // Top-level cycles can't occur (the importer can't appear in its
-    // own ancestor chain), but `resolve_node` may still return `None`
-    // for any spec the cycle break gated out. Filter at the join.
-    let direct: Vec<DirectDep> = direct_results.into_iter().flatten().collect();
-
-    Ok(ResolvedTree {
-        direct,
-        packages: ctx.packages.into_inner(),
-        dependencies_tree: ctx.dependencies_tree.into_inner(),
-        all_peer_dep_names: ctx.all_peer_dep_names.into_inner(),
-        policy_violations: ctx.policy_violations.into_inner(),
-    })
-}
-
-struct Ctx {
-    auto_install_peers: bool,
-    base_opts: ResolveOptions,
-    packages: Mutex<HashMap<String, ResolvedPackage>>,
-    dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
-    all_peer_dep_names: Mutex<HashSet<String>>,
-    policy_violations: Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
+    Ok(results.into_iter().flatten().collect())
 }
 
 /// Resolve one `(alias, range)` edge, register the resolved package in
@@ -147,7 +207,7 @@ struct Ctx {
 /// cycled occurrence can overwrite the real one.
 #[async_recursion]
 async fn resolve_node<Chain>(
-    ctx: &Ctx,
+    ctx: &TreeCtx,
     resolver: &Chain,
     wanted: WantedDependency,
     ancestor_ids: &[String],
@@ -213,7 +273,7 @@ where
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
 
-    let child_specs = extract_children(&result, ctx.auto_install_peers);
+    let child_specs = extract_children(&result);
     let child_results =
         child_specs
             .into_iter()
@@ -260,40 +320,23 @@ fn render_specifier(wanted: &WantedDependency) -> String {
     }
 }
 
-/// Extract regular `dependencies` + `optionalDependencies` from a
-/// resolved package's manifest, optionally folding in `peerDependencies`
-/// when `auto_install_peers` is on. Peers that name an existing own dep
-/// are skipped here because the regular edge already supplies the same
-/// package — `BTreeMap` collection of the result by alias would
-/// otherwise silently drop the optional edge. Mirrors the filter
-/// upstream's [`peerDependenciesWithoutOwn`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1791-L1815)
-/// applies on the peer side.
+/// Extract `dependencies` + `optionalDependencies` from a resolved
+/// package's manifest. Peer dependencies are **not** walked as regular
+/// edges here — they're hoisted to the importer level by the
+/// [`fn@crate::resolve_importer`] orchestrator (which calls [`extend_tree`]
+/// with the hoist-picker's output) so a peer ends up shared across
+/// every consumer, not nested under each one.
 ///
 /// Peers are still recorded on [`ResolvedPackage::peer_dependencies`]
-/// (via [`extract_peer_dependencies`]) regardless of this flag so the
-/// peer-resolution stage can compute the correct depPath suffix.
+/// (via [`extract_peer_dependencies`]) so the peer-resolution stage
+/// can compute the correct depPath suffix once everything is walked.
 fn extract_children(
     result: &pacquet_resolving_resolver_base::ResolveResult,
-    auto_install_peers: bool,
 ) -> Vec<(String, String)> {
     let Some(manifest) = result.manifest.as_ref() else { return Vec::new() };
     let mut out = Vec::new();
     collect_deps(manifest, "dependencies", &mut out);
     collect_deps(manifest, "optionalDependencies", &mut out);
-    if auto_install_peers {
-        let own_deps: HashSet<String> = out.iter().map(|(name, _)| name.clone()).collect();
-        let Some(map) = manifest.get("peerDependencies").and_then(Value::as_object) else {
-            return out;
-        };
-        for (name, range) in map {
-            if own_deps.contains(name) {
-                continue;
-            }
-            if let Some(range_str) = range.as_str() {
-                out.push((name.clone(), range_str.to_string()));
-            }
-        }
-    }
     out
 }
 

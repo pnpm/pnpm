@@ -113,10 +113,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
         &resolver,
         &manifest,
         [DependencyGroup::Prod],
-        ResolveDependencyTreeOptions {
-            auto_install_peers: false,
-            base_opts: ResolveOptions::default(),
-        },
+        ResolveDependencyTreeOptions { base_opts: ResolveOptions::default() },
     )
     .await
     .unwrap();
@@ -180,10 +177,7 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
         &resolver,
         &manifest,
         [DependencyGroup::Prod],
-        ResolveDependencyTreeOptions {
-            auto_install_peers: false,
-            base_opts: ResolveOptions::default(),
-        },
+        ResolveDependencyTreeOptions { base_opts: ResolveOptions::default() },
     )
     .await
     .unwrap();
@@ -210,10 +204,7 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
         &resolver,
         &manifest,
         [DependencyGroup::Prod],
-        ResolveDependencyTreeOptions {
-            auto_install_peers: false,
-            base_opts: ResolveOptions::default(),
-        },
+        ResolveDependencyTreeOptions { base_opts: ResolveOptions::default() },
     )
     .await
     .expect_err("declined spec must error");
@@ -253,10 +244,7 @@ mod peers {
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
-            ResolveDependencyTreeOptions {
-                auto_install_peers: false,
-                base_opts: ResolveOptions::default(),
-            },
+            ResolveDependencyTreeOptions { base_opts: ResolveOptions::default() },
         )
         .await
         .unwrap();
@@ -303,10 +291,7 @@ mod peers {
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
-            ResolveDependencyTreeOptions {
-                auto_install_peers: false,
-                base_opts: ResolveOptions::default(),
-            },
+            ResolveDependencyTreeOptions { base_opts: ResolveOptions::default() },
         )
         .await
         .unwrap();
@@ -351,10 +336,7 @@ mod peers {
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
-            ResolveDependencyTreeOptions {
-                auto_install_peers: false,
-                base_opts: ResolveOptions::default(),
-            },
+            ResolveDependencyTreeOptions { base_opts: ResolveOptions::default() },
         )
         .await
         .unwrap();
@@ -402,10 +384,7 @@ mod peers {
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
-            ResolveDependencyTreeOptions {
-                auto_install_peers: false,
-                base_opts: ResolveOptions::default(),
-            },
+            ResolveDependencyTreeOptions { base_opts: ResolveOptions::default() },
         )
         .await
         .unwrap();
@@ -461,10 +440,7 @@ mod peers {
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
-            ResolveDependencyTreeOptions {
-                auto_install_peers: false,
-                base_opts: ResolveOptions::default(),
-            },
+            ResolveDependencyTreeOptions { base_opts: ResolveOptions::default() },
         )
         .await
         .unwrap();

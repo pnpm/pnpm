@@ -310,3 +310,57 @@ fn install_resolves_env_var_in_npmrc_registry() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// `@pnpm.e2e/abc-parent-with-missing-peers@1.0.0` depends on
+/// `@pnpm.e2e/abc@1.0.0`, which declares `peer-a`, `peer-b`, and
+/// `peer-c` as peer dependencies. The parent provides none of them.
+/// With `auto-install-peers` enabled (pacquet's default, matching
+/// pnpm), all three peers should appear in `node_modules/.pnpm/`.
+/// Without the orchestrator's hoist loop they'd be missing, and the
+/// peer-resolution issue list would carry three entries.
+#[test]
+fn auto_install_peers_hoists_missing_peers_at_importer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/abc-parent-with-missing-peers": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    let entries: Vec<String> = fs::read_dir(&pnpm_dir)
+        .map(|dir| {
+            dir.filter_map(Result::ok)
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    for peer in ["peer-a", "peer-b", "peer-c"] {
+        // The registry's `^1.0.0` resolves to the latest 1.x; assert on
+        // the slot prefix rather than a specific version so a registry
+        // bump doesn't churn this test.
+        let prefix = format!("@pnpm.e2e+{peer}@1.");
+        assert!(
+            entries.iter().any(|name| name.starts_with(&prefix) && !name.contains('_')),
+            "expected {peer} to be auto-installed; .pnpm/ entries: {entries:?}",
+        );
+    }
+    // The top-level alias symlink should also point at the auto-installed
+    // peer — pacquet hoists peers all the way to the importer's node_modules.
+    for peer in ["peer-a", "peer-b", "peer-c"] {
+        let symlink_path = workspace.join(format!("node_modules/@pnpm.e2e/{peer}"));
+        assert!(
+            is_symlink_or_junction(&symlink_path).unwrap_or(false),
+            "expected node_modules/@pnpm.e2e/{peer} to be a symlink to the hoisted peer",
+        );
+    }
+
+    drop((root, mock_instance)); // cleanup
+}

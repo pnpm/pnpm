@@ -41,6 +41,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         registry: "https://registry.npmjs.com/".to_string(),
         named_registries: Default::default(),
         auto_install_peers: false,
+        auto_install_peers_from_highest_match: false,
         hoist_workspace_packages: true,
         hoisting_limits: Default::default(),
         external_dependencies: Default::default(),

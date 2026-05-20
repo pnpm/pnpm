@@ -1,7 +1,9 @@
 //! Port of pnpm's
 //! [`@pnpm/installing.deps-resolver`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/index.ts).
 //!
-//! Two passes live here:
+//! The public entry point for an install pass is
+//! [`fn@resolve_importer`]: it owns three lower-level passes and the
+//! `autoInstallPeers` hoist loop that ties them together.
 //!
 //! 1. **Tree pass** ([`fn@resolve_dependency_tree`]). Walks a project
 //!    manifest's direct dependencies through a
@@ -27,21 +29,31 @@
 //!    `(pkgIdWithPatchHash, peer-suffix)` combination) and the entry
 //!    point for the install layer.
 //!
+//! 3. **Hoist loop** ([`fn@resolve_importer`]). Runs passes 1–2,
+//!    aggregates missing required and optional peers via
+//!    [`fn@hoist_peers`] / [`fn@get_hoistable_optional_peers`], extends
+//!    the tree with hoisted picks via
+//!    [`extend_tree`], and re-runs the peer pass
+//!    until both pass-1 and pass-2 reach a fixed point. Mirrors
+//!    upstream's
+//!    [`resolveRootDependencies`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L327-L437).
+//!
 //! This is intentionally a thin slice of upstream:
 //!
 //! - **Single importer.** Pacquet's install doesn't expose workspaces
 //!   to the resolver yet; the entry point takes one manifest at a
 //!   time.
-//! - **No `autoInstallPeers` hoisting.** Upstream's
-//!   [`hoistPeers`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/hoistPeers.ts)
-//!   pre-pass that folds peer deps into the importer's direct deps is
-//!   a separate concern, scheduled after this slice lands.
 //! - **No catalog / hook / lockfile-pinned-version bias.** The
-//!   resolver is fed each child's manifest range verbatim.
+//!   resolver is fed each child's manifest range verbatim. Lockfile-
+//!   seeded preferred versions arrive via the orchestrator's
+//!   `all_preferred_versions` option — callers pre-seed with the
+//!   `pacquet-lockfile-preferred-versions` crate.
 
 mod dependencies_graph;
+mod hoist_peers;
 mod node_id;
 mod resolve_dependency_tree;
+mod resolve_importer;
 mod resolve_peers;
 mod resolved_tree;
 
@@ -49,12 +61,19 @@ pub use dependencies_graph::{
     DependenciesGraph, DependenciesGraphNode, MissingPeer, PeerDependencyIssue,
     PeerDependencyIssues,
 };
+pub use hoist_peers::{
+    HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers, hoist_peers,
+};
 pub use node_id::NodeId;
 pub use pacquet_deps_path::DepPath;
 pub use resolve_dependency_tree::{
-    ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+    ResolveDependencyTreeError, ResolveDependencyTreeOptions, TreeCtx, extend_tree,
+    resolve_dependency_tree,
 };
-pub use resolve_peers::{ResolvePeersOptions, resolve_peers};
+pub use resolve_importer::{
+    ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
+};
+pub use resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers};
 pub use resolved_tree::{
     DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
 };

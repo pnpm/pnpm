@@ -131,6 +131,7 @@ pub struct WorkspaceSettings {
     pub named_registries: Option<BTreeMap<String, String>>,
 
     pub auto_install_peers: Option<bool>,
+    pub auto_install_peers_from_highest_match: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
     /// `hoistingLimits` from `pnpm-workspace.yaml`. Outer key is
     /// the importer locator (e.g. `'.@'`); inner list is the
@@ -350,6 +351,7 @@ impl WorkspaceSettings {
         self.offline = None;
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
+        self.auto_install_peers_from_highest_match = None;
         self.hoist_workspace_packages = None;
         self.dedupe_peer_dependents = None;
         self.strict_peer_dependencies = None;
@@ -438,7 +440,8 @@ impl WorkspaceSettings {
             virtual_store_dir_max_length,
             lockfile, prefer_frozen_lockfile, offline, prefer_offline,
             lockfile_include_tarball_url,
-            auto_install_peers, hoist_workspace_packages,
+            auto_install_peers, auto_install_peers_from_highest_match,
+            hoist_workspace_packages,
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, strict_peer_dependencies,
             resolve_peers_from_workspace_root, verify_store_integrity,
