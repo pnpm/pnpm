@@ -180,6 +180,9 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     InvalidCatalogsConfiguration(#[error(source)] InvalidCatalogsConfigurationError),
 
+    #[diagnostic(transparent)]
+    FindWorkspaceProjects(#[error(source)] pacquet_workspace::FindWorkspaceProjectsError),
+
     /// Building the verifier list from config rejected a
     /// `minimumReleaseAgeExclude` or `trustPolicyExclude` pattern.
     /// Mirrors upstream's `INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` /
@@ -538,6 +541,16 @@ where
             // The no-lockfile path has no installability check (no
             // `packages:` metadata to evaluate constraints against),
             // so its skip set is empty by construction.
+            // Build the workspace-sibling lookup the npm resolver
+            // consults for `workspace:` specs. `None` when the install
+            // isn't inside a `pnpm-workspace.yaml` workspace (no
+            // workspace root was found), so the resolver errors out
+            // on any `workspace:` spec rather than silently skipping
+            // to a registry lookup. Mirrors upstream's posture at
+            // <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830>.
+            let workspace_packages =
+                build_workspace_packages_map(&workspace_root, workspace_manifest.as_ref())
+                    .map_err(InstallError::FindWorkspaceProjects)?;
             let hd = InstallWithoutLockfile {
                 tarball_mem_cache,
                 resolved_packages,
@@ -549,6 +562,8 @@ where
                 logged_methods: &logged_methods,
                 requester: &prefix,
                 catalogs,
+                lockfile_dir: &workspace_root,
+                workspace_packages,
             }
             .run::<Reporter>()
             .await
@@ -752,6 +767,50 @@ fn map_workspace_state_node_linker(linker: &NodeLinker) -> WorkspaceStateNodeLin
 /// pacquet matches by silently dropping non-string values.
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
     manifest.value().get(key).and_then(|v| v.as_str()).map(ToString::to_string)
+}
+
+/// Build the `name → version → WorkspacePackage` lookup the npm
+/// resolver consults for `workspace:` specs. Returns `Ok(None)` when
+/// no `pnpm-workspace.yaml` exists in (or above) `workspace_root` —
+/// the install isn't a workspace install, so any `workspace:` spec
+/// the manifest happens to carry should surface
+/// [`pacquet_resolving_npm_resolver::ResolveFromWorkspaceError::WorkspacePackagesNotLoaded`].
+///
+/// Mirrors the slice pnpm's
+/// [`getWorkspacePackagesByDirectory`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/installing/context/src/index.ts#L160)
+/// passes into `resolveDependencies` — same name/version index, same
+/// per-project `WorkspacePackage` shape (`{ rootDir, manifest }`).
+/// Projects whose manifest lacks a name or version are silently
+/// skipped; upstream's manifest reader emits a separate warning that
+/// pacquet doesn't carry through here.
+fn build_workspace_packages_map(
+    workspace_root: &std::path::Path,
+    workspace_manifest: Option<&pacquet_workspace::WorkspaceManifest>,
+) -> Result<
+    Option<pacquet_resolving_resolver_base::WorkspacePackages>,
+    pacquet_workspace::FindWorkspaceProjectsError,
+> {
+    // No `pnpm-workspace.yaml` → no workspace install. Skip the project
+    // walk entirely.
+    let Some(manifest) = workspace_manifest else { return Ok(None) };
+    let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
+    let projects = pacquet_workspace::find_workspace_projects(workspace_root, &opts)?;
+
+    let mut map: pacquet_resolving_resolver_base::WorkspacePackages =
+        std::collections::BTreeMap::new();
+    for project in projects {
+        let name = manifest_string_field(&project.manifest, "name");
+        let version = manifest_string_field(&project.manifest, "version");
+        let (Some(name), Some(version)) = (name, version) else { continue };
+        map.entry(name).or_default().insert(
+            version,
+            pacquet_resolving_resolver_base::WorkspacePackage {
+                root_dir: project.root_dir,
+                manifest: project.manifest.value().clone(),
+            },
+        );
+    }
+    Ok(Some(map))
 }
 
 /// Build the `projects` map for [`WorkspaceState`]. Mirrors upstream's

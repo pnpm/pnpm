@@ -32,8 +32,10 @@ mod parse_bare_specifier;
 mod pick_package;
 mod pick_package_from_meta;
 mod registry_url;
+mod resolve_from_workspace;
 mod trust_checks;
 mod violation_codes;
+mod workspace_pref_to_npm;
 
 pub use create_npm_resolution_verifier::{
     CreateNpmResolutionVerifierOptions, NpmResolutionVerifier, create_npm_resolution_verifier,
@@ -64,7 +66,11 @@ pub use pick_package_from_meta::{
     RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
     pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
 };
+pub use resolve_from_workspace::{
+    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, try_resolve_from_workspace,
+};
 pub use trust_checks::{
     TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,
 };
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
+pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};
