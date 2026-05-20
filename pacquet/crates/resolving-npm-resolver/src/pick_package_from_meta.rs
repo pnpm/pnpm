@@ -23,7 +23,7 @@
 //!   version per tag. Implements the `minimumReleaseAge` policy.
 //!
 //! The "pure picker" piece sits below the cache+fetch orchestration
-//! in [`crate::pick_package`]; both depend on this module but this
+//! in [`crate::pick_package()`]; both depend on this module but this
 //! module pulls in no I/O.
 
 use std::collections::BTreeMap;

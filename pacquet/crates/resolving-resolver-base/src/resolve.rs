@@ -24,7 +24,7 @@ use crate::verifier::ResolutionPolicyViolation;
 /// both fields as `Option<String>` for ergonomic field access and
 /// relies on construction sites (the parse-wanted-dependency port and
 /// the deps-resolver's manifest reader) to maintain the invariant.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct WantedDependency {
     /// Local install name in `node_modules/`. For `foo@1.2.3` this is
     /// `Some("foo")`; for the npm-alias form `foo@npm:lodash@^4` it
@@ -123,7 +123,7 @@ pub type WorkspacePackages = BTreeMap<String, WorkspacePackagesByVersion>;
 /// Reload behavior the dispatcher passes per-resolve. Mirrors pnpm's
 /// [`ResolveOptions.update`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L291)
 /// tri-state (`false | 'compatible' | 'latest'`).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateBehavior {
     /// Keep the lockfile-pinned version. Equivalent to upstream's `false`.
     #[default]
@@ -141,7 +141,7 @@ pub enum UpdateBehavior {
 /// the npm resolver's verifier surface, which already lives at
 /// `resolving-npm-resolver`. They'll be added here when the
 /// dispatcher's npm leg actually needs to pass them through.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ResolveOptions {
     pub project_dir: PathBuf,
     pub lockfile_dir: PathBuf,
@@ -233,7 +233,7 @@ pub struct LatestQuery {
 /// The dispatcher distinguishes "this resolver does not handle this dep"
 /// (`Ok(None)`) from "I claim it but can't say what's latest"
 /// (`Ok(Some(LatestInfo { latest_manifest: None }))`).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct LatestInfo {
     pub latest_manifest: Option<DependencyManifest>,
 }

@@ -11,7 +11,7 @@
 //!    [`crate::mirror`].
 //! 3. Issuing a conditional GET against the registry when neither
 //!    cache satisfies the request, using
-//!    [`fetch_full_metadata_cached`] which threads `If-None-Match`
+//!    [`fetch_full_metadata_cached()`] which threads `If-None-Match`
 //!    and `If-Modified-Since` off the mirror's header line.
 //! 4. Handing the resolved packument to [`pick_package_from_meta`]
 //!    for the actual version pick.
@@ -204,7 +204,7 @@ pub enum PickPackageError {
     Pick(PickPackageFromMetaError),
     /// Underlying metadata-fetch error (network, decode, 304 with
     /// no cache, etc.). Bubbles up from
-    /// [`fetch_full_metadata_cached`].
+    /// [`fetch_full_metadata_cached()`].
     #[diagnostic(transparent)]
     Fetch(FetchMetadataError),
 }
@@ -238,7 +238,7 @@ impl From<FetchMetadataError> for PickPackageError {
 ///    conditional fetch. This mirrors pnpm's cache freshness shortcut.
 ///
 /// Cache-miss / forced-fetch goes through
-/// [`fetch_full_metadata_cached`], which sends the conditional
+/// [`fetch_full_metadata_cached()`], which sends the conditional
 /// `If-None-Match` / `If-Modified-Since` headers built from the
 /// mirror's first line. A 304 reuses the on-disk body.
 pub async fn pick_package<C: PackageMetaCache>(
@@ -397,9 +397,10 @@ struct PickerOpts<'a> {
     ignore_missing_time_field: bool,
 }
 
-/// Picker that may throw a recoverable [`MissingTime`] —
-/// orchestrator callers swallow that on the fast paths so the
-/// network fetch can replace abbreviated metadata with full.
+/// Picker that may throw a recoverable
+/// [`PickPackageFromMetaError::MissingTime`] — orchestrator callers
+/// swallow that on the fast paths so the network fetch can replace
+/// abbreviated metadata with full.
 ///
 /// Mirrors upstream's
 /// [`pickMatchingVersionFast`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L138-L146).
@@ -417,8 +418,9 @@ fn pick_matching_version_fast(
 
 /// Picker used at terminal return sites where there's no further
 /// fall-through. When `ignore_missing_time_field` is on, a
-/// [`MissingTime`] surfaces as a one-shot warning and the picker
-/// retries without `publishedBy`. Mirrors upstream's
+/// [`PickPackageFromMetaError::MissingTime`] surfaces as a one-shot
+/// warning and the picker retries without `publishedBy`. Mirrors
+/// upstream's
 /// [`pickMatchingVersionFinal`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L152-L170).
 fn pick_matching_version_final(
     picker_opts: &PickerOpts<'_>,

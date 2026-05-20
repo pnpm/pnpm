@@ -19,7 +19,8 @@
 //!
 //! Both seams sit in the same crate because pnpm bundles them in the
 //! same TS package and several types cross over (a verifier needs
-//! [`LockfileResolution`]; a resolver result *also* carries one).
+//! [`pacquet_lockfile::LockfileResolution`]; a resolver result *also*
+//! carries one).
 
 mod resolve;
 mod verifier;
