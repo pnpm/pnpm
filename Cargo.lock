@@ -2306,6 +2306,7 @@ dependencies = [
  "pacquet-resolving-default-resolver",
  "pacquet-resolving-deps-resolver",
  "pacquet-resolving-git-resolver",
+ "pacquet-resolving-local-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",
  "pacquet-resolving-tarball-resolver",
