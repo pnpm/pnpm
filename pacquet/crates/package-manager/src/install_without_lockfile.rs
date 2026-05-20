@@ -20,6 +20,7 @@ use pacquet_resolving_deps_resolver::{
 use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
+use pacquet_resolving_tarball_resolver::TarballResolver;
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
 use pacquet_tarball::MemCache;
 use pipe_trait::Pipe;
@@ -177,12 +178,16 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
             Arc::new(RealGitRunner::new()),
         );
+        let tarball_resolver = TarballResolver { http_client: Arc::clone(&http_client_arc) };
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/default-resolver/src/index.ts#L97-L173>:
-        // npm before git. Local/tarball/workspace/runtimes will slot
-        // in as those crates land.
-        let resolver: Box<dyn Resolver> =
-            Box::new(DefaultResolver::new(vec![Box::new(npm_resolver), Box::new(git_resolver)]));
+        // npm, then git, then tarball. Local/workspace/runtimes will
+        // slot in as those crates land.
+        let resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(vec![
+            Box::new(npm_resolver),
+            Box::new(git_resolver),
+            Box::new(tarball_resolver),
+        ]));
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)
         // for the resolve pass. Mirrors the verifier wiring in
