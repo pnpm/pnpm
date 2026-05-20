@@ -2412,7 +2412,9 @@ name = "pacquet-resolving-npm-resolver"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "dashmap",
  "derive_more",
+ "indexmap",
  "miette 7.6.0",
  "mockito",
  "node-semver",

@@ -26,8 +26,12 @@
 //! in [`crate::pick_package()`]; both depend on this module but this
 //! module pulls in no I/O.
 
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, LazyLock},
+};
 
+use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
@@ -524,20 +528,43 @@ impl PreferredVersionsPrioritizer {
     }
 }
 
+/// Process-global cache of parsed [`Range`]s keyed by their source
+/// string. Mirrors upstream's
+/// [`semverRangeCache`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L123-L148):
+/// most installs hit the same handful of ranges thousands of times
+/// (the `*` from a CLI add, the `^X` from manifest entries, the few
+/// dist-tag fall-backs in `preferred_version_selectors`), and reparsing
+/// each is the picker's hottest cost. The cache stores `Option<Arc<Range>>`
+/// so the parse error case ("range is unparsable") is memoized too —
+/// pickers fall through to the next candidate without retrying the
+/// parse.
+///
+/// `DashMap` (not `Mutex<HashMap>`) keeps lookups lock-free under the
+/// fan-out the deps-resolver runs concurrently.
+static RANGE_CACHE: LazyLock<DashMap<String, Option<Arc<Range>>>> = LazyLock::new(DashMap::new);
+
+fn cached_range(range: &str) -> Option<Arc<Range>> {
+    if let Some(entry) = RANGE_CACHE.get(range) {
+        return entry.clone();
+    }
+    let parsed = Range::parse(range).ok().map(Arc::new);
+    RANGE_CACHE.insert(range.to_string(), parsed.clone());
+    parsed
+}
+
 /// Check whether `version` satisfies `range` under node-semver's
-/// loose grammar. Both inputs go through [`Version::parse`] /
-/// [`Range::parse`] (which already accept the leniencies the
-/// upstream JS calls `loose`); a parse failure on either side is
-/// treated as "doesn't satisfy" so the picker can fall through to
-/// the next candidate instead of crashing.
+/// loose grammar, reusing a cached [`Range`] parse when possible.
+/// A parse failure on either input is treated as "doesn't satisfy"
+/// so the picker can fall through to the next candidate instead of
+/// crashing.
 fn semver_satisfies_loose(version: &str, range: &str) -> bool {
     let Ok(parsed_version) = Version::parse(version) else { return false };
-    let Ok(parsed_range) = Range::parse(range) else { return false };
+    let Some(parsed_range) = cached_range(range) else { return false };
     parsed_version.satisfies(&parsed_range)
 }
 
 fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
-    let Ok(parsed_range) = Range::parse(range) else { return None };
+    let parsed_range = cached_range(range)?;
     let mut best: Option<(Version, String)> = None;
     for version in versions {
         let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
@@ -553,7 +580,7 @@ fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<Stri
 }
 
 fn min_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
-    let Ok(parsed_range) = Range::parse(range) else { return None };
+    let parsed_range = cached_range(range)?;
     let mut best: Option<(Version, String)> = None;
     for version in versions {
         let Ok(parsed) = Version::parse(version.as_ref()) else { continue };

@@ -88,11 +88,16 @@ pub struct InMemoryPackageMetaCache {
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
     fn get(&self, key: &str) -> Option<Package> {
-        self.inner.lock().expect("meta cache lock not poisoned").get(key).cloned()
+        // Mirror the rest of the codebase (e.g. `build_modules.rs`):
+        // recover from poisoning instead of escalating an unrelated
+        // panic into a hard install-wide failure. The cache is a
+        // plain HashMap of cloneable values — no broken invariants
+        // can survive across a poisoned lock.
+        self.inner.lock().unwrap_or_else(|err| err.into_inner()).get(key).cloned()
     }
 
     fn set(&self, key: String, meta: Package) {
-        self.inner.lock().expect("meta cache lock not poisoned").insert(key, meta);
+        self.inner.lock().unwrap_or_else(|err| err.into_inner()).insert(key, meta);
     }
 }
 
@@ -261,8 +266,17 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         .cache_dir
         .and_then(|dir| get_pkg_mirror_path(dir, FULL_META_DIR, opts.registry, &spec.name).ok());
 
+    // Scope the in-memory cache key by registry so the same package
+    // name in two different registries (private + public, scoped
+    // override, etc.) never short-circuits to the wrong packument.
+    // Upstream pnpm gets the same scoping by holding one
+    // `PackageMetaCache` per resolver instance per registry; pacquet
+    // shares one cache across all `pick_package` calls, so the key
+    // has to do the scoping itself.
+    let cache_key = format!("{}\x00{}", opts.registry, spec.name);
+
     // 1. In-memory cache.
-    if let Some(cached) = ctx.meta_cache.get(&spec.name) {
+    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
         let picked = pick_matching_version_final(&picker_opts, spec, &cached)?;
         return Ok(PickPackageResult { meta: cached, picked_package: picked });
     }
@@ -377,7 +391,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // refactor that threads `dry_run` into the fetcher can restore
     // upstream's no-disk-side-effect dry-run.
     if !opts.dry_run {
-        ctx.meta_cache.set(spec.name.clone(), meta.clone());
+        ctx.meta_cache.set(cache_key, meta.clone());
     }
     let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
     Ok(PickPackageResult { meta, picked_package: picked })
@@ -586,23 +600,26 @@ fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
 /// [`warnedMissingTimeFor`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L593-L605)
 /// — a Set capped at 1024 entries to keep long-lived processes
 /// (daemons, store servers) from leaking memory through it.
+///
+/// `IndexSet` (not `Vec`) gives O(1) `contains` + cheap insertion-
+/// ordered eviction via `shift_remove_index(0)`, matching upstream's
+/// JS `Set` which iterates in insertion order.
 const MAX_WARNED_MISSING_TIME: usize = 1024;
-static WARNED_MISSING_TIME: std::sync::OnceLock<Mutex<Vec<String>>> = std::sync::OnceLock::new();
+static WARNED_MISSING_TIME: std::sync::OnceLock<Mutex<indexmap::IndexSet<String>>> =
+    std::sync::OnceLock::new();
 
 fn warn_missing_time_once(pkg_name: &str) {
-    let lock = WARNED_MISSING_TIME.get_or_init(|| Mutex::new(Vec::new()));
-    let mut warned = lock.lock().expect("missing-time lock not poisoned");
-    if warned.iter().any(|name| name == pkg_name) {
+    let lock = WARNED_MISSING_TIME.get_or_init(|| Mutex::new(indexmap::IndexSet::new()));
+    let mut warned = lock.lock().unwrap_or_else(|err| err.into_inner());
+    if warned.contains(pkg_name) {
         return;
     }
     if warned.len() >= MAX_WARNED_MISSING_TIME {
-        // Drop the oldest entry to make room. `Vec::remove(0)` is
-        // O(n) but the bound is small (1024) and this path only
-        // fires when an install hits >1024 distinct packages that
-        // all lack `time`.
-        warned.remove(0);
+        // IndexSet preserves insertion order; drop the oldest entry
+        // (index 0) so the bound stays at MAX_WARNED_MISSING_TIME.
+        warned.shift_remove_index(0);
     }
-    warned.push(pkg_name.to_string());
+    warned.insert(pkg_name.to_string());
     tracing::warn!(
         target: "pacquet_resolving_npm_resolver::pick_package",
         pkg_name,
