@@ -65,7 +65,6 @@ fn parse_err() {
     case!("1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2" => "Mismatch parenthesis", ParsePkgVerPeerError::MismatchParenthesis);
     case!("1.21.3(" => "Mismatch parenthesis", ParsePkgVerPeerError::MismatchParenthesis);
     case!("1.21.3)" => "Mismatch parenthesis", ParsePkgVerPeerError::MismatchParenthesis);
-    case!("a.b.c" => "Failed to parse the version part: Failed to parse version.", ParsePkgVerPeerError::ParseVersionFailure(_));
     case!("file:" => "Empty path after `file:` scheme", ParsePkgVerPeerError::EmptyFilePath);
     case!("runtime:file:packages/pkg" => "`runtime:` and `file:` schemes are mutually exclusive", ParsePkgVerPeerError::ConflictingSchemes);
 }
@@ -221,4 +220,47 @@ fn serde_round_trip_file_prefix() {
     assert_eq!(parsed.version(), &VersionPart::File("packages/pkg".to_string()));
     let serialized = serde_saphyr::to_string(&parsed).expect("serialize").trim().to_string();
     assert_eq!(serialized, "file:packages/pkg(peer@1.0.0)");
+}
+
+/// Pnpm writes a GitHub codeload tarball URL into the version slot of
+/// an importer entry when the dependency was specified by URL (the
+/// reproduction shape in pnpm/pnpm#11776). The URL has no parentheses
+/// and isn't a valid semver, so it falls through to the non-semver
+/// branch and round-trips verbatim.
+#[test]
+fn parse_codeload_tarball_url_round_trips() {
+    let url = "https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/0848bc83347720c322c5087f3bd0d6cd086ffa4b";
+    let parsed: PkgVerPeer = url.parse().expect("parse codeload tarball url");
+    assert_eq!(parsed.prefix(), Prefix::None);
+    assert_eq!(parsed.version(), &VersionPart::NonSemver(url.to_string()));
+    assert_eq!(parsed.version_semver(), None);
+    assert_eq!(parsed.peer(), "");
+    assert_eq!(parsed.to_string(), url);
+}
+
+/// A non-semver version slot composes with the parenthesised peer
+/// suffix the same way `file:` and `runtime:` shapes do — the version
+/// is everything before the first `(`, the suffix is everything from
+/// the first `(` to the trailing `)`.
+#[test]
+fn parse_non_semver_with_peer_suffix() {
+    let parsed: PkgVerPeer =
+        "https://example.com/foo.tgz(peer@1.0.0)".parse().expect("parse non-semver with peer");
+    assert_eq!(parsed.prefix(), Prefix::None);
+    assert_eq!(
+        parsed.version(),
+        &VersionPart::NonSemver("https://example.com/foo.tgz".to_string())
+    );
+    assert_eq!(parsed.peer(), "(peer@1.0.0)");
+    assert_eq!(parsed.to_string(), "https://example.com/foo.tgz(peer@1.0.0)");
+}
+
+#[test]
+fn serde_round_trip_non_semver() {
+    let url = "https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/0848bc83347720c322c5087f3bd0d6cd086ffa4b";
+    let parsed: PkgVerPeer = serde_saphyr::from_str(url).expect("deserialize non-semver");
+    assert_eq!(parsed.version(), &VersionPart::NonSemver(url.to_string()));
+    let serialized = serde_saphyr::to_string(&parsed).expect("serialize");
+    let round_trip: PkgVerPeer = serde_saphyr::from_str(&serialized).expect("deserialize back");
+    assert_eq!(round_trip, parsed);
 }

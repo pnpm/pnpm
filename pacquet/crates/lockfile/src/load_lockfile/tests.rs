@@ -1,4 +1,6 @@
-use crate::{DirectoryResolution, Lockfile, LockfileResolution, PackageKey};
+use crate::{
+    DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, PackageKey, PkgName,
+};
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 use text_block_macros::text_block;
@@ -155,4 +157,61 @@ fn reconstructs_dropped_directory_resolution_for_pruned_file_peer_variant() {
             "tarball `{tarball_key}` must not get a synthesized directory resolution",
         );
     }
+}
+
+/// Regression for [pnpm/pnpm#11776](https://github.com/pnpm/pnpm/issues/11776):
+/// a lockfile whose importer dependency version is a GitHub codeload
+/// tarball URL used to crash the loader with `Failed to parse the
+/// version part: Failed to parse version`. The URL is the upstream
+/// `nonSemverVersion` shape and must round-trip through the loader as
+/// an `ImporterDepVersion::Regular` with a non-semver version slot,
+/// plus parse as a `packages:` / `snapshots:` key under the same URL.
+#[test]
+fn loads_importer_dep_with_codeload_tarball_url_version() {
+    let url = "https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/0848bc83347720c322c5087f3bd0d6cd086ffa4b";
+    let yaml = format!(
+        "\
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      libsignal:
+        specifier: {url}
+        version: {url}
+
+packages:
+
+  libsignal@{url}:
+    resolution: {{tarball: {url}}}
+    version: 2.0.1
+
+snapshots:
+
+  libsignal@{url}: {{}}
+"
+    );
+    let tmp = write_lockfile(&yaml);
+    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect("load codeload-url lockfile")
+        .expect("codeload-url lockfile should be present");
+
+    let importer = lockfile.root_project().expect("root importer present");
+    let deps = importer.dependencies.as_ref().expect("importer has dependencies");
+    let libsignal_name: PkgName = "libsignal".parse().expect("parse libsignal name");
+    let spec = deps.get(&libsignal_name).expect("libsignal dep present");
+    assert_eq!(spec.specifier, url);
+    let regular = match &spec.version {
+        ImporterDepVersion::Regular(ver_peer) => ver_peer,
+        other => panic!("expected Regular, got {other:?}"),
+    };
+    assert_eq!(regular.to_string(), url);
+
+    let key: PackageKey = format!("libsignal@{url}").parse().expect("parse package key");
+    let packages = lockfile.packages.as_ref().expect("packages present");
+    assert!(packages.contains_key(&key));
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
+    assert!(snapshots.contains_key(&key));
 }
