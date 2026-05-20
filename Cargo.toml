@@ -31,6 +31,7 @@ pacquet-config                            = { path = "pacquet/crates/config" }
 pacquet-executor                          = { path = "pacquet/crates/executor" }
 pacquet-directory-fetcher                 = { path = "pacquet/crates/directory-fetcher" }
 pacquet-git-fetcher                       = { path = "pacquet/crates/git-fetcher" }
+pacquet-deps-path                         = { path = "pacquet/crates/deps-path" }
 pacquet-diagnostics                       = { path = "pacquet/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pacquet/crates/graph-hasher" }
 pacquet-store-dir                         = { path = "pacquet/crates/store-dir" }

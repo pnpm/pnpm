@@ -29,6 +29,7 @@ pacquet-patching                = { workspace = true }
 pacquet-real-hoist              = { workspace = true }
 pacquet-registry                = { workspace = true }
 pacquet-reporter                = { workspace = true }
+pacquet-deps-path               = { workspace = true }
 pacquet-resolving-deps-resolver = { workspace = true }
 pacquet-resolving-npm-resolver  = { workspace = true }
 pacquet-resolving-resolver-base = { workspace = true }
