@@ -257,6 +257,11 @@ pub struct WorkspaceSettings {
 /// Basename of the file pnpm reads; exported for test use.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 
+/// Basename of pnpm's global config file inside `<configDir>`. Matches
+/// upstream's
+/// [`GLOBAL_CONFIG_YAML_FILENAME`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L12).
+pub const GLOBAL_CONFIG_YAML_FILENAME: &str = "config.yaml";
+
 /// Error when reading `pnpm-workspace.yaml`.
 ///
 /// Pnpm's
@@ -282,6 +287,71 @@ pub enum LoadWorkspaceYamlError {
 }
 
 impl WorkspaceSettings {
+    /// Read the global config.yaml at `<config_dir>/config.yaml`, if
+    /// present.
+    ///
+    /// Pnpm v11's
+    /// [`index.ts:228`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L228)
+    /// reads this file with the same parser as `pnpm-workspace.yaml`,
+    /// but applies it through a key-filter pass
+    /// ([`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187))
+    /// so workspace-only knobs (`nodeLinker`, `hoist`, `lockfile`, …)
+    /// cannot be set globally. Mirrors that filter via
+    /// [`Self::clear_workspace_only_fields`].
+    ///
+    /// Returns `Ok(None)` when the file does not exist. Read or parse
+    /// failures propagate.
+    pub fn load_global(config_dir: &Path) -> Result<Option<Self>, LoadWorkspaceYamlError> {
+        let path = config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
+        };
+        let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
+            .map_err(Box::new)
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+        settings.clear_workspace_only_fields();
+        Ok(Some(settings))
+    }
+
+    /// Zero out fields not permitted in the global `config.yaml`.
+    ///
+    /// Mirrors pnpm's
+    /// [`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187)
+    /// filter — every field listed here corresponds to a key in
+    /// upstream's `excludedPnpmKeys`, plus the programmatic-only and
+    /// workspace-only knobs (`patchedDependencies`, `allowBuilds`,
+    /// `supportedArchitectures`, `ignoredOptionalDependencies`,
+    /// `hoistingLimits`, `externalDependencies`) that pnpm only reads
+    /// from `pnpm-workspace.yaml` or the legacy `package.json#pnpm`
+    /// field. Without this filter a user could put `nodeLinker:
+    /// hoisted` in `~/.config/pnpm/config.yaml` and pacquet would
+    /// honor it while pnpm wouldn't — anti-parity.
+    pub fn clear_workspace_only_fields(&mut self) {
+        self.hoist = None;
+        self.hoist_pattern = None;
+        self.public_hoist_pattern = None;
+        self.shamefully_hoist = None;
+        self.modules_dir = None;
+        self.node_linker = None;
+        self.symlink = None;
+        self.lockfile = None;
+        self.offline = None;
+        self.lockfile_include_tarball_url = None;
+        self.auto_install_peers = None;
+        self.hoist_workspace_packages = None;
+        self.dedupe_peer_dependents = None;
+        self.strict_peer_dependencies = None;
+        self.resolve_peers_from_workspace_root = None;
+        self.hoisting_limits = None;
+        self.external_dependencies = None;
+        self.patched_dependencies = None;
+        self.allow_builds = None;
+        self.supported_architectures = None;
+        self.ignored_optional_dependencies = None;
+    }
+
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
     /// Returns `Ok(None)` if no ancestor has one. Read or parse failures
     /// other than `ENOENT` propagate, matching pnpm's

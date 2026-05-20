@@ -1,130 +1,40 @@
-//! Pacquet port of the verifier-side bits of pnpm's
-//! [`@pnpm/resolving.resolver-base`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/resolver-base/src/index.ts).
+//! Pacquet port of pnpm's
+//! [`@pnpm/resolving.resolver-base`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts).
 //!
-//! The trait + violation type live here (not in the lockfile-verification
-//! runner) because every resolver-side verifier — today the npm one,
-//! tomorrow custom ones — needs to depend on the trait without pulling in
-//! the runner. Mirrors upstream's package boundary: `npm-resolver` depends
-//! on `resolver-base`, the runner imports the trait from `resolver-base`,
-//! and the runner crate is otherwise decoupled from any specific resolver.
+//! Two seams live here:
 //!
-//! Scope is intentionally minimal: only the symbols pacquet's verifier
-//! and runner actually consume today. The full upstream `resolver-base`
-//! surface (resolve options, branded `PkgResolutionId`, `WorkspacePackages`,
-//! etc.) is not in pacquet's scope until a real resolver lands.
+//! 1. **Verifier seam** — [`ResolutionVerifier`] and friends, used by
+//!    every resolver-side policy check (today: the npm
+//!    `minimumReleaseAge` / `trustPolicy` runner). Pacquet's
+//!    lockfile-verification runner depends on the trait without pulling
+//!    in any specific resolver; mirrors upstream's package boundary.
+//!
+//! 2. **Dispatcher seam** — [`WantedDependency`], [`ResolveOptions`],
+//!    [`ResolveResult`], the [`Resolver`] trait, and the latest-version
+//!    companion. Future per-protocol resolvers (npm, git, tarball,
+//!    local, jsr, runtimes, named-registry, workspace) implement
+//!    [`Resolver`]; the default-resolver dispatcher composes them into
+//!    the chain at
+//!    [`createResolver`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/default-resolver/src/index.ts#L97-L173).
+//!
+//! Both seams sit in the same crate because pnpm bundles them in the
+//! same TS package and several types cross over (a verifier needs
+//! [`pacquet_lockfile::LockfileResolution`]; a resolver result *also*
+//! carries one).
 
-use std::{future::Future, pin::Pin};
+mod resolve;
+mod verifier;
 
-use pacquet_lockfile::{LockfileResolution, PkgName};
-
-/// One verifier's decision about a single `(name, version, resolution)`
-/// entry. Mirrors pnpm's
-/// [`ResolutionVerification`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/resolver-base/src/index.ts#L91-L93)
-/// discriminated union (`{ ok: true } | { ok: false, code, reason }`).
-///
-/// Verifiers short-circuit on resolutions outside their protocol by
-/// returning [`ResolutionVerification::Ok`]; the runner fans out across
-/// every active verifier per candidate and stops at the first
-/// [`ResolutionVerification::Err`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResolutionVerification {
-    Ok,
-    Err {
-        /// Verifier-defined error code (e.g.
-        /// `MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`). The
-        /// install command filters violations by code to decide
-        /// downstream UX, so the value is part of the public contract
-        /// — verifier crates pin theirs as `&'static str` consts.
-        code: &'static str,
-        /// Human-readable explanation rendered in the install error
-        /// breakdown. Allowed to allocate.
-        reason: String,
-    },
-}
-
-/// A [`ResolutionVerifier`]'s rejection materialized for one
-/// `(name, version, resolution)` entry. Mirrors pnpm's
-/// [`ResolutionPolicyViolation`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/resolver-base/src/index.ts#L144-L150).
-///
-/// The runner aggregates violations across every active verifier on the
-/// loaded lockfile, sorts them by `name@version` for stable output, and
-/// caps the rendered breakdown.
-///
-/// `Eq` is not derived because [`LockfileResolution`] contains
-/// `ssri::Integrity`, which is only `PartialEq`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ResolutionPolicyViolation {
-    pub name: PkgName,
-    pub version: String,
-    pub resolution: LockfileResolution,
-    pub code: &'static str,
-    pub reason: String,
-}
-
-/// `ctx` argument bundle for [`ResolutionVerifier::verify`]. Mirrors
-/// upstream's inline `{ name, version }` object on the verify call.
-#[derive(Debug, Clone, Copy)]
-pub struct VerifyCtx<'a> {
-    pub name: &'a PkgName,
-    pub version: &'a str,
-}
-
-/// Boxed-future return type for [`ResolutionVerifier::verify`].
-///
-/// Async-fn-in-trait is stable since Rust 1.75, but `dyn Trait` over a
-/// trait that returns `impl Future` is not yet ergonomic without
-/// `#[async_trait]` or a manual boxed-future. The runner stores
-/// verifiers as `&dyn ResolutionVerifier` so it can fan out across a
-/// heterogeneous list (the npm verifier today, future custom
-/// verifiers tomorrow); the boxed-future return is the minimal cost
-/// for keeping that flexibility while staying off `async-trait`.
-pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> + Send + 'a>>;
-
-/// Optional companion to a resolver factory.
-///
-/// `verify` inspects the `resolution` shape to decide whether the entry
-/// is within its protocol; for entries outside its protocol it should
-/// return [`ResolutionVerification::Ok`]. The install side fans out
-/// across the verifier list rather than asking a combinator to dispatch.
-///
-/// `policy` and `can_trust_past_check` describe the verifier's cache
-/// contract. Policies from every active verifier are merged into a
-/// single shared bag stored alongside the lockfile hash; the
-/// install-side verification cache reads them to decide whether a
-/// previous run on the same lockfile is still trustworthy under
-/// today's policy without re-issuing the registry round-trips that
-/// `verify` would. Verifiers that check the same logical policy (e.g.
-/// `minimumReleaseAge` across registries) name it the same and share
-/// the cache slot.
-///
-/// Mirrors pnpm's
-/// [`ResolutionVerifier`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/resolver-base/src/index.ts#L112-L130).
-pub trait ResolutionVerifier: Send + Sync {
-    fn verify<'a>(
-        &'a self,
-        resolution: &'a LockfileResolution,
-        ctx: VerifyCtx<'a>,
-    ) -> VerifyFuture<'a>;
-
-    /// Snapshot of the policy fields this verifier enforces. Merged
-    /// with every other active verifier's `policy` into the cache
-    /// record. A field shared across verifiers (same key) should
-    /// carry the same value; if it doesn't, the last verifier in the
-    /// list wins.
-    fn policy(&self) -> &serde_json::Map<String, serde_json::Value>;
-
-    /// Returns `true` when the previously cached policy (the merged
-    /// snapshot from the last successful run) can be trusted to still
-    /// satisfy what this verifier currently demands. Reads whichever
-    /// fields the verifier owns; missing or non-conforming values
-    /// (e.g. an older record shape) should return `false`. A loosened
-    /// policy can trust a stricter cached run; a tightened policy
-    /// cannot.
-    fn can_trust_past_check(
-        &self,
-        cached_policy: &serde_json::Map<String, serde_json::Value>,
-    ) -> bool;
-}
+pub use resolve::{
+    DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT, LatestInfo,
+    LatestQuery, PreferredVersions, ResolveError, ResolveFuture, ResolveLatestFuture,
+    ResolveOptions, ResolveResult, Resolver, UpdateBehavior, VersionSelectorEntry,
+    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
+    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
+};
+pub use verifier::{
+    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+};
 
 #[cfg(test)]
 mod tests;

@@ -1,5 +1,32 @@
 # @pnpm/default-resolver
 
+## 1100.3.0
+
+### Minor Changes
+
+- 1627943: `pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+  Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines a `ResolveLatestFunction` shape (with `LatestQuery` input — `{ wantedDependency, compatible? }` — and `LatestInfo` result — `{ latestManifest? }`), and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own `resolveLatest*` function alongside its `resolve*`. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).resolveLatest`.
+
+  Each resolver decides whether it owns the dep and what "latest" means for its protocol; the outdated command derives `current` / `wanted` display values from the lockfile snapshot (`pkgSnapshot.version` for semver protocols, raw ref for URL-shaped ones) and uses raw ref equality for the "lockfile changed" check, so protocol knowledge stays inside each resolver instead of the command.
+
+### Patch Changes
+
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/resolving.git-resolver@1100.1.0
+  - @pnpm/resolving.tarball-resolver@1100.1.0
+  - @pnpm/resolving.local-resolver@1101.1.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.0
+  - @pnpm/engine.runtime.bun-resolver@1101.1.0
+  - @pnpm/engine.runtime.deno-resolver@1101.1.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/network.auth-header@1100.0.3
+
 ## 1100.2.0
 
 ### Minor Changes

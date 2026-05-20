@@ -2038,6 +2038,7 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "smart-default",
  "tempfile",
  "tracing",
@@ -2087,6 +2088,7 @@ dependencies = [
 name = "pacquet-fs"
 version = "0.0.1"
 dependencies = [
+ "dashmap",
  "derive_more",
  "dunce",
  "junction",
@@ -2395,11 +2397,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-default-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-lockfile",
+ "pacquet-resolving-resolver-base",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-resolving-npm-resolver"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "dashmap",
  "derive_more",
+ "indexmap",
  "miette 7.6.0",
  "mockito",
  "node-semver",
@@ -2421,10 +2437,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-parse-wanted-dependency"
+version = "0.0.1"
+
+[[package]]
 name = "pacquet-resolving-resolver-base"
 version = "0.0.1"
 dependencies = [
  "pacquet-lockfile",
+ "serde",
  "serde_json",
  "ssri",
  "tokio",

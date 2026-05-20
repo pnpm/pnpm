@@ -1,5 +1,18 @@
 # @pnpm/engine.runtime.commands
 
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/engine.runtime.node-resolver@1101.1.0
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/network.fetch@1100.0.6
+
 ## 1100.0.15
 
 ### Patch Changes

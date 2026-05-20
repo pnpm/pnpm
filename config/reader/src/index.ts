@@ -461,6 +461,15 @@ export async function getConfig (opts: {
     }
   }
 
+  // Sync registries.default to the top-level registry property so that
+  // commands like login/logout that use opts.registry pick up the default
+  // registry configured in pnpm-workspace.yaml. Only sync when the workspace
+  // manifest actually contributed a different default than what .npmrc provided,
+  // and when registry was not explicitly set via CLI.
+  if (!explicitlySetKeys.has('registry') && pnpmConfig.registries.default !== registriesFromNpmrc.default) {
+    pnpmConfig.registry = pnpmConfig.registries.default
+  }
+
   // omit some schema that the custom parser can't yet handle
   const envPnpmTypes = omit([
     'init-version', // the type is a private function named 'semver'

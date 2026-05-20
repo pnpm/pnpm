@@ -216,6 +216,22 @@ export interface StrictInstallOptions {
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
   /**
+   * Optional alternative install engine. When set, the frozen-install
+   * path invokes this callback instead of `headlessInstall`. The CLI
+   * layer constructs it (today: spawning the pacquet binary installed
+   * via `configDependencies` and forwarding pnpm's own CLI argv); the
+   * installer treats it as an opaque "do the install" hook so it
+   * doesn't need to know about pacquet's binary path, CLI surface, or
+   * any settings that only pacquet consumes.
+   *
+   * `filterResolvedProgress` tells the helper to drop the engine's
+   * own `pnpm:progress status:resolved` events because pnpm already
+   * emitted one per package during a preceding lockfileOnly resolve
+   * pass. The frozen-install path passes `false` (or nothing): no
+   * resolve pass ran, so the engine's events are the only source.
+   */
+  runPacquet?: (opts?: { filterResolvedProgress?: boolean }) => Promise<void>
+  /**
    * If true, `mutateModules` does not emit the per-install `summary` log
    * event. Used by `pnpm add -g` when it runs multiple isolated installs
    * inside a single command and wants to emit a single consolidated

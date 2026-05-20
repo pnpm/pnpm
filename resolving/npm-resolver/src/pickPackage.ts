@@ -369,7 +369,12 @@ export async function pickPackage (
       ) {
         const modifiedDate = meta.modified ? new Date(meta.modified) : null
         const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
-        if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
+        // Strict `>` (not `>=`) so the boundary case `modified == publishedBy`
+        // takes the abbreviated fast path: `modified` is an upper bound on
+        // every version's publish time, so when it equals the cutoff every
+        // version passes the per-version `<=` filter in
+        // `filterPkgMetadataByPublishDate` and a full re-fetch isn't needed.
+        if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
             const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
@@ -466,9 +471,12 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   }
   const modifiedDate = meta.modified ? new Date(meta.modified) : null
   const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
-  if (isModifiedValid && modifiedDate < opts.publishedBy) {
-    // The package was last modified before the maturity cutoff. No individual
-    // version can be newer than the cutoff, so the abbreviated form is fine.
+  if (isModifiedValid && modifiedDate <= opts.publishedBy) {
+    // The package was last modified at or before the maturity cutoff. Since
+    // `modified` is an upper bound on every version's publish time, no version
+    // can be newer than the cutoff, so the abbreviated form is fine.
+    // Inclusive at the boundary on purpose: matches the per-version `<=` filter
+    // in `filterPkgMetadataByPublishDate`.
     return { meta }
   }
   // When `modified` is missing or malformed we fall through to the upgrade

@@ -1,5 +1,6 @@
 import type {
   DependencyManifest,
+  PackageManifest,
   PackageVersionPolicy,
   PinnedVersion,
   PkgResolutionId,
@@ -312,3 +313,34 @@ export type WantedDependency = {
 })
 
 export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>
+
+/**
+ * Input to a resolver's `resolveLatest` function. The resolver decides
+ * whether it owns this dep purely from `wantedDependency` (its alias and
+ * manifest specifier) — the lockfile-resolved ref is the caller's
+ * concern, not the resolver's.
+ */
+export interface LatestQuery {
+  wantedDependency: WantedDependency
+  compatible?: boolean
+}
+
+/**
+ * Result of a resolver's `resolveLatest` call.
+ *
+ * - `undefined` means "this resolver does not handle this dep — try
+ *   the next one".
+ * - An object (even without a `latestManifest`) means "I claim this
+ *   dep, but I can't tell you what's latest" (e.g. policy blocked,
+ *   network unavailable, no concept of latest for this protocol).
+ *   The caller still surfaces a ref-mismatch report if the lockfile
+ *   shifted.
+ */
+export interface LatestInfo {
+  latestManifest?: PackageManifest
+}
+
+export type ResolveLatestFunction = (
+  query: LatestQuery,
+  opts: ResolveOptions
+) => Promise<LatestInfo | undefined>

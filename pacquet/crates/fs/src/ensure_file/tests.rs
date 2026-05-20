@@ -301,6 +301,68 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
     }
 }
 
+/// Concurrent writers of the same CAS path on a fresh dirent must
+/// all return `Ok(())`, produce identical inode observations, and
+/// leave a file with the correct content. One writer wins
+/// `O_CREAT|O_EXCL`; the rest take `verify_or_rewrite`. With the
+/// per-path mutex, the late-comers see the winner's fully-written
+/// file and take the byte-match fast path, so the inode never
+/// changes. Without it, a late-comer can race into `write_atomic`
+/// on a partial size, swap the inode, and the per-writer
+/// observations below can diverge under a multi-rename race.
+///
+/// Note this is a smoke test, not a strict regression test: any
+/// observation taken *after* `ensure_file` returns has already
+/// missed the rename window, so a single-rename race typically
+/// converges on one final inode and slips past. It catches the
+/// multi-rename case and validates the "no deadlock, all writers
+/// see correct content" baseline.
+#[cfg(unix)]
+#[test]
+fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
+    use std::os::unix::fs::MetadataExt;
+    use std::sync::{Arc, Barrier, Mutex};
+    use std::thread;
+
+    let tmp = tempdir().unwrap();
+    let path = Arc::new(tmp.path().join("shared"));
+    let content: Arc<Vec<u8>> = Arc::new(vec![0xAB; 1024 * 64]);
+
+    const WRITER_COUNT: usize = 32;
+    let barrier = Arc::new(Barrier::new(WRITER_COUNT));
+    let observed: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::with_capacity(WRITER_COUNT)));
+
+    let handles: Vec<_> = (0..WRITER_COUNT)
+        .map(|_| {
+            let path = Arc::clone(&path);
+            let content = Arc::clone(&content);
+            let barrier = Arc::clone(&barrier);
+            let observed = Arc::clone(&observed);
+            thread::spawn(move || {
+                barrier.wait();
+                ensure_file(&path, &content, None).expect("each writer should succeed");
+                let ino = fs::metadata(&*path).unwrap().ino();
+                observed.lock().unwrap().push(ino);
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().expect("writer thread should not panic");
+    }
+
+    let final_meta = fs::metadata(&*path).unwrap();
+    assert_eq!(fs::read(&*path).unwrap(), *content);
+    assert_eq!(final_meta.len(), content.len() as u64);
+    let observed = observed.lock().unwrap();
+    let first = observed[0];
+    assert!(
+        observed.iter().all(|ino| *ino == first),
+        "inode changed during concurrent writes: {observed:?}",
+    );
+    assert_eq!(final_meta.ino(), first);
+}
+
 /// Errors that aren't fd-pressure must propagate immediately —
 /// retrying would just delay surfacing a real failure (e.g. a
 /// genuine `NotFound` on the parent dir).

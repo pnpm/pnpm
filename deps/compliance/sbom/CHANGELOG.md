@@ -1,5 +1,20 @@
 # @pnpm/deps.compliance.sbom
 
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.pkg-finder@1100.0.11
+  - @pnpm/lockfile.detect-dep-types@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
 ## 1100.1.2
 
 ### Patch Changes

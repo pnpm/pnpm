@@ -1,5 +1,20 @@
 # @pnpm/auth.commands
 
+## 1100.1.0
+
+### Minor Changes
+
+- 56f3851: Implement the documented `pnpm login --scope <scope>` flag. The scope is normalized (a leading `@` is added if missing; blank values are ignored) and an `@<scope>:registry=<registry>` mapping is written to the pnpm auth file alongside the auth token. Subsequent installs of `@<scope>/*` packages then route to the chosen registry. Previously `pnpm login --scope foo` errored with `Unknown option: 'scope'` despite the flag being listed in the online documentation [#11716](https://github.com/pnpm/pnpm/issues/11716).
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/network.fetch@1100.0.6
+
 ## 1100.0.14
 
 ### Patch Changes

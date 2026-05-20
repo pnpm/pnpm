@@ -622,6 +622,43 @@ test('pnpm-workspace.yaml registries override the same scope from .npmrc (#11492
   expect(config.registries['@my-org']).toBe('https://from-workspace-yaml.example.com/')
 })
 
+test('pnpm-workspace.yaml registries.default is reflected in config.registry (#10099)', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      default: 'https://private.example.com/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://private.example.com/')
+  expect(config.registries.default).toBe('https://private.example.com/')
+})
+
+test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      default: 'https://workspace.example.com/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: { registry: 'https://cli.example.com/' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://cli.example.com/')
+})
+
 test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   prepareEmpty()
 
@@ -1486,6 +1523,27 @@ test('getConfig() should read cafile', async () => {
   expect(config).toBeDefined()
   expect(config.ca).toStrictEqual([`xxx
 -----END CERTIFICATE-----`])
+})
+
+// Regression for https://github.com/pnpm/pnpm/issues/11624.
+test('getConfig() resolves a relative cafile= from .npmrc against the npmrc directory, not process.cwd()', async () => {
+  prepareEmpty()
+  const projectDir = path.resolve('project')
+  fs.mkdirSync(path.join(projectDir, 'certs'), { recursive: true })
+  fs.writeFileSync(
+    path.join(projectDir, 'certs', 'ca.pem'),
+    'relative-ca\n-----END CERTIFICATE-----'
+  )
+  fs.writeFileSync(path.join(projectDir, '.npmrc'), 'cafile=certs/ca.pem\n')
+
+  // process.cwd() is the prepareEmpty() root, *not* projectDir — i.e. the same
+  // shape as `pnpm --dir <projectDir> install` invoked from a sibling cwd.
+  const { config } = await getConfig({
+    cliOptions: { dir: projectDir },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.ca).toStrictEqual(['relative-ca\n-----END CERTIFICATE-----'])
 })
 
 test('getConfig() should read inline SSL certificates from .npmrc', async () => {

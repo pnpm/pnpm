@@ -192,6 +192,30 @@ test('use abbreviated metadata when modified date is older than publishedBy', as
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
+test('use abbreviated metadata when modified date equals publishedBy (boundary case)', async () => {
+  // is-positive abbreviated has modified: "2017-08-17T19:26:00.508Z".
+  // Setting publishedBy to that exact instant must take the abbreviated
+  // shortcut, not throw MISSING_TIME or re-fetch full metadata: `modified`
+  // is an upper bound on every version's publish time, so the boundary
+  // case is mature under the per-version `<=` filter.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveAbbreviatedMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2017-08-17T19:26:00.508Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
 test('re-fetch full metadata when abbreviated modified date is recent', async () => {
   // Abbreviated has modified in the future relative to publishedBy → needs full metadata
   const recentAbbreviated = {

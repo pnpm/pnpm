@@ -1,5 +1,15 @@
 # @pnpm/package-is-installable
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/cli.meta@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/engine.runtime.system-node-version@1100.1.1
+
 ## 1100.0.5
 
 ### Patch Changes

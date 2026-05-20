@@ -19,7 +19,7 @@ import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
 
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { installGlobalPackages } from './installGlobalPackages.js'
+import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
@@ -33,6 +33,8 @@ export type GlobalAddOptions = CreateStoreControllerOptions & {
   savePrefix?: string
   supportedArchitectures?: { libc?: string[] }
   rootProjectManifest?: unknown
+  handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
+  updateResolutionPolicyManifest?: (violations: readonly ResolutionPolicyViolation[], dir: string) => Promise<void>
 }
 
 export async function handleGlobalAdd (
@@ -124,7 +126,7 @@ async function installGroup (
     omitSummaryLog: true,
   }
 
-  const ignoredBuilds = await installGlobalPackages(installOpts, params)
+  const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages(installOpts, params)
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
@@ -167,6 +169,7 @@ async function installGroup (
 
   // Link bins from installed packages into global bin dir
   await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
+  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }
 
 function splitCommaSeparated (param: string, baseDir: string): string[] {

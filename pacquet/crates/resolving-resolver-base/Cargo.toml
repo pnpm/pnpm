@@ -13,6 +13,7 @@ repository.workspace  = true
 [dependencies]
 pacquet-lockfile = { workspace = true }
 
+serde      = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]

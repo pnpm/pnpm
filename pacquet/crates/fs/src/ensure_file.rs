@@ -1,10 +1,14 @@
+use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc, Mutex, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -148,12 +152,13 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 ///   buffer we were about to write, so comparing against it
 ///   implicitly verifies the sha512 without a second hash pass. Same
 ///   correctness guarantee, one fewer full-buffer walk.
-/// * **No `locker: Map<string, number>` process-local cache**: pnpm's
-///   locker skips re-verifying the same file within one install.
-///   Pacquet's hot path calls `ensure_file` at most once per CAS file
-///   per install (the `StoreIndex` cache decides whether we even get
-///   here), so the locker would be mostly empty work. Can revisit if
-///   profiling shows repeated AlreadyExists hits on a single path.
+/// * **Process-local per-path mutex for serialization**: two
+///   snapshots whose tarballs ship identical file content
+///   (e.g. a shared `LICENSE`) compute the same CAS path and would
+///   race in `verify_or_rewrite`. The mutex makes the second
+///   writer wait for the first's `write_all` so the byte-match
+///   fast path always applies. Pacquet's stronger form of pnpm
+///   v11's [`locker: Map<string, number>`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts).
 ///
 /// Matches pnpm's guarantee: a successful return means `file_path`
 /// exists on disk with contents equal to `content`. A torn mid-write
@@ -163,6 +168,11 @@ pub fn ensure_file(
     content: &[u8],
     #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
+    // See the "Process-local per-path mutex" bullet above and
+    // [`cas_write_lock`] for the rationale.
+    let lock = cas_write_lock(file_path);
+    let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
 
@@ -186,6 +196,21 @@ pub fn ensure_file(
             Err(EnsureFileError::CreateFile { file_path: file_path.to_path_buf(), error })
         }
     }
+}
+
+/// Borrow the process-local write mutex for `file_path`.
+///
+/// Returning `Arc<Mutex<()>>` (rather than a `Ref` into the map) so
+/// the caller `.lock()`s after the shard guard from `entry()` is
+/// released — otherwise a recursive lookup on the same shard could
+/// deadlock. The map is never pruned: entries are one per unique
+/// CAS path the install wrote, bounded by the working set.
+fn cas_write_lock(file_path: &Path) -> Arc<Mutex<()>> {
+    static LOCKS: OnceLock<DashMap<PathBuf, Arc<Mutex<()>>>> = OnceLock::new();
+    let locks = LOCKS.get_or_init(DashMap::new);
+    Arc::clone(
+        locks.entry(file_path.to_path_buf()).or_insert_with(|| Arc::new(Mutex::new(()))).value(),
+    )
 }
 
 /// Re-read an already-present CAS file and byte-compare with `content`.

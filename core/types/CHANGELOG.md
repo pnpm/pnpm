@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1101.1.1
+
+### Patch Changes
+
+- 64afc92: Honor `publishConfig.access` when publishing packages.
+
 ## 1101.1.0
 
 ### Minor Changes

@@ -1,5 +1,26 @@
 # @pnpm/building.commands
 
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [d1b340f]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.commands@1100.4.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/building.after-install@1101.0.14
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/config.writer@1100.0.9
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/workspace.projects-sorter@1100.0.3
+
 ## 1100.0.18
 
 ### Patch Changes

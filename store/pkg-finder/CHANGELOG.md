@@ -1,5 +1,14 @@
 # @pnpm/store.pkg-finder
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/fetching.directory-fetcher@1100.0.11
+  - @pnpm/store.cafs@1100.1.6
+
 ## 1100.0.10
 
 ### Patch Changes

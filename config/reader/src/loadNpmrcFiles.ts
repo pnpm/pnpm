@@ -137,16 +137,23 @@ function readAndFilterNpmrc (
     return {}
   }
 
+  const npmrcDir = path.dirname(filePath)
   const result: Record<string, unknown> = {}
   for (const [rawKey, rawValue] of Object.entries(raw)) {
     // Apply ${VAR} substitution to both keys and values
     const key = substituteEnv(rawKey, env, warnings)
-    const value = typeof rawValue === 'string'
+    let value: unknown = typeof rawValue === 'string'
       ? substituteEnv(rawValue, env, warnings)
       : rawValue
 
     // Only keep auth/registry related keys
     if (isNpmrcReadableKey(key)) {
+      // A relative `cafile=` resolves against the .npmrc's directory rather
+      // than process.cwd(), so `pnpm --dir <project>` from a different cwd
+      // still finds it. See https://github.com/pnpm/pnpm/issues/11624.
+      if (key === 'cafile' && typeof value === 'string' && value !== '' && !path.isAbsolute(value)) {
+        value = path.resolve(npmrcDir, value)
+      }
       result[key] = value
     }
   }

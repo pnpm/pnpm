@@ -1,5 +1,6 @@
 mod api;
 mod defaults;
+mod env_overlay;
 mod env_replace;
 pub mod matcher;
 mod npmrc_auth;
@@ -25,14 +26,15 @@ pub use crate::defaults::{
     resolve_child_concurrency,
 };
 use crate::defaults::{
-    default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_hoist_pattern, default_modules_cache_max_age,
-    default_modules_dir, default_public_hoist_pattern, default_registry, default_store_dir,
-    default_virtual_store_dir,
+    default_cache_dir, default_child_concurrency, default_config_dir,
+    default_enable_global_virtual_store, default_fetch_retries, default_fetch_retry_factor,
+    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_hoist_pattern,
+    default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
+    default_registry, default_store_dir, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
+    GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings, workspace_root_or,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -193,7 +195,12 @@ pub struct Config {
     /// Same `Option` semantics as [`Self::hoist_pattern`] — `None`
     /// disables public hoisting, `Some([])` runs the hoist pass with
     /// no public matches, `Some(non-empty)` is the standard case.
-    /// Default is `Some(["*eslint*", "*prettier*"])`.
+    /// Default is `Some([])`, mirroring pnpm v11's
+    /// [`'public-hoist-pattern': []`](https://github.com/pnpm/pnpm/blob/1627943d2a/config/reader/src/index.ts#L184)
+    /// — any non-empty default would write a `publicHoistPattern`
+    /// into `.modules.yaml` that the next `pnpm` invocation rejects
+    /// with `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`
+    /// ([pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750)).
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
 
@@ -924,10 +931,11 @@ impl Config {
         // had a chance to override `registry`. Pnpm keys default-registry
         // creds at the final resolved URL, not the `.npmrc` literal — see
         // [`getAuthHeadersFromConfig`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
-        let auth_source =
-            read_npmrc(start_dir).or_else(|| Sys::home_dir().and_then(|dir| read_npmrc(&dir)));
+        let auth_source = read_npmrc(start_dir)
+            .map(|text| (text, start_dir.to_path_buf()))
+            .or_else(|| Sys::home_dir().and_then(|dir| read_npmrc(&dir).map(|text| (text, dir))));
         let mut npmrc_auth = auth_source
-            .map(|text| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text))
+            .map(|(text, dir)| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir))
             .unwrap_or_default();
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
@@ -944,6 +952,38 @@ impl Config {
         // this is a no-op write of `TlsConfig::default()` onto the
         // already-default `self.tls`.
         npmrc_auth.apply_tls_and_local_address(&mut self);
+
+        // Layer pnpm's global config.yaml (at `<configDir>/config.yaml`)
+        // between `.npmrc` and `pnpm-workspace.yaml`, matching upstream's
+        // [`index.ts:228 / 297-316`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L228).
+        // Workspace-only keys are stripped inside [`WorkspaceSettings::load_global`]
+        // so a user can't set `nodeLinker` or `hoist` globally — pnpm
+        // rejects those in `config.yaml` and pacquet must too.
+        //
+        // Path-valued fields use `start_dir` as the base for relative
+        // resolution — pnpm passes `workspaceDir: undefined` for the
+        // global manifest, which leaves paths un-anchored. Using
+        // `start_dir` here is a small pacquet-specific extension that
+        // keeps relative paths well-defined; users putting absolute
+        // paths (the recommended pattern) see no difference.
+        //
+        // `workspace_dir` is intentionally NOT set from the global
+        // config — it must reflect the location of `pnpm-workspace.yaml`
+        // alone. Save/restore around the call so `apply_to`'s
+        // unconditional `config.workspace_dir = Some(base_dir)` write
+        // doesn't leak.
+        let mut virtual_store_dir_explicit = false;
+        let mut global_virtual_store_dir_explicit = false;
+        let global_config_dir = default_config_dir::<Sys>();
+        let global_settings =
+            global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
+        if let Some(global_settings) = global_settings {
+            virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
+            global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
+            let saved_workspace_dir = self.workspace_dir.take();
+            global_settings.apply_to(&mut self, start_dir);
+            self.workspace_dir = saved_workspace_dir;
+        }
 
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
         // silent. Read or parse failures propagate to the caller.
@@ -999,8 +1039,6 @@ impl Config {
             })
         };
 
-        let mut virtual_store_dir_explicit = false;
-        let mut global_virtual_store_dir_explicit = false;
         if let Some((base_dir, settings)) = workspace_yaml {
             // Re-anchor the path-valued defaults to the workspace root
             // before applying settings. Without this, a `pacquet install`
@@ -1016,14 +1054,53 @@ impl Config {
             // Applied *before* `settings.apply_to` so an explicit
             // `modulesDir` / `virtualStoreDir` in `pnpm-workspace.yaml`
             // still wins.
+            //
+            // `virtual_store_dir_explicit` guards the re-anchor for
+            // `virtual_store_dir` — without it, a `virtualStoreDir`
+            // already set in the global `config.yaml` would be
+            // clobbered by the workspace-root default whenever the
+            // workspace yaml itself leaves the field unset. `modules_dir`
+            // needs no such guard because pnpm's `excludedPnpmKeys`
+            // (and pacquet's `clear_workspace_only_fields`) keep it
+            // out of the global-config surface, so it can only come
+            // from workspace yaml or env vars, and env vars haven't
+            // been applied yet at this point in the cascade.
             self.modules_dir = base_dir.join("node_modules");
-            self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+            if !virtual_store_dir_explicit {
+                self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+            }
             if let Some(settings) = settings {
-                virtual_store_dir_explicit = settings.virtual_store_dir.is_some();
-                global_virtual_store_dir_explicit = settings.global_virtual_store_dir.is_some();
+                // `|=` rather than `=` so an `enableGlobalVirtualStore` /
+                // `virtualStoreDir` set in the global `config.yaml` still
+                // counts as "explicitly set" when the workspace yaml
+                // leaves it unset.
+                virtual_store_dir_explicit |= settings.virtual_store_dir.is_some();
+                global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
                 settings.apply_to(&mut self, &base_dir);
             }
         }
+
+        // Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`,
+        // mirroring pnpm v11's loop at
+        // [`config/reader/src/index.ts:471-488`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L471-L488):
+        // env vars override yaml. The `WorkspaceSettings::apply_to`
+        // call also runs the post-processing (Windows `unsafe_perm`
+        // override, `hoist: false` short-circuit on `hoist_pattern`)
+        // regardless of where the values came from, so env-var-set
+        // values still go through the same hardening yaml-set values
+        // do.
+        //
+        // `workspace_dir` save/restore is the same trick used for the
+        // global config above — `apply_to` would otherwise clobber
+        // `workspace_dir` with `start_dir`, hiding the workspace yaml's
+        // location (or, if there was no yaml, setting it to a value
+        // that doesn't actually correspond to a discovered workspace).
+        let env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
+        virtual_store_dir_explicit |= env_settings.virtual_store_dir.is_some();
+        global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
+        let saved_workspace_dir = self.workspace_dir.clone();
+        env_settings.apply_to(&mut self, start_dir);
+        self.workspace_dir = saved_workspace_dir;
 
         // Now that `registry` has been finalised (yaml may have
         // overridden the `.npmrc` value), build the per-URI auth
@@ -1078,6 +1155,32 @@ mod tests {
         store_dir.display().to_string().replace('\\', "/")
     }
 
+    /// Delegate to [`Host::var`] but mask the env vars that would
+    /// otherwise let the developer's real shell steer pacquet's global
+    /// `config.yaml` loader or its `PNPM_CONFIG_*` overlay:
+    ///
+    /// - `XDG_CONFIG_HOME` / `LOCALAPPDATA` — both feed
+    ///   [`crate::defaults::default_config_dir`], so a value set on the
+    ///   dev box would point the global-config loader at a real
+    ///   `config.yaml` on disk.
+    /// - `PNPM_CONFIG_*` / `pnpm_config_*` — the env-var overlay reads
+    ///   the entire schema, so a stray `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE`
+    ///   in the developer's shell would flip GVS in every test that
+    ///   otherwise expects defaults.
+    ///
+    /// Tests that exercise those code paths declare per-test fakes
+    /// that satisfy [`EnvVar`] with their own response logic — they
+    /// don't go through this helper.
+    fn safe_host_var(name: &str) -> Option<String> {
+        if name == "XDG_CONFIG_HOME" || name == "LOCALAPPDATA" {
+            return None;
+        }
+        if name.starts_with("PNPM_CONFIG_") || name.starts_with("pnpm_config_") {
+            return None;
+        }
+        Host::var(name)
+    }
+
     /// Common test [`crate::api::Sys`]-shaped fake: env reads delegate
     /// to [`Host`], home dir resolves to `None`. Lets a test exercise
     /// `Config::current`'s `.npmrc`-in-`start_dir` and yaml-walk paths
@@ -1085,7 +1188,7 @@ mod tests {
     struct HostNoHome;
     impl EnvVar for HostNoHome {
         fn var(name: &str) -> Option<String> {
-            Host::var(name)
+            safe_host_var(name)
         }
     }
     impl EnvVarOs for HostNoHome {
@@ -1101,29 +1204,6 @@ mod tests {
     impl GetHomeDir for HostNoHome {
         fn home_dir() -> Option<PathBuf> {
             None
-        }
-    }
-
-    /// Variant of [`HostNoHome`] that panics if [`GetHomeDir::home_dir`]
-    /// is consulted — documents the precondition that
-    /// [`Config::current`] should not fall through to the home-dir
-    /// lookup on the input the test supplies.
-    struct HostUnreachableHome;
-    impl EnvVar for HostUnreachableHome {
-        fn var(name: &str) -> Option<String> {
-            Host::var(name)
-        }
-    }
-    impl EnvVarOs for HostUnreachableHome {
-        fn var_os(_: &str) -> Option<OsString> {
-            // See [`HostNoHome`]'s [`EnvVarOs`] impl for the
-            // ambient-env-isolation rationale.
-            None
-        }
-    }
-    impl GetHomeDir for HostUnreachableHome {
-        fn home_dir() -> Option<PathBuf> {
-            unreachable!("shouldn't reach home dir");
         }
     }
 
@@ -1230,7 +1310,7 @@ mod tests {
         fs::write(tmp.path().join(".npmrc"), "registry=https://cwd.example")
             .expect("write to .npmrc");
         let config = Config::new()
-            .current::<HostUnreachableHome>(tmp.path())
+            .current::<HostNoHome>(tmp.path())
             .expect("workspace yaml absent => no error");
         assert_eq!(config.registry, "https://cwd.example/");
     }
@@ -1300,7 +1380,7 @@ mod tests {
         struct HostWithHome;
         impl EnvVar for HostWithHome {
             fn var(name: &str) -> Option<String> {
-                Host::var(name)
+                safe_host_var(name)
             }
         }
         impl EnvVarOs for HostWithHome {
@@ -1329,8 +1409,7 @@ mod tests {
             .expect("write to .npmrc");
         fs::write(tmp.path().join("pnpm-workspace.yaml"), "registry: https://from-yaml.test\n")
             .expect("write to pnpm-workspace.yaml");
-        let config =
-            Config::new().current::<HostUnreachableHome>(tmp.path()).expect("yaml is valid");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
         assert_eq!(config.registry, "https://from-yaml.test/");
     }
 
@@ -1359,7 +1438,7 @@ mod tests {
         struct HostWithHome;
         impl EnvVar for HostWithHome {
             fn var(name: &str) -> Option<String> {
-                Host::var(name)
+                safe_host_var(name)
             }
         }
         impl EnvVarOs for HostWithHome {
@@ -1621,7 +1700,7 @@ mod tests {
         struct HostWithEnvWorkspaceDir;
         impl EnvVar for HostWithEnvWorkspaceDir {
             fn var(name: &str) -> Option<String> {
-                Host::var(name)
+                safe_host_var(name)
             }
         }
         impl EnvVarOs for HostWithEnvWorkspaceDir {
@@ -1665,7 +1744,7 @@ mod tests {
         struct HostWithEmptyEnvWorkspaceDir;
         impl EnvVar for HostWithEmptyEnvWorkspaceDir {
             fn var(name: &str) -> Option<String> {
-                Host::var(name)
+                safe_host_var(name)
             }
         }
         impl EnvVarOs for HostWithEmptyEnvWorkspaceDir {
@@ -1686,5 +1765,376 @@ mod tests {
         // No yaml in tmp → no re-anchor → cwd-anchored defaults.
         assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
         assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
+    }
+
+    /// `enableGlobalVirtualStore: true` set in the global
+    /// `<configDir>/config.yaml` is honored by `Config::current` —
+    /// the exact scenario from pnpm/pnpm#11738 where a user has
+    /// the setting in `~/.config/pnpm/config.yaml` and runs an
+    /// install in a project whose `pnpm-workspace.yaml` doesn't
+    /// repeat it.
+    ///
+    /// Drives the [`EnvVar`] + [`GetHomeDir`] DI seams: the fake
+    /// returns the test's tempdir for `XDG_CONFIG_HOME`, so
+    /// [`crate::defaults::default_config_dir`] resolves to
+    /// `<tempdir>/pnpm/config.yaml` rather than touching the
+    /// developer's real config dir.
+    #[test]
+    pub fn global_config_yaml_enables_gvs() {
+        let xdg = tempdir().unwrap();
+        let config_dir = xdg.path().join("pnpm");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(config_dir.join("config.yaml"), "enableGlobalVirtualStore: true\n")
+            .expect("write to global config.yaml");
+
+        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+
+        struct HostWithXdgConfigHome;
+        impl EnvVar for HostWithXdgConfigHome {
+            fn var(name: &str) -> Option<String> {
+                if name == "XDG_CONFIG_HOME" {
+                    return XDG_CONFIG_HOME_PATH
+                        .get()
+                        .map(|path| path.to_string_lossy().into_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithXdgConfigHome {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithXdgConfigHome {
+            fn home_dir() -> Option<PathBuf> {
+                // XDG_CONFIG_HOME short-circuits the home_dir lookup
+                // inside `default_config_dir`, but `Config::current`'s
+                // home-dir `.npmrc` fallback still consults it. The
+                // fallback gracefully tolerates `None`, so returning
+                // `None` keeps the test hermetic without forcing a
+                // tempdir for the unrelated `.npmrc` path.
+                None
+            }
+        }
+
+        let tmp = tempdir().unwrap();
+        let config =
+            Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
+        assert!(
+            config.enable_global_virtual_store,
+            "enableGlobalVirtualStore from global config.yaml must apply",
+        );
+    }
+
+    /// `pnpm-workspace.yaml` overrides the global `config.yaml` —
+    /// global enables GVS, workspace disables it, the install
+    /// resolves to GVS-off. Matches pnpm's
+    /// [`index.ts:421-444`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L421-L444),
+    /// which applies workspace yaml after the global yaml.
+    #[test]
+    pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
+        let xdg = tempdir().unwrap();
+        let config_dir = xdg.path().join("pnpm");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(config_dir.join("config.yaml"), "enableGlobalVirtualStore: true\n")
+            .expect("write to global config.yaml");
+
+        let project = tempdir().unwrap();
+        fs::write(project.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
+            .expect("write to pnpm-workspace.yaml");
+
+        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+
+        struct HostWithXdgConfigHome;
+        impl EnvVar for HostWithXdgConfigHome {
+            fn var(name: &str) -> Option<String> {
+                if name == "XDG_CONFIG_HOME" {
+                    return XDG_CONFIG_HOME_PATH
+                        .get()
+                        .map(|path| path.to_string_lossy().into_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithXdgConfigHome {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithXdgConfigHome {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let config =
+            Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
+        assert!(
+            !config.enable_global_virtual_store,
+            "pnpm-workspace.yaml must win over global config.yaml",
+        );
+    }
+
+    /// `virtualStoreDir` set in the global `config.yaml` is preserved
+    /// even when the workspace yaml doesn't repeat it. Without the
+    /// `!virtual_store_dir_explicit` guard on the re-anchor, the
+    /// workspace-root default (`<workspace>/node_modules/.pnpm`)
+    /// would overwrite the global value any time a `pnpm-workspace.yaml`
+    /// is present. Regression test for a CodeRabbit review finding on
+    /// pnpm/pnpm#11752.
+    #[test]
+    pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
+        let xdg = tempdir().unwrap();
+        let config_dir = xdg.path().join("pnpm");
+        fs::create_dir_all(&config_dir).unwrap();
+        let global_path = xdg.path().join("shared-virtual-store");
+        fs::write(
+            config_dir.join("config.yaml"),
+            format!(
+                "enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n",
+                global_path.display(),
+            ),
+        )
+        .expect("write global config.yaml");
+
+        let project = tempdir().unwrap();
+        // Empty workspace yaml — present so the workspace block fires,
+        // but it doesn't redeclare `virtualStoreDir`.
+        fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+            .expect("write workspace yaml");
+
+        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+
+        struct HostWithXdgConfigHome;
+        impl EnvVar for HostWithXdgConfigHome {
+            fn var(name: &str) -> Option<String> {
+                if name == "XDG_CONFIG_HOME" {
+                    return XDG_CONFIG_HOME_PATH
+                        .get()
+                        .map(|path| path.to_string_lossy().into_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithXdgConfigHome {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithXdgConfigHome {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let config =
+            Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
+        assert_eq!(
+            config.virtual_store_dir, global_path,
+            "virtualStoreDir from global config.yaml must survive the workspace-root re-anchor",
+        );
+    }
+
+    /// Workspace-only keys in the global `config.yaml` are silently
+    /// ignored, matching pnpm's
+    /// [`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187)
+    /// filter at
+    /// [`index.ts:299-309`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L299-L309).
+    /// A `nodeLinker: hoisted` in the global yaml would change the
+    /// installer's layout strategy if applied — pnpm rejects it, and
+    /// pacquet must too.
+    #[test]
+    pub fn global_config_yaml_workspace_only_keys_are_ignored() {
+        let xdg = tempdir().unwrap();
+        let config_dir = xdg.path().join("pnpm");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(
+            config_dir.join("config.yaml"),
+            // `nodeLinker`, `hoist`, `symlink`, and `lockfile` are
+            // all in pnpm's `excludedPnpmKeys`. None should apply
+            // when set in the global config.
+            "nodeLinker: hoisted\nhoist: false\nsymlink: false\nlockfile: false\n",
+        )
+        .expect("write to global config.yaml");
+
+        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+
+        struct HostWithXdgConfigHome;
+        impl EnvVar for HostWithXdgConfigHome {
+            fn var(name: &str) -> Option<String> {
+                if name == "XDG_CONFIG_HOME" {
+                    return XDG_CONFIG_HOME_PATH
+                        .get()
+                        .map(|path| path.to_string_lossy().into_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithXdgConfigHome {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithXdgConfigHome {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let tmp = tempdir().unwrap();
+        let defaults = Config::new();
+        let config =
+            Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
+        assert_eq!(config.node_linker, defaults.node_linker);
+        assert_eq!(config.hoist, defaults.hoist);
+        assert_eq!(config.symlink, defaults.symlink);
+        assert_eq!(config.lockfile, defaults.lockfile);
+    }
+
+    /// `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=true` is read into
+    /// the config — drives the env-overlay introduced alongside
+    /// global `config.yaml` support. Mirrors pnpm's `parseEnvVars`
+    /// loop at
+    /// [`index.ts:471-488`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L471-L488)
+    /// for the `PNPM_CONFIG_*` family (pnpm doesn't read general
+    /// `NPM_CONFIG_*` env vars; see
+    /// [`feedback_pnpm_settings_not_in_npmrc`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/localConfig.ts)).
+    #[test]
+    pub fn pnpm_config_env_var_enables_gvs() {
+        struct HostWithPnpmConfigEnv;
+        impl EnvVar for HostWithPnpmConfigEnv {
+            fn var(name: &str) -> Option<String> {
+                if name == "PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE" {
+                    return Some("true".to_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithPnpmConfigEnv {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithPnpmConfigEnv {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let tmp = tempdir().unwrap();
+        let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
+        assert!(config.enable_global_virtual_store);
+    }
+
+    /// Lowercase `pnpm_config_*` spelling also works, matching
+    /// upstream's
+    /// [`getEnvKeySuffix`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/env.ts#L185-L195)
+    /// which accepts both case forms.
+    #[test]
+    pub fn pnpm_config_env_var_lowercase_works() {
+        struct HostWithLowercaseEnv;
+        impl EnvVar for HostWithLowercaseEnv {
+            fn var(name: &str) -> Option<String> {
+                if name == "pnpm_config_enable_global_virtual_store" {
+                    return Some("true".to_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithLowercaseEnv {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithLowercaseEnv {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let tmp = tempdir().unwrap();
+        let config = Config::new().current::<HostWithLowercaseEnv>(tmp.path()).expect("loads");
+        assert!(config.enable_global_virtual_store);
+    }
+
+    /// `PNPM_CONFIG_*` overrides `pnpm-workspace.yaml` — the env
+    /// var is applied after yaml in pnpm's reader cascade. Without
+    /// this ordering a CI override via env var couldn't beat a
+    /// committed yaml setting, which is the whole reason to expose
+    /// env vars at all.
+    #[test]
+    pub fn pnpm_config_env_var_overrides_workspace_yaml() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
+            .expect("write to pnpm-workspace.yaml");
+
+        struct HostWithPnpmConfigEnv;
+        impl EnvVar for HostWithPnpmConfigEnv {
+            fn var(name: &str) -> Option<String> {
+                if name == "PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE" {
+                    return Some("true".to_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithPnpmConfigEnv {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithPnpmConfigEnv {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
+        assert!(
+            config.enable_global_virtual_store,
+            "PNPM_CONFIG_* env var must win over pnpm-workspace.yaml",
+        );
+    }
+
+    /// `PNPM_CONFIG_HOIST=false` runs the same post-processing as
+    /// yaml-set `hoist: false` — it short-circuits `hoist_pattern`
+    /// to `None`, mirroring upstream's
+    /// [`projectConfig.ts:72-75`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/projectConfig.ts#L72-L75)
+    /// rule (`hoist === false ⇒ hoistPattern: undefined`). Without
+    /// this, the install-time `hoist_pattern.is_some() ||
+    /// public_hoist_pattern.is_some()` guard would still enable
+    /// hoisting even after the user disabled it via env var.
+    #[test]
+    pub fn pnpm_config_hoist_false_clears_hoist_pattern() {
+        struct HostWithHoistEnv;
+        impl EnvVar for HostWithHoistEnv {
+            fn var(name: &str) -> Option<String> {
+                if name == "PNPM_CONFIG_HOIST" {
+                    return Some("false".to_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithHoistEnv {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithHoistEnv {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let tmp = tempdir().unwrap();
+        let config = Config::new().current::<HostWithHoistEnv>(tmp.path()).expect("loads");
+        assert!(!config.hoist);
+        assert_eq!(
+            config.hoist_pattern, None,
+            "hoist: false must clear hoist_pattern, even when set via env var",
+        );
     }
 }

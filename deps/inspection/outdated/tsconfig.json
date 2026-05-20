@@ -22,9 +22,6 @@
       "path": "../../../config/parse-overrides"
     },
     {
-      "path": "../../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../../config/version-policy"
     },
     {

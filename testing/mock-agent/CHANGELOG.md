@@ -1,5 +1,11 @@
 # @pnpm/testing.mock-agent
 
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.0.6
+
 ## 1100.0.5
 
 ### Patch Changes

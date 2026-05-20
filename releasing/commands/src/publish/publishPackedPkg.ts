@@ -145,15 +145,21 @@ function extractBundledDependencies (manifest: ExportedManifest): string[] {
   return []
 }
 
-async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
+/**
+ * @internal Exported for unit testing of the access / registry / auth fallback rules. Not part of the package's
+ *   public API.
+ */
+export async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
   const publishConfigRegistry = typeof manifest.publishConfig?.registry === 'string'
     ? manifest.publishConfig.registry
     : undefined
   const { registry, config } = findRegistryInfo(manifest, options, publishConfigRegistry)
   const { creds, tls } = config ?? {}
 
+  const publishConfigAccess = manifest.publishConfig?.access
+  const access = options.access ?? (isPublishAccess(publishConfigAccess) ? publishConfigAccess : undefined)
+
   const {
-    access,
     ci: isFromCI,
     fetchRetries,
     fetchRetryFactor,
@@ -216,6 +222,10 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
   pruneUndefined(publishOptions)
   return publishOptions
+}
+
+function isPublishAccess (access: unknown): access is 'public' | 'restricted' {
+  return access === 'public' || access === 'restricted'
 }
 
 interface RegistryInfo {

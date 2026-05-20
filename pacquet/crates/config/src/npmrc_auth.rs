@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
@@ -77,7 +77,10 @@ pub(crate) struct NpmrcAuth {
     /// `-----END CERTIFICATE-----` to produce one PEM per cert
     /// (mirroring pnpm's
     /// [`loadCAFile`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L249-L255)).
-    /// `cafile`-not-found is silently treated as unset.
+    /// `cafile`-not-found is silently treated as unset. A relative
+    /// path is resolved against the directory of the `.npmrc` that
+    /// declared it (matching pnpm/pnpm#11726), so `pnpm --dir <proj>`
+    /// from a different cwd still finds it.
     pub cafile: Option<String>,
     /// `cert=…` client certificate PEM from .npmrc.
     pub cert: Option<String>,
@@ -143,7 +146,12 @@ impl NpmrcAuth {
     /// plus comments starting with `;` or `#`. We hand-parse rather than
     /// use a strongly-typed deserializer so unknown / malformed keys don't
     /// blow up parsing.
-    pub fn from_ini<Sys: EnvVar>(text: &str) -> Self {
+    ///
+    /// `npmrc_dir` is the directory of the `.npmrc` file the `text`
+    /// came from. A relative `cafile=` resolves against it so a
+    /// project `.npmrc` reachable via `pacquet --dir <proj>` from a
+    /// different cwd still finds its CA bundle (pnpm/pnpm#11726).
+    pub fn from_ini<Sys: EnvVar>(text: &str, npmrc_dir: &Path) -> Self {
         let mut auth = NpmrcAuth::default();
         for line in text.lines() {
             let line = line.trim();
@@ -195,7 +203,7 @@ impl NpmrcAuth {
                     continue;
                 }
                 "cafile" => {
-                    auth.cafile = Some(value);
+                    auth.cafile = Some(resolve_cafile(value, npmrc_dir));
                     continue;
                 }
                 "cert" => {
@@ -272,9 +280,9 @@ impl NpmrcAuth {
     ///
     /// `strict_ssl`, `cert`, `key` are pass-through (no transformation).
     ///
-    /// `cafile` reads relative paths against the process cwd, matching
-    /// pnpm's `path.resolve(cafile)` in
-    /// [`loadCAFile`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L241-L243).
+    /// `cafile` paths arrive here already absolute — relative values
+    /// were resolved against the `.npmrc`'s directory in
+    /// [`NpmrcAuth::from_ini`] (pnpm/pnpm#11726).
     pub fn apply_tls_and_local_address(&mut self, config: &mut Config) {
         // Inline CA first, then file-loaded CA, so a user that
         // duplicates a cert across both ends up with it added twice
@@ -399,6 +407,18 @@ impl NpmrcAuth {
     }
 }
 
+/// Resolve a top-level `cafile=` value against the directory of the
+/// `.npmrc` that declared it. Empty and absolute values pass through
+/// unchanged; relative values are joined onto `npmrc_dir`. Mirrors
+/// pnpm/pnpm#11726.
+fn resolve_cafile(value: String, npmrc_dir: &Path) -> String {
+    if value.is_empty() || Path::new(&value).is_absolute() {
+        return value;
+    }
+    let resolved: PathBuf = npmrc_dir.join(&value);
+    resolved.into_os_string().into_string().unwrap_or(value)
+}
+
 /// Parse a `strict-ssl=…` value. pnpm/nopt accepts only the literal
 /// `true` and `false` tokens; anything else is dropped silently so the
 /// dispatcher's per-emit `strictSsl ?? true` default kicks in.
@@ -416,20 +436,6 @@ fn parse_bool(value: &str) -> Option<bool> {
 /// [`loadCAFile`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L238-L265):
 /// re-append the delimiter to each split, trim, drop empties, and
 /// silently treat any read error as an empty list.
-///
-/// **Relative-path resolution caveat.** Pnpm's `loadCAFile` passes
-/// `cafile` straight to `fs.readFileSync` without `path.resolve` —
-/// relative paths therefore resolve against Node's `process.cwd()`,
-/// *not* against the directory the `.npmrc` was read from. Pnpm
-/// doesn't `process.chdir(opts.dir)` on `--dir`, so a project
-/// `.npmrc` containing `cafile=certs/ca.pem` invoked as
-/// `pnpm --dir /project install` from `/home/user` reads
-/// `/home/user/certs/ca.pem` and silently drops the CA list when it
-/// isn't found. Pacquet matches that exact behavior (cardinal rule:
-/// match pnpm even when the upstream behavior is surprising). Users
-/// who hit this should either use an absolute path in `cafile=`,
-/// `cd` into the project directory before running pacquet, or set
-/// the `ca=` inline form which doesn't read from disk.
 fn load_cafile(path: &Path) -> Vec<String> {
     let Ok(contents) = std::fs::read_to_string(path) else {
         return Vec::new();

@@ -141,6 +141,103 @@ describe('login', () => {
     ])
   })
 
+  it('should persist a scope→registry mapping when --scope is provided', async () => {
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        if (url === 'https://my-org.example/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://my-org.example/auth/login',
+              doneUrl: 'https://my-org.example/auth/done',
+            },
+          })
+        }
+        if (url === 'https://my-org.example/auth/done') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'scoped-token' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    // `--scope my-org` (no `@`) should be normalized to `@my-org` when written.
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://my-org.example', scope: 'my-org' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://my-org.example/')
+    expect(savedSettings).toMatchObject({
+      '//my-org.example/:_authToken': 'scoped-token',
+      '@my-org:registry': 'https://my-org.example/',
+    })
+  })
+
+  it('should accept --scope with a leading @ and not double-prefix', async () => {
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        if (url === 'https://my-org.example/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://my-org.example/auth/login',
+              doneUrl: 'https://my-org.example/auth/done',
+            },
+          })
+        }
+        return createMockResponse({ ok: true, status: 200, json: { token: 'tok' } })
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://my-org.example', scope: '@my-org' }
+    await login({ context, opts })
+    expect(savedSettings['@my-org:registry']).toBe('https://my-org.example/')
+    expect(savedSettings['@@my-org:registry']).toBeUndefined()
+  })
+
+  it('should not write a scope mapping when --scope is omitted', async () => {
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        if (url === 'https://example.com/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://example.com/auth/login',
+              doneUrl: 'https://example.com/auth/done',
+            },
+          })
+        }
+        return createMockResponse({ ok: true, status: 200, json: { token: 'tok' } })
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com' }
+    await login({ context, opts })
+    // No `@…:registry` key should be added when scope isn't passed.
+    for (const key of Object.keys(savedSettings)) {
+      expect(key.startsWith('@')).toBe(false)
+    }
+  })
+
   it('should fall back to classic login when web login returns 404', async () => {
     const fetchedUrls: string[] = []
     const globalInfo = jest.fn()
