@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// resolver only needs equality / hashing of opaque ids.
 ///
 /// [`DependenciesTree`]: super::resolved_tree::DependenciesTree
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeId(u64);
 
 impl NodeId {

@@ -8,7 +8,7 @@ use crate::resolved_tree::PeerDep;
 /// [`DepPath`](https://github.com/pnpm/pnpm/blob/097983fbca/packages/types/src/misc.ts).
 /// Today this is a plain wrapper; future tightening could enforce the
 /// `name@version(peer)*` shape at the parser boundary.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DepPath(pub String);
 
 impl DepPath {
@@ -24,8 +24,8 @@ impl std::fmt::Display for DepPath {
 }
 
 impl From<String> for DepPath {
-    fn from(s: String) -> DepPath {
-        DepPath(s)
+    fn from(value: String) -> DepPath {
+        DepPath(value)
     }
 }
 
