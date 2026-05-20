@@ -392,10 +392,8 @@ async fn fail_when_resolving_missing_tarball_with_file_protocol() {
     let tmp = TempDir::new().expect("tempdir");
     let project_dir = tmp.path();
 
-    let wd = WantedLocalDependency {
-        bare_specifier: "file:./missing.tgz".to_string(),
-        injected: false,
-    };
+    let wd =
+        WantedLocalDependency { bare_specifier: "file:./missing.tgz".to_string(), injected: false };
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
         .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
