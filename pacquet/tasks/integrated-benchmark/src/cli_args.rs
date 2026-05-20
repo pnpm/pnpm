@@ -43,7 +43,7 @@ pub struct CliArgs {
     #[clap(long)]
     pub build_only: bool,
 
-    /// Targets to benchmark. Each is `<rev>` (= `pacquet@<rev>`), `pacquet@<rev>`, or `pnpm@<rev>`.
+    /// Targets to benchmark. Each is `pacquet@<rev>` or `pnpm@<rev>`.
     #[clap(required = true)]
     pub targets: Vec<TargetSpec>,
 }
@@ -66,30 +66,22 @@ impl FromStr for TargetSpec {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        if input.is_empty() {
-            return Err("target spec must not be empty".to_string());
-        }
-        // Split on the first `@` so that a rev containing `@` (unusual
-        // but possible — e.g. `v1.0.0@sha`) is preserved verbatim when no
-        // recognized kind prefix is present.
-        if let Some((prefix, rest)) = input.split_once('@') {
-            match prefix {
-                "pacquet" => {
-                    if rest.is_empty() {
-                        return Err("pacquet@<rev>: <rev> must not be empty".to_string());
-                    }
-                    return Ok(TargetSpec { kind: TargetKind::Pacquet, rev: rest.to_string() });
-                }
-                "pnpm" => {
-                    if rest.is_empty() {
-                        return Err("pnpm@<rev>: <rev> must not be empty".to_string());
-                    }
-                    return Ok(TargetSpec { kind: TargetKind::Pnpm, rev: rest.to_string() });
-                }
-                _ => {}
+        let (prefix, rev) = input.split_once('@').ok_or_else(|| {
+            format!("target {input:?}: must be `pacquet@<rev>` or `pnpm@<rev>`")
+        })?;
+        let kind = match prefix {
+            "pacquet" => TargetKind::Pacquet,
+            "pnpm" => TargetKind::Pnpm,
+            other => {
+                return Err(format!(
+                    "target {input:?}: unknown kind {other:?} (expected `pacquet` or `pnpm`)",
+                ));
             }
+        };
+        if rev.is_empty() {
+            return Err(format!("target {input:?}: <rev> must not be empty"));
         }
-        Ok(TargetSpec { kind: TargetKind::Pacquet, rev: input.to_string() })
+        Ok(TargetSpec { kind, rev: rev.to_string() })
     }
 }
 
@@ -281,13 +273,6 @@ mod tests {
     use std::str::FromStr;
 
     #[test]
-    fn target_spec_bare_revision_is_pacquet() {
-        let spec = TargetSpec::from_str("HEAD").unwrap();
-        assert_eq!(spec.kind, TargetKind::Pacquet);
-        assert_eq!(spec.rev, "HEAD");
-    }
-
-    #[test]
     fn target_spec_pacquet_prefix() {
         let spec = TargetSpec::from_str("pacquet@main").unwrap();
         assert_eq!(spec.kind, TargetKind::Pacquet);
@@ -302,11 +287,22 @@ mod tests {
     }
 
     #[test]
-    fn target_spec_unknown_prefix_keeps_full_string_as_pacquet_rev() {
-        // A revision that happens to contain `@` but doesn't match a
-        // known kind prefix is treated as a pacquet rev verbatim.
-        let spec = TargetSpec::from_str("v1.0.0@sha").unwrap();
-        assert_eq!(spec.kind, TargetKind::Pacquet);
-        assert_eq!(spec.rev, "v1.0.0@sha");
+    fn target_spec_unprefixed_is_rejected() {
+        let err = TargetSpec::from_str("HEAD").unwrap_err();
+        assert!(err.contains("`pacquet@<rev>` or `pnpm@<rev>`"), "err = {err}");
+    }
+
+    #[test]
+    fn target_spec_unknown_prefix_is_rejected() {
+        let err = TargetSpec::from_str("yarn@main").unwrap_err();
+        assert!(err.contains("unknown kind"), "err = {err}");
+    }
+
+    #[test]
+    fn target_spec_empty_rev_is_rejected() {
+        let err = TargetSpec::from_str("pacquet@").unwrap_err();
+        assert!(err.contains("<rev> must not be empty"), "err = {err}");
+        let err = TargetSpec::from_str("pnpm@").unwrap_err();
+        assert!(err.contains("<rev> must not be empty"), "err = {err}");
     }
 }

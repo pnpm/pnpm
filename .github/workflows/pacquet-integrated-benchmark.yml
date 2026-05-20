@@ -135,7 +135,7 @@ jobs:
       - name: Precompile benchmark revisions
         shell: bash
         timeout-minutes: 15
-        run: just integrated-benchmark --build-only HEAD main
+        run: just integrated-benchmark --build-only pacquet@HEAD pacquet@main
 
       - name: 'Benchmark: Frozen Lockfile'
         shell: bash
@@ -145,7 +145,7 @@ jobs:
         # headroom, and a failure surfaces fast enough to iterate on.
         timeout-minutes: 10
         run: |
-          just integrated-benchmark --scenario=frozen-lockfile --registry=verdaccio --with-pnpm HEAD main
+          just integrated-benchmark --scenario=frozen-lockfile --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.json
 
@@ -159,14 +159,14 @@ jobs:
         # iteration so timed runs all see a hot store.
         timeout-minutes: 10
         run: |
-          just integrated-benchmark --scenario=frozen-lockfile-hot-cache --registry=verdaccio --with-pnpm HEAD main
+          just integrated-benchmark --scenario=frozen-lockfile-hot-cache --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.json
 
       # - name: 'Benchmark: Clean Install'
       #   shell: bash
       #   run: |
-      #     just integrated-benchmark --scenario=clean-install --registry=verdaccio --with-pnpm HEAD main
+      #     just integrated-benchmark --scenario=clean-install --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
       #     cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.md
       #     cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.json
 
