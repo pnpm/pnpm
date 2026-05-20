@@ -358,7 +358,7 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
     let observed = observed.lock().unwrap();
     assert!(
         observed.iter().all(|ino| *ino == original_ino),
-        "inode changed during concurrent writes: {observed:?}"
+        "inode changed during concurrent writes: {observed:?}",
     );
 }
 
