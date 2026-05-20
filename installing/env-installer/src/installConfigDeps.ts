@@ -308,6 +308,10 @@ async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promis
       })
     }
     const linkPath = path.join(opts.parentNodeModulesDir, subdep.name)
+    if (await symlinkPointsTo(linkPath, subdepDirInGlobalVirtualStore)) {
+      return
+    }
+    opts.reportStarted()
     await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
     await symlinkDir(subdepDirInGlobalVirtualStore, linkPath)
   }))

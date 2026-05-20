@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { afterAll, expect, test } from '@jest/globals'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { type LogBase, streamParser } from '@pnpm/logger'
@@ -31,10 +31,14 @@ interface InstallingConfigDepsEvent { status: string, deps?: Array<{ name: strin
 // the current test's listener. Subscribe once at module load and let each test
 // take only the events accumulated since its last drain.
 const accumulatedConfigDepEvents: InstallingConfigDepsEvent[] = []
-streamParser.on('data', (msg: LogBase) => {
+const configDepsListener = (msg: LogBase): void => {
   const log = msg as { name?: string, status?: string, deps?: Array<{ name: string, version: string }> }
   if (log.name !== 'pnpm:installing-config-deps' || log.status == null) return
   accumulatedConfigDepEvents.push({ status: log.status, deps: log.deps })
+}
+streamParser.on('data', configDepsListener)
+afterAll(() => {
+  streamParser.removeListener('data', configDepsListener)
 })
 
 function takeConfigDepEvents (): InstallingConfigDepsEvent[] {
