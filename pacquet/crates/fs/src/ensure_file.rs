@@ -160,12 +160,12 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 ///   a shared `LICENSE`) hash to the same CAS path and would
 ///   otherwise race here. Without serialization the second writer
 ///   can observe the first's partial file via `O_CREAT|O_EXCL` →
-///   `AlreadyExists` → [`verify_or_rewrite`] with `meta.len() <
-///   content.len()` → [`write_atomic`], leaving a brief window
+///   `AlreadyExists` → `verify_or_rewrite` with `meta.len() <
+///   content.len()` → `write_atomic`, leaving a brief window
 ///   where another concurrent reader (`link_file`'s
 ///   `fs::hard_link` / `reflink_copy::reflink`) can observe a
 ///   `NotFound` on the source while the rename is in flight. See
-///   the docstring on [`cas_write_lock`].
+///   the docstring on `cas_write_lock`.
 ///
 /// Matches pnpm's guarantee: a successful return means `file_path`
 /// exists on disk with contents equal to `content`. A torn mid-write
