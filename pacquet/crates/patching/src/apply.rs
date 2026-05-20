@@ -84,18 +84,27 @@ pub enum PatchApplyError {
 /// a file whose contents diverged from what the patch expects. A
 /// missing target on `Delete` is treated as already applied.
 ///
+/// `Modify` unlinks the target before writing the patched content,
+/// breaking any hardlink (or reflink) back to the content-addressable
+/// store. A plain truncating write would otherwise corrupt the store
+/// copy that every other snapshot of the same package shares, and
+/// leak patched content into sibling snapshots. The patched output
+/// lives in the side-effects cache after this call returns; nothing
+/// requires the store copy to carry it. The original mode is restored
+/// after the rewrite so patched shebang scripts in `bin/` keep their
+/// executable bit.
+///
 /// Apply is **idempotent**: when forward apply fails, the patch is
 /// reverse-applied against the on-disk content. If the reverse
 /// succeeds, the file is already in the post-patch state and the
 /// hunk is treated as no-op. Mirrors upstream
 /// [`@pnpm/patch-package`'s `applyPatch`](https://github.com/ds300/patch-package/blob/master/src/applyPatches.ts),
 /// which on failure retries `executeEffects(reversePatch(patch), { dryRun: true })`
-/// and returns success when the reverse cleanly verifies. Without
-/// this, a second `pnpm install` (or a parallel snapshot whose
-/// hardlinked store file has already been mutated by a sibling
-/// snapshot's apply) errors with `ERR_PNPM_PATCH_FAILED` "error
-/// applying hunk #1" even though the on-disk state already matches
-/// what the patch produces.
+/// and returns success when the reverse cleanly verifies. Defense in
+/// depth against re-runs that find the directory pre-patched (a side-
+/// effects cache hit that fell through, manual edits, partial install
+/// recovery): the hardlink-break above prevents fresh installs from
+/// ever producing this state in the first place.
 pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
@@ -170,6 +179,15 @@ fn apply_one_file(
     match operation {
         FileOperation::Modify { modified, .. } => {
             let target = resolve_target(Path::new(modified.as_ref()))?;
+            // Capture the original mode so the rewritten file keeps
+            // it. `fs::write` after `fs::remove_file` creates a fresh
+            // inode whose mode is governed by the process umask, which
+            // would otherwise drop the executable bit on patched
+            // shebang scripts in `bin/`. Mirrors upstream's
+            // [`fs.writeFileSync(path, ..., { mode })`](https://github.com/ds300/patch-package/blob/master/src/patch/apply.ts).
+            let permissions = fs::metadata(&target)
+                .map(|m| m.permissions())
+                .map_err(|source| failed(format!("stat {}: {source}", target.display())))?;
             // Read as bytes and lossy-decode so non-UTF-8 bytes
             // turn into U+FFFD rather than failing the patch.
             // Matches how the patch file itself is read (see
@@ -182,17 +200,36 @@ fn apply_one_file(
                 .patch()
                 .as_text()
                 .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            match diffy::apply(&original, text_patch) {
-                Ok(updated) => fs::write(&target, updated)
-                    .map_err(|source| failed(format!("write {}: {source}", target.display())))?,
+            let updated = match diffy::apply(&original, text_patch) {
+                Ok(updated) => updated,
                 Err(_) if diffy::apply(&original, &text_patch.reverse()).is_ok() => {
                     // File is already in the post-patch state — reverse
                     // applies cleanly, so treat as no-op.
+                    return Ok(());
                 }
                 Err(source) => {
                     return Err(failed(format!("apply to {}: {source}", target.display())));
                 }
-            }
+            };
+            // Break any hardlinks before writing. Files in
+            // `node_modules/.pnpm/<slot>/node_modules/<pkg>` are
+            // hardlinked (or reflinked, depending on import method) to
+            // the content-addressable store; a plain `fs::write`
+            // truncates and writes through the shared inode, which
+            // would (a) corrupt the on-disk store copy and (b) leak
+            // patched content into every other snapshot that linked
+            // the same file. `remove_file` unlinks only this dirent —
+            // the store inode (and any other hardlinks pointing at it)
+            // stays untouched. The patched output is captured by the
+            // side-effects cache after this returns; nothing requires
+            // the store copy to carry it.
+            fs::remove_file(&target)
+                .map_err(|source| failed(format!("unlink {}: {source}", target.display())))?;
+            fs::write(&target, updated)
+                .map_err(|source| failed(format!("write {}: {source}", target.display())))?;
+            fs::set_permissions(&target, permissions).map_err(|source| {
+                failed(format!("restore mode of {}: {source}", target.display()))
+            })?;
         }
         FileOperation::Create(path) => {
             let target = resolve_target(Path::new(path.as_ref()))?;

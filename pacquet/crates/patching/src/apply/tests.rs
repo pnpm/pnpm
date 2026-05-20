@@ -511,6 +511,82 @@ diff --git a/file.txt b/file.txt
     assert_eq!(fs::read_to_string(fresh.path().join("file.txt")).unwrap(), already_patched);
 }
 
+/// `Modify` must NOT mutate any other hardlink pointing at the same
+/// inode. Pacquet's import layer hardlinks files from the content-
+/// addressable store into `node_modules/.pnpm/<slot>/node_modules/<pkg>`,
+/// so a plain truncating `fs::write` on the patched target would
+/// silently corrupt the store copy and leak patched content into every
+/// sibling snapshot that shares the same store inode. The fix is to
+/// unlink the target before writing — the rewritten file gets a fresh
+/// inode and the other hardlinks (the store, sibling snapshots) keep
+/// the original content. This was the root cause of the
+/// `error applying hunk #1` failure reported against pacquet's
+/// configDependencies preview engine for `msw@2.12.14`: worker A
+/// patched its slot's hardlink, mutating the store, and worker B
+/// then read already-patched content from its own hardlinked slot.
+#[cfg(unix)]
+#[test]
+fn modify_does_not_mutate_hardlinked_store_file() {
+    use std::os::unix::fs::MetadataExt;
+
+    // Simulate the store: one canonical file plus a hardlink into a
+    // package slot. They share an inode the way pacquet's link_file
+    // arranges it on filesystems where reflink isn't available.
+    let store = tempdir().unwrap();
+    let store_file = store.path().join("index.js");
+    fs::write(&store_file, IS_POSITIVE_INDEX_JS).unwrap();
+
+    let patched = tempdir().unwrap();
+    let slot_file = patched.path().join("index.js");
+    fs::hard_link(&store_file, &slot_file).unwrap();
+    assert_eq!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "test setup: slot must share inode with store"
+    );
+
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    // Slot has patched content.
+    assert_eq!(fs::read_to_string(&slot_file).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
+    // Store copy is untouched.
+    assert_eq!(fs::read_to_string(&store_file).unwrap(), IS_POSITIVE_INDEX_JS);
+    // And the slot points at a new inode now — the unlink broke the
+    // shared-inode link cleanly.
+    assert_ne!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "slot must no longer share the store's inode after patching"
+    );
+}
+
+/// `Modify` must preserve the target file's mode. Without an explicit
+/// `set_permissions` after the unlink-then-write, the rewrite would
+/// take its mode from the process umask and silently drop the
+/// executable bit on patched shebang scripts under `bin/`.
+#[cfg(unix)]
+#[test]
+fn modify_preserves_executable_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("index.js");
+    fs::write(&target, IS_POSITIVE_INDEX_JS).unwrap();
+    // Mark the script executable, the way an npm-published bin entry
+    // would be.
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let mode = fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o755, "executable bit must be preserved across the rewrite");
+    assert_eq!(fs::read_to_string(&target).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
+}
+
 /// Re-applying a Create patch over a file that already exists with the
 /// expected post-patch content is treated as no-op. A genuine
 /// pre-existing file with different content still errors (covered by
