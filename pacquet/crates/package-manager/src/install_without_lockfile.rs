@@ -18,8 +18,13 @@ use pacquet_resolving_deps_resolver::{
     ResolvePeersOptions, resolve_dependency_tree, resolve_peers,
 };
 use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
-use pacquet_resolving_local_resolver::{LocalResolver, LocalResolverContext};
-use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
+use pacquet_resolving_local_resolver::{
+    LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
+};
+use pacquet_resolving_npm_resolver::{
+    InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
+    merge_named_registries,
+};
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
 use pacquet_resolving_tarball_resolver::TarballResolver;
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
@@ -102,6 +107,14 @@ pub enum InstallWithoutLockfileError {
     #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 
+    /// A user-defined `namedRegistries` entry mapped an alias to a
+    /// non-http(s) URL. Surfaced at resolver construction so the
+    /// install fails fast with a specific error code instead of a
+    /// downstream 404. Mirrors upstream's
+    /// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
+    #[diagnostic(transparent)]
+    InvalidNamedRegistry(#[error(source)] MergeNamedRegistriesError),
+
     /// The first writer of a shared `(name, version)` slot dropped its
     /// completion signal without sending `true`. In practice this only
     /// fires when the first writer's task panicked / was cancelled
@@ -164,12 +177,29 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // the install pass begins.
         let mut registries = HashMap::new();
         registries.insert("default".to_string(), config.registry.clone());
+
+        // User-supplied named-registry aliases from
+        // `pnpm-workspace.yaml#namedRegistries`. `merge_named_registries`
+        // validates each URL up front and folds in pacquet's built-in
+        // aliases (today: `gh:` → GitHub Packages); a malformed URL
+        // here aborts the install with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`,
+        // matching upstream's
+        // [`mergeNamedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/index.ts#L642-L656).
+        let user_named_registries: HashMap<String, String> =
+            config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
+        let merged_named_registries = merge_named_registries(&user_named_registries)
+            .map_err(InstallWithoutLockfileError::InvalidNamedRegistry)?;
+        let named_registry_aliases: std::collections::HashSet<String> =
+            merged_named_registries.keys().cloned().collect();
+
+        let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+
         let npm_resolver = NpmResolver {
             registries,
-            named_registries: HashMap::new(),
+            named_registries: merged_named_registries.clone(),
             http_client: Arc::clone(&http_client_arc),
             auth_headers: Arc::clone(&config.auth_headers),
-            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            meta_cache: Arc::clone(&meta_cache),
             cache_dir: Some(config.cache_dir.clone()),
             offline: config.offline,
             prefer_offline: config.prefer_offline,
@@ -186,22 +216,37 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // produces under the matching `--config.preserve-absolute-paths`
         // setting. Pacquet doesn't expose `preserveAbsolutePaths` yet,
         // so the context defaults to `false`.
-        let local_resolver =
-            LocalResolver::new(LocalResolverContext { preserve_absolute_paths: false });
+        let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
+        let local_scheme_resolver = LocalSchemeResolver::new(local_ctx);
+        let local_path_resolver = LocalPathResolver::new(local_ctx);
+        let named_registry_resolver = NamedRegistryResolver {
+            named_registries: merged_named_registries,
+            registry_names: named_registry_aliases,
+            http_client: Arc::clone(&http_client_arc),
+            auth_headers: Arc::clone(&config.auth_headers),
+            meta_cache: Arc::clone(&meta_cache),
+            cache_dir: Some(config.cache_dir.clone()),
+            offline: config.offline,
+            prefer_offline: config.prefer_offline,
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+        };
         // Order mirrors upstream's chain at
-        // <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/default-resolver/src/index.ts#L97-L173>:
-        // npm → git → tarball → local. Runtimes / named-registry slot
-        // in as those crates land; `LocalResolver` covers both the
-        // scheme branch (where upstream interleaves it between tarball
-        // and runtimes) and the path branch (last in upstream's chain)
-        // because no intermediate resolvers exist yet that would split
-        // the two — when named-registry lands the two halves split
-        // into separate trait impls.
+        // <https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L97-L173>:
+        // npm → git → tarball → local-scheme → named-registry →
+        // local-path. The local-resolver split is required by
+        // named-registry: a `<alias>:@scope/pkg` specifier carries an
+        // embedded `/`, which the path-shape detector
+        // (`contains_path_sep` in `parse_bare_specifier.rs`) would
+        // otherwise claim and prevent the named-registry resolver
+        // from running. Runtimes (node / deno / bun) slot in between
+        // local-scheme and named-registry as those crates land.
         let resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(vec![
             Box::new(npm_resolver),
             Box::new(git_resolver),
             Box::new(tarball_resolver),
-            Box::new(local_resolver),
+            Box::new(local_scheme_resolver),
+            Box::new(named_registry_resolver),
+            Box::new(local_path_resolver),
         ]));
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)

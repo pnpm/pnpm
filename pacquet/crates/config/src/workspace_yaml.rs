@@ -1,6 +1,6 @@
 use crate::{
-    Config, NodeLinker, PackageImportMethod, ScriptsPrependNodePath, TrustPolicy,
-    resolve_child_concurrency,
+    Config, NodeLinker, PackageImportMethod, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    env_replace::env_replace_lossy, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -121,6 +121,15 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+
+    /// User-defined named-registry aliases. Outer key is the alias
+    /// name (`gh`, `work`, …); inner string is the registry URL the
+    /// alias resolves against. Merged on top of pnpm's built-in
+    /// defaults at resolver construction. Mirrors upstream's
+    /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
+    /// setting.
+    pub named_registries: Option<BTreeMap<String, String>>,
+
     pub auto_install_peers: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
     /// `hoistingLimits` from `pnpm-workspace.yaml`. Outer key is
@@ -390,6 +399,25 @@ impl WorkspaceSettings {
         Ok(None)
     }
 
+    /// Expand `${VAR}` placeholders inside string-valued map fields
+    /// that pnpm runs through `envReplace`. Today only
+    /// `namedRegistries` qualifies — the upstream
+    /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
+    /// pass routes `registries` and `namedRegistries` through
+    /// `replaceEnvInStringValues`; pacquet exposes only the latter
+    /// at the yaml layer.
+    ///
+    /// Call this before [`Self::apply_to`] so the substituted values
+    /// land in [`Config`].
+    pub fn substitute_env<Sys: EnvVar>(&mut self) {
+        if let Some(named_registries) = self.named_registries.as_mut() {
+            for value in named_registries.values_mut() {
+                let (substituted, _) = env_replace_lossy::<Sys>(value);
+                *value = substituted;
+            }
+        }
+    }
+
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
     /// Path-valued fields (`store_dir`, `modules_dir`, `virtual_store_dir`)
@@ -468,6 +496,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.registry {
             config.registry = if v.ends_with('/') { v } else { format!("{v}/") };
+        }
+        if let Some(v) = self.named_registries {
+            config.named_registries = v;
         }
 
         // Anchor patch-file path resolution against the workspace dir

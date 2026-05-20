@@ -26,6 +26,7 @@ mod fetch_full_metadata_cached;
 mod lookup_context;
 mod mirror;
 mod named_registry;
+mod named_registry_resolver;
 mod npm_resolver;
 mod parse_bare_specifier;
 mod pick_package;
@@ -43,12 +44,15 @@ pub use fetch_full_metadata::{FetchFullMetadataOptions, fetch_full_metadata};
 pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
 pub use mirror::{ABBREVIATED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
-    BUILTIN_NAMED_REGISTRIES, build_named_registry_prefixes, pick_registry_for_package,
-    pick_registry_for_version,
+    BUILTIN_NAMED_REGISTRIES, MergeNamedRegistriesError, build_named_registry_prefixes,
+    merge_named_registries, pick_registry_for_package, pick_registry_for_version,
 };
+pub use named_registry_resolver::NamedRegistryResolver;
 pub use npm_resolver::NpmResolver;
 pub use parse_bare_specifier::{
-    JsrRegistryPackageSpec, parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
+    JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
+    parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
+    parse_named_registry_specifier_to_registry_package_spec,
 };
 pub use pick_package::{
     InMemoryPackageMetaCache, MirrorPersistError, PackageMetaCache, PickPackageContext,

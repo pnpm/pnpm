@@ -1,12 +1,16 @@
-//! Chain-friendly wrapper that implements
+//! Chain-friendly wrappers that implement
 //! [`pacquet_resolving_resolver_base::Resolver`] over the free
 //! functions in [`super::local_resolver`].
 //!
-//! Equivalent to upstream's
-//! [`resolveSchemeOrPath`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/default-resolver/src/index.ts#L97-L173)
-//! step inside `createResolver`: try the scheme-prefix interpretation
-//! first; fall through to the path-shape interpretation; defer
-//! (`Ok(None)`) when neither claims.
+//! Upstream's chain at
+//! [`createResolver`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L97-L173)
+//! interleaves the local-scheme step ahead of the runtime / named-
+//! registry resolvers and runs the local-path step last. Pacquet
+//! mirrors that split with two separate [`Resolver`] impls:
+//! [`LocalSchemeResolver`] (claims `link:` / `file:` / `workspace:`)
+//! and [`LocalPathResolver`] (claims bare path-shape specifiers like
+//! `./foo` or `foo.tgz`). [`LocalResolver`] is the combined form
+//! kept for tests and one-off chains that don't need the split.
 
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
@@ -19,10 +23,115 @@ use crate::local_resolver::{
 };
 use crate::parse_bare_specifier::WantedLocalDependency;
 
-/// `Resolver`-trait wrapper that the default-resolver chain consumes.
-/// Holds the install-scoped [`LocalResolverContext`] (just
-/// `preserveAbsolutePaths` today); the per-resolve `project_dir` /
-/// `lockfile_dir` / `update` come from [`ResolveOptions`].
+/// `Resolver` for the local-scheme branch (`link:` / `file:` /
+/// `workspace:`). Sits between the tarball resolver and the runtime
+/// / named-registry resolvers in the chain, mirroring
+/// [`_resolveFromLocalScheme`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L135).
+///
+/// `resolve_latest` routes through
+/// [`resolve_latest_from_local`](crate::resolve_latest_from_local)
+/// so a `link:` / `file:` / `workspace:` spec stops here instead of
+/// falling through into a user-configured named-registry alias of
+/// the same name.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct LocalSchemeResolver {
+    pub ctx: LocalResolverContext,
+}
+
+impl LocalSchemeResolver {
+    pub fn new(ctx: LocalResolverContext) -> Self {
+        Self { ctx }
+    }
+}
+
+impl Resolver for LocalSchemeResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        Box::pin(async move {
+            let Some(wd) = wanted_local(wanted_dependency) else {
+                return Ok(None);
+            };
+            let local_opts = local_options(opts);
+            let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
+                .await
+                .map_err(|err| Box::new(err) as ResolveError)?
+            else {
+                return Ok(None);
+            };
+            Ok(Some(into_chain_result(result, wanted_dependency)))
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        let info = resolve_latest_from_local(query);
+        Box::pin(async move { Ok(info) })
+    }
+}
+
+/// `Resolver` for the path-shape branch (`./foo`, `foo.tgz`,
+/// `/abs/path`, `~/dir`, `C:\drive`). Runs **last** in the chain —
+/// after named-registry — so a `<alias>:@scope/pkg` specifier reaches
+/// the named-registry resolver instead of being misrouted here on
+/// the strength of an embedded `/` ([`contains_path_sep`] in
+/// `parse_bare_specifier.rs`). Mirrors
+/// [`_resolveFromLocalPath`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L146).
+///
+/// `resolve_latest` returns `Ok(None)` because the equivalent
+/// upstream step is folded into `resolveLatestFromLocal` and only
+/// fires once for the scheme branch.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct LocalPathResolver {
+    pub ctx: LocalResolverContext,
+}
+
+impl LocalPathResolver {
+    pub fn new(ctx: LocalResolverContext) -> Self {
+        Self { ctx }
+    }
+}
+
+impl Resolver for LocalPathResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        Box::pin(async move {
+            let Some(wd) = wanted_local(wanted_dependency) else {
+                return Ok(None);
+            };
+            let local_opts = local_options(opts);
+            let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts)
+                .await
+                .map_err(|err| Box::new(err) as ResolveError)?
+            else {
+                return Ok(None);
+            };
+            Ok(Some(into_chain_result(result, wanted_dependency)))
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async move { Ok(None) })
+    }
+}
+
+/// Combined scheme-then-path resolver. Kept for tests and one-off
+/// chains that don't need the split, but the production chain in
+/// `install_without_lockfile.rs` uses [`LocalSchemeResolver`] and
+/// [`LocalPathResolver`] separately so the named-registry resolver
+/// can slot in between them — matching upstream's chain order.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LocalResolver {
     pub ctx: LocalResolverContext,
@@ -59,22 +168,10 @@ impl LocalResolver {
         wanted_dependency: &WantedDependency,
         opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        let Some(bare) = wanted_dependency.bare_specifier.clone() else {
+        let Some(wd) = wanted_local(wanted_dependency) else {
             return Ok(None);
         };
-        let wd = WantedLocalDependency {
-            bare_specifier: bare,
-            injected: wanted_dependency.injected.unwrap_or(false),
-        };
-        let local_opts = LocalResolverOptions {
-            project_dir: opts.project_dir.clone(),
-            lockfile_dir: Some(opts.lockfile_dir.clone()),
-            current_pkg: None,
-            update: match opts.update {
-                UpdateBehavior::Off => LocalResolverUpdate::Off,
-                UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,
-            },
-        };
+        let local_opts = local_options(opts);
 
         if let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
             .await
@@ -91,6 +188,26 @@ impl LocalResolver {
         }
 
         Ok(None)
+    }
+}
+
+fn wanted_local(wanted_dependency: &WantedDependency) -> Option<WantedLocalDependency> {
+    let bare = wanted_dependency.bare_specifier.clone()?;
+    Some(WantedLocalDependency {
+        bare_specifier: bare,
+        injected: wanted_dependency.injected.unwrap_or(false),
+    })
+}
+
+fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
+    LocalResolverOptions {
+        project_dir: opts.project_dir.clone(),
+        lockfile_dir: Some(opts.lockfile_dir.clone()),
+        current_pkg: None,
+        update: match opts.update {
+            UpdateBehavior::Off => LocalResolverUpdate::Off,
+            UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,
+        },
     }
 }
 

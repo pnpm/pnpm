@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use pretty_assertions::assert_eq;
 
-use super::{build_named_registry_prefixes, pick_registry_for_package, pick_registry_for_version};
+use super::{
+    MergeNamedRegistriesError, build_named_registry_prefixes, merge_named_registries,
+    pick_registry_for_package, pick_registry_for_version,
+};
 
 fn registries(entries: &[(&str, &str)]) -> HashMap<String, String> {
     entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
@@ -135,6 +138,48 @@ fn unscoped_npm_alias_target_routes_to_default() {
     ]);
     let picked = pick_registry_for_package(&regs, "@private/foo", Some("npm:lodash@^1"));
     assert_eq!(picked, "https://registry.npmjs.org/");
+}
+
+/// The merged map always carries pnpm's built-in `gh:` alias even
+/// when the user supplies no entries — mirrors upstream's
+/// `{ ...BUILTIN_NAMED_REGISTRIES }` spread.
+#[test]
+fn merge_includes_builtin_when_user_empty() {
+    let merged = merge_named_registries(&HashMap::new()).unwrap();
+    assert_eq!(merged.get("gh").map(String::as_str), Some("https://npm.pkg.github.com/"));
+}
+
+/// User-defined aliases override the built-in `gh:` on key collision
+/// — GHES users redirect the alias at their enterprise host.
+#[test]
+fn merge_user_overrides_builtin_gh() {
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), "https://npm.ghes.example.com/".to_string());
+    let merged = merge_named_registries(&user).unwrap();
+    assert_eq!(merged.get("gh").map(String::as_str), Some("https://npm.ghes.example.com/"));
+}
+
+/// Malformed URLs surface at construction with
+/// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL` — a missing scheme is
+/// caught now rather than as a 404 during resolution.
+#[test]
+fn merge_rejects_url_without_scheme() {
+    let mut user = HashMap::new();
+    user.insert("work".to_string(), "npm.work.example.com".to_string());
+    let err = merge_named_registries(&user).expect_err("missing scheme must error");
+    assert!(matches!(err, MergeNamedRegistriesError::InvalidUrl { .. }), "got {err:?}");
+}
+
+/// Non-http(s) schemes are rejected — `ftp://`, `file://`, etc. are
+/// not valid registry transports.
+#[test]
+fn merge_rejects_non_http_scheme() {
+    let mut user = HashMap::new();
+    user.insert("work".to_string(), "ftp://npm.work.example.com/".to_string());
+    let err = merge_named_registries(&user).expect_err("ftp scheme must error");
+    let MergeNamedRegistriesError::InvalidUrl { alias, url } = err;
+    assert_eq!(alias, "work");
+    assert_eq!(url, "ftp://npm.work.example.com/");
 }
 
 /// A tarball URL that's *almost* a prefix match — same host, but

@@ -29,7 +29,7 @@ mod chain;
 mod local_resolver;
 mod parse_bare_specifier;
 
-pub use chain::LocalResolver;
+pub use chain::{LocalPathResolver, LocalResolver, LocalSchemeResolver};
 pub use local_resolver::{
     LocalCurrentPkg, LocalResolveResult, LocalResolverContext, LocalResolverOptions,
     LocalResolverUpdate, LocalSpecError, ResolveLocalError, resolve_from_local_path,

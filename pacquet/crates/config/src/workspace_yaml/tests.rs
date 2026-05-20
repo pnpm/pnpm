@@ -1,5 +1,5 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
-use crate::{Config, NodeLinker, ScriptsPrependNodePath, TrustPolicy};
+use crate::{Config, NodeLinker, ScriptsPrependNodePath, TrustPolicy, api::EnvVar};
 use pacquet_store_dir::StoreDir;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -104,6 +104,65 @@ fetchRetryMaxtimeout: 4000
     assert_eq!(config.fetch_retry_factor, 3);
     assert_eq!(config.fetch_retry_mintimeout, 1000);
     assert_eq!(config.fetch_retry_maxtimeout, 4000);
+}
+
+/// `namedRegistries` is the per-alias registry-URL map from
+/// `pnpm-workspace.yaml`. The deserializer reads the camelCase key
+/// and `apply_to` writes the map onto [`Config::named_registries`]
+/// verbatim. Mirrors upstream's
+/// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
+/// schema.
+#[test]
+fn parses_named_registries_from_yaml_and_applies() {
+    let yaml = r#"
+namedRegistries:
+  gh: https://npm.pkg.ghes.example.com/
+  work: https://npm.work.example.com/
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let named = settings.named_registries.as_ref().expect("named_registries present");
+    assert_eq!(named.get("gh").map(String::as_str), Some("https://npm.pkg.ghes.example.com/"));
+    assert_eq!(named.get("work").map(String::as_str), Some("https://npm.work.example.com/"));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.named_registries.get("gh").map(String::as_str),
+        Some("https://npm.pkg.ghes.example.com/"),
+    );
+    assert_eq!(
+        config.named_registries.get("work").map(String::as_str),
+        Some("https://npm.work.example.com/"),
+    );
+}
+
+/// Env-var placeholders inside `namedRegistries` values expand on
+/// the [`WorkspaceSettings::substitute_env`] pass, matching upstream's
+/// [`replaceEnvInStringValues`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L86-L93)
+/// behaviour for the `namedRegistries` key. Substitution lands
+/// before `apply_to` so the resolved URL is what ends up on
+/// [`Config::named_registries`].
+#[test]
+fn substitutes_env_vars_inside_named_registries_values() {
+    struct EnvWithHost;
+    impl EnvVar for EnvWithHost {
+        fn var(name: &str) -> Option<String> {
+            (name == "WORK_HOST").then(|| "internal.example.com".to_owned())
+        }
+    }
+
+    let yaml = r#"
+namedRegistries:
+  work: https://${WORK_HOST}/npm/
+"#;
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env::<EnvWithHost>();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.named_registries.get("work").map(String::as_str),
+        Some("https://internal.example.com/npm/"),
+    );
 }
 
 /// `verifyStoreIntegrity` is a camelCase key that serde's rename

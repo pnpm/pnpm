@@ -327,12 +327,12 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
 }
 
 /// Picker output threaded through to [`build_resolve_result`].
-struct PickedFromRegistry {
-    meta: Package,
-    version: PackageVersion,
+pub(crate) struct PickedFromRegistry {
+    pub(crate) meta: Package,
+    pub(crate) version: PackageVersion,
 }
 
-fn build_resolve_result(
+pub(crate) fn build_resolve_result(
     meta: &Package,
     picked: &PackageVersion,
     spec: &RegistryPackageSpec,
