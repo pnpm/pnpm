@@ -1,5 +1,15 @@
 # @pnpm/releasing.commands
 
+## 1100.2.17
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/installing.commands@1100.4.1
+  - @pnpm/installing.client@1100.2.1
+  - @pnpm/workspace.projects-filter@1100.0.14
+
 ## 1100.2.16
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.2.5
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.3.1
+  - @pnpm/deps.inspection.outdated@1100.1.1
+  - @pnpm/resolving.default-resolver@1100.3.1
+  - @pnpm/global.commands@1100.0.20
+
 ## 1100.2.4
 
 ### Patch Changes

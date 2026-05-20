@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.4.1
+
+### Patch Changes
+
+- Updated dependencies [2061c55]
+- Updated dependencies [097983f]
+- Updated dependencies [e5e7b72]
+  - @pnpm/installing.env-installer@1101.1.1
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.3.1
+  - @pnpm/deps.inspection.outdated@1100.1.1
+  - @pnpm/workspace.projects-graph@1100.0.11
+  - @pnpm/store.connection-manager@1100.2.2
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/installing.deps-installer@1101.3.1
+  - @pnpm/workspace.projects-filter@1100.0.14
+  - @pnpm/building.after-install@1101.0.15
+  - @pnpm/global.commands@1100.0.20
+
 ## 1100.4.0
 
 ### Minor Changes

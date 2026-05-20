@@ -1,5 +1,12 @@
 # @pnpm/global.commands
 
+## 1100.0.20
+
+### Patch Changes
+
+- @pnpm/store.connection-manager@1100.2.2
+- @pnpm/installing.deps-installer@1101.3.1
+
 ## 1100.0.19
 
 ### Patch Changes

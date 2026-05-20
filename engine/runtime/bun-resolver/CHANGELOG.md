@@ -1,5 +1,11 @@
 # @pnpm/resolving.bun-resolver
 
+## 1101.1.1
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+
 ## 1101.1.0
 
 ### Minor Changes
