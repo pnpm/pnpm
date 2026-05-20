@@ -76,7 +76,7 @@ async fn empty_chain_returns_spec_not_supported_error() {
         .downcast_ref::<SpecNotSupportedByAnyResolverError>()
         .expect("error should be SpecNotSupportedByAnyResolverError");
     assert_eq!(downcast.specifier, "foo@1.2.3");
-    assert_eq!(downcast.to_string(), "\"foo@1.2.3\" isn't supported by any available resolver.");
+    assert_eq!(downcast.to_string(), r#""foo@1.2.3" isn't supported by any available resolver."#);
 }
 
 /// The dispatcher must walk the chain in order and stop at the first
@@ -124,7 +124,10 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
         ..WantedDependency::default()
     });
     assert_eq!(with_both.specifier, "foo@1.2.3");
-    assert_eq!(with_both.to_string(), "\"foo@1.2.3\" isn't supported by any available resolver.");
+    assert_eq!(
+        with_both.to_string(),
+        r#""foo@1.2.3" isn't supported by any available resolver."#,
+    );
 
     let bare_only = SpecNotSupportedByAnyResolverError::new(&WantedDependency {
         alias: None,
@@ -134,7 +137,7 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
     assert_eq!(bare_only.specifier, "git+ssh://example");
     assert_eq!(
         bare_only.to_string(),
-        "\"git+ssh://example\" isn't supported by any available resolver.",
+        r#""git+ssh://example" isn't supported by any available resolver."#,
     );
 
     let alias_only = SpecNotSupportedByAnyResolverError::new(&WantedDependency {
@@ -143,12 +146,12 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
         ..WantedDependency::default()
     });
     assert_eq!(alias_only.specifier, "foo");
-    assert_eq!(alias_only.to_string(), "\"foo\" isn't supported by any available resolver.");
+    assert_eq!(alias_only.to_string(), r#""foo" isn't supported by any available resolver."#);
 
     // Both absent — upstream's empty-string branch: the leading
     // specifier slot collapses to no quotes at all, so the message
-    // reads as `<space> isn't supported by …`. Pacquet pins the same
-    // behavior so error parsers stay aligned.
+    // reads as `<space> isn't supported by ...`. Pacquet pins the
+    // same behavior so error parsers stay aligned.
     let neither = SpecNotSupportedByAnyResolverError::new(&WantedDependency::default());
     assert_eq!(neither.specifier, "");
     assert_eq!(neither.to_string(), " isn't supported by any available resolver.");

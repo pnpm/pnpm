@@ -140,14 +140,14 @@ pub enum PickPackageFromMetaError {
 ///   layer above propagates this as "resolver returned nothing,"
 ///   not as an error.
 /// - `Err(_)` — one of the four `PnpmError` variants above.
-pub fn pick_package_from_meta<F>(
-    pick_version_by_range: F,
+pub fn pick_package_from_meta<PickFn>(
+    pick_version_by_range: PickFn,
     opts: &PickPackageFromMetaOptions<'_>,
     meta: &Package,
     spec: &RegistryPackageSpec,
 ) -> Result<Option<PackageVersion>, PickPackageFromMetaError>
 where
-    F: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
+    PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
 {
     // Match upstream's "owned-after-filter" shape: when publishedBy
     // is active and a maturity filter applies, swap `meta` for a
@@ -430,7 +430,7 @@ pub fn filter_pkg_metadata_by_publish_date(
         time: meta.time.clone(),
         modified: meta.modified.clone(),
         etag: meta.etag.clone(),
-        mutex: meta.mutex.clone(),
+        mutex: std::sync::Arc::clone(&meta.mutex),
     }
 }
 
@@ -536,7 +536,7 @@ fn semver_satisfies_loose(version: &str, range: &str) -> bool {
     parsed_version.satisfies(&parsed_range)
 }
 
-fn max_satisfying<S: AsRef<str>>(versions: &[S], range: &str) -> Option<String> {
+fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
     let Ok(parsed_range) = Range::parse(range) else { return None };
     let mut best: Option<(Version, String)> = None;
     for version in versions {
@@ -552,7 +552,7 @@ fn max_satisfying<S: AsRef<str>>(versions: &[S], range: &str) -> Option<String> 
     best.map(|(_, raw)| raw)
 }
 
-fn min_satisfying<S: AsRef<str>>(versions: &[S], range: &str) -> Option<String> {
+fn min_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
     let Ok(parsed_range) = Range::parse(range) else { return None };
     let mut best: Option<(Version, String)> = None;
     for version in versions {

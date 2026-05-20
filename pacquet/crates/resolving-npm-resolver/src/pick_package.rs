@@ -100,10 +100,10 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
 /// One per install. Mirrors the upstream
 /// [`ctx`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L172-L182)
 /// parameter.
-pub struct PickPackageContext<'a, C: PackageMetaCache> {
+pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
-    pub meta_cache: &'a C,
+    pub meta_cache: &'a Cache,
     /// Root of the on-disk metadata mirror. `None` disables every
     /// disk path — the orchestrator goes straight to the network.
     pub cache_dir: Option<&'a Path>,
@@ -241,8 +241,8 @@ impl From<FetchMetadataError> for PickPackageError {
 /// [`fetch_full_metadata_cached()`], which sends the conditional
 /// `If-None-Match` / `If-Modified-Since` headers built from the
 /// mirror's first line. A 304 reuses the on-disk body.
-pub async fn pick_package<C: PackageMetaCache>(
-    ctx: &PickPackageContext<'_, C>,
+pub async fn pick_package<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,
     opts: &PickPackageOptions<'_>,
 ) -> Result<PickPackageResult, PickPackageError> {
@@ -517,13 +517,13 @@ fn pick_ignoring_release_age(
 /// to the inner picker. When on, additionally pick against the
 /// `latest` tag and return the higher of the two. Matches upstream's
 /// [`runPicker`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L83-L92).
-fn run_picker<F>(
+fn run_picker<PickOne>(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
-    pick_one: F,
+    pick_one: PickOne,
 ) -> Result<Option<PackageVersion>, PickPackageFromMetaError>
 where
-    F: Fn(&RegistryPackageSpec) -> Result<Option<PackageVersion>, PickPackageFromMetaError>,
+    PickOne: Fn(&RegistryPackageSpec) -> Result<Option<PackageVersion>, PickPackageFromMetaError>,
 {
     let current = pick_one(spec)?;
     if !picker_opts.include_latest_tag {
@@ -543,15 +543,15 @@ where
 /// as "no pick" so a single satisfying option wins by default.
 /// Mirrors upstream's
 /// [`pickMax`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L95-L102).
-fn pick_max(a: Option<PackageVersion>, b: Option<PackageVersion>) -> Option<PackageVersion> {
-    match (a, b) {
-        (None, b) => b,
-        (a, None) => a,
-        (Some(a), Some(b)) => {
-            if a.version < b.version {
-                Some(b)
+fn pick_max(lhs: Option<PackageVersion>, rhs: Option<PackageVersion>) -> Option<PackageVersion> {
+    match (lhs, rhs) {
+        (None, rhs) => rhs,
+        (lhs, None) => lhs,
+        (Some(lhs), Some(rhs)) => {
+            if lhs.version < rhs.version {
+                Some(rhs)
             } else {
-                Some(a)
+                Some(lhs)
             }
         }
     }
