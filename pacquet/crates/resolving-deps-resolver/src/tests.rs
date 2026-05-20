@@ -478,6 +478,6 @@ mod peers {
         // Without the post-pass, this edge would be missing because
         // `node_dep_paths` doesn't yet contain react when react-dom is
         // being walked.
-        assert_eq!(node.children.get("react"), Some(&DepPath::from("react@18.0.0".to_string())),);
+        assert_eq!(node.children.get("react"), Some(&DepPath::from("react@18.0.0".to_string())));
     }
 }
