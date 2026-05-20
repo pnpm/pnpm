@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_recursion::async_recursion;
 use derive_more::{Display, Error};
 use futures_util::future;
@@ -32,6 +30,19 @@ pub enum ResolveDependencyTreeError {
     /// The inner error is the boxed type the resolver returned.
     #[display("Failed to resolve dependency: {_0}")]
     Resolve(#[error(not(source))] String),
+
+    /// No resolver in the chain claimed the spec. Mirrors pnpm's
+    /// [`SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/default-resolver/src/index.ts#L148-L156)
+    /// — the chain returning `None` is a contract violation outside
+    /// `DefaultResolver`'s `??` fall-through, so the tree walker
+    /// surfaces it instead of silently dropping the edge (which
+    /// would leave installs missing transitive deps).
+    #[display("\"{specifier}\" isn't supported by any available resolver.")]
+    #[diagnostic(code(SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER))]
+    SpecNotSupported {
+        #[error(not(source))]
+        specifier: String,
+    },
 }
 
 /// Walk `manifest` plus the entries in `dependency_groups`, dispatch
@@ -59,36 +70,35 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     Chain: Resolver + ?Sized,
 {
-    let ctx = Arc::new(Ctx {
+    let ctx = Ctx {
         auto_install_peers: opts.auto_install_peers,
         base_opts: opts.base_opts,
         packages: Mutex::new(std::collections::HashMap::new()),
         policy_violations: Mutex::new(Vec::new()),
-    });
+    };
 
     let direct_specs: Vec<(String, String)> = manifest
         .dependencies(dependency_groups)
         .map(|(name, range)| (name.to_string(), range.to_string()))
         .collect();
 
+    // Capture `&ctx` and `resolver` by reference into each async
+    // block. The borrow lives for the duration of the `try_join_all`
+    // await below, so we don't need an `Arc` and the post-await
+    // `into_inner()` doesn't have to dance around a refcount.
     let direct = direct_specs
         .into_iter()
-        .map(|(name, range)| {
-            let ctx = Arc::clone(&ctx);
-            async move {
-                let wanted = WantedDependency {
-                    alias: Some(name),
-                    bare_specifier: Some(range),
-                    ..WantedDependency::default()
-                };
-                resolve_node(&ctx, resolver, wanted).await
-            }
+        .map(|(name, range)| async {
+            let wanted = WantedDependency {
+                alias: Some(name),
+                bare_specifier: Some(range),
+                ..WantedDependency::default()
+            };
+            resolve_node(&ctx, resolver, wanted).await
         })
         .pipe(future::try_join_all)
         .await?;
-    let direct: Vec<DirectDep> = direct.into_iter().flatten().collect();
 
-    let ctx = Arc::try_unwrap(ctx).ok().expect("resolve tasks must drop their ctx clones");
     Ok(ResolvedTree {
         direct,
         packages: ctx.packages.into_inner(),
@@ -108,7 +118,7 @@ async fn resolve_node<Chain>(
     ctx: &Ctx,
     resolver: &Chain,
     wanted: WantedDependency,
-) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
+) -> Result<DirectDep, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
@@ -116,7 +126,16 @@ where
         .resolve(&wanted, &ctx.base_opts)
         .await
         .map_err(|err: ResolveError| ResolveDependencyTreeError::Resolve(err.to_string()))?;
-    let Some(result) = result else { return Ok(None) };
+    // The resolver returning `None` means the chain declined the
+    // spec. Outside `DefaultResolver`'s internal `??` fall-through,
+    // that is a contract violation — surface as
+    // `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` instead of dropping the
+    // edge, which would leave installs missing dependencies.
+    let Some(result) = result else {
+        return Err(ResolveDependencyTreeError::SpecNotSupported {
+            specifier: render_specifier(&wanted),
+        });
+    };
 
     if let Some(violation) = result.policy_violation.clone() {
         ctx.policy_violations.lock().await.push(violation);
@@ -133,7 +152,7 @@ where
     {
         let mut packages = ctx.packages.lock().await;
         if packages.contains_key(&id) {
-            return Ok(Some(DirectDep { alias, id }));
+            return Ok(DirectDep { alias, id });
         }
         packages.insert(
             id.clone(),
@@ -142,7 +161,7 @@ where
     }
 
     let child_specs = extract_children(&result, ctx.auto_install_peers);
-    let children: Vec<_> = child_specs
+    let children: Vec<DirectDep> = child_specs
         .into_iter()
         .map(|(child_name, child_range)| {
             let child_wanted = WantedDependency {
@@ -154,11 +173,24 @@ where
         })
         .pipe(future::try_join_all)
         .await?;
-    let children: Vec<DirectDep> = children.into_iter().flatten().collect();
 
     ctx.packages.lock().await.get_mut(&id).expect("placeholder inserted above").children = children;
 
-    Ok(Some(DirectDep { alias, id }))
+    Ok(DirectDep { alias, id })
+}
+
+/// Render `{alias}@{bare}` (either half dropped when absent) for the
+/// error message. Mirrors upstream's `render_specifier` shape in
+/// `default-resolver`.
+fn render_specifier(wanted: &WantedDependency) -> String {
+    let alias = wanted.alias.as_deref().unwrap_or("");
+    let bare = wanted.bare_specifier.as_deref().unwrap_or("");
+    match (alias.is_empty(), bare.is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => bare.to_string(),
+        (false, true) => alias.to_string(),
+        (false, false) => format!("{alias}@{bare}"),
+    }
 }
 
 /// Extract `(name, version_range)` pairs from a resolved package's

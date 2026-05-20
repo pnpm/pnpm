@@ -7,7 +7,9 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
-use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
+use crate::resolve_dependency_tree::{
+    ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+};
 
 /// Stub resolver fed from a `(name, range)` → `ResolveResult` map.
 /// Records each `(name, range)` query so tests can assert dedup.
@@ -187,12 +189,19 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
     assert!(tree.packages.contains_key("shared@1.0.0"));
 }
 
+/// A chain that declines every spec (every `resolve()` returns
+/// `Ok(None)`) must NOT silently drop the edge — that would leave
+/// installs missing transitive deps and report success. The walker
+/// surfaces `SpecNotSupported` with the offending specifier
+/// rendered the way upstream's `default-resolver` does, so callers
+/// can produce the same `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`
+/// diagnostic the chain dispatcher does.
 #[tokio::test]
-async fn declined_specifier_yields_no_direct_entry() {
+async fn declined_specifier_surfaces_spec_not_supported_error() {
     let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "git+ssh://example.com" }));
 
-    let tree = resolve_dependency_tree(
+    let err = resolve_dependency_tree(
         &resolver,
         &manifest,
         [DependencyGroup::Prod],
@@ -202,8 +211,11 @@ async fn declined_specifier_yields_no_direct_entry() {
         },
     )
     .await
-    .unwrap();
-
-    assert!(tree.direct.is_empty());
-    assert!(tree.packages.is_empty());
+    .expect_err("declined spec must error");
+    match err {
+        ResolveDependencyTreeError::SpecNotSupported { specifier } => {
+            assert_eq!(specifier, "foo@git+ssh://example.com");
+        }
+        other => panic!("expected SpecNotSupported, got {other:?}"),
+    }
 }
