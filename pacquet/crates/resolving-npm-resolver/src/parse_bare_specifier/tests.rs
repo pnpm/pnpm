@@ -110,6 +110,16 @@ fn unrelated_url_declines() {
 }
 
 #[test]
+fn tarball_url_with_mismatched_filename_declines() {
+    // `<registry>/foo/-/bar-1.0.0.tgz` would be a registry-side bug
+    // (or a typo'd URL); the parser must not silently map it to a
+    // confused `(name, version)` pair just because the length math
+    // works out. Anchor on the scopeless-name prefix.
+    let url = "https://registry.npmjs.org/foo/-/bar-1.0.0.tgz";
+    assert!(parse_bare_specifier(url, None, DEFAULT_TAG, REGISTRY).is_none());
+}
+
+#[test]
 fn git_protocol_specifier_declines() {
     assert!(
         parse_bare_specifier(

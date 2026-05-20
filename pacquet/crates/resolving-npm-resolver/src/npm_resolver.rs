@@ -265,7 +265,7 @@ fn build_resolve_result(
         })
     };
     let published_at = meta.published_at(&picked.version.to_string()).map(str::to_string);
-    let manifest = serde_json::to_value(picked).ok();
+    let manifest = Some(serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?);
     let policy_violation = detect_min_release_age_violation(
         &pkg_name,
         &picked.version.to_string(),

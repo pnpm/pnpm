@@ -167,11 +167,13 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
         return None;
     }
     let path_with_no_ext = parts[1].strip_suffix(".tgz").unwrap_or(parts[1]);
-    let scopeless_name_length = name.find('/').map_or(name.len(), |idx| name.len() - (idx + 1));
-    if path_with_no_ext.len() < scopeless_name_length + 1 {
-        return None;
-    }
-    let version = &path_with_no_ext[scopeless_name_length + 1..];
+    // The tarball filename always starts with the scopeless name
+    // followed by `-`. Anchor on that prefix instead of slicing by
+    // length so a registry that returns `foo/-/bar-1.0.0.tgz` (name
+    // mismatch) doesn't get accepted and mapped to the wrong package.
+    let scopeless_name = name.rsplit('/').next().unwrap_or(name.as_str());
+    let version =
+        path_with_no_ext.strip_prefix(scopeless_name).and_then(|rest| rest.strip_prefix('-'))?;
     Version::parse(version).ok()?;
     Some(NpmTarballUrl { name, version: version.to_string() })
 }

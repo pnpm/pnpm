@@ -2284,7 +2284,6 @@ dependencies = [
  "pacquet-registry",
  "pacquet-registry-mock",
  "pacquet-reporter",
- "pacquet-resolving-default-resolver",
  "pacquet-resolving-deps-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",

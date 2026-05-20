@@ -320,15 +320,15 @@ where
         package.result.id.suffix,
     );
 
-    // First-time installation for this `(name, version)` slot —
-    // materialize it. Subsequent visits skip the per-slot work; the
-    // first-time visitor has already kicked off the child walk so the
-    // transitive graph still gets traversed.
-    if !ctx.resolved_packages.insert(virtual_store_name.clone()) {
-        tracing::info!(target: "pacquet::install", package = %virtual_store_name, "Skip subset");
-        return Ok(());
-    }
-
+    // Always materialize this edge: `install_package_from_registry`
+    // creates the per-parent symlink under `node_modules_dir/<alias>`,
+    // which a duplicate `(name, version)` hit needs just as much as a
+    // first-time hit. Repeated calls for the same `(name, version)`
+    // are idempotent on the heavy paths — the tarball is keyed by
+    // integrity (CAS short-circuit), `import_indexed_dir` is a no-op
+    // on an already-populated slot, and `symlink_package` is
+    // idempotent on the parent's symlink. The dedup gate below only
+    // controls whether we descend into this package's *children*.
     InstallPackageFromRegistry {
         tarball_mem_cache: ctx.tarball_mem_cache,
         http_client: ctx.http_client,
@@ -345,6 +345,16 @@ where
     .run::<Reporter>()
     .await
     .map_err(InstallWithoutLockfileError::InstallPackageFromRegistry)?;
+
+    // Dedup the recursion only. The first visitor walks this
+    // package's children into its virtual-store node_modules slot;
+    // subsequent visitors share that slot and don't need to repeat
+    // the walk. Mirrors the original install loop's call placement
+    // before the resolveDependencyTree refactor.
+    if !ctx.resolved_packages.insert(virtual_store_name.clone()) {
+        tracing::info!(target: "pacquet::install", package = %virtual_store_name, "Skip subset");
+        return Ok(());
+    }
 
     let child_node_modules =
         ctx.config.virtual_store_dir.join(&virtual_store_name).join("node_modules");

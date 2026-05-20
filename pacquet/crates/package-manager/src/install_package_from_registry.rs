@@ -212,7 +212,14 @@ fn extract_tarball(
 /// `None` when missing or non-numeric — the tarball extractor treats it
 /// as a hint, not a hard requirement.
 fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
-    manifest?.get("dist")?.get("unpackedSize")?.as_u64().map(|value| value as usize)
+    // `usize::try_from` so a `u64` value larger than the host's
+    // `usize` (32-bit targets) degrades to "no hint" rather than
+    // truncating silently and producing an undersized pre-allocation.
+    manifest?
+        .get("dist")?
+        .get("unpackedSize")?
+        .as_u64()
+        .and_then(|value| usize::try_from(value).ok())
 }
 
 #[cfg(test)]
