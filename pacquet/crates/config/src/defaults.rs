@@ -217,6 +217,18 @@ pub fn default_modules_cache_max_age() -> u64 {
     10080
 }
 
+/// Default `virtualStoreDirMaxLength` matching pnpm's fallback at
+/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L101-L103>.
+///
+/// Kept as a free function (not a re-export of
+/// `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`) so
+/// `pacquet-config` doesn't pull in the modules-yaml crate just for one
+/// integer. Both copies must agree; the modules-yaml side carries the
+/// same upstream link.
+pub fn default_virtual_store_dir_max_length() -> u64 {
+    120
+}
+
 pub fn default_fetch_retries() -> u32 {
     2
 }

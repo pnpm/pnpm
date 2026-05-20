@@ -398,7 +398,10 @@ fn symlink_skips_dropped_nodes() {
     // valid target. The dropped snapshot's slot is intentionally
     // absent — without the skip filter, the symlink pass would try
     // to create a link pointing at it.
-    let layout = VirtualStoreLayout::legacy(&virtual_store_dir);
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
     std::fs::create_dir_all(layout.slot_dir(&kept_key).join("node_modules/kept")).unwrap();
 
     let mut skipped: HashSet<PackageKey> = HashSet::new();

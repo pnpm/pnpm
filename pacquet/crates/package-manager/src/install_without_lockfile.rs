@@ -9,6 +9,7 @@ use futures_util::future;
 use miette::Diagnostic;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
 use pacquet_config::Config;
+use pacquet_crypto_hash::shorten_virtual_store_name;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
@@ -307,7 +308,10 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // enumerates `config.virtual_store_dir` exactly as before. GVS
         // is scoped to frozen-lockfile installs (pnpm/pacquet#432); the
         // without-lockfile fallback stays project-local.
-        let layout = crate::VirtualStoreLayout::legacy(config.virtual_store_dir.clone());
+        let layout = crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        );
         let empty_manifests = std::collections::HashMap::new();
         let empty_skipped = crate::SkippedSnapshots::new();
         LinkVirtualStoreBins {
@@ -372,10 +376,13 @@ where
         .get(&dep.id)
         .expect("resolve_dependency_tree must populate every referenced id");
 
-    let virtual_store_name = format!(
-        "{}@{}",
-        package.result.id.name.to_string().replace('/', "+"),
-        package.result.id.suffix,
+    let virtual_store_name = shorten_virtual_store_name(
+        format!(
+            "{}@{}",
+            package.result.id.name.to_string().replace('/', "+"),
+            package.result.id.suffix,
+        ),
+        ctx.config.virtual_store_dir_max_length as usize,
     );
 
     // Claim the `(name, version)` slot. `first_visit` is true iff this

@@ -114,6 +114,7 @@ pub struct WorkspaceSettings {
     pub global_virtual_store_dir: Option<String>,
     pub package_import_method: Option<PackageImportMethod>,
     pub modules_cache_max_age: Option<u64>,
+    pub virtual_store_dir_max_length: Option<u64>,
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
     pub offline: Option<bool>,
@@ -406,6 +407,7 @@ impl WorkspaceSettings {
         apply! {
             hoist, shamefully_hoist,
             node_linker, symlink, package_import_method, modules_cache_max_age,
+            virtual_store_dir_max_length,
             lockfile, prefer_frozen_lockfile, offline, prefer_offline,
             lockfile_include_tarball_url,
             auto_install_peers, hoist_workspace_packages,

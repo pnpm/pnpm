@@ -15,8 +15,8 @@ use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
 };
 use pacquet_modules_yaml::{
-    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, LayoutVersion, Modules,
-    NodeLinker as ModulesNodeLinker, WriteModulesError, write_modules_manifest,
+    Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
+    WriteModulesError, write_modules_manifest,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -700,7 +700,7 @@ fn build_modules_manifest(
         skipped: skipped.iter_installability().map(ToString::to_string).collect(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config.virtual_store_dir.to_string_lossy().into_owned(),
-        virtual_store_dir_max_length: DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     }
 }

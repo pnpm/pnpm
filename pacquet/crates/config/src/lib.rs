@@ -22,8 +22,8 @@ use std::{
 };
 
 pub use crate::defaults::{
-    available_parallelism, default_git_shallow_hosts, default_unsafe_perm, is_unsafe_perm_posix,
-    resolve_child_concurrency,
+    available_parallelism, default_git_shallow_hosts, default_unsafe_perm,
+    default_virtual_store_dir_max_length, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
@@ -291,6 +291,26 @@ pub struct Config {
     /// Default value is 10080 (7 days in minutes)
     #[default(_code = "default_modules_cache_max_age()")]
     pub modules_cache_max_age: u64,
+
+    /// Maximum filename length for the per-snapshot subdirectory of the
+    /// virtual store (`node_modules/.pnpm/<name>`). When the escaped
+    /// flat name would exceed this many bytes, the tail is replaced
+    /// with a 32-char sha256 hash so the path stays within filesystem
+    /// limits (macOS / ext4 cap component names at 255 bytes; pnpm
+    /// defaults to 120 to leave headroom for `node_modules/<name>`
+    /// suffixes appended below).
+    ///
+    /// Configurable via `virtualStoreDirMaxLength` in
+    /// `pnpm-workspace.yaml`, global `config.yaml`, or
+    /// `PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH`. Mirrors upstream
+    /// `Config.virtualStoreDirMaxLength` at
+    /// <https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/Config.ts>.
+    /// The same value is persisted into `node_modules/.modules.yaml`
+    /// so subsequent installs see the user's pick.
+    ///
+    /// Default value is 120.
+    #[default(_code = "default_virtual_store_dir_max_length()")]
+    pub virtual_store_dir_max_length: u64,
 
     /// When set to false, pnpm won't read or generate a pnpm-lock.yaml file.
     pub lockfile: bool,
@@ -2135,6 +2155,67 @@ mod tests {
         assert_eq!(
             config.hoist_pattern, None,
             "hoist: false must clear hoist_pattern, even when set via env var",
+        );
+    }
+
+    /// `virtualStoreDirMaxLength` defaults to 120 — same value pnpm
+    /// writes when nothing is configured. The constant lives in
+    /// `pacquet-modules-yaml`; this asserts the config side carries
+    /// the matching default so a fresh install produces the same
+    /// virtual-store dirnames as pnpm.
+    #[test]
+    pub fn virtual_store_dir_max_length_defaults_to_120() {
+        let tmp = tempdir().unwrap();
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+        assert_eq!(config.virtual_store_dir_max_length, 120);
+    }
+
+    /// `virtualStoreDirMaxLength` in `pnpm-workspace.yaml` overrides
+    /// the default. Mirrors pnpm's
+    /// [`virtualStoreDirMaxLength`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/Config.ts)
+    /// config-reader entry.
+    #[test]
+    pub fn virtual_store_dir_max_length_from_workspace_yaml() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.virtual_store_dir_max_length, 90);
+    }
+
+    /// `PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH` overrides the yaml
+    /// value, matching the reader cascade priority (env > yaml >
+    /// default).
+    #[test]
+    pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")
+            .expect("write to pnpm-workspace.yaml");
+
+        struct HostWithEnvOverride;
+        impl EnvVar for HostWithEnvOverride {
+            fn var(name: &str) -> Option<String> {
+                if name == "PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH" {
+                    return Some("50".to_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithEnvOverride {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithEnvOverride {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
+        assert_eq!(
+            config.virtual_store_dir_max_length, 50,
+            "env var must win over pnpm-workspace.yaml",
         );
     }
 }
