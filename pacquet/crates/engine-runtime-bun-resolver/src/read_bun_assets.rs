@@ -4,7 +4,7 @@
 //! `https://github.com/oven-sh/bun/releases/download/bun-v<version>/SHASUMS256.txt`.
 //! Each row covers one platform variant — pacquet decodes them in one
 //! pass, sorts the result by URL, and emits
-//! [`PlatformAssetResolution`](pacquet_lockfile::PlatformAssetResolution) entries
+//! [`PlatformAssetResolution`] entries
 //! the lockfile records.
 
 use std::sync::Arc;
