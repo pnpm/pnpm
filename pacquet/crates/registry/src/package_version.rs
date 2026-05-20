@@ -65,9 +65,11 @@ pub struct PackageVersion {
 /// A bool `true` becomes `Some("")`, a bool `false` becomes `None`;
 /// a string stays as `Some(s)`. Missing field defaults to `None` via
 /// the `#[serde(default)]` on the field itself.
-fn deserialize_deprecated_field<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+fn deserialize_deprecated_field<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<String>, Deser::Error>
 where
-    D: serde::Deserializer<'de>,
+    Deser: serde::Deserializer<'de>,
 {
     use serde::de::{self, Visitor};
     use std::fmt;
@@ -78,25 +80,25 @@ where
         fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.write_str("a deprecation reason (string), a boolean, or null")
         }
-        fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        fn visit_str<Err: de::Error>(self, value: &str) -> Result<Self::Value, Err> {
             Ok(Some(value.to_string()))
         }
-        fn visit_string<E: de::Error>(self, value: String) -> Result<Self::Value, E> {
+        fn visit_string<Err: de::Error>(self, value: String) -> Result<Self::Value, Err> {
             Ok(Some(value))
         }
-        fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
+        fn visit_bool<Err: de::Error>(self, value: bool) -> Result<Self::Value, Err> {
             Ok(if value { Some(String::new()) } else { None })
         }
-        fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
+        fn visit_none<Err: de::Error>(self) -> Result<Self::Value, Err> {
             Ok(None)
         }
-        fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+        fn visit_unit<Err: de::Error>(self) -> Result<Self::Value, Err> {
             Ok(None)
         }
-        fn visit_some<D2: serde::Deserializer<'de>>(
+        fn visit_some<Nested: serde::Deserializer<'de>>(
             self,
-            deserializer: D2,
-        ) -> Result<Self::Value, D2::Error> {
+            deserializer: Nested,
+        ) -> Result<Self::Value, Nested::Error> {
             deserializer.deserialize_any(DeprecatedVisitor)
         }
     }
