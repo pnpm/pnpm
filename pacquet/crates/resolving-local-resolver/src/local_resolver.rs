@@ -269,7 +269,8 @@ fn synthesize_fallback_manifest(
     spec: &LocalPackageSpec,
     opts: &LocalResolverOptions,
 ) -> Result<serde_json::Value, ResolveLocalError> {
-    if !spec.fetch_spec.exists() {
+    let metadata = std::fs::metadata(&spec.fetch_spec);
+    if matches!(&metadata, Err(err) if err.kind() == std::io::ErrorKind::NotFound) {
         if spec.id.as_str().starts_with("file:") {
             return Err(ResolveLocalError::LinkedPkgDirNotFound {
                 path: spec.fetch_spec.display().to_string(),
@@ -285,6 +286,20 @@ fn synthesize_fallback_manifest(
             prefix = %prefix,
             "Installing a dependency from a non-existent directory: {fetch_spec}",
         );
+    } else if let Ok(metadata) = metadata
+        && !metadata.is_dir()
+    {
+        // The path exists but isn't a directory (e.g. a `.tgz` that
+        // slipped past tarball-shape detection because the spec used
+        // the `link:` scheme). Upstream raises ENOTDIR explicitly on
+        // Windows — where `read(<file>/package.json)` returns
+        // `NotFound` rather than `NotADirectory` — inside
+        // [`readProjectManifestOnly`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/project-manifest-reader/src/index.ts#L100-L114).
+        // Pacquet does the equivalent check here so the resolver
+        // surfaces `NOT_PACKAGE_DIRECTORY` on every platform.
+        return Err(ResolveLocalError::NotPackageDirectory {
+            path: spec.fetch_spec.display().to_string(),
+        });
     }
     let name = spec
         .fetch_spec
