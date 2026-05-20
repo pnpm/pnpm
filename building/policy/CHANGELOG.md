@@ -1,5 +1,14 @@
 # @pnpm/building.policy
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/config.version-policy@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+
 ## 1100.0.5
 
 ### Patch Changes

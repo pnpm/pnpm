@@ -1,5 +1,38 @@
 # @pnpm/config.deps-installer
 
+## 1101.1.0
+
+### Minor Changes
+
+- c8d8fde: `configDependencies` now resolve and install one level of `optionalDependencies` declared by the config dependency, with `os`/`cpu`/`libc` platform filtering applied at install time. This unlocks the esbuild/swc-style pattern where a package ships platform-specific binaries via `optionalDependencies` — a config dependency can now do the same and have the matching binary symlinked next to it in the global virtual store, so `require('pkg-platform-arch')` from inside the config dependency resolves correctly.
+
+  The env lockfile records all platform variants regardless of host platform, so it remains portable across machines. Each entry in a config dependency's `optionalDependencies` must declare an exact version — ranges and tags are rejected to keep installs reproducible.
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/installing.deps-resolver@1100.1.1
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/config.package-is-installable@1100.0.6
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/config.writer@1100.0.9
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/lockfile.pruner@1100.0.7
+  - @pnpm/network.auth-header@1100.0.3
+  - @pnpm/network.fetch@1100.0.6
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/worker@1100.1.7
+
 ## 1101.0.10
 
 ### Patch Changes

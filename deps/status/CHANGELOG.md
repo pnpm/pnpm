@@ -1,5 +1,26 @@
 # @pnpm/deps.status
 
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.state@1100.0.14
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/lockfile.verification@1100.0.12
+  - @pnpm/workspace.projects-reader@1101.0.6
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.4
+  - @pnpm/lockfile.settings-checker@1100.0.12
+
 ## 1100.0.16
 
 ### Patch Changes

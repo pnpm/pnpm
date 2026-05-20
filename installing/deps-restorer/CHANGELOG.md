@@ -1,5 +1,38 @@
 # @pnpm/headless
 
+## 1101.1.4
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/types@1101.1.1
+  - @pnpm/building.during-install@1101.0.12
+  - @pnpm/deps.graph-builder@1100.0.11
+  - @pnpm/installing.linking.real-hoist@1100.0.9
+  - @pnpm/lockfile.to-pnp@1100.0.10
+  - @pnpm/installing.package-requester@1101.0.8
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/building.policy@1100.0.6
+  - @pnpm/config.package-is-installable@1100.0.6
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.5
+  - @pnpm/installing.linking.hoist@1100.0.8
+  - @pnpm/installing.linking.modules-cleaner@1100.1.3
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/lockfile.filtering@1100.1.2
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/worker@1100.1.7
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.5
+  - @pnpm/patching.config@1100.0.4
+
 ## 1101.1.3
 
 ### Patch Changes

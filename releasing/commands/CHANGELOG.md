@@ -1,5 +1,39 @@
 # @pnpm/releasing.commands
 
+## 1100.2.16
+
+### Patch Changes
+
+- 64afc92: Honor `publishConfig.access` when publishing packages.
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.commands@1100.4.0
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/engine.runtime.commands@1100.0.16
+  - @pnpm/fetching.directory-fetcher@1100.0.11
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/bins.resolver@1100.0.4
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/network.fetch@1100.0.6
+  - @pnpm/releasing.exportable-manifest@1100.0.7
+  - @pnpm/workspace.projects-filter@1100.0.13
+  - @pnpm/workspace.projects-sorter@1100.0.3
+  - @pnpm/fs.indexed-pkg-importer@1100.0.9
+
 ## 1100.2.15
 
 ### Patch Changes

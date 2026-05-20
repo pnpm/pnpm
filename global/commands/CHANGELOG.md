@@ -1,5 +1,28 @@
 # @pnpm/global.commands
 
+## 1100.0.19
+
+### Patch Changes
+
+- a620557: Fix global add/update to handle minimumReleaseAge policy violations instead of surfacing an internal resolver guardrail error.
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.deps-installer@1101.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/deps.inspection.list@1100.0.12
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/bins.remover@1100.0.5
+  - @pnpm/bins.resolver@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/global.packages@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
 ## 1100.0.18
 
 ### Patch Changes

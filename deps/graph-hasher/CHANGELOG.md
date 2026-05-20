@@ -1,5 +1,18 @@
 # @pnpm/calc-dep-state
 
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/engine.runtime.system-node-version@1100.1.1
+
 ## 1100.2.0
 
 ### Minor Changes
