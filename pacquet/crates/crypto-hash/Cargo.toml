@@ -1,14 +1,14 @@
 [package]
-name                  = "pacquet-crypto-hash"
-description           = "Hash helpers shared across pacquet crates"
-version               = "0.0.1"
-publish               = false
-authors.workspace     = true
-edition.workspace     = true
-homepage.workspace    = true
-keywords.workspace    = true
-license.workspace     = true
-repository.workspace  = true
+name                 = "pacquet-crypto-hash"
+description          = "Hash helpers shared across pacquet crates"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
 
 [dependencies]
 sha2 = { workspace = true }

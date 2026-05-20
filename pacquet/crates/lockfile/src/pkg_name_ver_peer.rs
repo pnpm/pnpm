@@ -28,7 +28,10 @@ impl PkgNameVerPeer {
     /// to contain capitals.
     ///
     /// `max_length` is `Modules.virtual_store_dir_max_length` (default
-    /// 120; see [`pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`]).
+    /// 120; see `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`
+    /// — referenced by name rather than as an intra-doc link because
+    /// `pacquet-lockfile` deliberately does not depend on
+    /// `pacquet-modules-yaml`).
     pub fn to_virtual_store_name(&self, max_length: usize) -> String {
         let filename = self
             .to_string()
