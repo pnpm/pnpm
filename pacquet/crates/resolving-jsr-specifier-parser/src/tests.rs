@@ -95,3 +95,15 @@ fn version_only_specifier_without_alias_errors() {
         Err(ParseJsrSpecifierError::MissingPackageName { specifier: "^1.0.0".to_string() }),
     );
 }
+
+#[test]
+fn version_only_specifier_with_empty_alias_errors() {
+    // Mirrors upstream's JS truthiness check `if (!alias)` — an empty
+    // string is falsy in JS so the version-only branch raises
+    // `MissingPackageName` instead of attempting to fold `""` into a
+    // package name.
+    assert_eq!(
+        parse_jsr_specifier("jsr:^1.0.0", Some("")),
+        Err(ParseJsrSpecifierError::MissingPackageName { specifier: "^1.0.0".to_string() }),
+    );
+}

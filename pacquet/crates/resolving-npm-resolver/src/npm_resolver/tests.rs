@@ -294,5 +294,9 @@ async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
     };
     let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
     let msg = err.to_string();
-    assert!(msg.contains("JSR"), "unexpected error message: {msg}");
+    // Asserting the upstream-defined error message ties the test to
+    // the public `ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE` contract; the
+    // resolver seam returns the parser error as a boxed `dyn Error`
+    // so we can't downcast to the variant directly.
+    assert_eq!(msg, "Package names from JSR must have a scope", "unexpected error message: {msg}");
 }

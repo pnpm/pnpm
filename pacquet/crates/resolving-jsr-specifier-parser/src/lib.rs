@@ -117,7 +117,11 @@ pub fn parse_jsr_specifier(
         return Err(ParseJsrSpecifierError::MissingScope);
     }
 
-    let Some(alias) = alias else {
+    // Match upstream's JS-truthiness check on `alias`
+    // ([source](https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/src/index.ts#L41-L43)):
+    // an empty string is falsy in JS and triggers `MissingPackageName`,
+    // not a fall-through into the version-only branch.
+    let Some(alias) = alias.filter(|alias| !alias.is_empty()) else {
         return Err(ParseJsrSpecifierError::MissingPackageName { specifier: rest.to_string() });
     };
 
