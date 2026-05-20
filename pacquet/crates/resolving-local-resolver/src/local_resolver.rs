@@ -209,9 +209,22 @@ async fn resolve_spec(
     };
 
     if matches!(spec.kind, LocalSpecKind::File) {
-        let integrity = compute_tarball_integrity(&spec.fetch_spec)
-            .await
-            .map_err(ResolveLocalError::Integrity)?;
+        // A missing tarball file raises the same `LINKED_PKG_DIR_NOT_FOUND`
+        // code the directory branch uses for a missing `file:` target —
+        // matches upstream's behavior where `getTarballIntegrity` raises
+        // ENOENT and the same catch in
+        // [`resolveSpec`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/index.ts#L108-L141)
+        // routes both kinds of missing `file:` target through one
+        // pnpm-compatible error code.
+        let integrity = match compute_tarball_integrity(&spec.fetch_spec).await {
+            Ok(integrity) => integrity,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                return Err(ResolveLocalError::LinkedPkgDirNotFound {
+                    path: spec.fetch_spec.display().to_string(),
+                });
+            }
+            Err(err) => return Err(ResolveLocalError::Integrity(err)),
+        };
         return Ok(Some(LocalResolveResult {
             id: spec.id.clone(),
             manifest: None,

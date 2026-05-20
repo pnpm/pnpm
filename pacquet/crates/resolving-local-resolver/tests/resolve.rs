@@ -380,6 +380,32 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
     }
 }
 
+/// A `file:./missing.tgz` spec funnels through the tarball branch
+/// where `compute_tarball_integrity` raises ENOENT. The resolver must
+/// surface the same `LINKED_PKG_DIR_NOT_FOUND` code the directory
+/// branch raises for a missing `file:` target — both kinds of
+/// missing `file:` target share one pnpm-compatible error path
+/// (`resolveSpec` upstream:
+/// <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/index.ts#L108-L141>).
+#[tokio::test]
+async fn fail_when_resolving_missing_tarball_with_file_protocol() {
+    let tmp = TempDir::new().expect("tempdir");
+    let project_dir = tmp.path();
+
+    let wd = WantedLocalDependency {
+        bare_specifier: "file:./missing.tgz".to_string(),
+        injected: false,
+    };
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
+        .await
+        .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
+    let expected = project_dir.join("missing.tgz").display().to_string();
+    match err {
+        ResolveLocalError::LinkedPkgDirNotFound { path } => assert_eq!(path, expected),
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
 #[tokio::test]
 async fn do_not_fail_when_resolving_from_not_existing_directory() {
     let tmp = TempDir::new().expect("tempdir");
