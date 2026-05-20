@@ -328,10 +328,10 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
     let path = Arc::new(tmp.path().join("shared"));
     let content: Arc<Vec<u8>> = Arc::new(vec![0xAB; 1024 * 64]);
 
-    const N: usize = 32;
-    let barrier = Arc::new(Barrier::new(N));
+    const WRITER_COUNT: usize = 32;
+    let barrier = Arc::new(Barrier::new(WRITER_COUNT));
 
-    let handles: Vec<_> = (0..N)
+    let handles: Vec<_> = (0..WRITER_COUNT)
         .map(|_| {
             let path = Arc::clone(&path);
             let content = Arc::clone(&content);
