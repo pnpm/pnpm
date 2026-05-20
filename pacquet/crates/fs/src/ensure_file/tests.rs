@@ -310,24 +310,39 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
 #[test]
 fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
     use std::os::unix::fs::MetadataExt;
-    use std::sync::{Arc, Barrier};
+    use std::sync::{Arc, Barrier, Mutex};
     use std::thread;
 
     let tmp = tempdir().unwrap();
     let path = Arc::new(tmp.path().join("shared"));
     let content: Arc<Vec<u8>> = Arc::new(vec![0xAB; 1024 * 64]);
 
+    // Pre-create so every contender below routes through
+    // `verify_or_rewrite` — the path that can swap the inode via
+    // `write_atomic`'s rename on a size mismatch. `original_ino` is
+    // the reference point both the post-run and per-writer inode
+    // observations are compared against.
+    ensure_file(&path, &content, None).expect("pre-create");
+    let original_ino = fs::metadata(&*path).unwrap().ino();
+
     const WRITER_COUNT: usize = 32;
     let barrier = Arc::new(Barrier::new(WRITER_COUNT));
+    let observed: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::with_capacity(WRITER_COUNT)));
 
     let handles: Vec<_> = (0..WRITER_COUNT)
         .map(|_| {
             let path = Arc::clone(&path);
             let content = Arc::clone(&content);
             let barrier = Arc::clone(&barrier);
+            let observed = Arc::clone(&observed);
             thread::spawn(move || {
                 barrier.wait();
                 ensure_file(&path, &content, None).expect("each writer should succeed");
+                // Per-thread observation taken before the parent
+                // joins, so a mid-run inode swap from another writer
+                // is visible to at least one of these reads.
+                let ino = fs::metadata(&*path).unwrap().ino();
+                observed.lock().unwrap().push(ino);
             })
         })
         .collect();
@@ -339,7 +354,12 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
     let final_meta = fs::metadata(&*path).unwrap();
     assert_eq!(fs::read(&*path).unwrap(), *content);
     assert_eq!(final_meta.len(), content.len() as u64);
-    assert_eq!(final_meta.ino(), fs::metadata(&*path).unwrap().ino());
+    assert_eq!(final_meta.ino(), original_ino);
+    let observed = observed.lock().unwrap();
+    assert!(
+        observed.iter().all(|ino| *ino == original_ino),
+        "inode changed during concurrent writes: {observed:?}"
+    );
 }
 
 /// Errors that aren't fd-pressure must propagate immediately —
