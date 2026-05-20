@@ -33,7 +33,7 @@
 //!    aggregates missing required and optional peers via
 //!    [`fn@hoist_peers`] / [`fn@get_hoistable_optional_peers`], extends
 //!    the tree with hoisted picks via
-//!    [`extend_tree`](crate::extend_tree), and re-runs the peer pass
+//!    [`extend_tree`], and re-runs the peer pass
 //!    until both pass-1 and pass-2 reach a fixed point. Mirrors
 //!    upstream's
 //!    [`resolveRootDependencies`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L327-L437).

@@ -23,7 +23,7 @@ use crate::{
 /// mutate it.
 ///
 /// Peer auto-installation lives one layer up in
-/// [`crate::resolve_importer`] — this entry point is a pure tree walker
+/// [`fn@crate::resolve_importer`] — this entry point is a pure tree walker
 /// over the manifest's explicit dependencies plus their transitive
 /// children. The orchestrator extends the same tree with hoisted peers
 /// via [`extend_tree`].
@@ -127,7 +127,7 @@ impl TreeCtx {
 
     /// Build a snapshot of the current tree state without consuming
     /// `self`. The orchestrator's hoist loop snapshots after each
-    /// [`extend_tree`] call to run [`crate::resolve_peers`] over the
+    /// [`extend_tree`] call to run [`fn@crate::resolve_peers`] over the
     /// growing tree and find missing peers to hoist next.
     pub async fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
         ResolvedTree {
@@ -162,10 +162,10 @@ impl TreeCtx {
 /// orchestrator concatenates these into the cumulative direct list it
 /// hands to [`TreeCtx::into_resolved_tree`].
 ///
-/// The per-id dedup gate in [`resolve_node`] means already-resolved
+/// The per-id dedup gate in the per-node walker means already-resolved
 /// packages reuse their existing [`ResolvedPackage`]; only the new
 /// subtree is actually traversed. Top-level cycles can't occur (the
-/// importer can't appear in its own ancestor chain), but `resolve_node`
+/// importer can't appear in its own ancestor chain), but the walker
 /// may still return `None` for any spec the cycle break gated out;
 /// those are filtered here.
 pub async fn extend_tree<Chain>(
@@ -323,7 +323,7 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 /// Extract `dependencies` + `optionalDependencies` from a resolved
 /// package's manifest. Peer dependencies are **not** walked as regular
 /// edges here — they're hoisted to the importer level by the
-/// [`crate::resolve_importer`] orchestrator (which calls [`extend_tree`]
+/// [`fn@crate::resolve_importer`] orchestrator (which calls [`extend_tree`]
 /// with the hoist-picker's output) so a peer ends up shared across
 /// every consumer, not nested under each one.
 ///

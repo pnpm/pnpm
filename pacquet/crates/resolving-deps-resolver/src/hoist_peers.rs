@@ -167,10 +167,9 @@ pub fn get_hoistable_optional_peers(
                 continue;
             }
             let Ok(version) = version_str.parse::<Version>() else { continue };
-            if !ranges
-                .iter()
-                .all(|range| range.parse::<Range>().map(|r| r.satisfies(&version)).unwrap_or(false))
-            {
+            if !ranges.iter().all(|range| {
+                range.parse::<Range>().map(|parsed| parsed.satisfies(&version)).unwrap_or(false)
+            }) {
                 continue;
             }
             if max_satisfying_version.as_ref().is_none_or(|cur| version > *cur) {

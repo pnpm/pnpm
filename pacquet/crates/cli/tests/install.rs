@@ -336,9 +336,9 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     let entries: Vec<String> = fs::read_dir(&pnpm_dir)
-        .map(|rd| {
-            rd.filter_map(Result::ok)
-                .map(|e| e.file_name().to_string_lossy().into_owned())
+        .map(|dir| {
+            dir.filter_map(Result::ok)
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
                 .collect()
         })
         .unwrap_or_default();

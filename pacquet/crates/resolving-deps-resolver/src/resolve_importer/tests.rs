@@ -124,7 +124,7 @@ async fn auto_installs_missing_required_peer() {
     // Peer is resolved — the issue list is empty for react.
     assert!(
         !result.peers_result.peer_dependency_issues.missing.contains_key("react"),
-        "react should no longer be missing after hoisting"
+        "react should no longer be missing after hoisting",
     );
     assert_eq!(
         result.peers_result.direct_dependencies_by_alias.get("react-dom"),
@@ -207,7 +207,7 @@ async fn transitive_required_peer_is_hoisted() {
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
     assert!(
         direct.contains(&"peer-pkg"),
-        "transitive peer should be hoisted to importer direct deps: {direct:?}"
+        "transitive peer should be hoisted to importer direct deps: {direct:?}",
     );
     assert!(!result.peers_result.peer_dependency_issues.missing.contains_key("peer-pkg"));
 }
@@ -308,11 +308,11 @@ async fn auto_install_skips_optional_peers_without_preferred_versions() {
     assert!(direct.contains(&"peer-a"), "required peer should be hoisted: {direct:?}");
     assert!(
         !direct.contains(&"peer-b"),
-        "optional peer must stay missing without a preferred version"
+        "optional peer must stay missing without a preferred version",
     );
     assert!(
         !direct.contains(&"peer-c"),
-        "optional peer must stay missing without a preferred version"
+        "optional peer must stay missing without a preferred version",
     );
 }
 
@@ -542,10 +542,13 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
     // matters here is that `^1.0.0` never appears.)
     let calls = resolver.calls.lock().unwrap();
     for name in ["x", "y", "z"] {
-        let ranges: Vec<&str> =
-            calls.iter().filter(|(n, _)| n == name).map(|(_, r)| r.as_str()).collect();
+        let ranges: Vec<&str> = calls
+            .iter()
+            .filter(|(call_name, _)| call_name == name)
+            .map(|(_, range)| range.as_str())
+            .collect();
         assert!(
-            ranges.iter().all(|r| *r == "1.0.0"),
+            ranges.iter().all(|range| *range == "1.0.0"),
             "{name} should resolve via the sibling's exact-version spec only, got {ranges:?}",
         );
     }

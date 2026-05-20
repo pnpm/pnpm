@@ -6,14 +6,14 @@
 //!
 //! Two nested fixed-point loops:
 //!
-//! 1. **Inner / required pass.** Run [`crate::resolve_peers`] over the
+//! 1. **Inner / required pass.** Run [`fn@crate::resolve_peers`] over the
 //!    growing tree, collect peers that are required (not optional) and
 //!    not already direct deps, pick a specifier per peer via
-//!    [`crate::hoist_peers`], and extend the tree with those picks.
+//!    [`fn@crate::hoist_peers`], and extend the tree with those picks.
 //!    Repeat until the picker proposes nothing new.
 //! 2. **Outer / optional pass.** Aggregate the optional missing peers
 //!    seen across the inner-loop iterations, ask
-//!    [`crate::get_hoistable_optional_peers`] which of them have a
+//!    [`fn@crate::get_hoistable_optional_peers`] which of them have a
 //!    preferred version already in scope, and extend the tree with
 //!    those. Re-enter the inner loop if any landed.
 //!
@@ -134,7 +134,8 @@ where
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions).await;
 
-    let mut parent_pkg_aliases: HashSet<String> = direct.iter().map(|d| d.alias.clone()).collect();
+    let mut parent_pkg_aliases: HashSet<String> =
+        direct.iter().map(|dep| dep.alias.clone()).collect();
     let mut all_missing_optional_peers: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
     loop {
@@ -222,7 +223,7 @@ where
 /// hadn't been added to the alias set yet). Its merged range follows
 /// upstream's [`mergePkgsDeps`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L796-L818):
 /// single-range cases pass through, multi-range cases intersect via a
-/// stub (see [`safe_intersect`]) and fall through to `||`-join when
+/// stub (see [`merge_ranges`]) and fall through to `||`-join when
 /// `auto_install_peers_from_highest_match` is set.
 ///
 /// Peers whose consumers are *all* optional are returned as the second
@@ -239,8 +240,11 @@ fn partition_missing_peers(
         if parent_pkg_aliases.contains(peer_name) {
             continue;
         }
-        let required_ranges: Vec<&str> =
-            entries.iter().filter(|e| !e.optional).map(|e| e.wanted_range.as_str()).collect();
+        let required_ranges: Vec<&str> = entries
+            .iter()
+            .filter(|entry| !entry.optional)
+            .map(|entry| entry.wanted_range.as_str())
+            .collect();
         if required_ranges.is_empty() {
             let mut seen: BTreeSet<String> = BTreeSet::new();
             let mut ordered: Vec<String> = Vec::new();

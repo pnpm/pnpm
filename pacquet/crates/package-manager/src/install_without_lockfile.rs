@@ -51,7 +51,7 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 ///
 /// **Brief overview for each package:**
 /// * Resolve the dependency through the [`NpmResolver`] chain
-///   ([`resolve_dependency_tree`] builds the full tree first).
+///   ([`resolve_importer`] builds the full tree and hoists peers first).
 /// * Fetch a tarball of each resolved package and extract it into the
 ///   store directory.
 /// * Import (by reflink, hardlink, or copy) the files from the store
@@ -435,7 +435,8 @@ struct InstallCtx<'a> {
 /// children. Recurses into each child's `node_modules/.pacquet/<vsn>/
 /// node_modules/` so transitive symlinks land in their parent's slot.
 ///
-/// `dep_path` is the depPath key produced by [`resolve_peers`] —
+/// `dep_path` is the depPath key produced by the peer-resolution stage
+/// inside [`resolve_importer`] —
 /// `pkgIdWithPatchHash` for pure packages, `pkgId(peer1@v)(peer2@v)`
 /// when peer-suffix variation applies. The virtual-store slot name is
 /// derived via [`pacquet_deps_path::dep_path_to_filename`] so it stays

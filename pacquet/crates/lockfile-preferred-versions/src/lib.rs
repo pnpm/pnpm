@@ -31,8 +31,8 @@ pub use version_selector_type::get_version_selector_type;
 ///    record the spec with [`DIRECT_DEP_SELECTOR_WEIGHT`].
 /// 2. For each snapshot, fold in the `(name, version)` pair with
 ///    [`EXISTING_VERSION_SELECTOR_WEIGHT`]; a pre-existing direct-dep
-///    selector for the same exact version has its weight bumped via
-///    [`add_weight_to_version_selector`] instead of being overwritten.
+///    selector for the same exact version has its weight bumped by
+///    `EXISTING_VERSION_SELECTOR_WEIGHT` instead of being overwritten.
 ///
 /// Pass `snapshots = None` when the wanted lockfile is absent (e.g.
 /// the `install-without-lockfile` path); only manifest-derived entries
