@@ -5,7 +5,9 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
+use pacquet_crypto_hash::shorten_virtual_store_name;
 use pacquet_lockfile::LockfileResolution;
+use pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
 use pacquet_resolving_resolver_base::ResolveResult;
@@ -105,7 +107,10 @@ impl<'a> InstallPackageFromRegistry<'a> {
 
         let real_name = resolution.id.name.to_string();
         let version = resolution.id.suffix.to_string();
-        let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), version);
+        let virtual_store_name = shorten_virtual_store_name(
+            format!("{}@{}", real_name.replace('/', "+"), version),
+            DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
+        );
         let package_id = format!("{real_name}@{version}");
 
         // The virtual store always uses the registry-returned name

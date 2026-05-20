@@ -30,6 +30,7 @@ use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, SnapshotDepRef,
     SnapshotEntry,
 };
+use pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -71,6 +72,18 @@ pub struct VirtualStoreLayout {
     ///
     /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
     gvs_suffixes: Option<HashMap<PackageKey, String>>,
+
+    /// Threshold passed into
+    /// [`PkgNameVerPeer::to_virtual_store_name`] for the legacy flat-
+    /// name fallback. Mirrors pnpm's `virtualStoreDirMaxLength`: when
+    /// the escaped filename exceeds this many bytes, the tail is
+    /// replaced with a 32-char sha256 hash so the directory name fits
+    /// within filesystem limits (macOS / ext4 cap component names at
+    /// 255 bytes, but pnpm defaults to 120 to leave headroom for the
+    /// `<name>@<version>/` suffix appended below).
+    ///
+    /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
+    virtual_store_dir_max_length: usize,
 }
 
 impl VirtualStoreLayout {
@@ -82,7 +95,11 @@ impl VirtualStoreLayout {
     /// callers stay on the project-local flat layout even when
     /// `enable_global_virtual_store: true` is configured.
     pub fn legacy(root: impl Into<PathBuf>) -> Self {
-        VirtualStoreLayout { package_store_dir: root.into(), gvs_suffixes: None }
+        VirtualStoreLayout {
+            package_store_dir: root.into(),
+            gvs_suffixes: None,
+            virtual_store_dir_max_length: DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
+        }
     }
 
     /// Build the layout for one install. Reads
@@ -156,11 +173,20 @@ impl VirtualStoreLayout {
         } else {
             config.virtual_store_dir.clone()
         };
+        let virtual_store_dir_max_length = DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize;
         if !config.enable_global_virtual_store {
-            return VirtualStoreLayout { package_store_dir, gvs_suffixes: None };
+            return VirtualStoreLayout {
+                package_store_dir,
+                gvs_suffixes: None,
+                virtual_store_dir_max_length,
+            };
         }
         let Some(snapshots) = snapshots else {
-            return VirtualStoreLayout { package_store_dir, gvs_suffixes: Some(HashMap::new()) };
+            return VirtualStoreLayout {
+                package_store_dir,
+                gvs_suffixes: Some(HashMap::new()),
+                virtual_store_dir_max_length,
+            };
         };
         let graph = lockfile_to_dep_graph(snapshots, packages);
         // Build the engine-agnostic gating set once per install,
@@ -217,7 +243,11 @@ impl VirtualStoreLayout {
             let suffix = format_global_virtual_store_path(&name, &version, &hex_digest);
             gvs_suffixes.insert(snapshot_key.clone(), suffix);
         }
-        VirtualStoreLayout { package_store_dir, gvs_suffixes: Some(gvs_suffixes) }
+        VirtualStoreLayout {
+            package_store_dir,
+            gvs_suffixes: Some(gvs_suffixes),
+            virtual_store_dir_max_length,
+        }
     }
 
     /// Root of the layout — the directory that contains every per-
@@ -248,8 +278,11 @@ impl VirtualStoreLayout {
     /// to fire).
     pub fn slot_dir(&self, key: &PackageKey) -> PathBuf {
         let suffix = match &self.gvs_suffixes {
-            Some(map) => map.get(key).cloned().unwrap_or_else(|| key.to_virtual_store_name()),
-            None => key.to_virtual_store_name(),
+            Some(map) => map
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| key.to_virtual_store_name(self.virtual_store_dir_max_length)),
+            None => key.to_virtual_store_name(self.virtual_store_dir_max_length),
         };
         self.package_store_dir.join(suffix)
     }

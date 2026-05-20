@@ -9,6 +9,8 @@ use futures_util::future;
 use miette::Diagnostic;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
 use pacquet_config::Config;
+use pacquet_crypto_hash::shorten_virtual_store_name;
+use pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
@@ -372,10 +374,13 @@ where
         .get(&dep.id)
         .expect("resolve_dependency_tree must populate every referenced id");
 
-    let virtual_store_name = format!(
-        "{}@{}",
-        package.result.id.name.to_string().replace('/', "+"),
-        package.result.id.suffix,
+    let virtual_store_name = shorten_virtual_store_name(
+        format!(
+            "{}@{}",
+            package.result.id.name.to_string().replace('/', "+"),
+            package.result.id.suffix,
+        ),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
     );
 
     // Claim the `(name, version)` slot. `first_visit` is true iff this

@@ -15,6 +15,7 @@ repository  = "https://github.com/pnpm/pacquet"
 # Crates
 pacquet-cli                               = { path = "pacquet/crates/cli" }
 pacquet-cmd-shim                          = { path = "pacquet/crates/cmd-shim" }
+pacquet-crypto-hash                       = { path = "pacquet/crates/crypto-hash" }
 pacquet-fs                                = { path = "pacquet/crates/fs" }
 pacquet-registry                          = { path = "pacquet/crates/registry" }
 pacquet-tarball                           = { path = "pacquet/crates/tarball" }

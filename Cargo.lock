@@ -2045,6 +2045,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-crypto-hash"
+version = "0.0.1"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
 name = "pacquet-diagnostics"
 version = "0.0.1"
 dependencies = [
@@ -2152,6 +2159,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "node-semver",
+ "pacquet-crypto-hash",
  "pacquet-diagnostics",
  "pacquet-package-manifest",
  "pipe-trait",
@@ -2270,6 +2278,7 @@ dependencies = [
  "node-semver",
  "pacquet-cmd-shim",
  "pacquet-config",
+ "pacquet-crypto-hash",
  "pacquet-directory-fetcher",
  "pacquet-executor",
  "pacquet-fs",
@@ -2482,6 +2491,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "miette 7.6.0",
+ "pacquet-crypto-hash",
  "pacquet-fs",
  "pipe-trait",
  "pretty_assertions",
