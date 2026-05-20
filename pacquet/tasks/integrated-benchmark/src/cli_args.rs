@@ -66,9 +66,9 @@ impl FromStr for TargetSpec {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let (prefix, rev) = input.split_once('@').ok_or_else(|| {
-            format!("target {input:?}: must be `pacquet@<rev>` or `pnpm@<rev>`")
-        })?;
+        let (prefix, rev) = input
+            .split_once('@')
+            .ok_or_else(|| format!("target {input:?}: must be `pacquet@<rev>` or `pnpm@<rev>`"))?;
         let kind = match prefix {
             "pacquet" => TargetKind::Pacquet,
             "pnpm" => TargetKind::Pnpm,
