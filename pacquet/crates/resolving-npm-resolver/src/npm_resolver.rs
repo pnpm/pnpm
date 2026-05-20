@@ -27,9 +27,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use pacquet_config::version_policy::PackageVersionPolicy;
-use pacquet_lockfile::{
-    LockfileResolution, PkgName, PkgNameVer, RegistryResolution, TarballResolution,
-};
+use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{
@@ -195,13 +193,16 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         query: &LatestQuery,
         opts: &ResolveOptions,
     ) -> Result<Option<LatestInfo>, ResolveError> {
-        let bare_specifier =
-            query.wanted_dependency.bare_specifier.clone().unwrap_or_else(|| "latest".to_string());
-        let wanted = WantedDependency {
-            alias: query.wanted_dependency.alias.clone(),
-            bare_specifier: Some(bare_specifier),
-            ..WantedDependency::default()
-        };
+        // Mirror upstream's `createResolveLatest`: only the
+        // `bare_specifier` is rewritten (synthesized to the default
+        // tag when missing). Cloning the rest of the wanted
+        // dependency preserves `injected` / `prev_specifier` /
+        // `optional`, which downstream resolver branches may yet
+        // consult even though the npm resolver doesn't today.
+        let mut wanted = query.wanted_dependency.clone();
+        if wanted.bare_specifier.is_none() {
+            wanted.bare_specifier = Some("latest".to_string());
+        }
         let mut resolve_opts = opts.clone();
         if !query.compatible {
             resolve_opts.update = UpdateBehavior::Latest;
@@ -244,29 +245,20 @@ fn build_resolve_result(
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let id = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
-    let integrity = picked.dist.integrity.clone();
-    let tarball = picked.dist.tarball.clone();
-    let resolution = if let Some(integrity) = integrity.clone() {
-        if tarball.is_empty() {
-            // Registry resolutions carry only integrity; the tarball URL
-            // is reconstructed at fetch time.
-            LockfileResolution::Registry(RegistryResolution { integrity })
-        } else {
-            LockfileResolution::Tarball(TarballResolution {
-                tarball: tarball.clone(),
-                integrity: Some(integrity),
-                git_hosted: None,
-                path: None,
-            })
-        }
-    } else {
-        LockfileResolution::Tarball(TarballResolution {
-            tarball: tarball.clone(),
-            integrity: None,
-            git_hosted: None,
-            path: None,
-        })
-    };
+    // The picker always carries a tarball URL on its `dist` payload —
+    // every npm registry serves `dist.tarball` on a successful pick
+    // and pacquet's deserializer requires it (`dist.tarball: String`,
+    // not `Option`). Always emit `Tarball`, never `Registry`. The
+    // install side's `extract_tarball` only handles `Tarball`, so
+    // mixing the two shapes would force a Registry → URL
+    // reconstruction with no payoff: at resolve time we already have
+    // the URL the install path needs.
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: picked.dist.tarball.clone(),
+        integrity: picked.dist.integrity.clone(),
+        git_hosted: None,
+        path: None,
+    });
     let published_at = meta.published_at(&picked.version.to_string()).map(str::to_string);
     let manifest = Some(serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?);
     let policy_violation = detect_min_release_age_violation(

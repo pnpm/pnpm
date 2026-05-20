@@ -104,6 +104,22 @@ fn falls_back_to_pkg_name_scope_without_npm_alias() {
     assert_eq!(picked, "https://internal/registry/");
 }
 
+/// Scoped local name + scoped `npm:` target in a **different scope**:
+/// the target's scope wins. The package being fetched is
+/// `@scope2/bar`, so routing follows `@scope2`, not the local
+/// `@scope1/` slot. Mirrors upstream's `'npm:@private/lodash@1'`
+/// case in `config/pick-registry-for-package/test/index.spec.ts`.
+#[test]
+fn scoped_npm_alias_target_in_different_scope_wins_over_local() {
+    let regs = registries(&[
+        ("default", "https://registry.npmjs.org/"),
+        ("@scope1", "https://scope1.registry/"),
+        ("@scope2", "https://scope2.registry/"),
+    ]);
+    let picked = pick_registry_for_package(&regs, "@scope1/foo", Some("npm:@scope2/bar@^1.0.0"));
+    assert_eq!(picked, "https://scope2.registry/");
+}
+
 /// An unscoped `npm:` alias target (`"@private/foo": "npm:lodash@^1"`)
 /// routes through the **default** registry, not the local alias's
 /// scope. The fetched package is `lodash` (unscoped); the local
