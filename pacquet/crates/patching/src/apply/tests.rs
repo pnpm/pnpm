@@ -542,7 +542,7 @@ fn modify_does_not_mutate_hardlinked_store_file() {
     assert_eq!(
         fs::metadata(&slot_file).unwrap().ino(),
         fs::metadata(&store_file).unwrap().ino(),
-        "test setup: slot must share inode with store"
+        "test setup: slot must share inode with store",
     );
 
     let patch_dir = tempdir().unwrap();
@@ -558,7 +558,7 @@ fn modify_does_not_mutate_hardlinked_store_file() {
     assert_ne!(
         fs::metadata(&slot_file).unwrap().ino(),
         fs::metadata(&store_file).unwrap().ino(),
-        "slot must no longer share the store's inode after patching"
+        "slot must no longer share the store's inode after patching",
     );
 }
 
