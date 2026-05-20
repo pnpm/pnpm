@@ -11,6 +11,7 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
+dashmap     = { workspace = true }
 derive_more = { workspace = true }
 miette      = { workspace = true }
 pathdiff    = { workspace = true }
