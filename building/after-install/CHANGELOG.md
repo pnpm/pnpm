@@ -1,5 +1,11 @@
 # @pnpm/building.after-install
 
+## 1101.0.15
+
+### Patch Changes
+
+- @pnpm/store.connection-manager@1100.2.2
+
 ## 1101.0.14
 
 ### Patch Changes

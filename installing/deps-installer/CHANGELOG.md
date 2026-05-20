@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 1101.3.1
+
+### Patch Changes
+
+- @pnpm/installing.deps-resolver@1100.1.2
+- @pnpm/installing.package-requester@1101.0.8
+- @pnpm/building.after-install@1101.0.15
+- @pnpm/installing.deps-restorer@1101.1.4
+
 ## 1101.3.0
 
 ### Minor Changes

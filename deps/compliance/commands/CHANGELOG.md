@@ -1,5 +1,13 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.2.5
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/installing.commands@1100.4.1
+
 ## 1101.2.4
 
 ### Patch Changes

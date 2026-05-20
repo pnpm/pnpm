@@ -1,5 +1,11 @@
 # @pnpm/cache.api
 
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+
 ## 1100.0.14
 
 ### Patch Changes

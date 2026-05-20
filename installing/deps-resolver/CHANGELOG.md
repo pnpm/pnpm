@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+
 ## 1100.1.1
 
 ### Patch Changes

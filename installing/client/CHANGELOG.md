@@ -1,5 +1,12 @@
 # @pnpm/client
 
+## 1100.2.1
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+- @pnpm/resolving.default-resolver@1100.3.1
+
 ## 1100.2.0
 
 ### Minor Changes

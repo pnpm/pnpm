@@ -1,5 +1,11 @@
 # @pnpm/cache.commands
 
+## 1100.0.16
+
+### Patch Changes
+
+- @pnpm/cache.api@1100.0.15
+
 ## 1100.0.15
 
 ### Patch Changes
