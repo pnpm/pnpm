@@ -49,7 +49,10 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
     write_file(child_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(virtual_dir.clone()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_dir.clone(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),
@@ -117,7 +120,10 @@ fn skips_slot_own_package_when_walking_children() {
     write_file(other_dir.join("other.js"), "#!/usr/bin/env node\n").unwrap();
 
     LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(virtual_dir.clone()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_dir.clone(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),
@@ -142,7 +148,10 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
     let tmp = tempdir().unwrap();
     let nonexistent = tmp.path().join("does-not-exist");
     LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(nonexistent.clone()),
+        layout: &VirtualStoreLayout::legacy(
+            nonexistent.clone(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),
@@ -180,7 +189,10 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
     write_file(child_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(virtual_dir.clone()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_dir.clone(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),
@@ -231,7 +243,10 @@ fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
     write_file(child_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(virtual_dir.clone()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_dir.clone(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),
@@ -281,7 +296,10 @@ fn link_virtual_store_bins_handles_unscoped_name_with_plus() {
     write_file(child_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(virtual_dir.clone()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_dir.clone(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),
@@ -306,7 +324,10 @@ fn link_virtual_store_bins_skips_slot_without_node_modules() {
     let virtual_dir = tmp.path().join(".pacquet");
     create_dir_all(virtual_dir.join("incomplete@1.0.0")).unwrap();
     LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(virtual_dir.clone()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_dir.clone(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),
@@ -333,7 +354,10 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
     // is missing, so `find_slot_own_package_dir` returns `None`.
     create_dir_all(virtual_dir.join("foo@1.0.0/node_modules")).unwrap();
     LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(virtual_dir.clone()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_dir.clone(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),
@@ -481,7 +505,10 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
     }
 
     let err = LinkVirtualStoreBins {
-        layout: &VirtualStoreLayout::legacy(PathBuf::from("/anything")),
+        layout: &VirtualStoreLayout::legacy(
+            PathBuf::from("/anything"),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         snapshots: None,
         packages: None,
         package_manifests: &Default::default(),

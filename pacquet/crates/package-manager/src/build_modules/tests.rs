@@ -290,7 +290,10 @@ fn build_modules_collects_ignored_builds() {
     create_buildable_pkg(virtual_store_dir.path(), &key("aaa", "2.0.0"));
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -359,7 +362,10 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
     create_buildable_pkg(virtual_store_dir.path(), &key("aaa", "2.0.0"));
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -416,7 +422,10 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
     create_buildable_pkg(virtual_store_dir.path(), &key("ignored", "1.0.0"));
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -496,7 +505,10 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -628,7 +640,10 @@ fn using_side_effects_cache_skips_rebuild() {
     side_effects_maps.insert(pkg_key.clone(), std::sync::Arc::new(overlay));
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -692,7 +707,10 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     side_effects_maps.insert(pkg_key.clone(), std::sync::Arc::new(overlay));
 
     let err = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -749,7 +767,10 @@ fn fail_when_failing_postinstall_is_required() {
     create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
 
     let err = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -984,7 +1005,10 @@ async fn write_path_populates_side_effects_row() {
     );
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1093,7 +1117,10 @@ async fn write_path_disabled_skips_upload() {
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1211,7 +1238,10 @@ async fn upload_error_does_not_interrupt_install() {
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1440,7 +1470,10 @@ new file mode 100644
     );
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1546,7 +1579,10 @@ new file mode 100644
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1623,7 +1659,10 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     let err = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),

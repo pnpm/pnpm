@@ -46,7 +46,10 @@ fn assert_symlink_shape(
 fn links_matching_optional_sibling_alongside_regular_deps() {
     let tmp = tempdir().expect("tempdir");
     let virtual_store_dir = tmp.path().to_path_buf();
-    let layout = VirtualStoreLayout::legacy(virtual_store_dir.clone());
+    let layout = VirtualStoreLayout::legacy(
+        virtual_store_dir.clone(),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
 
     let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     deps.insert(pkg_name("plain-dep"), dep_ref("1.0.0"));
@@ -92,7 +95,10 @@ fn links_matching_optional_sibling_alongside_regular_deps() {
 fn skips_optional_siblings_that_are_in_skipped() {
     let tmp = tempdir().expect("tempdir");
     let virtual_store_dir = tmp.path().to_path_buf();
-    let layout = VirtualStoreLayout::legacy(virtual_store_dir);
+    let layout = VirtualStoreLayout::legacy(
+        virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
 
     let mut optional: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     optional.insert(pkg_name("matching-optional"), dep_ref("2.0.0"));
@@ -141,7 +147,10 @@ fn skips_optional_siblings_that_are_in_skipped() {
 fn skips_dep_entries_whose_alias_matches_self_name() {
     let tmp = tempdir().expect("tempdir");
     let virtual_store_dir = tmp.path().to_path_buf();
-    let layout = VirtualStoreLayout::legacy(virtual_store_dir);
+    let layout = VirtualStoreLayout::legacy(
+        virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
 
     let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     deps.insert(pkg_name("self"), dep_ref("1.0.0"));
@@ -177,7 +186,10 @@ fn skips_dep_entries_whose_alias_matches_self_name() {
 fn both_dep_maps_absent_is_a_noop() {
     let tmp = tempdir().expect("tempdir");
     let virtual_store_dir = tmp.path().to_path_buf();
-    let layout = VirtualStoreLayout::legacy(virtual_store_dir);
+    let layout = VirtualStoreLayout::legacy(
+        virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
     let skipped = SkippedSnapshots::default();
     let virtual_node_modules_dir = tmp.path().join("self/node_modules");
     fs::create_dir_all(&virtual_node_modules_dir).unwrap();
@@ -205,7 +217,10 @@ fn both_dep_maps_absent_is_a_noop() {
 fn alias_dep_links_under_alias_but_resolves_via_target() {
     let tmp = tempdir().expect("tempdir");
     let virtual_store_dir = tmp.path().to_path_buf();
-    let layout = VirtualStoreLayout::legacy(virtual_store_dir);
+    let layout = VirtualStoreLayout::legacy(
+        virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
 
     let mut deps: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     deps.insert(pkg_name("string-width-cjs"), dep_ref("string-width@4.2.3"));

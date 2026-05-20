@@ -30,7 +30,6 @@ use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, SnapshotDepRef,
     SnapshotEntry,
 };
-use pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -94,11 +93,11 @@ impl VirtualStoreLayout {
     /// frozen-lockfile installs (pnpm/pacquet#432), so without-lockfile
     /// callers stay on the project-local flat layout even when
     /// `enable_global_virtual_store: true` is configured.
-    pub fn legacy(root: impl Into<PathBuf>) -> Self {
+    pub fn legacy(root: impl Into<PathBuf>, virtual_store_dir_max_length: usize) -> Self {
         VirtualStoreLayout {
             package_store_dir: root.into(),
             gvs_suffixes: None,
-            virtual_store_dir_max_length: DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
+            virtual_store_dir_max_length,
         }
     }
 
@@ -173,7 +172,7 @@ impl VirtualStoreLayout {
         } else {
             config.virtual_store_dir.clone()
         };
-        let virtual_store_dir_max_length = DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize;
+        let virtual_store_dir_max_length = config.virtual_store_dir_max_length as usize;
         if !config.enable_global_virtual_store {
             return VirtualStoreLayout {
                 package_store_dir,
