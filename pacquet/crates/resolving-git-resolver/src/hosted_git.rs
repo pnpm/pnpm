@@ -169,7 +169,7 @@ impl HostedGit {
         };
 
         let parsed = parse_git_url(normalised)?;
-        // Look up host: shortcut first (so `github://…` wins over the
+        // Look up host: shortcut first (so `github://...` wins over the
         // host's full URL parsing), then by domain.
         let shortcut_type = HostedGitType::from_shortcut(&parsed.scheme);
         let domain_type = parsed.host.as_deref().and_then(HostedGitType::from_domain);
@@ -211,8 +211,8 @@ impl HostedGit {
             let committish = parsed
                 .hash
                 .as_ref()
-                .map(|h| percent_decode(h.strip_prefix('#').unwrap_or(h)))
-                .filter(|c| !c.is_empty());
+                .map(|hash| percent_decode(hash.strip_prefix('#').unwrap_or(hash)))
+                .filter(|committish| !committish.is_empty());
             let user = user.unwrap_or_default();
             (user, project, committish, Representation::Shortcut)
         } else {
@@ -222,8 +222,10 @@ impl HostedGit {
             let segments = extract_for_host(host_type, &parsed)?;
             let user = percent_decode(&segments.user);
             let project = percent_decode(&segments.project);
-            let committish =
-                segments.committish.map(|c| percent_decode(&c)).filter(|c| !c.is_empty());
+            let committish = segments
+                .committish
+                .map(|raw| percent_decode(&raw))
+                .filter(|decoded| !decoded.is_empty());
             let representation = protocol_to_representation(&parsed.scheme);
             (user, project, committish, representation)
         };
@@ -386,8 +388,8 @@ fn protocol_to_representation(protocol: &str) -> Representation {
     }
 }
 
-fn strip_dot_git(s: &str) -> String {
-    s.strip_suffix(".git").unwrap_or(s).to_string()
+fn strip_dot_git(project: &str) -> String {
+    project.strip_suffix(".git").unwrap_or(project).to_string()
 }
 
 struct ParsedUrl {
@@ -505,9 +507,10 @@ fn is_github_shorthand(arg: &str) -> bool {
     }
     let first_hash = arg.find('#');
     let first_slash = arg.find('/');
-    let second_slash = first_slash.and_then(|s| arg[s + 1..].find('/').map(|p| s + 1 + p));
+    let second_slash =
+        first_slash.and_then(|first| arg[first + 1..].find('/').map(|rest| first + 1 + rest));
     let first_colon = arg.find(':');
-    let first_space = arg.find(|c: char| c.is_whitespace());
+    let first_space = arg.find(|ch: char| ch.is_whitespace());
     let first_at = arg.find('@');
 
     let space_only_after_hash = first_space.is_none()
@@ -518,9 +521,9 @@ fn is_github_shorthand(arg: &str) -> bool {
         || (first_hash.is_some() && first_colon.unwrap() > first_hash.unwrap());
     let second_slash_only_after_hash = second_slash.is_none()
         || (first_hash.is_some() && second_slash.unwrap() > first_hash.unwrap());
-    let has_slash = first_slash.is_some_and(|s| s > 0);
+    let has_slash = first_slash.is_some_and(|first| first > 0);
     let does_not_end_with_slash = match first_hash {
-        Some(h) if h > 0 => arg.as_bytes()[h - 1] != b'/',
+        Some(hash) if hash > 0 => arg.as_bytes()[hash - 1] != b'/',
         _ => !arg.ends_with('/'),
     };
     let does_not_start_with_dot = !arg.starts_with('.');
@@ -564,7 +567,8 @@ fn extract_github(parsed: &ParsedUrl) -> Option<Segments> {
     }
 
     if r#type.is_none() {
-        committish = parsed.hash.as_deref().map(|h| h.strip_prefix('#').unwrap_or(h).to_string());
+        committish =
+            parsed.hash.as_deref().map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string());
     }
 
     if project.ends_with(".git") {
@@ -598,8 +602,8 @@ fn extract_bitbucket(parsed: &ParsedUrl) -> Option<Segments> {
     let committish = parsed
         .hash
         .as_deref()
-        .map(|h| h.strip_prefix('#').unwrap_or(h).to_string())
-        .filter(|s| !s.is_empty());
+        .map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string())
+        .filter(|committish| !committish.is_empty());
     Some(Segments { user, project, committish })
 }
 
@@ -621,8 +625,8 @@ fn extract_gitlab(parsed: &ParsedUrl) -> Option<Segments> {
     let committish = parsed
         .hash
         .as_deref()
-        .map(|h| h.strip_prefix('#').unwrap_or(h).to_string())
-        .filter(|s| !s.is_empty());
+        .map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string())
+        .filter(|committish| !committish.is_empty());
     Some(Segments { user, project, committish })
 }
 
@@ -632,22 +636,22 @@ fn extract_gitlab(parsed: &ParsedUrl) -> Option<Segments> {
 /// returning `None` at the call site). Pacquet keeps the input as-is on
 /// malformed input — the affected URLs are caught elsewhere when the
 /// downstream parse fails.
-fn percent_decode(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%'
-            && i + 2 < bytes.len()
+fn percent_decode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let bytes = input.as_bytes();
+    let mut idx = 0;
+    while idx < bytes.len() {
+        if bytes[idx] == b'%'
+            && idx + 2 < bytes.len()
             && let (Some(hi), Some(lo)) =
-                ((bytes[i + 1] as char).to_digit(16), (bytes[i + 2] as char).to_digit(16))
+                ((bytes[idx + 1] as char).to_digit(16), (bytes[idx + 2] as char).to_digit(16))
         {
             out.push((hi * 16 + lo) as u8 as char);
-            i += 3;
+            idx += 3;
             continue;
         }
-        out.push(bytes[i] as char);
-        i += 1;
+        out.push(bytes[idx] as char);
+        idx += 1;
     }
     out
 }
@@ -655,9 +659,9 @@ fn percent_decode(s: &str) -> String {
 /// Match Node's `encodeURIComponent`. Percent-encode every byte
 /// outside the safe ASCII set Node keeps unencoded:
 /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`.
-fn encode_uri_component(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for byte in s.bytes() {
+fn encode_uri_component(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for byte in input.bytes() {
         let safe = byte.is_ascii_alphanumeric()
             || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')');
         if safe {
@@ -745,7 +749,7 @@ mod tests {
     fn rejects_non_hosted() {
         // Gitea / generic .git URLs are not recognised by hosted-git-info.
         assert!(
-            HostedGit::from_url("https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git").is_none()
+            HostedGit::from_url("https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git").is_none(),
         );
     }
 
@@ -767,7 +771,7 @@ mod tests {
             .expect("ok");
         assert_eq!(
             h.shortcut(HostedOpts::default()),
-            "github:zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99"
+            "github:zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99",
         );
         assert_eq!(h.shortcut(HostedGit::no_committish()), "github:zkochan/is-negative");
     }
@@ -777,11 +781,11 @@ mod tests {
         let h = HostedGit::from_url("zkochan/is-negative").expect("ok");
         assert_eq!(
             h.https(HostedOpts::default()).unwrap(),
-            "git+https://github.com/zkochan/is-negative.git"
+            "git+https://github.com/zkochan/is-negative.git",
         );
         assert_eq!(
             h.https(HostedGit::no_committish_no_git_plus()).unwrap(),
-            "https://github.com/zkochan/is-negative.git"
+            "https://github.com/zkochan/is-negative.git",
         );
     }
 
@@ -791,11 +795,11 @@ mod tests {
         assert_eq!(h.ssh(HostedOpts::default()).unwrap(), "git@github.com:foo/bar.git");
         assert_eq!(
             h.sshurl(HostedOpts::default()).unwrap(),
-            "git+ssh://git@github.com/foo/bar.git"
+            "git+ssh://git@github.com/foo/bar.git",
         );
         assert_eq!(
             h.sshurl(HostedGit::no_committish()).unwrap(),
-            "git+ssh://git@github.com/foo/bar.git"
+            "git+ssh://git@github.com/foo/bar.git",
         );
     }
 
@@ -805,7 +809,7 @@ mod tests {
         h.committish = Some("163360a8d3ae6bee9524541043197ff356f8ed99".to_string());
         assert_eq!(
             h.tarball(HostedOpts::default()).unwrap(),
-            "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99"
+            "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99",
         );
     }
 
@@ -815,7 +819,7 @@ mod tests {
         h.committish = Some("abc123".to_string());
         assert_eq!(
             h.tarball(HostedOpts::default()).unwrap(),
-            "https://bitbucket.org/foo/bar/get/abc123.tar.gz"
+            "https://bitbucket.org/foo/bar/get/abc123.tar.gz",
         );
     }
 
@@ -830,7 +834,7 @@ mod tests {
         assert!(!tarball.contains("%2F"), "tarball must not contain `%2F`: {tarball}");
         assert_eq!(
             tarball,
-            "https://gitlab.com/pnpmjs/git-resolver/-/archive/988c61e11dc8d9ca0b5580cb15291951812549dc/git-resolver-988c61e11dc8d9ca0b5580cb15291951812549dc.tar.gz"
+            "https://gitlab.com/pnpmjs/git-resolver/-/archive/988c61e11dc8d9ca0b5580cb15291951812549dc/git-resolver-988c61e11dc8d9ca0b5580cb15291951812549dc.tar.gz",
         );
     }
 
@@ -845,7 +849,7 @@ mod tests {
         let h = HostedGit::from_url("git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git").expect("ok");
         assert_eq!(
             h.https(HostedGit::no_committish_no_git_plus()).unwrap(),
-            "https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git"
+            "https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git",
         );
         assert!(h.auth.is_some());
     }

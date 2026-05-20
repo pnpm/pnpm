@@ -52,7 +52,7 @@ pub enum PartialSpec {
 impl PartialSpec {
     /// Drive the async leg. For [`PartialSpec::Direct`] the probe is
     /// ignored.
-    pub async fn finalize<P: GitProbe + ?Sized>(self, probe: &P) -> HostedPackageSpec {
+    pub async fn finalize<Probe: GitProbe + ?Sized>(self, probe: &Probe) -> HostedPackageSpec {
         match self {
             PartialSpec::Direct(spec) => spec,
             PartialSpec::Hosted(hosted) => from_hosted_git(hosted, probe).await,
@@ -148,35 +148,36 @@ fn url_to_fetch_spec(parsed: &reqwest::Url) -> String {
 /// `ssh://user@host:path` shape into a standard `ssh://user@host/path`
 /// so `Url::parse` will accept it.
 fn correct_url(input: &str) -> String {
-    let mut g = input.strip_prefix("git+").map(str::to_string).unwrap_or_else(|| input.to_string());
-    if !g.starts_with("ssh://") {
-        let mut out = String::with_capacity(g.len() + 4);
+    let mut url =
+        input.strip_prefix("git+").map(str::to_string).unwrap_or_else(|| input.to_string());
+    if !url.starts_with("ssh://") {
+        let mut out = String::with_capacity(url.len() + 4);
         if input.starts_with("git+") {
             out.push_str("git+");
         }
-        out.push_str(&g);
+        out.push_str(&url);
         return out;
     }
 
     // ssh://... case: pull off `#hash` first, split path, look for SCP-style
     // colon in the authority, and convert it to a slash.
-    let (head, hash) = match g.find('#') {
-        Some(i) => (g[..i].to_string(), g[i..].to_string()),
-        None => (g, String::new()),
+    let (head, hash) = match url.find('#') {
+        Some(idx) => (url[..idx].to_string(), url[idx..].to_string()),
+        None => (url, String::new()),
     };
-    g = head;
+    url = head;
 
-    let body = &g[6..]; // strip leading "ssh://"
+    let body = &url[6..]; // strip leading "ssh://"
     let (auth, path_parts): (&str, Vec<&str>) = match body.find('/') {
-        Some(i) => (&body[..i], body[i + 1..].split('/').collect()),
+        Some(idx) => (&body[..idx], body[idx + 1..].split('/').collect()),
         None => (body, Vec::new()),
     };
     // After the `@`, the host portion may carry an SCP-style colon
     // that the URL parser cannot consume. Convert the last colon in
     // the host into a `/`, unless it's followed by a numeric port.
-    let host = auth.rsplit_once('@').map(|(_, h)| h).unwrap_or(auth);
-    let port_pattern_present = host.rfind(':').is_some_and(|i| {
-        host[i + 1..].chars().all(|c| c.is_ascii_digit()) && !host[i + 1..].is_empty()
+    let host = auth.rsplit_once('@').map(|(_, host)| host).unwrap_or(auth);
+    let port_pattern_present = host.rfind(':').is_some_and(|idx| {
+        host[idx + 1..].chars().all(|byte| byte.is_ascii_digit()) && !host[idx + 1..].is_empty()
     });
     let host_has_colon = host.contains(':');
     if host_has_colon && !port_pattern_present {
@@ -200,7 +201,7 @@ fn correct_url(input: &str) -> String {
     }
 
     let prefix = if input.starts_with("git+") { "git+" } else { "" };
-    format!("{prefix}{g}{hash}")
+    format!("{prefix}{url}{hash}")
 }
 
 #[derive(Debug, Default)]
@@ -233,7 +234,10 @@ fn parse_git_params(committish: Option<&str>) -> GitParsedParams {
 /// Async leg: probe the hosted host for public-vs-private + ssh
 /// reachability, pick a `fetchSpec`. Mirrors upstream's
 /// [`fromHostedGit`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L70-L132).
-async fn from_hosted_git<P: GitProbe + ?Sized>(hosted: HostedGit, probe: &P) -> HostedPackageSpec {
+async fn from_hosted_git<Probe: GitProbe + ?Sized>(
+    hosted: HostedGit,
+    probe: &Probe,
+) -> HostedPackageSpec {
     let mut fetch_spec: Option<String> = None;
 
     let git_https_url = hosted.https(HostedGit::no_committish_no_git_plus());
@@ -310,22 +314,22 @@ fn strip_committish(mut hosted: HostedGit) -> HostedGit {
     hosted
 }
 
-fn percent_decode_str(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%'
-            && i + 2 < bytes.len()
+fn percent_decode_str(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let bytes = input.as_bytes();
+    let mut idx = 0;
+    while idx < bytes.len() {
+        if bytes[idx] == b'%'
+            && idx + 2 < bytes.len()
             && let (Some(hi), Some(lo)) =
-                ((bytes[i + 1] as char).to_digit(16), (bytes[i + 2] as char).to_digit(16))
+                ((bytes[idx + 1] as char).to_digit(16), (bytes[idx + 2] as char).to_digit(16))
         {
             out.push((hi * 16 + lo) as u8 as char);
-            i += 3;
+            idx += 3;
             continue;
         }
-        out.push(bytes[i] as char);
-        i += 1;
+        out.push(bytes[idx] as char);
+        idx += 1;
     }
     out
 }
@@ -385,7 +389,7 @@ mod tests {
             PartialSpec::Direct(spec) => {
                 assert_eq!(
                     spec.fetch_spec,
-                    "https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git"
+                    "https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git",
                 );
                 assert_eq!(spec.git_committish.as_deref(), Some("abc"));
             }
@@ -411,11 +415,11 @@ mod tests {
     fn correct_url_rewrites_scp_style_colon() {
         assert_eq!(
             correct_url("ssh://username:password@example.com:repo.git"),
-            "ssh://username:password@example.com/repo.git"
+            "ssh://username:password@example.com/repo.git",
         );
         assert_eq!(
             correct_url("git+ssh://username:password@example.com:repo.git"),
-            "git+ssh://username:password@example.com/repo.git"
+            "git+ssh://username:password@example.com/repo.git",
         );
     }
 
@@ -423,7 +427,7 @@ mod tests {
     fn correct_url_keeps_numeric_port() {
         assert_eq!(
             correct_url("ssh://username:password@example.com:22/repo/@foo.git"),
-            "ssh://username:password@example.com:22/repo/@foo.git"
+            "ssh://username:password@example.com:22/repo/@foo.git",
         );
     }
 
@@ -518,7 +522,7 @@ mod tests {
                 spec.fetch_spec,
                 *expected,
                 "input {input}: expected fetch_spec {expected}, got {got}",
-                got = spec.fetch_spec
+                got = spec.fetch_spec,
             );
         }
     }
@@ -548,7 +552,7 @@ mod tests {
         for (input, expected_path) in cases {
             let kind = parse_bare_specifier(input).expect("parse claims input");
             let spec = kind.finalize(&probe).await;
-            assert_eq!(spec.path.as_deref(), *expected_path, "input {input}: path mismatch",);
+            assert_eq!(spec.path.as_deref(), *expected_path, "input {input}: path mismatch");
         }
     }
 

@@ -103,8 +103,8 @@ pub enum GitResolveRefError {
 ///   ref filter, filter tags to those matching upstream's
 ///   `^refs/tags/v?\d+\.\d+\.\d+(?:[-+].+)?(?:\^\{\})?$` shape, run
 ///   `maxSatisfying`, look up the chosen tag.
-pub async fn resolve_ref<R: GitCommandRunner + ?Sized>(
-    runner: &R,
+pub async fn resolve_ref<Runner: GitCommandRunner + ?Sized>(
+    runner: &Runner,
     repo: &str,
     ref_: &str,
     range: Option<&str>,
@@ -192,7 +192,7 @@ fn resolve_ref_from_refs(
     };
 
     // Semver range: walk tag refs, keep the ones matching upstream's
-    // v?<n.n.n>(-…|+…)? regex, dedupe, semver-sort, return the max
+    // v?<n.n.n>(-...|+...)? regex, dedupe, semver-sort, return the max
     // satisfying.
     let mut v_tags: BTreeSet<String> = BTreeSet::new();
     for key in refs.keys() {

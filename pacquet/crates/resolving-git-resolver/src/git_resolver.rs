@@ -27,18 +27,20 @@ use crate::{
 /// `Arc` so the resolver can be cloned into the default-resolver
 /// chain without forcing the runners (whose ownership lives on the
 /// install dispatcher) into a single owner.
-pub struct GitResolver<P: GitProbe + 'static, R: GitCommandRunner + 'static> {
-    probe: Arc<P>,
-    runner: Arc<R>,
+pub struct GitResolver<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> {
+    probe: Arc<Probe>,
+    runner: Arc<Runner>,
 }
 
-impl<P: GitProbe + 'static, R: GitCommandRunner + 'static> GitResolver<P, R> {
-    pub fn new(probe: Arc<P>, runner: Arc<R>) -> Self {
+impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<Probe, Runner> {
+    pub fn new(probe: Arc<Probe>, runner: Arc<Runner>) -> Self {
         Self { probe, runner }
     }
 }
 
-impl<P: GitProbe + 'static, R: GitCommandRunner + 'static> Resolver for GitResolver<P, R> {
+impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> Resolver
+    for GitResolver<Probe, Runner>
+{
     fn resolve<'a>(
         &'a self,
         wanted_dependency: &'a WantedDependency,
@@ -56,7 +58,7 @@ impl<P: GitProbe + 'static, R: GitCommandRunner + 'static> Resolver for GitResol
     }
 }
 
-impl<P: GitProbe + 'static, R: GitCommandRunner + 'static> GitResolver<P, R> {
+impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<Probe, Runner> {
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
@@ -93,13 +95,13 @@ impl<P: GitProbe + 'static, R: GitCommandRunner + 'static> GitResolver<P, R> {
     }
 }
 
-async fn build_resolve_result<R: GitCommandRunner + ?Sized>(
+async fn build_resolve_result<Runner: GitCommandRunner + ?Sized>(
     spec: HostedPackageSpec,
-    runner: &R,
+    runner: &Runner,
     alias: Option<&str>,
 ) -> Result<ResolveResult, ResolveError> {
     let ref_for_ls_remote = match spec.git_committish.as_deref() {
-        Some(c) if !c.is_empty() => c,
+        Some(committish) if !committish.is_empty() => committish,
         _ => "HEAD",
     };
     let commit =
@@ -249,7 +251,7 @@ mod tests {
             LockfileResolution::Tarball(t) => {
                 assert_eq!(
                     t.tarball,
-                    "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99"
+                    "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99",
                 );
                 assert_eq!(t.git_hosted, Some(true));
                 assert!(t.path.is_none());
@@ -258,11 +260,11 @@ mod tests {
         }
         assert_eq!(
             result.id.as_str(),
-            "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99"
+            "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99",
         );
         assert_eq!(
             result.normalized_bare_specifier.as_deref(),
-            Some("github:zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99")
+            Some("github:zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99"),
         );
     }
 
