@@ -10,13 +10,10 @@ use cli_args::{RegistryMode, TargetKind};
 async fn main() {
     use pipe_trait::Pipe;
 
-    let cli: cli_args::CliArgs = clap::Parser::parse();
-    let registry_mode = cli.effective_registry_mode();
     let cli_args::CliArgs {
         scenario,
         registry_port,
-        verdaccio: _,
-        registry: _,
+        registry: registry_mode,
         repository,
         pnpm_repository,
         fixture_dir,
@@ -25,7 +22,7 @@ async fn main() {
         with_pnpm,
         build_only,
         targets,
-    } = cli;
+    } = clap::Parser::parse();
 
     let repository = std::fs::canonicalize(&repository).expect("get absolute path to repository");
     let pnpm_repository = pnpm_repository

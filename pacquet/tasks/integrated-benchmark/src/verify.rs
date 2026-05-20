@@ -60,11 +60,11 @@ where
             panic!("Revision cannot start with a dot");
         }
         // `@` is allowed so `git rev-parse` reflog syntax (`HEAD@{1}`, etc.)
-        // and tag-with-suffix revisions reach git intact; `/` is allowed so
-        // remote-tracking refs like `origin/main` work as a target. None of
-        // these are shell metacharacters in the contexts where we pass the
-        // revision verbatim (git CLI args and bench dir names).
-        let invalid_char = revision.chars().find(|char| !matches!(char, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '+' | '.' | '~' | '^' | '@' | '/'));
+        // and tag-with-suffix revisions like `v1.0.0@sha` reach git intact.
+        // `/` is intentionally excluded: a revision like `origin/main` would
+        // produce a nested bench-dir path (`pnpm@origin/main/`) — callers
+        // should pre-resolve remote-tracking refs to a local branch or SHA.
+        let invalid_char = revision.chars().find(|char| !matches!(char, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '+' | '.' | '~' | '^' | '@'));
         if let Some(char) = invalid_char {
             eprintln!("Revision {revision:?} is invalid");
             panic!("Invalid character: {char:?}");

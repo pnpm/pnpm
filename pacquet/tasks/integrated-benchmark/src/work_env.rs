@@ -316,7 +316,9 @@ impl WorkEnv {
 /// paths — both follow the same fetch-by-SHA discipline that PR #321
 /// established for pacquet revisions.
 fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
+    let mut existed_before = false;
     if revision_repo.exists() {
+        existed_before = true;
         if !revision_repo.join(".git").exists() {
             eprintln!("Initializing a git repository at {revision_repo:?}...");
             Command::new("git")
@@ -342,6 +344,20 @@ fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
             .arg(repository)
             .arg(revision_repo)
             .pipe(executor("git clone"));
+    }
+
+    if existed_before {
+        // `pnpm install` and `pnpm run compile` from a previous orchestrator
+        // run can leave tracked files dirty (e.g. `pnpm-lock.yaml` rewritten,
+        // generated `dist/*`). A fresh `git checkout <commit>` against a dirty
+        // worktree fails with "Your local changes would be overwritten" — wipe
+        // them first.
+        eprintln!("Resetting worktree at {revision_repo:?}...");
+        Command::new("git")
+            .current_dir(revision_repo)
+            .arg("reset")
+            .arg("--hard")
+            .pipe(executor("git reset --hard"));
     }
 
     eprintln!("Checking out {commit:?}...");

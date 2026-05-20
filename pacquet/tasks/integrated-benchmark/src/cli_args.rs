@@ -11,10 +11,6 @@ pub struct CliArgs {
     #[clap(long, short = 'p', default_value_t = 4873)]
     pub registry_port: u16,
 
-    /// Equivalent to `--registry=verdaccio`. Overrides `--registry` when both are passed.
-    #[clap(long, short = 'V')]
-    pub verdaccio: bool,
-
     /// Which registry the benchmarked installs hit.
     #[clap(long, value_enum, default_value_t = RegistryMode::Virtual)]
     pub registry: RegistryMode,
@@ -276,14 +272,6 @@ impl HyperfineOptions {
         if ignore_failure {
             hyperfine_command.arg("--ignore-failures");
         }
-    }
-}
-
-impl CliArgs {
-    /// The effective registry mode, after collapsing the back-compat
-    /// `--verdaccio` short-circuit into `--registry`.
-    pub fn effective_registry_mode(&self) -> RegistryMode {
-        if self.verdaccio { RegistryMode::Verdaccio } else { self.registry }
     }
 }
 

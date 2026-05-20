@@ -33,12 +33,14 @@ BIN="$REPO_ROOT/target/release/integrated-benchmark"
 
 # Ensure `pnpm@main` resolves locally. `actions/checkout` only creates a
 # local ref for the branch it checked out; on a workflow_dispatch run from
-# a non-main branch (or after the optional PR-head checkout below in
+# a non-main branch (or after the optional PR-head checkout in
 # `benchmark.yml`) there's no `refs/heads/main` for `git rev-parse` to
-# hit. The fetch is a no-op when `main` is already local.
-git -C "$REPO_ROOT" fetch --no-tags --quiet origin main:main 2>/dev/null \
-  || git -C "$REPO_ROOT" fetch --no-tags --quiet origin main 2>/dev/null \
-  || true
+# hit. Skip the fetch entirely when the local ref already exists, and
+# let the fetch surface its real error if it fails.
+if ! git -C "$REPO_ROOT" rev-parse --verify --quiet refs/heads/main >/dev/null; then
+  echo "── Fetching main into local ref ──"
+  git -C "$REPO_ROOT" fetch --no-tags origin main:main
+fi
 
 # Scenario list mirrors bench.sh's original six. Order = the order they
 # were measured before; `generate-results.js` used this same order.
@@ -66,8 +68,8 @@ echo "── Pre-building pnpm revisions ──"
   pnpm@HEAD pnpm@main
 
 # Pull mean ± stddev for each variant out of a hyperfine JSON into one
-# table cell. Falls back to "n/a" if jq isn't on PATH or the file is
-# missing.
+# table cell. Falls back to "n/a" if jq isn't on PATH, the file is
+# missing, or the target isn't present in the JSON.
 read_cell() {
   local target=$1
   local json=$2
@@ -76,8 +78,9 @@ read_cell() {
     return
   fi
   jq -r --arg t "$target" '
-    .results[] | select(.command == $t) |
-    "\((.mean*1000|round)/1000)s ± \((.stddev*1000|round)/1000)s"
+    [.results[] | select(.command == $t)
+      | "\((.mean*1000|round)/1000)s ± \((.stddev*1000|round)/1000)s"]
+    | first // "n/a"
   ' "$json" 2>/dev/null || echo "n/a"
 }
 

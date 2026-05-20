@@ -23,6 +23,12 @@ permissions:
   contents: read
   pull-requests: write
 
+# Don't cancel-in-progress — killing a bench mid-run wastes a long
+# CI job and produces no usable data.
+concurrency:
+  group: benchmark-${{ inputs.pr_number || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   benchmark:
     name: Run Benchmarks
