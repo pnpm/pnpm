@@ -118,7 +118,7 @@ fn git_protocol_specifier_declines() {
             DEFAULT_TAG,
             REGISTRY,
         )
-        .is_none()
+        .is_none(),
     );
 }
 

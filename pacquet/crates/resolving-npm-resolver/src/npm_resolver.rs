@@ -1,6 +1,6 @@
 //! Pacquet port of pnpm's npm-registry resolver. Wraps
-//! [`parse_bare_specifier`](crate::parse_bare_specifier) plus
-//! [`pick_package`](crate::pick_package) behind the chain-friendly
+//! [`parse_bare_specifier`](crate::parse_bare_specifier()) plus
+//! [`pick_package`](crate::pick_package()) behind the chain-friendly
 //! [`Resolver`] trait so the default-resolver dispatcher can dispatch
 //! npm-shaped dependencies through it.
 //!
@@ -305,7 +305,9 @@ fn detect_min_release_age_violation(
         use pacquet_config::version_policy::PolicyMatch;
         match policy.matches(&name.to_string()) {
             PolicyMatch::AnyVersion => return None,
-            PolicyMatch::ExactVersions(versions) if versions.iter().any(|v| v == version) => {
+            PolicyMatch::ExactVersions(versions)
+                if versions.iter().any(|exact| exact == version) =>
+            {
                 return None;
             }
             _ => {}

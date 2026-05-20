@@ -2,10 +2,11 @@
 //! [`resolveDependencyTree`](https://github.com/pnpm/pnpm/blob/f657b5cb44/installing/deps-resolver/src/resolveDependencyTree.ts).
 //!
 //! Walks a project manifest's direct dependencies through a
-//! [`Resolver`] chain, then recurses on every resolved package's own
-//! manifest dependencies, producing a flat package map and a tree of
-//! parent-child edges. Pacquet's install layer uses this as the
-//! resolve pass before the tarball-fetch + install pass.
+//! [`Resolver`](pacquet_resolving_resolver_base::Resolver) chain,
+//! then recurses on every resolved package's own manifest
+//! dependencies, producing a flat package map and a tree of parent-
+//! child edges. Pacquet's install layer uses this as the resolve
+//! pass before the tarball-fetch + install pass.
 //!
 //! This is intentionally a thin slice of upstream:
 //!

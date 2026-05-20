@@ -126,9 +126,9 @@ fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
 /// set is `A-Z a-z 0-9 - _ . ! ~ * ' ( )` — anything else (including
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
-fn is_valid_dist_tag(s: &str) -> bool {
-    s.bytes().all(|b| {
-        matches!(b,
+fn is_valid_dist_tag(selector: &str) -> bool {
+    selector.bytes().all(|byte| {
+        matches!(byte,
             b'A'..=b'Z'
             | b'a'..=b'z'
             | b'0'..=b'9'

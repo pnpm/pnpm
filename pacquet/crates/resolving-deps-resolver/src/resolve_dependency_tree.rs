@@ -49,15 +49,15 @@ pub enum ResolveDependencyTreeError {
 /// `X` makes a later visitor see the placeholder, attach the
 /// outstanding `DirectDep { id: X }`, and skip the recursion the
 /// in-flight task is already running.
-pub async fn resolve_dependency_tree<DependencyGroupList, R>(
-    resolver: &R,
+pub async fn resolve_dependency_tree<DependencyGroupList, Chain>(
+    resolver: &Chain,
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
     opts: ResolveDependencyTreeOptions,
 ) -> Result<ResolvedTree, ResolveDependencyTreeError>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-    R: Resolver + ?Sized,
+    Chain: Resolver + ?Sized,
 {
     let ctx = Arc::new(Ctx {
         auto_install_peers: opts.auto_install_peers,
@@ -104,13 +104,13 @@ struct Ctx {
 }
 
 #[async_recursion]
-async fn resolve_node<R>(
+async fn resolve_node<Chain>(
     ctx: &Ctx,
-    resolver: &R,
+    resolver: &Chain,
     wanted: WantedDependency,
 ) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
 where
-    R: Resolver + ?Sized,
+    Chain: Resolver + ?Sized,
 {
     let result = resolver
         .resolve(&wanted, &ctx.base_opts)

@@ -8,11 +8,11 @@
 //!   Ports upstream's
 //!   [`createNpmResolver` → `resolveNpm`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L192-L611):
 //!   takes a [`WantedDependency`](pacquet_resolving_resolver_base::WantedDependency),
-//!   runs [`parse_bare_specifier`], picks a version through
-//!   [`pick_package`], and returns the
+//!   runs [`parse_bare_specifier()`], picks a version through
+//!   [`pick_package()`], and returns the
 //!   [`ResolveResult`](pacquet_resolving_resolver_base::ResolveResult)
 //!   the install layer consumes.
-//! - **Verifier.** [`create_npm_resolution_verifier`] is the
+//! - **Verifier.** [`create_npm_resolution_verifier()`] is the
 //!   [`ResolutionVerifier`](pacquet_resolving_resolver_base::ResolutionVerifier)
 //!   the lockfile-verification gate uses. Re-applies
 //!   `minimumReleaseAge` and `trustPolicy='no-downgrade'` to every

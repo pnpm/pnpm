@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
 
-/// Output of [`super::resolve_dependency_tree`]. A flat package map
+/// Output of [`super::resolve_dependency_tree()`]. A flat package map
 /// keyed by `name@version` plus the importer's direct entries, so the
 /// install pass can traverse the graph without re-resolving and skip
 /// duplicates by ID.
@@ -11,7 +11,7 @@ use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
 /// [`ResolveDependencyTreeResult`](https://github.com/pnpm/pnpm/blob/f657b5cb44/installing/deps-resolver/src/resolveDependencyTree.ts#L151-L170)
 /// shape — `direct` carries the project's manifest-level entries, the
 /// flat map carries every transitively-resolved package.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ResolvedTree {
     pub direct: Vec<DirectDep>,
     pub packages: HashMap<String, ResolvedPackage>,
