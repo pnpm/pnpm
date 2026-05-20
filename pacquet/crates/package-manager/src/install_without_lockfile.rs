@@ -176,9 +176,17 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // for the resolve pass. Mirrors the verifier wiring in
         // `build_resolution_verifiers` so the resolver-time pick and
         // the lockfile-verification check enforce the same policy.
-        let published_by = config
-            .minimum_release_age
-            .map(|minutes| chrono::Utc::now() - chrono::Duration::minutes(minutes as i64));
+        //
+        // Every step uses checked arithmetic so an absurd configured
+        // value (e.g. `u64::MAX`) can't wrap on the `u64 → i64` cast,
+        // overflow inside `chrono::Duration`, or underflow the
+        // wall-clock subtraction. On overflow we leave the policy
+        // inactive for this install — better than silently producing
+        // a cutoff in the wrong direction.
+        let published_by = config.minimum_release_age.and_then(|minutes| {
+            let duration = chrono::Duration::try_minutes(i64::try_from(minutes).ok()?)?;
+            chrono::Utc::now().checked_sub_signed(duration)
+        });
         let published_by_exclude = config
             .minimum_release_age_exclude
             .as_deref()
