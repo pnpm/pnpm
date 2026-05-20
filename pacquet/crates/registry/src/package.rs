@@ -13,7 +13,7 @@ use crate::{NetworkError, RegistryError, package_version::PackageVersion};
 pub struct Package {
     pub name: String,
     #[serde(rename = "dist-tags")]
-    dist_tags: HashMap<String, String>,
+    pub dist_tags: HashMap<String, String>,
     pub versions: HashMap<String, PackageVersion>,
 
     /// Per-version publish timestamps as the npm registry reports
@@ -66,6 +66,25 @@ impl Package {
     /// and any version slot whose value isn't a string.
     pub fn published_at(&self, version: &str) -> Option<&str> {
         self.time.as_ref()?.get(version)?.as_str()
+    }
+
+    /// Version under `dist-tags.<tag>`, or `None` when the tag is
+    /// absent. The picker reads `latest` (for the version-range fast
+    /// path) and any user-supplied tag (e.g. `next`, `beta`) through
+    /// this accessor.
+    pub fn dist_tag(&self, tag: &str) -> Option<&str> {
+        self.dist_tags.get(tag).map(String::as_str)
+    }
+
+    /// Iterator over all `dist-tags` entries. Used by the picker's
+    /// publishedBy filter which rewrites tags after dropping versions
+    /// past the cutoff. Iteration order is undefined (HashMap), as it
+    /// is in upstream's JS where `Object.entries(distTags)` walks
+    /// insertion order — neither stack guarantees a particular order
+    /// to callers, so callers that need a stable rewrite are expected
+    /// to sort.
+    pub fn dist_tags(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.dist_tags.iter().map(|(tag, version)| (tag.as_str(), version.as_str()))
     }
 }
 

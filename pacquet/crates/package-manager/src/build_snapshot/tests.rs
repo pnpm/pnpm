@@ -28,6 +28,7 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
         dev_dependencies: None,
         peer_dependencies: None,
         npm_user: None,
+        deprecated: None,
     }
 }
 

@@ -19,6 +19,8 @@ mod fetch_full_metadata_cached;
 mod lookup_context;
 mod mirror;
 mod named_registry;
+mod pick_package;
+mod pick_package_from_meta;
 mod registry_url;
 mod trust_checks;
 mod violation_codes;
@@ -34,6 +36,16 @@ pub use mirror::{ABBREVIATED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
     BUILTIN_NAMED_REGISTRIES, build_named_registry_prefixes, pick_registry_for_package,
     pick_registry_for_version,
+};
+pub use pick_package::{
+    InMemoryPackageMetaCache, MirrorPersistError, PackageMetaCache, PickPackageContext,
+    PickPackageError, PickPackageOptions, PickPackageResult, persist_meta_to_mirror, pick_package,
+    shared_in_memory_cache,
+};
+pub use pick_package_from_meta::{
+    PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
+    RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
+    pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
 };
 pub use trust_checks::{
     TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,
