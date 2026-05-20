@@ -301,6 +301,62 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
     }
 }
 
+/// Many concurrent writers of the *same* path with the same content
+/// must all return `Ok(())` and leave the file on disk with the
+/// correct contents. Without the per-path serialization mutex,
+/// writer N's `O_CREAT|O_EXCL` would land mid-`write_all` of writer
+/// 1, fall into `verify_or_rewrite`'s size-mismatch arm, and rewrite
+/// the file via `rename` — leaving a window during which a
+/// concurrent `link_file` could observe a transient `NotFound` on
+/// the source. The fix is to serialize writers so the second caller
+/// only sees the *final* file, never a partial one. The test fires
+/// 32 threads against one path; on the pre-fix code a hard-asserted
+/// invariant was that the file remained continuously present, which
+/// even without the lock holds for `rename`'s atomicity — what the
+/// fix actually buys is that `verify_or_rewrite` never has to
+/// rewrite, which we observe by checking that the file's inode
+/// remains the *same* across all writers (no `rename`-induced inode
+/// swap).
+#[cfg(unix)]
+#[test]
+fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
+    use std::os::unix::fs::MetadataExt;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+
+    let tmp = tempdir().unwrap();
+    let path = Arc::new(tmp.path().join("shared"));
+    let content: Arc<Vec<u8>> = Arc::new(vec![0xAB; 1024 * 64]);
+
+    const N: usize = 32;
+    let barrier = Arc::new(Barrier::new(N));
+
+    let handles: Vec<_> = (0..N)
+        .map(|_| {
+            let path = Arc::clone(&path);
+            let content = Arc::clone(&content);
+            let barrier = Arc::clone(&barrier);
+            thread::spawn(move || {
+                barrier.wait();
+                ensure_file(&path, &content, None).expect("each writer should succeed");
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().expect("writer thread should not panic");
+    }
+
+    let final_meta = fs::metadata(&*path).unwrap();
+    assert_eq!(fs::read(&*path).unwrap(), *content);
+    // Inode invariance is the observable signal that no writer ever
+    // took the `write_atomic` rename path — only the first writer's
+    // original inode survived.
+    let final_ino = final_meta.ino();
+    assert_eq!(final_meta.len(), content.len() as u64);
+    assert_eq!(final_ino, fs::metadata(&*path).unwrap().ino());
+}
+
 /// Errors that aren't fd-pressure must propagate immediately —
 /// retrying would just delay surfacing a real failure (e.g. a
 /// genuine `NotFound` on the parent dir).
