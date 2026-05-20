@@ -12,6 +12,10 @@
 //! version-selector classifier, then folded into an npm-shaped spec
 //! the picker can drive against the `@jsr` registry.
 
+use std::collections::HashSet;
+
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use reqwest::Url;
@@ -19,9 +23,9 @@ use reqwest::Url;
 use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
 
 /// Discriminator + normalized form produced by [`get_version_selector_type`].
-struct VersionSelectorMatch {
-    spec_type: RegistryPackageSpecType,
-    normalized: String,
+pub(crate) struct VersionSelectorMatch {
+    pub(crate) spec_type: RegistryPackageSpecType,
+    pub(crate) normalized: String,
 }
 
 /// Parse an npm-style `(bare_specifier, alias, default_tag, registry)`
@@ -148,6 +152,139 @@ pub fn parse_jsr_specifier_to_registry_package_spec(
     }))
 }
 
+/// Named-registry counterpart of [`RegistryPackageSpec`]. Carries the
+/// matched alias alongside the npm-shaped fields so the resolver can
+/// route the metadata fetch to the configured registry URL while still
+/// driving the picker against an npm-shaped spec.
+///
+/// Mirrors upstream's `NamedRegistryPackageSpec`
+/// ([source](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L91-L93)).
+#[derive(Debug, Clone)]
+pub struct NamedRegistryPackageSpec {
+    pub spec: RegistryPackageSpec,
+    /// The alias that was matched (e.g. `gh`, or a user-defined name).
+    /// Reported back to the caller so the resolver can look the URL up
+    /// in its merged named-registries map.
+    pub registry_name: String,
+}
+
+/// Failure from [`parse_named_registry_specifier_to_registry_package_spec`].
+///
+/// Mirrors upstream's
+/// [`ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L131-L136).
+#[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ParseNamedRegistrySpecifierError {
+    /// Scope without a `/<name>` segment (e.g. `gh:@acme` or
+    /// `gh:@acme@1.0.0`). Always a configuration bug, refused so the
+    /// user gets an immediate, actionable error instead of a confusing
+    /// downstream 404.
+    #[display("The package name '{pkg_name}' in named registry '{registry_name}:' is invalid")]
+    #[diagnostic(code(ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME))]
+    InvalidPackageName {
+        registry_name: String,
+        #[error(not(source))]
+        pkg_name: String,
+    },
+}
+
+/// Parse a named-registry specifier of the shape `<alias>:<body>` into
+/// a [`NamedRegistryPackageSpec`].
+///
+/// Returns `Ok(None)` for any specifier that does not use one of the
+/// configured aliases (no colon, alias unknown, body unparsable) so
+/// the caller can fall through to other resolvers. Errors only for
+/// recoverable-by-the-user input — a scoped name with no `/<name>`
+/// segment.
+///
+/// Supported shapes:
+/// - `<alias>:[@<owner>/]<name>[@<version_selector>]`
+/// - `<alias>:<version_selector>` paired with a package alias
+///
+/// Mirrors upstream's
+/// [`parseNamedRegistrySpecifierToRegistryPackageSpec`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L101-L164).
+pub fn parse_named_registry_specifier_to_registry_package_spec(
+    raw_specifier: &str,
+    known_registry_names: &HashSet<String>,
+    package_alias: Option<&str>,
+    default_tag: &str,
+) -> Result<Option<NamedRegistryPackageSpec>, ParseNamedRegistrySpecifierError> {
+    let Some(colon) = raw_specifier.find(':') else {
+        return Ok(None);
+    };
+    if colon == 0 {
+        return Ok(None);
+    }
+    let registry_name = &raw_specifier[..colon];
+    if !known_registry_names.contains(registry_name) {
+        return Ok(None);
+    }
+
+    let body = &raw_specifier[colon + 1..];
+    let pkg_name: String;
+    let version_selector: Option<String>;
+
+    if Range::parse(body).is_ok() {
+        // `<alias>:<version_selector>` — body is a semver range or
+        // version; the package name has to come from the dependency
+        // alias. Without one we cannot resolve.
+        let Some(alias) = package_alias.filter(|alias| !alias.is_empty()) else {
+            return Ok(None);
+        };
+        pkg_name = alias.to_string();
+        version_selector = Some(body.to_string());
+    } else if body.starts_with('@') {
+        // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
+        let last_at = body.rfind('@').expect("body starts with '@'");
+        let (name_part, ver_part) = if last_at == 0 {
+            (body, None)
+        } else {
+            (&body[..last_at], Some(body[last_at + 1..].to_string()))
+        };
+        if !name_part.contains('/') || name_part.ends_with('/') {
+            return Err(ParseNamedRegistrySpecifierError::InvalidPackageName {
+                registry_name: registry_name.to_string(),
+                pkg_name: name_part.to_string(),
+            });
+        }
+        pkg_name = name_part.to_string();
+        version_selector = ver_part;
+    } else if package_alias.is_some_and(|alias| alias.starts_with('@')) {
+        // `<alias>:<tag>` paired with a scoped alias — body is a
+        // version selector (tag/dist-tag). Mirrors GitHub Packages,
+        // where the package is always scoped and a bare body is a tag.
+        pkg_name = package_alias.expect("checked above").to_string();
+        version_selector = Some(body.to_string());
+    } else {
+        // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
+        let last_at = body.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
+        let (name_part, ver_part) = match last_at {
+            Some(idx) if idx >= 1 => (&body[..idx], Some(body[idx + 1..].to_string())),
+            _ => (body, None),
+        };
+        if name_part.is_empty() {
+            return Ok(None);
+        }
+        pkg_name = name_part.to_string();
+        version_selector = ver_part;
+    }
+
+    let selector_input = version_selector.as_deref().unwrap_or(default_tag);
+    let Some(selector) = get_version_selector_type(selector_input) else {
+        return Ok(None);
+    };
+
+    Ok(Some(NamedRegistryPackageSpec {
+        spec: RegistryPackageSpec {
+            name: pkg_name,
+            fetch_spec: selector.normalized,
+            spec_type: selector.spec_type,
+            normalized_bare_specifier: None,
+        },
+        registry_name: registry_name.to_string(),
+    }))
+}
+
 /// Discriminate between an exact version, a semver range, and a
 /// dist-tag, returning the normalized form alongside the discriminator.
 /// Mirrors npm's
@@ -155,7 +292,7 @@ pub fn parse_jsr_specifier_to_registry_package_spec(
 /// version first, range second, tag last. Returns `None` only when the
 /// selector contains characters that JS's `encodeURIComponent` would
 /// escape (i.e. not a valid npm tag).
-fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
+pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
     if let Ok(version) = Version::parse(selector) {
         return Some(VersionSelectorMatch {
             spec_type: RegistryPackageSpecType::Version,

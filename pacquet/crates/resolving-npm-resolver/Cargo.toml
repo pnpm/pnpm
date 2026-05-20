@@ -33,6 +33,9 @@ tokio       = { workspace = true }
 tracing     = { workspace = true }
 
 [dev-dependencies]
+pacquet-resolving-default-resolver = { workspace = true }
+pacquet-resolving-local-resolver   = { workspace = true }
+
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 ssri              = { workspace = true }

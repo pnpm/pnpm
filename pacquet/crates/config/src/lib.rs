@@ -377,6 +377,19 @@ pub struct Config {
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)
 
+    /// User-defined named-registry aliases from
+    /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
+    /// (`gh`, `work`, …) to the registry URL its `<alias>:` specifiers
+    /// resolve against. Empty by default — the resolver layer merges
+    /// these on top of pnpm's built-in defaults (today: `gh:` →
+    /// GitHub Packages) and rejects malformed URLs at construction
+    /// time with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
+    ///
+    /// Mirrors upstream's
+    /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
+    /// setting.
+    pub named_registries: BTreeMap<String, String>,
+
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),
     /// all from `.npmrc` and the process environment. The type lives
@@ -997,9 +1010,10 @@ impl Config {
         let global_config_dir = default_config_dir::<Sys>();
         let global_settings =
             global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
-        if let Some(global_settings) = global_settings {
+        if let Some(mut global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
+            global_settings.substitute_env::<Sys>();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
@@ -1089,13 +1103,14 @@ impl Config {
             if !virtual_store_dir_explicit {
                 self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
             }
-            if let Some(settings) = settings {
+            if let Some(mut settings) = settings {
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
                 // leaves it unset.
                 virtual_store_dir_explicit |= settings.virtual_store_dir.is_some();
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
+                settings.substitute_env::<Sys>();
                 settings.apply_to(&mut self, &base_dir);
             }
         }
@@ -1115,9 +1130,10 @@ impl Config {
         // `workspace_dir` with `start_dir`, hiding the workspace yaml's
         // location (or, if there was no yaml, setting it to a value
         // that doesn't actually correspond to a discovered workspace).
-        let env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
+        let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
         virtual_store_dir_explicit |= env_settings.virtual_store_dir.is_some();
         global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
+        env_settings.substitute_env::<Sys>();
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;

@@ -1,7 +1,13 @@
+use std::collections::HashSet;
+
 use pacquet_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 
 use crate::{
-    parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
+    parse_bare_specifier::{
+        ParseNamedRegistrySpecifierError, parse_bare_specifier,
+        parse_jsr_specifier_to_registry_package_spec,
+        parse_named_registry_specifier_to_registry_package_spec,
+    },
     pick_package_from_meta::RegistryPackageSpecType,
 };
 
@@ -206,4 +212,264 @@ fn jsr_specifier_with_unscoped_name_errors() {
     let err = parse_jsr_specifier_to_registry_package_spec("jsr:foo@^1.0.0", None, "latest")
         .expect_err("unscoped JSR name must error");
     assert!(matches!(err, ParseJsrSpecifierError::MissingScope), "got {err:?}");
+}
+
+fn gh_aliases() -> HashSet<String> {
+    let mut set = HashSet::new();
+    set.insert("gh".to_string());
+    set
+}
+
+fn aliases(names: &[&str]) -> HashSet<String> {
+    names.iter().map(|name| (*name).to_string()).collect()
+}
+
+#[test]
+fn named_registry_returns_none_on_non_named_specifiers() {
+    let gh = gh_aliases();
+    for input in [
+        "^1.0.0",
+        "1.0.0",
+        "latest",
+        "npm:foo",
+        "npm:@foo/bar",
+        "jsr:@foo/bar",
+        "catalog:",
+        "workspace:*",
+    ] {
+        let result =
+            parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest");
+        assert!(matches!(result, Ok(None)), "expected None for {input:?}, got {result:?}");
+    }
+}
+
+#[test]
+fn named_registry_does_not_intercept_github_git_shorthand() {
+    // `github:` belongs to hosted-git-info / npm-package-arg as a
+    // GitHub git repository shortcut. Even if it shows up, it is not
+    // in the built-in `gh` alias set.
+    let gh = gh_aliases();
+    for input in ["github:owner/repo", "github:owner/repo#main", "github:@acme/foo"] {
+        let result =
+            parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest");
+        assert!(matches!(result, Ok(None)), "expected None for {input:?}, got {result:?}");
+    }
+}
+
+#[test]
+fn named_registry_with_scoped_alias_parses_version_selectors() {
+    let gh = gh_aliases();
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:^1.0.0",
+        &gh,
+        Some("@acme/foo"),
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
+    assert_eq!(spec.registry_name, "gh");
+
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:1.0.0",
+        &gh,
+        Some("@acme/foo"),
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+    assert_eq!(spec.spec.fetch_spec, "1.0.0");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Version);
+
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:latest",
+        &gh,
+        Some("@acme/foo"),
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+    assert_eq!(spec.spec.fetch_spec, "latest");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Tag);
+}
+
+#[test]
+fn named_registry_with_scoped_body_falls_back_to_default_tag() {
+    let gh = gh_aliases();
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:@acme/foo",
+        &gh,
+        None,
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+    assert_eq!(spec.spec.fetch_spec, "latest");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Tag);
+    assert_eq!(spec.registry_name, "gh");
+}
+
+#[test]
+fn named_registry_with_scoped_body_and_selector() {
+    let gh = gh_aliases();
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:@acme/foo@^1.0.0",
+        &gh,
+        None,
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
+
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:@acme/foo@1.0.0",
+        &gh,
+        None,
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.fetch_spec, "1.0.0");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Version);
+
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:@acme/foo@beta",
+        &gh,
+        None,
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.fetch_spec, "beta");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Tag);
+}
+
+#[test]
+fn named_registry_preserves_scoped_name_no_jsr_style_rewrite() {
+    // Named registries publish the package under its original name —
+    // unlike JSR which remaps `@scope/name` to `@jsr/scope__name`.
+    let gh = gh_aliases();
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:@acme/foo@1.0.0",
+        &gh,
+        None,
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+}
+
+#[test]
+fn named_registry_scope_without_name_errors() {
+    let gh = gh_aliases();
+    for input in ["gh:@acme@^1.0.0", "gh:@acme", "gh:@acme/"] {
+        let err =
+            parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest")
+                .expect_err("scope without name must error");
+        assert!(
+            matches!(err, ParseNamedRegistrySpecifierError::InvalidPackageName { .. }),
+            "got {err:?} for {input:?}",
+        );
+    }
+}
+
+#[test]
+fn named_registry_version_only_no_alias_declines() {
+    // Without a package alias, `gh:<version>` cannot map to a name.
+    let gh = gh_aliases();
+    let result =
+        parse_named_registry_specifier_to_registry_package_spec("gh:^1.0.0", &gh, None, "latest");
+    assert!(matches!(result, Ok(None)), "got {result:?}");
+}
+
+#[test]
+fn named_registry_version_only_with_unscoped_alias() {
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "work:^4.0.0",
+        &aliases(&["work"]),
+        Some("lodash"),
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "lodash");
+    assert_eq!(spec.registry_name, "work");
+}
+
+#[test]
+fn named_registry_unscoped_body_parses() {
+    // Arbitrary named registries accept unscoped names, not just
+    // GitHub Packages-style scopes.
+    let aliases = aliases(&["work"]);
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "work:lodash@^4.0.0",
+        &aliases,
+        None,
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "lodash");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
+
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "work:lodash",
+        &aliases,
+        None,
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "lodash");
+    assert_eq!(spec.spec.fetch_spec, "latest");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Tag);
+}
+
+#[test]
+fn named_registry_reports_matched_alias() {
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "work:@acme/foo@^1.0.0",
+        &aliases(&["gh", "work"]),
+        None,
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+    assert_eq!(spec.registry_name, "work");
+}
+
+#[test]
+fn named_registry_unknown_alias_declines() {
+    // Unrecognized prefixes must fall through so other resolvers
+    // (git, npm, etc.) can try.
+    let result = parse_named_registry_specifier_to_registry_package_spec(
+        "work:@acme/foo",
+        &gh_aliases(),
+        None,
+        "latest",
+    );
+    assert!(matches!(result, Ok(None)), "got {result:?}");
+}
+
+#[test]
+fn named_registry_invalid_name_error_carries_user_alias() {
+    // When `work:@acme` fails validation, the user's alias must
+    // appear in the message — not a generic `gh` reference.
+    let err = parse_named_registry_specifier_to_registry_package_spec(
+        "work:@acme",
+        &aliases(&["work"]),
+        None,
+        "latest",
+    )
+    .expect_err("scope without name must error");
+    let message = err.to_string();
+    assert!(message.contains("'work:'"), "expected message to mention 'work:', got {message:?}");
 }

@@ -96,7 +96,18 @@ pub fn build_resolution_verifiers(
         trust_policy_exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         registries,
-        named_registries: HashMap::new(),
+        // User-defined aliases from `pnpm-workspace.yaml#namedRegistries`.
+        // Built-in aliases are merged in by
+        // [`pacquet_resolving_npm_resolver::build_named_registry_prefixes()`]
+        // inside the verifier, so passing the user map verbatim
+        // matches upstream's
+        // [`createNpmResolutionVerifier`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/createNpmResolutionVerifier.ts)
+        // call site, which forwards the same yaml value through.
+        named_registries: config
+            .named_registries
+            .iter()
+            .map(|(name, url)| (name.clone(), url.clone()))
+            .collect(),
         http_client,
         auth_headers: Arc::clone(&config.auth_headers),
         cache_dir: Some(config.cache_dir.clone()),
