@@ -18,6 +18,7 @@ use pacquet_resolving_deps_resolver::{
     ResolvePeersOptions, resolve_dependency_tree, resolve_peers,
 };
 use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
+use pacquet_resolving_local_resolver::{LocalResolver, LocalResolverContext};
 use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
 use pacquet_resolving_tarball_resolver::TarballResolver;
@@ -179,14 +180,28 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             Arc::new(RealGitRunner::new()),
         );
         let tarball_resolver = TarballResolver { http_client: Arc::clone(&http_client_arc) };
+        // `preserveAbsolutePaths` is wired through `Config`; thread the
+        // current value into the local-resolver context so absolute
+        // `file:` / `link:` specs round-trip the same shape upstream
+        // produces under the matching `--config.preserve-absolute-paths`
+        // setting. Pacquet doesn't expose `preserveAbsolutePaths` yet,
+        // so the context defaults to `false`.
+        let local_resolver =
+            LocalResolver::new(LocalResolverContext { preserve_absolute_paths: false });
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/default-resolver/src/index.ts#L97-L173>:
-        // npm, then git, then tarball. Local/workspace/runtimes will
-        // slot in as those crates land.
+        // npm → git → tarball → local. Runtimes / named-registry slot
+        // in as those crates land; `LocalResolver` covers both the
+        // scheme branch (where upstream interleaves it between tarball
+        // and runtimes) and the path branch (last in upstream's chain)
+        // because no intermediate resolvers exist yet that would split
+        // the two — when named-registry lands the two halves split
+        // into separate trait impls.
         let resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(vec![
             Box::new(npm_resolver),
             Box::new(git_resolver),
             Box::new(tarball_resolver),
+            Box::new(local_resolver),
         ]));
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)

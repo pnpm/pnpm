@@ -33,6 +33,7 @@ pacquet-reporter                   = { workspace = true }
 pacquet-resolving-default-resolver = { workspace = true }
 pacquet-resolving-deps-resolver    = { workspace = true }
 pacquet-resolving-git-resolver     = { workspace = true }
+pacquet-resolving-local-resolver   = { workspace = true }
 pacquet-resolving-npm-resolver     = { workspace = true }
 pacquet-resolving-resolver-base    = { workspace = true }
 pacquet-resolving-tarball-resolver = { workspace = true }
