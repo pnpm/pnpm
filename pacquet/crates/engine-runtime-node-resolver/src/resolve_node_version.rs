@@ -24,7 +24,7 @@ use serde::Deserialize;
 /// pnpm manages its own package managers, so the install layer
 /// excludes them per upstream's
 /// [`NODE_EXTRAS_IGNORE_PATTERN`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L32).
-pub const NODE_EXTRAS_IGNORE_PATTERN: &str = "^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\\.(?:cmd|ps1))?$)";
+pub const NODE_EXTRAS_IGNORE_PATTERN: &str = r"^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$)";
 
 /// One row of the `index.json` Node.js publishes for each mirror.
 ///

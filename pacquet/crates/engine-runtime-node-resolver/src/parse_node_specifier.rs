@@ -113,7 +113,10 @@ fn prerelease_channel(specifier: &str) -> Option<&'static str> {
         // identifiers like `22.0.0-nightly20250315abcdef`. Allow any
         // trailing characters after the channel name.
         if let Some(rest) = suffix.strip_prefix(candidate)
-            && rest.chars().next().is_none_or(|c| !c.is_ascii_alphabetic() || c == '.')
+            && rest
+                .chars()
+                .next()
+                .is_none_or(|next| !next.is_ascii_alphabetic() || next == '.')
         {
             return Some(candidate);
         }

@@ -14,10 +14,10 @@
 //!
 //! Three pieces:
 //!
-//! - [`parse_node_specifier`] — recognise the `<channel>/<spec>`,
+//! - [`parse_node_specifier()`] — recognise the `<channel>/<spec>`,
 //!   `<channel>`, prerelease, alias, and bare-range forms. Ports
 //!   [`parseNodeSpecifier.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/parseNodeSpecifier.ts).
-//! - [`get_node_mirror`] / [`get_node_artifact_address`] /
+//! - [`get_node_mirror()`] / [`get_node_artifact_address()`] /
 //!   [`get_normalized_arch`] — mirror URL normalisation, archive URL
 //!   composition, and the arch quirks for ia32 Windows / armv7l Linux
 //!   / Apple-Silicon-on-pre-16 macOS. Port

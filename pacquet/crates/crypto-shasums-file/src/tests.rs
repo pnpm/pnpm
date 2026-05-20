@@ -69,9 +69,10 @@ fn missing_file_name_raises_not_found() {
 ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  foo.tar.gz
 be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi";
     let err = pick_file_checksum_from_shasums_file(body, "bar.zip").unwrap_err();
-    assert!(
-        matches!(err, PickFileChecksumError::NotFound { ref file_name } if file_name == "bar.zip")
-    );
+    assert!(matches!(
+        err,
+        PickFileChecksumError::NotFound { ref file_name } if file_name == "bar.zip",
+    ));
 }
 
 /// A malformed (too-short) hash in an otherwise well-formed row raises
