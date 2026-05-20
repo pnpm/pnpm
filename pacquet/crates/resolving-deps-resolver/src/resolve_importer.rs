@@ -117,8 +117,18 @@ where
 
     let ctx = TreeCtx::new(base_opts);
 
+    // Mirrors upstream's
+    // [`getAllDependenciesFromManifest({ autoInstallPeers })`](https://github.com/pnpm/pnpm/blob/097983fbca/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts):
+    // when auto-install-peers is on, the importer's own
+    // `peerDependencies` are walked as regular direct deps too, so the
+    // version the importer pinned wins over whatever a deeply-nested
+    // consumer asks for via the hoist loop.
+    let mut groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
+    if auto_install_peers && !groups.contains(&DependencyGroup::Peer) {
+        groups.push(DependencyGroup::Peer);
+    }
     let initial_wanted: Vec<(String, String)> = manifest
-        .dependencies(dependency_groups)
+        .dependencies(groups)
         .map(|(name, range)| (name.to_string(), range.to_string()))
         .collect();
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
