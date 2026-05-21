@@ -70,8 +70,8 @@ use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
-        ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta, prepare_json_for_disk,
-        save_meta,
+        ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
+        prepare_json_for_disk, save_meta,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -433,7 +433,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
     // 2. Offline / pickLowestVersion / preferOffline disk read.
     if ctx.offline || ctx.prefer_offline || opts.pick_lowest_version {
-        meta_cached_in_store = pkg_mirror.as_deref().and_then(load_meta);
+        meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await;
 
         if ctx.offline {
             if let Some(meta) = meta_cached_in_store {
@@ -478,7 +478,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // 3. Version-spec fast path.
     if !opts.include_latest_tag && matches!(spec.spec_type, RegistryPackageSpecType::Version) {
         if meta_cached_in_store.is_none() {
-            meta_cached_in_store = pkg_mirror.as_deref().and_then(load_meta);
+            meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await;
         }
         if let Some(ref meta) = meta_cached_in_store
             && meta.versions.contains_key(&spec.fetch_spec)
@@ -503,7 +503,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         && mtime >= published_by
     {
         if meta_cached_in_store.is_none() {
-            meta_cached_in_store = pkg_mirror.as_deref().and_then(load_meta);
+            meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await;
         }
         if let Some(ref meta) = meta_cached_in_store
             && let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta)
@@ -533,9 +533,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // returned (when it returned Ok). If it returned Err,
             // try the disk fallback: an existing mirror is good
             // enough to pick from, even if the latest sync failed.
-            if let Some(disk) =
-                meta_cached_in_store.or_else(|| pkg_mirror.as_deref().and_then(load_meta))
-            {
+            let disk_fallback = match meta_cached_in_store {
+                Some(meta) => Some(meta),
+                None => load_meta_async(pkg_mirror.as_deref()).await,
+            };
+            if let Some(disk) = disk_fallback {
                 tracing::debug!(
                     target: "pacquet_resolving_npm_resolver::pick_package",
                     ?error,
