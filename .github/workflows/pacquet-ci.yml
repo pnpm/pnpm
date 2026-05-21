@@ -169,11 +169,11 @@ jobs:
       - name: Run pnpm e2e against pacquet
         env:
           PNPM_E2E_BIN: ${{ github.workspace }}/target/release/pacquet
-        # `pn -r .test` is the same call shape test.yml uses for the standard
-        # e2e job. Recursive mode bypasses the hidden-script check; explicit
-        # `--filter=pnpm` re-enables it, so leave it off and let `--if-present`
-        # silently skip the workspace packages that don't define `.test`.
-        run: pnpm --no-sort --workspace-concurrency=1 --if-present -r .test
+        # `pn run test-pkgs-all` matches the call shape test.yml uses (via
+        # `ci:test-all`): the hidden `.test` invocation lives inside a
+        # script-to-script chain, which is the only way pnpm allows it.
+        # Calling `pn -r .test` directly trips ERR_PNPM_HIDDEN_SCRIPT.
+        run: pnpm run test-pkgs-all
 
   doc:
     name: Doc
