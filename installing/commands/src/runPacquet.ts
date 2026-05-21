@@ -87,7 +87,16 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacque
     // `pnpm-workspace.yaml` / `.npmrc` on its own, so a non-install
     // delegation isn't broken by the omission.
     const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
-    const args = ['--reporter=ndjson', 'install', '--frozen-lockfile', ...forwardedFlags]
+    // `--ignore-manifest-check` tells pacquet to skip its per-importer
+    // `package.json` ↔ `pnpm-lock.yaml` freshness gate. pnpm just
+    // resolved and wrote the lockfile itself; on `pnpm up` / `add` /
+    // `remove` the manifest on disk is still the pre-mutation copy
+    // (pnpm writes it after `mutateModules` returns), so pacquet's own
+    // check would always fire here. See
+    // https://github.com/pnpm/pnpm/issues/11797. The flag is narrow
+    // (only the manifest check); settings drift like `overrides` is
+    // still enforced and was already re-validated by pnpm.
+    const args = ['--reporter=ndjson', 'install', '--frozen-lockfile', '--ignore-manifest-check', ...forwardedFlags]
     const droppedFlags = opts.isInstallCommand ? [] : collectDroppedFlags(opts.argv)
     if (droppedFlags.length > 0) {
       logger.warn({
