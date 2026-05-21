@@ -434,7 +434,7 @@ fn install_surfaces_catalog_misconfiguration() {
     // make the assertion brittle.
     let flattened: String = stderr
         .chars()
-        .filter(|c| !c.is_whitespace() && !matches!(c, '│' | '├' | '╰' | '─' | '▶' | '×'))
+        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
         .collect();
     assert!(
         flattened.contains(
