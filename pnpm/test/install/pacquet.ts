@@ -126,9 +126,9 @@ test.skip('`pnpm update <pkg>` resolves a new version with pnpm and materializes
 
 // Skipped until pacquet ships a release built with the updated
 // `generate-packages.mjs` (this PR's change) so the `@pnpm/pacquet`
-// scoped alias actually exists on npm. The pinned `0.2.2-9` doesn't
-// publish that mirror yet. Re-enable when the next pacquet release
-// ships under both names.
+// scoped alias actually exists on npm. The pinned PACQUET_VERSION
+// above doesn't publish that mirror yet. Re-enable when the next
+// pacquet release ships under both names.
 test.skip('the `@pnpm/pacquet` scoped alias is recognized in configDependencies', async () => {
   await prepareWithPacquet({
     manifest: { dependencies: { 'is-positive': '3.1.0' } },

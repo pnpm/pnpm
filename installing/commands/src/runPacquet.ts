@@ -193,20 +193,33 @@ function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm
  * surface pnpm itself accepts on `install`, so the flags don't need
  * reshaping.
  *
- * Flags we always inject ourselves (`--reporter=ndjson`,
- * `--frozen-lockfile`, `--ignore-manifest-check`) are dropped from
- * the forwarded set: clap rejects most of those as "used multiple
- * times", and even where it doesn't, a user-supplied
- * `--reporter=other` would override the one we depend on for
- * NDJSON-to-streamParser plumbing.
+ * Flags we always inject ourselves (`--frozen-lockfile`,
+ * `--ignore-manifest-check`) are dropped — clap rejects them as
+ * "used multiple times" otherwise. `--reporter` is stripped in any
+ * form (`--reporter=foo`, `--reporter foo`): pacquet's `reporter`
+ * is a clap value option with last-value-wins semantics, so a
+ * user-supplied value would override our `--reporter=ndjson` and
+ * break the NDJSON-to-streamParser plumbing the default reporter
+ * relies on.
  */
 function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
   const positionals = new Set(argv.remain)
-  return argv.original.filter((arg) => !positionals.has(arg) && !ALWAYS_INJECTED.has(arg))
+  const result: string[] = []
+  for (let i = 0; i < argv.original.length; i++) {
+    const arg = argv.original[i]
+    if (positionals.has(arg) || ALWAYS_INJECTED.has(arg)) continue
+    if (arg.startsWith('--reporter=')) continue
+    if (arg === '--reporter') {
+      // Consume the next token as the reporter value (`--reporter foo`).
+      i++
+      continue
+    }
+    result.push(arg)
+  }
+  return result
 }
 
 const ALWAYS_INJECTED = new Set([
-  '--reporter=ndjson',
   '--frozen-lockfile',
   '--ignore-manifest-check',
 ])
