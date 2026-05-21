@@ -176,9 +176,13 @@ jobs:
         # just put on PATH. `pnpm exec jest` spawns under pnpm's own embedded
         # Node 24.x, which trips jest's ESM VM-modules path with
         # "module is already linked".
+        # `--runInBand` keeps jest's ESM VM-modules loader in one process. With
+        # `--experimental-vm-modules` and multiple worker processes the same
+        # module ends up linked twice and every suite errors with
+        # "module is already linked".
         run: |
           node --version
-          ${{ github.workspace }}/node_modules/.bin/jest
+          ${{ github.workspace }}/node_modules/.bin/jest --runInBand
 
   doc:
     name: Doc
