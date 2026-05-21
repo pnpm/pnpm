@@ -1,5 +1,12 @@
 # @pnpm/releasing.commands
 
+## 1100.2.18
+
+### Patch Changes
+
+- Updated dependencies [881a865]
+  - @pnpm/installing.commands@1100.4.2
+
 ## 1100.2.17
 
 ### Patch Changes

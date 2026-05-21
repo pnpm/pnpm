@@ -1,5 +1,12 @@
 # pnpm
 
+## 11.2.2
+
+### Patch Changes
+
+- When the install engine is delegated to pacquet via `configDependencies`, the user's CLI flags passed to `pnpm install` (e.g. `--no-runtime`, `--prod`, `--dev`, `--no-optional`, `--node-linker`, `--cpu`/`--os`/`--libc`, `--offline`, `--prefer-offline`) are now forwarded to pacquet's `install` subcommand verbatim. Previously pacquet was invoked with a fixed argument list, so flags like `--no-runtime` were silently dropped. Flag forwarding is gated on the command being `install`/`i`; `add`, `update`, and `dedupe` still don't forward (their flag surface doesn't line up with pacquet's `install`).
+- Fixed `pnpm up` (and `pnpm add` / `pnpm remove`) failing with `pacquet_package_manager::outdated_lockfile` when pacquet is declared in `configDependencies`. pnpm now passes `--ignore-manifest-check` to pacquet so its `--frozen-lockfile` check doesn't fire against the (pre-mutation) `package.json` pnpm hasn't written yet [#11797](https://github.com/pnpm/pnpm/issues/11797). Requires a pacquet release that supports the flag — bump `PACQUET_VERSION` in the e2e tests once it ships.
+
 ## 11.2.1
 
 ### Patch Changes
