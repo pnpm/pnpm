@@ -267,7 +267,7 @@ async fn min_age_pass_when_published_before_cutoff() {
         .await;
     let _full_mock = server
         .mock("GET", "/acme")
-        .match_header("accept", "application/json")
+        .match_header("accept", "application/json; q=1.0, */*")
         .with_status(200)
         .with_body(min_age_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string())
         .expect(1)

@@ -1,41 +1,58 @@
-//! No-cache full-metadata fetcher.
+//! No-cache metadata fetcher.
 //!
-//! Issues a GET against `<registry>/<package>` with the *full*
-//! metadata `Accept` header (`application/json; q=1.0`) — distinct
-//! from the abbreviated `application/vnd.npm.install-v1+json`
-//! endpoint that pnpm's resolver uses for fast picks. The verifier
-//! needs the full document because the abbreviated form omits the
-//! `time` map, `_npmUser`, and `dist.attestations` — the three
-//! fields the `minimumReleaseAge` and `trustPolicy='no-downgrade'`
-//! checks read.
+//! Issues a GET against `<registry>/<package>`. The `full_metadata`
+//! flag picks between the **full** packument
+//! (`Accept: application/json; q=1.0, */*`) and the **abbreviated**
+//! install-v1 form
+//! (`Accept: application/vnd.npm.install-v1+json; q=1.0,
+//! application/json; q=0.8, */*`). The two forms are byte-different:
+//! the abbreviated document drops the per-version `time` map,
+//! `_npmUser`, and `dist.attestations`, which are exactly the fields
+//! the `minimumReleaseAge` and `trustPolicy='no-downgrade'` checks
+//! read.
 //!
-//! Caching (conditional GETs + on-disk mirror) lands in a follow-up
-//! phase. This module is the no-cache baseline that
-//! [`crate::create_npm_resolution_verifier()`] consumes today; the
-//! cached variant wraps it without changing the call site.
+//! Callers that need maturity / trust evidence (the verifier and the
+//! resolver's upgrade-on-recent-modified path) must request full
+//! metadata. The resolver's default install path requests
+//! abbreviated and upgrades to full only when the maturity check
+//! demands it — mirroring upstream's pickPackage logic.
 //!
-//! Ports the no-cache half of upstream's
-//! [`fetchFullMetadataCached.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts).
+//! Ports the request half of upstream's
+//! [`fetchMetadataFromFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L118-L204).
 
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_registry::Package;
 
 use crate::{FetchMetadataError, registry_url::to_registry_url};
 
+/// Accept header for the full packument. Matches upstream's
+/// [`ACCEPT_FULL_DOC`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L12).
+pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
+
+/// Accept header for the abbreviated `install-v1` packument. Matches
+/// upstream's
+/// [`ACCEPT_ABBREVIATED_DOC`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L15).
+pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
+    "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
+
 /// Options bundle for [`fetch_full_metadata`]. Mirrors upstream's
-/// `FetchFullMetadataCachedOptions` minus the cache fields, which the
-/// cached variant (Phase 5) will layer on.
+/// `FetchFullMetadataCachedOptions` minus the cache fields; the
+/// cached variant layers them on.
 #[derive(Debug, Clone)]
 pub struct FetchFullMetadataOptions<'a> {
     pub registry: &'a str,
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
+    /// `true` requests the full packument (with `time`, `_npmUser`,
+    /// and `dist.attestations`); `false` requests the abbreviated
+    /// `install-v1` form. Mirrors upstream's
+    /// [`opts.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L113).
+    pub full_metadata: bool,
 }
 
-/// Fetch the **full** registry metadata document for `pkg_name`.
-/// The full document carries `time`, per-version `_npmUser`, and
-/// `dist.attestations` — the abbreviated install-v1 endpoint pnpm's
-/// resolver normally uses omits all three.
+/// Fetch the registry metadata document for `pkg_name`. The
+/// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
+/// between the full and abbreviated packument forms.
 pub async fn fetch_full_metadata(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
@@ -47,8 +64,9 @@ pub async fn fetch_full_metadata(
     // so the registry routes the request to the package as a single
     // path segment, not two.
     let url = to_registry_url(opts.registry, pkg_name);
+    let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let mut request =
-        opts.http_client.acquire_for_url(&url).await.get(&url).header("accept", "application/json");
+        opts.http_client.acquire_for_url(&url).await.get(&url).header("accept", accept);
     if let Some(value) = opts.auth_headers.for_url(&url) {
         request = request.header("authorization", value);
     }

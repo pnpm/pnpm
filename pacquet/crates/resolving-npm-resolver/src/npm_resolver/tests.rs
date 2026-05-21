@@ -64,6 +64,7 @@ fn build_resolver_with_registries(
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
     (resolver, cache_dir)
 }

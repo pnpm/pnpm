@@ -44,6 +44,7 @@ fn named_registry_resolver(
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     }
 }
 

@@ -37,7 +37,7 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     }"#;
     let mock = server
         .mock("GET", "/acme")
-        .match_header("accept", "application/json")
+        .match_header("accept", "application/json; q=1.0, */*")
         .match_header("authorization", "Bearer top-secret")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -56,6 +56,7 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
         registry: &registry,
         http_client: &http_client,
         auth_headers: &auth_headers,
+        full_metadata: true,
     };
 
     let pkg = fetch_full_metadata("acme", &opts).await.expect("server returns 200");
@@ -84,6 +85,7 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
         registry: &registry,
         http_client: &http_client,
         auth_headers: &auth_headers,
+        full_metadata: true,
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
@@ -136,6 +138,7 @@ async fn fetch_full_metadata_encodes_scoped_name() {
         registry: &registry,
         http_client: &http_client,
         auth_headers: &auth_headers,
+        full_metadata: true,
     };
 
     let pkg =
@@ -167,6 +170,7 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
         registry: &registry,
         http_client: &http_client,
         auth_headers: &auth_headers,
+        full_metadata: true,
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("malformed JSON must surface");
