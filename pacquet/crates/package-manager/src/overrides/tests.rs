@@ -1,4 +1,5 @@
 use super::VersionsOverrider;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config_parse_overrides::parse_overrides;
 use pacquet_package_manifest::PackageManifest;
 use serde_json::{Value, json};
@@ -10,7 +11,7 @@ use std::{
 fn parsed(map: &[(&str, &str)]) -> Vec<pacquet_config_parse_overrides::VersionOverride> {
     let owned: HashMap<String, String> =
         map.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
-    parse_overrides(&owned).expect("parse_overrides fixture")
+    parse_overrides(&owned, &Catalogs::new()).expect("parse_overrides fixture")
 }
 
 /// Build an in-memory `PackageManifest` from a JSON value. The path

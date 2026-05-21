@@ -445,16 +445,37 @@ where
             // Upstream flips `needsFullResolution` and re-runs the
             // resolver; pacquet has no resolver, so the matching
             // action is to abort with `OutdatedLockfile`.
-            // `Config::overrides` is an `IndexMap` so user-supplied
-            // order survives all the way to diagnostics; the
-            // freshness check is order-insensitive (it normalizes to
-            // `BTreeMap` internally to match upstream's
-            // `equals(lockfile.overrides ?? {}, overrides ?? {})`),
-            // so a flat clone into `HashMap` here is fine.
-            let overrides_map: Option<std::collections::HashMap<String, String>> = config
-                .overrides
-                .as_ref()
-                .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect());
+            //
+            // `pnpm.overrides` values can use the `catalog:` protocol,
+            // which pnpm resolves against the workspace's catalogs
+            // *before* writing them to `pnpm-lock.yaml#overrides`. We
+            // mirror that here: parse the raw map through
+            // `parse_overrides_iter` with the current catalogs to get
+            // the resolved specifiers, then flatten to a plain map for
+            // the freshness comparison. Without this step, an override
+            // declared as `"foo": "catalog:"` would compare unequal to
+            // the lockfile's already-resolved `"foo": "<concrete>"` on
+            // every install. Mirrors upstream's
+            // `parseOverrides(overrides, catalogs)` →
+            // `createOverridesMapFromParsed(...)` pipeline at
+            // <https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L20-L44>
+            // and
+            // <https://github.com/pnpm/pnpm/blob/4a36b9a110/lockfile/settings-checker/src/createOverridesMapFromParsed.ts>.
+            // Parsing the same overrides twice (once for the freshness
+            // check, once for the `VersionsOverrider` apply below)
+            // would double-walk the map and double-resolve `catalog:`
+            // values, so we parse once and share.
+            let parsed_overrides_opt = match config.overrides.as_ref() {
+                Some(map) if !map.is_empty() => Some(
+                    pacquet_config_parse_overrides::parse_overrides_iter(map.iter(), &catalogs)
+                        .map_err(InstallError::InvalidOverrides)?,
+                ),
+                _ => None,
+            };
+            let overrides_map: Option<std::collections::HashMap<String, String>> =
+                parsed_overrides_opt
+                    .as_deref()
+                    .map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
             pacquet_lockfile::check_lockfile_settings(
                 lockfile,
                 overrides_map.as_ref(),
@@ -472,29 +493,20 @@ where
             // upstream's read-package-hook conceptually returns a
             // new manifest from the perspective of every consumer
             // downstream of the resolver.
-            //
-            // Parsing today is infallible *barring* catalog refs —
-            // pacquet has no catalogs yet, so a `catalog:` value
-            // surfaces as `INVALID_OVERRIDES` here. When catalogs
-            // land, the parse call gains the catalog table.
             let overrider_manifest_holder;
-            let manifest_for_freshness: &PackageManifest = if let Some(map) =
-                config.overrides.as_ref()
-                && !map.is_empty()
-            {
-                let parsed = pacquet_config_parse_overrides::parse_overrides_iter(map.iter())
-                    .map_err(InstallError::InvalidOverrides)?;
-                let root_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
-                let overrider = crate::VersionsOverrider::new(&parsed, root_dir);
-                overrider_manifest_holder = {
-                    let mut cloned: PackageManifest = (*manifest).clone();
-                    overrider.apply(&mut cloned, Some(root_dir));
-                    cloned
+            let manifest_for_freshness: &PackageManifest =
+                if let Some(parsed) = parsed_overrides_opt.as_deref() {
+                    let root_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
+                    let overrider = crate::VersionsOverrider::new(parsed, root_dir);
+                    overrider_manifest_holder = {
+                        let mut cloned: PackageManifest = (*manifest).clone();
+                        overrider.apply(&mut cloned, Some(root_dir));
+                        cloned
+                    };
+                    &overrider_manifest_holder
+                } else {
+                    manifest
                 };
-                &overrider_manifest_holder
-            } else {
-                manifest
-            };
             // Build the `ignoredOptionalDependencies` filter set.
             // Mirrors upstream's
             // [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts):
