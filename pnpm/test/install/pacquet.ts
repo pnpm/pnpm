@@ -11,7 +11,7 @@ import { execPnpm, execPnpmSync } from '../utils/index.js'
 // version known to ship the `configDependencies` integration surface this
 // PR depends on; tests are gated on the public registry being reachable.
 const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
-const PACQUET_VERSION = '0.2.2-9'
+const PACQUET_VERSION = '0.2.2'
 
 // Each test runs two or three installs against the public registry; raise
 // the per-test timeout above jest's 5s default to allow for cold caches.
