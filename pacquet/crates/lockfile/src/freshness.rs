@@ -18,7 +18,7 @@
 use crate::{Lockfile, ProjectSnapshot};
 use derive_more::{Display, Error};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Why an importer's lockfile entry doesn't satisfy the on-disk
 /// `package.json`. Mirrors the discriminated cases upstream's
@@ -85,6 +85,20 @@ pub enum StalenessReason {
         "`ignoredOptionalDependencies` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
     IgnoredOptionalDependenciesChanged { lockfile: Vec<String>, config: Vec<String> },
+
+    /// The lockfile's `overrides` map doesn't match the current
+    /// install's `Config::overrides`. Mirrors upstream's
+    /// [`getOutdatedLockfileSetting.ts:50-52`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L52):
+    /// upstream returns `'overrides'` and `needsFullResolution` flips
+    /// on. Pacquet has no resolver, so the matching action is to
+    /// surface this as `OutdatedLockfile`. Both values are normalized
+    /// into a `BTreeMap` so the order-insensitive comparison upstream
+    /// runs through `equals(lockfile.overrides ?? {}, overrides ?? {})`
+    /// is preserved, and the rendered error reads stably.
+    #[display(
+        "`overrides` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
+    )]
+    OverridesChanged { lockfile: BTreeMap<String, String>, config: BTreeMap<String, String> },
 }
 
 /// Per-bucket diff against the manifest's flat union of deps.
@@ -162,20 +176,45 @@ impl SpecDiff {
 
 /// Verify that lockfile-level settings the install pipeline reads
 /// from `pnpm-workspace.yaml` haven't drifted since the lockfile
-/// was written. Today this is just `ignoredOptionalDependencies`
-/// (umbrella #434 slice 7); the variants below will grow as more
-/// upstream settings land (`catalogs`, `patchedDependencies`,
-/// `pnpmfileChecksum`, etc.).
+/// was written. Today this covers `overrides` and
+/// `ignoredOptionalDependencies` (umbrella #434 slice 7); the
+/// variants below will grow as more upstream settings land
+/// (`catalogs`, `patchedDependencies`, `pnpmfileChecksum`, etc.).
 ///
 /// Mirrors upstream's
-/// [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
+/// [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
 /// Upstream uses the return value to flip `needsFullResolution`;
 /// pacquet has no resolver, so the matching action is to abort the
-/// frozen install with `OutdatedLockfile`.
+/// frozen install with `OutdatedLockfile`. The check ordering here
+/// matches upstream's so the *first* drifted field is reported on
+/// both sides — which matters for tests and for CI logs that quote
+/// the reason verbatim.
 pub fn check_lockfile_settings(
     lockfile: &Lockfile,
+    overrides: Option<&HashMap<String, String>>,
     ignored_optional_dependencies: Option<&[String]>,
 ) -> Result<(), StalenessReason> {
+    // Upstream checks `overrides` before `ignoredOptionalDependencies`,
+    // so an install that changed both surfaces the overrides drift
+    // first — preserving that for parity with pnpm error reports.
+    // `BTreeMap` normalizes ordering so the order-insensitive `equals`
+    // upstream uses lines up with `==` here, and the `Display` impl
+    // renders the diff stably.
+    let empty: HashMap<String, String> = HashMap::new();
+    let lockfile_overrides: BTreeMap<String, String> = lockfile
+        .overrides
+        .as_ref()
+        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        .unwrap_or_default();
+    let config_overrides: BTreeMap<String, String> =
+        overrides.unwrap_or(&empty).iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    if lockfile_overrides != config_overrides {
+        return Err(StalenessReason::OverridesChanged {
+            lockfile: lockfile_overrides,
+            config: config_overrides,
+        });
+    }
+
     // Comparison is order-insensitive — upstream sorts both sides
     // before calling Ramda's `equals`. Empty `None` and empty `[]`
     // are equivalent (matches upstream's `?? []` default on both

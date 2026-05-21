@@ -192,6 +192,15 @@ pub enum InstallError {
     /// error compound into spurious reinstalls.
     #[diagnostic(transparent)]
     WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
+
+    /// A value in `pnpm.overrides` couldn't be parsed — the selector
+    /// key isn't a recognizable package name, or the override value
+    /// uses the `catalog:` protocol (which pacquet doesn't support
+    /// yet). Mirrors upstream's `ERR_PNPM_INVALID_SELECTOR` and
+    /// `ERR_PNPM_CATALOG_IN_OVERRIDES` codes from
+    /// [`config/parse-overrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts).
+    #[diagnostic(transparent)]
+    InvalidOverrides(#[error(source)] pacquet_config_parse_overrides::ParseOverridesError),
 }
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
@@ -391,11 +400,56 @@ where
             // Upstream flips `needsFullResolution` and re-runs the
             // resolver; pacquet has no resolver, so the matching
             // action is to abort with `OutdatedLockfile`.
+            // `Config::overrides` is an `IndexMap` so user-supplied
+            // order survives all the way to diagnostics; the
+            // freshness check is order-insensitive (it normalizes to
+            // `BTreeMap` internally to match upstream's
+            // `equals(lockfile.overrides ?? {}, overrides ?? {})`),
+            // so a flat clone into `HashMap` here is fine.
+            let overrides_map: Option<std::collections::HashMap<String, String>> = config
+                .overrides
+                .as_ref()
+                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
             pacquet_lockfile::check_lockfile_settings(
                 lockfile,
+                overrides_map.as_ref(),
                 config.ignored_optional_dependencies.as_deref(),
             )
             .map_err(|reason| InstallError::OutdatedLockfile { reason })?;
+
+            // Apply `pnpm.overrides` to a *cloned* manifest before
+            // the freshness check, so the lockfile's importer
+            // specifiers — which were written by pnpm with overrides
+            // already applied — match the on-disk manifest's deps.
+            // Without this, an install on a repo with overrides
+            // trips `SpecifiersDiffer` on every dep an override
+            // rewrites. The caller's manifest stays pristine, since
+            // upstream's read-package-hook conceptually returns a
+            // new manifest from the perspective of every consumer
+            // downstream of the resolver.
+            //
+            // Parsing today is infallible *barring* catalog refs —
+            // pacquet has no catalogs yet, so a `catalog:` value
+            // surfaces as `INVALID_OVERRIDES` here. When catalogs
+            // land, the parse call gains the catalog table.
+            let overrider_manifest_holder;
+            let manifest_for_freshness: &PackageManifest = if let Some(map) =
+                config.overrides.as_ref()
+                && !map.is_empty()
+            {
+                let parsed = pacquet_config_parse_overrides::parse_overrides_iter(map.iter())
+                    .map_err(InstallError::InvalidOverrides)?;
+                let root_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
+                let overrider = crate::VersionsOverrider::new(&parsed, root_dir);
+                overrider_manifest_holder = {
+                    let mut cloned: PackageManifest = (*manifest).clone();
+                    overrider.apply(&mut cloned, Some(root_dir));
+                    cloned
+                };
+                &overrider_manifest_holder
+            } else {
+                manifest
+            };
             // Build the `ignoredOptionalDependencies` filter set.
             // Mirrors upstream's
             // [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts):
@@ -415,7 +469,7 @@ where
                 .filter(|patterns| !patterns.is_empty())
                 .map(|patterns| {
                     let matcher = pacquet_config::matcher::create_matcher(patterns);
-                    manifest
+                    manifest_for_freshness
                         .dependencies([pacquet_package_manifest::DependencyGroup::Optional])
                         .filter(|(name, _)| matcher.matches(name))
                         .map(|(name, _)| name.to_string())
@@ -426,7 +480,7 @@ where
                 &|name: &str| ignored_set.contains(name);
             satisfies_package_manifest(
                 importer,
-                manifest,
+                manifest_for_freshness,
                 Lockfile::ROOT_IMPORTER_KEY,
                 is_ignored_optional,
             )
@@ -783,10 +837,9 @@ fn build_projects_map(
 /// settings the install used. Mirrors upstream's `createWorkspaceState`
 /// at <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/createWorkspaceState.ts>.
 /// Settings pacquet does not track yet (e.g. `dedupeDirectDeps`,
-/// `peersSuffixMaxLength`, `overrides`) are omitted; pnpm's
-/// `checkDepsStatus` only iterates fields present in the serialized
-/// object, so an absent key is silently skipped rather than treated as
-/// a drift.
+/// `peersSuffixMaxLength`) are omitted; pnpm's `checkDepsStatus`
+/// only iterates fields present in the serialized object, so an
+/// absent key is silently skipped rather than treated as a drift.
 fn build_workspace_state(
     config: &Config,
     node_linker: NodeLinker,
@@ -826,6 +879,10 @@ fn build_workspace_state(
             ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
             node_linker: Some(map_workspace_state_node_linker(&node_linker)),
             optional: Some(included.optional_dependencies),
+            overrides: config
+                .overrides
+                .as_ref()
+                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<BTreeMap<_, _>>()),
             patched_dependencies: config.patched_dependencies.clone(),
             production: Some(included.dependencies),
             public_hoist_pattern: config.public_hoist_pattern.clone(),

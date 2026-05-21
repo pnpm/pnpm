@@ -27,6 +27,7 @@ pacquet-lockfile-verification        = { workspace = true }
 pacquet-modules-yaml                 = { workspace = true }
 pacquet-network                      = { workspace = true }
 pacquet-config                       = { workspace = true }
+pacquet-config-parse-overrides       = { workspace = true }
 pacquet-graph-hasher                 = { workspace = true }
 pacquet-package-manifest             = { workspace = true }
 pacquet-package-is-installable       = { workspace = true }
@@ -54,6 +55,7 @@ futures-util    = { workspace = true }
 httpdate        = { workspace = true }
 indexmap        = { workspace = true }
 node-semver     = { workspace = true }
+pathdiff        = { workspace = true }
 pipe-trait      = { workspace = true }
 rayon           = { workspace = true }
 reflink-copy    = { workspace = true }

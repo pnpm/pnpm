@@ -236,6 +236,34 @@ pub struct WorkspaceSettings {
     /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
     pub ignored_optional_dependencies: Option<Vec<String>>,
 
+    /// `overrides` from `pnpm-workspace.yaml`: a `selector → spec`
+    /// map that rewrites dependency specifiers everywhere they appear
+    /// during install (both direct manifests and transitive
+    /// packuments). Outer key encodes the override scope (bare name,
+    /// `name@range`, or `parent>child` forms — see
+    /// `pacquet_config_parse_overrides`); value is the replacement
+    /// spec, or `-` to delete the dep entirely.
+    ///
+    /// Mirrors upstream's
+    /// [`overrides`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L18)
+    /// shape — values are validated as strings at load time
+    /// (`ERR_PNPM_INVALID_OVERRIDES`) and `$dep-name` self-references
+    /// against the manifest's direct deps are resolved before
+    /// downstream code sees them. Empty maps are normalized to
+    /// `None` to match upstream's `delete settings.overrides`.
+    ///
+    /// pnpm 10+ moved `overrides` out of `package.json#pnpm` into
+    /// `pnpm-workspace.yaml`. Pacquet matches that — the legacy
+    /// `package.json#pnpm.overrides` shape is no longer consulted.
+    ///
+    /// Lockfile drift: the raw map is recorded in `pnpm-lock.yaml`'s
+    /// `overrides:` field. On a subsequent install,
+    /// `pacquet_lockfile::check_lockfile_settings` compares this
+    /// against `lockfile.overrides` and raises `OverridesChanged`
+    /// on mismatch. Mirrors upstream's
+    /// [`getOutdatedLockfileSetting.ts:50-52`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L52).
+    pub overrides: Option<IndexMap<String, String>>,
+
     /// `cacheDir` from `pnpm-workspace.yaml`. Resolved against the
     /// workspace dir like the other path-valued fields. Drives
     /// the lockfile-verified JSONL cache + packument mirror used
@@ -362,6 +390,7 @@ impl WorkspaceSettings {
         self.allow_builds = None;
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
+        self.overrides = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -543,6 +572,18 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.ignored_optional_dependencies {
             config.ignored_optional_dependencies = Some(v);
+        }
+        // Empty overrides map collapses to `None` so the lockfile-side
+        // drift check ignores it — mirrors upstream's
+        // `delete settings.overrides` short-circuit in
+        // [`getOptionsFromPnpmSettings`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L32-L34).
+        // `$dep-name` self-reference resolution happens elsewhere (the
+        // resolver chain), since it needs the workspace's root manifest
+        // and that isn't in scope here.
+        if let Some(v) = self.overrides
+            && !v.is_empty()
+        {
+            config.overrides = Some(v);
         }
         if let Some(v) = self.cache_dir {
             config.cache_dir = resolve(base_dir, &v);
