@@ -220,6 +220,7 @@ export interface Config extends OptionsFromRootManifest {
   disallowWorkspaceCycles?: boolean
   packGzipLevel?: number
   blockExoticSubdeps?: boolean
+  blockExoticSubdepsExclude?: string[]
 
   agent?: string
 
