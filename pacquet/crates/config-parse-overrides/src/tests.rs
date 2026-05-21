@@ -24,9 +24,9 @@ fn sel(name: &str, bare: Option<&str>) -> PackageSelector {
 
 /// `HashMap` iteration order is unspecified, so when comparing
 /// multi-entry outputs we sort by `selector` on both sides.
-fn sorted(mut v: Vec<VersionOverride>) -> Vec<VersionOverride> {
-    v.sort_by(|a, b| a.selector.cmp(&b.selector));
-    v
+fn sorted(mut overrides: Vec<VersionOverride>) -> Vec<VersionOverride> {
+    overrides.sort_by(|lhs, rhs| lhs.selector.cmp(&rhs.selector));
+    overrides
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn parses_range_operators_in_target() {
         sorted(vec![
             vo("foo@>2", "1", None, sel("foo", Some(">2"))),
             vo("foo@3 || >=2", "1", None, sel("foo", Some("3 || >=2"))),
-        ])
+        ]),
     );
 }
 
@@ -75,7 +75,7 @@ fn parses_parent_child_selectors() {
             vo("bar@1>foo", "2", Some(sel("bar", Some("1"))), sel("foo", None)),
             vo("bar>foo@1", "2", Some(sel("bar", None)), sel("foo", Some("1"))),
             vo("bar@1>foo@1", "2", Some(sel("bar", Some("1"))), sel("foo", Some("1"))),
-        ])
+        ]),
     );
 }
 
@@ -97,9 +97,9 @@ fn range_operator_on_parent_does_not_split() {
                 "foo@3 || >=2>bar@3 || >=2",
                 "1",
                 Some(sel("foo", Some("3 || >=2"))),
-                sel("bar", Some("3 || >=2"))
+                sel("bar", Some("3 || >=2")),
             ),
-        ])
+        ]),
     );
 }
 
@@ -108,7 +108,7 @@ fn rejects_invalid_selector() {
     let input = HashMap::from([("%".to_string(), "2".to_string())]);
     assert_eq!(
         parse_overrides(&input).unwrap_err(),
-        ParseOverridesError::InvalidSelector { selector: "%".to_string() }
+        ParseOverridesError::InvalidSelector { selector: "%".to_string() },
     );
 }
 
@@ -121,13 +121,13 @@ fn rejects_invalid_selector_with_whitespace() {
     let input = HashMap::from([("foo > bar".to_string(), "2".to_string())]);
     assert_eq!(
         parse_overrides(&input).unwrap_err(),
-        ParseOverridesError::InvalidSelector { selector: "foo > bar".to_string() }
+        ParseOverridesError::InvalidSelector { selector: "foo > bar".to_string() },
     );
 }
 
 #[test]
 fn parse_pkg_and_parent_selector_lone_target() {
-    assert_eq!(parse_pkg_and_parent_selector("foo").unwrap(), (None, sel("foo", None)),);
+    assert_eq!(parse_pkg_and_parent_selector("foo").unwrap(), (None, sel("foo", None)));
 }
 
 #[test]

@@ -724,8 +724,9 @@ overrides:
 "#;
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let overrides = settings.overrides.as_ref().expect("overrides parsed");
-    let entries: Vec<_> = overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-    assert_eq!(entries, vec![("foo", "1.2.3"), ("@scope/bar", "^2.0.0"), ("baz>qux", "-")],);
+    let entries: Vec<_> =
+        overrides.iter().map(|(key, value)| (key.as_str(), value.as_str())).collect();
+    assert_eq!(entries, vec![("foo", "1.2.3"), ("@scope/bar", "^2.0.0"), ("baz>qux", "-")]);
 
     let mut config = Config::new();
     assert!(config.overrides.is_none(), "default is None");

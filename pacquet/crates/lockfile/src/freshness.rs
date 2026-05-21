@@ -204,7 +204,7 @@ pub fn check_lockfile_settings(
     let lockfile_overrides: BTreeMap<String, String> = lockfile
         .overrides
         .as_ref()
-        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect())
         .unwrap_or_default();
     let config_overrides: BTreeMap<String, String> =
         overrides.unwrap_or(&empty).iter().map(|(k, v)| (k.clone(), v.clone())).collect();

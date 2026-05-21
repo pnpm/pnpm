@@ -97,8 +97,9 @@ impl<'a> VersionsOverrider<'a> {
     /// Apply the override set to `manifest` in place. `manifest_dir`
     /// is the directory containing the manifest (used as the base for
     /// re-relativizing `link:` / `file:` overrides that were
-    /// specified relative to [`Self::root_dir`]). For the root
-    /// project manifest, `manifest_dir == Some(root_dir)`.
+    /// specified relative to the `root_dir` passed to
+    /// [`Self::new`]). For the root project manifest,
+    /// `manifest_dir == Some(root_dir)`.
     ///
     /// Mirrors upstream's `(manifest, dir) => { ... }` body returned
     /// by `createVersionsOverrider`.
@@ -154,7 +155,9 @@ impl<'a> VersionsOverrider<'a> {
 
         let entries: Vec<(String, String)> = map
             .iter()
-            .filter_map(|(name, spec)| spec.as_str().map(|s| (name.clone(), s.to_string())))
+            .filter_map(|(name, spec)| {
+                spec.as_str().map(|spec_str| (name.clone(), spec_str.to_string()))
+            })
             .collect();
 
         for (name, spec) in entries {
@@ -223,12 +226,12 @@ fn matches_target(target: &PackageSelector, dep_name: &str, dep_spec: &str) -> b
 /// The intuition is `b ⊃ a ⇒ a sorts before b`, so a narrower target
 /// like `foo@1.2.3` wins over the broader `foo@^1`.
 fn sort_by_specificity(matching: &mut [&ResolvedOverride<'_>]) {
-    matching.sort_by(|a, b| {
-        let a_spec = a.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
-        let b_spec = b.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
-        // `is_intersecting_range(b, a)` true ⇒ a is more specific
-        // (b's range covers a's). Mirrors upstream's `? -1 : 1`.
-        if is_intersecting_range(Some(b_spec), a_spec) {
+    matching.sort_by(|lhs, rhs| {
+        let lhs_spec = lhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
+        let rhs_spec = rhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
+        // `is_intersecting_range(rhs, lhs)` true ⇒ lhs is more specific
+        // (rhs's range covers lhs's). Mirrors upstream's `? -1 : 1`.
+        if is_intersecting_range(Some(rhs_spec), lhs_spec) {
             std::cmp::Ordering::Less
         } else {
             std::cmp::Ordering::Greater

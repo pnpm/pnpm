@@ -176,7 +176,7 @@ fn parent_scoped_override_takes_precedence_over_generic() {
 /// A `link:` override against an absolute path is written verbatim.
 #[test]
 fn link_protocol_override_absolute_path_written_verbatim() {
-    let abs = if cfg!(windows) { "C:\\workspace\\local-foo" } else { "/tmp/local-foo" };
+    let abs = if cfg!(windows) { r"C:\workspace\local-foo" } else { "/tmp/local-foo" };
     let spec = format!("link:{abs}");
     let overrides = parsed(&[("foo", &spec)]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));

@@ -406,10 +406,10 @@ where
             // `BTreeMap` internally to match upstream's
             // `equals(lockfile.overrides ?? {}, overrides ?? {})`),
             // so a flat clone into `HashMap` here is fine.
-            let overrides_map: Option<std::collections::HashMap<String, String>> = config
-                .overrides
-                .as_ref()
-                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+            let overrides_map: Option<std::collections::HashMap<String, String>> =
+                config.overrides.as_ref().map(|map| {
+                    map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()
+                });
             pacquet_lockfile::check_lockfile_settings(
                 lockfile,
                 overrides_map.as_ref(),
@@ -879,10 +879,11 @@ fn build_workspace_state(
             ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
             node_linker: Some(map_workspace_state_node_linker(&node_linker)),
             optional: Some(included.optional_dependencies),
-            overrides: config
-                .overrides
-                .as_ref()
-                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<BTreeMap<_, _>>()),
+            overrides: config.overrides.as_ref().map(|map| {
+                map.iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect::<BTreeMap<_, _>>()
+            }),
             patched_dependencies: config.patched_dependencies.clone(),
             production: Some(included.dependencies),
             public_hoist_pattern: config.public_hoist_pattern.clone(),

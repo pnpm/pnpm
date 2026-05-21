@@ -128,16 +128,16 @@ pub fn parse_overrides(
 /// drive their input through an ordered map (e.g. `IndexMap`) and want
 /// the same ordering preserved on the output. Functionally identical
 /// to [`parse_overrides`]; only the input iterator differs.
-pub fn parse_overrides_iter<'a, I>(
-    overrides: I,
+pub fn parse_overrides_iter<'a, Iter>(
+    overrides: Iter,
 ) -> Result<Vec<VersionOverride>, ParseOverridesError>
 where
-    I: IntoIterator<Item = (&'a String, &'a String)>,
+    Iter: IntoIterator<Item = (&'a String, &'a String)>,
 {
-    let it = overrides.into_iter();
-    let (lo, _) = it.size_hint();
-    let mut out = Vec::with_capacity(lo);
-    for (selector, new_bare_specifier) in it {
+    let iter = overrides.into_iter();
+    let (lower_bound, _) = iter.size_hint();
+    let mut out = Vec::with_capacity(lower_bound);
+    for (selector, new_bare_specifier) in iter {
         let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(selector)?;
         if let Some(catalog_name) = parse_catalog_protocol(new_bare_specifier) {
             return Err(ParseOverridesError::CatalogInOverrides {
@@ -178,12 +178,12 @@ pub fn parse_pkg_and_parent_selector(
 ///
 /// Mirrors upstream's `DELIMITER_REGEX = /[^ |@]>/` and the
 /// `delimiterIndex++` adjustment that lands on the `>` itself.
-fn find_parent_delimiter(s: &str) -> Option<usize> {
-    s.as_bytes().windows(2).enumerate().find_map(|(i, w)| {
-        if matches!(w[0], b' ' | b'|' | b'@') {
+fn find_parent_delimiter(selector: &str) -> Option<usize> {
+    selector.as_bytes().windows(2).enumerate().find_map(|(idx, window)| {
+        if matches!(window[0], b' ' | b'|' | b'@') {
             None
-        } else if w[1] == b'>' {
-            Some(i + 1)
+        } else if window[1] == b'>' {
+            Some(idx + 1)
         } else {
             None
         }
