@@ -104,7 +104,7 @@
     "stylelint": "^14.11.0",
     "superagent": "^8.0.0",
     "uglify-js": "^3.17.0",
-    "uuid": "^8.3.2",
+    "uuid": "^14.0.0",
     "verge": "^1.10.2",
     "webpack-bundle-analyzer": "^4.6.1",
     "webpack-hot-middleware": "^2.25.2",
