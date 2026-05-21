@@ -75,49 +75,52 @@ test('blockExoticSubdeps: false (default) allows git dependencies in subdependen
   expect(m).toBe('Hi')
 })
 
-test('blockExoticSubdeps allows a git subdependency listed in blockExoticSubdepsExclude', async () => {
+// The git-hosted subdependency resolves from github:zkochan/hi, which
+// normalizes to the source URL https://github.com/zkochan/hi.
+test('blockExoticSubdeps allows a git subdependency whose URL is listed in blockExoticSubdepsExclude', async () => {
   const project = prepareEmpty()
 
-  // say-hi is the alias of the git-hosted subdependency, so listing it as trusted
-  // should let the install proceed even though blockExoticSubdeps is enabled.
   await addDependenciesToPackage(
     {},
     ['@pnpm.e2e/has-aliased-git-dependency'],
-    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['say-hi'], fastUnpack: false })
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['https://github.com/zkochan/hi'], fastUnpack: false })
   )
 
   const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
   expect(m).toBe('Hi')
 })
 
-test('blockExoticSubdeps allows a git subdependency matched by a wildcard in blockExoticSubdepsExclude', async () => {
+test('blockExoticSubdeps allows a git subdependency matched by a repo wildcard in blockExoticSubdepsExclude', async () => {
   const project = prepareEmpty()
 
   await addDependenciesToPackage(
     {},
     ['@pnpm.e2e/has-aliased-git-dependency'],
-    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['say-*'], fastUnpack: false })
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['https://github.com/zkochan/*'], fastUnpack: false })
   )
 
   const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
   expect(m).toBe('Hi')
 })
 
-test('blockExoticSubdeps still blocks a git subdependency that is not in blockExoticSubdepsExclude', async () => {
+test('blockExoticSubdeps allows a git subdependency matched by a host wildcard in blockExoticSubdepsExclude', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-aliased-git-dependency'],
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['https://github.com/*'], fastUnpack: false })
+  )
+
+  const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
+  expect(m).toBe('Hi')
+})
+
+test('blockExoticSubdeps still blocks a git subdependency whose URL is not in blockExoticSubdepsExclude', async () => {
   prepareEmpty()
 
   await expect(addDependenciesToPackage({},
     ['@pnpm.e2e/has-aliased-git-dependency'],
-    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['some-other-pkg'], fastUnpack: false })
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['https://github.com/some-other-user/*'], fastUnpack: false })
   )).rejects.toThrow('is not allowed in subdependencies when blockExoticSubdeps is enabled')
-})
-
-test('blockExoticSubdepsExclude rejects a semver range', async () => {
-  prepareEmpty()
-
-  // Only exact versions are allowed in the policy; a range must surface a clear error.
-  await expect(addDependenciesToPackage({},
-    ['is-positive@1.0.0'],
-    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['say-hi@^1.0.0'] })
-  )).rejects.toThrow('Invalid value in blockExoticSubdepsExclude')
 })
