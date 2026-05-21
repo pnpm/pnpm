@@ -52,7 +52,6 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
   const installProjects: MutatedProject[] = [{
     mutation: 'install',
     rootDir: lockfileDir as ProjectRootDir,
-    manifest,
   }]
 
   const registryUrl = options.registries.default.replace(/\/$/, '')
