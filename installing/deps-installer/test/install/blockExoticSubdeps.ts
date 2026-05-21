@@ -74,3 +74,50 @@ test('blockExoticSubdeps: false (default) allows git dependencies in subdependen
   const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
   expect(m).toBe('Hi')
 })
+
+test('blockExoticSubdeps allows a git subdependency listed in blockExoticSubdepsExclude', async () => {
+  const project = prepareEmpty()
+
+  // say-hi is the alias of the git-hosted subdependency, so listing it as trusted
+  // should let the install proceed even though blockExoticSubdeps is enabled.
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-aliased-git-dependency'],
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['say-hi'], fastUnpack: false })
+  )
+
+  const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
+  expect(m).toBe('Hi')
+})
+
+test('blockExoticSubdeps allows a git subdependency matched by a wildcard in blockExoticSubdepsExclude', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-aliased-git-dependency'],
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['say-*'], fastUnpack: false })
+  )
+
+  const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
+  expect(m).toBe('Hi')
+})
+
+test('blockExoticSubdeps still blocks a git subdependency that is not in blockExoticSubdepsExclude', async () => {
+  prepareEmpty()
+
+  await expect(addDependenciesToPackage({},
+    ['@pnpm.e2e/has-aliased-git-dependency'],
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['some-other-pkg'], fastUnpack: false })
+  )).rejects.toThrow('is not allowed in subdependencies when blockExoticSubdeps is enabled')
+})
+
+test('blockExoticSubdepsExclude rejects a semver range', async () => {
+  prepareEmpty()
+
+  // Only exact versions are allowed in the policy; a range must surface a clear error.
+  await expect(addDependenciesToPackage({},
+    ['is-positive@1.0.0'],
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['say-hi@^1.0.0'] })
+  )).rejects.toThrow('Invalid value in blockExoticSubdepsExclude')
+})
