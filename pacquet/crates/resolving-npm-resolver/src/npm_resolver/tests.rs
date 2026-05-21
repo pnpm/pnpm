@@ -11,7 +11,9 @@ use tempfile::TempDir;
 
 use crate::{
     npm_resolver::NpmResolver,
-    pick_package::{InMemoryPackageMetaCache, shared_packument_fetch_locker},
+    pick_package::{
+        InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+    },
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
@@ -62,6 +64,7 @@ fn build_resolver_with_registries(
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
         fetch_locker: shared_packument_fetch_locker(),
+        picked_manifest_cache: shared_picked_manifest_cache(),
         cache_dir: Some(cache_dir.path().to_path_buf()),
         offline: false,
         prefer_offline: false,

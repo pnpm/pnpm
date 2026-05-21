@@ -11,7 +11,9 @@ use tempfile::TempDir;
 
 use crate::{
     NamedRegistryResolver, merge_named_registries,
-    pick_package::{InMemoryPackageMetaCache, shared_packument_fetch_locker},
+    pick_package::{
+        InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+    },
 };
 
 /// Packument for `@acme/private` served under a named registry —
@@ -70,6 +72,7 @@ fn build_resolver(
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
         fetch_locker: shared_packument_fetch_locker(),
+        picked_manifest_cache: shared_picked_manifest_cache(),
         cache_dir: Some(cache_dir.path().to_path_buf()),
         offline: false,
         prefer_offline: false,

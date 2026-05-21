@@ -30,7 +30,7 @@ use pacquet_resolving_local_resolver::{
 };
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    merge_named_registries, shared_packument_fetch_locker,
+    merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
@@ -295,6 +295,13 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // HTTP GETs queued behind the `ThrottledClient` semaphore.
         let fetch_locker = shared_packument_fetch_locker();
 
+        // One per-`(name, version)` JSON manifest cache shared between
+        // the npm and named-registry resolvers, so duplicate picks of
+        // the same package version reuse the already-serialised
+        // `Arc<Value>` instead of re-running `serde_json::to_value` for
+        // every occurrence of a shared dep in the tree.
+        let picked_manifest_cache = shared_picked_manifest_cache();
+
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
             named_registries: merged_named_registries.clone(),
@@ -302,6 +309,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             auth_headers: Arc::clone(&config.auth_headers),
             meta_cache: Arc::clone(&meta_cache),
             fetch_locker: Arc::clone(&fetch_locker),
+            picked_manifest_cache: Arc::clone(&picked_manifest_cache),
             cache_dir: Some(config.cache_dir.clone()),
             offline: config.offline,
             prefer_offline: config.prefer_offline,
@@ -342,6 +350,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             auth_headers: Arc::clone(&config.auth_headers),
             meta_cache: Arc::clone(&meta_cache),
             fetch_locker: Arc::clone(&fetch_locker),
+            picked_manifest_cache: Arc::clone(&picked_manifest_cache),
             cache_dir: Some(config.cache_dir.clone()),
             offline: config.offline,
             prefer_offline: config.prefer_offline,

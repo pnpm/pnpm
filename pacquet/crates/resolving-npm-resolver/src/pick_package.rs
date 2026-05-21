@@ -137,6 +137,27 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
     Arc::new(DashMap::new())
 }
 
+/// Per-`(pkg_name, version)` cache for the resolver's serialized
+/// `manifest` JSON. The npm resolver builds
+/// [`ResolveResult::manifest`] via `serde_json::to_value(picked)`;
+/// when many resolves pick the same version of the same package
+/// (the common case for shared deps like `react`, `lodash`, …)
+/// every duplicate would otherwise re-walk and re-allocate the
+/// same JSON tree. Cache the `Arc<Value>` once per
+/// `(pkg_name, version)` pair so the second pick onwards is an
+/// `Arc::clone` instead of a full reserialise.
+///
+/// Shared across [`crate::NpmResolver`] and
+/// [`crate::NamedRegistryResolver`] for the same reasons
+/// [`PackumentFetchLocker`] is — both resolvers can pick the same
+/// `(pkg_name, version)` pair in one install.
+pub type PickedManifestCache = Arc<DashMap<String, Arc<serde_json::Value>>>;
+
+/// Construct a fresh [`PickedManifestCache`] for a new install.
+pub fn shared_picked_manifest_cache() -> PickedManifestCache {
+    Arc::new(DashMap::new())
+}
+
 /// Default thread-safe [`PackageMetaCache`] backed by a [`Mutex`]
 /// guarding a [`HashMap`]. A consumer that already has its own
 /// shared map can implement the trait directly instead of using

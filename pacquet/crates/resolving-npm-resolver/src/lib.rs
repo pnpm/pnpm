@@ -61,7 +61,8 @@ pub use parse_bare_specifier::{
 pub use pick_package::{
     InMemoryPackageMetaCache, MirrorPersistError, PackageMetaCache, PackumentFetchLocker,
     PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
-    persist_meta_to_mirror, pick_package, shared_in_memory_cache, shared_packument_fetch_locker,
+    PickedManifestCache, persist_meta_to_mirror, pick_package, shared_in_memory_cache,
+    shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 pub use pick_package_from_meta::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,

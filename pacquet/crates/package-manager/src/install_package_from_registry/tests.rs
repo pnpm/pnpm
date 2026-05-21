@@ -6,6 +6,7 @@ use pacquet_registry_mock::AutoMockInstance;
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
@@ -100,6 +101,7 @@ async fn resolve_via_mock(
         auth_headers: Default::default(),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
         fetch_locker: shared_packument_fetch_locker(),
+        picked_manifest_cache: shared_picked_manifest_cache(),
         cache_dir: Some(cache_dir.to_path_buf()),
         offline: false,
         prefer_offline: false,

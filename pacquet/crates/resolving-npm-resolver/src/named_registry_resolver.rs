@@ -74,6 +74,10 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// [`crate::NpmResolver`] so concurrent picks for the same
     /// `(registry, name)` across resolvers coalesce.
     pub fetch_locker: crate::PackumentFetchLocker,
+    /// Shared per-`(pkg_name, version)` manifest JSON cache. See
+    /// [`crate::PickedManifestCache`]. Same handle as the sibling
+    /// [`crate::NpmResolver`].
+    pub picked_manifest_cache: crate::PickedManifestCache,
     pub cache_dir: Option<PathBuf>,
     pub offline: bool,
     pub prefer_offline: bool,
@@ -151,6 +155,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             NAMED_REGISTRY_RESOLVED_VIA,
             opts.published_by,
             opts.published_by_exclude.as_ref(),
+            &self.picked_manifest_cache,
         )?;
 
         Ok(Some(result))

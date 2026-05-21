@@ -99,6 +99,12 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// into one network fetch. Construct via
     /// [`crate::shared_packument_fetch_locker`] once per install.
     pub fetch_locker: crate::PackumentFetchLocker,
+    /// Per-`(pkg_name, version)` cache for the JSON manifest the
+    /// resolver builds from the picker output. Shared across this
+    /// resolver and [`crate::NamedRegistryResolver`] so picks of the
+    /// same package version across registries coalesce. Construct
+    /// via [`crate::shared_picked_manifest_cache`] once per install.
+    pub picked_manifest_cache: crate::PickedManifestCache,
     /// Root of the on-disk metadata mirror. `None` disables every
     /// disk read/write — the picker goes straight to the network on
     /// each cache miss.
@@ -222,6 +228,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             NPM_REGISTRY_RESOLVED_VIA,
             opts.published_by,
             opts.published_by_exclude.as_ref(),
+            &self.picked_manifest_cache,
         )?;
 
         Ok(Some(result))
@@ -268,6 +275,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             JSR_REGISTRY_RESOLVED_VIA,
             opts.published_by,
             opts.published_by_exclude.as_ref(),
+            &self.picked_manifest_cache,
         )?;
 
         Ok(Some(result))
@@ -377,6 +385,7 @@ pub(crate) struct PickedFromRegistry {
     pub(crate) version: PackageVersion,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_resolve_result(
     meta: &Package,
     picked: &PackageVersion,
@@ -385,9 +394,11 @@ pub(crate) fn build_resolve_result(
     resolved_via: &str,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
+    picked_manifest_cache: &crate::PickedManifestCache,
 ) -> Result<ResolveResult, ResolveError> {
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
+    let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
     let id = (&name_ver).into();
     // The picker always carries a tarball URL on its `dist` payload —
@@ -404,13 +415,24 @@ pub(crate) fn build_resolve_result(
         git_hosted: None,
         path: None,
     });
-    let published_at = meta.published_at(&picked.version.to_string()).map(str::to_string);
-    let manifest = Some(std::sync::Arc::new(
-        serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?,
-    ));
+    let published_at = meta.published_at(&version_str).map(str::to_string);
+    // Dedupe `serde_json::to_value(picked)` across picks of the
+    // same `(pkg_name, version)` pair — see [`PickedManifestCache`]
+    // for the rationale.
+    let manifest_cache_key = format!("{}@{version_str}", picked.name);
+    let manifest = match picked_manifest_cache.get(&manifest_cache_key) {
+        Some(cached) => Some(Arc::clone(cached.value())),
+        None => {
+            let arc = Arc::new(
+                serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?,
+            );
+            picked_manifest_cache.insert(manifest_cache_key, Arc::clone(&arc));
+            Some(arc)
+        }
+    };
     let policy_violation = detect_min_release_age_violation(
         &pkg_name,
-        &picked.version.to_string(),
+        &version_str,
         published_at.as_deref(),
         &resolution,
         published_by,
