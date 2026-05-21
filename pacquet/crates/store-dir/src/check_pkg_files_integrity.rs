@@ -269,8 +269,27 @@ fn build_side_effects_maps(
 /// doesn't affect behaviour, only the `debug!` log when verification
 /// fails, so operators can see *which* package file invalidated the
 /// store-index row in the log.
+///
+/// **Locking discipline.** The fast path (`is_modified == false`, i.e.
+/// the file's mtime is within 100 ms of the recorded `checked_at`)
+/// runs lock-free — it never touches the file's bytes and never
+/// considers a delete, so it cannot race with an in-flight writer.
+/// The slow path (where verification could lead to a
+/// `remove_stale_cafs_entry` call) acquires
+/// [`pacquet_fs::cas_write_lock`] for `path` before re-stating the
+/// file. This is the same per-path mutex
+/// [`pacquet_fs::ensure_file`] holds across `O_CREAT|O_EXCL` +
+/// `write_all`, so a concurrent writer's full sequence completes
+/// before the verifier evaluates the file. Without this gate, the
+/// verifier observes the writer's intermediate (partial) state,
+/// `unlink`s the file out from under the writer's open fd, and the
+/// install ends up with `cas_paths` referencing a path whose dirent
+/// has been removed — which surfaces later as ENOENT in
+/// `link_file`.
 fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
-    let Some((is_modified, size)) = check_file(path, info.checked_at) else {
+    // Lock-free fast path. `check_file` is read-only and only touches
+    // the file's metadata; no risk of clobbering a writer's state.
+    let Some((is_modified, _)) = check_file(path, info.checked_at) else {
         tracing::debug!(
             target: "pacquet::store_index",
             ?filename,
@@ -280,6 +299,37 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
         return false;
     };
     if !is_modified {
+        return true;
+    }
+
+    // Slow path: the file's mtime indicates a recent change. Acquire
+    // the per-path lock and re-check so a concurrent writer's
+    // `write_all` lands before we decide whether to delete. The
+    // common case (unmodified file from a prior install) never gets
+    // here — the lock cost only applies to files actually being
+    // re-verified, which is rare.
+    let lock = pacquet_fs::cas_write_lock(path);
+    let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    // Re-stat under the lock. The writer (if any) has finished by
+    // now, so the size + mtime reflect the committed state. A file
+    // that vanished between the fast-path check and lock acquisition
+    // (concurrent prune or a sibling verifier that beat us in)
+    // surfaces as ENOENT here and we propagate the cache miss
+    // without trying to delete a path that's already gone.
+    let Some((is_modified, size)) = check_file(path, info.checked_at) else {
+        tracing::debug!(
+            target: "pacquet::store_index",
+            ?filename,
+            ?path,
+            "CAFS file disappeared between fast-path stat and lock acquisition; re-fetching",
+        );
+        return false;
+    };
+    if !is_modified {
+        // Writer completed and the result happens to match
+        // `checked_at` (uncommon but possible if `checked_at` was
+        // updated very recently). Trust the cache, no further work.
         return true;
     }
     if size != info.size {
