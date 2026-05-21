@@ -215,6 +215,7 @@ export interface StrictInstallOptions {
   trustPolicyIgnoreAfter?: number
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  blockExoticSubdepsExclude?: string[]
   /**
    * Optional alternative install engine. When set, the frozen-install
    * path invokes this callback instead of `headlessInstall`. The CLI

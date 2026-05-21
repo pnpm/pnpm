@@ -146,6 +146,7 @@ export interface ResolveDependenciesOptions {
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
+  blockExoticSubdepsExclude?: string[]
 }
 
 export interface ResolveDependencyTreeResult {
@@ -228,6 +229,7 @@ export async function resolveDependencyTree<T> (
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     blockExoticSubdeps: opts.blockExoticSubdeps,
+    blockExoticSubdepsExclude: opts.blockExoticSubdepsExclude ? createPackageVersionPolicyOrThrow(opts.blockExoticSubdepsExclude, 'blockExoticSubdepsExclude') : undefined,
     resolutionPolicyViolations: [],
   }
 

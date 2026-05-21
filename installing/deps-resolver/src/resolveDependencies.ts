@@ -202,6 +202,7 @@ export interface ResolutionContext {
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
+  blockExoticSubdepsExclude?: PackageVersionPolicy
 }
 
 export interface MissingPeerInfo {
@@ -1422,7 +1423,8 @@ async function resolveDependency (
     ctx.blockExoticSubdeps &&
     options.currentDepth > 0 &&
     pkgResponse.body.resolvedVia != null && // This is already coming from the lockfile, we skip the check in this case for now. Should be fixed later.
-    isExoticDep(pkgResponse.body.resolvedVia)
+    isExoticDep(pkgResponse.body.resolvedVia) &&
+    !isExoticSubdepExcluded(ctx.blockExoticSubdepsExclude, wantedDependency.alias, pkgResponse.body.manifest)
   ) {
     const error = new PnpmError(
       'EXOTIC_SUBDEP',
@@ -1842,4 +1844,27 @@ const NON_EXOTIC_RESOLVED_VIA = new Set([
 
 function isExoticDep (resolvedVia: string): boolean {
   return !NON_EXOTIC_RESOLVED_VIA.has(resolvedVia)
+}
+
+/**
+ * Returns true when an exotic subdependency is on the user's
+ * `blockExoticSubdepsExclude` trust list and should therefore be allowed
+ * even though `blockExoticSubdeps` is enabled. The dependency is matched by
+ * its alias first (the name it appears under in the tree), then by its
+ * resolved manifest name. Exact-version entries (e.g. `foo@1.0.0`) only match
+ * when the resolved manifest version is listed; bare names match any version.
+ */
+function isExoticSubdepExcluded (
+  exclude: PackageVersionPolicy | undefined,
+  alias: string | undefined,
+  manifest: Pick<PackageManifest, 'name' | 'version'> | undefined
+): boolean {
+  if (exclude == null) return false
+  for (const name of [alias, manifest?.name]) {
+    if (name == null) continue
+    const result = exclude(name)
+    if (result === true) return true
+    if (Array.isArray(result) && manifest?.version != null && result.includes(manifest.version)) return true
+  }
+  return false
 }
