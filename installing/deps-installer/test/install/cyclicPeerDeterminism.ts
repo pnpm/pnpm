@@ -85,7 +85,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
   }
 
   function metadataPath (name: string): string {
-    return `/${name.replace('/', '%2F')}`
+    return `/${name.replaceAll('/', '%2F')}`
   }
 
   function arm (): void {
