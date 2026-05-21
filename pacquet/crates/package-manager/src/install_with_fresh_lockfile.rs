@@ -527,13 +527,24 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             SharedVerifiedFilesCache::clone(&verified_files_cache),
         )
         .await;
-        let prefetched_cas_paths = prefetch.cas_paths;
+        // `side_effects_maps` is intentionally dropped: the fresh-
+        // lockfile path skips the build phase today (see the
+        // `importing_done` emit at the tail of this function), so
+        // there is no `is_built` gate to feed. Keep the binding name
+        // explicit so a future port that wires builds in does not
+        // miss the source.
+        let pacquet_tarball::PrefetchResult {
+            cas_paths: prefetched_cas_paths,
+            manifests: prefetched_manifests,
+            side_effects_maps: _,
+        } = prefetch;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "prefetch_cas_paths",
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             cache_keys = cache_keys_len,
             hits = prefetched_cas_paths.len(),
+            manifest_hits = prefetched_manifests.len(),
             "phase complete",
         );
 
@@ -574,20 +585,27 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // way.
         let allow_build_policy = AllowBuildPolicy::from_config(config)
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
+        // Build the freshly-resolved lockfile structure
+        // unconditionally: GVS needs `snapshots:` / `packages:` to
+        // compute the layout, and the bin-link pass below uses the
+        // same maps to drive the lockfile-driven
+        // `LinkVirtualStoreBins` path (skipping the per-slot
+        // `read_dir` enumeration and the per-child `package.json`
+        // read when the prefetched manifest is available). The build
+        // is cheap — ~3 ms on the alotta-files fixture — and it is
+        // what we end up saving below anyway.
+        //
+        // Named `built_lockfile` to keep it distinct from
+        // [`Self::wanted_lockfile`], which is the *previous* run's
+        // lockfile threaded in for preferred-versions seeding.
         let phase_start = std::time::Instant::now();
-        let layout_lockfile = if config.enable_global_virtual_store {
-            Some(build_fresh_lockfile(config, manifest, &importer_result))
-        } else {
-            None
-        };
-        if config.enable_global_virtual_store {
-            tracing::info!(
-                target: "pacquet::install::phase",
-                phase = "build_fresh_lockfile",
-                elapsed_ms = phase_start.elapsed().as_millis() as u64,
-                "phase complete",
-            );
-        }
+        let built_lockfile = build_fresh_lockfile(config, manifest, &importer_result);
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "build_fresh_lockfile",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
         let engine_name: Option<String> = if config.enable_global_virtual_store {
             tokio::task::spawn_blocking(|| {
                 pacquet_graph_hasher::detect_node_major()
@@ -603,8 +621,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         let layout = VirtualStoreLayout::new(
             config,
             engine_name.as_deref(),
-            layout_lockfile.as_ref().and_then(|lockfile| lockfile.snapshots.as_ref()),
-            layout_lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref()),
+            built_lockfile.snapshots.as_ref(),
+            built_lockfile.packages.as_ref(),
             Some(&allow_build_policy),
         );
         if config.enable_global_virtual_store {
@@ -676,27 +694,69 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         link_bins::<Host>(&config.modules_dir, &config.modules_dir.join(".bin"))
             .map_err(InstallWithFreshLockfileError::LinkBins)?;
 
-        // No prefetched manifests are available — fall back to the
-        // legacy readdir-driven path (slots discovered by walking
-        // `<virtual_store_dir>` or `<store_dir>/links` per the active
-        // layout, child manifests read from disk). The frozen-lockfile
-        // path skips both via [`LinkVirtualStoreBins::snapshots`] /
-        // `package_manifests`.
+        // Walk the resolved graph once and project the prefetched
+        // bundled-manifest map into a [`crate::PackageManifests`]
+        // keyed by `PkgNameVerPeer.without_peer()` — the same key
+        // shape the lockfile-driven bin linker uses. Peer-variants of
+        // the same `pkgIdWithPatchHash` share one prefetched entry
+        // because they share the same tarball / store-index row, so
+        // the first insert wins via `entry().or_insert_with`. Cold-
+        // batch packages (cache miss → downloaded fresh in this run)
+        // are absent from the map; `run_lockfile_driven` falls back
+        // to a per-child `package.json` read for those.
+        let package_manifests: crate::PackageManifests = {
+            let mut map: crate::PackageManifests =
+                HashMap::with_capacity(prefetched_manifests.len());
+            for node in importer_result.peers_result.graph.values() {
+                let pacquet_lockfile::LockfileResolution::Tarball(tarball) =
+                    &node.resolve_result.resolution
+                else {
+                    continue;
+                };
+                if tarball.git_hosted == Some(true) {
+                    continue;
+                }
+                let Some(integrity) = tarball.integrity.as_ref() else { continue };
+                let Some(name_ver) = node.resolve_result.name_ver.as_ref() else { continue };
+                let pkg_id = format!("{}@{}", name_ver.name, name_ver.suffix);
+                let cache_key = pacquet_store_dir::store_index_key(&integrity.to_string(), &pkg_id);
+                let Some(manifest) = prefetched_manifests.get(&cache_key) else { continue };
+                let Ok(package_key) = node.dep_path.as_str().parse::<PackageKey>() else {
+                    continue;
+                };
+                map.entry(package_key.without_peer()).or_insert_with(|| Arc::clone(manifest));
+            }
+            map
+        };
+
+        // Drive the lockfile-driven `LinkVirtualStoreBins` path. The
+        // bin linker iterates `snapshots:` (no per-slot `read_dir`)
+        // and reads each child's manifest from `package_manifests`
+        // (no per-child `package.json` disk read on warm hits) —
+        // same shape the frozen-lockfile path uses via
+        // [`crate::CreateVirtualStore::run`].
         //
-        // The bin linker reuses the install-scoped `layout` above so
-        // GVS installs walk the shared `<store_dir>/links/...`
-        // directory instead of the project-local
-        // `<virtual_store_dir>/.pnpm` one.
-        let empty_manifests = std::collections::HashMap::new();
+        // `packages: None` on purpose: the freshly-built lockfile's
+        // `packages:` rows carry an incomplete `has_bin` because the
+        // resolver's `PackageVersion` deserializer does not include
+        // the `bin` field. Trusting the empty-by-omission
+        // `has_bin_set` here would filter out every child and skip
+        // bin linking entirely. With `packages: None` the bin linker
+        // falls through to "process every child" and lets each
+        // child's actual manifest (`bin` present or not) decide.
+        // Threading `bin` through `PackageVersion` is the proper
+        // fix; once that lands, pass
+        // `built_lockfile.packages.as_ref()` here to recover the
+        // ~95% slot short-circuit the frozen path enjoys.
+        //
+        // The fresh-lockfile path has no installability check yet
+        // (no `packages:` constraint eval), so the skip set is empty.
         let empty_skipped = crate::SkippedSnapshots::new();
         LinkVirtualStoreBins {
             layout: &layout,
-            snapshots: None,
+            snapshots: built_lockfile.snapshots.as_ref(),
             packages: None,
-            package_manifests: &empty_manifests,
-            // The without-lockfile path has no installability check
-            // (no `packages:` metadata to evaluate constraints
-            // against), so the skip set is empty by definition.
+            package_manifests: &package_manifests,
             skipped: &empty_skipped,
         }
         .run()
@@ -722,16 +782,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // current-lockfile pointing at an incomplete install — needs
         // `.modules.yaml` to land first.
         let wanted_lockfile = if config.lockfile {
-            // GVS already built one above for the layout — reuse it
-            // rather than walking the resolver graph again. When GVS
-            // is off, `layout_lockfile` is `None` and we build here.
-            let lockfile_to_save = layout_lockfile
-                .unwrap_or_else(|| build_fresh_lockfile(config, manifest, &importer_result));
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
-            lockfile_to_save
+            built_lockfile
                 .save_to_path(&target)
                 .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
-            Some(lockfile_to_save)
+            Some(built_lockfile)
         } else {
             None
         };
