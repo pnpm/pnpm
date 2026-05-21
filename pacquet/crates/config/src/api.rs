@@ -15,7 +15,11 @@
 //! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
 //! section of the style guide for the full convention.
 
-use std::{ffi::OsString, io, path::PathBuf};
+use std::{
+    ffi::OsString,
+    io,
+    path::{Path, PathBuf},
+};
 
 /// Capability: read a process environment variable as a UTF-8 string.
 ///
@@ -75,6 +79,34 @@ pub trait GetCurrentDir {
     fn current_dir() -> io::Result<PathBuf>;
 }
 
+/// Capability: probe whether a file dropped into `from_dir` could be
+/// hardlinked into a subdirectory of `to_dir`.
+///
+/// Port of pnpm's
+/// [`canLinkToSubdir`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L80-L92),
+/// abstracted as a single yes/no question so the production impl owns
+/// all filesystem effects (creating the source file, the destination
+/// temp dir, the link attempt, and cleanup) and tests can answer
+/// without touching disk. Lets pacquet's port of
+/// [`storePathRelativeToHome`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L45-L78)
+/// drive its branches deterministically.
+///
+/// "Linkable" means
+/// [`std::fs::hard_link`] returns `Ok(())`; everything else (EXDEV,
+/// EACCES, EPERM, ENOSPC, missing parent dir, …) is treated as "not
+/// linkable" and the caller falls through to the next branch.
+/// Mirrors pnpm's
+/// [`canLink`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L3-L18)
+/// catch-all: any failure means "this volume is not a candidate," not
+/// "the install should abort."
+pub trait LinkProbe {
+    /// Return `true` when a hardlink can be created from a file in
+    /// `from_dir` into a subdirectory of `to_dir`, `false` otherwise.
+    /// Implementations must clean up any temp file or directory they
+    /// create — no filesystem effects survive the call.
+    fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool;
+}
+
 /// Production provider for the capability traits in this crate.
 /// Production code threads `Host` through generic call sites with an
 /// explicit turbofish:
@@ -108,5 +140,11 @@ impl GetHomeDir for Host {
 impl GetCurrentDir for Host {
     fn current_dir() -> io::Result<PathBuf> {
         std::env::current_dir()
+    }
+}
+
+impl LinkProbe for Host {
+    fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool {
+        crate::store_path::host_can_link_between_dirs(from_dir, to_dir)
     }
 }
