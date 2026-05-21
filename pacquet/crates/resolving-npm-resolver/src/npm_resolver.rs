@@ -94,6 +94,10 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub offline: bool,
     pub prefer_offline: bool,
     pub ignore_missing_time_field: bool,
+    /// Install-wide bias toward full metadata. Threaded through to
+    /// [`PickPackageContext::full_metadata`]. Mirrors upstream's
+    /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
+    pub full_metadata: bool,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
@@ -172,7 +176,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             },
         };
 
-        let picked = match self.pick_from_registry(&registry, &spec, opts).await? {
+        let optional = wanted_dependency.optional.unwrap_or(false);
+        let picked = match self.pick_from_registry(&registry, &spec, opts, optional).await? {
             Some(picked) => picked,
             None => return Ok(None),
         };
@@ -216,7 +221,9 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let registry =
             self.registries.get("@jsr").map(String::as_str).unwrap_or(DEFAULT_JSR_REGISTRY);
 
-        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts).await? {
+        let optional = wanted_dependency.optional.unwrap_or(false);
+        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
+        {
             Some(picked) => picked,
             None => return Ok(None),
         };
@@ -243,6 +250,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         registry: &str,
         spec: &RegistryPackageSpec,
         opts: &ResolveOptions,
+        optional: bool,
     ) -> Result<Option<PickedFromRegistry>, ResolveError> {
         let pick_opts = PickPackageOptions {
             registry,
@@ -252,6 +260,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             pick_lowest_version: opts.pick_lowest_version,
             include_latest_tag: opts.update == UpdateBehavior::Latest,
             dry_run: opts.dry_run,
+            optional,
         };
 
         let ctx = PickPackageContext {
@@ -262,6 +271,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             offline: self.offline,
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
+            full_metadata: self.full_metadata,
         };
 
         let pick_result = pick_package(&ctx, spec, &pick_opts)

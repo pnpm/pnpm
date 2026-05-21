@@ -1,15 +1,16 @@
-//! Cache-aware full-metadata fetcher.
+//! Cache-aware metadata fetcher.
 //!
 //! Ports pnpm's
 //! [`fetchFullMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts).
 //!
 //! When a cache directory is configured, the fetcher consults a
-//! shared mirror at `<cache_dir>/v11/metadata-full/<registry>/<pkg>.jsonl`,
-//! issues a conditional GET against the upstream registry, and either
-//! reads the cached body (304) or writes the new body back (2xx).
-//! Without a cache directory it falls through to a plain GET — the
-//! same behavior callers got before Phase 5 from
-//! [`crate::fetch_full_metadata()`].
+//! shared mirror under `<cache_dir>/v11/metadata-full/` (full) or
+//! `<cache_dir>/v11/metadata/` (abbreviated), keyed by
+//! `full_metadata`. It issues a conditional GET against the upstream
+//! registry, and either reads the cached body (304) or writes the
+//! new body back (2xx). Without a cache directory it falls through
+//! to a plain GET — the same behavior callers got before Phase 5
+//! from [`crate::fetch_full_metadata()`].
 //!
 //! The cache layout matches pnpm's so a pnpm-populated mirror is
 //! usable from pacquet (and vice versa). The two-line NDJSON shape
@@ -24,9 +25,10 @@ use reqwest::{StatusCode, header};
 
 use crate::{
     FetchMetadataError,
+    fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
     mirror::{
-        FULL_META_DIR, get_pkg_mirror_path, load_meta, load_meta_headers, prepare_json_for_disk,
-        save_meta,
+        ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta, load_meta_headers,
+        prepare_json_for_disk, save_meta,
     },
     registry_url::to_registry_url,
 };
@@ -40,10 +42,20 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     pub registry: &'a str,
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
-    /// When `Some`, the fetcher consults the on-disk mirror at
-    /// `<cache_dir>/v11/metadata-full/...`. When `None`, the fetcher
-    /// short-circuits to an unconditional GET.
+    /// When `Some`, the fetcher consults the on-disk mirror under
+    /// the matching `<cache_dir>/v11/metadata...` subdirectory.
+    /// When `None`, the fetcher short-circuits to an unconditional
+    /// GET.
     pub cache_dir: Option<&'a Path>,
+    /// `true` requests the full packument and caches it under
+    /// [`FULL_META_DIR`]; `false` requests the abbreviated form
+    /// and caches it under [`ABBREVIATED_META_DIR`]. Mirrors
+    /// upstream's
+    /// [`fetchFullMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L30-L36)
+    /// vs.
+    /// [`fetchAbbreviatedMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L47-L53)
+    /// dispatch.
+    pub full_metadata: bool,
 }
 
 /// Fetch the full registry metadata document for `pkg_name`, reusing
@@ -82,12 +94,13 @@ pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
+    let meta_dir = if opts.full_metadata { FULL_META_DIR } else { ABBREVIATED_META_DIR };
     // Encoding the mirror path can fail only on a malformed registry
     // URL (no host, unparsable). Either case is a config bug; we
     // log and proceed without a cache so the user still gets metadata
     // on this install instead of a hard error.
     let mirror_path = match opts.cache_dir {
-        Some(dir) => match get_pkg_mirror_path(dir, FULL_META_DIR, opts.registry, pkg_name) {
+        Some(dir) => match get_pkg_mirror_path(dir, meta_dir, opts.registry, pkg_name) {
             Ok(path) => Some(path),
             Err(error) => {
                 tracing::debug!(
@@ -95,6 +108,7 @@ pub async fn fetch_full_metadata_cached(
                     ?error,
                     registry = opts.registry,
                     pkg_name,
+                    full_metadata = opts.full_metadata,
                     "could not encode mirror path; bypassing cache for this call",
                 );
                 None
@@ -105,12 +119,9 @@ pub async fn fetch_full_metadata_cached(
     let cache_headers = mirror_path.as_deref().and_then(load_meta_headers);
 
     let url = to_registry_url(opts.registry, pkg_name);
-    let mut request = opts
-        .http_client
-        .acquire_for_url(&url)
-        .await
-        .get(&url)
-        .header(header::ACCEPT, "application/json");
+    let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
+    let mut request =
+        opts.http_client.acquire_for_url(&url).await.get(&url).header(header::ACCEPT, accept);
     if let Some(value) = opts.auth_headers.for_url(&url) {
         request = request.header(header::AUTHORIZATION, value);
     }

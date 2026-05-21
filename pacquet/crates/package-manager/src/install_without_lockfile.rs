@@ -216,6 +216,14 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            // Default to abbreviated metadata at resolve time and let
+            // [`pick_package`] upgrade per-call when `published_by` or
+            // `optional` demand it. Mirrors upstream's
+            // [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175)
+            // default. Pacquet's `Config` doesn't surface a
+            // `fullMetadata` knob; if one lands later, thread it
+            // here.
+            full_metadata: false,
         });
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
@@ -247,6 +255,8 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            // Same rationale as `NpmResolver.full_metadata` above.
+            full_metadata: false,
         };
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:

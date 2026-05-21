@@ -16,14 +16,19 @@
 //! 4. Handing the resolved packument to [`pick_package_from_meta`]
 //!    for the actual version pick.
 //!
-//! Compared to upstream this port simplifies one axis: pacquet's
-//! metadata fetcher always returns *full* metadata (the verifier
-//! needs it for `time` and trust evidence). The upstream code paths
-//! that upgrade an abbreviated cache entry to full mid-pick are
-//! therefore dead in pacquet today — the picker still goes through
-//! the same shape so adding an abbreviated fetcher later is a
-//! drop-in. Notes on the abbreviated paths are inline at the
-//! sites they would activate.
+//! Full vs. abbreviated metadata is selected per call from
+//! `opts.optional || ctx.full_metadata`, matching upstream's
+//! [`fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201)
+//! derivation. The orchestrator wires the choice through to the
+//! mirror directory ([`ABBREVIATED_META_DIR`] vs. [`FULL_META_DIR`]),
+//! the in-memory cache key (`:full` suffix when full), and the
+//! `Accept` header on the registry request. When `published_by` is
+//! active and the picker ends up with abbreviated metadata that
+//! lacks the per-version `time` map, the orchestrator transparently
+//! upgrades to full metadata via a follow-up fetch so the
+//! `minimumReleaseAge` check runs against real timestamps instead of
+//! silently degrading to its warn-and-skip fallback. Ports upstream's
+//! [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L450-L501).
 //!
 //! Concurrency: upstream uses `p-limit(1)` keyed on the mirror path
 //! to serialize disk operations. Pacquet relies on the atomic
@@ -48,8 +53,12 @@ use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::VersionSelectors;
 
 use crate::{
-    FetchFullMetadataCachedOptions, FetchMetadataError, fetch_full_metadata_cached,
-    mirror::{FULL_META_DIR, get_pkg_mirror_path, load_meta, prepare_json_for_disk, save_meta},
+    FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchMetadataError,
+    fetch_full_metadata, fetch_full_metadata_cached,
+    mirror::{
+        ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta, prepare_json_for_disk,
+        save_meta,
+    },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
         RegistryPackageSpecType, pick_lowest_version_by_version_range, pick_package_from_meta,
@@ -125,12 +134,19 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// falls back to picking without the maturity filter. Mirrors
     /// upstream's `ctx.ignoreMissingTimeField`.
     ///
-    /// Pacquet's full-metadata fetcher always returns `time` when
-    /// the registry exposes it, so the missing-time path here is
-    /// only reachable when the registry itself stripped the field —
-    /// rare, but the opt-in stays for parity with the resolver
-    /// option flag.
+    /// Reachable when the registry-served packument omits `time`
+    /// even after a full-metadata fetch (rare; the official npm
+    /// registry always populates `time` for full responses) — the
+    /// opt-in stays for parity with the resolver option flag.
     pub ignore_missing_time_field: bool,
+    /// Install-wide bias toward full metadata, mirroring upstream's
+    /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
+    /// `true` forces every pick to use the full packument; `false`
+    /// defers to the per-call `opts.optional` flag, defaulting to
+    /// abbreviated metadata. The resolver typically leaves this
+    /// `false`; the verifier-time fetcher sets it `true` because
+    /// it needs `time` and trust evidence for every entry.
+    pub full_metadata: bool,
 }
 
 /// Per-call options the orchestrator threads to the picker. Mirrors
@@ -163,6 +179,16 @@ pub struct PickPackageOptions<'a> {
     /// Matches the upstream flag — used when the install is a
     /// pure dry-run (`--lockfile-only`, frozen lockfile, etc.).
     pub dry_run: bool,
+    /// `true` forces this pick to use the full packument because
+    /// the dependency carries `optionalDependencies`-specific
+    /// fields (`libc`, `cpu`, `os`) the abbreviated form drops
+    /// some of. Mirrors upstream's
+    /// [`opts.optional`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L72)
+    /// — see [pnpm/pnpm#9950](https://github.com/pnpm/pnpm/issues/9950).
+    /// Combined with [`PickPackageContext::full_metadata`] via OR:
+    /// either knob set to `true` makes the pick request full
+    /// metadata.
+    pub optional: bool,
 }
 
 /// Outcome of a successful [`pick_package`] call. Mirrors
@@ -262,9 +288,19 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         ignore_missing_time_field: ctx.ignore_missing_time_field,
     };
 
+    // Per upstream's
+    // [`pickPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201):
+    // `opts.optional` is a per-call escape hatch (needed for
+    // `libc`/`cpu`/`os` filtering on optional deps —
+    // <https://github.com/pnpm/pnpm/issues/9950>); `ctx.full_metadata`
+    // is the install-wide bias. Either being `true` forces the full
+    // packument.
+    let full_metadata = opts.optional || ctx.full_metadata;
+    let meta_dir = if full_metadata { FULL_META_DIR } else { ABBREVIATED_META_DIR };
+
     let pkg_mirror = ctx
         .cache_dir
-        .and_then(|dir| get_pkg_mirror_path(dir, FULL_META_DIR, opts.registry, &spec.name).ok());
+        .and_then(|dir| get_pkg_mirror_path(dir, meta_dir, opts.registry, &spec.name).ok());
 
     // Scope the in-memory cache key by registry so the same package
     // name in two different registries (private + public, scoped
@@ -273,12 +309,36 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // `PackageMetaCache` per resolver instance per registry; pacquet
     // shares one cache across all `pick_package` calls, so the key
     // has to do the scoping itself.
-    let cache_key = format!("{}\x00{}", opts.registry, spec.name);
+    //
+    // The `:full` suffix mirrors upstream's
+    // [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206):
+    // a later call with `opts.optional = true` must not satisfy
+    // itself with the abbreviated cache entry an earlier call
+    // populated (the abbreviated form drops `libc`/`cpu`/`os` from
+    // some shapes).
+    let cache_key = if full_metadata {
+        format!("{}\x00{}:full", opts.registry, spec.name)
+    } else {
+        format!("{}\x00{}", opts.registry, spec.name)
+    };
 
     // 1. In-memory cache.
     if let Some(cached) = ctx.meta_cache.get(&cache_key) {
-        let picked = pick_matching_version_final(&picker_opts, spec, &cached)?;
-        return Ok(PickPackageResult { meta: cached, picked_package: picked });
+        let upgrade =
+            maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached)
+                .await?;
+        let meta = upgrade.meta;
+        if upgrade.upgraded && !opts.dry_run {
+            // Persist so a fresh process doesn't re-trigger the
+            // upgrade fetch on its next install. Matches upstream's
+            // [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
+            if let Some(path) = pkg_mirror.as_deref() {
+                persist_upgraded_to_mirror(path, &meta);
+            }
+            ctx.meta_cache.set(cache_key.clone(), meta.clone());
+        }
+        let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
+        return Ok(PickPackageResult { meta, picked_package: picked });
     }
 
     let mut meta_cached_in_store: Option<Package> = None;
@@ -299,14 +359,31 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             });
         }
 
-        if let Some(ref meta) = meta_cached_in_store {
-            let picked = pick_matching_version_final(&picker_opts, spec, meta)?;
+        if let Some(meta) = meta_cached_in_store.take() {
+            let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
+                ctx,
+                spec,
+                opts,
+                full_metadata,
+                meta,
+            )
+            .await?;
+            let meta = upgrade.meta;
+            if upgrade.upgraded && !opts.dry_run {
+                if let Some(path) = pkg_mirror.as_deref() {
+                    persist_upgraded_to_mirror(path, &meta);
+                }
+                ctx.meta_cache.set(cache_key.clone(), meta.clone());
+            }
+            let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
             if picked.is_some() {
-                return Ok(PickPackageResult { meta: meta.clone(), picked_package: picked });
+                return Ok(PickPackageResult { meta, picked_package: picked });
             }
             // Fall through to fetch when disk had the meta but no
             // version satisfied the spec — the disk copy may be
-            // stale.
+            // stale. Restore the (possibly upgraded) meta for later
+            // paths that reuse the in-store load.
+            meta_cached_in_store = Some(meta);
         }
     }
 
@@ -357,6 +434,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         http_client: ctx.http_client,
         auth_headers: ctx.auth_headers,
         cache_dir: ctx.cache_dir,
+        full_metadata,
     };
 
     let fetch_result = fetch_full_metadata_cached(&spec.name, &fetch_opts).await;
@@ -382,6 +460,25 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             return Err(error.into());
         }
     };
+
+    // After a fresh fetch we may still need an upgrade: a 304 reused
+    // an abbreviated mirror body, or a 200 returned abbreviated data
+    // for a recently-modified package. Either way, if
+    // `published_by` is active and `meta.time` is missing, re-fetch
+    // full so the maturity check runs on real timestamps. Mirrors
+    // upstream's
+    // [post-304 upgrade](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L333-L347)
+    // and inline upgrade at lines 364-400.
+    let upgrade =
+        maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, meta)
+            .await?;
+    let meta = upgrade.meta;
+    if upgrade.upgraded
+        && !opts.dry_run
+        && let Some(path) = pkg_mirror.as_deref()
+    {
+        persist_upgraded_to_mirror(path, &meta);
+    }
 
     // Divergence from upstream worth flagging: pnpm's pickPackage
     // gates the on-disk save behind `!opts.dryRun`. Pacquet's
@@ -628,18 +725,22 @@ fn warn_missing_time_once(pkg_name: &str) {
 }
 
 /// Convenience writer: persist `meta` to the on-disk mirror under
-/// `<cache_dir>/<FULL_META_DIR>/<registry>/<encoded-pkg>.jsonl`.
-/// Errors are logged at debug — a cache-write failure should never
+/// `<cache_dir>/<meta_dir>/<registry>/<encoded-pkg>.jsonl`. Pass
+/// [`FULL_META_DIR`] when seeding the full-metadata cache (verifier
+/// tests, integrated benchmark) and [`ABBREVIATED_META_DIR`] when
+/// seeding the abbreviated cache (resolver tests). Errors are logged
+/// at debug by the install path — a cache-write failure should never
 /// fail an install. Kept public so the rare caller that
 /// constructs a `Package` outside the fetcher (test fixtures, the
 /// integrated benchmark's pre-warmer) can seed the mirror without
 /// reaching into `crate::mirror`.
 pub fn persist_meta_to_mirror(
     cache_dir: &Path,
+    meta_dir: &str,
     registry: &str,
     meta: &Package,
 ) -> Result<(), MirrorPersistError> {
-    let path = get_pkg_mirror_path(cache_dir, FULL_META_DIR, registry, &meta.name)
+    let path = get_pkg_mirror_path(cache_dir, meta_dir, registry, &meta.name)
         .map_err(|error| MirrorPersistError::EncodePath { error: error.to_string() })?;
     let json = prepare_json_for_disk(meta, meta.etag.as_deref(), None)
         .map_err(|error| MirrorPersistError::Serialize { error: error.to_string() })?;
@@ -678,6 +779,122 @@ pub enum MirrorPersistError {
 /// `pick_package` call.
 pub fn shared_in_memory_cache() -> Arc<InMemoryPackageMetaCache> {
     Arc::new(InMemoryPackageMetaCache::default())
+}
+
+/// Outcome of [`maybe_upgrade_abbreviated_meta_for_release_age`].
+struct UpgradeOutcome {
+    /// The packument the orchestrator should pick from. Either the
+    /// original meta (when no upgrade was needed) or the freshly
+    /// fetched full meta.
+    meta: Package,
+    /// `true` when the orchestrator should persist `meta` to the
+    /// abbreviated mirror and write it back to the in-memory cache.
+    /// Matches upstream's `upgradedFrom != null` branch.
+    upgraded: bool,
+}
+
+/// Port of upstream's
+/// [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L450-L501).
+///
+/// When the resolver default-fetched abbreviated metadata but
+/// `published_by` is active, the per-version `time` map is missing
+/// so the maturity check would silently degrade to the warn-and-skip
+/// fallback. This function detects that and re-fetches full metadata
+/// when the package's top-level `modified` field shows it was
+/// touched after the maturity cutoff. Returns the original meta
+/// untouched in every other case.
+///
+/// The early returns are guard rails that mirror upstream verbatim:
+///
+/// - `ctx.offline`: no network allowed. Stick with what we have.
+/// - `opts.published_by.is_none()`: maturity check disabled.
+/// - `meta.time.is_some()`: already full metadata (or an
+///   abbreviated response that happens to carry `time`). Nothing
+///   to upgrade.
+/// - `opts.published_by_exclude` matches the package: caller has
+///   opted this package out of the policy.
+/// - `meta.modified.is_some()` and parses as a date `<= cutoff`:
+///   every version in the packument was published at or before the
+///   cutoff, so the abbreviated form is enough. Inclusive at the
+///   boundary on purpose, matching the per-version `<=` filter in
+///   [`filter_pkg_metadata_by_publish_date`](crate::filter_pkg_metadata_by_publish_date).
+///
+/// On upgrade the call uses the network-only [`fetch_full_metadata`]
+/// (not the cached variant) so the response writes back to the
+/// abbreviated mirror via [`persist_upgraded_to_mirror`] — same
+/// shape as upstream's `persistUpgradedMeta`, which intentionally
+/// updates the *abbreviated* cache file with full data so the next
+/// install sees `time` populated and skips the upgrade fetch.
+async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    spec: &RegistryPackageSpec,
+    opts: &PickPackageOptions<'_>,
+    full_metadata: bool,
+    meta: Package,
+) -> Result<UpgradeOutcome, PickPackageError> {
+    if ctx.offline || full_metadata {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
+    }
+    let Some(cutoff) = opts.published_by else {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
+    };
+    if meta.time.is_some() {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
+    }
+    if let Some(policy) = opts.published_by_exclude {
+        use pacquet_config::version_policy::PolicyMatch;
+        if matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion) {
+            return Ok(UpgradeOutcome { meta, upgraded: false });
+        }
+    }
+    // Inclusive `<=` at the boundary: matches the per-version
+    // `<=` filter in `filter_pkg_metadata_by_publish_date`. When
+    // `modified` is missing or unparsable we fall through to the
+    // upgrade — better to spend one extra fetch than to silently
+    // bypass the maturity check.
+    if let Some(modified_str) = meta.modified.as_deref()
+        && let Ok(modified) = chrono::DateTime::parse_from_rfc3339(modified_str)
+        && modified.with_timezone(&Utc) <= cutoff
+    {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
+    }
+    let fetch_opts = FetchFullMetadataOptions {
+        registry: opts.registry,
+        http_client: ctx.http_client,
+        auth_headers: ctx.auth_headers,
+        full_metadata: true,
+    };
+    let upgraded = fetch_full_metadata(&spec.name, &fetch_opts).await?;
+    Ok(UpgradeOutcome { meta: upgraded, upgraded: true })
+}
+
+/// Write the upgraded full metadata back to `pkg_mirror` (which
+/// points at the abbreviated cache because the picker is in
+/// abbreviated mode). Fire-and-forget: a write failure logs at debug
+/// and the install proceeds — the next install simply re-triggers
+/// the upgrade fetch. Mirrors upstream's
+/// [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
+fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package) {
+    let json = match prepare_json_for_disk(meta, meta.etag.as_deref(), None) {
+        Ok(json) => json,
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet_resolving_npm_resolver::pick_package",
+                ?error,
+                path = %pkg_mirror.display(),
+                "could not serialize upgraded meta; skipping persist",
+            );
+            return;
+        }
+    };
+    if let Err(error) = save_meta(pkg_mirror, &json) {
+        tracing::debug!(
+            target: "pacquet_resolving_npm_resolver::pick_package",
+            ?error,
+            path = %pkg_mirror.display(),
+            "could not write upgraded meta to mirror; skipping persist",
+        );
+    }
 }
 
 #[cfg(test)]

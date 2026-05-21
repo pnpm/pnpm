@@ -546,6 +546,9 @@ impl NpmResolutionVerifier {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
             cache_dir: self.cache_dir.as_deref(),
+            // The verifier reads `time` and trust evidence per-version,
+            // both of which the abbreviated form drops. Always full.
+            full_metadata: true,
         };
         fetch_full_metadata_cached(&name.to_string(), &opts).await.map_err(|err| err.to_string())
     }
