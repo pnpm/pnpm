@@ -134,7 +134,7 @@ skipIfPacquet('adding new dep does not fail if node_modules was created with --p
   project.has('is-negative')
 })
 
-test('pnpx works', () => {
+skipIfPacquet('pnpx works', () => {
   prepareEmpty()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
