@@ -819,7 +819,7 @@ struct UpgradeOutcome {
 ///   boundary on purpose, matching the per-version `<=` filter in
 ///   [`filter_pkg_metadata_by_publish_date`](crate::filter_pkg_metadata_by_publish_date).
 ///
-/// On upgrade the call uses the network-only [`fetch_full_metadata`]
+/// On upgrade the call uses the network-only [`fetch_full_metadata()`]
 /// (not the cached variant) so the response writes back to the
 /// abbreviated mirror via [`persist_upgraded_to_mirror`] — same
 /// shape as upstream's `persistUpgradedMeta`, which intentionally
