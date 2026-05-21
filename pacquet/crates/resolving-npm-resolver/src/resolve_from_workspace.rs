@@ -96,7 +96,7 @@ pub enum ResolveFromWorkspaceError {
     #[display(
         "In {project_dir}: \"{name}@{bare_specifier}\" is in the dependencies but no package named \"{name}\" is present in the workspace"
     )]
-    #[diagnostic(code(ERR_PNPM_WORKSPACE_PKG_NOT_FOUND))]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_PKG_NOT_FOUND), help("{hint}"))]
     WorkspacePkgNotFound {
         name: String,
         bare_specifier: String,
