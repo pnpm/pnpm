@@ -1,12 +1,20 @@
 use super::{filesystem_root, host_can_link_between_dirs, next_path, resolve_store_dir};
-use crate::api::LinkProbe;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::Mutex,
 };
 use tempfile::tempdir;
+
+// The `PrefixProbe` machinery below is only used by tests gated on
+// `cfg(unix)` (the cross-volume scenarios construct absolute Unix paths
+// like `/Volumes/src/...`). On Windows, every consumer is excluded, so
+// gate the fake itself to keep clippy's `dead_code` lint happy under
+// `-D warnings`.
+#[cfg(unix)]
+use crate::api::LinkProbe;
+#[cfg(unix)]
+use std::sync::Mutex;
 
 /// `next_path` walks one path segment at a time from `from` toward
 /// `to`. Mirrors the upstream
@@ -83,12 +91,15 @@ fn resolve_store_dir_same_volume_uses_home_default() {
 ///
 /// The state lives in a `Mutex<Vec<PathBuf>>` keyed by an explicit
 /// test-supplied label, swapped before each scenario via
-/// [`PrefixProbe::set_allow`]. We re-use the same fake struct across
+/// `PrefixProbe::set_allow`. We re-use the same fake struct across
 /// scenarios in this file by serializing access with the mutex.
+#[cfg(unix)]
 static ALLOW_PREFIXES: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
+#[cfg(unix)]
 struct PrefixProbe;
 
+#[cfg(unix)]
 impl PrefixProbe {
     fn set_allow(prefixes: &[&Path]) {
         let mut slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");
@@ -97,6 +108,7 @@ impl PrefixProbe {
     }
 }
 
+#[cfg(unix)]
 impl LinkProbe for PrefixProbe {
     fn can_link_between_dirs(_from_dir: &Path, to_dir: &Path) -> bool {
         let slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");

@@ -28,17 +28,18 @@
 //! "TSConfig does not include this file" error on every project file.
 //!
 //! The hardlink attempt itself is threaded through the
-//! [`LinkProbe`][crate::api::LinkProbe] capability so tests can
-//! answer the linkability question without touching disk. The
-//! production [`Host`][crate::api::Host] impl performs the real link
-//! attempts via [`host_can_link_between_dirs`].
+//! [`LinkProbe`] capability so tests can answer the linkability
+//! question without touching disk. The production [`Host`] impl
+//! performs the real link attempts via [`host_can_link_between_dirs`].
 //!
-//! `STORE_VERSION` ("v11") is intentionally *not* appended here: pacquet's
-//! [`StoreDir`] stores the root one level above v11 and appends it at
-//! access time via
-//! [`StoreDir::v11`](pacquet_store_dir::StoreDir::v11), where pnpm's
-//! `getStorePath` returns the v11-suffixed path directly. Both
-//! implementations land on identical on-disk paths.
+//! `STORE_VERSION` ("v11") is intentionally *not* appended here:
+//! pacquet's [`pacquet_store_dir::StoreDir`] stores the root one
+//! level above v11 and appends it at access time via
+//! [`pacquet_store_dir::StoreDir::v11`], where pnpm's `getStorePath`
+//! returns the v11-suffixed path directly. Both implementations land
+//! on identical on-disk paths.
+//!
+//! [`Host`]: crate::api::Host
 
 use crate::api::LinkProbe;
 use std::{
