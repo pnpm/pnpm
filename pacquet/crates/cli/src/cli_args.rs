@@ -21,7 +21,7 @@ use store::StoreCommand;
 #[derive(Debug, Parser)]
 #[clap(name = "pacquet")]
 #[clap(bin_name = "pacquet")]
-#[clap(version = "0.2.1")]
+#[clap(version = "0.2.2")]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {
     #[clap(subcommand)]

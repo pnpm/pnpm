@@ -72,6 +72,28 @@ jobs:
       - name: Add Rust Target
         run: rustup target add ${{ matrix.target }}
 
+      - name: Validate version input
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid version: '$VERSION' (expected semver like 0.2.3 or 0.2.3-rc.1)"
+            exit 1
+          fi
+
+      - name: Inject version into pacquet/crates/cli/src/cli_args.rs
+        # The version reported by `pacquet --version` is a hardcoded clap
+        # attribute. Patch it here so the binary built for the matrix leg
+        # reports the version we're about to publish.
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          file=pacquet/crates/cli/src/cli_args.rs
+          perl -i -pe 's/#\[clap\(version = "[^"]*"\)\]/#[clap(version = "'"$VERSION"'")]/' "$file"
+          grep -F "version = \"$VERSION\"" "$file"
+
       - name: Build with cross
         run: cross build -p pacquet-cli --bin pacquet --release --target=${{ matrix.target }}
 
