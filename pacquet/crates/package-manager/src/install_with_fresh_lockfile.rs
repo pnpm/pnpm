@@ -114,6 +114,15 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// [`Cannot resolve package from workspace because opts.workspacePackages is not defined`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830)
     /// behavior.
     pub workspace_packages: Option<pacquet_resolving_resolver_base::WorkspacePackages>,
+    /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
+    /// with already-pinned `(name, version)` pairs. `Some` on the
+    /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
+    /// — the resolver biases toward the seeded versions when they
+    /// still satisfy the spec so unrelated dependencies keep their
+    /// pins. `None` on the no-lockfile path. Mirrors upstream's
+    /// `update: false` resolver mode at
+    /// <https://github.com/pnpm/pnpm/blob/097983fbca/lockfile/preferred-versions/src/index.ts#L13-L33>.
+    pub wanted_lockfile: Option<&'a Lockfile>,
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -238,6 +247,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             catalogs,
             lockfile_dir,
             workspace_packages,
+            wanted_lockfile,
         } = self;
 
         let store_dir: &'static _ = &config.store_dir;
@@ -371,13 +381,19 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .transpose()
             .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
-        // Seed `allPreferredVersions` from the importer manifest. No
-        // wanted lockfile is available on this path (install-without-
-        // lockfile), so the lockfile-snapshot arm of upstream's
-        // `getPreferredVersionsFromLockfileAndManifests` is skipped.
+        // Seed `allPreferredVersions` from the importer manifest +
+        // the wanted lockfile's snapshots (when an existing one is
+        // present and is being rewritten). Mirrors upstream's
+        // `getPreferredVersionsFromLockfileAndManifests` shape: the
+        // manifest contributes direct-dep specifiers, the lockfile
+        // contributes concrete `(name, version)` pins that bump the
+        // weight of an already-matching direct-dep entry. Without the
+        // lockfile-side seed, every install on a stale lockfile would
+        // resolve unrelated entries from scratch and lose their
+        // recorded pins; see <https://pnpm.io/settings#preferfrozenlockfile>.
         let all_preferred_versions =
             pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
-                None,
+                wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
                 &[manifest],
             );
 

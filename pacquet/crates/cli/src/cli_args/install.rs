@@ -80,6 +80,22 @@ pub struct InstallArgs {
     #[clap(long)]
     pub frozen_lockfile: bool,
 
+    /// Force-enable `preferFrozenLockfile` for this invocation.
+    /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
+    /// Mirrors pnpm's `--prefer-frozen-lockfile`. Conflicts with
+    /// [`Self::no_prefer_frozen_lockfile`] so a single invocation
+    /// can't both force-on and force-off.
+    #[clap(long = "prefer-frozen-lockfile")]
+    pub prefer_frozen_lockfile: bool,
+
+    /// Force-disable `preferFrozenLockfile` for this invocation.
+    /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
+    /// Mirrors pnpm's `--no-prefer-frozen-lockfile`. Useful for CI
+    /// runs that want to force a re-resolve against the registry
+    /// without setting the flag globally.
+    #[clap(long = "no-prefer-frozen-lockfile", conflicts_with = "prefer_frozen_lockfile")]
+    pub no_prefer_frozen_lockfile: bool,
+
     /// Skip the per-importer `package.json` ↔ `pnpm-lock.yaml`
     /// freshness check that normally guards `--frozen-lockfile`.
     /// Intended for callers that just resolved and wrote the
@@ -160,12 +176,27 @@ impl InstallArgs {
             dependency_options,
             supported_architectures,
             frozen_lockfile,
+            prefer_frozen_lockfile,
+            no_prefer_frozen_lockfile,
             ignore_manifest_check,
             no_runtime,
             node_linker,
             offline: _,
             prefer_offline: _,
         } = self;
+
+        // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
+        // map to `Option<bool>`: `Some(true)` / `Some(false)` when
+        // either flag is set, `None` otherwise (use config). Clap's
+        // `conflicts_with` on the off-flag ensures the two aren't
+        // both set, so the precedence here is straightforward.
+        let prefer_frozen_lockfile = if prefer_frozen_lockfile {
+            Some(true)
+        } else if no_prefer_frozen_lockfile {
+            Some(false)
+        } else {
+            None
+        };
 
         // Merge CLI overrides with the yaml-derived value before
         // handing off to the install pipeline. `state.config` is a
@@ -204,6 +235,7 @@ impl InstallArgs {
             lockfile_path: lockfile_path.as_deref(),
             dependency_groups: dependency_options.dependency_groups(),
             frozen_lockfile,
+            prefer_frozen_lockfile,
             ignore_manifest_check,
             skip_runtimes,
             resolved_packages,

@@ -94,6 +94,15 @@ where
             lockfile_path,
             dependency_groups: list_dependency_groups(),
             frozen_lockfile: false,
+            // `pacquet add` mutates the manifest, so the lockfile is
+            // necessarily stale by the time the install dispatch
+            // runs — short-circuit the prefer-frozen fast path so we
+            // always re-resolve. `None` would fall back to
+            // `config.prefer_frozen_lockfile`, which is `true` by
+            // default and the dispatch would discover the staleness
+            // anyway; explicit `Some(false)` keeps `pacquet add`
+            // behaviour self-evident at the call site.
+            prefer_frozen_lockfile: Some(false),
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             resolved_packages,
