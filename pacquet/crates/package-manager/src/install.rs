@@ -127,12 +127,12 @@ pub enum InstallError {
     /// Requested `nodeLinker` value isn't supported on the
     /// fresh-lockfile path yet. Pacquet's hoist pass runs only over
     /// a loaded lockfile's snapshots (`link_hoisted_modules`); a
-    /// from-scratch install with `nodeLinker: hoisted` would produce
+    /// non-frozen install with `nodeLinker: hoisted` would produce
     /// an isolated layout silently, which doesn't match the user's
-    /// intent. Re-run with `--frozen-lockfile` once a lockfile
-    /// exists, or set `nodeLinker: isolated`.
+    /// intent. Re-run with `--frozen-lockfile`, or set
+    /// `nodeLinker: isolated`.
     #[display(
-        "nodeLinker: {node_linker:?} is not supported on a fresh install yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or set nodeLinker: isolated."
+        "nodeLinker: {node_linker:?} is not supported without --frozen-lockfile yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or set nodeLinker: isolated."
     )]
     #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_node_linker))]
     UnsupportedFreshInstallNodeLinker {
@@ -142,12 +142,12 @@ pub enum InstallError {
 
     /// `--no-runtime` (or `config.skip_runtimes`) is honored only on
     /// the frozen-lockfile path today, where the runtime filter runs
-    /// against the loaded lockfile's `packages:` map. The fresh
-    /// path would still fetch + materialize runtime archives despite
-    /// the opt-out, so refuse the install instead of silently
-    /// ignoring the flag.
+    /// against the loaded lockfile's `packages:` map. A non-frozen
+    /// install would still fetch + materialize runtime archives
+    /// despite the opt-out, so refuse the install instead of
+    /// silently ignoring the flag.
     #[display(
-        "--no-runtime / skipRuntimes is not supported on a fresh install yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or drop the flag."
+        "--no-runtime / skipRuntimes is not supported without --frozen-lockfile yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or drop the flag."
     )]
     #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_skip_runtimes))]
     UnsupportedFreshInstallSkipRuntimes,
