@@ -127,9 +127,9 @@ export type InstallDepsOptions = Pick<Config,
 > & Partial<Pick<Config, 'ci'>>
 & CreateStoreControllerOptions & {
   argv: {
-    cooked: string[]
+    cooked?: string[]
     original: string[]
-    remain: string[]
+    remain?: string[]
   }
   allowNew?: boolean
   forceFullResolution?: boolean
@@ -225,7 +225,7 @@ export async function installDeps (
     ? makeRunPacquet({
       lockfileDir: opts.lockfileDir ?? opts.dir,
       packageName: pacquetConfigDepName,
-      argv: opts.argv,
+      argv: { original: opts.argv.original, remain: opts.argv.remain ?? [] },
       isInstallCommand: opts.isInstallCommand === true,
     })
     : undefined
