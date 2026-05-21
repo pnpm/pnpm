@@ -169,6 +169,10 @@ jobs:
       - name: Run pnpm e2e against pacquet
         env:
           PNPM_E2E_BIN: ${{ github.workspace }}/target/release/pacquet
+          # pnpm-workspace.yaml sets `verifyDepsBeforeRun: install`, which
+          # auto-reinstalls before every script and seems to break jest's
+          # VM-modules loader. test.yml disables it for the same reason.
+          pnpm_config_verify_deps_before_run: false
         # `pn run test-pkgs-all` matches the call shape test.yml uses (via
         # `ci:test-all`): the hidden `.test` invocation lives inside a
         # script-to-script chain, which is the only way pnpm allows it.
