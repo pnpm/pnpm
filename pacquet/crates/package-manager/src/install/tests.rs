@@ -3742,3 +3742,101 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
 
     drop((dir, mock_instance));
 }
+
+/// `nodeLinker: hoisted` on the fresh-lockfile path is refused up
+/// front: pacquet's hoist pass runs only against a loaded lockfile's
+/// snapshots, so a from-scratch install with the flag would silently
+/// produce an isolated layout. The error must fire *before* any
+/// state file lands so a follow-up `--frozen-lockfile` retry can
+/// reuse the workspace.
+#[tokio::test]
+async fn fresh_install_refuses_hoisted_node_linker_before_writing_state() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    let config = config.leak();
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    assert!(matches!(result, Err(InstallError::UnsupportedFreshInstallNodeLinker { .. })));
+    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "no wanted lockfile written");
+    assert!(!virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(), "no current lockfile");
+    assert!(!modules_dir.join(".modules.yaml").exists(), "no modules manifest");
+
+    drop(dir);
+}
+
+/// `--no-runtime` (`config.skip_runtimes = true`) on the fresh path
+/// is refused for the same reason: pacquet's runtime filter runs only
+/// inside the frozen-lockfile path, so honoring the flag on a fresh
+/// install would need a port of upstream's runtime-snapshot filter.
+#[tokio::test]
+async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    let config = config.leak();
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        ignore_manifest_check: false,
+        skip_runtimes: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    assert!(matches!(result, Err(InstallError::UnsupportedFreshInstallSkipRuntimes)));
+    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "no wanted lockfile written");
+    assert!(!virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(), "no current lockfile");
+    assert!(!modules_dir.join(".modules.yaml").exists(), "no modules manifest");
+
+    drop(dir);
+}

@@ -124,6 +124,34 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
 
+    /// Requested `nodeLinker` value isn't supported on the
+    /// fresh-lockfile path yet. Pacquet's hoist pass runs only over
+    /// a loaded lockfile's snapshots (`link_hoisted_modules`); a
+    /// from-scratch install with `nodeLinker: hoisted` would produce
+    /// an isolated layout silently, which doesn't match the user's
+    /// intent. Re-run with `--frozen-lockfile` once a lockfile
+    /// exists, or set `nodeLinker: isolated`.
+    #[display(
+        "nodeLinker: {node_linker:?} is not supported on a fresh install yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or set nodeLinker: isolated."
+    )]
+    #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_node_linker))]
+    UnsupportedFreshInstallNodeLinker {
+        #[error(not(source))]
+        node_linker: NodeLinker,
+    },
+
+    /// `--no-runtime` (or `config.skip_runtimes`) is honored only on
+    /// the frozen-lockfile path today, where the runtime filter runs
+    /// against the loaded lockfile's `packages:` map. The fresh
+    /// path would still fetch + materialize runtime archives despite
+    /// the opt-out, so refuse the install instead of silently
+    /// ignoring the flag.
+    #[display(
+        "--no-runtime / skipRuntimes is not supported on a fresh install yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or drop the flag."
+    )]
+    #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_skip_runtimes))]
+    UnsupportedFreshInstallSkipRuntimes,
+
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
@@ -248,6 +276,37 @@ where
             supported_architectures,
             node_linker,
         } = self;
+
+        // Fail fast on flag combinations the fresh-lockfile path
+        // doesn't honor yet so we don't silently produce a
+        // `node_modules` + `pnpm-lock.yaml` that diverges from what
+        // the user asked for:
+        //
+        // - `nodeLinker: hoisted` on the fresh path would need a
+        //   port of upstream's hoist pass against the freshly-built
+        //   graph (the frozen path uses `link_hoisted_modules` over
+        //   the lockfile's snapshots). Falling through to the
+        //   isolated linker would lay out `node_modules` in the
+        //   wrong shape, so refuse the install instead.
+        // - `skip_runtimes` (CLI `--no-runtime`) on the fresh path
+        //   would need a runtime-filter at the materialization step
+        //   matching the frozen path's
+        //   [`installing/deps-installer/src/install/index.ts:1374-1387`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L1374-L1387)
+        //   filter. Without it, runtime archives get fetched +
+        //   materialized despite the opt-out.
+        //
+        // Both are flagged up front, before any reporter event fires
+        // or any state file is written, so a follow-up retry under
+        // `--frozen-lockfile` (with an existing lockfile) lands on
+        // the supported path.
+        if !frozen_lockfile {
+            if matches!(node_linker, NodeLinker::Hoisted) {
+                return Err(InstallError::UnsupportedFreshInstallNodeLinker { node_linker });
+            }
+            if skip_runtimes {
+                return Err(InstallError::UnsupportedFreshInstallSkipRuntimes);
+            }
+        }
 
         // Collect once so the same set drives both the install dispatch
         // and the `included` field of `.modules.yaml` written below.
