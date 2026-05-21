@@ -178,7 +178,7 @@ jobs:
         # "module is already linked".
         run: |
           node --version
-          ./node_modules/.bin/jest
+          ${{ github.workspace }}/node_modules/.bin/jest
 
   doc:
     name: Doc
