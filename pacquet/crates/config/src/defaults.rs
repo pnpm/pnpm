@@ -77,6 +77,19 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
 /// `home::home_dir` and `env::current_dir` through the
 /// capability impls — see the `SmartDefault` expression on
 /// [`crate::Config::store_dir`].
+///
+/// On non-Windows hosts, this is only the **initial** default. After
+/// [`crate::Config::current`] has applied global config, workspace
+/// yaml, and `PNPM_CONFIG_*` env vars, the store is re-resolved
+/// against the project's volume via
+/// [`crate::store_path::resolve_store_dir`] when none of those
+/// sources pinned `storeDir` — mirroring pnpm's
+/// [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L14-L43),
+/// which falls back to `<mountpoint>/.pnpm-store` when the home
+/// volume can't be hardlinked from the project. Without that
+/// re-resolution a workspace on a separate case-sensitive volume
+/// would land in the case-insensitive home store, breaking tools
+/// that compare canonicalised file paths (typescript-eslint, for one).
 pub fn default_store_dir<Sys>() -> StoreDir
 where
     Sys: EnvVar + GetHomeDir + GetCurrentDir,

@@ -4,10 +4,11 @@ mod env_overlay;
 mod env_replace;
 pub mod matcher;
 mod npmrc_auth;
+mod store_path;
 pub mod version_policy;
 mod workspace_yaml;
 
-pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host};
+pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe};
 
 use indexmap::IndexMap;
 use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
@@ -966,7 +967,7 @@ impl Config {
         start_dir: &std::path::Path,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
-        Sys: EnvVar + EnvVarOs + GetHomeDir,
+        Sys: EnvVar + EnvVarOs + GetHomeDir + LinkProbe,
     {
         // Re-anchor the path-valued defaults (`modules_dir`,
         // `virtual_store_dir`) onto the caller-supplied starting directory.
@@ -1035,12 +1036,22 @@ impl Config {
         // doesn't leak.
         let mut virtual_store_dir_explicit = false;
         let mut global_virtual_store_dir_explicit = false;
+        // `store_dir_explicit` carries the "did the user set `storeDir`
+        // anywhere?" signal through the cascade. Tracked separately
+        // from `virtual_store_dir_explicit` because the downstream
+        // consumer is different — store_dir's late-stage cross-volume
+        // resolution (port of pnpm's
+        // [`storePathRelativeToHome`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L45-L78))
+        // must fire only when the user has *not* pinned a path. See
+        // [`crate::store_path::resolve_store_dir`].
+        let mut store_dir_explicit = false;
         let global_config_dir = default_config_dir::<Sys>();
         let global_settings =
             global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
         if let Some(mut global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
+            store_dir_explicit |= global_settings.store_dir.is_some();
             global_settings.substitute_env::<Sys>();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.apply_to(&mut self, start_dir);
@@ -1138,6 +1149,7 @@ impl Config {
                 // leaves it unset.
                 virtual_store_dir_explicit |= settings.virtual_store_dir.is_some();
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
+                store_dir_explicit |= settings.store_dir.is_some();
                 settings.substitute_env::<Sys>();
                 settings.apply_to(&mut self, &base_dir);
             }
@@ -1161,6 +1173,7 @@ impl Config {
         let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
         virtual_store_dir_explicit |= env_settings.virtual_store_dir.is_some();
         global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
+        store_dir_explicit |= env_settings.store_dir.is_some();
         env_settings.substitute_env::<Sys>();
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
@@ -1171,6 +1184,32 @@ impl Config {
         // header lookup so default-registry creds key at the final
         // URL.
         npmrc_auth.build_auth_headers(&mut self);
+
+        // Re-resolve `store_dir` against the project's volume when no
+        // explicit source (global config.yaml, pnpm-workspace.yaml,
+        // `PNPM_CONFIG_STORE_DIR`) set it. The SmartDefault picks
+        // `<pnpm_home>/store` unconditionally; pnpm's
+        // [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L14-L43)
+        // probes whether `pkg_root` can hardlink into the home volume
+        // and falls back to `<mountpoint>/.pnpm-store` when it can't,
+        // so a workspace on a separate (case-sensitive) volume gets a
+        // store on that same volume rather than the home volume.
+        // Without this, typescript-eslint's case-folded path cache
+        // diverges from TypeScript's case-sensitive program when the
+        // workspace is case-sensitive and the home is not.
+        if !store_dir_explicit && let Some(home_dir) = Sys::home_dir() {
+            // The "pnpm home dir" pnpm probes against is the parent of
+            // the home store (`~/Library/pnpm` for `~/Library/pnpm/store`).
+            // Fall back to the user's actual home if no parent is
+            // available — same-volume linkability is what we're after,
+            // and the home dir is on the same volume as any of its
+            // children.
+            let store_root = self.store_dir.root().to_path_buf();
+            let pnpm_home_dir = store_root.parent().unwrap_or(&home_dir).to_path_buf();
+            let resolved =
+                store_path::resolve_store_dir::<Sys>(store_root, &pnpm_home_dir, start_dir);
+            self.store_dir = StoreDir::from(resolved);
+        }
 
         // Derive `global_virtual_store_dir` last so it sees the final
         // `store_dir` / `virtual_store_dir` after yaml has been
@@ -1208,12 +1247,34 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, NodeLinker, PackageImportMethod,
-        fs,
+        Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, NodeLinker,
+        PackageImportMethod, fs,
     };
     use crate::defaults::default_store_dir;
     use pacquet_store_dir::StoreDir;
     use pacquet_testing_utils::env_guard::EnvGuard;
+    use std::path::Path;
+
+    /// `Config::current` requires `Sys: LinkProbe` so the late-stage
+    /// `store_dir` resolver (port of pnpm's `storePathRelativeToHome`)
+    /// can probe linkability between project and home. Tests in this
+    /// module pin specific config-cascade behaviours, none of which
+    /// turn on cross-volume detection, so the test fakes return
+    /// `false` for every probe. The probe failing collapses to the
+    /// pre-existing SmartDefault `store_dir` value, which is what the
+    /// pre-port assertions already assume.
+    ///
+    /// `inert_link_probe!(Name)` wires the impl onto a local test
+    /// fake without polluting each test fn with the boilerplate.
+    macro_rules! inert_link_probe {
+        ($($t:ty),+ $(,)?) => {$(
+            impl LinkProbe for $t {
+                fn can_link_between_dirs(_: &Path, _: &Path) -> bool {
+                    false
+                }
+            }
+        )+};
+    }
 
     fn display_store_dir(store_dir: &StoreDir) -> String {
         store_dir.display().to_string().replace('\\', "/")
@@ -1270,6 +1331,7 @@ mod tests {
             None
         }
     }
+    inert_link_probe!(HostNoHome);
 
     #[test]
     pub fn have_default_values() {
@@ -1457,6 +1519,7 @@ mod tests {
                 HOME_PATH.get().cloned()
             }
         }
+        inert_link_probe!(HostWithHome);
         let config = Config::new()
             .current::<HostWithHome>(current_dir.path())
             .expect("workspace yaml absent => no error");
@@ -1515,6 +1578,7 @@ mod tests {
                 HOME_PATH.get().cloned()
             }
         }
+        inert_link_probe!(HostWithHome);
         let config = Config { symlink: false, ..Config::new() }
             .current::<HostWithHome>(current_dir.path())
             .expect("workspace yaml absent => no error");
@@ -1779,6 +1843,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithEnvWorkspaceDir);
 
         let config =
             Config::new().current::<HostWithEnvWorkspaceDir>(cwd_dir.path()).expect("config loads");
@@ -1822,6 +1887,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithEmptyEnvWorkspaceDir);
         let tmp = tempdir().unwrap();
         let config = Config::new()
             .current::<HostWithEmptyEnvWorkspaceDir>(tmp.path())
@@ -1881,6 +1947,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithXdgConfigHome);
 
         let tmp = tempdir().unwrap();
         let config =
@@ -1932,6 +1999,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithXdgConfigHome);
 
         let config =
             Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
@@ -1993,6 +2061,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithXdgConfigHome);
 
         let config =
             Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
@@ -2048,6 +2117,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithXdgConfigHome);
 
         let tmp = tempdir().unwrap();
         let defaults = Config::new();
@@ -2088,6 +2158,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithPnpmConfigEnv);
 
         let tmp = tempdir().unwrap();
         let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
@@ -2119,6 +2190,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithLowercaseEnv);
 
         let tmp = tempdir().unwrap();
         let config = Config::new().current::<HostWithLowercaseEnv>(tmp.path()).expect("loads");
@@ -2155,6 +2227,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithPnpmConfigEnv);
 
         let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
         assert!(
@@ -2192,6 +2265,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithHoistEnv);
 
         let tmp = tempdir().unwrap();
         let config = Config::new().current::<HostWithHoistEnv>(tmp.path()).expect("loads");
@@ -2255,6 +2329,7 @@ mod tests {
                 None
             }
         }
+        inert_link_probe!(HostWithEnvOverride);
 
         let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
         assert_eq!(
