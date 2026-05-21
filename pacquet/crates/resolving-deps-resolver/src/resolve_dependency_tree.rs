@@ -78,6 +78,20 @@ pub enum ResolveDependencyTreeError {
     #[display("{_0}")]
     #[diagnostic(transparent)]
     PatchKeyConflict(#[error(source)] PatchKeyConflictError),
+
+    /// A transitive dependency was resolved through an exotic
+    /// protocol (git, tarball, file, …) while `block_exotic_subdeps`
+    /// is on. Mirrors pnpm's
+    /// [`EXOTIC_SUBDEP`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts#L1420-L1434).
+    #[display(
+        "Exotic dependency \"{specifier}\" (resolved via {resolved_via}) is not allowed in subdependencies when blockExoticSubdeps is enabled"
+    )]
+    #[diagnostic(code(EXOTIC_SUBDEP))]
+    ExoticSubdep {
+        #[error(not(source))]
+        specifier: String,
+        resolved_via: String,
+    },
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
@@ -289,6 +303,16 @@ where
 
     if let Some(violation) = result.policy_violation.clone() {
         ctx.policy_violations.lock().await.push(violation);
+    }
+
+    if ctx.base_opts.block_exotic_subdeps
+        && depth > 0
+        && is_exotic_resolved_via(&result.resolved_via)
+    {
+        return Err(ResolveDependencyTreeError::ExoticSubdep {
+            specifier: wanted.alias.clone().or(wanted.bare_specifier.clone()).unwrap_or_default(),
+            resolved_via: result.resolved_via.clone(),
+        });
     }
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
@@ -541,4 +565,23 @@ fn extract_peer_dependencies(
     }
 
     peers
+}
+
+/// Provenance tags that count as non-exotic for `blockExoticSubdeps`.
+/// Mirrors upstream's
+/// [`NON_EXOTIC_RESOLVED_VIA`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts#L1831-L1841).
+const NON_EXOTIC_RESOLVED_VIA: &[&str] = &[
+    "custom-resolver",
+    "github.com/denoland/deno",
+    "github.com/oven-sh/bun",
+    "jsr-registry",
+    "local-filesystem",
+    "named-registry",
+    "nodejs.org",
+    "npm-registry",
+    "workspace",
+];
+
+fn is_exotic_resolved_via(resolved_via: &str) -> bool {
+    !NON_EXOTIC_RESOLVED_VIA.contains(&resolved_via)
 }
