@@ -148,8 +148,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 
 # `clone_on_ref_ptr` requires `Arc::clone(&x)` / `Rc::clone(&x)` over
 # `x.clone()` so the O(1) refcount bump stays visible at the call site —
-# see "Cloning `Arc` and `Rc`" in `pacquet/CODE_STYLE_GUIDE.md`. It replaces
-# perfectionist's `arc_rc_clone`, which is disabled in `dylint.toml`.
+# see "Cloning `Arc` and `Rc`" in `pacquet/CODE_STYLE_GUIDE.md`.
 [workspace.lints.clippy]
 clone_on_ref_ptr             = "warn"
 if_then_some_else_none       = "warn"

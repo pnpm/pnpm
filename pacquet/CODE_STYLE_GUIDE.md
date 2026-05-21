@@ -502,7 +502,7 @@ Do not flatten the tests into a sibling file such as `src/foo_tests.rs`, and do 
 
 ### Cloning `Arc` and `Rc`
 
-Prefer `Arc::clone(&x)` / `Rc::clone(&x)` over `x.clone()` for reference-counted types. The qualified form makes the O(1) refcount bump visible at the call site and fails to compile if a refactor changes the binding's type to something whose `Clone` is an arbitrarily expensive deep copy. Enforced by [`clippy::clone_on_ref_ptr`](https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_ref_ptr), wired into `[workspace.lints.clippy]` in the root `Cargo.toml`. The corresponding `perfectionist::arc_rc_clone` rule is intentionally disabled in `dylint.toml` so the requirement lives in one place.
+Prefer `Arc::clone(&x)` / `Rc::clone(&x)` over `x.clone()` for reference-counted types. The qualified form makes the O(1) refcount bump visible at the call site and fails to compile if a refactor changes the binding's type to something whose `Clone` is an arbitrarily expensive deep copy. Enforced by [`clippy::clone_on_ref_ptr`](https://rust-lang.github.io/rust-clippy/master/index.html#clone_on_ref_ptr), wired into `[workspace.lints.clippy]` in the root `Cargo.toml`.
 
 ### Reading process state
 
