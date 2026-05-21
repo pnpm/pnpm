@@ -104,11 +104,11 @@ pub enum BenchmarkScenario {
     FrozenLockfile,
     /// Frozen lockfile, warm cache.
     FrozenLockfileHotCache,
-    /// Re-resolution: add a dep to an existing lockfile, warm cache. Pnpm-only.
+    /// Re-resolution: add a dep to an existing lockfile, warm cache.
     Peek,
-    /// Full resolution without a lockfile, warm cache. Pnpm-only.
+    /// Full resolution without a lockfile, warm cache.
     FullResolution,
-    /// GVS warm reinstall: frozen lockfile, warm GVS. Pnpm-only.
+    /// GVS warm reinstall: frozen lockfile, warm GVS.
     GvsWarm,
 }
 
@@ -192,20 +192,6 @@ impl BenchmarkScenario {
             BenchmarkScenario::GvsWarm => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
-        }
-    }
-
-    /// Whether pacquet implements this scenario today. Pacquet only
-    /// covers `install` (initial + frozen-lockfile); `peek`,
-    /// `full-resolution`, and `gvs-warm` exercise pnpm-only code paths.
-    pub fn supports_pacquet(self) -> bool {
-        match self {
-            BenchmarkScenario::CleanInstall
-            | BenchmarkScenario::FrozenLockfile
-            | BenchmarkScenario::FrozenLockfileHotCache => true,
-            BenchmarkScenario::Peek
-            | BenchmarkScenario::FullResolution
-            | BenchmarkScenario::GvsWarm => false,
         }
     }
 

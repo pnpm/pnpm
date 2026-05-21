@@ -68,15 +68,6 @@ async fn main() {
 
     let has_pacquet_target = targets.iter().any(|target| target.kind == TargetKind::Pacquet);
     let has_pnpm_target = targets.iter().any(|target| target.kind == TargetKind::Pnpm);
-    if let Some(scenario) = scenario
-        && has_pacquet_target
-        && !scenario.supports_pacquet()
-    {
-        panic!(
-            "scenario {scenario:?} doesn't apply to pacquet targets — drop the pacquet@* \
-             targets or pick a different --scenario",
-        );
-    }
     if has_pacquet_target {
         verify::ensure_pacquet_git_repo(&repository);
     }
