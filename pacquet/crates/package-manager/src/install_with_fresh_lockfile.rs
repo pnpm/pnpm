@@ -446,10 +446,18 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             catalogs,
         };
 
+        let phase_start = std::time::Instant::now();
         let importer_result =
             resolve_importer(&*resolver, manifest, dependency_groups, importer_opts)
                 .await
                 .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "resolve_importer",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            nodes = importer_result.peers_result.graph.len(),
+            "phase complete",
+        );
 
         // Drop the resolver (and its packument cache) before the
         // install pass. Dropping `resolver` releases the strong
@@ -500,6 +508,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // walk wall-clock under global virtual store, where the install
         // side is otherwise just symlinking.
         let cache_keys: Vec<String> = collect_prefetch_cache_keys(&importer_result.peers_result);
+        let cache_keys_len = cache_keys.len();
+        let phase_start = std::time::Instant::now();
         let prefetch = pacquet_tarball::prefetch_cas_paths(
             store_index_ref.cloned(),
             store_dir,
@@ -509,6 +519,14 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         )
         .await;
         let prefetched_cas_paths = prefetch.cas_paths;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "prefetch_cas_paths",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            cache_keys = cache_keys_len,
+            hits = prefetched_cas_paths.len(),
+            "phase complete",
+        );
 
         // Peer-resolution result (collected by `resolve_importer` after
         // the hoist loop converged). Peer issues collected here are not
@@ -547,11 +565,20 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // way.
         let allow_build_policy = AllowBuildPolicy::from_config(config)
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
+        let phase_start = std::time::Instant::now();
         let layout_lockfile = if config.enable_global_virtual_store {
             Some(build_fresh_lockfile(config, manifest, &importer_result))
         } else {
             None
         };
+        if config.enable_global_virtual_store {
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "build_fresh_lockfile",
+                elapsed_ms = phase_start.elapsed().as_millis() as u64,
+                "phase complete",
+            );
+        }
         let engine_name: Option<String> = if config.enable_global_virtual_store {
             tokio::task::spawn_blocking(|| {
                 pacquet_graph_hasher::detect_node_major()
@@ -563,6 +590,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         } else {
             None
         };
+        let phase_start = std::time::Instant::now();
         let layout = VirtualStoreLayout::new(
             config,
             engine_name.as_deref(),
@@ -570,6 +598,14 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             layout_lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref()),
             Some(&allow_build_policy),
         );
+        if config.enable_global_virtual_store {
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "virtual_store_layout_new",
+                elapsed_ms = phase_start.elapsed().as_millis() as u64,
+                "phase complete",
+            );
+        }
 
         let install_ctx = InstallCtx {
             tarball_mem_cache: tarball_mem_cache.as_ref(),
@@ -586,6 +622,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             requester,
         };
 
+        let phase_start = std::time::Instant::now();
         peers_result
             .direct_dependencies_by_alias
             .iter()
@@ -594,6 +631,12 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             })
             .pipe(future::try_join_all)
             .await?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "install_subtree",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Drop the orchestration's writer handle so the channel closes,
         // then wait for the final batch flush. See `create_virtual_store.rs`
