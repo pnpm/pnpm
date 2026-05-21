@@ -31,6 +31,7 @@
 //!   on anyway.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 
 use node_semver::{Range, Version};
 use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash};
@@ -489,7 +490,7 @@ impl<'tree> Walker<'tree> {
             .or_insert(DependenciesGraphNode {
                 dep_path: dep_path.clone(),
                 resolved_package_id: pkg.id.clone(),
-                resolve_result: pkg.result.clone(),
+                resolve_result: Arc::clone(&pkg.result),
                 children: graph_children,
                 peer_dependencies: pkg.peer_dependencies.clone(),
                 transitive_peer_dependencies,

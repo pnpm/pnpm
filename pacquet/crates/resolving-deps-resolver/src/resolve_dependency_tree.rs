@@ -23,7 +23,7 @@ use serde_json::Value;
 /// install can keep going after the unrelated panic that poisoned
 /// the lock — better than escalating into a hard install-wide
 /// failure.
-fn lock_recoverable<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(|err| err.into_inner())
 }
 

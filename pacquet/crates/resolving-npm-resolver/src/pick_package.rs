@@ -139,13 +139,13 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 
 /// Per-`(pkg_name, version)` cache for the resolver's serialized
 /// `manifest` JSON. The npm resolver builds
-/// [`ResolveResult::manifest`] via `serde_json::to_value(picked)`;
-/// when many resolves pick the same version of the same package
-/// (the common case for shared deps like `react`, `lodash`, …)
-/// every duplicate would otherwise re-walk and re-allocate the
-/// same JSON tree. Cache the `Arc<Value>` once per
-/// `(pkg_name, version)` pair so the second pick onwards is an
-/// `Arc::clone` instead of a full reserialise.
+/// [`pacquet_resolving_resolver_base::ResolveResult`]'s `manifest`
+/// field via `serde_json::to_value(picked)`; when many resolves
+/// pick the same version of the same package (the common case for
+/// shared deps like `react`, `lodash`, ...) every duplicate would
+/// otherwise re-walk and re-allocate the same JSON tree. Cache the
+/// `Arc<Value>` once per `(pkg_name, version)` pair so the second
+/// pick onwards is an `Arc::clone` instead of a full reserialise.
 ///
 /// Shared across [`crate::NpmResolver`] and
 /// [`crate::NamedRegistryResolver`] for the same reasons
@@ -419,7 +419,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // Per-cache-key fetch serializer. Mirrors upstream's
-    // [`runLimited(pkgMirror, …)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
+    // [`runLimited(pkgMirror, ...)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
     // pLimit(1): concurrent picks for the same packument coalesce
     // into a single network fetch. The first caller for `cache_key`
     // acquires the permit and runs steps 2-5; the rest park here

@@ -66,8 +66,9 @@ pub struct FetchFullMetadataOptions<'a> {
 /// Outcome of a [`fetch_full_metadata`] call. Mirrors upstream's
 /// [`FetchMetadataResult | FetchMetadataNotModifiedResult`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L80-L86)
 /// union — the caller (today: only
-/// [`maybe_upgrade_abbreviated_meta_for_release_age`](crate::pick_package))
-/// reacts differently to a 304 than to a 200. [`Package`] is boxed
+/// `maybe_upgrade_abbreviated_meta_for_release_age` inside
+/// [`crate::pick_package()`]) reacts differently to a 304 than to
+/// a 200. [`Package`] is boxed
 /// so the size of the enum stays small even though a full packument
 /// can be many KB; mirrors the same boxing pattern used elsewhere in
 /// the crate when a large struct sits next to a unit variant.
