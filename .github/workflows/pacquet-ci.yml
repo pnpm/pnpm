@@ -176,11 +176,13 @@ jobs:
           # auto-reinstalls before every script and seems to break jest's
           # VM-modules loader. test.yml disables it for the same reason.
           pnpm_config_verify_deps_before_run: false
-        # `pn run test-pkgs-all` matches the call shape test.yml uses (via
-        # `ci:test-all`): the hidden `.test` invocation lives inside a
-        # script-to-script chain, which is the only way pnpm allows it.
-        # Calling `pn -r .test` directly trips ERR_PNPM_HIDDEN_SCRIPT.
-        run: pnpm run test-pkgs-all
+        # Use the dedicated `test-pkgs-pnpm` script so PNPM_E2E_BIN only
+        # affects the pnpm package's e2e suite — running every package's
+        # `.test` would route their pnpm-driven assertions through pacquet
+        # too, which fails for commands pacquet doesn't implement.
+        # Going through a package.json script also keeps the hidden `.test`
+        # invocation inside a script chain (required by pnpm).
+        run: pnpm run test-pkgs-pnpm
 
   doc:
     name: Doc
