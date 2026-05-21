@@ -2231,6 +2231,7 @@ dependencies = [
  "junction",
  "miette 7.6.0",
  "pathdiff",
+ "sha2",
  "tempfile",
 ]
 

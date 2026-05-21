@@ -205,7 +205,16 @@ pub fn ensure_file(
 /// released — otherwise a recursive lookup on the same shard could
 /// deadlock. The map is never pruned: entries are one per unique
 /// CAS path the install wrote, bounded by the working set.
-fn cas_write_lock(file_path: &Path) -> Arc<Mutex<()>> {
+///
+/// Made `pub` so verifiers (`check_pkg_files_integrity`) can acquire
+/// the same lock before stat-then-maybe-`rimraf`'ing a CAS path.
+/// Without that, a verifier can `unlink` a file while a writer's
+/// `write_all` is still running — leaving the writer's `cas_paths`
+/// pointing at a now-orphaned inode whose dirent is gone, which
+/// surfaces later as ENOENT inside `link_file`. The lock is the
+/// only primitive that already coordinates per-blob writers, so it
+/// is the right gate to extend to readers that delete.
+pub fn cas_write_lock(file_path: &Path) -> Arc<Mutex<()>> {
     static LOCKS: OnceLock<DashMap<PathBuf, Arc<Mutex<()>>>> = OnceLock::new();
     let locks = LOCKS.get_or_init(DashMap::new);
     Arc::clone(

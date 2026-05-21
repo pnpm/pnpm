@@ -5,7 +5,6 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_crypto_hash::shorten_virtual_store_name;
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
@@ -23,13 +22,20 @@ use std::{
 ///
 /// * Downloads the tarball into the global store directory.
 /// * Imports (reflinks, hardlinks, or copies) the unpacked files into
-///   `<virtual_store_dir>/<virtual-store-name>/node_modules/<real-name>/`.
+///   `<slot_dir>/node_modules/<real-name>/`.
 /// * Symlinks `<node_modules_dir>/<alias>` to the virtual-store
 ///   directory.
 ///
 /// `alias` is the local install name in `node_modules`: the manifest
 /// key. For an npm-alias entry (`"foo": "npm:bar@^1"`) it's the alias
 /// (`foo`); the registry-side name is read from [`ResolveResult::id`].
+///
+/// `slot_dir` is the per-package virtual-store directory the caller
+/// computed from a [`crate::VirtualStoreLayout`]. Under GVS this is
+/// `<store_dir>/links/<scope>/<name>/<version>/<hash>`; under the
+/// legacy flat layout it is `<virtual_store_dir>/<flat-name>`. The
+/// caller resolves the layout once per install and threads the
+/// resulting path in so per-package code stays layout-agnostic.
 #[must_use]
 pub struct InstallPackageFromRegistry<'a> {
     pub tarball_mem_cache: &'a MemCache,
@@ -49,6 +55,11 @@ pub struct InstallPackageFromRegistry<'a> {
     /// [`pacquet_reporter::StageLog`].
     pub requester: &'a str,
     pub node_modules_dir: &'a Path,
+    /// Per-package virtual-store directory — output of
+    /// [`crate::VirtualStoreLayout::slot_dir`] for this package's
+    /// snapshot key. The unpacked files land at
+    /// `<slot_dir>/node_modules/<real-name>/`.
+    pub slot_dir: &'a Path,
     /// Local install name in `node_modules/`.
     pub alias: &'a str,
     /// Pre-resolved package returned by the resolver chain.
@@ -99,6 +110,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
             logged_methods,
             requester,
             node_modules_dir,
+            slot_dir,
             alias,
             resolution,
             first_visit,
@@ -115,22 +127,13 @@ impl<'a> InstallPackageFromRegistry<'a> {
         })?;
         let real_name = name_ver.name.to_string();
         let version = name_ver.suffix.to_string();
-        let virtual_store_name = shorten_virtual_store_name(
-            format!("{}@{}", real_name.replace('/', "+"), version),
-            config.virtual_store_dir_max_length as usize,
-        );
         let package_id = format!("{real_name}@{version}");
 
-        // The virtual store always uses the registry-returned name
-        // so npm-alias entries share a single virtual store directory
-        // with their non-aliased counterparts. The exposed symlink
-        // under `node_modules/` uses the manifest key (`alias`) so
-        // both forms can coexist in the same parent.
-        let save_path = config
-            .virtual_store_dir
-            .join(&virtual_store_name)
-            .join("node_modules")
-            .join(&real_name);
+        // The exposed symlink under `node_modules/` uses the manifest
+        // key (`alias`) so an npm-alias entry and its non-aliased
+        // counterpart can coexist in the same parent, both pointing
+        // at the same registry-named subdirectory inside `slot_dir`.
+        let save_path = slot_dir.join("node_modules").join(&real_name);
 
         let symlink_path = node_modules_dir.join(alias);
 

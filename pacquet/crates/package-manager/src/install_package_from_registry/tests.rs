@@ -140,6 +140,11 @@ pub async fn should_install_package_from_pre_resolved_result() {
     )
     .await;
 
+    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let real_name = name_ver.name.to_string();
+    let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
+    let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
+
     InstallPackageFromRegistry {
         tarball_mem_cache: &Default::default(),
         config,
@@ -152,17 +157,14 @@ pub async fn should_install_package_from_pre_resolved_result() {
         alias: "@pnpm.e2e/hello-world-js-bin",
         resolution: &resolution,
         node_modules_dir: modules_dir.path(),
+        slot_dir: &slot_dir,
         first_visit: true,
     }
     .run::<SilentReporter>()
     .await
     .unwrap();
 
-    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
-    let real_name = name_ver.name.to_string();
-    let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
-    let virtual_store_path =
-        virtual_store_dir.path().join(virtual_store_name).join("node_modules").join(&real_name);
+    let virtual_store_path = slot_dir.join("node_modules").join(&real_name);
     assert!(virtual_store_path.is_dir());
 
     // Make sure the symlink resolves to the correct path. pacquet
@@ -221,6 +223,11 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     )
     .await;
 
+    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let real_name = name_ver.name.to_string();
+    let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
+    let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
+
     // First edge: full path. Run, then clear events for the assertion
     // on the second edge.
     InstallPackageFromRegistry {
@@ -235,6 +242,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         alias: "first-alias",
         resolution: &resolution,
         node_modules_dir: modules_dir.path(),
+        slot_dir: &slot_dir,
         first_visit: true,
     }
     .run::<RecordingReporter>()
@@ -255,6 +263,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         alias: "second-alias",
         resolution: &resolution,
         node_modules_dir: second_parent_dir.path(),
+        slot_dir: &slot_dir,
         first_visit: false,
     }
     .run::<RecordingReporter>()
@@ -328,6 +337,11 @@ async fn install_emits_progress_sequence() {
     )
     .await;
 
+    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let real_name = name_ver.name.to_string();
+    let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
+    let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
+
     InstallPackageFromRegistry {
         tarball_mem_cache: &Default::default(),
         config,
@@ -340,6 +354,7 @@ async fn install_emits_progress_sequence() {
         alias: "@pnpm.e2e/hello-world-js-bin",
         resolution: &resolution,
         node_modules_dir: modules_dir.path(),
+        slot_dir: &slot_dir,
         first_visit: true,
     }
     .run::<RecordingReporter>()
@@ -426,6 +441,8 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
         policy_violation: None,
     };
 
+    let slot_dir = virtual_store_dir.path().join("bar@unused");
+
     let result = InstallPackageFromRegistry {
         tarball_mem_cache: &Default::default(),
         config,
@@ -438,6 +455,7 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
         alias: "bar",
         resolution: &resolution,
         node_modules_dir: modules_dir.path(),
+        slot_dir: &slot_dir,
         first_visit: true,
     }
     .run::<SilentReporter>()

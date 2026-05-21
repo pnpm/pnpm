@@ -42,6 +42,7 @@ sha2 = { workspace = true, features = ["asm"] }
 [dev-dependencies]
 pipe-trait        = { workspace = true }
 pretty_assertions = { workspace = true }
+sha2              = { workspace = true }
 tempfile          = { workspace = true }
 
 [lints]

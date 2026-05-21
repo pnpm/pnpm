@@ -88,11 +88,12 @@ pub struct VirtualStoreLayout {
 impl VirtualStoreLayout {
     /// Construct a layout that always uses the legacy
     /// `<root>/<flat-name>` shape, regardless of any
-    /// `enable_global_virtual_store` setting on `Config`. The
-    /// non-frozen install path uses this — GVS is scoped to
-    /// frozen-lockfile installs (pnpm/pacquet#432), so without-lockfile
-    /// callers stay on the project-local flat layout even when
-    /// `enable_global_virtual_store: true` is configured.
+    /// `enable_global_virtual_store` setting on `Config`. Reserved
+    /// for callers that must stay on the project-local flat layout
+    /// even under GVS — today no production install path uses this
+    /// directly. Both `InstallFrozenLockfile` and
+    /// `InstallWithoutLockfile` construct via [`Self::new`] so they
+    /// honor `Config::enable_global_virtual_store` consistently.
     pub fn legacy(root: impl Into<PathBuf>, virtual_store_dir_max_length: usize) -> Self {
         VirtualStoreLayout {
             package_store_dir: root.into(),
