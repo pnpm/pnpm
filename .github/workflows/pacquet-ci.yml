@@ -171,12 +171,15 @@ jobs:
         working-directory: pnpm
         env:
           PNPM_E2E_BIN: ${{ github.workspace }}/target/release/pacquet
-        # `pn test` would re-run compile; invoke jest directly with the
-        # same env the hidden `.test` script uses.
+          NODE_OPTIONS: --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169
+        # Invoke jest directly with `node` (the 22.13.0 we just pinned on PATH)
+        # rather than `pnpm exec jest`, since pnpm exec spawns under pnpm's own
+        # embedded Node 24.x which trips jest's ESM VM-modules path.
         run: |
-          pnpm exec cross-env \
-            NODE_OPTIONS="--experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" \
-            jest
+          node --version
+          jest_bin=$(pnpm exec which jest)
+          echo "jest binary: $jest_bin"
+          node "$jest_bin"
 
   doc:
     name: Doc
