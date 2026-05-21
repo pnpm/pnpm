@@ -6,8 +6,8 @@ importers:
   .:
     configDependencies:
       '@pnpm/pacquet':
-        specifier: 0.2.2
-        version: 0.2.2
+        specifier: 0.2.3
+        version: 0.2.3
     packageManagerDependencies:
       '@pnpm/exe':
         specifier: 11.2.2
@@ -18,63 +18,33 @@ importers:
 
 packages:
 
-  '@pacquet/darwin-arm64@0.2.2':
-    resolution: {integrity: sha512-HS/c7+X2NdWtFPYPpRTFmUzjZHvs4TttlOnkPdWG6sPAzRHRo0CkmRIuNzUKm5qUecXF0Au7F5UFv4LXtDG5cg==}
+  '@pacquet/darwin-arm64@0.2.3':
+    resolution: {integrity: sha512-+1QssynqGxI6adXmh39iFMmoVtxVGN14/H2D3KCL6g4Wd1CQyru9XIYahUtT44DIRgzAA3yqFCNXTfneiEAPIQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@pacquet/darwin-arm64@0.2.2-11':
-    resolution: {integrity: sha512-dilvI/rnqV75Ru97vZ7gjoqY7B8t/HZuX3kNiYKH7SUR8qj2n7BwT8yq8zW7gRr8ZekxLaQ6rfapbWgF7uvSDw==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@pacquet/darwin-x64@0.2.2':
-    resolution: {integrity: sha512-KFjN4rYUpzrzmFm99lac6Jlsr03b6h+artHbzkUyacFBQEdAOi8f70Zfb5dj4lXux9AjHHaYcGsTgf27aflVLQ==}
+  '@pacquet/darwin-x64@0.2.3':
+    resolution: {integrity: sha512-dPBLAyoscXYNzcIiRldeG52e9iLrqqSbXCtJx3DGV8GUpRVh+AoVmTtL9+25fQx7+b0C5+5Kel6tLVuztaz0zA==}
     cpu: [x64]
     os: [darwin]
 
-  '@pacquet/darwin-x64@0.2.2-11':
-    resolution: {integrity: sha512-6eoup3R3bG4Skhs5hSvCT5OwSWTXvr/gzJEB8mqYQAiV3F+YyL8aG7jVCYsY4kgDqPOX0J8mN6igMqj00rV2Lg==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@pacquet/linux-arm64@0.2.2':
-    resolution: {integrity: sha512-uITAM/A3LNcm6/LFgodc8PJWjvrE2QBGfVIHgjlsO5fYWmsIh2SeTayplW0q3lP5joFncnjUM3OtYA3kAK+1zA==}
+  '@pacquet/linux-arm64@0.2.3':
+    resolution: {integrity: sha512-wfQJOh+Clbwp4f6BChhibdnaQVjr/DM7wQkJEGjcbo3KYS6kf/w/jc3orQyvx5Rb7gwUEF7Rw/kLJrK1MorYBA==}
     cpu: [arm64]
     os: [linux]
 
-  '@pacquet/linux-arm64@0.2.2-11':
-    resolution: {integrity: sha512-GjphusAKSg+cXbMzNVXK7KOvCsfACHto2WREzDPc3R55qeihuXaS8HOYjI1MSpDqUKqHljUZlKuGvjfCEZR1PA==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@pacquet/linux-x64@0.2.2':
-    resolution: {integrity: sha512-pn6Co073gtScXanqwvWsHgVlQEDwi3ESoJoqmleQOOxO8lmD7NQ1le+zIjDweSEo5DzrQ2gRwfA/dU9upXU39A==}
+  '@pacquet/linux-x64@0.2.3':
+    resolution: {integrity: sha512-UUxHMXIHiDRANCGsctQe+P8sCED6NCjowjZwggIyeyoZE/O5hdyhm5H42hIBa3AUcdjWapl0ZT6Uq/DBj7M0fg==}
     cpu: [x64]
     os: [linux]
 
-  '@pacquet/linux-x64@0.2.2-11':
-    resolution: {integrity: sha512-9f718XH9EDErRiK3vZcvv2R8W1O05PZ6ymAsY2lpK4BBEDYgGlcc4G73m594DNnnG7zWuawwCtoXG0J3zdzswQ==}
-    cpu: [x64]
-    os: [linux]
-
-  '@pacquet/win32-arm64@0.2.2':
-    resolution: {integrity: sha512-En44PukETuveygUGSWCePlB8hwxG2jhkzl+SwuU4DOGLurjx5Sw63j429QVyj4l682uBT+gQ7VjIJbh/1xoGag==}
+  '@pacquet/win32-arm64@0.2.3':
+    resolution: {integrity: sha512-cjgHfHPDwRkbvzwk4rA3cJ10Uq/qztTI0UYs+lfk8Ax9zY8NnORRrp2M8XvQibZDpgdUT3J3a+tY66S7bwgorg==}
     cpu: [arm64]
     os: [win32]
 
-  '@pacquet/win32-arm64@0.2.2-11':
-    resolution: {integrity: sha512-OuMpQNQ/jCiCkTftJEujrbIgUll3qQRB2RbNqiOXEseS3l5IUQtyRStP5iOKzvkFkDE7Qv0xnXZdlewc7OEL7g==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@pacquet/win32-x64@0.2.2':
-    resolution: {integrity: sha512-w+ZR2LWRd3/6ULNPjzPWm8H5sB+VGo7P1LECGIxW2R9gH9NAkuQnlX4NAEZ/6GlWg4tKafUXXIjNU/LGZtnb+Q==}
-    cpu: [x64]
-    os: [win32]
-
-  '@pacquet/win32-x64@0.2.2-11':
-    resolution: {integrity: sha512-AmBZthoZ04RgkdMJ5/2TGxckvevEmVDO22tdcOdheOTYVU66aXuhvQJkp6ExICstFrh9v5i5V+4BxjpOD1mmhA==}
+  '@pacquet/win32-x64@0.2.3':
+    resolution: {integrity: sha512-U0DzrwKfeSt6GulCEVJdDPdH8WMpUw94RERMlCJVtUCOGBmCbQTAMsk02Frtq30dmIXZLpgkCY2vn94xOSqjGg==}
     cpu: [x64]
     os: [win32]
 
@@ -109,11 +79,8 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  '@pnpm/pacquet@0.2.2':
-    resolution: {integrity: sha512-oFVVa150B29UfYU3kDaVPCWbSQkPRZ+boCNwsdtmNLujbsDOysaNdCq8gqG49As8BhaOmOp8HO+Cko8XvY2Ikg==}
-
-  '@pnpm/pacquet@0.2.2-11':
-    resolution: {integrity: sha512-SAVtwWQbHCDYA1nrTbw9IZWn6/5Q117WykUWqWLXqmaa2kEYdtY1tuYTbtbcLw2vel1DiabzTXVnclmpbm6wIQ==}
+  '@pnpm/pacquet@0.2.3':
+    resolution: {integrity: sha512-tWvHDG9w0/eKcrAy68mH3YdqMJTVPCw8ZeIKowdRkV5IEg35LyNA4YWgp8zmpbDHBYrjZU+0Vv97uM1gqHFTIg==}
 
   '@pnpm/win-arm64@11.2.2':
     resolution: {integrity: sha512-eXzlXAnwRAI9Uff1U2pfTJxC78vL8aGxU/fsUt/RzWjS09xMQZ2qtAunKg869fAi6xfsquDbogkdTZA3163lIw==}
@@ -192,40 +159,22 @@ packages:
 
 snapshots:
 
-  '@pacquet/darwin-arm64@0.2.2':
+  '@pacquet/darwin-arm64@0.2.3':
     optional: true
 
-  '@pacquet/darwin-arm64@0.2.2-11':
+  '@pacquet/darwin-x64@0.2.3':
     optional: true
 
-  '@pacquet/darwin-x64@0.2.2':
+  '@pacquet/linux-arm64@0.2.3':
     optional: true
 
-  '@pacquet/darwin-x64@0.2.2-11':
+  '@pacquet/linux-x64@0.2.3':
     optional: true
 
-  '@pacquet/linux-arm64@0.2.2':
+  '@pacquet/win32-arm64@0.2.3':
     optional: true
 
-  '@pacquet/linux-arm64@0.2.2-11':
-    optional: true
-
-  '@pacquet/linux-x64@0.2.2':
-    optional: true
-
-  '@pacquet/linux-x64@0.2.2-11':
-    optional: true
-
-  '@pacquet/win32-arm64@0.2.2':
-    optional: true
-
-  '@pacquet/win32-arm64@0.2.2-11':
-    optional: true
-
-  '@pacquet/win32-x64@0.2.2':
-    optional: true
-
-  '@pacquet/win32-x64@0.2.2-11':
+  '@pacquet/win32-x64@0.2.3':
     optional: true
 
   '@pnpm/exe@11.2.2':
@@ -256,23 +205,14 @@ snapshots:
   '@pnpm/macos-arm64@11.2.2':
     optional: true
 
-  '@pnpm/pacquet@0.2.2':
+  '@pnpm/pacquet@0.2.3':
     optionalDependencies:
-      '@pacquet/darwin-arm64': 0.2.2
-      '@pacquet/darwin-x64': 0.2.2
-      '@pacquet/linux-arm64': 0.2.2
-      '@pacquet/linux-x64': 0.2.2
-      '@pacquet/win32-arm64': 0.2.2
-      '@pacquet/win32-x64': 0.2.2
-
-  '@pnpm/pacquet@0.2.2-11':
-    optionalDependencies:
-      '@pacquet/darwin-arm64': 0.2.2-11
-      '@pacquet/darwin-x64': 0.2.2-11
-      '@pacquet/linux-arm64': 0.2.2-11
-      '@pacquet/linux-x64': 0.2.2-11
-      '@pacquet/win32-arm64': 0.2.2-11
-      '@pacquet/win32-x64': 0.2.2-11
+      '@pacquet/darwin-arm64': 0.2.3
+      '@pacquet/darwin-x64': 0.2.3
+      '@pacquet/linux-arm64': 0.2.3
+      '@pacquet/linux-x64': 0.2.3
+      '@pacquet/win32-arm64': 0.2.3
+      '@pacquet/win32-x64': 0.2.3
 
   '@pnpm/win-arm64@11.2.2':
     optional: true
