@@ -683,29 +683,29 @@ export async function resolveDependencies (
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
   const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
   const pkgAddresses: PkgAddress[] = []
-  await Promise.all(
-    extendedWantedDeps.map(async (extendedWantedDep) => {
-      const {
-        resolveDependencyResult,
-        postponedResolution,
-        postponedPeersResolution,
-      } = await resolveDependenciesOfDependency(
-        ctx,
-        preferredVersions,
-        options,
-        extendedWantedDep
-      )
-      if (resolveDependencyResult) {
-        pkgAddresses.push(resolveDependencyResult as PkgAddress)
-      }
-      if (postponedResolution) {
-        postponedResolutionsQueue.push(postponedResolution)
-      }
-      if (postponedPeersResolution) {
-        postponedPeersResolutionQueue.push(postponedPeersResolution)
-      }
-    })
+  // Resolve in parallel, then drain the results in input order. Pushing
+  // from inside the Promise.all callbacks would leak completion-order timing
+  // into pkgAddresses / postponedResolutionsQueue, which downstream
+  // determines how cyclic peer suffixes are assigned. See pnpm/pnpm#8155.
+  const resolvedDependencies = await Promise.all(
+    extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
+      ctx,
+      preferredVersions,
+      options,
+      extendedWantedDep
+    ))
   )
+  for (const { resolveDependencyResult, postponedResolution, postponedPeersResolution } of resolvedDependencies) {
+    if (resolveDependencyResult) {
+      pkgAddresses.push(resolveDependencyResult as PkgAddress)
+    }
+    if (postponedResolution) {
+      postponedResolutionsQueue.push(postponedResolution)
+    }
+    if (postponedPeersResolution) {
+      postponedPeersResolutionQueue.push(postponedPeersResolution)
+    }
+  }
   const newPreferredVersions = Object.create(preferredVersions) as PreferredVersions
   const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
   for (const pkgAddress of pkgAddresses) {
