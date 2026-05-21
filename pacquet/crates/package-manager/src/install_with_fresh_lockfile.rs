@@ -76,7 +76,7 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 ///   `node_modules/.pacquet/{name}@{version}/node_modules/`.
 /// * Create a symbolic link at `node_modules/{name}`.
 /// * Run the resolved graph through
-///   [`crate::dependencies_graph_to_lockfile`] to produce a v9
+///   [`crate::dependencies_graph_to_lockfile()`] to produce a v9
 ///   `pnpm-lock.yaml`; the caller writes it to `<lockfile_dir>/pnpm-lock.yaml`.
 #[must_use]
 pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
@@ -583,7 +583,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 /// [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts)
 /// then the
 /// [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
-/// fan-out, with [`dependencies_graph_to_lockfile`] doing the wire-shape lifting.
+/// fan-out, with [`dependencies_graph_to_lockfile()`] doing the wire-shape lifting.
 fn build_fresh_lockfile(
     config: &Config,
     manifest: &PackageManifest,

@@ -366,7 +366,7 @@ fn build_peer_dep_blocks(node: &DependenciesGraphNode) -> PeerDepBlocks {
 ///
 /// `optional` is left `false` here — pacquet's resolver does not yet
 /// track the per-snapshot "reachable only via an optional edge" flag
-/// that upstream's [`ResolvedPackage.optional`] propagation produces.
+/// that upstream's `ResolvedPackage.optional` propagation produces.
 /// The downstream consumer
 /// ([`BuildModules`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L218-L240))
 /// treats `optional: false` as "build failures are fatal," which

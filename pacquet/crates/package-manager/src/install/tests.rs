@@ -3313,15 +3313,12 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
 
     let importer = lockfile.root_project().expect("root importer");
     let prod = importer.dependencies.as_ref().expect("prod section");
-    assert!(prod.contains_key(
-        &pacquet_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap(),
-    ));
-    assert!(
-        !prod.contains_key(&pacquet_lockfile::PkgName::parse("@pnpm/xyz").unwrap()),
-        "dev dep stays out of the prod section",
-    );
+    let hello_key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
+    let xyz_key = pacquet_lockfile::PkgName::parse("@pnpm/xyz").unwrap();
+    assert!(prod.contains_key(&hello_key));
+    assert!(!prod.contains_key(&xyz_key), "dev dep stays out of the prod section");
     let dev = importer.dev_dependencies.as_ref().expect("dev section");
-    assert!(dev.contains_key(&pacquet_lockfile::PkgName::parse("@pnpm/xyz").unwrap()));
+    assert!(dev.contains_key(&xyz_key));
 
     drop((dir, mock_instance));
 }
