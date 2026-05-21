@@ -406,10 +406,10 @@ where
             // `BTreeMap` internally to match upstream's
             // `equals(lockfile.overrides ?? {}, overrides ?? {})`),
             // so a flat clone into `HashMap` here is fine.
-            let overrides_map: Option<std::collections::HashMap<String, String>> =
-                config.overrides.as_ref().map(|map| {
-                    map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()
-                });
+            let overrides_map: Option<std::collections::HashMap<String, String>> = config
+                .overrides
+                .as_ref()
+                .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect());
             pacquet_lockfile::check_lockfile_settings(
                 lockfile,
                 overrides_map.as_ref(),
