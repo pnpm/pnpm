@@ -664,6 +664,6 @@ mod patched_dependencies {
         )
         .await
         .unwrap_err();
-        assert!(matches!(err, ResolveDependencyTreeError::PatchKeyConflict(_)), "got: {err:?}",);
+        assert!(matches!(err, ResolveDependencyTreeError::PatchKeyConflict(_)), "got: {err:?}");
     }
 }
