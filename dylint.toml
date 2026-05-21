@@ -40,23 +40,11 @@ ignore = [
     "params",
 ]
 
-# Enforce a single canonical ordering inside every `#[derive(...)]`
-# attribute. The codebase has ~270 derive sites in 79 distinct
-# orderings before this rule; the prefix below encodes the
-# conventions that already dominate (Debug first, error-chain
-# `Display→Error→Diagnostic` together, supertraits before subtraits,
-# serde at the end) and alphabetises everything past the long tail.
-# Trait matching is on the final path segment, so `derive_more::Display`
-# / `miette::Diagnostic` / `clap::Parser` match `Display` / `Diagnostic`
-# / `Parser` respectively.
 [perfectionist]
 enable = ["derive_ordering"]
-# `arc_rc_clone` is enforced by `clippy::clone_on_ref_ptr` instead — see
-# `[workspace.lints.clippy]` in the root `Cargo.toml`. Consolidating on the
-# clippy rule keeps the requirement visible to anyone running `cargo clippy`
-# without the Dylint job, and drops the perfectionist tag from the linter
-# matrix for this particular finding.
-disable = ["arc_rc_clone"]
+disable = [
+  { name = "arc_rc_clone", reason = "`arc_rc_clone` is enforced by `clippy::clone_on_ref_ptr` instead" },
+]
 
 ["perfectionist::derive_ordering"]
 style = "prefix_then_alphabetical"
