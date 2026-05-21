@@ -131,14 +131,16 @@ jobs:
       - name: Build pacquet release binary
         run: cargo build --locked --release --bin pacquet
 
-      - name: Install pnpm
-        # Leave `runtime:` unset so pnpm uses the runner's pre-installed Node
-        # for tooling, and `pnx node@runtime:24.6.0` (used by `pn bundle`) can
-        # still fetch its own pinned Node version on demand. Pinning a runtime
-        # here breaks that fetch with ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND.
+      - name: Install pnpm and Node
+        # Match the runtime pin test.yml uses for the standard e2e job, so
+        # jest later runs under the same Node those tests are known to pass
+        # on. The bundle step is gone (PNPM_E2E_BIN points at pacquet, so
+        # `dist/pnpm.mjs` is never used), so the earlier
+        # `pnx node@runtime:24.6.0` collision no longer applies.
         uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
         with:
           install: false
+          runtime: node@22.13.0
 
       - name: Cache pnpm
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -155,34 +157,24 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
-      - name: Compile TypeScript (bundles pnpm)
-        run: pn compile-only
-
-      - name: Set up Node.js for jest
-        # `pn compile-only` shells out to `pnx node@runtime:24.6.0` for bundling,
-        # which needs an unpinned runtime to resolve. Newer Node 24.x patches on
-        # the runner image trip jest's ESM VM-modules path with "module is
-        # already linked"; pin Node 22.13.0 on PATH for the test step only.
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: '22.13.0'
+      - name: Compile workspace packages
+        # `pn compile-only` shells out to `pnx node@runtime:24.6.0` for the
+        # typecheck-only script and `pn bundle`, both of which collide with
+        # the runtime we just pinned. We only need the workspace lib/ outputs
+        # the e2e tests import from — `tsgo --build` covers that without
+        # touching the bundle.
+        run: pnpm exec tsgo --build
 
       - name: Run pnpm e2e against pacquet
         working-directory: pnpm
         env:
           PNPM_E2E_BIN: ${{ github.workspace }}/target/release/pacquet
           NODE_OPTIONS: --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169
-        # Invoke the jest shim directly so it runs under the Node 22.13.0 we
-        # just put on PATH. `pnpm exec jest` spawns under pnpm's own embedded
-        # Node 24.x, which trips jest's ESM VM-modules path with
-        # "module is already linked".
-        # `--runInBand` keeps jest's ESM VM-modules loader in one process. With
-        # `--experimental-vm-modules` and multiple worker processes the same
-        # module ends up linked twice and every suite errors with
-        # "module is already linked".
-        run: |
-          node --version
-          ${{ github.workspace }}/node_modules/.bin/jest --runInBand
+        # `pnpm exec jest` runs jest under the pinned Node 22.13.0 — the same
+        # path the standard test.yml job uses, where this exact suite passes
+        # cleanly. Running jest under any other Node binary (PATH, embedded)
+        # has hit the "module is already linked" VM-modules regression.
+        run: pnpm exec jest
 
   doc:
     name: Doc
