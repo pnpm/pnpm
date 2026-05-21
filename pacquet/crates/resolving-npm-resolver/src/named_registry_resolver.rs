@@ -155,6 +155,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             NAMED_REGISTRY_RESOLVED_VIA,
             opts.published_by,
             opts.published_by_exclude.as_ref(),
+            registry,
             &self.picked_manifest_cache,
         )?;
 

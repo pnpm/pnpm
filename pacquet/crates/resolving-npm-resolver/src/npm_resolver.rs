@@ -228,6 +228,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             NPM_REGISTRY_RESOLVED_VIA,
             opts.published_by,
             opts.published_by_exclude.as_ref(),
+            &registry,
             &self.picked_manifest_cache,
         )?;
 
@@ -275,6 +276,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             JSR_REGISTRY_RESOLVED_VIA,
             opts.published_by,
             opts.published_by_exclude.as_ref(),
+            registry,
             &self.picked_manifest_cache,
         )?;
 
@@ -394,6 +396,7 @@ pub(crate) fn build_resolve_result(
     resolved_via: &str,
     published_by: Option<DateTime<Utc>>,
     published_by_exclude: Option<&PackageVersionPolicy>,
+    registry: &str,
     picked_manifest_cache: &crate::PickedManifestCache,
 ) -> Result<ResolveResult, ResolveError> {
     let pkg_name =
@@ -417,9 +420,16 @@ pub(crate) fn build_resolve_result(
     });
     let published_at = meta.published_at(&version_str).map(str::to_string);
     // Dedupe `serde_json::to_value(picked)` across picks of the
-    // same `(pkg_name, version)` pair — see [`PickedManifestCache`]
-    // for the rationale.
-    let manifest_cache_key = format!("{}@{version_str}", picked.name);
+    // same `(registry, pkg_name, version)` triple — see
+    // [`PickedManifestCache`] for the rationale. The cache is shared
+    // across the npm / JSR / named-registry resolvers, so the key
+    // has to scope by `registry` too; two registries may serve
+    // different artifacts under the same `name@version`, and
+    // collapsing them would hand the second registry's resolver
+    // the first registry's manifest — wrong dependency graph,
+    // wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
+    // `{registry}\x00{name}` scoping shape.
+    let manifest_cache_key = format!("{registry}\x00{}@{version_str}", picked.name);
     let manifest = match picked_manifest_cache.get(&manifest_cache_key) {
         Some(cached) => Some(Arc::clone(cached.value())),
         None => {

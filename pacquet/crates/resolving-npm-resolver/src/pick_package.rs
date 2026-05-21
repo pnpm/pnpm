@@ -137,20 +137,27 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
     Arc::new(DashMap::new())
 }
 
-/// Per-`(pkg_name, version)` cache for the resolver's serialized
-/// `manifest` JSON. The npm resolver builds
+/// Per-`(registry, pkg_name, version)` cache for the resolver's
+/// serialized `manifest` JSON. The npm resolver builds
 /// [`pacquet_resolving_resolver_base::ResolveResult`]'s `manifest`
 /// field via `serde_json::to_value(picked)`; when many resolves
 /// pick the same version of the same package (the common case for
 /// shared deps like `react`, `lodash`, ...) every duplicate would
 /// otherwise re-walk and re-allocate the same JSON tree. Cache the
-/// `Arc<Value>` once per `(pkg_name, version)` pair so the second
-/// pick onwards is an `Arc::clone` instead of a full reserialise.
+/// `Arc<Value>` once per `(registry, pkg_name, version)` triple so
+/// the second pick onwards is an `Arc::clone` instead of a full
+/// reserialise.
 ///
-/// Shared across [`crate::NpmResolver`] and
-/// [`crate::NamedRegistryResolver`] for the same reasons
-/// [`PackumentFetchLocker`] is — both resolvers can pick the same
-/// `(pkg_name, version)` pair in one install.
+/// Shared across [`crate::NpmResolver`] (default + JSR registries)
+/// and [`crate::NamedRegistryResolver`] (`<alias>:` specifiers).
+/// The key includes `registry` because two registries can serve
+/// different artifacts under the same `name@version` — a public
+/// `lodash@4.17.21` and a privately-hosted package of the same
+/// name-version pair are not interchangeable, and a registry-
+/// agnostic key would hand one resolver the other's manifest,
+/// breaking the downstream dependency graph / peer extraction /
+/// lockfile metadata. Same `{registry}\x00…` scoping shape as
+/// [`PackageMetaCache`].
 pub type PickedManifestCache = Arc<DashMap<String, Arc<serde_json::Value>>>;
 
 /// Construct a fresh [`PickedManifestCache`] for a new install.
