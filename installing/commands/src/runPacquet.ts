@@ -211,11 +211,18 @@ function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm
  * NDJSON-to-streamParser plumbing the default reporter relies on.
  */
 function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
-  const positionals = new Set(argv.remain)
   const result: string[] = []
+  // `argv.remain` is the ordered subsequence of positionals nopt
+  // extracted from `original`. Match by index rather than by value so
+  // an option's value that happens to equal a positional (e.g.
+  // `--node-linker install`) isn't mistaken for the positional itself.
+  let positionalIdx = 0
   for (let i = 0; i < argv.original.length; i++) {
     const arg = argv.original[i]
-    if (positionals.has(arg)) continue
+    if (positionalIdx < argv.remain.length && arg === argv.remain[positionalIdx]) {
+      positionalIdx++
+      continue
+    }
     if (isAlwaysInjected(arg)) continue
     if (arg.startsWith('--reporter=')) continue
     if (arg === '--reporter') {
@@ -246,17 +253,26 @@ function isAlwaysInjected (arg: string): boolean {
  * etc.) so listing them to the user makes the "not forwarded" surface
  * concrete.
  *
- * Flags we explicitly emit ourselves (`--frozen-lockfile`,
- * `--reporter=ndjson`) are filtered out: they're honored, so warning
- * about them would be misleading. `--config.*` is filtered too —
- * those configure pnpm's runtime and aren't intended for the install
- * engine.
+ * Flags pnpm itself honors before delegation are filtered out —
+ * warning about them would be misleading: `--frozen-lockfile` and
+ * `--ignore-manifest-check` in every shape (positive / negated /
+ * `=value`); `--reporter` in every shape (`--reporter=foo`,
+ * `--reporter foo`); and `--config.*` (configures pnpm's runtime,
+ * not the install engine).
  */
 function collectDroppedFlags (argv: { original: string[] }): string[] {
-  return argv.original.filter((arg) => {
-    if (!arg.startsWith('-')) return false
-    if (arg === '--frozen-lockfile' || arg === '--reporter=ndjson') return false
-    if (arg.startsWith('--config.')) return false
-    return true
-  })
+  const result: string[] = []
+  for (let i = 0; i < argv.original.length; i++) {
+    const arg = argv.original[i]
+    if (!arg.startsWith('-')) continue
+    if (isAlwaysInjected(arg)) continue
+    if (arg.startsWith('--config.')) continue
+    if (arg.startsWith('--reporter=')) continue
+    if (arg === '--reporter') {
+      i++
+      continue
+    }
+    result.push(arg)
+  }
+  return result
 }
