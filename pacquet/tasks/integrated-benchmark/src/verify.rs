@@ -12,11 +12,35 @@ pub async fn ensure_virtual_registry(registry: &str) {
     };
 }
 
-pub fn ensure_git_repo(path: &Path) {
-    assert!(path.is_dir());
-    assert!(path.join(".git").is_dir());
-    assert!(path.join("Cargo.toml").is_file());
-    assert!(path.join("Cargo.lock").is_file());
+/// Common git-repo check. Asserts `<path>/.git` exists.
+fn ensure_git_repo_common(path: &Path) {
+    assert!(path.is_dir(), "{path:?} is not a directory");
+    assert!(path.join(".git").is_dir(), "{path:?} is not a git repository");
+}
+
+/// Assert that `path` is a git checkout of the pacquet codebase.
+pub fn ensure_pacquet_git_repo(path: &Path) {
+    ensure_git_repo_common(path);
+    assert!(path.join("Cargo.toml").is_file(), "{path:?} has no Cargo.toml — pacquet checkout?");
+    assert!(path.join("Cargo.lock").is_file(), "{path:?} has no Cargo.lock — pacquet checkout?");
+}
+
+/// Assert that `path` is a git checkout of pnpm's source — the
+/// `pnpm/pnpm` monorepo. Looks for `pnpm/package.json` (the CLI
+/// package's manifest, present in every revision since pnpm became a
+/// monorepo) or `pnpm-workspace.yaml` at the root; either marker is
+/// enough. Doesn't support a hypothetical layout where pnpm's source
+/// lives directly at the repo root (no `pnpm/` subdir, no workspace
+/// manifest) — that's not a shape pnpm ships in.
+pub fn ensure_pnpm_git_repo(path: &Path) {
+    ensure_git_repo_common(path);
+    let has_pnpm_dir = path.join("pnpm").join("package.json").is_file();
+    let has_workspace_yaml = path.join("pnpm-workspace.yaml").is_file();
+    assert!(
+        has_pnpm_dir || has_workspace_yaml,
+        "{path:?} doesn't look like a pnpm checkout — \
+         expected `pnpm/package.json` or `pnpm-workspace.yaml` at the root",
+    );
 }
 
 pub fn ensure_program(program: &str) -> Command {
@@ -38,7 +62,15 @@ where
             eprintln!("Revision {revision:?} is invalid");
             panic!("Revision cannot start with a dot");
         }
-        let invalid_char = revision.chars().find(|char| !matches!(char, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '+' | '.' | '~' | '^'));
+        // `@` is allowed so tag-with-suffix revisions like `v1.0.0@sha`
+        // reach git intact. Git's reflog syntax (`HEAD@{1}`) needs `{`
+        // and `}` which remain rejected — that's intentional, the bench
+        // doesn't support reflog revisions and the curly braces are
+        // shell-metacharacters we don't want to embed in bench-dir names.
+        // `/` is also rejected: a revision like `origin/main` would
+        // produce a nested bench-dir path (`pnpm@origin/main/`) — callers
+        // should pre-resolve remote-tracking refs to a local branch or SHA.
+        let invalid_char = revision.chars().find(|char| !matches!(char, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '+' | '.' | '~' | '^' | '@'));
         if let Some(char) = invalid_char {
             eprintln!("Revision {revision:?} is invalid");
             panic!("Invalid character: {char:?}");
