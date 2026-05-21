@@ -140,7 +140,7 @@ async fn warm_in_memory_cache_skips_network() {
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     // Cache key is `<registry>\x00<name>` — pre-seed at the same
     // key the orchestrator will look up on the first call.
-    meta_cache.set(format!("{registry}\x00acme"), preloaded);
+    meta_cache.set(format!("{registry}\x00acme"), std::sync::Arc::new(preloaded));
 
     let ctx = PickPackageContext {
         http_client: &http_client,

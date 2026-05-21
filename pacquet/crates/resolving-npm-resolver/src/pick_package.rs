@@ -91,13 +91,20 @@ use crate::{
 /// std `Mutex`; a tokio-aware variant can land later if the
 /// contention shows up in benchmarks.
 pub trait PackageMetaCache: Send + Sync {
-    /// Cloned snapshot of the cached packument for `key`, or `None`
-    /// when the cache hasn't seen it.
-    fn get(&self, key: &str) -> Option<Package>;
+    /// Shared handle to the cached packument for `key`, or `None`
+    /// when the cache hasn't seen it. Returned as
+    /// [`Arc<Package>`] so cross-resolve sharing of a popular
+    /// packument (`react`, `lodash`, …) doesn't deep-clone the
+    /// full versions map on every consumer's hit. Mirrors JS
+    /// `Map.get` semantics — pnpm's metaCache returns object
+    /// references, not copies, and pacquet matches that contract.
+    fn get(&self, key: &str) -> Option<Arc<Package>>;
     /// Insert/overwrite `meta` under `key`. The orchestrator only
     /// inserts after a fresh fetch — never replays a stale on-disk
-    /// load.
-    fn set(&self, key: String, meta: Package);
+    /// load. Takes [`Arc<Package>`] so callers can share the same
+    /// handle they hand back to [`PickPackageResult`] without an
+    /// extra clone.
+    fn set(&self, key: String, meta: Arc<Package>);
 }
 
 /// Per-`(registry, package_name)` fetch serializer. Mirrors
@@ -136,20 +143,20 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 /// this.
 #[derive(Debug, Default)]
 pub struct InMemoryPackageMetaCache {
-    inner: Mutex<HashMap<String, Package>>,
+    inner: Mutex<HashMap<String, Arc<Package>>>,
 }
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
-    fn get(&self, key: &str) -> Option<Package> {
+    fn get(&self, key: &str) -> Option<Arc<Package>> {
         // Mirror the rest of the codebase (e.g. `build_modules.rs`):
         // recover from poisoning instead of escalating an unrelated
         // panic into a hard install-wide failure. The cache is a
-        // plain HashMap of cloneable values — no broken invariants
+        // plain HashMap of `Arc<Package>` — no broken invariants
         // can survive across a poisoned lock.
-        self.inner.lock().unwrap_or_else(|err| err.into_inner()).get(key).cloned()
+        self.inner.lock().unwrap_or_else(|err| err.into_inner()).get(key).map(Arc::clone)
     }
 
-    fn set(&self, key: String, meta: Package) {
+    fn set(&self, key: String, meta: Arc<Package>) {
         self.inner.lock().unwrap_or_else(|err| err.into_inner()).insert(key, meta);
     }
 }
@@ -242,10 +249,13 @@ pub struct PickPackageOptions<'a> {
 }
 
 /// Outcome of a successful [`pick_package`] call. Mirrors
-/// upstream's `{ meta, pickedPackage }`.
+/// upstream's `{ meta, pickedPackage }`. `meta` is shared as
+/// [`Arc<Package>`] so a hit on the in-memory cache doesn't
+/// deep-clone the packument; the upgrade-on-release-age path
+/// rebuilds the `Arc` only when it actually replaces the body.
 #[derive(Debug)]
 pub struct PickPackageResult {
-    pub meta: Package,
+    pub meta: Arc<Package>,
     pub picked_package: Option<PackageVersion>,
 }
 
@@ -429,11 +439,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         .await;
     }
 
-    let mut meta_cached_in_store: Option<Package> = None;
+    let mut meta_cached_in_store: Option<Arc<Package>> = None;
 
     // 2. Offline / pickLowestVersion / preferOffline disk read.
     if ctx.offline || ctx.prefer_offline || opts.pick_lowest_version {
-        meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await;
+        meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
 
         if ctx.offline {
             if let Some(meta) = meta_cached_in_store {
@@ -461,7 +471,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 if let Some(path) = pkg_mirror.as_deref() {
                     persist_upgraded_to_mirror(path, &meta);
                 }
-                ctx.meta_cache.set(cache_key.clone(), meta.clone());
+                ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
             }
             let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
             if picked.is_some() {
@@ -478,7 +488,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // 3. Version-spec fast path.
     if !opts.include_latest_tag && matches!(spec.spec_type, RegistryPackageSpecType::Version) {
         if meta_cached_in_store.is_none() {
-            meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await;
+            meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }
         if let Some(ref meta) = meta_cached_in_store
             && meta.versions.contains_key(&spec.fetch_spec)
@@ -492,7 +502,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // always full so this branch shouldn't fire today,
             // but the swallow-and-fall-through matches upstream.
             if let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta) {
-                return Ok(PickPackageResult { meta: meta.clone(), picked_package: Some(picked) });
+                return Ok(PickPackageResult {
+                    meta: Arc::clone(meta),
+                    picked_package: Some(picked),
+                });
             }
         }
     }
@@ -503,12 +516,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         && mtime >= published_by
     {
         if meta_cached_in_store.is_none() {
-            meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await;
+            meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }
         if let Some(ref meta) = meta_cached_in_store
             && let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta)
         {
-            return Ok(PickPackageResult { meta: meta.clone(), picked_package: Some(picked) });
+            return Ok(PickPackageResult { meta: Arc::clone(meta), picked_package: Some(picked) });
         }
     }
 
@@ -527,7 +540,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
     let fetch_result = fetch_full_metadata_cached(&spec.name, &fetch_opts).await;
     let meta = match fetch_result {
-        Ok(meta) => meta,
+        Ok(meta) => Arc::new(meta),
         Err(error) => {
             // The fetcher already saved a 200 to disk before it
             // returned (when it returned Ok). If it returned Err,
@@ -535,7 +548,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // enough to pick from, even if the latest sync failed.
             let disk_fallback = match meta_cached_in_store {
                 Some(meta) => Some(meta),
-                None => load_meta_async(pkg_mirror.as_deref()).await,
+                None => load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new),
             };
             if let Some(disk) = disk_fallback {
                 tracing::debug!(
@@ -578,7 +591,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // refactor that threads `dry_run` into the fetcher can restore
     // upstream's no-disk-side-effect dry-run.
     if !opts.dry_run {
-        ctx.meta_cache.set(cache_key, meta.clone());
+        ctx.meta_cache.set(cache_key, Arc::clone(&meta));
     }
     let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
     Ok(PickPackageResult { meta, picked_package: picked })
@@ -605,7 +618,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     full_metadata: bool,
     cache_key: &str,
     pkg_mirror: Option<&Path>,
-    cached: Package,
+    cached: Arc<Package>,
 ) -> Result<PickPackageResult, PickPackageError> {
     let upgrade =
         maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached)
@@ -618,7 +631,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         if let Some(path) = pkg_mirror {
             persist_upgraded_to_mirror(path, &meta);
         }
-        ctx.meta_cache.set(cache_key.to_string(), meta.clone());
+        ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
     let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
     Ok(PickPackageResult { meta, picked_package: picked })
@@ -914,9 +927,9 @@ pub fn shared_in_memory_cache() -> Arc<InMemoryPackageMetaCache> {
 /// Outcome of [`maybe_upgrade_abbreviated_meta_for_release_age`].
 struct UpgradeOutcome {
     /// The packument the orchestrator should pick from. Either the
-    /// original meta (when no upgrade was needed) or the freshly
-    /// fetched full meta.
-    meta: Package,
+    /// original meta (no-upgrade arm — same `Arc` as the input) or
+    /// a freshly fetched full meta wrapped in a new `Arc`.
+    meta: Arc<Package>,
     /// `true` when the orchestrator should persist `meta` to the
     /// abbreviated mirror and write it back to the in-memory cache.
     /// Matches upstream's `upgradedFrom != null` branch.
@@ -967,7 +980,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     spec: &RegistryPackageSpec,
     opts: &PickPackageOptions<'_>,
     full_metadata: bool,
-    meta: Package,
+    meta: Arc<Package>,
 ) -> Result<UpgradeOutcome, PickPackageError> {
     if ctx.offline || full_metadata {
         return Ok(UpgradeOutcome { meta, upgraded: false });
@@ -1005,7 +1018,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     };
     match fetch_full_metadata(&spec.name, &fetch_opts).await? {
         FetchFullMetadataOutcome::Modified(upgraded) => {
-            Ok(UpgradeOutcome { meta: *upgraded, upgraded: true })
+            Ok(UpgradeOutcome { meta: Arc::new(*upgraded), upgraded: true })
         }
         // 304: the full-form representation matched the conditional
         // headers, so the abbreviated meta is still the freshest

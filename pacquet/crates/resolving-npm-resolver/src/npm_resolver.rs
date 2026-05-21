@@ -370,8 +370,10 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
 }
 
 /// Picker output threaded through to [`build_resolve_result`].
+/// `meta` is shared as [`Arc<Package>`] to avoid deep-cloning the
+/// full packument (with all versions) on every pick.
 pub(crate) struct PickedFromRegistry {
-    pub(crate) meta: Package,
+    pub(crate) meta: std::sync::Arc<Package>,
     pub(crate) version: PackageVersion,
 }
 
