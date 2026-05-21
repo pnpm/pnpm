@@ -164,7 +164,7 @@ impl BenchmarkScenario {
         Text: Into<String>,
         LoadLockfile: FnOnce() -> Text,
     {
-        if self.lockfile_enabled() { Some(load_lockfile().into()) } else { None }
+        self.lockfile_enabled().then(|| load_lockfile().into())
     }
 
     /// Per-iteration cleanup (paths to remove and saved copies to
