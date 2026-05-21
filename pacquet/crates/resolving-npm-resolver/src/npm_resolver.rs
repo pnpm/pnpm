@@ -93,6 +93,12 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub meta_cache: Arc<Cache>,
+    /// Per-cache-key packument fetch serializer. Shared across this
+    /// resolver and the sibling [`crate::NamedRegistryResolver`] so
+    /// concurrent picks for the same `(registry, name)` coalesce
+    /// into one network fetch. Construct via
+    /// [`crate::shared_packument_fetch_locker`] once per install.
+    pub fetch_locker: crate::PackumentFetchLocker,
     /// Root of the on-disk metadata mirror. `None` disables every
     /// disk read/write — the picker goes straight to the network on
     /// each cache miss.
@@ -293,6 +299,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
             meta_cache: self.meta_cache.as_ref(),
+            fetch_locker: &self.fetch_locker,
             cache_dir: self.cache_dir.as_deref(),
             offline: self.offline,
             prefer_offline: self.prefer_offline,

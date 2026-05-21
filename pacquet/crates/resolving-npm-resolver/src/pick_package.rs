@@ -30,13 +30,25 @@
 //! silently degrading to its warn-and-skip fallback. Ports upstream's
 //! [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L450-L501).
 //!
-//! Concurrency: upstream uses `p-limit(1)` keyed on the mirror path
-//! to serialize disk operations. Pacquet relies on the atomic
-//! rename in [`crate::mirror::save_meta`] for write safety, and on
-//! [`std::sync::Mutex`]-guarded in-memory caches for reader
-//! coordination. The per-mirror limiter is omitted; if a future
-//! issue forces serialization (Windows file-lock contention, e.g.)
-//! it would land here as a map of `tokio::sync::Mutex` values.
+//! Concurrency: upstream's
+//! [`runLimited(pkgMirror, …)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52)
+//! wraps the post-cache-miss flow in a `pLimit(1)` keyed by the
+//! mirror path so concurrent picks for the same package coalesce
+//! into a single network fetch — the rest wait, then re-check the
+//! in-memory cache that the winner just populated and short-circuit
+//! without hitting the registry. Pacquet ports this via
+//! [`PackumentFetchLocker`], a [`DashMap<String, Arc<Semaphore>>`]
+//! threaded through [`PickPackageContext::fetch_locker`]: the first
+//! caller for a given cache key acquires the per-key permit and
+//! does the disk + network work; subsequent callers wait on the
+//! permit and (per pnpm's runLimited semantics) re-check
+//! [`PackageMetaCache`] after acquiring so the winner's
+//! [`PackageMetaCache::set`] short-circuits the rest. Without this,
+//! pacquet was firing N concurrent HTTP GETs for the same packument
+//! per cluster of cross-referencing deps, queued behind the
+//! `ThrottledClient` semaphore — multiplying packument-fetch
+//! wall-clock by the dedup factor and putting the resolve walk
+//! 3-5× behind pnpm on the `alotta-files` benchmark.
 
 use std::{
     collections::HashMap,
@@ -45,12 +57,14 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::version_policy::PackageVersionPolicy;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::VersionSelectors;
+use tokio::sync::Semaphore;
 
 use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchMetadataError,
@@ -86,6 +100,36 @@ pub trait PackageMetaCache: Send + Sync {
     fn set(&self, key: String, meta: Package);
 }
 
+/// Per-`(registry, package_name)` fetch serializer. Mirrors
+/// upstream's [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L42-L44)
+/// — a map of `pLimit(1)` instances keyed on the on-disk mirror
+/// path, used by [`runLimited`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
+/// to coalesce concurrent picks for the same packument.
+///
+/// Pacquet stores one [`tokio::sync::Semaphore`] (single-permit) per
+/// in-memory cache key; first caller acquires, runs the
+/// disk-then-network flow, releases. Subsequent callers wait on the
+/// same semaphore; after acquiring, they re-check
+/// [`PackageMetaCache`] and short-circuit on a hit so only the first
+/// caller hits the network.
+///
+/// Shared across every [`PickPackageContext`] in a single install so
+/// the npm and named-registry resolvers coalesce against the same
+/// in-flight set. Keying is on the same string [`PackageMetaCache`]
+/// uses (`{registry}\x00{name}` for abbreviated,
+/// `{registry}\x00{name}:full` for full), so two callers asking for
+/// different forms of the same packument don't accidentally serialize
+/// — pnpm scopes its `runLimited` the same way (per `pkgMirror`,
+/// which embeds the `metaDir` differentiator).
+pub type PackumentFetchLocker = Arc<DashMap<String, Arc<Semaphore>>>;
+
+/// Construct a fresh [`PackumentFetchLocker`] for a new install.
+/// Equivalent to `Default::default()`; named for symmetry with
+/// [`shared_in_memory_cache`].
+pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
+    Arc::new(DashMap::new())
+}
+
 /// Default thread-safe [`PackageMetaCache`] backed by a [`Mutex`]
 /// guarding a [`HashMap`]. A consumer that already has its own
 /// shared map can implement the trait directly instead of using
@@ -118,6 +162,12 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
     pub meta_cache: &'a Cache,
+    /// Per-cache-key fetch serializer. See [`PackumentFetchLocker`]
+    /// for the rationale. Construct once per install via
+    /// [`shared_packument_fetch_locker`] and thread the same handle
+    /// through every [`PickPackageContext`] so the npm and named-
+    /// registry resolvers coalesce against the same in-flight set.
+    pub fetch_locker: &'a PackumentFetchLocker,
     /// Root of the on-disk metadata mirror. `None` disables every
     /// disk path — the orchestrator goes straight to the network.
     pub cache_dir: Option<&'a Path>,
@@ -324,21 +374,59 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
     // 1. In-memory cache.
     if let Some(cached) = ctx.meta_cache.get(&cache_key) {
-        let upgrade =
-            maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached)
-                .await?;
-        let meta = upgrade.meta;
-        if upgrade.upgraded && !opts.dry_run {
-            // Persist so a fresh process doesn't re-trigger the
-            // upgrade fetch on its next install. Matches upstream's
-            // [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
-            if let Some(path) = pkg_mirror.as_deref() {
-                persist_upgraded_to_mirror(path, &meta);
-            }
-            ctx.meta_cache.set(cache_key.clone(), meta.clone());
-        }
-        let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
-        return Ok(PickPackageResult { meta, picked_package: picked });
+        return handle_cache_hit(
+            ctx,
+            spec,
+            opts,
+            &picker_opts,
+            full_metadata,
+            &cache_key,
+            pkg_mirror.as_deref(),
+            cached,
+        )
+        .await;
+    }
+
+    // Per-cache-key fetch serializer. Mirrors upstream's
+    // [`runLimited(pkgMirror, …)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
+    // pLimit(1): concurrent picks for the same packument coalesce
+    // into a single network fetch. The first caller for `cache_key`
+    // acquires the permit and runs steps 2-5; the rest park here
+    // and, after acquiring, re-check the in-memory cache so the
+    // winner's [`PackageMetaCache::set`] short-circuits them
+    // without re-fetching. Without this, `try_join_all` over the
+    // resolved tree fires N concurrent HTTP GETs per shared
+    // packument (e.g. every `react-*` dep racing for `react`), each
+    // queued behind the [`ThrottledClient`] semaphore — the
+    // 3-5× resolve-walk gap the
+    // [`alotta-files` benchmark]([../../../../../pnpm.io/benchmarks/results/pnpm12])
+    // surfaced.
+    let limit = {
+        let entry = ctx
+            .fetch_locker
+            .entry(cache_key.clone())
+            .or_insert_with(|| Arc::new(Semaphore::new(1)));
+        Arc::clone(entry.value())
+    };
+    let _permit = limit.acquire().await.expect("packument fetch semaphore should not be closed");
+
+    // Re-check in-memory cache after acquiring the permit — the
+    // previous permit holder may have just populated it. Without
+    // this re-check, every duplicate caller would still fall
+    // through to the disk + network path even though they were
+    // waiting precisely for the winner's fetch to complete.
+    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+        return handle_cache_hit(
+            ctx,
+            spec,
+            opts,
+            &picker_opts,
+            full_metadata,
+            &cache_key,
+            pkg_mirror.as_deref(),
+            cached,
+        )
+        .await;
     }
 
     let mut meta_cached_in_store: Option<Package> = None;
@@ -491,6 +579,46 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         ctx.meta_cache.set(cache_key, meta.clone());
     }
     let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
+    Ok(PickPackageResult { meta, picked_package: picked })
+}
+
+/// Shared cache-hit path. Invoked once on the optimistic pre-permit
+/// check and once after the per-key permit is acquired (the re-check
+/// that lets duplicate concurrent callers short-circuit without
+/// re-fetching). Extracting it keeps the two call sites identical so
+/// the upgrade-and-persist side-effects can't drift.
+///
+/// The argument list is wide because the helper consumes everything
+/// the per-call frame already computed (cache key, derived
+/// `full_metadata`, pre-resolved mirror path, picker options).
+/// Bundling these into a struct would just shuffle the same fields
+/// into a wrapper without removing any work; allowing the lint is
+/// the lower-noise option.
+#[allow(clippy::too_many_arguments)]
+async fn handle_cache_hit<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    spec: &RegistryPackageSpec,
+    opts: &PickPackageOptions<'_>,
+    picker_opts: &PickerOpts<'_>,
+    full_metadata: bool,
+    cache_key: &str,
+    pkg_mirror: Option<&Path>,
+    cached: Package,
+) -> Result<PickPackageResult, PickPackageError> {
+    let upgrade =
+        maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, cached)
+            .await?;
+    let meta = upgrade.meta;
+    if upgrade.upgraded && !opts.dry_run {
+        // Persist so a fresh process doesn't re-trigger the upgrade
+        // fetch on its next install. Matches upstream's
+        // [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
+        if let Some(path) = pkg_mirror {
+            persist_upgraded_to_mirror(path, &meta);
+        }
+        ctx.meta_cache.set(cache_key.to_string(), meta.clone());
+    }
+    let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
     Ok(PickPackageResult { meta, picked_package: picked })
 }
 

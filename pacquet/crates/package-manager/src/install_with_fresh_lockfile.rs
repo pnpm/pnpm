@@ -30,7 +30,7 @@ use pacquet_resolving_local_resolver::{
 };
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    merge_named_registries,
+    merge_named_registries, shared_packument_fetch_locker,
 };
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
@@ -289,12 +289,21 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 
         let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
 
+        // One per-cache-key packument fetch serializer shared between
+        // the npm and named-registry resolvers. Ports upstream's
+        // [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L42-L44):
+        // concurrent picks for the same `(registry, name)` coalesce
+        // into a single network fetch instead of firing N parallel
+        // HTTP GETs queued behind the `ThrottledClient` semaphore.
+        let fetch_locker = shared_packument_fetch_locker();
+
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
             named_registries: merged_named_registries.clone(),
             http_client: Arc::clone(&http_client_arc),
             auth_headers: Arc::clone(&config.auth_headers),
             meta_cache: Arc::clone(&meta_cache),
+            fetch_locker: Arc::clone(&fetch_locker),
             cache_dir: Some(config.cache_dir.clone()),
             offline: config.offline,
             prefer_offline: config.prefer_offline,
@@ -334,6 +343,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             http_client: Arc::clone(&http_client_arc),
             auth_headers: Arc::clone(&config.auth_headers),
             meta_cache: Arc::clone(&meta_cache),
+            fetch_locker: Arc::clone(&fetch_locker),
             cache_dir: Some(config.cache_dir.clone()),
             offline: config.offline,
             prefer_offline: config.prefer_offline,

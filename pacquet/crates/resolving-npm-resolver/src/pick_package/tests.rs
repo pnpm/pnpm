@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 
 use super::{
     InMemoryPackageMetaCache, PackageMetaCache, PickPackageContext, PickPackageError,
-    PickPackageOptions, persist_meta_to_mirror, pick_package,
+    PickPackageOptions, persist_meta_to_mirror, pick_package, shared_packument_fetch_locker,
 };
 use crate::{
     mirror::{ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta},
@@ -93,10 +93,12 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -132,6 +134,7 @@ async fn warm_in_memory_cache_skips_network() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
 
     let preloaded: pacquet_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
@@ -143,6 +146,7 @@ async fn warm_in_memory_cache_skips_network() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -174,10 +178,12 @@ async fn offline_with_mirror_picks_from_disk() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: true,
         prefer_offline: false,
@@ -202,10 +208,12 @@ async fn offline_without_mirror_errors() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: true,
         prefer_offline: false,
@@ -236,10 +244,12 @@ async fn version_spec_with_mirror_takes_fast_path() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -298,10 +308,12 @@ async fn version_spec_missing_in_mirror_fetches() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -336,10 +348,12 @@ async fn dry_run_skips_in_memory_cache() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -372,10 +386,12 @@ async fn pick_lowest_version_picks_min() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -453,10 +469,12 @@ async fn in_memory_cache_does_not_leak_across_registries() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -493,10 +511,12 @@ async fn invalid_package_name_errors_synchronously() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: None,
         offline: false,
         prefer_offline: false,
@@ -558,10 +578,12 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -605,10 +627,12 @@ async fn optional_opt_forces_full_metadata_endpoint() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -659,10 +683,12 @@ async fn cache_key_separates_abbreviated_from_full() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -724,10 +750,12 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -788,10 +816,12 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         http_client: &http_client,
         auth_headers: &auth_headers,
         meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
         cache_dir: Some(cache_dir.path()),
         offline: false,
         prefer_offline: false,
@@ -804,4 +834,63 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 
     abbrev_mock.assert_async().await;
+}
+
+/// Concurrent `pick_package` calls for the same `(registry, name)`
+/// coalesce into a single network fetch. Mirrors pnpm's
+/// [`runLimited(pkgMirror, …)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
+/// behavior — without dedup, each duplicate caller would race past
+/// the in-memory cache miss and fire its own GET, exhausting the
+/// [`ThrottledClient`] semaphore and re-fetching the same packument
+/// `N` times.
+///
+/// The mock asserts `expect(1)` — even though we spawn 20 concurrent
+/// picks, exactly one GET reaches the registry. The other 19 wait
+/// on the per-key permit and pick up the cached packument once the
+/// winner returns.
+#[tokio::test]
+async fn concurrent_picks_for_same_key_share_one_network_fetch() {
+    let mut server = mockito::Server::new_async().await;
+    // `expect(1)` is the assertion: at most one GET reaches the
+    // registry for the 20-way concurrent fan-out below. Without the
+    // per-key serializer, all 20 would race past the empty in-memory
+    // cache and each fire its own GET.
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("etag", r#"W/"fresh""#)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+    };
+
+    let spec = range_spec("acme", "^1.0.0");
+    let opts = default_opts(&registry);
+    let results =
+        futures_util::future::try_join_all((0..20).map(|_| pick_package(&ctx, &spec, &opts)))
+            .await
+            .expect("all picks succeed");
+
+    for result in results {
+        assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    }
+    mock.assert_async().await;
 }

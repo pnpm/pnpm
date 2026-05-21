@@ -10,7 +10,8 @@ use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use crate::{
-    NamedRegistryResolver, merge_named_registries, pick_package::InMemoryPackageMetaCache,
+    NamedRegistryResolver, merge_named_registries,
+    pick_package::{InMemoryPackageMetaCache, shared_packument_fetch_locker},
 };
 
 /// Packument for `@acme/private` served under a named registry —
@@ -68,6 +69,7 @@ fn build_resolver(
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+        fetch_locker: shared_packument_fetch_locker(),
         cache_dir: Some(cache_dir.path().to_path_buf()),
         offline: false,
         prefer_offline: false,

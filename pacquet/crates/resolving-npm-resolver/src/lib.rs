@@ -57,9 +57,9 @@ pub use parse_bare_specifier::{
     parse_named_registry_specifier_to_registry_package_spec,
 };
 pub use pick_package::{
-    InMemoryPackageMetaCache, MirrorPersistError, PackageMetaCache, PickPackageContext,
-    PickPackageError, PickPackageOptions, PickPackageResult, persist_meta_to_mirror, pick_package,
-    shared_in_memory_cache,
+    InMemoryPackageMetaCache, MirrorPersistError, PackageMetaCache, PackumentFetchLocker,
+    PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
+    persist_meta_to_mirror, pick_package, shared_in_memory_cache, shared_packument_fetch_locker,
 };
 pub use pick_package_from_meta::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,

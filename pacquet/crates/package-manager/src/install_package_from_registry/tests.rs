@@ -4,7 +4,9 @@ use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_network::ThrottledClient;
 use pacquet_registry_mock::AutoMockInstance;
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
-use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
+use pacquet_resolving_npm_resolver::{
+    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+};
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
 use pipe_trait::Pipe;
@@ -97,6 +99,7 @@ async fn resolve_via_mock(
         http_client,
         auth_headers: Default::default(),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+        fetch_locker: shared_packument_fetch_locker(),
         cache_dir: Some(cache_dir.to_path_buf()),
         offline: false,
         prefer_offline: false,

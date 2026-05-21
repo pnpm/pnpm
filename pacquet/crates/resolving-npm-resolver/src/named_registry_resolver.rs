@@ -69,6 +69,11 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub meta_cache: Arc<Cache>,
+    /// Shared per-cache-key packument fetch serializer. See
+    /// [`crate::PackumentFetchLocker`]. Same handle as the sibling
+    /// [`crate::NpmResolver`] so concurrent picks for the same
+    /// `(registry, name)` across resolvers coalesce.
+    pub fetch_locker: crate::PackumentFetchLocker,
     pub cache_dir: Option<PathBuf>,
     pub offline: bool,
     pub prefer_offline: bool,
@@ -200,6 +205,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
             meta_cache: self.meta_cache.as_ref(),
+            fetch_locker: &self.fetch_locker,
             cache_dir: self.cache_dir.as_deref(),
             offline: self.offline,
             prefer_offline: self.prefer_offline,
