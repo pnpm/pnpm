@@ -405,7 +405,9 @@ pub(crate) fn build_resolve_result(
         path: None,
     });
     let published_at = meta.published_at(&picked.version.to_string()).map(str::to_string);
-    let manifest = Some(serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?);
+    let manifest = Some(std::sync::Arc::new(
+        serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?,
+    ));
     let policy_violation = detect_min_release_age_violation(
         &pkg_name,
         &picked.version.to_string(),

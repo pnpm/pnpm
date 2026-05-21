@@ -52,7 +52,7 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
         name_ver: Some(name_ver),
         latest: Some(version.to_string()),
         published_at: None,
-        manifest: Some(manifest),
+        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,

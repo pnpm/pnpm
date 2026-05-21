@@ -148,7 +148,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
 
         if first_visit {
             let (tarball_url, integrity) = extract_tarball(&resolution.resolution)?;
-            let unpacked_size = manifest_unpacked_size(resolution.manifest.as_ref());
+            let unpacked_size = manifest_unpacked_size(resolution.manifest.as_deref());
 
             // `pnpm:progress resolved` mirrors pnpm's emit at
             // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>:
