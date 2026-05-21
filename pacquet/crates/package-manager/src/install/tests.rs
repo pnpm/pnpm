@@ -3652,3 +3652,93 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
 
     drop((dir, mock_instance));
 }
+
+/// A top-level `optionalDependencies` entry surfaces as
+/// `snapshots[<key>].optional: true` in the freshly-written lockfile.
+/// Mirrors upstream's `ResolvedPackage.optional` propagation that
+/// `BuildModules` consults to decide whether a build failure should
+/// be reported via `pnpm:skipped-optional-dependency`. A non-optional
+/// sibling lands `optional: false` so the test pins both sides.
+#[tokio::test]
+async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.add_dependency("@pnpm/xyz", "1.0.0", DependencyGroup::Optional).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
+    let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+
+    // Look snapshots up by package name + version rather than by an
+    // exact key parse: `@pnpm/xyz` declares peer deps, so the resolver
+    // emits a peer-suffixed depPath that won't parse cleanly out of a
+    // literal here. Membership-by-name keeps the test robust to the
+    // fixture's exact peer-suffix shape.
+    let find_optional = |scope: &str, bare: &str| -> Option<bool> {
+        snapshots
+            .iter()
+            .find(|(key, _)| key.name.scope.as_deref() == Some(scope) && key.name.bare == bare)
+            .map(|(_, entry)| entry.optional)
+    };
+
+    assert_eq!(
+        find_optional("pnpm.e2e", "hello-world-js-bin"),
+        Some(false),
+        "non-optional direct dep must land with optional: false",
+    );
+    assert_eq!(
+        find_optional("pnpm", "xyz"),
+        Some(true),
+        "optionalDependencies entry must propagate to snapshots[<key>].optional",
+    );
+    // Note: transitive deps that arrive via auto-install-peers
+    // hoisting land at the importer level as non-optional — they're
+    // installed top-level to satisfy a missing peer regardless of
+    // whether the consumer was optional. Matches upstream pnpm's
+    // hoist semantics. Pure transitive optional propagation
+    // (consumer → regular `dependencies` child) is exercised by the
+    // adapter's unit tests since the mock-registry fixtures here
+    // don't expose that shape.
+
+    drop((dir, mock_instance));
+}

@@ -40,7 +40,8 @@ use crate::{
         hoist_peers,
     },
     resolve_dependency_tree::{
-        ResolveDependencyTreeError, TreeCtx, extend_tree, resolve_catalog_specifiers,
+        ResolveDependencyTreeError, TreeCtx, extend_tree, importer_optional_dependency_names,
+        resolve_catalog_specifiers,
     },
     resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
     resolved_tree::ResolvedTree,
@@ -147,9 +148,19 @@ where
     if auto_install_peers && !groups.contains(&DependencyGroup::Peer) {
         groups.push(DependencyGroup::Peer);
     }
-    let initial_wanted: Vec<(String, String)> = manifest
+    // `optionalDependencies` wins over the other groups when an alias
+    // appears in more than one — same precedence as upstream's
+    // [`getWantedDependenciesFromGivenSet`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L57-L72).
+    // Pre-compute the optional name set so the walker can tag each
+    // direct dep with the right `wanted.optional` flag for the
+    // `ResolvedPackage.optional` propagation.
+    let optional_names = importer_optional_dependency_names(manifest);
+    let initial_wanted: Vec<(String, String, bool)> = manifest
         .dependencies(groups)
-        .map(|(name, range)| (name.to_string(), range.to_string()))
+        .map(|(name, range)| {
+            let optional = optional_names.contains(name);
+            (name.to_string(), range.to_string(), optional)
+        })
         .collect();
     let initial_wanted = resolve_catalog_specifiers(initial_wanted, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
@@ -206,7 +217,14 @@ where
                 parent_pkg_aliases.insert(name.clone());
             }
 
-            let new_wanted: Vec<(String, String)> = hoisted.into_iter().collect();
+            // Hoisted required peers are installed at the importer
+            // level as non-optional direct deps — they exist precisely
+            // to satisfy a missing required peer, so flipping their
+            // own `optional` flag to `true` would defeat the
+            // auto-install. Mirrors upstream's `wantedDependency`
+            // shape inside `hoistPeers`.
+            let new_wanted: Vec<(String, String, bool)> =
+                hoisted.into_iter().map(|(name, range)| (name, range, false)).collect();
             let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
             direct.extend(new_direct);
             update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions).await;
@@ -223,7 +241,12 @@ where
         for name in hoisted_optional.keys() {
             parent_pkg_aliases.insert(name.clone());
         }
-        let new_wanted: Vec<(String, String)> = hoisted_optional.into_iter().collect();
+        // Optional peers picked up via `getHoistableOptionalPeers` are
+        // also installed at the importer level — the picker already
+        // confirmed a preferred version is in scope. Treating them as
+        // non-optional matches the required-peer arm above.
+        let new_wanted: Vec<(String, String, bool)> =
+            hoisted_optional.into_iter().map(|(name, range)| (name, range, false)).collect();
         let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
         direct.extend(new_direct);
         update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions).await;

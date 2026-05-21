@@ -50,6 +50,26 @@ fn make_node(
     peer_dependencies: BTreeMap<String, PeerDep>,
     transitive_peer_dependencies: HashSet<String>,
 ) -> DependenciesGraphNode {
+    make_node_with_optional(
+        name,
+        version,
+        manifest,
+        children,
+        peer_dependencies,
+        transitive_peer_dependencies,
+        false,
+    )
+}
+
+fn make_node_with_optional(
+    name: &str,
+    version: &str,
+    manifest: serde_json::Value,
+    children: BTreeMap<String, DepPath>,
+    peer_dependencies: BTreeMap<String, PeerDep>,
+    transitive_peer_dependencies: HashSet<String>,
+    optional: bool,
+) -> DependenciesGraphNode {
     let dep_path = DepPath::from(format!("{name}@{version}"));
     DependenciesGraphNode {
         dep_path: dep_path.clone(),
@@ -62,6 +82,7 @@ fn make_node(
         depth: 1,
         installable: true,
         is_pure: true,
+        optional,
     }
 }
 
@@ -260,6 +281,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
         depth: 1,
         installable: true,
         is_pure: false,
+        optional: false,
     };
 
     let mut graph = DependenciesGraph::new();
@@ -431,4 +453,73 @@ fn snapshot_records_transitive_peer_dependencies_sorted() {
         .as_ref()
         .expect("transitive peers recorded");
     assert_eq!(recorded.as_slice(), ["a-peer".to_string(), "z-peer".to_string()].as_slice());
+}
+
+/// `SnapshotEntry.optional` is copied from the resolver's
+/// [`DependenciesGraphNode::optional`] field — `true` for snapshots
+/// the walker marked as reachable only via `optionalDependencies`
+/// edges, `false` for everything else. Confirms the adapter doesn't
+/// silently drop the bit (the regression that motivated the field's
+/// addition in the first place).
+#[test]
+fn snapshot_optional_flag_round_trips_from_dependencies_graph_node() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "regular": "^1.0.0" },
+        "optionalDependencies": { "opt": "^1.0.0" },
+    }));
+
+    let regular = make_node(
+        "regular",
+        "1.0.0",
+        json!({ "name": "regular", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let opt = make_node_with_optional(
+        "opt",
+        "1.0.0",
+        json!({ "name": "opt", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+        true,
+    );
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(regular.dep_path.clone(), regular);
+    graph.insert(opt.dep_path.clone(), opt);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("regular".to_string(), DepPath::from("regular@1.0.0".to_string()));
+    direct.insert("opt".to_string(), DepPath::from("opt@1.0.0".to_string()));
+
+    let resolved = ResolveImporterResult {
+        resolved_tree: ResolvedTree::default(),
+        peers_result: ResolvePeersResult {
+            graph,
+            direct_dependencies_by_alias: direct,
+            peer_dependency_issues: PeerDependencyIssues::default(),
+        },
+    };
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        manifest: &manifest,
+        resolved: &resolved,
+        auto_install_peers: false,
+        exclude_links_from_lockfile: false,
+        overrides: None,
+        ignored_optional_dependencies: None,
+    });
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let regular_key: PackageKey = "regular@1.0.0".parse().unwrap();
+    let opt_key: PackageKey = "opt@1.0.0".parse().unwrap();
+    assert!(!snapshots[&regular_key].optional, "non-optional snapshot stays optional: false");
+    assert!(
+        snapshots[&opt_key].optional,
+        "snapshot marked optional in the graph propagates to the lockfile",
+    );
 }

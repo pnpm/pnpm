@@ -362,16 +362,13 @@ fn build_peer_dep_blocks(node: &DependenciesGraphNode) -> PeerDepBlocks {
 /// [`toLockfileDependency`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts#L49-L156):
 /// the `dependencies` / `optionalDependencies` partition follows the
 /// node's own `optionalDependencies` set and peer-optional flag;
-/// `transitivePeerDependencies` is sorted.
-///
-/// `optional` is left `false` here — pacquet's resolver does not yet
-/// track the per-snapshot "reachable only via an optional edge" flag
-/// that upstream's `ResolvedPackage.optional` propagation produces.
-/// The downstream consumer
-/// ([`BuildModules`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L218-L240))
-/// treats `optional: false` as "build failures are fatal," which
-/// errs on the side of *more* feedback than upstream emits; once
-/// the resolver propagates the flag, mirror it here.
+/// `transitivePeerDependencies` is sorted; `optional` is copied from
+/// the resolver's [`DependenciesGraphNode::optional`] (AND-folded
+/// across every visit so a snapshot is marked `optional: true` only
+/// when every path from any importer to it goes through an
+/// `optionalDependencies` edge). `BuildModules` consults this flag to
+/// decide whether a build failure is fatal or should be reported via
+/// `pnpm:skipped-optional-dependency`.
 fn build_snapshot_entry(node: &DependenciesGraphNode, graph: &DependenciesGraph) -> SnapshotEntry {
     let optional_children = optional_children_of(node);
 
@@ -399,7 +396,7 @@ fn build_snapshot_entry(node: &DependenciesGraphNode, graph: &DependenciesGraph)
         optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),
         transitive_peer_dependencies: (!transitive.is_empty()).then_some(transitive),
         patched: None,
-        optional: false,
+        optional: node.optional,
     }
 }
 

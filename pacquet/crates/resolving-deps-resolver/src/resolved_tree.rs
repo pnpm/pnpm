@@ -88,6 +88,22 @@ pub struct ResolvedPackage {
     /// `BTreeMap` keeps iteration order stable so peer-suffix
     /// construction is deterministic.
     pub peer_dependencies: BTreeMap<String, PeerDep>,
+    /// `true` when every path from any importer to this package goes
+    /// through at least one `optionalDependencies` edge. Mirrors
+    /// upstream's [`ResolvedPackage.optional`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L254)
+    /// AND-fold:
+    ///
+    /// - On the first visit, `optional` is set to
+    ///   `wanted.optional || parent.optional` — propagating an
+    ///   ancestor's optionality down the chain.
+    /// - On every subsequent visit, `optional` is AND-folded with the
+    ///   new edge's `current_is_optional`, so a single non-optional
+    ///   path flips it back to `false` and keeps it there.
+    ///
+    /// Downstream consumers (the lockfile adapter, the `BuildModules`
+    /// failure-tolerance gate) read this to decide whether a build
+    /// failure is fatal or should be reported as a skipped optional.
+    pub optional: bool,
 }
 
 /// One peer-dependency entry on a [`ResolvedPackage`]. Mirrors upstream's
