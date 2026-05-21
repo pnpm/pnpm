@@ -1,6 +1,5 @@
 use clap::{Args, Parser, ValueEnum};
-use pipe_trait::Pipe;
-use std::{path::PathBuf, process::Command};
+use std::{path::PathBuf, process::Command, str::FromStr};
 
 #[derive(Debug, Parser)]
 pub struct CliArgs {
@@ -8,17 +7,23 @@ pub struct CliArgs {
     #[clap(long, short, required_unless_present = "build_only", conflicts_with = "build_only")]
     pub scenario: Option<BenchmarkScenario>,
 
-    /// Port of the local virtual registry.
+    /// Port of the local virtual registry. Ignored when `--registry=npm`.
     #[clap(long, short = 'p', default_value_t = 4873)]
     pub registry_port: u16,
 
-    /// Automatically launch verdaccio if local registry doesn't response.
-    #[clap(long, short = 'V')]
-    pub verdaccio: bool,
+    /// Which registry the benchmarked installs hit.
+    #[clap(long, value_enum, default_value_t = RegistryMode::Virtual)]
+    pub registry: RegistryMode,
 
     /// Path to the git repository of pacquet.
     #[clap(long, short = 'R', default_value = ".")]
     pub repository: PathBuf,
+
+    /// Path to pnpm's git repository. Only set this if pnpm and pacquet
+    /// live in separate clones; defaults to `--repository`, which is
+    /// correct for the `pnpm/pnpm` monorepo (where both live together).
+    #[clap(long)]
+    pub pnpm_repository: Option<PathBuf>,
 
     /// Override default `package.json` and `pnpm-lock.yaml` by specifying the directory containing them.
     #[clap(long, short = 'D')]
@@ -32,48 +37,109 @@ pub struct CliArgs {
     #[clap(long, short, default_value = "bench-work-env")]
     pub work_env: PathBuf,
 
-    /// Benchmark against pnpm.
+    /// Also benchmark the system-installed pnpm.
     #[clap(long)]
     pub with_pnpm: bool,
 
-    /// Build each revision without running the benchmark.
+    /// Build each target without running the benchmark.
     #[clap(long)]
     pub build_only: bool,
 
-    /// Branch name, tag name, or commit id of the pacquet repo.
+    /// Targets to benchmark. Each is `pacquet@<rev>` or `pnpm@<rev>`.
     #[clap(required = true)]
-    pub revisions: Vec<String>,
+    pub targets: Vec<TargetSpec>,
+}
+
+/// A benchmark target — a specific revision of pacquet or pnpm to build
+/// and measure.
+#[derive(Debug, Clone)]
+pub struct TargetSpec {
+    pub kind: TargetKind,
+    pub rev: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetKind {
+    Pacquet,
+    Pnpm,
+}
+
+impl FromStr for TargetSpec {
+    type Err = String;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let (prefix, rev) = input
+            .split_once('@')
+            .ok_or_else(|| format!("target {input:?}: must be `pacquet@<rev>` or `pnpm@<rev>`"))?;
+        let kind = match prefix {
+            "pacquet" => TargetKind::Pacquet,
+            "pnpm" => TargetKind::Pnpm,
+            other => {
+                return Err(format!(
+                    "target {input:?}: unknown kind {other:?} (expected `pacquet` or `pnpm`)",
+                ));
+            }
+        };
+        if rev.is_empty() {
+            return Err(format!("target {input:?}: <rev> must not be empty"));
+        }
+        Ok(TargetSpec { kind, rev: rev.to_string() })
+    }
+}
+
+/// Where the installs fetch packages from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum RegistryMode {
+    /// Spawn or attach to a local verdaccio proxy of npmjs.com.
+    Verdaccio,
+    /// Hit `registry.npmjs.org` directly. No proxy.
+    Npm,
+    /// Assume an external mock registry on `--registry-port`.
+    Virtual,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum BenchmarkScenario {
-    /// Benchmark clean install without lockfile and without local cache.
+    /// Clean install: no lockfile, cold cache.
     CleanInstall,
-    /// Benchmark install with a frozen lockfile and without local cache.
+    /// Frozen lockfile, cold cache.
     FrozenLockfile,
-    /// Benchmark install with a frozen lockfile and a warm local store.
+    /// Frozen lockfile, warm cache.
     FrozenLockfileHotCache,
+    /// Re-resolution: add a dep to an existing lockfile, warm cache.
+    Peek,
+    /// Full resolution without a lockfile, warm cache.
+    FullResolution,
+    /// GVS warm reinstall: frozen lockfile, warm GVS.
+    GvsWarm,
+}
+
+/// Per-iteration cleanup applied by hyperfine's `--prepare`.
+pub struct Cleanup {
+    /// Paths in the bench dir to `rm -rf` before each iteration.
+    pub remove: &'static [&'static str],
+    /// `(dst, src)` pairs (relative to the bench dir) to `cp` before
+    /// each iteration — restores files the install mutates.
+    pub restore: &'static [(&'static str, &'static str)],
 }
 
 impl BenchmarkScenario {
-    /// Infer CLI arguments for the install command.
-    pub fn install_args(self) -> impl IntoIterator<Item = &'static str> {
+    /// Install command arguments. The leading subcommand is the first
+    /// element (`install` or `add`), followed by any flags.
+    pub fn install_args(self) -> &'static [&'static str] {
         match self {
-            BenchmarkScenario::CleanInstall => Vec::new(),
-            BenchmarkScenario::FrozenLockfile | BenchmarkScenario::FrozenLockfileHotCache => {
-                vec!["--frozen-lockfile"]
-            }
+            BenchmarkScenario::CleanInstall => &["install"],
+            BenchmarkScenario::FrozenLockfile
+            | BenchmarkScenario::FrozenLockfileHotCache
+            | BenchmarkScenario::GvsWarm => &["install", "--frozen-lockfile"],
+            BenchmarkScenario::Peek => &["add", "is-odd"],
+            BenchmarkScenario::FullResolution => &["install", "--no-frozen-lockfile"],
         }
     }
 
     /// Return `lockfile=true` or `lockfile=false` for use in generating `.npmrc`.
     pub fn npmrc_lockfile_setting(self) -> &'static str {
-        match self {
-            BenchmarkScenario::CleanInstall => "lockfile=false",
-            BenchmarkScenario::FrozenLockfile | BenchmarkScenario::FrozenLockfileHotCache => {
-                "lockfile=true"
-            }
-        }
+        if self.lockfile_enabled() { "lockfile=true" } else { "lockfile=false" }
     }
 
     /// Whether the lockfile is enabled for this scenario. Mirrored into
@@ -81,38 +147,61 @@ impl BenchmarkScenario {
     /// value up regardless of which config source it prefers.
     pub fn lockfile_enabled(self) -> bool {
         match self {
-            BenchmarkScenario::CleanInstall => false,
-            BenchmarkScenario::FrozenLockfile | BenchmarkScenario::FrozenLockfileHotCache => true,
+            BenchmarkScenario::CleanInstall | BenchmarkScenario::FullResolution => false,
+            BenchmarkScenario::FrozenLockfile
+            | BenchmarkScenario::FrozenLockfileHotCache
+            | BenchmarkScenario::Peek
+            | BenchmarkScenario::GvsWarm => true,
         }
     }
 
-    /// Whether to use a lockfile.
+    /// Whether to seed a `pnpm-lock.yaml` into the bench dir during
+    /// init. Scenarios that start without a lockfile (`CleanInstall`,
+    /// `FullResolution`) skip this; scenarios that consume a lockfile
+    /// or mutate one (`Peek`, the frozen variants, `GvsWarm`) need it.
     pub fn lockfile<Text, LoadLockfile>(self, load_lockfile: LoadLockfile) -> Option<String>
     where
         Text: Into<String>,
         LoadLockfile: FnOnce() -> Text,
     {
+        self.lockfile_enabled().then(|| load_lockfile().into())
+    }
+
+    /// Per-iteration cleanup (paths to remove and saved copies to
+    /// restore) applied via hyperfine's `--prepare`.
+    pub fn cleanup(self) -> Cleanup {
+        const SAVED_LOCKFILE: (&str, &str) = ("pnpm-lock.yaml", ".saved-pnpm-lock.yaml");
+        const SAVED_PACKAGE_JSON: (&str, &str) = ("package.json", ".saved-package.json");
         match self {
-            BenchmarkScenario::CleanInstall => None,
-            BenchmarkScenario::FrozenLockfile | BenchmarkScenario::FrozenLockfileHotCache => {
-                load_lockfile().into().pipe(Some)
+            BenchmarkScenario::CleanInstall => Cleanup {
+                remove: &["node_modules", "pnpm-lock.yaml", "store-dir"],
+                restore: &[SAVED_PACKAGE_JSON],
+            },
+            BenchmarkScenario::FrozenLockfile => {
+                Cleanup { remove: &["node_modules", "store-dir"], restore: &[SAVED_LOCKFILE] }
+            }
+            BenchmarkScenario::FrozenLockfileHotCache => {
+                Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
+            }
+            BenchmarkScenario::Peek => Cleanup {
+                remove: &["node_modules"],
+                restore: &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON],
+            },
+            BenchmarkScenario::FullResolution => Cleanup {
+                remove: &["node_modules", "pnpm-lock.yaml"],
+                restore: &[SAVED_PACKAGE_JSON],
+            },
+            BenchmarkScenario::GvsWarm => {
+                Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
         }
     }
 
-    /// Per-iteration cleanup paths that hyperfine's `--prepare` command
-    /// will `rm -rf` before each timed run (and before each warmup).
-    /// Cold-cache scenarios wipe the per-revision store along with
-    /// `node_modules` so every iteration starts from scratch; the
-    /// hot-cache scenario only wipes `node_modules`, letting the
-    /// warmup populate the store and timed iterations reuse it.
-    pub fn cleanup_paths(self) -> &'static [&'static str] {
-        match self {
-            BenchmarkScenario::CleanInstall | BenchmarkScenario::FrozenLockfile => {
-                &["node_modules", "store-dir"]
-            }
-            BenchmarkScenario::FrozenLockfileHotCache => &["node_modules"],
-        }
+    /// Whether this scenario requires `enableGlobalVirtualStore: true`
+    /// in the workspace manifest, and a pre-warm pass that primes the
+    /// store before hyperfine's warmup runs.
+    pub fn enables_gvs(self) -> bool {
+        matches!(self, BenchmarkScenario::GvsWarm)
     }
 }
 
@@ -163,5 +252,45 @@ impl HyperfineOptions {
         if ignore_failure {
             hyperfine_command.arg("--ignore-failures");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TargetKind, TargetSpec};
+    use std::str::FromStr;
+
+    #[test]
+    fn target_spec_pacquet_prefix() {
+        let spec = TargetSpec::from_str("pacquet@main").unwrap();
+        assert_eq!(spec.kind, TargetKind::Pacquet);
+        assert_eq!(spec.rev, "main");
+    }
+
+    #[test]
+    fn target_spec_pnpm_prefix() {
+        let spec = TargetSpec::from_str("pnpm@v9.0.0").unwrap();
+        assert_eq!(spec.kind, TargetKind::Pnpm);
+        assert_eq!(spec.rev, "v9.0.0");
+    }
+
+    #[test]
+    fn target_spec_unprefixed_is_rejected() {
+        let err = TargetSpec::from_str("HEAD").unwrap_err();
+        assert!(err.contains("`pacquet@<rev>` or `pnpm@<rev>`"), "err = {err}");
+    }
+
+    #[test]
+    fn target_spec_unknown_prefix_is_rejected() {
+        let err = TargetSpec::from_str("yarn@main").unwrap_err();
+        assert!(err.contains("unknown kind"), "err = {err}");
+    }
+
+    #[test]
+    fn target_spec_empty_rev_is_rejected() {
+        let err = TargetSpec::from_str("pacquet@").unwrap_err();
+        assert!(err.contains("<rev> must not be empty"), "err = {err}");
+        let err = TargetSpec::from_str("pnpm@").unwrap_err();
+        assert!(err.contains("<rev> must not be empty"), "err = {err}");
     }
 }
