@@ -349,6 +349,64 @@ fn package_deserializes_without_time_field() {
     assert!(pkg.published_at("1.0.0").is_none(), "no per-version lookup possible");
 }
 
+/// Some historical npm packages (e.g. `deep-diff@0.1.0`) ship
+/// `devDependencies` whose values are objects rather than the
+/// declared `Record<string, string>` shape. The full packument is
+/// fetched by the verifier and includes every version's per-version
+/// manifest, so a single malformed historical entry would otherwise
+/// fail the whole deserialization and surface as
+/// `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` for an unrelated
+/// version pinned in the lockfile (issue #11829). Non-string entries
+/// must be silently dropped, matching pnpm's JS-side tolerance.
+#[test]
+fn package_tolerates_object_valued_dependency_entries() {
+    let body = r#"{
+        "name": "deep-diff",
+        "dist-tags": { "latest": "0.3.8" },
+        "versions": {
+            "0.1.0": {
+                "name": "deep-diff",
+                "version": "0.1.0",
+                "devDependencies": {
+                    "vows": {
+                        "version": "0.6.4",
+                        "dependencies": {
+                            "diff": { "version": "1.0.4" },
+                            "eyes": { "version": "0.1.8" }
+                        }
+                    },
+                    "should": "1.2.1"
+                },
+                "dist": {
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/deep-diff-0.1.0.tgz"
+                }
+            },
+            "0.3.8": {
+                "name": "deep-diff",
+                "version": "0.3.8",
+                "dependencies": {},
+                "devDependencies": { "mocha": "^2.0.0" },
+                "dist": {
+                    "shasum": "1111111111111111111111111111111111111111",
+                    "tarball": "https://registry/deep-diff-0.3.8.tgz"
+                }
+            }
+        }
+    }"#;
+    let pkg: Package = serde_json::from_str(body)
+        .expect("deserialize packument with object-valued devDependencies entries");
+
+    let old = pkg.versions.get("0.1.0").expect("0.1.0 deserialized");
+    let old_dev = old.dev_dependencies.as_ref().expect("devDependencies present");
+    assert_eq!(old_dev.get("should").map(String::as_str), Some("1.2.1"));
+    assert!(!old_dev.contains_key("vows"), "object-valued entries are dropped");
+
+    let current = pkg.versions.get("0.3.8").expect("0.3.8 deserialized");
+    let current_dev = current.dev_dependencies.as_ref().expect("devDependencies present");
+    assert_eq!(current_dev.get("mocha").map(String::as_str), Some("^2.0.0"));
+}
+
 /// The reserved `time.unpublished` key carries an object value
 /// (not a string). [`Package::published_at`] must ignore it
 /// instead of returning the object's serialized form. Mirrors the
