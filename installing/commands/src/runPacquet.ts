@@ -27,27 +27,43 @@ export interface MakeRunPacquetOpts {
    */
   packageName: 'pacquet' | '@pnpm/pacquet'
   /**
-   * The user's original `pnpm` argv (`process.argv.slice(2)`). Not
-   * forwarded to pacquet — we only inspect it to warn about flags
+   * The parsed pnpm argv from `@pnpm/cli.parse-cli-args` — `original`
+   * preserves the user's exact tokens (so `--key=value` stays joined,
+   * which pacquet's `--config.<key>=<value>` parser requires), and
+   * `remain` lists the positionals (the `install`/`i` command token
+   * among them). When `isInstallCommand` is true we forward
+   * `original` minus positionals to pacquet's own `install`
+   * subcommand; otherwise we only inspect it to warn about flags
    * pacquet won't see.
    */
-  argv: string[]
+  argv: {
+    original: string[]
+    remain: string[]
+  }
+  /**
+   * `true` when the user invoked `pnpm install` (or `pnpm i`). Gates
+   * flag forwarding: pacquet's `install` subcommand mirrors pnpm's
+   * surface closely enough that the user's flags are safe to pass
+   * along on that command, but not from `add`/`update`/`dedupe` (whose
+   * own flag surface doesn't line up with pacquet's `install`).
+   */
+  isInstallCommand: boolean
 }
 
 /**
  * Build the install-engine callback `mutateModules` invokes when
- * `configDependencies` declares pacquet. Returns `undefined` when no
- * pacquet binary is on disk — the caller falls back to the JS path in
- * that case.
+ * `configDependencies` declares pacquet.
  *
  * The callback spawns the pacquet binary installed under
- * `node_modules/.pnpm-config/pacquet` and forwards the user's own
- * pnpm CLI flags. Pacquet's NDJSON stderr is parsed line-by-line and
- * the valid JSON records are re-emitted on pnpm's global
- * `streamParser` so `@pnpm/cli.default-reporter` renders pacquet's
- * events the same way it renders pnpm's own. Non-JSON stderr lines
- * (panic backtraces, unexpected diagnostics) are forwarded to the
- * real stderr verbatim so they reach the user.
+ * `node_modules/.pnpm-config/pacquet`. From `pnpm install`/`pnpm i` it
+ * forwards the user's own pnpm CLI flags to pacquet's `install`
+ * subcommand; from `add`/`update`/`dedupe` it doesn't forward (warning
+ * instead). Pacquet's NDJSON stderr is parsed line-by-line and the
+ * valid JSON records are re-emitted on pnpm's global `streamParser` so
+ * `@pnpm/cli.default-reporter` renders pacquet's events the same way it
+ * renders pnpm's own. Non-JSON stderr lines (panic backtraces,
+ * unexpected diagnostics) are forwarded to the real stderr verbatim so
+ * they reach the user.
  */
 /** Args the deps-installer passes per pacquet invocation. */
 export interface RunPacquetCallOpts {
@@ -67,15 +83,27 @@ export interface RunPacquetCallOpts {
 export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
   return async (callOpts) => {
     const pacquetBin = resolvePacquetBin(opts.lockfileDir, opts.packageName)
-    // Always the same fixed args. We don't forward pnpm's CLI flags
-    // even though pacquet's `install` subcommand mirrors most of them:
-    // pnpm has commands like `add` and `update` that carry flags
-    // pacquet's `install` doesn't recognize (e.g., `--save-dev`,
-    // `--save-peer`), and clap would reject them. The settings users
-    // care about live in `pnpm-workspace.yaml` / `.npmrc`, which
-    // pacquet reads on its own.
-    const args = ['--reporter=ndjson', 'install', '--frozen-lockfile']
-    const droppedFlags = collectDroppedFlags(opts.argv)
+    // From `pnpm install`/`pnpm i` we forward the user's flags through to
+    // pacquet's own `install` subcommand verbatim — pacquet mirrors pnpm's
+    // surface closely enough on that command that they're safe to pass
+    // along. From `add`/`update`/`dedupe` we don't forward anything: those
+    // commands carry flags pacquet's `install` doesn't recognize
+    // (`--save-dev`, `--save-peer`, etc.) which clap would reject. Either
+    // way pacquet picks up the settings users care about from
+    // `pnpm-workspace.yaml` / `.npmrc` on its own, so a non-install
+    // delegation isn't broken by the omission.
+    const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
+    // `--ignore-manifest-check` tells pacquet to skip its per-importer
+    // `package.json` ↔ `pnpm-lock.yaml` freshness gate. pnpm just
+    // resolved and wrote the lockfile itself; on `pnpm up` / `add` /
+    // `remove` the manifest on disk is still the pre-mutation copy
+    // (pnpm writes it after `mutateModules` returns), so pacquet's own
+    // check would always fire here. See
+    // https://github.com/pnpm/pnpm/issues/11797. The flag is narrow
+    // (only the manifest check); settings drift like `overrides` is
+    // still enforced and was already re-validated by pnpm.
+    const args = ['--reporter=ndjson', 'install', '--frozen-lockfile', '--ignore-manifest-check', ...forwardedFlags]
+    const droppedFlags = opts.isInstallCommand ? [] : collectDroppedFlags(opts.argv)
     if (droppedFlags.length > 0) {
       logger.warn({
         message: `The following CLI flags are not forwarded to pacquet and may not be honored: ${droppedFlags.join(' ')}. Move the equivalent settings into pnpm-workspace.yaml (or .npmrc for auth/registry) if pacquet needs them.`,
@@ -154,24 +182,97 @@ function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm
 }
 
 /**
- * Pull the CLI flags out of pnpm's argv so we can warn about them
- * before pacquet runs. We don't forward any of them — pacquet always
- * gets `install --frozen-lockfile --reporter=ndjson` — but most are
- * handled by pnpm itself before delegation (`--save-dev` rewrites
- * `package.json`, `--filter` selects projects, etc.) so listing them
- * to the user makes the "not forwarded" surface concrete.
+ * From `pnpm install`/`pnpm i`, return everything in argv that should
+ * ride along to pacquet's own `install` subcommand. Drops the
+ * positionals nopt classified (`install` / `i`, plus anything users
+ * typed positionally) since pacquet's `install` doesn't accept any —
+ * leaving them in produces `error: unexpected argument 'install'
+ * found`. Pacquet's clap parser walks the same `--prod`, `--dev`,
+ * `--no-optional`, `--no-runtime`, `--node-linker`, `--offline`,
+ * `--prefer-offline`, `--cpu`, `--os`, `--libc`, `--frozen-lockfile`
+ * surface pnpm itself accepts on `install`, so the flags don't need
+ * reshaping.
  *
- * Flags we explicitly emit ourselves (`--frozen-lockfile`,
- * `--reporter=ndjson`) are filtered out: they're honored, so warning
- * about them would be misleading. `--config.*` is filtered too —
- * those configure pnpm's runtime and aren't intended for the install
- * engine.
+ * Flags we always inject ourselves (`--frozen-lockfile`,
+ * `--ignore-manifest-check`) are dropped in every form the user can
+ * type them — positive (`--frozen-lockfile`), negated
+ * (`--no-frozen-lockfile`), and any `=value` form. Pacquet's clap
+ * defines these as plain `#[clap(long)] bool` flags, so a duplicate
+ * `--frozen-lockfile` or a conflicting `--no-frozen-lockfile`
+ * crashes the parser with "used multiple times" / "unexpected
+ * argument". The user's `--no-frozen-lockfile` intent is already
+ * honored upstream (pnpm did a fresh resolve before delegating);
+ * pacquet's role here is just lockfile-driven materialization.
+ *
+ * `--reporter` is stripped in any form (`--reporter=foo`,
+ * `--reporter foo`): pacquet's `reporter` is a clap value option
+ * with last-value-wins semantics, so a user-supplied value would
+ * override our `--reporter=ndjson` and break the
+ * NDJSON-to-streamParser plumbing the default reporter relies on.
  */
-function collectDroppedFlags (argv: string[]): string[] {
-  return argv.filter((arg) => {
-    if (!arg.startsWith('-')) return false
-    if (arg === '--frozen-lockfile' || arg === '--reporter=ndjson') return false
-    if (arg.startsWith('--config.')) return false
-    return true
-  })
+function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
+  const result: string[] = []
+  // `argv.remain` is the ordered subsequence of positionals nopt
+  // extracted from `original`. Match by index rather than by value so
+  // an option's value that happens to equal a positional (e.g.
+  // `--node-linker install`) isn't mistaken for the positional itself.
+  let positionalIdx = 0
+  for (let i = 0; i < argv.original.length; i++) {
+    const arg = argv.original[i]
+    if (positionalIdx < argv.remain.length && arg === argv.remain[positionalIdx]) {
+      positionalIdx++
+      continue
+    }
+    if (isAlwaysInjected(arg)) continue
+    if (arg.startsWith('--reporter=')) continue
+    if (arg === '--reporter') {
+      // Consume the next token as the reporter value (`--reporter foo`).
+      i++
+      continue
+    }
+    result.push(arg)
+  }
+  return result
+}
+
+const ALWAYS_INJECTED_FLAGS = ['frozen-lockfile', 'ignore-manifest-check'] as const
+
+function isAlwaysInjected (arg: string): boolean {
+  for (const name of ALWAYS_INJECTED_FLAGS) {
+    if (arg === `--${name}` || arg === `--no-${name}`) return true
+    if (arg.startsWith(`--${name}=`) || arg.startsWith(`--no-${name}=`)) return true
+  }
+  return false
+}
+
+/**
+ * From a non-install command (`add`, `update`, `dedupe`, ...), pull the
+ * CLI flags out of pnpm's argv so we can warn that pacquet won't see
+ * them. They're still handled by pnpm itself before delegation
+ * (`--save-dev` rewrites `package.json`, `--filter` selects projects,
+ * etc.) so listing them to the user makes the "not forwarded" surface
+ * concrete.
+ *
+ * Flags pnpm itself honors before delegation are filtered out —
+ * warning about them would be misleading: `--frozen-lockfile` and
+ * `--ignore-manifest-check` in every shape (positive / negated /
+ * `=value`); `--reporter` in every shape (`--reporter=foo`,
+ * `--reporter foo`); and `--config.*` (configures pnpm's runtime,
+ * not the install engine).
+ */
+function collectDroppedFlags (argv: { original: string[] }): string[] {
+  const result: string[] = []
+  for (let i = 0; i < argv.original.length; i++) {
+    const arg = argv.original[i]
+    if (!arg.startsWith('-')) continue
+    if (isAlwaysInjected(arg)) continue
+    if (arg.startsWith('--config.')) continue
+    if (arg.startsWith('--reporter=')) continue
+    if (arg === '--reporter') {
+      i++
+      continue
+    }
+    result.push(arg)
+  }
+  return result
 }

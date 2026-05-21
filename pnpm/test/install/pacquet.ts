@@ -11,7 +11,7 @@ import { execPnpm, execPnpmSync } from '../utils/index.js'
 // version known to ship the `configDependencies` integration surface this
 // PR depends on; tests are gated on the public registry being reachable.
 const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
-const PACQUET_VERSION = '0.2.2-9'
+const PACQUET_VERSION = '0.2.2'
 
 // Each test runs two or three installs against the public registry; raise
 // the per-test timeout above jest's 5s default to allow for cold caches.
@@ -126,9 +126,9 @@ test.skip('`pnpm update <pkg>` resolves a new version with pnpm and materializes
 
 // Skipped until pacquet ships a release built with the updated
 // `generate-packages.mjs` (this PR's change) so the `@pnpm/pacquet`
-// scoped alias actually exists on npm. The pinned `0.2.2-9` doesn't
-// publish that mirror yet. Re-enable when the next pacquet release
-// ships under both names.
+// scoped alias actually exists on npm. The pinned PACQUET_VERSION
+// above doesn't publish that mirror yet. Re-enable when the next
+// pacquet release ships under both names.
 test.skip('the `@pnpm/pacquet` scoped alias is recognized in configDependencies', async () => {
   await prepareWithPacquet({
     manifest: { dependencies: { 'is-positive': '3.1.0' } },

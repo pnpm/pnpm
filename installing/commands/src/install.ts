@@ -350,7 +350,9 @@ export type InstallCommandOptions = Pick<Config,
 | 'selectedProjectsGraph'
 > & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
   argv: {
+    cooked?: string[]
     original: string[]
+    remain?: string[]
   }
   fixLockfile?: boolean
   frozenLockfileIfExists?: boolean
@@ -388,6 +390,7 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
     include,
     includeDirect: include,
     fetchFullMetadata: getFetchFullMetadata(opts),
+    isInstallCommand: true,
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true
