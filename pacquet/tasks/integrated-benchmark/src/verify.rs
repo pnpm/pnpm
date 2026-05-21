@@ -25,10 +25,13 @@ pub fn ensure_pacquet_git_repo(path: &Path) {
     assert!(path.join("Cargo.lock").is_file(), "{path:?} has no Cargo.lock — pacquet checkout?");
 }
 
-/// Assert that `path` is a git checkout of the pnpm codebase. Recognizes both
-/// a standalone pnpm clone (top-level `pnpm/package.json`) and the
-/// pnpm-as-monorepo layout this repo uses (a `pnpm-workspace.yaml` at the
-/// root), so the same orchestrator binary works for both shapes.
+/// Assert that `path` is a git checkout of pnpm's source — the
+/// `pnpm/pnpm` monorepo. Looks for `pnpm/package.json` (the CLI
+/// package's manifest, present in every revision since pnpm became a
+/// monorepo) or `pnpm-workspace.yaml` at the root; either marker is
+/// enough. Doesn't support a hypothetical layout where pnpm's source
+/// lives directly at the repo root (no `pnpm/` subdir, no workspace
+/// manifest) — that's not a shape pnpm ships in.
 pub fn ensure_pnpm_git_repo(path: &Path) {
     ensure_git_repo_common(path);
     let has_pnpm_dir = path.join("pnpm").join("package.json").is_file();

@@ -75,9 +75,13 @@ impl WorkEnv {
     }
 
     fn bash_command(&self, id: BenchId) -> String {
-        let script_path = self.script_path(id);
-        let script_path = script_path.to_str().expect("convert script path to UTF-8");
-        format!("bash {script_path}")
+        // Hyperfine runs each command through a shell, so the script
+        // path needs to survive shell-tokenization. `maybe_quote()`
+        // wraps the path in single quotes (and escapes any embedded
+        // quotes) when it contains a metacharacter — leaves it bare
+        // when the path is alphanumeric/slash/dash only, which is the
+        // common case.
+        format!("bash {}", self.script_path(id).maybe_quote())
     }
 
     /// Source-tree location for a pacquet revision: `<bench_dir>/pacquet`.
@@ -126,7 +130,7 @@ impl WorkEnv {
             BenchId::PnpmRevision(_) => {
                 // Prefer `pnpm.mjs`, fall back to `pnpm.cjs`. Resolved
                 // at script runtime so the existence check sees the
-                // bundle produced by `pnpm run compile`, not the empty
+                // bundle produced by `pnpm run compile-only`, not the empty
                 // tree visible during `init()`. Mirrors
                 // `resolve_pnpm_bin` in `benchmarks/bench.sh`.
                 let mjs = "./pnpm-source/pnpm/dist/pnpm.mjs";
@@ -229,11 +233,21 @@ impl WorkEnv {
             .pipe(executor("pnpm install"));
 
         eprintln!("Compiling pnpm for {revision:?}...");
+        // `pnpm run compile-only` rather than `pnpm run compile` —
+        // the root `compile` script also runs `update-manifests`,
+        // which fires a second `pnpm install` and rewrites tracked
+        // manifest files (a no-op for the benchmark, and the
+        // rewrite-on-second-run was what made `sync_bench_repo`
+        // need its `git reset --hard` guard). `compile-only` keeps
+        // the workspace-manifest-reader / typecheck-only setup steps
+        // *and* the final `pn -F=pnpm compile` that produces
+        // `pnpm/dist/pnpm.{mjs,cjs}` — i.e. everything the install
+        // script actually needs.
         Command::new("pnpm")
             .current_dir(&revision_repo)
             .arg("run")
-            .arg("compile")
-            .pipe(executor("pnpm run compile"));
+            .arg("compile-only")
+            .pipe(executor("pnpm run compile-only"));
     }
 
     fn benchmark(&self) {
@@ -356,7 +370,7 @@ fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
     }
 
     if had_existing_git {
-        // `pnpm install` and `pnpm run compile` from a previous orchestrator
+        // `pnpm install` and `pnpm run compile-only` from a previous orchestrator
         // run can leave tracked files dirty (e.g. `pnpm-lock.yaml` rewritten,
         // generated `dist/*`). A fresh `git checkout <commit>` against a dirty
         // worktree fails with "Your local changes would be overwritten" — wipe

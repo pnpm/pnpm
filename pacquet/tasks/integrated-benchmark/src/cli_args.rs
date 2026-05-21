@@ -19,7 +19,9 @@ pub struct CliArgs {
     #[clap(long, short = 'R', default_value = ".")]
     pub repository: PathBuf,
 
-    /// Path to pnpm's git repository. Required when a target is `pnpm@<rev>`. Defaults to `--repository`.
+    /// Path to pnpm's git repository. Only set this if pnpm and pacquet
+    /// live in separate clones; defaults to `--repository`, which is
+    /// correct for the `pnpm/pnpm` monorepo (where both live together).
     #[clap(long)]
     pub pnpm_repository: Option<PathBuf>,
 
