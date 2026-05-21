@@ -88,6 +88,7 @@ fn default_opts() -> ResolveImporterOptions {
         auto_install_peers_from_highest_match: false,
         resolve_peers_from_workspace_root: false,
         all_preferred_versions: PreferredVersions::new(),
+        patched_dependencies: None,
         base_opts: ResolveOptions::default(),
         catalogs: pacquet_catalogs_types::Catalogs::new(),
     }

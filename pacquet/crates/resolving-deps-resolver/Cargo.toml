@@ -15,6 +15,7 @@ pacquet-catalogs-resolver       = { workspace = true }
 pacquet-catalogs-types          = { workspace = true }
 pacquet-deps-path               = { workspace = true }
 pacquet-package-manifest        = { workspace = true }
+pacquet-patching                = { workspace = true }
 pacquet-resolving-resolver-base = { workspace = true }
 
 async-recursion = { workspace = true }
