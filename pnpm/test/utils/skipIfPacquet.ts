@@ -7,7 +7,11 @@ import { isPacquetMode } from './execPnpm.js'
  * pacquet Rust port (selected via the `PNPM_E2E_BIN` env var). Pass-through
  * when running against the bundled pnpm.
  */
-export const skipIfPacquet: typeof test = isPacquetMode ? test.skip : test
+// `test.skip` is declared on jest's `ItBase` interface, which omits the
+// `.each`, `.only`, etc. fields that `test` (`It`) carries — even though the
+// runtime delegate exposes them just fine. Cast back to `typeof test` so
+// callers can use `skipIfPacquet.each(...)` and friends.
+export const skipIfPacquet = (isPacquetMode ? test.skip : test) as typeof test
 
 /** describe()-level variant for skipping whole suites that aren't in pacquet's surface yet. */
-export const describeSkipIfPacquet: typeof describe = isPacquetMode ? describe.skip : describe
+export const describeSkipIfPacquet = (isPacquetMode ? describe.skip : describe) as typeof describe
