@@ -1,7 +1,8 @@
 use crate::{
-    GraphToLockfileOptions, HoistedDependencies, InstallPackageFromRegistry,
+    AllowBuildPolicy, GraphToLockfileOptions, HoistedDependencies, InstallPackageFromRegistry,
     InstallPackageFromRegistryError, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
-    dependencies_graph_to_lockfile, store_init::init_store_dir_best_effort,
+    VersionPolicyError, VirtualStoreLayout, dependencies_graph_to_lockfile,
+    store_init::init_store_dir_best_effort,
 };
 use async_recursion::async_recursion;
 use dashmap::{DashMap, mapref::entry::Entry};
@@ -14,7 +15,7 @@ use pacquet_config::Config;
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_lockfile::{Lockfile, SaveLockfileError};
+use pacquet_lockfile::{Lockfile, PackageKey, SaveLockfileError};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
@@ -146,6 +147,13 @@ pub enum InstallWithFreshLockfileError {
     #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
     #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
+
+    /// `allowBuilds` patterns in `pnpm-workspace.yaml` couldn't be
+    /// parsed. Same `VersionPolicyError` shape the frozen-lockfile
+    /// path surfaces — see `InstallFrozenLockfileError::VersionPolicy`
+    /// for the upstream reference.
+    #[diagnostic(transparent)]
+    AllowBuildsPolicy(#[error(source)] VersionPolicyError),
 
     /// Failed to resolve and hash `patchedDependencies` against the
     /// workspace directory.
@@ -477,11 +485,56 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             );
         }
 
+        // Build the install-scoped virtual-store layout. When
+        // `enable_global_virtual_store` is on, this precomputes each
+        // snapshot's `<scope>/<name>/<version>/<hash>` suffix under
+        // `<store_dir>/links`; otherwise it falls through to the legacy
+        // `<virtual_store_dir>/<flat-name>` shape. Either way every
+        // downstream slot-path lookup routes through
+        // `VirtualStoreLayout::slot_dir`. Mirrors the frozen-lockfile
+        // path's `enableGlobalVirtualStore: true → allowBuilds ??= {}`
+        // shape at
+        // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L342-L344>.
+        //
+        // The lockfile-shaped `snapshots:` / `packages:` maps the
+        // layout reads are produced via the writable-lockfile adapter
+        // ([`dependencies_graph_to_lockfile`]), but only when GVS is
+        // on — the legacy layout doesn't consult them and the build
+        // is cheap to skip otherwise. `engine_name` only matters when
+        // GVS is on, so the `node --version` probe is gated the same
+        // way.
+        let allow_build_policy = AllowBuildPolicy::from_config(config)
+            .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
+        let layout_lockfile = if config.enable_global_virtual_store {
+            Some(build_fresh_lockfile(config, manifest, &importer_result))
+        } else {
+            None
+        };
+        let engine_name: Option<String> = if config.enable_global_virtual_store {
+            tokio::task::spawn_blocking(|| {
+                pacquet_graph_hasher::detect_node_major()
+                    .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
+            })
+            .await
+            .ok()
+            .flatten()
+        } else {
+            None
+        };
+        let layout = VirtualStoreLayout::new(
+            config,
+            engine_name.as_deref(),
+            layout_lockfile.as_ref().and_then(|lockfile| lockfile.snapshots.as_ref()),
+            layout_lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref()),
+            Some(&allow_build_policy),
+        );
+
         let install_ctx = InstallCtx {
             tarball_mem_cache,
             http_client,
             config,
             graph: &peers_result.graph,
+            layout: &layout,
             store_index: store_index_ref,
             store_index_writer: store_index_writer_ref,
             verified_files_cache: &verified_files_cache,
@@ -528,22 +581,17 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         link_bins::<Host>(&config.modules_dir, &config.modules_dir.join(".bin"))
             .map_err(InstallWithFreshLockfileError::LinkBins)?;
 
-        // No lockfile here, so no prefetched manifests are available —
-        // fall back to the legacy readdir-driven path (slots discovered
-        // by walking `<virtual_store_dir>`, child manifests read from
-        // disk). The frozen-lockfile path skips both via
-        // [`LinkVirtualStoreBins::snapshots`] / `package_manifests`.
+        // No prefetched manifests are available — fall back to the
+        // legacy readdir-driven path (slots discovered by walking
+        // `<virtual_store_dir>` or `<store_dir>/links` per the active
+        // layout, child manifests read from disk). The frozen-lockfile
+        // path skips both via [`LinkVirtualStoreBins::snapshots`] /
+        // `package_manifests`.
         //
-        // The bin linker also doesn't need GVS-aware slot lookups
-        // here: without snapshots there are no GVS slot directories to
-        // compute. Construct a legacy layout so the readdir path
-        // enumerates `config.virtual_store_dir` exactly as before. GVS
-        // is scoped to frozen-lockfile installs (pnpm/pacquet#432); the
-        // without-lockfile fallback stays project-local.
-        let layout = crate::VirtualStoreLayout::legacy(
-            config.virtual_store_dir.clone(),
-            config.virtual_store_dir_max_length as usize,
-        );
+        // The bin linker reuses the install-scoped `layout` above so
+        // GVS installs walk the shared `<store_dir>/links/...`
+        // directory instead of the project-local
+        // `<virtual_store_dir>/.pnpm` one.
         let empty_manifests = std::collections::HashMap::new();
         let empty_skipped = crate::SkippedSnapshots::new();
         LinkVirtualStoreBins {
@@ -579,7 +627,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // current-lockfile pointing at an incomplete install — needs
         // `.modules.yaml` to land first.
         let wanted_lockfile = if config.lockfile {
-            let lockfile_to_save = build_fresh_lockfile(config, manifest, &importer_result);
+            // GVS already built one above for the layout — reuse it
+            // rather than walking the resolver graph again. When GVS
+            // is off, `layout_lockfile` is `None` and we build here.
+            let lockfile_to_save = layout_lockfile
+                .unwrap_or_else(|| build_fresh_lockfile(config, manifest, &importer_result));
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
             lockfile_to_save
                 .save_to_path(&target)
@@ -646,6 +698,13 @@ struct InstallCtx<'a> {
     http_client: &'a ThrottledClient,
     config: &'static Config,
     graph: &'a DependenciesGraph,
+    /// Install-scoped virtual-store layout. Computes the per-snapshot
+    /// `slot_dir` consumed by both `install_subtree` (for the child
+    /// `node_modules/` dir) and [`InstallPackageFromRegistry`] (for
+    /// the package's save path). Falls through to the legacy
+    /// `<virtual_store_dir>/<flat-name>` shape when GVS is off; under
+    /// GVS, returns `<store_dir>/links/<scope>/<name>/<version>/<hash>`.
+    layout: &'a VirtualStoreLayout,
     store_index: Option<&'a pacquet_store_dir::SharedReadonlyStoreIndex>,
     store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
     verified_files_cache: &'a SharedVerifiedFilesCache,
@@ -655,15 +714,18 @@ struct InstallCtx<'a> {
 }
 
 /// Install the package referenced by `dep_path` plus its transitive
-/// children. Recurses into each child's `node_modules/.pacquet/<vsn>/
-/// node_modules/` so transitive symlinks land in their parent's slot.
+/// children. Recurses into each child's `<slot_dir>/node_modules/` so
+/// transitive symlinks land in their parent's virtual-store slot.
 ///
 /// `dep_path` is the depPath key produced by the peer-resolution stage
 /// inside [`resolve_importer`] —
 /// `pkgIdWithPatchHash` for pure packages, `pkgId(peer1@v)(peer2@v)`
-/// when peer-suffix variation applies. The virtual-store slot name is
-/// derived via [`pacquet_deps_path::dep_path_to_filename`] so it stays
-/// stable across peer variants of the same package.
+/// when peer-suffix variation applies. The slot directory is computed
+/// via [`crate::VirtualStoreLayout::slot_dir`] so the GVS-on path
+/// routes through `<store_dir>/links/<scope>/<name>/<version>/<hash>`
+/// and the legacy path routes through
+/// `<virtual_store_dir>/<flat-name>`, both addressing the same
+/// peer-context-aware snapshot.
 #[async_recursion]
 async fn install_subtree<'ctx, Reporter>(
     ctx: &InstallCtx<'ctx>,
@@ -677,17 +739,30 @@ where
     let node =
         ctx.graph.get(dep_path).expect("resolve_peers must populate every referenced depPath");
 
-    // Slot name = the depPath flattened to a filesystem-safe form.
-    // Mirrors upstream's `depPathToFilename(depPath, virtualStoreDirMaxLength)`.
-    // `dep_path_to_filename` already applies the same trailing length /
-    // case shortening that `pacquet_crypto_hash::shorten_virtual_store_name`
-    // exposes for the flat-name call sites; consume the configured cap
-    // from `ctx.config.virtual_store_dir_max_length` so users can override
-    // via `pnpm-workspace.yaml` / env.
+    // The dedup key is the depPath flattened to a filesystem-safe
+    // form — kept as the `resolved_packages` map's key so the
+    // `FirstWriterAborted` diagnostic still names a human-readable
+    // slot. Equal to upstream's `depPathToFilename` output. The
+    // slot's *path* is resolved separately via `ctx.layout` so GVS
+    // and legacy installs share the same dedup gate but land on
+    // different on-disk directories.
     let virtual_store_name = pacquet_deps_path::dep_path_to_filename(
         dep_path.as_str(),
         ctx.config.virtual_store_dir_max_length as usize,
     );
+
+    // Resolve the slot path through the install-scoped layout. The
+    // depPath should always parse as a `PackageKey`
+    // (`<name>@<version>[(peer)...]`); the fallback to the legacy
+    // `<virtual_store_dir>/<flat-name>` shape is defensive for the
+    // rare exotic depPath the resolver could emit (e.g. legacy
+    // pre-v9 forms) — under GVS that would silently fall out of the
+    // shared store, but the install still completes rather than
+    // panicking on a parse failure.
+    let slot_dir = match dep_path.as_str().parse::<PackageKey>() {
+        Ok(package_key) => ctx.layout.slot_dir(&package_key),
+        Err(_) => ctx.config.virtual_store_dir.join(&virtual_store_name),
+    };
 
     // Claim the `(name, version)` slot. `first_visit` is true iff this
     // task created the watch sender; later visitors get a receiver and
@@ -729,6 +804,7 @@ where
         logged_methods: ctx.logged_methods,
         requester: ctx.requester,
         node_modules_dir,
+        slot_dir: &slot_dir,
         alias,
         resolution: &node.resolve_result,
         first_visit,
@@ -763,8 +839,7 @@ where
         return Ok(());
     }
 
-    let child_node_modules =
-        ctx.config.virtual_store_dir.join(&virtual_store_name).join("node_modules");
+    let child_node_modules = slot_dir.join("node_modules");
 
     let child_node_modules_ref = &child_node_modules;
     node.children
