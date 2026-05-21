@@ -348,6 +348,11 @@ where
             specifier: render_specifier(&wanted),
         });
     };
+    // Wrap in `Arc` once so the two store sites below (the per-id
+    // `ResolvedPackage` envelope and the later peer-resolved graph
+    // node) share one heap-allocated `ResolveResult` instead of
+    // cloning every `String` field per occurrence.
+    let result = Arc::new(result);
 
     if let Some(violation) = result.policy_violation.clone() {
         lock_recoverable(&ctx.policy_violations).push(violation);
@@ -403,7 +408,7 @@ where
                     id.clone(),
                     ResolvedPackage {
                         id: id.clone(),
-                        result: result.clone(),
+                        result: Arc::clone(&result),
                         peer_dependencies,
                         optional: current_is_optional,
                     },

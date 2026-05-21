@@ -23,7 +23,12 @@ pub struct DependenciesGraphNode {
     /// by reference value (cloned) so consumers don't need a separate
     /// map lookup.
     pub resolved_package_id: String,
-    pub resolve_result: ResolveResult,
+    /// Held as `Arc` so the graph's per-occurrence clones (one per
+    /// `(dep_path, peer-suffix)` slot) reuse the same heap-allocated
+    /// `ResolveResult` instead of deep-copying each field. The graph
+    /// is built once and read by the install dispatch; nothing
+    /// mutates the inner `ResolveResult` after `resolve_peers`.
+    pub resolve_result: std::sync::Arc<ResolveResult>,
     /// `alias → DepPath` edges to children + resolved peers. Children
     /// inherited from the per-occurrence tree node, peers added during
     /// peer resolution.
