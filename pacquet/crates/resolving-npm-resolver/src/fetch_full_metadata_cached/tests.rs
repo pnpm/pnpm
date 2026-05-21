@@ -29,7 +29,7 @@ async fn cold_cache_writes_mirror_on_200() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")
-        .match_header("accept", "application/json")
+        .match_header("accept", "application/json; q=1.0, */*")
         .with_status(200)
         .with_header("etag", r#"W/"fresh""#)
         .with_body(PACKAGE_BODY)
@@ -46,6 +46,7 @@ async fn cold_cache_writes_mirror_on_200() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
+        full_metadata: true,
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 → ok");
@@ -67,7 +68,7 @@ async fn warm_cache_serves_from_mirror_on_304() {
     // First call: 200, mirror written.
     let first = server
         .mock("GET", "/acme")
-        .match_header("accept", "application/json")
+        .match_header("accept", "application/json; q=1.0, */*")
         .with_status(200)
         .with_header("etag", r#"W/"v1""#)
         .with_body(PACKAGE_BODY)
@@ -92,6 +93,7 @@ async fn warm_cache_serves_from_mirror_on_304() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
+        full_metadata: true,
     };
 
     let _first_pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 populates cache");
@@ -137,6 +139,7 @@ async fn stale_cache_refreshes_mirror_on_200() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
+        full_metadata: true,
     };
 
     let _ = fetch_full_metadata_cached("acme", &opts).await.expect("populate");
@@ -158,7 +161,7 @@ async fn no_cache_dir_skips_mirror_io() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")
-        .match_header("accept", "application/json")
+        .match_header("accept", "application/json; q=1.0, */*")
         .with_status(200)
         .with_body(PACKAGE_BODY)
         .expect(1)
@@ -173,6 +176,7 @@ async fn no_cache_dir_skips_mirror_io() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         cache_dir: None,
+        full_metadata: true,
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 → ok");
@@ -210,6 +214,7 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
+        full_metadata: true,
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("read-only must not fail");

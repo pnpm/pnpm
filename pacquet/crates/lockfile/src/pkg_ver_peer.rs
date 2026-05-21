@@ -3,14 +3,23 @@ use node_semver::{SemverError, Version};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt, str::FromStr};
 
-/// Version slot of a [`PkgVerPeer`]: either a semver, or the raw
-/// path of an injected workspace `file:<path>` dep. Mirrors pnpm's
+/// Version slot of a [`PkgVerPeer`]: a semver, the raw path of an
+/// injected workspace `file:<path>` dep, or an opaque non-semver
+/// reference (typically a tarball or git URL). Mirrors pnpm's
 /// `parseDepPath` `nonSemverVersion` arm in `packages/deps.path/src`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VersionPart {
     Semver(Version),
     /// Path portion of a `file:<path>` dep, scheme stripped.
     File(String),
+    /// Non-semver reference preserved verbatim. Pnpm writes the raw
+    /// reference (e.g. a `https://codeload.github.com/...` tarball URL,
+    /// a `git+...` URL, or a custom resolution id) into the version
+    /// slot of importer entries and `packages:` / `snapshots:` keys
+    /// when no semver applies. Pacquet preserves the string so the
+    /// lockfile round-trips byte-for-byte and downstream resolvers
+    /// can inspect it.
+    NonSemver(String),
 }
 
 impl fmt::Display for VersionPart {
@@ -18,6 +27,7 @@ impl fmt::Display for VersionPart {
         match self {
             VersionPart::Semver(version) => version.fmt(f),
             VersionPart::File(path) => write!(f, "file:{path}"),
+            VersionPart::NonSemver(raw) => f.write_str(raw),
         }
     }
 }
@@ -100,7 +110,7 @@ impl PkgVerPeer {
     pub fn version_semver(&self) -> Option<&'_ Version> {
         match &self.version {
             VersionPart::Semver(version) => Some(version),
-            VersionPart::File(_) => None,
+            VersionPart::File(_) | VersionPart::NonSemver(_) => None,
         }
     }
 
@@ -145,10 +155,16 @@ fn parse_version_part(input: &str) -> Result<VersionPart, ParsePkgVerPeerError> 
         }
         return Ok(VersionPart::File(path.to_string()));
     }
-    input
-        .parse::<Version>()
-        .map(VersionPart::Semver)
-        .map_err(ParsePkgVerPeerError::ParseVersionFailure)
+    // Upstream's `parse` in `deps/path/src/index.ts` (pnpm@1819226b51)
+    // falls back to `nonSemverVersion` whenever `semver.valid` rejects
+    // the version, so tarball / git URLs and other custom resolution
+    // ids in the version slot still parse. Mirror that here — only an
+    // empty body is a hard error.
+    match input.parse::<Version>() {
+        Ok(version) => Ok(VersionPart::Semver(version)),
+        Err(err) if input.is_empty() => Err(ParsePkgVerPeerError::ParseVersionFailure(err)),
+        Err(_) => Ok(VersionPart::NonSemver(input.to_string())),
+    }
 }
 
 impl FromStr for PkgVerPeer {

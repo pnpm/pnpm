@@ -1,0 +1,827 @@
+use std::{collections::HashMap, str::FromStr, sync::Mutex};
+
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_resolving_resolver_base::{
+    LatestQuery, PreferredVersions, ResolveError, ResolveFuture, ResolveLatestFuture,
+    ResolveOptions, ResolveResult, Resolver, WantedDependency,
+};
+use pretty_assertions::assert_eq;
+
+use crate::{
+    DepPath, ResolveDependencyTreeError, resolve_importer,
+    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
+};
+
+struct StubResolver {
+    table: HashMap<(String, String), ResolveResult>,
+    calls: Mutex<Vec<(String, String)>>,
+}
+
+impl Resolver for StubResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let key = (
+            wanted.alias.clone().unwrap_or_default(),
+            wanted.bare_specifier.clone().unwrap_or_default(),
+        );
+        self.calls.lock().unwrap().push(key.clone());
+        let result = self.table.get(&key).cloned();
+        Box::pin(async move { Ok::<_, ResolveError>(result) })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
+    use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    let name_ver = PkgNameVer::new(
+        PkgName::parse(name).unwrap(),
+        node_semver::Version::from_str(version).unwrap(),
+    );
+    ResolveResult {
+        id: (&name_ver).into(),
+        name_ver: Some(name_ver),
+        latest: Some(version.to_string()),
+        published_at: None,
+        manifest: Some(manifest),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: format!("https://registry.example/{name}-{version}.tgz"),
+            integrity: None,
+            git_hosted: None,
+            path: None,
+        }),
+        resolved_via: "npm-registry".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some(name.to_string()),
+        policy_violation: None,
+    }
+}
+
+fn fake_manifest(root_deps: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
+    fake_manifest_json(serde_json::json!({
+        "name": "root",
+        "version": "0.0.0",
+        "dependencies": root_deps,
+    }))
+}
+
+fn fake_manifest_json(json: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let path = tmp.path().join("package.json");
+    std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
+    let manifest = PackageManifest::from_path(path).expect("parse package.json");
+    (tmp, manifest)
+}
+
+fn default_opts() -> ResolveImporterOptions {
+    ResolveImporterOptions {
+        auto_install_peers: true,
+        auto_install_peers_from_highest_match: false,
+        resolve_peers_from_workspace_root: false,
+        all_preferred_versions: PreferredVersions::new(),
+        patched_dependencies: None,
+        base_opts: ResolveOptions::default(),
+        catalogs: pacquet_catalogs_types::Catalogs::new(),
+    }
+}
+
+#[tokio::test]
+async fn auto_installs_missing_required_peer() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("react-dom".to_string(), "18.0.0".to_string()),
+        fake_result(
+            "react-dom",
+            "18.0.0",
+            serde_json::json!({
+                "name": "react-dom",
+                "version": "18.0.0",
+                "peerDependencies": { "react": "^18.0.0" }
+            }),
+        ),
+    );
+    // When hoistPeers proposes react, it'll come in as the missing
+    // peer's wanted range — "^18.0.0".
+    table.insert(
+        ("react".to_string(), "^18.0.0".to_string()),
+        fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct_aliases: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct_aliases.contains(&"react"), "react should be hoisted: {direct_aliases:?}");
+    assert!(direct_aliases.contains(&"react-dom"));
+    // Peer is resolved — the issue list is empty for react.
+    assert!(
+        !result.peers_result.peer_dependency_issues.missing.contains_key("react"),
+        "react should no longer be missing after hoisting",
+    );
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("react-dom"),
+        Some(&DepPath::from("react-dom@18.0.0(react@18.2.0)".to_string())),
+    );
+}
+
+#[tokio::test]
+async fn does_not_hoist_when_disabled() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("react-dom".to_string(), "18.0.0".to_string()),
+        fake_result(
+            "react-dom",
+            "18.0.0",
+            serde_json::json!({
+                "name": "react-dom",
+                "version": "18.0.0",
+                "peerDependencies": { "react": "^18.0.0" }
+            }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
+
+    let mut opts = default_opts();
+    opts.auto_install_peers = false;
+    let result =
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(!direct.contains(&"react"));
+    assert!(result.peers_result.peer_dependency_issues.missing.contains_key("react"));
+}
+
+#[tokio::test]
+async fn transitive_required_peer_is_hoisted() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("outer".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "outer",
+            "1.0.0",
+            serde_json::json!({
+                "name": "outer",
+                "version": "1.0.0",
+                "dependencies": { "inner": "1.0.0" }
+            }),
+        ),
+    );
+    table.insert(
+        ("inner".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "inner",
+            "1.0.0",
+            serde_json::json!({
+                "name": "inner",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-pkg": "^1.0.0" }
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-pkg".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "peer-pkg",
+            "1.2.3",
+            serde_json::json!({ "name": "peer-pkg", "version": "1.2.3" }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "outer": "1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(
+        direct.contains(&"peer-pkg"),
+        "transitive peer should be hoisted to importer direct deps: {direct:?}",
+    );
+    assert!(!result.peers_result.peer_dependency_issues.missing.contains_key("peer-pkg"));
+}
+
+#[tokio::test]
+async fn reuses_preferred_version_instead_of_resolving_fresh() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("react".to_string(), "18.2.0".to_string()),
+        fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
+    );
+    table.insert(
+        ("react-dom".to_string(), "18.0.0".to_string()),
+        fake_result(
+            "react-dom",
+            "18.0.0",
+            serde_json::json!({
+                "name": "react-dom",
+                "version": "18.0.0",
+                "peerDependencies": { "react": "^18.0.0" }
+            }),
+        ),
+    );
+    // hoistPeers picks the already-resolved 18.2.0 instead of "^18.0.0".
+    // The stub returns the same result for both keys so a stray
+    // "^18.0.0" resolve call would still work — but the assertion
+    // below also checks the call list.
+    table.insert(
+        ("react".to_string(), "18.2.0".to_string()),
+        fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) =
+        fake_manifest(serde_json::json!({ "react": "18.2.0", "react-dom": "18.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let calls = resolver.calls.lock().unwrap();
+    // No `react` re-resolve via a different range — the only react
+    // request was the direct dep at "18.2.0".
+    let react_call_count = calls.iter().filter(|(name, _)| name == "react").count();
+    assert_eq!(react_call_count, 1, "should not re-resolve react via a hoisted spec");
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"react"));
+    assert!(direct.contains(&"react-dom"));
+}
+
+// ---------------------------------------------------------------------------
+// Ports of upstream's deps-installer `autoInstallPeers.ts` test cases. Each
+// covers a single-importer scenario from
+// https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/test/install/autoInstallPeers.ts
+// ---------------------------------------------------------------------------
+
+/// Port of "auto install non-optional peer dependencies": only the
+/// required peer is hoisted; optional peers without a preferred-version
+/// hint stay missing. Mirrors the lockfile snapshot
+/// `[abc-optional-peers(peer-a), peer-a]` upstream asserts on.
+#[tokio::test]
+async fn auto_install_skips_optional_peers_without_preferred_versions() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("abc".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "abc",
+            "1.0.0",
+            serde_json::json!({
+                "name": "abc",
+                "version": "1.0.0",
+                "peerDependencies": {
+                    "peer-a": "^1.0.0",
+                    "peer-b": "^1.0.0",
+                    "peer-c": "^1.0.0",
+                },
+                "peerDependenciesMeta": {
+                    "peer-b": { "optional": true },
+                    "peer-c": { "optional": true },
+                },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-a".to_string(), "^1.0.0".to_string()),
+        fake_result("peer-a", "1.0.0", serde_json::json!({ "name": "peer-a", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "abc": "1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"peer-a"), "required peer should be hoisted: {direct:?}");
+    assert!(
+        !direct.contains(&"peer-b"),
+        "optional peer must stay missing without a preferred version",
+    );
+    assert!(
+        !direct.contains(&"peer-c"),
+        "optional peer must stay missing without a preferred version",
+    );
+}
+
+/// Port of "auto install the common peer dependency": two consumers
+/// each declare a peer-c range that share an exact-version intersection
+/// (`1` and `1.0.0`). The single intersected pick lands in the tree.
+#[tokio::test]
+async fn auto_install_dedupes_via_range_intersection_when_identical() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("wants-peer-c-1".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-peer-c-1",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-peer-c-1",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("wants-peer-c-1.0.0".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-peer-c-1.0.0",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-peer-c-1.0.0",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-c".to_string(), "1.0.0".to_string()),
+        fake_result("peer-c", "1.0.0", serde_json::json!({ "name": "peer-c", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "wants-peer-c-1": "1.0.0",
+        "wants-peer-c-1.0.0": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"peer-c"), "single intersected peer-c should be hoisted: {direct:?}");
+    // Exactly one peer-c@1.0.0 in the graph — the two consumers share it.
+    let peer_c_entries: Vec<&DepPath> = result
+        .peers_result
+        .graph
+        .keys()
+        .filter(|dp| dp.to_string().starts_with("peer-c@"))
+        .collect();
+    assert_eq!(peer_c_entries.len(), 1, "expected one peer-c entry, got: {peer_c_entries:?}");
+}
+
+/// Port of "do not auto install when there is no common peer dependency
+/// range intersection": with `autoInstallPeersFromHighestMatch: false`
+/// the picker drops the peer when the ranges don't reduce to one
+/// unique string. The consumers stay pure (no peer suffix).
+#[tokio::test]
+async fn auto_install_does_not_install_when_no_intersection() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("wants-peer-c-1".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-peer-c-1",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-peer-c-1",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("wants-peer-c-2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-peer-c-2",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-peer-c-2",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "2.0.0" },
+            }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "wants-peer-c-1": "1.0.0",
+        "wants-peer-c-2": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(!direct.contains(&"peer-c"), "peer-c must not be hoisted on conflict: {direct:?}");
+}
+
+/// Port of "auto install latest when there is no common peer dependency
+/// range intersection": same setup as above but with
+/// `autoInstallPeersFromHighestMatch: true`, the picker joins the
+/// ranges with `||` and the resolver picks a satisfying version.
+#[tokio::test]
+async fn auto_install_from_highest_match_installs_on_conflict() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("wants-peer-c-1".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-peer-c-1",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-peer-c-1",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("wants-peer-c-2".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-peer-c-2",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-peer-c-2",
+                "version": "1.0.0",
+                "peerDependencies": { "peer-c": "2.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-c".to_string(), "1.0.0 || 2.0.0".to_string()),
+        fake_result("peer-c", "2.0.0", serde_json::json!({ "name": "peer-c", "version": "2.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "wants-peer-c-1": "1.0.0",
+        "wants-peer-c-2": "1.0.0",
+    }));
+
+    let mut opts = default_opts();
+    opts.auto_install_peers_from_highest_match = true;
+    let result =
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"peer-c"), "peer-c should land via `||` join: {direct:?}");
+}
+
+/// Port of "hoist a peer dependency in order to reuse it by other
+/// dependencies, when it satisfies them": a sibling that already
+/// brings the peer's exact version into scope is reused by the
+/// hoist-picker via preferred-versions, so we don't re-resolve.
+#[tokio::test]
+async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("xyz-parent".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "xyz-parent",
+            "1.0.0",
+            serde_json::json!({
+                "name": "xyz-parent",
+                "version": "1.0.0",
+                "dependencies": { "xyz": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("xyz".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "xyz",
+            "1.0.0",
+            serde_json::json!({
+                "name": "xyz",
+                "version": "1.0.0",
+                "peerDependencies": { "x": "^1.0.0", "y": "^1.0.0", "z": "^1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("xyz-with-xyz".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "xyz-with-xyz",
+            "1.0.0",
+            serde_json::json!({
+                "name": "xyz-with-xyz",
+                "version": "1.0.0",
+                "dependencies": { "xyz": "1.0.0", "x": "1.0.0", "y": "1.0.0", "z": "1.0.0" },
+            }),
+        ),
+    );
+    for name in ["x", "y", "z"] {
+        table.insert(
+            (name.to_string(), "1.0.0".to_string()),
+            fake_result(name, "1.0.0", serde_json::json!({ "name": name, "version": "1.0.0" })),
+        );
+    }
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "xyz-parent": "1.0.0",
+        "xyz-with-xyz": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    for name in ["x", "y", "z"] {
+        assert!(direct.contains(&name), "{name} should be hoisted to importer: {direct:?}");
+    }
+    // The sibling already supplies x@1.0.0 / y@1.0.0 / z@1.0.0, so the
+    // hoist-picker must reuse that exact version via preferred-versions
+    // — never the peer's `^1.0.0` range arm. (The resolver may still be
+    // called multiple times with the same `1.0.0` spec because the
+    // tree walker doesn't gate the `resolve()` call on dedup; what
+    // matters here is that `^1.0.0` never appears.)
+    let calls = resolver.calls.lock().unwrap();
+    for name in ["x", "y", "z"] {
+        let ranges: Vec<&str> = calls
+            .iter()
+            .filter(|(call_name, _)| call_name == name)
+            .map(|(_, range)| range.as_str())
+            .collect();
+        assert!(
+            ranges.iter().all(|range| *range == "1.0.0"),
+            "{name} should resolve via the sibling's exact-version spec only, got {ranges:?}",
+        );
+    }
+}
+
+/// Port of "don't auto-install a peer dependency, when that dependency
+/// is in the root": a direct dep at the importer level satisfies the
+/// peer, so the hoist-picker doesn't add a fresh entry.
+#[tokio::test]
+async fn auto_install_does_not_hoist_when_root_already_has_dep() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("xyz".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "xyz",
+            "1.0.0",
+            serde_json::json!({
+                "name": "xyz",
+                "version": "1.0.0",
+                "peerDependencies": { "x": "^1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("x".to_string(), "1.0.0".to_string()),
+        fake_result("x", "1.0.0", serde_json::json!({ "name": "x", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "xyz": "1.0.0",
+        "x": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    // The picker must not re-resolve `x` via the peer's `^1.0.0` range
+    // when the root already pinned it at `1.0.0`.
+    let calls = resolver.calls.lock().unwrap();
+    let x_ranges: Vec<String> =
+        calls.iter().filter(|(n, _)| n == "x").map(|(_, r)| r.clone()).collect();
+    assert_eq!(
+        x_ranges,
+        vec!["1.0.0".to_string()],
+        "`x` should resolve only via the importer's direct spec, got: {x_ranges:?}",
+    );
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("xyz"),
+        Some(&DepPath::from("xyz@1.0.0(x@1.0.0)".to_string())),
+    );
+}
+
+/// Port of "don't install the same missing peer dependency twice": a
+/// transitive chain where each layer adds the same peer must produce a
+/// single hoisted entry.
+#[tokio::test]
+async fn auto_install_does_not_install_same_missing_peer_twice() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("outer".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "outer",
+            "1.0.0",
+            serde_json::json!({
+                "name": "outer",
+                "version": "1.0.0",
+                "dependencies": { "inner": "1.0.0" },
+                "peerDependencies": { "y": "^1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("inner".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "inner",
+            "1.0.0",
+            serde_json::json!({
+                "name": "inner",
+                "version": "1.0.0",
+                "peerDependencies": { "y": "^1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("y".to_string(), "^1.0.0".to_string()),
+        fake_result("y", "1.0.0", serde_json::json!({ "name": "y", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "outer": "1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let y_entries: Vec<&DepPath> =
+        result.peers_result.graph.keys().filter(|dp| dp.to_string().starts_with("y@")).collect();
+    assert_eq!(y_entries.len(), 1, "expected one y entry, got: {y_entries:?}");
+    let calls = resolver.calls.lock().unwrap();
+    let y_calls = calls.iter().filter(|(n, _)| n == "y").count();
+    assert_eq!(y_calls, 1, "y should be resolved at most once");
+}
+
+/// Port of "prefer the peer dependency version already used in the
+/// root": when the importer declares the peer itself, its pinned
+/// version wins via the importer-peerDependencies seed (matching
+/// upstream's `getAllDependenciesFromManifest({ autoInstallPeers })`)
+/// — even if `latest` would resolve higher.
+#[tokio::test]
+async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("has-y-peer".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "has-y-peer",
+            "1.0.0",
+            serde_json::json!({
+                "name": "has-y-peer",
+                "version": "1.0.0",
+                "peerDependencies": { "y": ">=1.0.0" },
+            }),
+        ),
+    );
+    // The importer pinned `y: ^1.0.0` so the resolver only sees that
+    // spec — never `>=1.0.0` (the peer range). Were the importer
+    // peerDeps not walked, the picker would fall back to the peer
+    // range and might pick y@2.0.0.
+    table.insert(
+        ("y".to_string(), "^1.0.0".to_string()),
+        fake_result("y", "1.0.0", serde_json::json!({ "name": "y", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest_json(serde_json::json!({
+        "name": "root",
+        "version": "0.0.0",
+        "peerDependencies": {
+            "has-y-peer": "1.0.0",
+            "y": "^1.0.0",
+        },
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"y"), "importer's own peer dep should land as direct: {direct:?}");
+    assert!(direct.contains(&"has-y-peer"));
+    let calls = resolver.calls.lock().unwrap();
+    let y_ranges: Vec<String> =
+        calls.iter().filter(|(n, _)| n == "y").map(|(_, r)| r.clone()).collect();
+    assert_eq!(
+        y_ranges,
+        vec!["^1.0.0".to_string()],
+        "y should resolve via importer's spec only, got: {y_ranges:?}",
+    );
+}
+
+/// Port of "auto install hoisted peer dependency": when the same peer
+/// name is brought into the graph by a regular `dependencies` edge of
+/// one consumer (at an exact version) and as a peer of another, the
+/// regular-dep version wins via the preferred-versions table.
+#[tokio::test]
+async fn auto_install_hoisted_peer_dep_reuses_regular_dep_version() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("has-c-in-deps".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "has-c-in-deps",
+            "1.0.0",
+            serde_json::json!({
+                "name": "has-c-in-deps",
+                "version": "1.0.0",
+                "dependencies": { "c": "2.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("wants-c".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "wants-c",
+            "1.0.0",
+            serde_json::json!({
+                "name": "wants-c",
+                "version": "1.0.0",
+                "peerDependencies": { "c": "^2.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("c".to_string(), "2.0.0".to_string()),
+        fake_result("c", "2.0.0", serde_json::json!({ "name": "c", "version": "2.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "has-c-in-deps": "1.0.0",
+        "wants-c": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let c_entries: Vec<String> = result
+        .peers_result
+        .graph
+        .keys()
+        .map(ToString::to_string)
+        .filter(|dp| dp.starts_with("c@"))
+        .collect();
+    assert_eq!(
+        c_entries,
+        vec!["c@2.0.0".to_string()],
+        "expected one c@2.0.0 entry (not a second copy via the peer arm), got: {c_entries:?}",
+    );
+}
+
+/// `catalog:` on a direct dependency is rewritten to the catalog's
+/// recorded specifier before the resolver chain sees the wanted dep.
+/// Mirrors upstream's
+/// [importer-only catalog dereference](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L611).
+#[tokio::test]
+async fn catalog_protocol_on_direct_dep_is_rewritten() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("foo".to_string(), "^1.0.0".to_string()),
+        fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
+
+    let mut catalogs = pacquet_catalogs_types::Catalogs::new();
+    catalogs.insert(
+        "default".to_string(),
+        [("foo".to_string(), "^1.0.0".to_string())].into_iter().collect(),
+    );
+
+    let opts = ResolveImporterOptions { catalogs, ..default_opts() };
+    let result =
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    assert_eq!(result.resolved_tree.direct.len(), 1);
+    assert_eq!(result.resolved_tree.direct[0].alias, "foo");
+    // The resolver chain only sees the catalog-rewritten range.
+    let calls = resolver.calls.lock().unwrap();
+    assert_eq!(&*calls, &[("foo".to_string(), "^1.0.0".to_string())]);
+}
+
+/// A misconfigured `catalog:` entry (here: missing alias) short-
+/// circuits resolution with the upstream `CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`
+/// error rather than falling through to `SpecNotSupported`.
+#[tokio::test]
+async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
+    let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
+
+    let err = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .expect_err("missing catalog entry must error");
+    match err {
+        ResolveImporterError::Resolve(ResolveDependencyTreeError::CatalogMisconfiguration(
+            inner,
+        )) => {
+            assert_eq!(
+                inner.to_string(),
+                "No catalog entry 'foo' was found for catalog 'default'.",
+            );
+        }
+        other => panic!("expected CatalogMisconfiguration, got {other:?}"),
+    }
+}

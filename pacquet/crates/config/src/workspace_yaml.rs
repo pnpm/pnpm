@@ -1,6 +1,6 @@
 use crate::{
-    Config, NodeLinker, PackageImportMethod, ScriptsPrependNodePath, TrustPolicy,
-    resolve_child_concurrency,
+    Config, NodeLinker, PackageImportMethod, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    env_replace::env_replace_lossy, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -114,13 +114,24 @@ pub struct WorkspaceSettings {
     pub global_virtual_store_dir: Option<String>,
     pub package_import_method: Option<PackageImportMethod>,
     pub modules_cache_max_age: Option<u64>,
+    pub virtual_store_dir_max_length: Option<u64>,
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+
+    /// User-defined named-registry aliases. Outer key is the alias
+    /// name (`gh`, `work`, …); inner string is the registry URL the
+    /// alias resolves against. Merged on top of pnpm's built-in
+    /// defaults at resolver construction. Mirrors upstream's
+    /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
+    /// setting.
+    pub named_registries: Option<BTreeMap<String, String>>,
+
     pub auto_install_peers: Option<bool>,
+    pub auto_install_peers_from_highest_match: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
     /// `hoistingLimits` from `pnpm-workspace.yaml`. Outer key is
     /// the importer locator (e.g. `'.@'`); inner list is the
@@ -137,6 +148,7 @@ pub struct WorkspaceSettings {
     pub dedupe_peer_dependents: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
+    pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
     pub side_effects_cache: Option<bool>,
     pub side_effects_cache_readonly: Option<bool>,
@@ -224,6 +236,34 @@ pub struct WorkspaceSettings {
     /// and the lockfile-side drift check at
     /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
     pub ignored_optional_dependencies: Option<Vec<String>>,
+
+    /// `overrides` from `pnpm-workspace.yaml`: a `selector → spec`
+    /// map that rewrites dependency specifiers everywhere they appear
+    /// during install (both direct manifests and transitive
+    /// packuments). Outer key encodes the override scope (bare name,
+    /// `name@range`, or `parent>child` forms — see
+    /// `pacquet_config_parse_overrides`); value is the replacement
+    /// spec, or `-` to delete the dep entirely.
+    ///
+    /// Mirrors upstream's
+    /// [`overrides`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L18)
+    /// shape — values are validated as strings at load time
+    /// (`ERR_PNPM_INVALID_OVERRIDES`) and `$dep-name` self-references
+    /// against the manifest's direct deps are resolved before
+    /// downstream code sees them. Empty maps are normalized to
+    /// `None` to match upstream's `delete settings.overrides`.
+    ///
+    /// pnpm 10+ moved `overrides` out of `package.json#pnpm` into
+    /// `pnpm-workspace.yaml`. Pacquet matches that — the legacy
+    /// `package.json#pnpm.overrides` shape is no longer consulted.
+    ///
+    /// Lockfile drift: the raw map is recorded in `pnpm-lock.yaml`'s
+    /// `overrides:` field. On a subsequent install,
+    /// `pacquet_lockfile::check_lockfile_settings` compares this
+    /// against `lockfile.overrides` and raises `OverridesChanged`
+    /// on mismatch. Mirrors upstream's
+    /// [`getOutdatedLockfileSetting.ts:50-52`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L52).
+    pub overrides: Option<IndexMap<String, String>>,
 
     /// `cacheDir` from `pnpm-workspace.yaml`. Resolved against the
     /// workspace dir like the other path-valued fields. Drives
@@ -340,16 +380,19 @@ impl WorkspaceSettings {
         self.offline = None;
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
+        self.auto_install_peers_from_highest_match = None;
         self.hoist_workspace_packages = None;
         self.dedupe_peer_dependents = None;
         self.strict_peer_dependencies = None;
         self.resolve_peers_from_workspace_root = None;
+        self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
         self.allow_builds = None;
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
+        self.overrides = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -389,6 +432,25 @@ impl WorkspaceSettings {
         Ok(None)
     }
 
+    /// Expand `${VAR}` placeholders inside string-valued map fields
+    /// that pnpm runs through `envReplace`. Today only
+    /// `namedRegistries` qualifies — the upstream
+    /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
+    /// pass routes `registries` and `namedRegistries` through
+    /// `replaceEnvInStringValues`; pacquet exposes only the latter
+    /// at the yaml layer.
+    ///
+    /// Call this before [`Self::apply_to`] so the substituted values
+    /// land in [`Config`].
+    pub fn substitute_env<Sys: EnvVar>(&mut self) {
+        if let Some(named_registries) = self.named_registries.as_mut() {
+            for value in named_registries.values_mut() {
+                let (substituted, _) = env_replace_lossy::<Sys>(value);
+                *value = substituted;
+            }
+        }
+    }
+
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
     /// Path-valued fields (`store_dir`, `modules_dir`, `virtual_store_dir`)
@@ -406,12 +468,15 @@ impl WorkspaceSettings {
         apply! {
             hoist, shamefully_hoist,
             node_linker, symlink, package_import_method, modules_cache_max_age,
+            virtual_store_dir_max_length,
             lockfile, prefer_frozen_lockfile, offline, prefer_offline,
             lockfile_include_tarball_url,
-            auto_install_peers, hoist_workspace_packages,
+            auto_install_peers, auto_install_peers_from_highest_match,
+            hoist_workspace_packages,
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, strict_peer_dependencies,
             resolve_peers_from_workspace_root, verify_store_integrity,
+            block_exotic_subdeps,
             side_effects_cache, side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
@@ -467,6 +532,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.registry {
             config.registry = if v.ends_with('/') { v } else { format!("{v}/") };
         }
+        if let Some(v) = self.named_registries {
+            config.named_registries = v;
+        }
 
         // Anchor patch-file path resolution against the workspace dir
         // (the yaml's parent), matching upstream's
@@ -507,6 +575,21 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.ignored_optional_dependencies {
             config.ignored_optional_dependencies = Some(v);
+        }
+        // Empty overrides map collapses to `None` so the lockfile-side
+        // drift check ignores it — mirrors upstream's
+        // `delete settings.overrides` short-circuit in
+        // [`getOptionsFromPnpmSettings`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L32-L34).
+        // The assignment runs whenever `self.overrides` is `Some(...)`
+        // (even when empty) so an explicit `overrides: {}` at a later
+        // layer (e.g. `PNPM_CONFIG_OVERRIDES={}` overlaid on top of a
+        // non-empty workspace yaml) clears the inherited setting
+        // instead of being a silent no-op. `$dep-name` self-reference
+        // resolution happens elsewhere (the resolver chain), since it
+        // needs the workspace's root manifest and that isn't in scope
+        // here.
+        if let Some(v) = self.overrides {
+            config.overrides = (!v.is_empty()).then_some(v);
         }
         if let Some(v) = self.cache_dir {
             config.cache_dir = resolve(base_dir, &v);

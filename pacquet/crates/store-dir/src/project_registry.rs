@@ -15,25 +15,13 @@
 use crate::StoreDir;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::{read_symlink_dir, remove_symlink_dir, symlink_dir};
-use sha2::{Digest, Sha256};
 use std::{
     fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
 };
-
-/// Compute the project-registry slug for `input`. Mirrors upstream's
-/// [`createShortHash`](https://github.com/pnpm/pnpm/blob/94240bc046/crypto/hash/src/index.ts):
-/// the sha256 hex digest, truncated to the first 32 characters (16 bytes
-/// of entropy — enough to make collisions across one user's projects
-/// vanishingly unlikely).
-pub fn create_short_hash(input: &str) -> String {
-    let digest = Sha256::digest(input.as_bytes());
-    let mut hex = format!("{digest:x}");
-    hex.truncate(32);
-    hex
-}
 
 /// Error type for [`register_project`].
 #[derive(Debug, Display, Error, Diagnostic)]

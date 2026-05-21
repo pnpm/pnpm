@@ -11,11 +11,14 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-config                  = { workspace = true }
-pacquet-lockfile                = { workspace = true }
-pacquet-network                 = { workspace = true }
-pacquet-registry                = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
+pacquet-config                         = { workspace = true }
+pacquet-lockfile                       = { workspace = true }
+pacquet-network                        = { workspace = true }
+pacquet-registry                       = { workspace = true }
+pacquet-resolving-jsr-specifier-parser = { workspace = true }
+pacquet-resolving-resolver-base        = { workspace = true }
+pacquet-workspace-range-resolver       = { workspace = true }
+pacquet-workspace-spec                 = { workspace = true }
 
 chrono      = { workspace = true }
 dashmap     = { workspace = true }
@@ -32,6 +35,9 @@ tokio       = { workspace = true }
 tracing     = { workspace = true }
 
 [dev-dependencies]
+pacquet-resolving-default-resolver = { workspace = true }
+pacquet-resolving-local-resolver   = { workspace = true }
+
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 ssri              = { workspace = true }

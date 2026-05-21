@@ -62,6 +62,7 @@ pub enum BundleDependencies {
 }
 
 /// Content of the `package.json` files and its path.
+#[derive(Clone)]
 pub struct PackageManifest {
     path: PathBuf,
     value: Value, // TODO: convert this into a proper struct + an array of keys order
@@ -144,6 +145,17 @@ impl PackageManifest {
 
     pub fn value(&self) -> &'_ Value {
         &self.value
+    }
+
+    /// In-memory mutation handle on the underlying JSON value.
+    ///
+    /// Used by the read-package-hook layer to rewrite a manifest's
+    /// dependency maps before downstream consumers see it (mirrors
+    /// upstream's `readPackageHook` returning a modified manifest).
+    /// Mutations stay in memory — there is no implicit `save`, so the
+    /// user's on-disk `package.json` is untouched.
+    pub fn value_mut(&mut self) -> &'_ mut Value {
+        &mut self.value
     }
 
     pub fn save(&self) -> Result<(), PackageManifestError> {

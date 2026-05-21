@@ -22,8 +22,8 @@ use std::{
 };
 
 pub use crate::defaults::{
-    available_parallelism, default_git_shallow_hosts, default_unsafe_perm, is_unsafe_perm_posix,
-    resolve_child_concurrency,
+    available_parallelism, default_git_shallow_hosts, default_unsafe_perm,
+    default_virtual_store_dir_max_length, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
@@ -292,6 +292,26 @@ pub struct Config {
     #[default(_code = "default_modules_cache_max_age()")]
     pub modules_cache_max_age: u64,
 
+    /// Maximum filename length for the per-snapshot subdirectory of the
+    /// virtual store (`node_modules/.pnpm/<name>`). When the escaped
+    /// flat name would exceed this many bytes, the tail is replaced
+    /// with a 32-char sha256 hash so the path stays within filesystem
+    /// limits (macOS / ext4 cap component names at 255 bytes; pnpm
+    /// defaults to 120 to leave headroom for `node_modules/<name>`
+    /// suffixes appended below).
+    ///
+    /// Configurable via `virtualStoreDirMaxLength` in
+    /// `pnpm-workspace.yaml`, global `config.yaml`, or
+    /// `PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH`. Mirrors upstream
+    /// `Config.virtualStoreDirMaxLength` at
+    /// <https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/Config.ts>.
+    /// The same value is persisted into `node_modules/.modules.yaml`
+    /// so subsequent installs see the user's pick.
+    ///
+    /// Default value is 120.
+    #[default(_code = "default_virtual_store_dir_max_length()")]
+    pub virtual_store_dir_max_length: u64,
+
     /// When set to false, pnpm won't read or generate a pnpm-lock.yaml file.
     pub lockfile: bool,
 
@@ -357,6 +377,19 @@ pub struct Config {
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)
 
+    /// User-defined named-registry aliases from
+    /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
+    /// (`gh`, `work`, …) to the registry URL its `<alias>:` specifiers
+    /// resolve against. Empty by default — the resolver layer merges
+    /// these on top of pnpm's built-in defaults (today: `gh:` →
+    /// GitHub Packages) and rejects malformed URLs at construction
+    /// time with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
+    ///
+    /// Mirrors upstream's
+    /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
+    /// setting.
+    pub named_registries: BTreeMap<String, String>,
+
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),
     /// all from `.npmrc` and the process environment. The type lives
@@ -388,6 +421,13 @@ pub struct Config {
     /// When true, any missing non-optional peer dependencies are automatically installed.
     #[default = true]
     pub auto_install_peers: bool,
+
+    /// When `true`, conflicting peer-dependency ranges from multiple
+    /// consumers are merged with `||` (so the resolver may pick the
+    /// highest version that satisfies any one of them) instead of
+    /// being dropped when their intersection is empty. Mirrors pnpm's
+    /// [`autoInstallPeersFromHighestMatch`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L796-L818).
+    pub auto_install_peers_from_highest_match: bool,
 
     /// Under `nodeLinker: hoisted`, controls whether non-root
     /// workspace importers are added as children of the virtual
@@ -451,6 +491,15 @@ pub struct Config {
     /// projects in the workspace use the same versions of the peer dependencies.
     #[default = true]
     pub resolve_peers_from_workspace_root: bool,
+
+    /// When `true`, reject exotic (git, tarball, file, …) dependencies
+    /// reached transitively from the importer. Direct deps remain
+    /// allowed. Mirrors pnpm's
+    /// [`blockExoticSubdeps`](https://github.com/pnpm/pnpm/blob/df990fdb51/config/reader/src/Config.ts#L222).
+    /// Default `true` to match pnpm v11's
+    /// [`block-exotic-subdeps`](https://github.com/pnpm/pnpm/blob/df990fdb51/config/reader/src/index.ts#L187).
+    #[default = true]
+    pub block_exotic_subdeps: bool,
 
     /// Whether to verify each CAFS file's on-disk integrity before reusing it
     /// for an install. When `true` (pnpm's default), the store-index cache
@@ -655,6 +704,18 @@ pub struct Config {
     /// drift check at
     /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
     pub ignored_optional_dependencies: Option<Vec<String>>,
+
+    /// `overrides` from `pnpm-workspace.yaml`. Raw `selector → spec`
+    /// map; see [`WorkspaceSettings::overrides`] for the field's
+    /// contract. `$dep-name` self-references are resolved against
+    /// the root manifest's direct deps before this field lands here.
+    /// Empty maps collapse to `None`. Drives the read-package hook
+    /// that rewrites manifests during install, and the lockfile-side
+    /// drift check at
+    /// [`getOutdatedLockfileSetting.ts:50-52`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L52).
+    ///
+    /// [`WorkspaceSettings::overrides`]: crate::workspace_yaml::WorkspaceSettings::overrides
+    pub overrides: Option<IndexMap<String, String>>,
 
     /// pnpm's packument cache directory. Used by the lockfile
     /// verification gate to memoize past results in
@@ -977,9 +1038,10 @@ impl Config {
         let global_config_dir = default_config_dir::<Sys>();
         let global_settings =
             global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
-        if let Some(global_settings) = global_settings {
+        if let Some(mut global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
+            global_settings.substitute_env::<Sys>();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
@@ -1069,13 +1131,14 @@ impl Config {
             if !virtual_store_dir_explicit {
                 self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
             }
-            if let Some(settings) = settings {
+            if let Some(mut settings) = settings {
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
                 // leaves it unset.
                 virtual_store_dir_explicit |= settings.virtual_store_dir.is_some();
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
+                settings.substitute_env::<Sys>();
                 settings.apply_to(&mut self, &base_dir);
             }
         }
@@ -1095,9 +1158,10 @@ impl Config {
         // `workspace_dir` with `start_dir`, hiding the workspace yaml's
         // location (or, if there was no yaml, setting it to a value
         // that doesn't actually correspond to a discovered workspace).
-        let env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
+        let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Sys>();
         virtual_store_dir_explicit |= env_settings.virtual_store_dir.is_some();
         global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
+        env_settings.substitute_env::<Sys>();
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
@@ -2135,6 +2199,67 @@ mod tests {
         assert_eq!(
             config.hoist_pattern, None,
             "hoist: false must clear hoist_pattern, even when set via env var",
+        );
+    }
+
+    /// `virtualStoreDirMaxLength` defaults to 120 — same value pnpm
+    /// writes when nothing is configured. The constant lives in
+    /// `pacquet-modules-yaml`; this asserts the config side carries
+    /// the matching default so a fresh install produces the same
+    /// virtual-store dirnames as pnpm.
+    #[test]
+    pub fn virtual_store_dir_max_length_defaults_to_120() {
+        let tmp = tempdir().unwrap();
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+        assert_eq!(config.virtual_store_dir_max_length, 120);
+    }
+
+    /// `virtualStoreDirMaxLength` in `pnpm-workspace.yaml` overrides
+    /// the default. Mirrors pnpm's
+    /// [`virtualStoreDirMaxLength`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/Config.ts)
+    /// config-reader entry.
+    #[test]
+    pub fn virtual_store_dir_max_length_from_workspace_yaml() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.virtual_store_dir_max_length, 90);
+    }
+
+    /// `PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH` overrides the yaml
+    /// value, matching the reader cascade priority (env > yaml >
+    /// default).
+    #[test]
+    pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")
+            .expect("write to pnpm-workspace.yaml");
+
+        struct HostWithEnvOverride;
+        impl EnvVar for HostWithEnvOverride {
+            fn var(name: &str) -> Option<String> {
+                if name == "PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH" {
+                    return Some("50".to_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithEnvOverride {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithEnvOverride {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+
+        let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
+        assert_eq!(
+            config.virtual_store_dir_max_length, 50,
+            "env var must win over pnpm-workspace.yaml",
         );
     }
 }

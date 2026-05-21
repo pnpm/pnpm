@@ -1,5 +1,13 @@
 # pnpm
 
+## 11.2.1
+
+### Patch Changes
+
+- Mark optional subdependency snapshots of config dependencies with `optional: true` in the env lockfile, matching how optional dependencies are recorded elsewhere in `pnpm-lock.yaml`. Previously, snapshots for the platform-specific subdeps pulled in via a config dep's `optionalDependencies` were written as empty objects, which was inconsistent with the rest of the lockfile and made it look like those non-host platform variants were required.
+- Fix `pickRegistryForPackage` returning the wrong registry for an unscoped `npm:` alias under a scoped local name. A manifest entry like `"@private/foo": "npm:lodash@^1"` was routing the `lodash` fetch through `registries["@private"]`, even though `lodash` is unscoped and doesn't live on that registry. The npm-alias branch now returns the alias target's own scope (or `null` for an unscoped target, falling through to `registries.default`) instead of leaking into the local key's scope.
+- Don't print "Installing config dependencies..." when config dependencies are already installed and nothing needs to be fetched, re-linked, or removed.
+
 ## 11.2.0
 
 ### Minor Changes

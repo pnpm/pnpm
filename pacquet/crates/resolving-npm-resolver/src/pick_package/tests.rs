@@ -2,11 +2,16 @@ use pacquet_network::{AuthHeaders, ThrottledClient};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
+use chrono::{DateTime, Utc};
+
 use super::{
     InMemoryPackageMetaCache, PackageMetaCache, PickPackageContext, PickPackageError,
     PickPackageOptions, persist_meta_to_mirror, pick_package,
 };
-use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
+use crate::{
+    mirror::{ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta},
+    pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
+};
 
 const PACKAGE_BODY: &str = r#"{
     "name": "acme",
@@ -65,6 +70,7 @@ fn default_opts<'a>(registry: &'a str) -> PickPackageOptions<'a> {
         pick_lowest_version: false,
         include_latest_tag: false,
         dry_run: false,
+        optional: false,
     }
 }
 
@@ -95,6 +101,7 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -140,6 +147,7 @@ async fn warm_in_memory_cache_skips_network() {
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -160,7 +168,8 @@ async fn offline_with_mirror_picks_from_disk() {
     let registry = format!("{}/", server.url());
     let preloaded: pacquet_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    persist_meta_to_mirror(cache_dir.path(), &registry, &preloaded).expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -173,6 +182,7 @@ async fn offline_with_mirror_picks_from_disk() {
         offline: true,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -200,6 +210,7 @@ async fn offline_without_mirror_errors() {
         offline: true,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let err = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -219,7 +230,8 @@ async fn version_spec_with_mirror_takes_fast_path() {
     let registry = format!("{}/", server.url());
     let preloaded: pacquet_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    persist_meta_to_mirror(cache_dir.path(), &registry, &preloaded).expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -232,6 +244,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let result = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
@@ -279,7 +292,8 @@ async fn version_spec_missing_in_mirror_fetches() {
     }"#;
     let preloaded: pacquet_registry::Package =
         serde_json::from_str(older_body).expect("parse old packument");
-    persist_meta_to_mirror(cache_dir.path(), &registry, &preloaded).expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -292,6 +306,7 @@ async fn version_spec_missing_in_mirror_fetches() {
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let result = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
@@ -329,6 +344,7 @@ async fn dry_run_skips_in_memory_cache() {
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let mut opts = default_opts(&registry);
@@ -364,6 +380,7 @@ async fn pick_lowest_version_picks_min() {
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let mut opts = default_opts(&registry);
@@ -444,6 +461,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let pick_a = pick_package(&ctx, &range_spec("acme", "*"), &default_opts(&registry_a))
@@ -483,10 +501,307 @@ async fn invalid_package_name_errors_synchronously() {
         offline: false,
         prefer_offline: false,
         ignore_missing_time_field: false,
+        full_metadata: false,
     };
 
     let err = pick_package(&ctx, &range_spec("foo/bar", "*"), &default_opts(&registry))
         .await
         .expect_err("invalid name");
     assert!(matches!(err, PickPackageError::InvalidPackageName { .. }), "got {err:?}");
+}
+
+/// Abbreviated metadata body, mirroring what a real npm registry
+/// returns under `Accept: application/vnd.npm.install-v1+json`.
+/// Missing per-version `time`, no `_npmUser`, no `dist.attestations`
+/// — just the picker-relevant shape.
+const ABBREVIATED_BODY: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.0.0" },
+    "modified": "2024-12-01T00:00:00.000Z",
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/acme-1.0.0.tgz"
+            }
+        }
+    }
+}"#;
+
+fn parse_cutoff(rfc3339: &str) -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339(rfc3339).expect("parse cutoff").with_timezone(&Utc)
+}
+
+/// Default-mode pick (full_metadata=false, no opts.optional) hits
+/// the abbreviated install-v1 endpoint and caches under
+/// `ABBREVIATED_META_DIR`. The full mirror stays untouched.
+#[tokio::test]
+async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+    };
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    mock.assert_async().await;
+
+    let abbrev_path =
+        get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+            .expect("path");
+    assert!(abbrev_path.exists(), "abbreviated mirror written");
+    let full_path =
+        get_pkg_mirror_path(cache_dir.path(), FULL_META_DIR, &registry, "acme").expect("path");
+    assert!(!full_path.exists(), "full mirror left untouched on default pick");
+}
+
+/// `opts.optional = true` forces full metadata even when
+/// `ctx.full_metadata` is off. Mirrors upstream's
+/// `fullMetadata = opts.optional || ctx.fullMetadata` derivation
+/// (pnpm/pnpm#9950).
+#[tokio::test]
+async fn optional_opt_forces_full_metadata_endpoint() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.optional = true;
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
+    mock.assert_async().await;
+
+    let full_path =
+        get_pkg_mirror_path(cache_dir.path(), FULL_META_DIR, &registry, "acme").expect("path");
+    assert!(full_path.exists(), "full mirror written when optional=true");
+}
+
+/// Two pick calls with different full-mode flags must not share an
+/// in-memory cache slot — the abbreviated entry is missing fields
+/// that a full-mode caller (optional dep) depends on. Mirrors
+/// upstream's `cacheKey = fullMetadata ? '${name}:full' : name`
+/// scoping.
+#[tokio::test]
+async fn cache_key_separates_abbreviated_from_full() {
+    let mut server = mockito::Server::new_async().await;
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+    };
+
+    // First call: default (abbreviated).
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("first");
+    // Second call: optional=true (full). Cache key has `:full`
+    // suffix so it must NOT hit the abbreviated slot — the
+    // network mock for full must fire.
+    let mut opts = default_opts(&registry);
+    opts.optional = true;
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second");
+
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+}
+
+/// `published_by` active + abbreviated cache lacking `time` +
+/// `modified` after the cutoff → re-fetch full metadata so the
+/// maturity check runs on real timestamps. Persisting the upgrade
+/// to the abbreviated mirror means the next call sees `time`
+/// populated and skips the upgrade fetch entirely. Ports the spirit
+/// of upstream's
+/// [`upgrades cached abbreviated metadata to full when 304 Not Modified and publishedBy is set`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/test/publishedBy.test.ts#L450-L511).
+#[tokio::test]
+async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
+    let mut server = mockito::Server::new_async().await;
+    // First fetch: abbreviated response (no `time`), recent
+    // `modified` so the upgrade trigger fires.
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    // Second fetch: the upgrade-to-full request. The body carries
+    // a `time` map so the picker can run the maturity check.
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+    };
+
+    let mut opts = default_opts(&registry);
+    // Cutoff sits before `modified=2024-12-01` AND before every
+    // version's publish date in PACKAGE_BODY, so every version is
+    // immature; the picker still returns a fall-back pick so the
+    // call doesn't error.
+    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
+
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+
+    // The upgraded full meta is written back to the abbreviated
+    // mirror so the next install sees `time` populated and skips
+    // the upgrade fetch — matches upstream's `persistUpgradedMeta`.
+    let abbrev_path =
+        get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+            .expect("path");
+    let persisted = load_meta(&abbrev_path).expect("abbreviated mirror readable");
+    assert!(
+        persisted.time.is_some(),
+        "abbreviated mirror should now carry time so the next install skips the upgrade",
+    );
+}
+
+/// Boundary case: `modified == cutoff`. `modified` is an upper
+/// bound on every version's publish time, so when it equals the
+/// cutoff every version passes the per-version `<=` filter and
+/// the upgrade fetch is unnecessary. Mirrors upstream's strict
+/// inclusive boundary in
+/// [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L474).
+#[tokio::test]
+async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
+    let mut server = mockito::Server::new_async().await;
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    // No second mock — the registry must NOT see a full-metadata
+    // request. If the upgrade trigger fires by mistake, the test
+    // panics on an unmatched request from `mockito`.
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: true,
+        full_metadata: false,
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.published_by = Some(parse_cutoff("2024-12-01T00:00:00Z"));
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
+
+    abbrev_mock.assert_async().await;
 }

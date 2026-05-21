@@ -419,7 +419,11 @@ where
         //    the self-shim. Mirror it here.
         let with_bin: Vec<(&PkgName, PackageKey)> = children
             .filter_map(|(alias, dep_ref)| {
-                let child_key = dep_ref.resolve(alias);
+                // `link:` deps live outside the virtual store and
+                // expose their bins via the workspace project's
+                // own `package.json`, not through a snapshot — skip
+                // them here.
+                let child_key = dep_ref.resolve(alias)?;
                 let metadata_key = child_key.without_peer();
                 let keep = match has_bin_set {
                     Some(set) => set.contains(&metadata_key),

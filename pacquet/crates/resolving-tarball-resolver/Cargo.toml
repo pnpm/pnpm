@@ -1,0 +1,26 @@
+[package]
+name                  = "pacquet-resolving-tarball-resolver"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-lockfile                = { workspace = true }
+pacquet-network                 = { workspace = true }
+pacquet-resolving-resolver-base = { workspace = true }
+
+reqwest = { workspace = true }
+
+[dev-dependencies]
+mockito           = { workspace = true }
+pretty_assertions = { workspace = true }
+tokio             = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

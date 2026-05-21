@@ -7,6 +7,9 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_catalogs_config::{
+    InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
+};
 use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
@@ -15,8 +18,8 @@ use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
 };
 use pacquet_modules_yaml::{
-    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, LayoutVersion, Modules,
-    NodeLinker as ModulesNodeLinker, WriteModulesError, write_modules_manifest,
+    Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
+    WriteModulesError, write_modules_manifest,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -166,6 +169,20 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
 
+    /// Reading `pnpm-workspace.yaml` to extract its `catalog` /
+    /// `catalogs` sections failed.
+    #[diagnostic(transparent)]
+    ReadWorkspaceManifest(#[error(source)] pacquet_workspace::ReadWorkspaceManifestError),
+
+    /// `pnpm-workspace.yaml` defined the `default` catalog twice
+    /// (once via the top-level `catalog:` field and once via
+    /// `catalogs.default`).
+    #[diagnostic(transparent)]
+    InvalidCatalogsConfiguration(#[error(source)] InvalidCatalogsConfigurationError),
+
+    #[diagnostic(transparent)]
+    FindWorkspaceProjects(#[error(source)] pacquet_workspace::FindWorkspaceProjectsError),
+
     /// Building the verifier list from config rejected a
     /// `minimumReleaseAgeExclude` or `trustPolicyExclude` pattern.
     /// Mirrors upstream's `INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` /
@@ -192,6 +209,15 @@ pub enum InstallError {
     /// error compound into spurious reinstalls.
     #[diagnostic(transparent)]
     WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
+
+    /// A value in `pnpm.overrides` couldn't be parsed — the selector
+    /// key isn't a recognizable package name, or the override value
+    /// uses the `catalog:` protocol (which pacquet doesn't support
+    /// yet). Mirrors upstream's `ERR_PNPM_INVALID_SELECTOR` and
+    /// `ERR_PNPM_CATALOG_IN_OVERRIDES` codes from
+    /// [`config/parse-overrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts).
+    #[diagnostic(transparent)]
+    InvalidOverrides(#[error(source)] pacquet_config_parse_overrides::ParseOverridesError),
 }
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
@@ -239,9 +265,24 @@ where
         //
         // [bunyan]: https://github.com/trentm/node-bunyan
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let workspace_root = pacquet_workspace::find_workspace_dir(manifest_dir)
-            .map_err(InstallError::FindWorkspaceDir)?
-            .unwrap_or_else(|| manifest_dir.to_path_buf());
+        let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
+            .map_err(InstallError::FindWorkspaceDir)?;
+        let workspace_root =
+            workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+
+        // Read `pnpm-workspace.yaml` for the catalog sections. Only
+        // consulted when a workspace manifest exists — single-project
+        // installs have no `catalog:` to honor. Mirrors upstream's
+        // `getCatalogsFromWorkspaceManifest(readWorkspaceManifest(...))`
+        // pipeline at
+        // <https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/src/getCatalogsFromWorkspaceManifest.ts>.
+        let workspace_manifest = match workspace_dir_opt.as_deref() {
+            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+                .map_err(InstallError::ReadWorkspaceManifest)?,
+            None => None,
+        };
+        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+            .map_err(InstallError::InvalidCatalogsConfiguration)?;
         // Use `to_string_lossy` rather than `to_str().expect(...)` so a
         // valid filesystem path with non-UTF-8 bytes (possible on Unix)
         // doesn't panic the installer. `prefix` is used only for
@@ -391,11 +432,56 @@ where
             // Upstream flips `needsFullResolution` and re-runs the
             // resolver; pacquet has no resolver, so the matching
             // action is to abort with `OutdatedLockfile`.
+            // `Config::overrides` is an `IndexMap` so user-supplied
+            // order survives all the way to diagnostics; the
+            // freshness check is order-insensitive (it normalizes to
+            // `BTreeMap` internally to match upstream's
+            // `equals(lockfile.overrides ?? {}, overrides ?? {})`),
+            // so a flat clone into `HashMap` here is fine.
+            let overrides_map: Option<std::collections::HashMap<String, String>> = config
+                .overrides
+                .as_ref()
+                .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect());
             pacquet_lockfile::check_lockfile_settings(
                 lockfile,
+                overrides_map.as_ref(),
                 config.ignored_optional_dependencies.as_deref(),
             )
             .map_err(|reason| InstallError::OutdatedLockfile { reason })?;
+
+            // Apply `pnpm.overrides` to a *cloned* manifest before
+            // the freshness check, so the lockfile's importer
+            // specifiers — which were written by pnpm with overrides
+            // already applied — match the on-disk manifest's deps.
+            // Without this, an install on a repo with overrides
+            // trips `SpecifiersDiffer` on every dep an override
+            // rewrites. The caller's manifest stays pristine, since
+            // upstream's read-package-hook conceptually returns a
+            // new manifest from the perspective of every consumer
+            // downstream of the resolver.
+            //
+            // Parsing today is infallible *barring* catalog refs —
+            // pacquet has no catalogs yet, so a `catalog:` value
+            // surfaces as `INVALID_OVERRIDES` here. When catalogs
+            // land, the parse call gains the catalog table.
+            let overrider_manifest_holder;
+            let manifest_for_freshness: &PackageManifest = if let Some(map) =
+                config.overrides.as_ref()
+                && !map.is_empty()
+            {
+                let parsed = pacquet_config_parse_overrides::parse_overrides_iter(map.iter())
+                    .map_err(InstallError::InvalidOverrides)?;
+                let root_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
+                let overrider = crate::VersionsOverrider::new(&parsed, root_dir);
+                overrider_manifest_holder = {
+                    let mut cloned: PackageManifest = (*manifest).clone();
+                    overrider.apply(&mut cloned, Some(root_dir));
+                    cloned
+                };
+                &overrider_manifest_holder
+            } else {
+                manifest
+            };
             // Build the `ignoredOptionalDependencies` filter set.
             // Mirrors upstream's
             // [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts):
@@ -415,7 +501,7 @@ where
                 .filter(|patterns| !patterns.is_empty())
                 .map(|patterns| {
                     let matcher = pacquet_config::matcher::create_matcher(patterns);
-                    manifest
+                    manifest_for_freshness
                         .dependencies([pacquet_package_manifest::DependencyGroup::Optional])
                         .filter(|(name, _)| matcher.matches(name))
                         .map(|(name, _)| name.to_string())
@@ -426,7 +512,7 @@ where
                 &|name: &str| ignored_set.contains(name);
             satisfies_package_manifest(
                 importer,
-                manifest,
+                manifest_for_freshness,
                 Lockfile::ROOT_IMPORTER_KEY,
                 is_ignored_optional,
             )
@@ -509,15 +595,29 @@ where
             // The no-lockfile path has no installability check (no
             // `packages:` metadata to evaluate constraints against),
             // so its skip set is empty by construction.
+            // Build the workspace-sibling lookup the npm resolver
+            // consults for `workspace:` specs. `None` when the install
+            // isn't inside a `pnpm-workspace.yaml` workspace (no
+            // workspace root was found), so the resolver errors out
+            // on any `workspace:` spec rather than silently skipping
+            // to a registry lookup. Mirrors upstream's posture at
+            // <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830>.
+            let workspace_packages =
+                build_workspace_packages_map(&workspace_root, workspace_manifest.as_ref())
+                    .map_err(InstallError::FindWorkspaceProjects)?;
             let hd = InstallWithoutLockfile {
                 tarball_mem_cache,
                 resolved_packages,
                 http_client,
+                http_client_arc: Arc::clone(&http_client_arc),
                 config,
                 manifest,
                 dependency_groups,
                 logged_methods: &logged_methods,
                 requester: &prefix,
+                catalogs,
+                lockfile_dir: &workspace_root,
+                workspace_packages,
             }
             .run::<Reporter>()
             .await
@@ -699,7 +799,7 @@ fn build_modules_manifest(
         skipped: skipped.iter_installability().map(ToString::to_string).collect(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config.virtual_store_dir.to_string_lossy().into_owned(),
-        virtual_store_dir_max_length: DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     }
 }
@@ -721,6 +821,50 @@ fn map_workspace_state_node_linker(linker: &NodeLinker) -> WorkspaceStateNodeLin
 /// pacquet matches by silently dropping non-string values.
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
     manifest.value().get(key).and_then(|v| v.as_str()).map(ToString::to_string)
+}
+
+/// Build the `name → version → WorkspacePackage` lookup the npm
+/// resolver consults for `workspace:` specs. Returns `Ok(None)` when
+/// no `pnpm-workspace.yaml` exists in (or above) `workspace_root` —
+/// the install isn't a workspace install, so any `workspace:` spec
+/// the manifest happens to carry should surface
+/// [`pacquet_resolving_npm_resolver::ResolveFromWorkspaceError::WorkspacePackagesNotLoaded`].
+///
+/// Mirrors the slice pnpm's
+/// [`getWorkspacePackagesByDirectory`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/installing/context/src/index.ts#L160)
+/// passes into `resolveDependencies` — same name/version index, same
+/// per-project `WorkspacePackage` shape (`{ rootDir, manifest }`).
+/// Projects whose manifest lacks a name or version are silently
+/// skipped; upstream's manifest reader emits a separate warning that
+/// pacquet doesn't carry through here.
+fn build_workspace_packages_map(
+    workspace_root: &std::path::Path,
+    workspace_manifest: Option<&pacquet_workspace::WorkspaceManifest>,
+) -> Result<
+    Option<pacquet_resolving_resolver_base::WorkspacePackages>,
+    pacquet_workspace::FindWorkspaceProjectsError,
+> {
+    // No `pnpm-workspace.yaml` → no workspace install. Skip the project
+    // walk entirely.
+    let Some(manifest) = workspace_manifest else { return Ok(None) };
+    let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
+    let projects = pacquet_workspace::find_workspace_projects(workspace_root, &opts)?;
+
+    let mut map: pacquet_resolving_resolver_base::WorkspacePackages =
+        std::collections::BTreeMap::new();
+    for project in projects {
+        let name = manifest_string_field(&project.manifest, "name");
+        let version = manifest_string_field(&project.manifest, "version");
+        let (Some(name), Some(version)) = (name, version) else { continue };
+        map.entry(name).or_default().insert(
+            version,
+            pacquet_resolving_resolver_base::WorkspacePackage {
+                root_dir: project.root_dir,
+                manifest: project.manifest.value().clone(),
+            },
+        );
+    }
+    Ok(Some(map))
 }
 
 /// Build the `projects` map for [`WorkspaceState`]. Mirrors upstream's
@@ -782,10 +926,9 @@ fn build_projects_map(
 /// settings the install used. Mirrors upstream's `createWorkspaceState`
 /// at <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/createWorkspaceState.ts>.
 /// Settings pacquet does not track yet (e.g. `dedupeDirectDeps`,
-/// `peersSuffixMaxLength`, `overrides`) are omitted; pnpm's
-/// `checkDepsStatus` only iterates fields present in the serialized
-/// object, so an absent key is silently skipped rather than treated as
-/// a drift.
+/// `peersSuffixMaxLength`) are omitted; pnpm's `checkDepsStatus`
+/// only iterates fields present in the serialized object, so an
+/// absent key is silently skipped rather than treated as a drift.
 fn build_workspace_state(
     config: &Config,
     node_linker: NodeLinker,
@@ -825,6 +968,11 @@ fn build_workspace_state(
             ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
             node_linker: Some(map_workspace_state_node_linker(&node_linker)),
             optional: Some(included.optional_dependencies),
+            overrides: config.overrides.as_ref().map(|map| {
+                map.iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect::<BTreeMap<_, _>>()
+            }),
             patched_dependencies: config.patched_dependencies.clone(),
             production: Some(included.dependencies),
             public_hoist_pattern: config.public_hoist_pattern.clone(),

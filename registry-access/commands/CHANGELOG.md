@@ -1,5 +1,12 @@
 # @pnpm/registry-access.commands
 
+## 1100.2.14
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+
 ## 1100.2.13
 
 ### Patch Changes

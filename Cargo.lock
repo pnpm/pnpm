@@ -1972,6 +1972,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
+name = "pacquet-catalogs-config"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-catalogs-types",
+ "pacquet-workspace",
+]
+
+[[package]]
+name = "pacquet-catalogs-protocol-parser"
+version = "0.0.1"
+dependencies = [
+ "pacquet-catalogs-types",
+]
+
+[[package]]
+name = "pacquet-catalogs-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-catalogs-protocol-parser",
+ "pacquet-catalogs-types",
+]
+
+[[package]]
+name = "pacquet-catalogs-types"
+version = "0.0.1"
+
+[[package]]
 name = "pacquet-cli"
 version = "0.0.1"
 dependencies = [
@@ -2045,6 +2076,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-config-parse-overrides"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-resolving-parse-wanted-dependency",
+]
+
+[[package]]
+name = "pacquet-crypto-hash"
+version = "0.0.1"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "pacquet-crypto-shasums-file"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-network",
+ "pretty_assertions",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-deps-path"
+version = "0.0.1"
+dependencies = [
+ "pacquet-crypto-hash",
+]
+
+[[package]]
 name = "pacquet-diagnostics"
 version = "0.0.1"
 dependencies = [
@@ -2071,6 +2138,63 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-engine-runtime-bun-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-crypto-shasums-file",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-engine-runtime-deno-resolver"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-engine-runtime-node-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-crypto-shasums-file",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-executor"
 version = "0.0.1"
 dependencies = [
@@ -2082,6 +2206,17 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tracing",
+]
+
+[[package]]
+name = "pacquet-exportable-manifest"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-package-manifest",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -2152,6 +2287,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "node-semver",
+ "pacquet-crypto-hash",
  "pacquet-diagnostics",
  "pacquet-package-manifest",
  "pipe-trait",
@@ -2163,6 +2299,19 @@ dependencies = [
  "ssri",
  "tempfile",
  "text-block-macros",
+]
+
+[[package]]
+name = "pacquet-lockfile-preferred-versions"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -2258,6 +2407,7 @@ name = "pacquet-package-manager"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
+ "chrono",
  "dashmap",
  "derive_more",
  "dunce",
@@ -2267,14 +2417,23 @@ dependencies = [
  "insta",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-catalogs-config",
+ "pacquet-catalogs-types",
  "pacquet-cmd-shim",
  "pacquet-config",
+ "pacquet-config-parse-overrides",
+ "pacquet-crypto-hash",
+ "pacquet-deps-path",
  "pacquet-directory-fetcher",
+ "pacquet-engine-runtime-bun-resolver",
+ "pacquet-engine-runtime-deno-resolver",
+ "pacquet-engine-runtime-node-resolver",
  "pacquet-executor",
  "pacquet-fs",
  "pacquet-git-fetcher",
  "pacquet-graph-hasher",
  "pacquet-lockfile",
+ "pacquet-lockfile-preferred-versions",
  "pacquet-lockfile-verification",
  "pacquet-modules-yaml",
  "pacquet-network",
@@ -2285,8 +2444,13 @@ dependencies = [
  "pacquet-registry",
  "pacquet-registry-mock",
  "pacquet-reporter",
+ "pacquet-resolving-default-resolver",
+ "pacquet-resolving-deps-resolver",
+ "pacquet-resolving-git-resolver",
+ "pacquet-resolving-local-resolver",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",
+ "pacquet-resolving-tarball-resolver",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
@@ -2409,6 +2573,74 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-deps-resolver"
+version = "0.0.1"
+dependencies = [
+ "async-recursion",
+ "derive_more",
+ "futures-util",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-catalogs-resolver",
+ "pacquet-catalogs-types",
+ "pacquet-deps-path",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-patching",
+ "pacquet-resolving-resolver-base",
+ "pipe-trait",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-resolving-git-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pacquet-resolving-jsr-specifier-parser"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+]
+
+[[package]]
+name = "pacquet-resolving-local-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "home",
+ "miette 7.6.0",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-resolving-default-resolver",
+ "pacquet-resolving-resolver-base",
+ "pacquet-testing-utils",
+ "pathdiff",
+ "pretty_assertions",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-resolving-npm-resolver"
 version = "0.0.1"
 dependencies = [
@@ -2423,7 +2655,12 @@ dependencies = [
  "pacquet-lockfile",
  "pacquet-network",
  "pacquet-registry",
+ "pacquet-resolving-default-resolver",
+ "pacquet-resolving-jsr-specifier-parser",
+ "pacquet-resolving-local-resolver",
  "pacquet-resolving-resolver-base",
+ "pacquet-workspace-range-resolver",
+ "pacquet-workspace-spec",
  "pipe-trait",
  "pretty_assertions",
  "reqwest",
@@ -2444,10 +2681,26 @@ version = "0.0.1"
 name = "pacquet-resolving-resolver-base"
 version = "0.0.1"
 dependencies = [
+ "chrono",
+ "derive_more",
+ "pacquet-config",
  "pacquet-lockfile",
  "serde",
  "serde_json",
  "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-resolving-tarball-resolver"
+version = "0.0.1"
+dependencies = [
+ "mockito",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
  "tokio",
 ]
 
@@ -2459,6 +2712,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "miette 7.6.0",
+ "pacquet-crypto-hash",
  "pacquet-fs",
  "pipe-trait",
  "pretty_assertions",
@@ -2524,6 +2778,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "pacquet-catalogs-types",
  "pacquet-package-manifest",
  "pretty_assertions",
  "serde",
@@ -2531,6 +2786,17 @@ dependencies = [
  "tempfile",
  "wax",
 ]
+
+[[package]]
+name = "pacquet-workspace-range-resolver"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+]
+
+[[package]]
+name = "pacquet-workspace-spec"
+version = "0.0.1"
 
 [[package]]
 name = "pacquet-workspace-state"

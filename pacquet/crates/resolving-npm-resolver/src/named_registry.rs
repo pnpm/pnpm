@@ -15,11 +15,68 @@
 
 use std::collections::HashMap;
 
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use reqwest::Url;
 
 /// Built-in named-registry aliases the resolver recognizes
 /// out of the box. Mirrors upstream's `BUILTIN_NAMED_REGISTRIES`.
 pub const BUILTIN_NAMED_REGISTRIES: &[(&str, &str)] = &[("gh", "https://npm.pkg.github.com/")];
+
+/// Failure from [`merge_named_registries`]. Mirrors upstream's
+/// [`ERR_PNPM_INVALID_NAMED_REGISTRY_URL`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/index.ts#L642-L656).
+///
+/// Surfaced at resolver construction so a malformed URL in the
+/// user's `pnpm-workspace.yaml#namedRegistries` fails fast instead of
+/// turning into a confusing 404 during resolution.
+#[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MergeNamedRegistriesError {
+    #[display(
+        "The named registry alias '{alias}' is mapped to '{url}', which is not a valid http(s) URL."
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_NAMED_REGISTRY_URL),
+        help(
+            "Provide a URL that starts with http:// or https://, e.g. https://npm.pkg.example.com/"
+        )
+    )]
+    InvalidUrl {
+        #[error(not(source))]
+        alias: String,
+        url: String,
+    },
+}
+
+/// Merge user-supplied named-registry aliases on top of the built-in
+/// defaults, validating each URL. User entries override the built-ins
+/// on key collision (later wins, matching upstream's spread semantics)
+/// so GHES users can point `gh` at an enterprise host.
+///
+/// Mirrors upstream's
+/// [`mergeNamedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/index.ts#L642-L656).
+pub fn merge_named_registries(
+    user_defined: &HashMap<String, String>,
+) -> Result<HashMap<String, String>, MergeNamedRegistriesError> {
+    let mut merged: HashMap<String, String> = BUILTIN_NAMED_REGISTRIES
+        .iter()
+        .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
+        .collect();
+    for (alias, url) in user_defined {
+        if !is_valid_http_url(url) {
+            return Err(MergeNamedRegistriesError::InvalidUrl {
+                alias: alias.clone(),
+                url: url.clone(),
+            });
+        }
+        merged.insert(alias.clone(), url.clone());
+    }
+    Ok(merged)
+}
+
+fn is_valid_http_url(url: &str) -> bool {
+    Url::parse(url).is_ok_and(|parsed| matches!(parsed.scheme(), "http" | "https"))
+}
 
 /// Build the sorted-by-length list of registry URL prefixes the
 /// verifier matches a tarball URL against.
@@ -90,15 +147,32 @@ pub fn pick_registry_for_version(
             }
         }
     }
-    pick_registry_for_package(registries, name)
+    pick_registry_for_package(registries, name, None)
 }
 
 /// Default-vs-scope routing for an npm package. Mirrors pnpm's
-/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts#L3-L6).
-/// `@scope/foo` consults `registries[@scope]`; everything else
-/// (including unscoped) falls through to `registries["default"]`.
-pub fn pick_registry_for_package(registries: &HashMap<String, String>, name: &str) -> String {
-    if let Some(scope) = scope_of(name)
+/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package/src/index.ts).
+///
+/// Routing rules:
+///
+/// 1. **`npm:` alias.** When `bare_specifier` is an `npm:` alias the
+///    *alias target* decides routing, not the local key:
+///    - `npm:@scope/name@<spec>` → `registries[@scope]`.
+///    - `npm:name@<spec>` (unscoped target) → `registries["default"]`,
+///      never the local alias's scope, because the fetched package is
+///      unscoped and doesn't live on a scoped registry.
+/// 2. **Plain spec.** Falls back to `pkg_name`'s scope when present;
+///    otherwise `registries["default"]`.
+pub fn pick_registry_for_package(
+    registries: &HashMap<String, String>,
+    pkg_name: &str,
+    bare_specifier: Option<&str>,
+) -> String {
+    let scope = match bare_specifier.and_then(|spec| spec.strip_prefix("npm:")) {
+        Some(target) => scope_of(target),
+        None => scope_of(pkg_name),
+    };
+    if let Some(scope) = scope
         && let Some(url) = registries.get(scope)
     {
         return url.clone();

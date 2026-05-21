@@ -134,9 +134,10 @@ impl Resolver for StubResolver {
             if !alias.starts_with("claim:") {
                 return Ok(None);
             }
-            let id: PkgNameVer = "lodash@4.17.21".parse().expect("parse fake PkgNameVer");
+            let name_ver: PkgNameVer = "lodash@4.17.21".parse().expect("parse fake PkgNameVer");
             Ok(Some(ResolveResult {
-                id,
+                id: (&name_ver).into(),
+                name_ver: Some(name_ver),
                 latest: None,
                 published_at: None,
                 manifest: None,

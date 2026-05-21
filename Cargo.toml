@@ -13,8 +13,17 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
+pacquet-catalogs-config                   = { path = "pacquet/crates/catalogs-config" }
+pacquet-catalogs-protocol-parser          = { path = "pacquet/crates/catalogs-protocol-parser" }
+pacquet-catalogs-resolver                 = { path = "pacquet/crates/catalogs-resolver" }
+pacquet-catalogs-types                    = { path = "pacquet/crates/catalogs-types" }
 pacquet-cli                               = { path = "pacquet/crates/cli" }
 pacquet-cmd-shim                          = { path = "pacquet/crates/cmd-shim" }
+pacquet-crypto-hash                       = { path = "pacquet/crates/crypto-hash" }
+pacquet-crypto-shasums-file               = { path = "pacquet/crates/crypto-shasums-file" }
+pacquet-engine-runtime-bun-resolver       = { path = "pacquet/crates/engine-runtime-bun-resolver" }
+pacquet-engine-runtime-deno-resolver      = { path = "pacquet/crates/engine-runtime-deno-resolver" }
+pacquet-engine-runtime-node-resolver      = { path = "pacquet/crates/engine-runtime-node-resolver" }
 pacquet-fs                                = { path = "pacquet/crates/fs" }
 pacquet-registry                          = { path = "pacquet/crates/registry" }
 pacquet-tarball                           = { path = "pacquet/crates/tarball" }
@@ -23,13 +32,17 @@ pacquet-package-manifest                  = { path = "pacquet/crates/package-man
 pacquet-package-manager                   = { path = "pacquet/crates/package-manager" }
 pacquet-package-is-installable            = { path = "pacquet/crates/package-is-installable" }
 pacquet-lockfile                          = { path = "pacquet/crates/lockfile" }
+pacquet-lockfile-preferred-versions       = { path = "pacquet/crates/lockfile-preferred-versions" }
 pacquet-lockfile-verification             = { path = "pacquet/crates/lockfile-verification" }
 pacquet-modules-yaml                      = { path = "pacquet/crates/modules-yaml" }
 pacquet-network                           = { path = "pacquet/crates/network" }
 pacquet-config                            = { path = "pacquet/crates/config" }
+pacquet-config-parse-overrides            = { path = "pacquet/crates/config-parse-overrides" }
 pacquet-executor                          = { path = "pacquet/crates/executor" }
+pacquet-exportable-manifest               = { path = "pacquet/crates/exportable-manifest" }
 pacquet-directory-fetcher                 = { path = "pacquet/crates/directory-fetcher" }
 pacquet-git-fetcher                       = { path = "pacquet/crates/git-fetcher" }
+pacquet-deps-path                         = { path = "pacquet/crates/deps-path" }
 pacquet-diagnostics                       = { path = "pacquet/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pacquet/crates/graph-hasher" }
 pacquet-store-dir                         = { path = "pacquet/crates/store-dir" }
@@ -37,10 +50,17 @@ pacquet-reporter                          = { path = "pacquet/crates/reporter" }
 pacquet-patching                          = { path = "pacquet/crates/patching" }
 pacquet-real-hoist                        = { path = "pacquet/crates/real-hoist" }
 pacquet-resolving-default-resolver        = { path = "pacquet/crates/resolving-default-resolver" }
+pacquet-resolving-deps-resolver           = { path = "pacquet/crates/resolving-deps-resolver" }
+pacquet-resolving-git-resolver            = { path = "pacquet/crates/resolving-git-resolver" }
+pacquet-resolving-jsr-specifier-parser    = { path = "pacquet/crates/resolving-jsr-specifier-parser" }
+pacquet-resolving-local-resolver          = { path = "pacquet/crates/resolving-local-resolver" }
 pacquet-resolving-npm-resolver            = { path = "pacquet/crates/resolving-npm-resolver" }
 pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-parse-wanted-dependency" }
 pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }
+pacquet-resolving-tarball-resolver        = { path = "pacquet/crates/resolving-tarball-resolver" }
 pacquet-workspace                         = { path = "pacquet/crates/workspace" }
+pacquet-workspace-range-resolver          = { path = "pacquet/crates/workspace-range-resolver" }
+pacquet-workspace-spec                    = { path = "pacquet/crates/workspace-spec" }
 pacquet-workspace-state                   = { path = "pacquet/crates/workspace-state" }
 
 # Tasks

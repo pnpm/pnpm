@@ -77,7 +77,8 @@ test('one level of optionalDependencies is recorded in the env lockfile with pla
   })
 
   // Each optional subdep is in `packages` with its os/cpu fields preserved for
-  // install-time platform filtering, and gets an empty snapshot.
+  // install-time platform filtering, and gets an `optional: true` snapshot
+  // to match how optional packages are recorded elsewhere in the lockfile.
   expect(envLockfile!.packages['@pnpm.e2e/only-darwin-arm64@1.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/only-darwin-arm64', '1.0.0'),
@@ -85,7 +86,7 @@ test('one level of optionalDependencies is recorded in the env lockfile with pla
     os: ['darwin'],
     cpu: ['arm64'],
   })
-  expect(envLockfile!.snapshots['@pnpm.e2e/only-darwin-arm64@1.0.0']).toStrictEqual({})
+  expect(envLockfile!.snapshots['@pnpm.e2e/only-darwin-arm64@1.0.0']).toStrictEqual({ optional: true })
   // libc is preserved alongside os/cpu for musl/glibc variants.
   expect(envLockfile!.packages['@pnpm.e2e/only-linux-x64-musl@1.0.0']).toStrictEqual({
     resolution: {

@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 1101.3.1
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+
 ## 1101.3.0
 
 ### Minor Changes

@@ -1,6 +1,8 @@
 use super::PkgNameVerPeer;
 use pretty_assertions::assert_eq;
 
+const DEFAULT_MAX_LENGTH: usize = 120;
+
 fn name_peer_ver(name: &str, peer_ver: &str) -> PkgNameVerPeer {
     let peer_ver = peer_ver.to_string().parse().unwrap();
     PkgNameVerPeer::new(name.parse().unwrap(), peer_ver)
@@ -38,7 +40,7 @@ fn to_virtual_store_name() {
         eprintln!("CASE: {input:?}");
         let name_ver_peer: PkgNameVerPeer = input.parse().unwrap();
         dbg!(&name_ver_peer);
-        let received = name_ver_peer.to_virtual_store_name();
+        let received = name_ver_peer.to_virtual_store_name(DEFAULT_MAX_LENGTH);
         assert_eq!(received, expected);
     }
 
@@ -55,4 +57,29 @@ fn to_virtual_store_name() {
         "@babel/plugin-proposal-object-rest-spread@7.12.1(@babel/core@7.12.9)",
         "@babel+plugin-proposal-object-rest-spread@7.12.1_@babel+core@7.12.9",
     );
+}
+
+/// The user-reported macOS errno-63 case: a vitest snapshot key whose
+/// escaped filename blows past 120 bytes. The shortening must produce a
+/// name that fits inside `max_length` so `fs::create_dir_all` doesn't
+/// hit `ENAMETOOLONG`.
+#[test]
+fn to_virtual_store_name_shortens_user_reported_vitest_case() {
+    let input: PkgNameVerPeer = "vitest@4.1.6\
+        (@opentelemetry/api@1.9.1)\
+        (@types/node@24.12.4)\
+        (@vitest/browser-playwright@4.1.6)\
+        (@vitest/coverage-v8@4.1.6)\
+        (happy-dom@20.9.0)\
+        (jsdom@26.1.0)\
+        (canvas@3.2.1)\
+        (msw@2.12.14)\
+        (yaml@2.8.4)"
+        .parse()
+        .unwrap();
+    let received = input.to_virtual_store_name(DEFAULT_MAX_LENGTH);
+    assert_eq!(received.len(), DEFAULT_MAX_LENGTH);
+    let (_, hash) = received.rsplit_once('_').expect("hash suffix");
+    assert_eq!(hash.len(), 32);
+    assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
 }

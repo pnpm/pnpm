@@ -1,5 +1,17 @@
 # @pnpm/config.deps-installer
 
+## 1101.1.1
+
+### Patch Changes
+
+- 2061c55: Mark optional subdependency snapshots of config dependencies with `optional: true` in the env lockfile, matching how optional dependencies are recorded elsewhere in `pnpm-lock.yaml`. Previously, snapshots for the platform-specific subdeps pulled in via a config dep's `optionalDependencies` were written as empty objects, which was inconsistent with the rest of the lockfile and made it look like those non-host platform variants were required.
+- e5e7b72: Don't print "Installing config dependencies..." when config dependencies are already installed and nothing needs to be fetched, re-linked, or removed.
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.3.1
+  - @pnpm/installing.deps-resolver@1100.1.2
+  - @pnpm/store.controller@1101.0.8
+
 ## 1101.1.0
 
 ### Minor Changes

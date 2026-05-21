@@ -161,16 +161,31 @@ fn ver_peer_returns_snapshot_version_for_each_variant() {
     assert!(link.ver_peer().is_none());
 }
 
-/// Garbage input that is not `link:`, not an alias shape, and not
-/// a valid semver-with-peer surfaces as the bare-parse variant of
-/// the error. The wrapped error keeps the original value for
-/// diagnostics.
+/// A bare version that doesn't parse as semver but is otherwise
+/// well-formed (no mismatched parens) is accepted as a non-semver
+/// reference, mirroring upstream's `nonSemverVersion` fallback. The
+/// reproduction case from pnpm/pnpm#11776 is a `https://codeload...`
+/// tarball URL.
 #[test]
-fn parse_errors_on_invalid_bare_version() {
-    let err = "not a version".parse::<ImporterDepVersion>().unwrap_err();
+fn parses_non_semver_url_version() {
+    let url = "https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/0848bc83347720c322c5087f3bd0d6cd086ffa4b";
+    let parsed: ImporterDepVersion = url.parse().unwrap();
+    let regular = parsed.as_regular().expect("regular variant");
+    assert_eq!(regular.to_string(), url);
+    let serialized: String = parsed.into();
+    assert_eq!(serialized, url);
+}
+
+/// A bare version with mismatched parentheses still surfaces as the
+/// `Parse` variant of the error so the lockfile reader rejects
+/// structurally broken values rather than silently treating them as
+/// non-semver references.
+#[test]
+fn parse_errors_on_mismatched_parens() {
+    let err = "1.21.3(".parse::<ImporterDepVersion>().unwrap_err();
     match err {
         ParseImporterDepVersionError::Parse { value, .. } => {
-            assert_eq!(value, "not a version");
+            assert_eq!(value, "1.21.3(");
         }
         other => panic!("expected Parse variant, got {other:?}"),
     }

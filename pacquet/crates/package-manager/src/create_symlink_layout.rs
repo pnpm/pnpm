@@ -60,7 +60,12 @@ pub fn create_symlink_layout(
         if alias_name == self_name {
             return Ok(());
         }
-        let target = dep_ref.resolve(alias_name);
+        // `link:` deps point at a workspace sibling outside the
+        // virtual store; the symlink-direct-dependencies stage
+        // installs those for the importer, not here.
+        let Some(target) = dep_ref.resolve(alias_name) else {
+            return Ok(());
+        };
         if skipped.contains(&target) {
             return Ok(());
         }

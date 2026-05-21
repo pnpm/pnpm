@@ -129,6 +129,7 @@ impl WorkspaceSettings {
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
         json_field!(modules_cache_max_age, "MODULES_CACHE_MAX_AGE");
+        json_field!(virtual_store_dir_max_length, "VIRTUAL_STORE_DIR_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
         json_field!(offline, "OFFLINE");
@@ -136,12 +137,14 @@ impl WorkspaceSettings {
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
         string_field!(registry, "REGISTRY");
         json_field!(auto_install_peers, "AUTO_INSTALL_PEERS");
+        json_field!(auto_install_peers_from_highest_match, "AUTO_INSTALL_PEERS_FROM_HIGHEST_MATCH");
         json_field!(hoist_workspace_packages, "HOIST_WORKSPACE_PACKAGES");
         json_field!(hoisting_limits, "HOISTING_LIMITS");
         json_field!(external_dependencies, "EXTERNAL_DEPENDENCIES");
         json_field!(dedupe_peer_dependents, "DEDUPE_PEER_DEPENDENTS");
         json_field!(strict_peer_dependencies, "STRICT_PEER_DEPENDENCIES");
         json_field!(resolve_peers_from_workspace_root, "RESOLVE_PEERS_FROM_WORKSPACE_ROOT");
+        json_field!(block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");
         json_field!(verify_store_integrity, "VERIFY_STORE_INTEGRITY");
         json_field!(side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");
@@ -158,6 +161,7 @@ impl WorkspaceSettings {
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");
         json_field!(supported_architectures, "SUPPORTED_ARCHITECTURES");
         json_field!(ignored_optional_dependencies, "IGNORED_OPTIONAL_DEPENDENCIES");
+        json_field!(overrides, "OVERRIDES");
         string_field!(cache_dir, "CACHE_DIR");
         json_field!(minimum_release_age, "MINIMUM_RELEASE_AGE");
         json_field!(minimum_release_age_exclude, "MINIMUM_RELEASE_AGE_EXCLUDE");

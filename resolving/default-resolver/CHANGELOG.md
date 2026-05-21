@@ -1,5 +1,13 @@
 # @pnpm/default-resolver
 
+## 1100.3.1
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+- @pnpm/engine.runtime.bun-resolver@1101.1.1
+- @pnpm/engine.runtime.deno-resolver@1101.1.1
+
 ## 1100.3.0
 
 ### Minor Changes

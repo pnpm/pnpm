@@ -816,7 +816,13 @@ fn compute_children(
         .flatten()
         .chain(snapshot.optional_dependencies.iter().flatten());
     for (alias_name, dep_ref) in dep_iter {
-        let child_key = dep_ref.resolve(alias_name);
+        // `link:` deps return `None` here — they live outside the
+        // virtual store and don't show up in `pkg_locations`.
+        // Mirrors upstream's `if (childDepPath && pkgLocations...)`
+        // guard in `getChildren`.
+        let Some(child_key) = dep_ref.resolve(alias_name) else {
+            continue;
+        };
         let child_dep_path = child_key.to_string();
         if let Some(locations) = pkg_locations.get(&child_dep_path)
             && let Some(first) = locations.first()
