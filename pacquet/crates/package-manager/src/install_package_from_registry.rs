@@ -216,7 +216,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
 
 /// Pull the tarball URL + integrity hash out of the resolver-produced
 /// resolution. Refuses any shape the npm install path can't fetch.
-fn extract_tarball(
+pub(crate) fn extract_tarball(
     resolution: &LockfileResolution,
 ) -> Result<(&str, Integrity), InstallPackageFromRegistryError> {
     match resolution {
@@ -243,7 +243,7 @@ fn extract_tarball(
 /// Read `dist.unpackedSize` off the resolver-fetched manifest. Returns
 /// `None` when missing or non-numeric — the tarball extractor treats it
 /// as a hint, not a hard requirement.
-fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
+pub(crate) fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
     // `usize::try_from` so a `u64` value larger than the host's
     // `usize` (32-bit targets) degrades to "no hint" rather than
     // truncating silently and producing an undersized pre-allocation.

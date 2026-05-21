@@ -49,7 +49,7 @@ async fn should_install_dependencies() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -116,7 +116,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     let config = config.leak();
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -187,7 +187,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -251,7 +251,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -332,7 +332,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -398,7 +398,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     let config = config.leak();
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -484,7 +484,7 @@ async fn install_emits_pnpm_event_sequence() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -624,7 +624,7 @@ async fn install_writes_modules_yaml() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -723,7 +723,7 @@ async fn install_writes_workspace_state() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -842,7 +842,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -963,7 +963,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
     seed_placeholder_virtual_store_slot(&virtual_store_dir);
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1059,7 +1059,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     // event in the captured set regardless of the final install
     // result.
     let _ = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1163,7 +1163,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     // First install: `lock.yaml` does not exist yet.
     EVENTS.lock().unwrap().clear();
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1211,7 +1211,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     // install's `lock.yaml` is now on disk.
     EVENTS.lock().unwrap().clear();
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1301,7 +1301,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 
     EVENTS.lock().unwrap().clear();
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1393,7 +1393,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         .expect("parse partial-install fixture lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1455,7 +1455,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         .expect("parse partial-install fixture lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1518,7 +1518,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
     .expect("parse minimal lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1607,7 +1607,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
     .expect("parse fixture lockfile with overrides");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1712,7 +1712,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
     .expect("parse fixture lockfile with overrides");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1771,7 +1771,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse minimal lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1857,7 +1857,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -1933,7 +1933,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2015,7 +2015,7 @@ async fn frozen_lockfile_under_gvs_registers_each_workspace_importer() {
     .expect("parse minimal v9 workspace lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2215,7 +2215,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2337,7 +2337,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         .expect("parse broken-optional fixture lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2435,7 +2435,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         .expect("parse non-optional broken-fixture lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2539,7 +2539,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     // `InstallDependencyOptions::dependency_groups()` in
     // `crates/cli/src/cli_args/install.rs`.
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2628,7 +2628,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         .expect("parse optional-no-metadata fixture lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2719,7 +2719,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         .expect("parse shared-non-optional fixture lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2809,7 +2809,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2895,7 +2895,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -2987,7 +2987,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     .expect("parse variant-mismatch fixture lockfile");
 
     let err = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3077,7 +3077,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     .expect("parse --no-runtime fixture lockfile");
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3173,7 +3173,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
     .expect("parse minimal v9 lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3271,7 +3271,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     .expect("parse lockfile fixture");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3355,7 +3355,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3437,7 +3437,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3505,7 +3505,7 @@ async fn fresh_install_records_user_written_specifier() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3569,7 +3569,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3632,7 +3632,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3698,7 +3698,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3780,7 +3780,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3840,7 +3840,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3923,7 +3923,7 @@ async fn fresh_install_refuses_hoisted_node_linker_before_writing_state() {
     let config = config.leak();
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -3972,7 +3972,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
     let config = config.leak();
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -4039,7 +4039,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
     seed_placeholder_virtual_store_slot(&virtual_store_dir);
 
     Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -4109,7 +4109,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     seed_placeholder_virtual_store_slot(&virtual_store_dir);
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
@@ -4175,7 +4175,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         .expect("parse partial-install fixture lockfile");
 
     let result = Install {
-        tarball_mem_cache: &Default::default(),
+        tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,

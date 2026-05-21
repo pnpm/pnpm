@@ -7,12 +7,17 @@ use pacquet_package_manager::ResolvedPackages;
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use pacquet_tarball::MemCache;
 use pipe_trait::Pipe;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 /// Application state when running `pacquet run` or `pacquet install`.
 pub struct State {
-    /// Shared cache that store downloaded tarballs.
-    pub tarball_mem_cache: MemCache,
+    /// Shared cache that store downloaded tarballs. Held behind
+    /// [`Arc`] so the resolve-time prefetch (see
+    /// [`pacquet_package_manager::PrefetchingResolver`]) can capture
+    /// an owned clone into the `tokio::spawn`ed background download
+    /// while every install sub-pipeline still takes a borrowed
+    /// `&MemCache` via deref.
+    pub tarball_mem_cache: Arc<MemCache>,
     /// HTTP client to make HTTP requests. Held behind [`std::sync::Arc`] so
     /// the lockfile-verification gate can own a clone for the
     /// `NpmResolutionVerifier`'s lifetime while every install
@@ -69,7 +74,7 @@ impl State {
                 ThrottledClient::for_installs(&config.proxy, &config.tls, &config.tls_by_uri)
                     .map_err(InitStateError::Network)?,
             ),
-            tarball_mem_cache: MemCache::new(),
+            tarball_mem_cache: Arc::new(MemCache::new()),
             resolved_packages: ResolvedPackages::new(),
         })
     }
