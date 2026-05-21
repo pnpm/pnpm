@@ -410,10 +410,11 @@ where
         // `.modules.yaml.hoisted_locations` for the next install
         // and for the rebuild path (which throws
         // `MISSING_HOISTED_LOCATIONS` when this field is gone).
-        let (hoisted_dependencies, hoisted_locations, frozen_skipped): (
+        let (hoisted_dependencies, hoisted_locations, frozen_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
             crate::SkippedSnapshots,
+            Option<Lockfile>,
         ) = if frozen_lockfile {
             let Some(lockfile) = lockfile else {
                 return Err(InstallError::NoLockfile);
@@ -609,6 +610,7 @@ where
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
                 frozen_result.skipped,
+                None,
             )
         } else {
             // The fresh-lockfile path has no installability check
@@ -624,7 +626,7 @@ where
             let workspace_packages =
                 build_workspace_packages_map(&workspace_root, workspace_manifest.as_ref())
                     .map_err(InstallError::FindWorkspaceProjects)?;
-            let hd = InstallWithFreshLockfile {
+            let fresh_result = InstallWithFreshLockfile {
                 tarball_mem_cache,
                 resolved_packages,
                 http_client,
@@ -641,7 +643,12 @@ where
             .run::<Reporter>()
             .await
             .map_err(InstallError::WithFreshLockfile)?;
-            (hd, BTreeMap::new(), crate::SkippedSnapshots::new())
+            (
+                fresh_result.hoisted_dependencies,
+                BTreeMap::new(),
+                crate::SkippedSnapshots::new(),
+                fresh_result.wanted_lockfile,
+            )
         };
 
         tracing::info!(target: "pacquet::install", "Complete all");
@@ -704,6 +711,18 @@ where
             // dropped snapshots aren't mistaken for already-done
             // work.
             crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+                .save_current_to_virtual_store_dir(&config.virtual_store_dir)
+                .map_err(InstallError::SaveCurrentLockfile)?;
+        } else if let Some(fresh_lockfile) = fresh_lockfile.as_ref() {
+            // Fresh-install path: mirror the frozen behavior by
+            // persisting `<virtual_store_dir>/lock.yaml` from the
+            // freshly-built wanted lockfile. No filtering needed —
+            // the resolver only walked the dep groups the install
+            // requested, so the wanted and materialized graphs match
+            // by construction. The save is gated on the same
+            // `config.lockfile` knob the wanted-side write honors
+            // (`fresh_lockfile` is `None` when the opt-out fired).
+            fresh_lockfile
                 .save_current_to_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::SaveCurrentLockfile)?;
         }

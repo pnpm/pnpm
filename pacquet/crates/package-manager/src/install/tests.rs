@@ -3512,3 +3512,143 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
 
     drop((dir, mock_instance));
 }
+
+/// A fresh install also writes `<virtual_store_dir>/lock.yaml` so the
+/// next install's slot-skip optimization has something to diff
+/// against. Mirrors the upstream
+/// [`writeCurrentLockfile`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/write.ts#L41-L51)
+/// call at the tail of the install pipeline. The contents round-trip
+/// through `Lockfile`, so a subsequent `pacquet install
+/// --frozen-lockfile` can read it back without a parse error.
+#[tokio::test]
+async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    assert!(
+        current_lockfile_path.is_file(),
+        "current-lockfile must be written under the virtual store dir",
+    );
+
+    let content = std::fs::read_to_string(&current_lockfile_path).expect("read current lockfile");
+    let current_lockfile: Lockfile =
+        serde_saphyr::from_str(&content).expect("parse current lockfile");
+    assert_eq!(current_lockfile.lockfile_version.major, 9);
+    let importer = current_lockfile.root_project().expect("root importer");
+    let key = pacquet_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
+    assert!(
+        importer.dependencies.as_ref().is_some_and(|deps| deps.contains_key(&key)),
+        "current-lockfile reflects the resolved direct dep",
+    );
+
+    // The wanted-lockfile and the current-lockfile describe the same
+    // resolved graph in the fresh-install path (no install-time skip
+    // set to filter against), so the two files should parse to the
+    // same shape.
+    let wanted_path = dir.path().join(Lockfile::FILE_NAME);
+    let wanted_content = std::fs::read_to_string(&wanted_path).expect("read wanted lockfile");
+    let wanted_lockfile: Lockfile =
+        serde_saphyr::from_str(&wanted_content).expect("parse wanted lockfile");
+    assert_eq!(
+        wanted_lockfile, current_lockfile,
+        "wanted and current lockfiles must match in the fresh-install path",
+    );
+
+    drop((dir, mock_instance));
+}
+
+/// `config.lockfile = false` opts out of *both* lockfile writes (the
+/// wanted `pnpm-lock.yaml` and the per-virtual-store `lock.yaml`),
+/// matching upstream pnpm's all-or-nothing `useLockfile` behavior.
+#[tokio::test]
+async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    assert!(
+        !virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(),
+        "current-lockfile must also be skipped when config.lockfile = false",
+    );
+
+    drop((dir, mock_instance));
+}

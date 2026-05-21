@@ -183,20 +183,37 @@ pub enum InstallWithFreshLockfileError {
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 }
 
+/// Output of [`InstallWithFreshLockfile::run`].
+///
+/// Returns the hoist-graph slot the dispatch already consumed plus the
+/// freshly-built [`Lockfile`] (when the writer ran), so the caller can
+/// save it as `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
+/// succeeds — the same ordering the frozen-lockfile path uses to
+/// guarantee a manifest failure can't leave a current-lockfile
+/// pointing at incomplete install state.
+#[must_use]
+pub struct InstallWithFreshLockfileResult {
+    pub hoisted_dependencies: HoistedDependencies,
+    /// `Some` when the install resolved a graph that was written to
+    /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
+    /// `config.lockfile=false`). The caller mirrors the same gate when
+    /// deciding whether to persist the current-lockfile.
+    pub wanted_lockfile: Option<Lockfile>,
+}
+
 impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Execute the subroutine.
     ///
-    /// The fresh-lockfile path always returns an empty
-    /// [`HoistedDependencies`] map. Hoisting needs the resolved
-    /// snapshot graph the lockfile carries; this path serializes the
-    /// graph into `pnpm-lock.yaml` itself, but the hoist pass still
-    /// runs only inside the frozen-lockfile install
-    /// ([`crate::InstallFrozenLockfile::run`]). The signature symmetry
-    /// keeps `Install::run` from branching on which sub-path produced
-    /// the result.
+    /// The fresh-lockfile path's [`HoistedDependencies`] slot is always
+    /// empty. Hoisting needs the resolved snapshot graph the lockfile
+    /// carries; this path serializes the graph into `pnpm-lock.yaml`
+    /// itself, but the hoist pass still runs only inside the
+    /// frozen-lockfile install ([`crate::InstallFrozenLockfile::run`]).
+    /// The signature symmetry keeps `Install::run` from branching on
+    /// which sub-path produced the result.
     pub async fn run<Reporter: self::Reporter>(
         self,
-    ) -> Result<HoistedDependencies, InstallWithFreshLockfileError>
+    ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError>
     where
         DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     {
@@ -553,13 +570,24 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // that never landed on disk. `config.lockfile=false` skips the
         // write, matching pnpm's documented opt-out behavior even
         // though that knob is rarely exercised today.
-        if config.lockfile {
+        //
+        // The built lockfile is returned to the caller so it can also
+        // persist `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
+        // succeeds, matching the frozen-lockfile path's ordering. We
+        // don't write the current-lockfile inline here because the
+        // safety property — a manifest-write failure must not leave a
+        // current-lockfile pointing at an incomplete install — needs
+        // `.modules.yaml` to land first.
+        let wanted_lockfile = if config.lockfile {
             let lockfile_to_save = build_fresh_lockfile(config, manifest, &importer_result);
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
             lockfile_to_save
                 .save_to_path(&target)
                 .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
-        }
+            Some(lockfile_to_save)
+        } else {
+            None
+        };
 
         // Mirrors upstream `link.ts:167-170`: `importing_done` fires once
         // extraction and symlink linking are complete. The fresh-lockfile
@@ -572,7 +600,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             stage: Stage::ImportingDone,
         }));
 
-        Ok(BTreeMap::new())
+        Ok(InstallWithFreshLockfileResult {
+            hoisted_dependencies: BTreeMap::new(),
+            wanted_lockfile,
+        })
     }
 }
 
