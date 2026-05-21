@@ -96,10 +96,13 @@ pub enum ParseOverridesError {
 /// Port of pnpm's
 /// [`parseOverrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L20-L44).
 ///
-/// Iterates `overrides` in insertion order (matching upstream's
-/// `Object.entries`); each entry is split via
-/// [`parse_pkg_and_parent_selector`]. The return order is therefore
-/// the same as the input.
+/// Iteration follows the input map's iterator order. `HashMap` is
+/// unordered, so the returned `Vec` is *not* guaranteed to match
+/// upstream's `Object.entries` insertion order — for that, use
+/// [`parse_overrides_iter`] with an ordered map (e.g. `IndexMap`)
+/// or pre-sort by key. The functional behavior of each entry —
+/// selector splitting via [`parse_pkg_and_parent_selector`] and
+/// catalog-protocol detection — is independent of order.
 pub fn parse_overrides(
     overrides: &HashMap<String, String>,
 ) -> Result<Vec<VersionOverride>, ParseOverridesError> {

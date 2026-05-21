@@ -229,12 +229,22 @@ fn sort_by_specificity(matching: &mut [&ResolvedOverride<'_>]) {
     matching.sort_by(|lhs, rhs| {
         let lhs_spec = lhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
         let rhs_spec = rhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
-        // `is_intersecting_range(rhs, lhs)` true ⇒ lhs is more specific
-        // (rhs's range covers lhs's). Mirrors upstream's `? -1 : 1`.
-        if is_intersecting_range(Some(rhs_spec), lhs_spec) {
-            std::cmp::Ordering::Less
-        } else {
-            std::cmp::Ordering::Greater
+        // Upstream's comparator (`? -1 : 1`) only emits Less/Greater
+        // and relies on V8's lenient sort. Rust's `sort_by` requires
+        // a total order, so we widen to a 3-way result: `lhs` is
+        // strictly more specific when `rhs ⊇ lhs` but not vice versa,
+        // strictly less specific in the mirror case, and equal when
+        // both ranges cover each other (e.g. identical strings, or
+        // mutually-intersecting unions). The strict cases keep the
+        // sort outcome identical to upstream's first match; the
+        // `Equal` arm is what keeps `sort_by`'s preconditions
+        // satisfied.
+        let rhs_covers_lhs = is_intersecting_range(Some(rhs_spec), lhs_spec);
+        let lhs_covers_rhs = is_intersecting_range(Some(lhs_spec), rhs_spec);
+        match (rhs_covers_lhs, lhs_covers_rhs) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => std::cmp::Ordering::Equal,
         }
     });
 }
@@ -297,11 +307,16 @@ fn parse_local_target(new_bare_specifier: &str, root_dir: &Path) -> Option<Local
 /// absolute-form targets are emitted verbatim. Mirrors upstream's
 /// [`resolveLocalOverride`](https://github.com/pnpm/pnpm/blob/0d88df854f/hooks/read-package-hook/src/createVersionsOverrider.ts#L131-L135).
 fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<&Path>) -> String {
+    // Every branch routes through `normalize_path` so absolute and
+    // diff-paths-fallback shapes also get backslash → forward-slash
+    // rewriting on Windows; upstream's `link:` / `file:` specifiers
+    // must use forward slashes regardless of host OS.
     let path_str = match (target.specified_via_relative_path, pkg_dir) {
         (true, Some(dir)) => pathdiff::diff_paths(&target.absolute_path, dir)
+            .as_deref()
             .map(normalize_path)
-            .unwrap_or_else(|| target.absolute_path.display().to_string()),
-        _ => target.absolute_path.display().to_string(),
+            .unwrap_or_else(|| normalize_path(&target.absolute_path)),
+        _ => normalize_path(&target.absolute_path),
     };
     format!("{}{path_str}", target.protocol.as_str())
 }
@@ -310,7 +325,7 @@ fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<&Path>) -> 
 /// `link:` / `file:` specifiers must use forward slashes regardless
 /// of host OS — pnpm's lockfile and pacquet's downstream consumers
 /// expect that shape.
-fn normalize_path(path: PathBuf) -> String {
+fn normalize_path(path: &Path) -> String {
     let display = path.display().to_string();
     if cfg!(windows) { display.replace('\\', "/") } else { display }
 }

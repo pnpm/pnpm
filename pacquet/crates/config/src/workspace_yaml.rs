@@ -577,13 +577,16 @@ impl WorkspaceSettings {
         // drift check ignores it — mirrors upstream's
         // `delete settings.overrides` short-circuit in
         // [`getOptionsFromPnpmSettings`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L32-L34).
-        // `$dep-name` self-reference resolution happens elsewhere (the
-        // resolver chain), since it needs the workspace's root manifest
-        // and that isn't in scope here.
-        if let Some(v) = self.overrides
-            && !v.is_empty()
-        {
-            config.overrides = Some(v);
+        // The assignment runs whenever `self.overrides` is `Some(...)`
+        // (even when empty) so an explicit `overrides: {}` at a later
+        // layer (e.g. `PNPM_CONFIG_OVERRIDES={}` overlaid on top of a
+        // non-empty workspace yaml) clears the inherited setting
+        // instead of being a silent no-op. `$dep-name` self-reference
+        // resolution happens elsewhere (the resolver chain), since it
+        // needs the workspace's root manifest and that isn't in scope
+        // here.
+        if let Some(v) = self.overrides {
+            config.overrides = (!v.is_empty()).then_some(v);
         }
         if let Some(v) = self.cache_dir {
             config.cache_dir = resolve(base_dir, &v);

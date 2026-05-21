@@ -753,6 +753,24 @@ fn empty_overrides_map_collapses_to_none() {
     assert!(config.overrides.is_none(), "empty map collapses to None");
 }
 
+/// An explicit `overrides: {}` from a later layer (env overlay,
+/// later `apply_to` call) clears a non-empty value set by an earlier
+/// layer. Without the empty-clears-prior semantic, an env override
+/// like `PNPM_CONFIG_OVERRIDES={}` would be a silent no-op against a
+/// non-empty workspace yaml.
+#[test]
+fn empty_overrides_clears_prior_non_empty_assignment() {
+    let mut config = Config::new();
+    let yaml_with_overrides = "overrides:\n  foo: '1.2.3'\n";
+    let earlier: WorkspaceSettings = serde_saphyr::from_str(yaml_with_overrides).unwrap();
+    earlier.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.overrides.is_some(), "non-empty overrides applied");
+
+    let later: WorkspaceSettings = serde_saphyr::from_str("overrides: {}\n").unwrap();
+    later.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.overrides.is_none(), "explicit empty must clear earlier non-empty");
+}
+
 /// Absent `overrides` leaves the config field at `None`.
 #[test]
 fn omitting_overrides_keeps_default() {
