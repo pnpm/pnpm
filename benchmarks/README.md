@@ -24,8 +24,11 @@ The script:
 
 1. Builds the `integrated-benchmark` binary in release mode.
 2. Clones the current repo into the temp work-env once per revision
-   (`HEAD` and `main`) and runs `pnpm install && pnpm run compile` in each
-   to produce `pnpm/dist/pnpm.mjs`.
+   (`HEAD` and `main`) and runs `pnpm install && pnpm run compile-only`
+   in each to produce `pnpm/dist/pnpm.mjs`. `compile-only` skips the
+   `update-manifests` pass that the root `compile` script does — it
+   would rewrite tracked files and trigger a second install per
+   revision, neither of which the bench needs.
 3. Runs hyperfine on each scenario with `--registry=npm` (hits
    `registry.npmjs.org` directly, no proxy — same as before).
 4. Writes a per-scenario `BENCHMARK_REPORT.md` / `.json` and a
