@@ -111,7 +111,7 @@ impl PrefixProbe {
     /// the scenario lock. Serialises every `PrefixProbe`-driven
     /// scenario so parallel test execution can't race the allowlist
     /// out from under a `resolve_store_dir` call.
-    fn with_allow<R>(prefixes: &[&Path], body: impl FnOnce() -> R) -> R {
+    fn with_allow<Output>(prefixes: &[&Path], body: impl FnOnce() -> Output) -> Output {
         let _scenario =
             PREFIX_PROBE_SCENARIO_LOCK.lock().expect("PREFIX_PROBE_SCENARIO_LOCK not poisoned");
         let mut slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");
