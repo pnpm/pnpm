@@ -155,7 +155,10 @@ jobs:
         continue-on-error: true
 
       - name: pnpm install
-        run: pnpm install --frozen-lockfile
+        # `--no-runtime` matches the install pattern test.yml uses: without
+        # it pnpm tries to materialize executionEnv runtimes that conflict
+        # with the one pnpm/setup just pinned.
+        run: pnpm install --frozen-lockfile --no-runtime
 
       - name: Compile workspace packages
         # `pn compile-only` shells out to `pnx node@runtime:24.6.0` for the
