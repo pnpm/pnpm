@@ -12,8 +12,23 @@ pub struct PackageVersion {
     pub name: String,
     pub version: node_semver::Version,
     pub dist: PackageDistribution,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_dependency_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_dependency_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub dev_dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_dependency_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub peer_dependencies: Option<HashMap<String, String>>,
 
     /// npm registry's per-version publisher metadata. When
@@ -59,6 +74,56 @@ pub struct PackageVersion {
         skip_serializing_if = "Option::is_none"
     )]
     pub deprecated: Option<String>,
+}
+
+/// Deserialize a `Record<string, string>`-shaped dependency map while
+/// tolerating historical npm registry entries whose values are objects
+/// or other non-string shapes. Non-string entries are silently dropped,
+/// matching pnpm's JavaScript path which never validates the value
+/// shape and relies on later `typeof spec === 'string'` checks to
+/// ignore the bad rows (e.g. `deep-diff@0.1.0`'s nested
+/// `devDependencies`). Missing field and JSON `null` both decode to
+/// `None`; a present map (even one whose entries are all dropped)
+/// decodes to `Some`.
+fn deserialize_dependency_map<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<HashMap<String, String>>, Deser::Error>
+where
+    Deser: serde::Deserializer<'de>,
+{
+    use serde::de::{self, MapAccess, Visitor};
+    use std::fmt;
+
+    struct DependencyMapVisitor;
+    impl<'de> Visitor<'de> for DependencyMapVisitor {
+        type Value = Option<HashMap<String, String>>;
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("a map of dependency name to version-spec string, or null")
+        }
+        fn visit_none<Err: de::Error>(self) -> Result<Self::Value, Err> {
+            Ok(None)
+        }
+        fn visit_unit<Err: de::Error>(self) -> Result<Self::Value, Err> {
+            Ok(None)
+        }
+        fn visit_some<Nested: serde::Deserializer<'de>>(
+            self,
+            deserializer: Nested,
+        ) -> Result<Self::Value, Nested::Error> {
+            deserializer.deserialize_any(DependencyMapVisitor)
+        }
+        fn visit_map<Map: MapAccess<'de>>(self, mut map: Map) -> Result<Self::Value, Map::Error> {
+            let mut out = HashMap::new();
+            while let Some(key) = map.next_key::<String>()? {
+                let value = map.next_value::<serde_json::Value>()?;
+                if let serde_json::Value::String(spec) = value {
+                    out.insert(key, spec);
+                }
+            }
+            Ok(Some(out))
+        }
+    }
+    deserializer.deserialize_any(DependencyMapVisitor)
 }
 
 /// Accept either a string or a boolean for the `deprecated` field.
