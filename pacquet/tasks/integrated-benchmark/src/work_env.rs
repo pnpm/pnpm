@@ -90,14 +90,6 @@ impl WorkEnv {
         self.bench_dir(BenchId::PnpmRevision(revision)).join("pnpm-source")
     }
 
-    /// Path to the bundled pnpm entry produced by `pnpm run compile`.
-    /// Mirrors `resolve_pnpm_bin` in `benchmarks/bench.sh` — prefer
-    /// `pnpm.mjs`, fall back to `pnpm.cjs`.
-    fn pnpm_bundle_path(source_dir: &Path) -> PathBuf {
-        let mjs = source_dir.join("pnpm/dist/pnpm.mjs");
-        if mjs.exists() { mjs } else { source_dir.join("pnpm/dist/pnpm.cjs") }
-    }
-
     fn resolve_revision(repository: &Path, revision: &str) -> String {
         let output = Command::new("git")
             .current_dir(repository)
@@ -119,15 +111,27 @@ impl WorkEnv {
 
     /// Shell command (with arguments) that runs the install for `id`,
     /// embedded into the per-target `install.bash` script. The result
-    /// is intentionally `String` because pnpm targets prefix `node`
-    /// in front of the resolved bundle path.
-    fn install_command(&self, id: BenchId) -> String {
+    /// is intentionally `String` because pnpm targets prefix `node` in
+    /// front of a runtime-resolved bundle path.
+    ///
+    /// The script `cd`s into the bench dir before exec-ing this, so
+    /// every path here is relative to the bench dir — that lets the
+    /// pnpm-target branch defer `pnpm.mjs` vs `pnpm.cjs` resolution
+    /// to script runtime (after `build()` has produced the bundle),
+    /// and also avoids embedding absolute paths that might contain
+    /// shell metacharacters from a user-supplied `--work-env`.
+    fn install_command(id: BenchId) -> String {
         match id {
             BenchId::PacquetRevision(_) => "./pacquet/target/release/pacquet".to_string(),
-            BenchId::PnpmRevision(rev) => {
-                let bundle = WorkEnv::pnpm_bundle_path(&self.pnpm_source_dir(rev));
-                let bundle = bundle.to_str().expect("convert pnpm bundle path to UTF-8");
-                format!("node {bundle}")
+            BenchId::PnpmRevision(_) => {
+                // Prefer `pnpm.mjs`, fall back to `pnpm.cjs`. Resolved
+                // at script runtime so the existence check sees the
+                // bundle produced by `pnpm run compile`, not the empty
+                // tree visible during `init()`. Mirrors
+                // `resolve_pnpm_bin` in `benchmarks/bench.sh`.
+                let mjs = "./pnpm-source/pnpm/dist/pnpm.mjs";
+                let cjs = "./pnpm-source/pnpm/dist/pnpm.cjs";
+                format!(r#"node "$([ -f {mjs} ] && echo {mjs} || echo {cjs})""#)
             }
             BenchId::Static(_) => "pnpm".to_string(),
         }
@@ -154,7 +158,7 @@ impl WorkEnv {
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.fixture_dir.as_deref());
             create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), self.registry(), scenario);
-            create_install_script(&dir, scenario, &self.install_command(id));
+            create_install_script(&dir, scenario, &WorkEnv::install_command(id));
             create_npmrc(&dir, self.registry(), scenario);
             may_create_lockfile(&dir, scenario, self.fixture_dir.as_deref());
             save_pristine_copies(&dir);

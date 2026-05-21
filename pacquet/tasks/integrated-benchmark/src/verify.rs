@@ -59,9 +59,12 @@ where
             eprintln!("Revision {revision:?} is invalid");
             panic!("Revision cannot start with a dot");
         }
-        // `@` is allowed so `git rev-parse` reflog syntax (`HEAD@{1}`, etc.)
-        // and tag-with-suffix revisions like `v1.0.0@sha` reach git intact.
-        // `/` is intentionally excluded: a revision like `origin/main` would
+        // `@` is allowed so tag-with-suffix revisions like `v1.0.0@sha`
+        // reach git intact. Git's reflog syntax (`HEAD@{1}`) needs `{`
+        // and `}` which remain rejected — that's intentional, the bench
+        // doesn't support reflog revisions and the curly braces are
+        // shell-metacharacters we don't want to embed in bench-dir names.
+        // `/` is also rejected: a revision like `origin/main` would
         // produce a nested bench-dir path (`pnpm@origin/main/`) — callers
         // should pre-resolve remote-tracking refs to a local branch or SHA.
         let invalid_char = revision.chars().find(|char| !matches!(char, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '+' | '.' | '~' | '^' | '@'));
