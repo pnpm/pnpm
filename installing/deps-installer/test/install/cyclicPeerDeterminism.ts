@@ -106,7 +106,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
     options.storeController.clearResolutionCache()
     await mutateModules(installProjects, options)
     const lockfile = rootProject.readLockfile()
-    const snapshotKeys = Object.keys(lockfile.snapshots ?? {}).sort()
+    const snapshotKeys = Object.keys(lockfile.snapshots ?? {})
     await teardownMockAgent()
     return snapshotKeys
   }
