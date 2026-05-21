@@ -1779,7 +1779,49 @@ impl<'a> DownloadTarballToStore<'a> {
         self,
         mem_cache: &'a MemCache,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let &DownloadTarballToStore { package_url, .. } = &self;
+        let &DownloadTarballToStore {
+            package_url,
+            package_id,
+            package_integrity,
+            prefetched_cas_paths,
+            requester,
+            ..
+        } = &self;
+
+        // Warm-cache fast path: when [`prefetch_cas_paths`] already
+        // batched the `(integrity, pkg_id)` row in at install start,
+        // return the `Arc<HashMap>` straight through instead of
+        // calling [`Self::run_without_mem_cache`] (which clones the
+        // inner per-file map by value before wrapping it in a fresh
+        // `Arc`). On warm installs every snapshot lands here; the
+        // deep clone the previous path was paying — entire
+        // `HashMap<String, PathBuf>` per snapshot, where each entry
+        // is a `String` + `PathBuf` allocation — adds up to dominant
+        // memory traffic by 1k+ snapshots.
+        //
+        // Also stash the `Arc` into `mem_cache` keyed by URL so a
+        // second fetch of the same tarball (e.g. peer-resolved
+        // variants of the same package) hits the in-memory cache
+        // without re-checking the prefetched map. Matches what the
+        // normal path does with the result of
+        // [`Self::run_without_mem_cache`].
+        if let Some(prefetched) = prefetched_cas_paths {
+            let cache_key = store_index_key(&package_integrity.to_string(), package_id);
+            if let Some(cas_paths) = prefetched.get(&cache_key) {
+                tracing::info!(
+                    target: "pacquet::download",
+                    ?package_url,
+                    ?package_id,
+                    "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
+                );
+                emit_progress_found_in_store::<Reporter>(package_id, requester);
+                let cas_paths = Arc::clone(cas_paths);
+                let cache_lock =
+                    Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
+                mem_cache.insert(package_url.to_string(), cache_lock);
+                return Ok(cas_paths);
+            }
+        }
 
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?
         // TODO: If it's not implemented yet, implement it
