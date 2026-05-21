@@ -167,15 +167,13 @@ jobs:
         run: pnpm exec tsgo --build
 
       - name: Run pnpm e2e against pacquet
-        working-directory: pnpm
         env:
           PNPM_E2E_BIN: ${{ github.workspace }}/target/release/pacquet
-          NODE_OPTIONS: --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169
-        # `pnpm exec jest` runs jest under the pinned Node 22.13.0 — the same
-        # path the standard test.yml job uses, where this exact suite passes
-        # cleanly. Running jest under any other Node binary (PATH, embedded)
-        # has hit the "module is already linked" VM-modules regression.
-        run: pnpm exec jest
+        # Invoke pnpm's hidden `.test` script via `pn -r` exactly the way
+        # test.yml does for the standard e2e job — that's the call shape the
+        # suite is known to pass on. Filtering to pnpm keeps us scoped to
+        # this package's tests only.
+        run: pnpm --filter=pnpm -r .test
 
   doc:
     name: Doc
