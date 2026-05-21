@@ -21,11 +21,13 @@
 //! workspace work.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::sync::Arc;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_patching::PatchGroupRecord;
 use pacquet_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
 };
@@ -74,6 +76,13 @@ pub struct ResolveImporterOptions {
     /// no lockfile + manifest seeding is available.
     pub all_preferred_versions: PreferredVersions,
 
+    /// Configured `patchedDependencies`, grouped by package name. The
+    /// tree walker appends `(patch_hash=<hash>)` to each matched
+    /// package's `pkgIdWithPatchHash` and records the matched key on
+    /// [`crate::ResolvedTree::applied_patches`]. `None` when no
+    /// patches are configured for this install.
+    pub patched_dependencies: Option<Arc<PatchGroupRecord>>,
+
     pub base_opts: ResolveOptions,
 
     /// Catalogs parsed from `pnpm-workspace.yaml`. Applied only to the
@@ -121,11 +130,12 @@ where
         auto_install_peers_from_highest_match,
         resolve_peers_from_workspace_root,
         mut all_preferred_versions,
+        patched_dependencies,
         base_opts,
         catalogs,
     } = opts;
 
-    let ctx = TreeCtx::new(base_opts);
+    let ctx = TreeCtx::new(base_opts).with_patched_dependencies(patched_dependencies);
 
     // Mirrors upstream's
     // [`getAllDependenciesFromManifest({ autoInstallPeers })`](https://github.com/pnpm/pnpm/blob/097983fbca/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts):

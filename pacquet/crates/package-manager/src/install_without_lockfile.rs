@@ -139,6 +139,11 @@ pub enum InstallWithoutLockfileError {
     #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 
+    /// Failed to resolve and hash `patchedDependencies` against the
+    /// workspace directory.
+    #[diagnostic(transparent)]
+    ResolvePatchedDependencies(#[error(source)] pacquet_patching::ResolvePatchedDependenciesError),
+
     /// A user-defined `namedRegistries` entry mapped an alias to a
     /// non-http(s) URL. Surfaced at resolver construction so the
     /// install fails fast with a specific error code instead of a
@@ -332,11 +337,23 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         let project_dir =
             manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
 
+        // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
+        // per install. The resolver consults the grouped record at
+        // every per-node lookup to attach `(patch_hash=<hash>)` to the
+        // matched package's `pkgIdWithPatchHash`. Mirrors upstream's
+        // single `calcPatchHashes` + `groupPatchedDependencies` call at
+        // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/src/install/index.ts#L468-L488>.
+        let patched_dependencies = config
+            .resolved_patched_dependencies()
+            .map_err(InstallWithoutLockfileError::ResolvePatchedDependencies)?
+            .map(Arc::new);
+
         let importer_opts = ResolveImporterOptions {
             auto_install_peers: config.auto_install_peers,
             auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
             resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
             all_preferred_versions,
+            patched_dependencies,
             base_opts: ResolveOptions {
                 default_tag: Some("latest".to_string()),
                 published_by,

@@ -36,6 +36,14 @@ pub struct ResolvedTree {
     pub dependencies_tree: DependenciesTree,
     pub all_peer_dep_names: HashSet<String>,
     pub policy_violations: Vec<ResolutionPolicyViolation>,
+    /// Set of `patchedDependencies` keys (e.g. `lodash@4.17.21`,
+    /// `react@^18`) whose patch was actually applied to at least one
+    /// resolved package. Mirrors upstream's
+    /// [`appliedPatches`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1505)
+    /// set, threaded out of the resolver so the orchestrator can pass
+    /// it to [`pacquet_patching::verify_patches`] for the
+    /// `ERR_PNPM_UNUSED_PATCH` diagnostic.
+    pub applied_patches: HashSet<String>,
 }
 
 /// One edge in the resolved tree: the local install name (`alias`) and
