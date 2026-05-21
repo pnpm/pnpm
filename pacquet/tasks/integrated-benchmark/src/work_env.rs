@@ -521,6 +521,17 @@ fn create_pnpm_workspace(
     if manifest.store_dir.is_none() {
         manifest.store_dir = Some("./store-dir".to_string());
     }
+    // Pin `packages: ['.']` when the fixture didn't set it. Without this
+    // the fresh-resolve install path's project walker
+    // (`find_workspace_projects`) defaults to `[".", "**"]` and recurses
+    // into the per-revision `<bench_dir>/pacquet/` clone of pnpm/pnpm,
+    // tripping on the intentionally malformed test fixture at
+    // `workspace/project-manifest-reader/__fixtures__/invalid-package-json/package.json`.
+    // The benchmark's installs are always single-project, so restricting
+    // to the root is the right scope regardless of fixture.
+    if manifest.packages.is_none() {
+        manifest.packages = Some(vec![".".to_string()]);
+    }
     manifest.registry = Some(registry.to_string());
     manifest.auto_install_peers = Some(true);
     manifest.ignore_scripts = Some(true);
