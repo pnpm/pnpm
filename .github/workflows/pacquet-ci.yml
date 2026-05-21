@@ -161,8 +161,9 @@ jobs:
         # `pn compile-only` shells out to `pnx node@runtime:24.6.0` for the
         # typecheck-only script and `pn bundle`, both of which collide with
         # the runtime we just pinned. We only need the workspace lib/ outputs
-        # the e2e tests import from — `tsgo --build` covers that without
-        # touching the bundle.
+        # the e2e tests import from — `tsgo --build` from pnpm/ follows the
+        # project references to compile everything those tests need.
+        working-directory: pnpm
         run: pnpm exec tsgo --build
 
       - name: Run pnpm e2e against pacquet
