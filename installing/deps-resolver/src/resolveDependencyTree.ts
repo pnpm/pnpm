@@ -1,5 +1,6 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { createMatcher } from '@pnpm/config.matcher'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
@@ -229,7 +230,7 @@ export async function resolveDependencyTree<T> (
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     blockExoticSubdeps: opts.blockExoticSubdeps,
-    blockExoticSubdepsExclude: opts.blockExoticSubdepsExclude ? createPackageVersionPolicyOrThrow(opts.blockExoticSubdepsExclude, 'blockExoticSubdepsExclude') : undefined,
+    blockExoticSubdepsExclude: opts.blockExoticSubdepsExclude?.length ? createMatcher(opts.blockExoticSubdepsExclude) : undefined,
     resolutionPolicyViolations: [],
   }
 

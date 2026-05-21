@@ -34,6 +34,7 @@
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
@@ -59,6 +60,7 @@
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "graph-cycles": "catalog:",
+    "hosted-git-info": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",
     "normalize-path": "catalog:",
@@ -79,6 +81,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/installing.deps-resolver": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@types/hosted-git-info": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
