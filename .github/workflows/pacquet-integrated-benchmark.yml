@@ -181,24 +181,6 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FULL_RESOLUTION.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FULL_RESOLUTION.json
 
-      - name: 'Benchmark: Peek'
-        shell: bash
-        # Same timeout rationale as the steps above.
-        timeout-minutes: 10
-        run: |
-          just integrated-benchmark --scenario=peek --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_PEEK.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_PEEK.json
-
-      - name: 'Benchmark: GVS Warm'
-        shell: bash
-        # Same timeout rationale as the steps above.
-        timeout-minutes: 10
-        run: |
-          just integrated-benchmark --scenario=gvs-warm --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_GVS_WARM.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_GVS_WARM.json
-
       - name: Generate summary
         shell: bash
         run: |
@@ -249,30 +231,6 @@ jobs:
             echo
             echo '```json'
             jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FULL_RESOLUTION.json
-            echo '```'
-            echo
-            echo '</details>'
-            echo
-            echo '### Scenario: Peek'
-            echo
-            cat bench-work-env/BENCHMARK_REPORT_PEEK.md
-            echo
-            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
-            echo
-            echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_PEEK.json
-            echo '```'
-            echo
-            echo '</details>'
-            echo
-            echo '### Scenario: GVS Warm'
-            echo
-            cat bench-work-env/BENCHMARK_REPORT_GVS_WARM.md
-            echo
-            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
-            echo
-            echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_GVS_WARM.json
             echo '```'
             echo
             echo '</details>'
