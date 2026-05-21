@@ -1779,7 +1779,7 @@ impl<'a> DownloadTarballToStore<'a> {
         self,
         mem_cache: &'a MemCache,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let &DownloadTarballToStore { package_url, package_id, requester, .. } = &self;
+        let &DownloadTarballToStore { package_url, .. } = &self;
 
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?
         // TODO: If it's not implemented yet, implement it
@@ -1792,18 +1792,15 @@ impl<'a> DownloadTarballToStore<'a> {
         // inner `Arc` out and drop the `Ref` immediately.
         let existing = mem_cache.get(package_url).map(|entry| Arc::clone(entry.value()));
         if let Some(cache_lock) = existing {
+            // `pnpm:progress` fires exactly once per URL — only the
+            // first writer's `run_without_mem_cache` call emits.
+            // Mirrors pnpm's
+            // [`packageRequester`](https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L410-L436),
+            // which attaches the emit via `.then()` on the first
+            // writer's promise; later `await`s of the same promise
+            // do not re-trigger the handler.
             let notify = match &*cache_lock.write().await {
                 CacheValue::Available(cas_paths) => {
-                    // The mem cache deduplicates concurrent fetches of the
-                    // same tarball URL. The first requester goes through
-                    // `run_without_mem_cache` and emits `fetched` /
-                    // `found_in_store` for *its* package_id; later
-                    // requesters share the bytes here without reaching
-                    // those emit sites. From this requester's
-                    // perspective the package is already in the store, so
-                    // emit `found_in_store` so the per-package counters
-                    // in pnpm's reporter increment correctly.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester);
                     return Ok(Arc::clone(cas_paths));
                 }
                 CacheValue::InProgress(notify) => Arc::clone(notify),
@@ -1817,14 +1814,7 @@ impl<'a> DownloadTarballToStore<'a> {
             tracing::info!(target: "pacquet::download", ?package_url, "Wait for cache");
             notify.notified().await;
             match &*cache_lock.read().await {
-                CacheValue::Available(cas_paths) => {
-                    // Same rationale as the immediate-`Available`
-                    // branch above: this requester didn't drive the
-                    // fetch, but its package_id still needs
-                    // `found_in_store` for the counter to advance.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester);
-                    Ok(Arc::clone(cas_paths))
-                }
+                CacheValue::Available(cas_paths) => Ok(Arc::clone(cas_paths)),
                 CacheValue::Failed => {
                     Err(TarballError::SiblingFetchFailed { url: package_url.to_string() })
                 }
