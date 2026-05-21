@@ -109,6 +109,19 @@ fn node_linker_invalid_value_rejected() {
     assert!(msg.contains("bogus"), "error mentions bad value: {msg}");
 }
 
+/// `--ignore-manifest-check` parses to `true`. Absent → `false`.
+/// Surfaced for the pnpm CLI `configDependencies` delegation path
+/// (issue #11797); see the field doc on `InstallArgs::ignore_manifest_check`.
+#[test]
+fn ignore_manifest_check_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.ignore_manifest_check, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--ignore-manifest-check"])
+        .expect("parses --ignore-manifest-check");
+    assert!(parsed.args.ignore_manifest_check, "flag present → true");
+}
+
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
 /// canonical `pacquet_config::NodeLinker` enum. Tied to the
 /// `ValueEnum` derive's kebab-case rename — if a future variant
