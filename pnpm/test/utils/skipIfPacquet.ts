@@ -7,7 +7,7 @@ import { isPacquetMode } from './execPnpm.js'
  * pacquet Rust port (selected via the `PNPM_E2E_BIN` env var). Pass-through
  * when running against the bundled pnpm.
  */
-export const skipIfPacquet = isPacquetMode ? test.skip : test
+export const skipIfPacquet: typeof test = isPacquetMode ? test.skip : test
 
 /** describe()-level variant for skipping whole suites that aren't in pacquet's surface yet. */
-export const describeSkipIfPacquet = isPacquetMode ? describe.skip : describe
+export const describeSkipIfPacquet: typeof describe = isPacquetMode ? describe.skip : describe
