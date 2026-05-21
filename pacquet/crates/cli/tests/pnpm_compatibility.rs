@@ -237,26 +237,6 @@ fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
         .collect()
 }
 
-/// Append GVS opt-in (and any extra fields) to the `pnpm-workspace.yaml`
-/// that [`CommandTempCwd::add_mocked_registry`] already populated with
-/// `storeDir` / `cacheDir`. `enableGlobalVirtualStore: true` is the
-/// switch that flips both pnpm and pacquet to the shared-store layout.
-fn enable_gvs_in_workspace_yaml(workspace: &std::path::Path, extra_yaml: &str) {
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    // Guarantee a newline before the appended keys. If the helper
-    // that wrote the file ever drops the trailing newline, naive
-    // concatenation would merge its last key with
-    // `enableGlobalVirtualStore` and produce invalid YAML — flagged
-    // by CodeRabbit on PR #11689.
-    if !yaml.ends_with('\n') {
-        yaml.push('\n');
-    }
-    yaml.push_str("enableGlobalVirtualStore: true\n");
-    yaml.push_str(extra_yaml);
-    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
-}
-
 /// Run pnpm-then-pacquet against a shared workspace and compare the
 /// GVS slot trees they each materialize. Pnpm runs first so the
 /// lockfile exists before pacquet starts — pacquet's GVS write path

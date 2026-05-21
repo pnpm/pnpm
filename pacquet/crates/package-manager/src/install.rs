@@ -646,18 +646,17 @@ where
             // `pacquet store prune` (tracked separately) can find
             // every reachable consumer of `<store_dir>/links/...`.
             //
-            // Gated on `frozen_lockfile && enable_global_virtual_store`:
-            // `InstallWithFreshLockfile` keeps the project-local virtual
-            // store via `VirtualStoreLayout::legacy`, and a registry
-            // entry for it would point at a project that never
-            // touches the shared store.
-            //
             // Best-effort: a registry write failure shouldn't fail
             // the install. Surface as `tracing::warn!` so the failure
             // is diagnosable but the install carries on. Validation
             // of importer keys is done by
             // [`crate::SymlinkDirectDependencies::run`] before we get
             // here, so by this point every key is known-safe.
+            //
+            // The matching call for the fresh-resolve path lives
+            // after the `InstallWithFreshLockfile` branch below, where
+            // the root project is the only importer (workspaces in
+            // that path are pending pnpm/pacquet#431).
             if config.enable_global_virtual_store {
                 for importer_id in importers.keys() {
                     let project_dir = crate::symlink_direct_dependencies::importer_root_dir(
@@ -714,6 +713,27 @@ where
             .run::<Reporter>()
             .await
             .map_err(InstallError::WithFreshLockfile)?;
+
+            // Mirror the frozen-lockfile branch: when GVS is on,
+            // register the project against the shared store so
+            // `pacquet store prune` can find this consumer of
+            // `<store_dir>/links/...`. Pacquet's fresh-resolve path
+            // has one importer today (workspaces tracked at
+            // pnpm/pacquet#431), so the workspace root is the only
+            // path to register. Best-effort: warn on failure, don't
+            // fail the install.
+            if config.enable_global_virtual_store
+                && let Err(error) =
+                    pacquet_store_dir::register_project(&config.store_dir, &workspace_root)
+            {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    project_dir = ?workspace_root,
+                    "Failed to register project in the global-virtual-store registry; install continues",
+                );
+            }
+
             (
                 fresh_result.hoisted_dependencies,
                 BTreeMap::new(),

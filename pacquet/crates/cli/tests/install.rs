@@ -445,3 +445,62 @@ fn install_surfaces_catalog_misconfiguration() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// Fresh-install GVS regression: `pacquet install` (no flag, no
+/// lockfile) on a clean project with `enableGlobalVirtualStore: true`
+/// must materialize packages under the shared
+/// `<store_dir>/v11/links/<scope>/<name>/<version>/<hash>` tree, not
+/// the project-local `node_modules/.pnpm/` legacy layout. Pins the
+/// fix for pnpm/pnpm#11814: before that fix the without-lockfile
+/// path hardcoded `VirtualStoreLayout::legacy`, so the fresh-resolve
+/// install silently fell through to project-local slots even with
+/// GVS opted in.
+///
+/// Also asserts that the project gets registered under
+/// `<store_dir>/v11/projects/`, mirroring the frozen-lockfile branch
+/// — the prune sweep walks that directory to learn which projects
+/// still reference the shared store.
+#[cfg(unix)]
+#[test]
+fn fresh_install_honors_enable_global_virtual_store() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    enable_gvs_in_workspace_yaml(&workspace, "");
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Running pacquet install (no flag, no lockfile, GVS opted in)...");
+    pacquet.with_arg("install").assert().success();
+
+    eprintln!("Direct-dep symlink must resolve under <store_dir>/v11/links/...");
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    assert!(is_symlink_or_junction(&symlink_path).unwrap());
+    let canonical = symlink_path.pipe(fs::canonicalize).expect("canonicalize symlink");
+    let canonical_store = store_dir.pipe(fs::canonicalize).expect("canonicalize store_dir");
+    let gvs_root = canonical_store.join("v11").join("links");
+    assert!(
+        canonical.starts_with(&gvs_root),
+        "expected the package directory to live under {gvs_root:?}, got {canonical:?}",
+    );
+
+    eprintln!("Project must be registered under <store_dir>/v11/projects/...");
+    let projects_dir = canonical_store.join("v11").join("projects");
+    let projects_entries =
+        fs::read_dir(&projects_dir).expect("v11/projects must exist after a GVS install");
+    let project_count = projects_entries.count();
+    assert!(
+        project_count >= 1,
+        "expected at least one project-registry entry under {projects_dir:?}; got {project_count}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}

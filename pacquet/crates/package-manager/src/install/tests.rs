@@ -79,7 +79,15 @@ async fn should_install_dependencies() {
     let path = project_root.join("node_modules/@pnpm/xyz");
     eprintln!("path={path:?} symlink_or_junction={:?}", is_symlink_or_junction(&path));
     assert!(is_symlink_or_junction(&path).unwrap());
-    let path = project_root.join("node_modules/.pacquet/@pnpm+xyz@1.0.0");
+    // `@pnpm/xyz@1.0.0` has peer dependencies on `@pnpm/x`, `@pnpm/y`,
+    // and `@pnpm/z`, so the resolver produces a peer-suffixed
+    // depPath and the layout lands the slot at
+    // `@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0` —
+    // matching the snapshot key shape `pnpm install` would write
+    // to `pnpm-lock.yaml` and the slot upstream's frozen-lockfile
+    // path materialises into.
+    let path = project_root
+        .join("node_modules/.pacquet/@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0");
     eprintln!("path={path:?} is_dir={}", path.is_dir());
     assert!(path.is_dir());
 
