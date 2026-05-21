@@ -51,6 +51,12 @@ ignore = [
 # / `Parser` respectively.
 [perfectionist]
 enable = ["derive_ordering"]
+# `arc_rc_clone` is enforced by `clippy::clone_on_ref_ptr` instead — see
+# `[workspace.lints.clippy]` in the root `Cargo.toml`. Consolidating on the
+# clippy rule keeps the requirement visible to anyone running `cargo clippy`
+# without the Dylint job, and drops the perfectionist tag from the linter
+# matrix for this particular finding.
+disable = ["arc_rc_clone"]
 
 ["perfectionist::derive_ordering"]
 style = "prefix_then_alphabetical"

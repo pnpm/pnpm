@@ -521,11 +521,9 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // way.
         let allow_build_policy = AllowBuildPolicy::from_config(config)
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
-        let layout_lockfile = if config.enable_global_virtual_store {
-            Some(build_fresh_lockfile(config, manifest, &importer_result))
-        } else {
-            None
-        };
+        let layout_lockfile = config
+            .enable_global_virtual_store
+            .then(|| build_fresh_lockfile(config, manifest, &importer_result));
         let engine_name: Option<String> = if config.enable_global_virtual_store {
             tokio::task::spawn_blocking(|| {
                 pacquet_graph_hasher::detect_node_major()

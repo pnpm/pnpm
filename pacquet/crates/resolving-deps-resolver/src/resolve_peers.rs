@@ -330,7 +330,7 @@ impl<'tree> Walker<'tree> {
             let parent_ref = ParentRef {
                 version: child_version,
                 node_id: Some(*child_node_id),
-                alias: if alias != &child_real_name { Some(alias.clone()) } else { None },
+                alias: (alias != &child_real_name).then(|| alias.clone()),
             };
             if alias_relevant {
                 child_parent_refs.insert(alias.clone(), parent_ref.clone());
@@ -605,7 +605,7 @@ fn insert_parent_ref(
     let parent_ref = ParentRef {
         version: version.clone(),
         node_id: Some(direct.node_id),
-        alias: if direct.alias != real_name { Some(direct.alias.clone()) } else { None },
+        alias: (direct.alias != real_name).then(|| direct.alias.clone()),
     };
     if alias_relevant {
         refs.insert(direct.alias.clone(), parent_ref.clone());
