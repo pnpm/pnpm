@@ -10,7 +10,7 @@ use pacquet_store_dir::StoreDir;
 /// handles whatever `init` didn't, so there's no correctness reason to
 /// fail the install on a bootstrap miss.
 ///
-/// Shared by `InstallWithoutLockfile::run` and `CreateVirtualStore::run`
+/// Shared by `InstallWithFreshLockfile::run` and `CreateVirtualStore::run`
 /// so the log text and degradation policy stay in sync — a previous
 /// pass had them drift, which made grepping the install log
 /// frustrating.

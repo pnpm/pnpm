@@ -1,6 +1,7 @@
 use crate::{
-    HoistedDependencies, InstallPackageFromRegistry, InstallPackageFromRegistryError,
-    LinkVirtualStoreBins, LinkVirtualStoreBinsError, store_init::init_store_dir_best_effort,
+    GraphToLockfileOptions, HoistedDependencies, InstallPackageFromRegistry,
+    InstallPackageFromRegistryError, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
+    dependencies_graph_to_lockfile, store_init::init_store_dir_best_effort,
 };
 use async_recursion::async_recursion;
 use dashmap::{DashMap, mapref::entry::Entry};
@@ -13,6 +14,7 @@ use pacquet_config::Config;
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
+use pacquet_lockfile::{Lockfile, SaveLockfileError};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
@@ -58,7 +60,10 @@ use tokio::sync::watch;
 /// resolveDependencyTree pass before the install pass.
 pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 
-/// This subroutine install packages from a `package.json` without reading or writing a lockfile.
+/// Fresh-install path: resolve the project from the registry, fetch +
+/// materialize `node_modules`, and emit a brand-new `pnpm-lock.yaml`
+/// reflecting the resolved graph. Caller (see [`crate::Install::run`])
+/// drives this path whenever no `--frozen-lockfile` was requested.
 ///
 /// **Brief overview for each package:**
 /// * Resolve the dependency through the [`NpmResolver`] chain
@@ -70,8 +75,11 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 /// * Create dependency symbolic links in
 ///   `node_modules/.pacquet/{name}@{version}/node_modules/`.
 /// * Create a symbolic link at `node_modules/{name}`.
+/// * Run the resolved graph through
+///   [`crate::dependencies_graph_to_lockfile()`] to produce a v9
+///   `pnpm-lock.yaml`; the caller writes it to `<lockfile_dir>/pnpm-lock.yaml`.
 #[must_use]
-pub struct InstallWithoutLockfile<'a, DependencyGroupList> {
+pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     pub tarball_mem_cache: &'a MemCache,
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
@@ -107,9 +115,9 @@ pub struct InstallWithoutLockfile<'a, DependencyGroupList> {
     pub workspace_packages: Option<pacquet_resolving_resolver_base::WorkspacePackages>,
 }
 
-/// Error type of [`InstallWithoutLockfile`].
+/// Error type of [`InstallWithFreshLockfile`].
 #[derive(Debug, Display, Error, Diagnostic)]
-pub enum InstallWithoutLockfileError {
+pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     InstallPackageFromRegistry(#[error(source)] InstallPackageFromRegistryError),
 
@@ -166,26 +174,50 @@ pub enum InstallWithoutLockfileError {
         #[error(not(source))]
         virtual_store_name: String,
     },
+
+    /// Persisting the freshly-resolved `pnpm-lock.yaml` failed. Surfaced
+    /// rather than swallowed because a missing wanted lockfile would
+    /// force the next install to re-resolve every dep and would break
+    /// the `pnpm install --frozen-lockfile` headless path.
+    #[diagnostic(transparent)]
+    SaveWantedLockfile(#[error(source)] SaveLockfileError),
 }
 
-impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
+/// Output of [`InstallWithFreshLockfile::run`].
+///
+/// Returns the hoist-graph slot the dispatch already consumed plus the
+/// freshly-built [`Lockfile`] (when the writer ran), so the caller can
+/// save it as `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
+/// succeeds — the same ordering the frozen-lockfile path uses to
+/// guarantee a manifest failure can't leave a current-lockfile
+/// pointing at incomplete install state.
+#[must_use]
+pub struct InstallWithFreshLockfileResult {
+    pub hoisted_dependencies: HoistedDependencies,
+    /// `Some` when the install resolved a graph that was written to
+    /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
+    /// `config.lockfile=false`). The caller mirrors the same gate when
+    /// deciding whether to persist the current-lockfile.
+    pub wanted_lockfile: Option<Lockfile>,
+}
+
+impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Execute the subroutine.
     ///
-    /// The without-lockfile path always returns an empty
-    /// [`HoistedDependencies`] map. Hoisting needs the resolved
-    /// snapshot graph the lockfile carries; without it, pacquet has
-    /// nothing to walk. Frozen-lockfile installs (the production
-    /// pacquet path) get the full hoist treatment via
-    /// [`crate::InstallFrozenLockfile::run`]. The signature symmetry
-    /// keeps `Install::run` from branching on which sub-path produced
-    /// the result.
+    /// The fresh-lockfile path's [`HoistedDependencies`] slot is always
+    /// empty. Hoisting needs the resolved snapshot graph the lockfile
+    /// carries; this path serializes the graph into `pnpm-lock.yaml`
+    /// itself, but the hoist pass still runs only inside the
+    /// frozen-lockfile install ([`crate::InstallFrozenLockfile::run`]).
+    /// The signature symmetry keeps `Install::run` from branching on
+    /// which sub-path produced the result.
     pub async fn run<Reporter: self::Reporter>(
         self,
-    ) -> Result<HoistedDependencies, InstallWithoutLockfileError>
+    ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError>
     where
         DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     {
-        let InstallWithoutLockfile {
+        let InstallWithFreshLockfile {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -228,7 +260,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         let user_named_registries: HashMap<String, String> =
             config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
         let merged_named_registries = merge_named_registries(&user_named_registries)
-            .map_err(InstallWithoutLockfileError::InvalidNamedRegistry)?;
+            .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?;
         let named_registry_aliases: std::collections::HashSet<String> =
             merged_named_registries.keys().cloned().collect();
 
@@ -329,7 +361,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             .filter(|patterns| !patterns.is_empty())
             .map(pacquet_config::version_policy::create_package_version_policy)
             .transpose()
-            .map_err(InstallWithoutLockfileError::MinimumReleaseAgeExclude)?;
+            .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
         // Seed `allPreferredVersions` from the importer manifest. No
         // wanted lockfile is available on this path (install-without-
@@ -355,7 +387,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/src/install/index.ts#L468-L488>.
         let patched_dependencies = config
             .resolved_patched_dependencies()
-            .map_err(InstallWithoutLockfileError::ResolvePatchedDependencies)?
+            .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
             .map(Arc::new);
 
         let importer_opts = ResolveImporterOptions {
@@ -380,7 +412,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         let importer_result =
             resolve_importer(&*resolver, manifest, dependency_groups, importer_opts)
                 .await
-                .map_err(InstallWithoutLockfileError::ResolveImporter)?;
+                .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
 
         // Drop the resolver (and its meta cache) before the install
         // pass: the tree captures every `ResolveResult` we need.
@@ -393,8 +425,6 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // freed before the install pass starts allocating tarballs.
         drop(resolver);
         drop(npm_resolver);
-
-        let peers_result = importer_result.peers_result;
 
         // Open the read-only SQLite index once per install, shared across
         // every `DownloadTarballToStore`. See the matching comment in
@@ -435,6 +465,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // fatal — they are reported (TODO: wire into the reporter once
         // the issue renderer is ported) and the install proceeds with
         // whichever candidate was reachable.
+        let peers_result = &importer_result.peers_result;
         if !peers_result.peer_dependency_issues.missing.is_empty()
             || !peers_result.peer_dependency_issues.bad.is_empty()
         {
@@ -495,7 +526,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
         // own `linkBins(modulesDir, binsDir)` overload uses the same
         // strategy.
         link_bins::<Host>(&config.modules_dir, &config.modules_dir.join(".bin"))
-            .map_err(InstallWithoutLockfileError::LinkBins)?;
+            .map_err(InstallWithFreshLockfileError::LinkBins)?;
 
         // No lockfile here, so no prefetched manifests are available —
         // fall back to the legacy readdir-driven path (slots discovered
@@ -526,10 +557,40 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             skipped: &empty_skipped,
         }
         .run()
-        .map_err(InstallWithoutLockfileError::LinkVirtualStoreBins)?;
+        .map_err(InstallWithFreshLockfileError::LinkVirtualStoreBins)?;
+
+        // Write `pnpm-lock.yaml` from the resolved graph. Mirrors
+        // upstream's
+        // [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
+        // call at the tail of `deps-installer/src/install/index.ts`:
+        // every non-frozen install lands a wanted lockfile so the next
+        // pnpm / pacquet invocation can either go headless or diff
+        // against it. The save runs after materialization succeeds so
+        // a partial install can't leave a lockfile pointing at slots
+        // that never landed on disk. `config.lockfile=false` skips the
+        // write, matching pnpm's documented opt-out behavior even
+        // though that knob is rarely exercised today.
+        //
+        // The built lockfile is returned to the caller so it can also
+        // persist `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
+        // succeeds, matching the frozen-lockfile path's ordering. We
+        // don't write the current-lockfile inline here because the
+        // safety property — a manifest-write failure must not leave a
+        // current-lockfile pointing at an incomplete install — needs
+        // `.modules.yaml` to land first.
+        let wanted_lockfile = if config.lockfile {
+            let lockfile_to_save = build_fresh_lockfile(config, manifest, &importer_result);
+            let target = lockfile_dir.join(Lockfile::FILE_NAME);
+            lockfile_to_save
+                .save_to_path(&target)
+                .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+            Some(lockfile_to_save)
+        } else {
+            None
+        };
 
         // Mirrors upstream `link.ts:167-170`: `importing_done` fires once
-        // extraction and symlink linking are complete. The without-lockfile
+        // extraction and symlink linking are complete. The fresh-lockfile
         // path does not run lifecycle scripts today, so emitting here also
         // marks end-of-install for reporters.
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>
@@ -539,8 +600,42 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             stage: Stage::ImportingDone,
         }));
 
-        Ok(BTreeMap::new())
+        Ok(InstallWithFreshLockfileResult {
+            hoisted_dependencies: BTreeMap::new(),
+            wanted_lockfile,
+        })
     }
+}
+
+/// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the
+/// resolver's output.
+///
+/// Mirrors upstream's
+/// [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts)
+/// then the
+/// [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
+/// fan-out, with [`dependencies_graph_to_lockfile()`] doing the wire-shape lifting.
+fn build_fresh_lockfile(
+    config: &Config,
+    manifest: &PackageManifest,
+    importer_result: &pacquet_resolving_deps_resolver::ResolveImporterResult,
+) -> Lockfile {
+    dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        manifest,
+        resolved: importer_result,
+        auto_install_peers: config.auto_install_peers,
+        // `excludeLinksFromLockfile` isn't ported to pacquet's `Config`
+        // yet (pnpm/pacquet#431 brings workspace support, which is
+        // when the knob starts mattering). Default to `false` —
+        // matches upstream's default and round-trips cleanly through
+        // `@pnpm/lockfile.settings-checker`.
+        exclude_links_from_lockfile: false,
+        overrides: config
+            .overrides
+            .as_ref()
+            .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
+        ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+    })
 }
 
 /// Per-install state threaded into [`install_subtree`]. Holds every
@@ -575,7 +670,7 @@ async fn install_subtree<'ctx, Reporter>(
     alias: &str,
     dep_path: &DepPath,
     node_modules_dir: &Path,
-) -> Result<(), InstallWithoutLockfileError>
+) -> Result<(), InstallWithFreshLockfileError>
 where
     Reporter: self::Reporter,
 {
@@ -617,7 +712,9 @@ where
                 break;
             }
             if rx.changed().await.is_err() {
-                return Err(InstallWithoutLockfileError::FirstWriterAborted { virtual_store_name });
+                return Err(InstallWithFreshLockfileError::FirstWriterAborted {
+                    virtual_store_name,
+                });
             }
         }
     }
@@ -638,7 +735,7 @@ where
     }
     .run::<Reporter>()
     .await
-    .map_err(InstallWithoutLockfileError::InstallPackageFromRegistry)?;
+    .map_err(InstallWithFreshLockfileError::InstallPackageFromRegistry)?;
 
     if first_visit {
         // `send_replace` (not `send`) is critical here: `Sender::send`

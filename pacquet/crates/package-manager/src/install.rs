@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc, sync::atomic::AtomicU8, 
 
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
-    InstallWithoutLockfile, InstallWithoutLockfileError, ResolvedPackages,
+    InstallWithFreshLockfile, InstallWithFreshLockfileError, ResolvedPackages,
     build_resolution_verifiers,
 };
 use derive_more::{Display, Error};
@@ -121,14 +121,36 @@ pub enum InstallError {
     #[diagnostic(code(pacquet_package_manager::no_lockfile))]
     NoLockfile,
 
-    #[display(
-        "Installing with a writable lockfile is not yet supported. Disable lockfile in .npmrc (lockfile=false) or pass --frozen-lockfile with an existing pnpm-lock.yaml."
-    )]
-    #[diagnostic(code(pacquet_package_manager::unsupported_lockfile_mode))]
-    UnsupportedLockfileMode,
-
     #[diagnostic(transparent)]
-    WithoutLockfile(#[error(source)] InstallWithoutLockfileError),
+    WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
+
+    /// Requested `nodeLinker` value isn't supported on the
+    /// fresh-lockfile path yet. Pacquet's hoist pass runs only over
+    /// a loaded lockfile's snapshots (`link_hoisted_modules`); a
+    /// non-frozen install with `nodeLinker: hoisted` would produce
+    /// an isolated layout silently, which doesn't match the user's
+    /// intent. Re-run with `--frozen-lockfile`, or set
+    /// `nodeLinker: isolated`.
+    #[display(
+        "nodeLinker: {node_linker:?} is not supported without --frozen-lockfile yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or set nodeLinker: isolated."
+    )]
+    #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_node_linker))]
+    UnsupportedFreshInstallNodeLinker {
+        #[error(not(source))]
+        node_linker: NodeLinker,
+    },
+
+    /// `--no-runtime` (or `config.skip_runtimes`) is honored only on
+    /// the frozen-lockfile path today, where the runtime filter runs
+    /// against the loaded lockfile's `packages:` map. A non-frozen
+    /// install would still fetch + materialize runtime archives
+    /// despite the opt-out, so refuse the install instead of
+    /// silently ignoring the flag.
+    #[display(
+        "--no-runtime / skipRuntimes is not supported without --frozen-lockfile yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or drop the flag."
+    )]
+    #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_skip_runtimes))]
+    UnsupportedFreshInstallSkipRuntimes,
 
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
@@ -254,6 +276,37 @@ where
             supported_architectures,
             node_linker,
         } = self;
+
+        // Fail fast on flag combinations the fresh-lockfile path
+        // doesn't honor yet so we don't silently produce a
+        // `node_modules` + `pnpm-lock.yaml` that diverges from what
+        // the user asked for:
+        //
+        // - `nodeLinker: hoisted` on the fresh path would need a
+        //   port of upstream's hoist pass against the freshly-built
+        //   graph (the frozen path uses `link_hoisted_modules` over
+        //   the lockfile's snapshots). Falling through to the
+        //   isolated linker would lay out `node_modules` in the
+        //   wrong shape, so refuse the install instead.
+        // - `skip_runtimes` (CLI `--no-runtime`) on the fresh path
+        //   would need a runtime-filter at the materialization step
+        //   matching the frozen path's
+        //   [`installing/deps-installer/src/install/index.ts:1374-1387`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L1374-L1387)
+        //   filter. Without it, runtime archives get fetched +
+        //   materialized despite the opt-out.
+        //
+        // Both are flagged up front, before any reporter event fires
+        // or any state file is written, so a follow-up retry under
+        // `--frozen-lockfile` (with an existing lockfile) lands on
+        // the supported path.
+        if !frozen_lockfile {
+            if matches!(node_linker, NodeLinker::Hoisted) {
+                return Err(InstallError::UnsupportedFreshInstallNodeLinker { node_linker });
+            }
+            if skip_runtimes {
+                return Err(InstallError::UnsupportedFreshInstallSkipRuntimes);
+            }
+        }
 
         // Collect once so the same set drives both the install dispatch
         // and the `included` field of `.modules.yaml` written below.
@@ -400,10 +453,12 @@ where
         //    no-lockfile install, which is also what the integrated
         //    benchmark has been measuring.
         //
-        // 2. Otherwise follow `config.lockfile`. `true` means we'd
-        //    normally generate / update a lockfile, which pacquet
-        //    doesn't support yet → `UnsupportedLockfileMode`. `false`
-        //    means "lockfile disabled, resolve from registry".
+        // 2. Otherwise the fresh-lockfile path runs: the resolver
+        //    walks the manifest, materializes `node_modules`, and the
+        //    resolved graph is serialized to `pnpm-lock.yaml`. The
+        //    save-to-disk step honors `config.lockfile`: setting it to
+        //    `false` keeps the resolver running but skips the write,
+        //    matching pnpm's documented opt-out.
         // The third tuple element is `hoisted_locations`: the
         // per-depPath list of lockfile-relative directories the
         // hoisted linker placed each package at. Empty under the
@@ -414,10 +469,11 @@ where
         // `.modules.yaml.hoisted_locations` for the next install
         // and for the rebuild path (which throws
         // `MISSING_HOISTED_LOCATIONS` when this field is gone).
-        let (hoisted_dependencies, hoisted_locations, frozen_skipped): (
+        let (hoisted_dependencies, hoisted_locations, frozen_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
             crate::SkippedSnapshots,
+            Option<Lockfile>,
         ) = if frozen_lockfile {
             let Some(lockfile) = lockfile else {
                 return Err(InstallError::NoLockfile);
@@ -591,7 +647,7 @@ where
             // every reachable consumer of `<store_dir>/links/...`.
             //
             // Gated on `frozen_lockfile && enable_global_virtual_store`:
-            // `InstallWithoutLockfile` keeps the project-local virtual
+            // `InstallWithFreshLockfile` keeps the project-local virtual
             // store via `VirtualStoreLayout::legacy`, and a registry
             // entry for it would point at a project that never
             // touches the shared store.
@@ -625,13 +681,12 @@ where
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
                 frozen_result.skipped,
+                None,
             )
-        } else if config.lockfile {
-            return Err(InstallError::UnsupportedLockfileMode);
         } else {
-            // The no-lockfile path has no installability check (no
-            // `packages:` metadata to evaluate constraints against),
-            // so its skip set is empty by construction.
+            // The fresh-lockfile path has no installability check
+            // (no `packages:` metadata to evaluate constraints
+            // against), so its skip set is empty by construction.
             // Build the workspace-sibling lookup the npm resolver
             // consults for `workspace:` specs. `None` when the install
             // isn't inside a `pnpm-workspace.yaml` workspace (no
@@ -642,7 +697,7 @@ where
             let workspace_packages =
                 build_workspace_packages_map(&workspace_root, workspace_manifest.as_ref())
                     .map_err(InstallError::FindWorkspaceProjects)?;
-            let hd = InstallWithoutLockfile {
+            let fresh_result = InstallWithFreshLockfile {
                 tarball_mem_cache,
                 resolved_packages,
                 http_client,
@@ -658,15 +713,20 @@ where
             }
             .run::<Reporter>()
             .await
-            .map_err(InstallError::WithoutLockfile)?;
-            (hd, BTreeMap::new(), crate::SkippedSnapshots::new())
+            .map_err(InstallError::WithFreshLockfile)?;
+            (
+                fresh_result.hoisted_dependencies,
+                BTreeMap::new(),
+                crate::SkippedSnapshots::new(),
+                fresh_result.wanted_lockfile,
+            )
         };
 
         tracing::info!(target: "pacquet::install", "Complete all");
 
         // `Stage::ImportingDone` is emitted inside the install paths
         // (`InstallFrozenLockfile` between symlink and build, and
-        // `InstallWithoutLockfile` after the writer task) so that any
+        // `InstallWithFreshLockfile` after the writer task) so that any
         // subsequent `pnpm:lifecycle` events render after the import
         // progress display has closed. Mirrors upstream's emit point in
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>.
@@ -722,6 +782,18 @@ where
             // dropped snapshots aren't mistaken for already-done
             // work.
             crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+                .save_current_to_virtual_store_dir(&config.virtual_store_dir)
+                .map_err(InstallError::SaveCurrentLockfile)?;
+        } else if let Some(fresh_lockfile) = fresh_lockfile.as_ref() {
+            // Fresh-install path: mirror the frozen behavior by
+            // persisting `<virtual_store_dir>/lock.yaml` from the
+            // freshly-built wanted lockfile. No filtering needed —
+            // the resolver only walked the dep groups the install
+            // requested, so the wanted and materialized graphs match
+            // by construction. The save is gated on the same
+            // `config.lockfile` knob the wanted-side write honors
+            // (`fresh_lockfile` is `None` when the opt-out fired).
+            fresh_lockfile
                 .save_current_to_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::SaveCurrentLockfile)?;
         }

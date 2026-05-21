@@ -314,6 +314,12 @@ pub struct Config {
     pub virtual_store_dir_max_length: u64,
 
     /// When set to false, pnpm won't read or generate a pnpm-lock.yaml file.
+    ///
+    /// Defaults to `true` so a fresh `pacquet install` writes a
+    /// lockfile by default — matching upstream pnpm's
+    /// [`useLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/src/install/extendInstallOptions.ts#L323)
+    /// default.
+    #[default = true]
     pub lockfile: bool,
 
     /// When set to true and the available pnpm-lock.yaml satisfies the package.json dependencies
@@ -893,11 +899,11 @@ impl Config {
     ///   (or, in practice, through `pacquet_package_manager::VirtualStoreLayout`).
     ///
     /// The reason: pacquet still has a non-frozen
-    /// `InstallWithoutLockfile` path that upstream pnpm doesn't have.
+    /// `InstallWithFreshLockfile` path that upstream pnpm doesn't have.
     /// Mutating `virtual_store_dir` would redirect that path to
     /// `<storeDir>/links` too — but the issue (pnpm/pacquet#432)
     /// scopes GVS to frozen-lockfile installs. Splitting the field
-    /// keeps the without-lockfile path on the project-local layout
+    /// keeps the fresh-lockfile path on the project-local layout
     /// while the frozen-lockfile path consumes the GVS-derived value.
     ///
     /// `virtual_store_dir_explicit` carries the "did the user set

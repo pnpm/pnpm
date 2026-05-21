@@ -51,7 +51,7 @@ pub struct VirtualStoreLayout {
     /// and from `Config::virtual_store_dir` when GVS is disabled (the
     /// project-local `<modules_dir>/.pnpm`). Pacquet keeps the two
     /// fields separate so the legacy non-frozen
-    /// [`crate::InstallWithoutLockfile`] path can keep reading
+    /// [`crate::InstallWithFreshLockfile`] path can keep reading
     /// `virtual_store_dir` directly via [`Self::legacy`] without the
     /// frozen-lockfile derivation redirecting it. See
     /// [`Config::apply_global_virtual_store_derivation`] for the

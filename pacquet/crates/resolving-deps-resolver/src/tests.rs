@@ -860,3 +860,246 @@ mod patched_dependencies {
         assert!(matches!(err, ResolveDependencyTreeError::PatchKeyConflict(_)), "got: {err:?}");
     }
 }
+
+mod optional_propagation {
+    use super::{
+        DependencyGroup, HashMap, Mutex, PackageManifest, ResolveDependencyTreeOptions,
+        ResolveOptions, StubResolver, fake_result, resolve_dependency_tree,
+    };
+
+    /// `package.json` builder that takes both `dependencies` and
+    /// `optionalDependencies` blocks — the bundled `fake_manifest`
+    /// helper only writes to `dependencies` so it can't exercise the
+    /// importer-level optional flag.
+    fn manifest_with_groups(
+        prod: serde_json::Value,
+        optional: serde_json::Value,
+    ) -> (tempfile::TempDir, PackageManifest) {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("package.json");
+        let json = serde_json::json!({
+            "name": "root",
+            "version": "0.0.0",
+            "dependencies": prod,
+            "optionalDependencies": optional,
+        });
+        std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
+        let manifest = PackageManifest::from_path(path).expect("parse package.json");
+        (tmp, manifest)
+    }
+
+    /// A direct dep declared under `optionalDependencies` lands on the
+    /// resolved package with `optional: true`. Its sibling under
+    /// `dependencies` stays `optional: false`. Mirrors upstream's
+    /// `getResolvedPackage({ optional: currentIsOptional })` seed on
+    /// the first visit.
+    #[tokio::test]
+    async fn direct_optional_dep_seeds_resolved_package_optional_true() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("opt".to_string(), "^1.0.0".to_string()),
+            fake_result("opt", "1.0.0", serde_json::json!({ "name": "opt", "version": "1.0.0" })),
+        );
+        table.insert(
+            ("regular".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "regular",
+                "1.0.0",
+                serde_json::json!({ "name": "regular", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = manifest_with_groups(
+            serde_json::json!({ "regular": "^1.0.0" }),
+            serde_json::json!({ "opt": "^1.0.0" }),
+        );
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod, DependencyGroup::Optional],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            tree.packages.get("opt@1.0.0").expect("opt resolved").optional,
+            "direct optionalDependencies entry marks the resolved package optional",
+        );
+        assert!(
+            !tree.packages.get("regular@1.0.0").expect("regular resolved").optional,
+            "direct dependencies entry stays optional: false",
+        );
+    }
+
+    /// A transitive dep reached only through an `optionalDependencies`
+    /// edge inherits the flag: `current_is_optional` propagates down
+    /// the recursion (`wanted.optional || parent.optional`) so every
+    /// descendant of an optional root carries `optional: true`.
+    #[tokio::test]
+    async fn transitive_dep_under_optional_inherits_optional_true() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("opt".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "opt",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "opt",
+                    "version": "1.0.0",
+                    "dependencies": { "transitive": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("transitive".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "transitive",
+                "1.0.0",
+                serde_json::json!({ "name": "transitive", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            manifest_with_groups(serde_json::json!({}), serde_json::json!({ "opt": "^1.0.0" }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod, DependencyGroup::Optional],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            tree.packages.get("transitive@1.0.0").expect("transitive resolved").optional,
+            "child of an optional-only parent inherits optional: true",
+        );
+    }
+
+    /// A package reachable from BOTH a non-optional and an optional
+    /// path AND-folds back to `optional: false`. Mirrors upstream's
+    /// `resolvedPkgsById[id].optional = resolvedPkgsById[id].optional && currentIsOptional`
+    /// arm on every subsequent visit — a single non-optional path wins.
+    #[tokio::test]
+    async fn shared_dep_via_non_optional_and_optional_paths_keeps_optional_false() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("opt".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "opt",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "opt",
+                    "version": "1.0.0",
+                    "dependencies": { "shared": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("regular".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "regular",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "regular",
+                    "version": "1.0.0",
+                    "dependencies": { "shared": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("shared".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "shared",
+                "1.0.0",
+                serde_json::json!({ "name": "shared", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = manifest_with_groups(
+            serde_json::json!({ "regular": "^1.0.0" }),
+            serde_json::json!({ "opt": "^1.0.0" }),
+        );
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod, DependencyGroup::Optional],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let shared = tree.packages.get("shared@1.0.0").expect("shared resolved");
+        assert!(
+            !shared.optional,
+            "AND-fold: a non-optional path through any consumer wins over an optional one",
+        );
+    }
+
+    /// A package's own `optionalDependencies` child inherits the
+    /// transitive optional flag: an edge marked optional on the
+    /// parent's manifest contributes `true` to the child's
+    /// `current_is_optional` regardless of how the parent itself was
+    /// reached.
+    #[tokio::test]
+    async fn manifest_level_optional_dependencies_edge_propagates_to_child() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("regular".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "regular",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "regular",
+                    "version": "1.0.0",
+                    "optionalDependencies": { "transitive": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("transitive".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "transitive",
+                "1.0.0",
+                serde_json::json!({ "name": "transitive", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            manifest_with_groups(serde_json::json!({ "regular": "^1.0.0" }), serde_json::json!({}));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod, DependencyGroup::Optional],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            !tree.packages.get("regular@1.0.0").expect("regular resolved").optional,
+            "regular dep stays non-optional",
+        );
+        assert!(
+            tree.packages.get("transitive@1.0.0").expect("transitive resolved").optional,
+            "child reached only via a parent's optionalDependencies edge is optional",
+        );
+    }
+}

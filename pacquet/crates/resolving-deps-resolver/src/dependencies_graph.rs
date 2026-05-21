@@ -40,6 +40,15 @@ pub struct DependenciesGraphNode {
     /// i.e. its depPath equals its `pkgIdWithPatchHash`. Mirrors
     /// upstream's `isPure` flag.
     pub is_pure: bool,
+    /// Mirrors [`crate::ResolvedPackage::optional`]: `true` when every
+    /// path from any importer to this package goes through at least
+    /// one `optionalDependencies` edge. Threaded through from the
+    /// tree-walker so the lockfile adapter can set
+    /// `SnapshotEntry.optional` per upstream's
+    /// [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts#L99-L101).
+    /// Every peer-variant of the same `pkgIdWithPatchHash` shares the
+    /// same value because they share one [`crate::ResolvedPackage`].
+    pub optional: bool,
 }
 
 /// One issue collected during peer resolution. Mirrors upstream's per-

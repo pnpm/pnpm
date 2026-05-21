@@ -497,6 +497,7 @@ impl<'tree> Walker<'tree> {
                 depth: tree_node.depth,
                 installable: tree_node.installable,
                 is_pure,
+                optional: pkg.optional,
             });
 
         self.in_progress.remove(&node_id);

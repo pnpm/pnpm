@@ -128,12 +128,28 @@ where
     Chain: Resolver + ?Sized,
 {
     let ctx = TreeCtx::new(opts.base_opts).with_patched_dependencies(opts.patched_dependencies);
-    let wanted: Vec<(String, String)> = manifest
+    let optional_names = importer_optional_dependency_names(manifest);
+    let wanted: Vec<(String, String, bool)> = manifest
         .dependencies(dependency_groups)
-        .map(|(name, range)| (name.to_string(), range.to_string()))
+        .map(|(name, range)| {
+            let optional = optional_names.contains(name);
+            (name.to_string(), range.to_string(), optional)
+        })
         .collect();
     let direct = extend_tree(&ctx, resolver, wanted).await?;
     Ok(ctx.into_resolved_tree(direct))
+}
+
+/// Collect the names of the importer manifest's `optionalDependencies`
+/// entries so the walker can tag each direct dep with the right
+/// `wanted.optional` flag. Mirrors upstream's per-alias classification
+/// in [`getWantedDependenciesFromGivenSet`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L57-L72):
+/// `optionalDependencies` wins over the other groups when an alias
+/// appears in more than one. Pacquet builds the same set so the
+/// `ResolvedPackage.optional` propagation starts from the right
+/// per-direct-dep value.
+pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
+    manifest.dependencies([DependencyGroup::Optional]).map(|(name, _)| name.to_string()).collect()
 }
 
 /// Mutable workspace for an in-flight tree walk. The orchestrator
@@ -246,20 +262,21 @@ impl TreeCtx {
 pub async fn extend_tree<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
-    wanted: Vec<(String, String)>,
+    wanted: Vec<(String, String, bool)>,
 ) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
     let results = wanted
         .into_iter()
-        .map(|(name, range)| async {
+        .map(|(name, range, optional)| async move {
             let wanted = WantedDependency {
                 alias: Some(name),
                 bare_specifier: Some(range),
+                optional: Some(optional),
                 ..WantedDependency::default()
             };
-            resolve_node(ctx, resolver, wanted, &[], 0).await
+            resolve_node(ctx, resolver, wanted, &[], 0, false).await
         })
         .pipe(future::try_join_all)
         .await?;
@@ -287,10 +304,13 @@ async fn resolve_node<Chain>(
     wanted: WantedDependency,
     ancestor_ids: &[String],
     depth: i32,
+    parent_optional: bool,
 ) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
+    let current_is_optional = wanted.optional.unwrap_or(false) || parent_optional;
+
     let result = resolver
         .resolve(&wanted, &ctx.base_opts)
         .await
@@ -330,23 +350,37 @@ where
         .unwrap_or_else(|| id.clone());
 
     // Build (or look up) the ResolvedPackage envelope. The first
-    // visitor populates it; later visitors collapse onto it.
+    // visitor populates it; later visitors AND-fold the `optional`
+    // flag so a single non-optional path flips it back to `false`.
+    // Mirrors upstream's
+    // [`resolvedPkgsById[...].optional = ... && currentIsOptional`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1630)
+    // arm.
     {
         let mut packages = ctx.packages.lock().await;
-        if !packages.contains_key(&id) {
-            let peer_dependencies = extract_peer_dependencies(&result);
-            // Collect peer names for the peer-resolution stage's
-            // `parentPkgs` filter (only peers count as parents).
-            {
-                let mut all_peers = ctx.all_peer_dep_names.lock().await;
-                for name in peer_dependencies.keys() {
-                    all_peers.insert(name.clone());
-                }
+        match packages.get_mut(&id) {
+            Some(existing) => {
+                existing.optional = existing.optional && current_is_optional;
             }
-            packages.insert(
-                id.clone(),
-                ResolvedPackage { id: id.clone(), result: result.clone(), peer_dependencies },
-            );
+            None => {
+                let peer_dependencies = extract_peer_dependencies(&result);
+                // Collect peer names for the peer-resolution stage's
+                // `parentPkgs` filter (only peers count as parents).
+                {
+                    let mut all_peers = ctx.all_peer_dep_names.lock().await;
+                    for name in peer_dependencies.keys() {
+                        all_peers.insert(name.clone());
+                    }
+                }
+                packages.insert(
+                    id.clone(),
+                    ResolvedPackage {
+                        id: id.clone(),
+                        result: result.clone(),
+                        peer_dependencies,
+                        optional: current_is_optional,
+                    },
+                );
+            }
         }
     }
 
@@ -359,22 +393,30 @@ where
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
 
     let child_specs = extract_children(&result);
-    let child_results =
-        child_specs
-            .into_iter()
-            .map(|(child_name, child_range)| {
-                let child_wanted = WantedDependency {
-                    alias: Some(child_name),
-                    bare_specifier: Some(child_range),
-                    ..WantedDependency::default()
-                };
-                let next_ancestors = next_ancestors.clone();
-                async move {
-                    resolve_node(ctx, resolver, child_wanted, &next_ancestors, depth + 1).await
-                }
-            })
-            .pipe(future::try_join_all)
-            .await?;
+    let child_results = child_specs
+        .into_iter()
+        .map(|(child_name, child_range, child_optional)| {
+            let child_wanted = WantedDependency {
+                alias: Some(child_name),
+                bare_specifier: Some(child_range),
+                optional: Some(child_optional),
+                ..WantedDependency::default()
+            };
+            let next_ancestors = next_ancestors.clone();
+            async move {
+                resolve_node(
+                    ctx,
+                    resolver,
+                    child_wanted,
+                    &next_ancestors,
+                    depth + 1,
+                    current_is_optional,
+                )
+                .await
+            }
+        })
+        .pipe(future::try_join_all)
+        .await?;
     let children: BTreeMap<String, NodeId> =
         child_results.into_iter().flatten().map(|dep| (dep.alias, dep.node_id)).collect();
 
@@ -401,17 +443,19 @@ where
 /// A misconfigured entry surfaces immediately rather than masquerading
 /// as a `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 pub(crate) fn resolve_catalog_specifiers(
-    specs: Vec<(String, String)>,
+    specs: Vec<(String, String, bool)>,
     catalogs: &Catalogs,
-) -> Result<Vec<(String, String)>, ResolveDependencyTreeError> {
+) -> Result<Vec<(String, String, bool)>, ResolveDependencyTreeError> {
     specs
         .into_iter()
-        .map(|(name, range)| {
+        .map(|(name, range, optional)| {
             let wanted =
                 CatalogWantedDependency { alias: name.clone(), bare_specifier: range.clone() };
             match resolve_from_catalog(catalogs, &wanted) {
-                CatalogResolutionResult::Found(found) => Ok((name, found.resolution.specifier)),
-                CatalogResolutionResult::Unused => Ok((name, range)),
+                CatalogResolutionResult::Found(found) => {
+                    Ok((name, found.resolution.specifier, optional))
+                }
+                CatalogResolutionResult::Unused => Ok((name, range, optional)),
                 CatalogResolutionResult::Misconfiguration(misconfig) => {
                     Err(ResolveDependencyTreeError::CatalogMisconfiguration(misconfig.error))
                 }
@@ -491,21 +535,32 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 /// Peers are still recorded on [`ResolvedPackage::peer_dependencies`]
 /// (via [`extract_peer_dependencies`]) so the peer-resolution stage
 /// can compute the correct depPath suffix once everything is walked.
+///
+/// Each entry carries an `optional` flag describing which manifest
+/// group it came from — `false` for `dependencies`, `true` for
+/// `optionalDependencies`. The walker propagates this through
+/// `current_is_optional` so [`ResolvedPackage::optional`] reflects
+/// whether every path to the node went through an optional edge.
 fn extract_children(
     result: &pacquet_resolving_resolver_base::ResolveResult,
-) -> Vec<(String, String)> {
+) -> Vec<(String, String, bool)> {
     let Some(manifest) = result.manifest.as_ref() else { return Vec::new() };
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", &mut out);
-    collect_deps(manifest, "optionalDependencies", &mut out);
+    collect_deps(manifest, "dependencies", false, &mut out);
+    collect_deps(manifest, "optionalDependencies", true, &mut out);
     out
 }
 
-fn collect_deps(manifest: &Value, key: &str, out: &mut Vec<(String, String)>) {
+fn collect_deps(
+    manifest: &Value,
+    key: &str,
+    optional: bool,
+    out: &mut Vec<(String, String, bool)>,
+) {
     let Some(map) = manifest.get(key).and_then(Value::as_object) else { return };
     for (name, range) in map {
         if let Some(range_str) = range.as_str() {
-            out.push((name.clone(), range_str.to_string()));
+            out.push((name.clone(), range_str.to_string(), optional));
         }
     }
 }
