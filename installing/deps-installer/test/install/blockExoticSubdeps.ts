@@ -116,6 +116,22 @@ test('blockExoticSubdeps allows a git subdependency matched by a host wildcard i
   expect(m).toBe('Hi')
 })
 
+// github/gitlab/bitbucket git deps resolve to a codeload tarball (resolution.tarball),
+// so this exercises matching against the resolved tarball/URL of an exotic subdependency,
+// not just its git repo URL. The codeload host only matches the tarball candidate.
+test('blockExoticSubdeps allows an exotic subdependency matched by its resolved tarball URL', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-aliased-git-dependency'],
+    testDefaults({ blockExoticSubdeps: true, blockExoticSubdepsExclude: ['https://codeload.github.com/zkochan/*'], fastUnpack: false })
+  )
+
+  const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
+  expect(m).toBe('Hi')
+})
+
 test('blockExoticSubdeps still blocks a git subdependency whose URL is not in blockExoticSubdepsExclude', async () => {
   prepareEmpty()
 
