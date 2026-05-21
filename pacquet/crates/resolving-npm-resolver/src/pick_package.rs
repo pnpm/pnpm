@@ -67,8 +67,8 @@ use pacquet_resolving_resolver_base::VersionSelectors;
 use tokio::sync::Semaphore;
 
 use crate::{
-    FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchMetadataError,
-    fetch_full_metadata, fetch_full_metadata_cached,
+    FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
+    FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta, prepare_json_for_disk,
         save_meta,
@@ -953,6 +953,13 @@ struct UpgradeOutcome {
 /// shape as upstream's `persistUpgradedMeta`, which intentionally
 /// updates the *abbreviated* cache file with full data so the next
 /// install sees `time` populated and skips the upgrade fetch.
+///
+/// The upgrade fetch forwards `meta.etag` and `meta.modified` as
+/// conditional headers. When the registry's full-form representation
+/// hasn't changed it answers `304 Not Modified` and the abbreviated
+/// meta is returned untouched — matches upstream's `notModified`
+/// short-circuit at
+/// [`pickPackage.ts#L488-L499`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L488-L499).
 async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,
@@ -991,9 +998,20 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         http_client: ctx.http_client,
         auth_headers: ctx.auth_headers,
         full_metadata: true,
+        etag: meta.etag.as_deref(),
+        modified: meta.modified.as_deref(),
     };
-    let upgraded = fetch_full_metadata(&spec.name, &fetch_opts).await?;
-    Ok(UpgradeOutcome { meta: upgraded, upgraded: true })
+    match fetch_full_metadata(&spec.name, &fetch_opts).await? {
+        FetchFullMetadataOutcome::Modified(upgraded) => {
+            Ok(UpgradeOutcome { meta: *upgraded, upgraded: true })
+        }
+        // 304: the full-form representation matched the conditional
+        // headers, so the abbreviated meta is still the freshest
+        // signal we have. Keep it and let the downstream picker
+        // fall through to its warn-and-skip path on the missing
+        // `time` map — mirrors upstream's `notModified` arm.
+        FetchFullMetadataOutcome::NotModified => Ok(UpgradeOutcome { meta, upgraded: false }),
+    }
 }
 
 /// Write the upgraded full metadata back to `pkg_mirror` (which

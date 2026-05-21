@@ -42,7 +42,9 @@ pub use create_npm_resolution_verifier::{
 };
 pub use errors::FetchMetadataError;
 pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
-pub use fetch_full_metadata::{FetchFullMetadataOptions, fetch_full_metadata};
+pub use fetch_full_metadata::{
+    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
+};
 pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
 pub use mirror::{ABBREVIATED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
