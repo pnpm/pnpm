@@ -1852,10 +1852,10 @@ function isExoticDep (resolvedVia: string): boolean {
  * Returns true when an exotic subdependency's source is on the user's
  * `blockExoticSubdepsExclude` trust list and should therefore be allowed even
  * though `blockExoticSubdeps` is enabled. The dependency is matched by its
- * normalized source URL (e.g. `https://github.com/user/repo`), not by name, so
- * an aliased dependency can't be used to slip past the block. Patterns support
- * `*` wildcards, so a whole host or org can be trusted at once (e.g.
- * `https://github.com/my-org/*`).
+ * normalized source URL — the git repository or tarball/URL it resolves from
+ * (e.g. `https://github.com/user/repo`) — not by name, so an aliased dependency
+ * can't be used to slip past the block. Patterns support `*` wildcards, so a
+ * whole host or org can be trusted at once (e.g. `https://github.com/my-org/*`).
  */
 function isExoticSubdepExcluded (
   exclude: Matcher | undefined,
@@ -1865,20 +1865,22 @@ function isExoticSubdepExcluded (
 ): boolean {
   if (exclude == null) return false
   const repo = resolution.type === 'git' ? resolution.repo : undefined
-  for (const source of [normalizedBareSpecifier, bareSpecifier, repo]) {
-    const url = normalizeGitRepoUrl(source)
+  const tarball = resolution.type == null ? resolution.tarball : undefined
+  for (const source of [normalizedBareSpecifier, bareSpecifier, repo, tarball]) {
+    const url = normalizeSourceUrl(source)
     if (url != null && exclude(url)) return true
   }
   return false
 }
 
 /**
- * Normalizes a git dependency source into a canonical `https://host/user/repo`
- * URL for matching, dropping the `git+` prefix, the committish and any `.git`
- * suffix. Hosted shorthands (`github:`, `gitlab:`, …) are expanded via
- * hosted-git-info; anything else is treated as a plain URL.
+ * Normalizes an exotic dependency source (a git repository or a tarball/URL)
+ * into a canonical URL for matching, dropping the `git+` prefix, the committish
+ * and any `.git` suffix. Hosted git shorthands (`github:`, `gitlab:`, …) are
+ * expanded to `https://host/user/repo` via hosted-git-info; anything else is
+ * treated as a plain URL.
  */
-function normalizeGitRepoUrl (source: string | undefined): string | undefined {
+function normalizeSourceUrl (source: string | undefined): string | undefined {
   if (source == null || source === '') return undefined
   const hosted = HostedGit.fromUrl(source)
   const url = hosted?.https({ noCommittish: true, noGitPlus: true }) ?? source
