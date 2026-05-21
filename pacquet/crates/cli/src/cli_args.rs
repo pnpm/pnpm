@@ -4,7 +4,7 @@ pub mod run;
 pub mod store;
 pub mod supported_architectures;
 
-use crate::State;
+use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use install::InstallArgs;
@@ -72,8 +72,12 @@ pub enum CliCommand {
 }
 
 impl CliArgs {
-    /// Execute the command
-    pub async fn run(self) -> miette::Result<()> {
+    /// Execute the command. `config_overrides` carries `--config.<key>=<value>`
+    /// tokens already stripped from argv by [`ConfigOverrides::extract`];
+    /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever
+    /// `Config` is loaded, mirroring pnpm 11's
+    /// "CLI > yaml > .npmrc > defaults" precedence.
+    pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
         let CliArgs { command, dir, reporter } = self;
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
@@ -101,7 +105,10 @@ impl CliArgs {
         let config = || -> miette::Result<&'static mut Config> {
             Config::default()
                 .current::<Host>(&dir)
-                .map(Config::leak)
+                .map(|mut cfg| {
+                    config_overrides.apply(&mut cfg);
+                    Config::leak(cfg)
+                })
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")
         };
