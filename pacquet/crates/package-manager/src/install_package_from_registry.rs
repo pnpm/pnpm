@@ -47,6 +47,14 @@ pub struct InstallPackageFromRegistry<'a> {
     /// per-package fetch. See `DownloadTarballToStore::verified_files_cache`
     /// for the rationale.
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
+    /// Warm-cache prefetch result built once per install via
+    /// [`pacquet_tarball::prefetch_cas_paths`] — `cache_key →
+    /// Arc<cas_paths>`. When `Some`, the
+    /// `DownloadTarballToStore::run_without_mem_cache` cache-lookup
+    /// branch reads from here before falling back to the per-snapshot
+    /// SQLite lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
+    /// the resolve hot path.
+    pub prefetched_cas_paths: Option<&'a pacquet_tarball::PrefetchedCasPaths>,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -107,6 +115,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
             store_index,
             store_index_writer,
             verified_files_cache,
+            prefetched_cas_paths,
             logged_methods,
             requester,
             node_modules_dir,
@@ -168,7 +177,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
                 package_url: tarball_url,
                 package_id: &package_id,
                 requester,
-                prefetched_cas_paths: None,
+                prefetched_cas_paths,
                 retry_opts: retry_opts_from_config(config),
                 auth_headers: &config.auth_headers,
                 ignore_file_pattern: None,

@@ -1,8 +1,8 @@
 use crate::{
     AllowBuildPolicy, GraphToLockfileOptions, HoistedDependencies, InstallPackageFromRegistry,
     InstallPackageFromRegistryError, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
-    PrefetchContext, PrefetchingResolver, VersionPolicyError, VirtualStoreLayout,
-    dependencies_graph_to_lockfile, store_init::init_store_dir_best_effort,
+    VersionPolicyError, VirtualStoreLayout, dependencies_graph_to_lockfile,
+    store_init::init_store_dir_best_effort,
 };
 use async_recursion::async_recursion;
 use dashmap::{DashMap, mapref::entry::Entry};
@@ -81,11 +81,9 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 ///   `pnpm-lock.yaml`; the caller writes it to `<lockfile_dir>/pnpm-lock.yaml`.
 #[must_use]
 pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
-    /// Shared in-memory tarball cache. Held behind [`Arc`] so the
-    /// resolve-time prefetcher ([`PrefetchingResolver`]) can capture
-    /// an owned clone into the background download task spawned for
-    /// each fresh resolution while the install-side per-package call
-    /// in [`install_subtree`] still takes `&MemCache` via deref.
+    /// Shared in-memory tarball cache. Held behind [`Arc`] for parity
+    /// with the [`crate::Install`] surface; the install-side calls
+    /// take `&MemCache` via deref.
     pub tarball_mem_cache: Arc<MemCache>,
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
@@ -361,7 +359,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // (`contains_path_sep` in `parse_bare_specifier.rs`) would
         // otherwise claim and prevent the named-registry resolver
         // from running.
-        let inner_resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(vec![
+        let resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(vec![
             Box::new(ArcResolver(Arc::clone(&npm_resolver))),
             Box::new(git_resolver),
             Box::new(tarball_resolver),
@@ -372,60 +370,6 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             Box::new(named_registry_resolver),
             Box::new(local_path_resolver),
         ]));
-
-        // Open the read-only SQLite index, spawn the batched writer,
-        // and allocate the install-scoped `verifiedFilesCache` *before*
-        // the resolver chain runs. These were originally opened after
-        // `resolve_importer` returned, but the
-        // [`PrefetchingResolver`] needs them at construction time so
-        // the per-resolve `tokio::spawn`ed [`DownloadTarballToStore`]
-        // shares the same store-index / writer / verify cache as the
-        // install pass that runs once resolution is done. Mirrors
-        // pnpm's `packageRequester` shape: the fetch begins as soon as
-        // the resolver returns, before any further tree walk.
-        let store_index =
-            match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))
-                .await
-            {
-                Ok(store_index) => store_index,
-                Err(error) => {
-                    tracing::warn!(
-                        target: "pacquet::install",
-                        ?error,
-                        "store-index open task failed; continuing without a shared cache index",
-                    );
-                    None
-                }
-            };
-        let store_index_ref = store_index.as_ref();
-
-        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
-        let store_index_writer_ref = Some(&store_index_writer);
-
-        let verified_files_cache = SharedVerifiedFilesCache::default();
-
-        // Wrap the resolver chain so each tarball-shaped result fires a
-        // background download into `tarball_mem_cache` while the
-        // deps-resolver continues to walk the tree. The install pass
-        // later calls `DownloadTarballToStore::run_with_mem_cache` for
-        // the same URLs and either picks up `CacheValue::Available`
-        // immediately or briefly blocks on the per-URL `Notify`. The
-        // wrapper is generic over `R: Reporter` so the spawned
-        // download's `pnpm:progress` emits route through the same
-        // reporter the install pass uses. See
-        // `prefetching_resolver.rs` for the full design rationale.
-        let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
-            inner_resolver,
-            PrefetchContext {
-                http_client: &http_client_arc,
-                mem_cache: &tarball_mem_cache,
-                store_index: store_index_ref,
-                store_index_writer: Some(&store_index_writer),
-                verified_files_cache: &verified_files_cache,
-                config,
-                requester,
-            },
-        ));
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)
         // for the resolve pass. Mirrors the verifier wiring in
@@ -507,21 +451,64 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 .await
                 .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
 
-        // Drop the resolver (and its meta cache) before the install
-        // pass: the tree captures every `ResolveResult` we need.
-        // Dropping `resolver` releases the inner resolver chain's
-        // strong reference to `npm_resolver` (held by the
-        // `ArcResolver` wrapper inside the inner chain); the
-        // standalone `npm_resolver` binding holds a second strong
-        // reference because the deno- and bun-resolvers were handed a
-        // clone of the same `Arc` for their version-selection
-        // delegate. Drop both so the `NpmResolver` (and its packument
-        // cache) can be freed before the install pass keeps
-        // allocating tarballs. The store_index / store_index_writer /
-        // verified_files_cache are opened above the resolver chain so
-        // the prefetching wrapper can share them with the install pass.
+        // Drop the resolver (and its packument cache) before the
+        // install pass. Dropping `resolver` releases the strong
+        // reference held by the `ArcResolver` wrapper; the standalone
+        // `npm_resolver` binding holds a second strong reference
+        // because the deno- and bun-resolvers were handed a clone of
+        // the same `Arc` for their version-selection delegate. Drop
+        // both so the `NpmResolver`'s meta cache is freed before the
+        // install pass starts pulling tarballs into the CAFS.
         drop(resolver);
         drop(npm_resolver);
+
+        // Open the read-only SQLite index, spawn the batched writer,
+        // and allocate the install-scoped `verifiedFilesCache`. Same
+        // shape `create_virtual_store::run` opens for the frozen-
+        // lockfile install path — the warm-cache prefetch below shares
+        // them with the per-package install routines.
+        let store_index =
+            match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))
+                .await
+            {
+                Ok(store_index) => store_index,
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        "store-index open task failed; continuing without a shared cache index",
+                    );
+                    None
+                }
+            };
+        let store_index_ref = store_index.as_ref();
+
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
+        let store_index_writer_ref = Some(&store_index_writer);
+
+        let verified_files_cache = SharedVerifiedFilesCache::default();
+
+        // Warm-cache batched prefetch: collect every `(integrity,
+        // pkg_id)` pair the resolver produced, run one batched SQL
+        // `SELECT ... WHERE key IN (...)` against the store index,
+        // then verify each row's files on rayon. Mirrors what
+        // `create_virtual_store::run` already does for the frozen-
+        // lockfile path. Without this, the per-package `run_with_mem_cache`
+        // → `load_cached_cas_paths` flow fires N individual `spawn_blocking`
+        // tasks that all serialize on `Arc<Mutex<StoreIndex>>` — at ~1k
+        // resolved packages the Mutex contention dominates the resolve-
+        // walk wall-clock under global virtual store, where the install
+        // side is otherwise just symlinking.
+        let cache_keys: Vec<String> = collect_prefetch_cache_keys(&importer_result.peers_result);
+        let prefetch = pacquet_tarball::prefetch_cas_paths(
+            store_index_ref.cloned(),
+            store_dir,
+            cache_keys,
+            config.verify_store_integrity,
+            SharedVerifiedFilesCache::clone(&verified_files_cache),
+        )
+        .await;
+        let prefetched_cas_paths = prefetch.cas_paths;
 
         // Peer-resolution result (collected by `resolve_importer` after
         // the hoist loop converged). Peer issues collected here are not
@@ -593,6 +580,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             store_index: store_index_ref,
             store_index_writer: store_index_writer_ref,
             verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: &prefetched_cas_paths,
             logged_methods,
             resolved_packages,
             requester,
@@ -714,6 +702,48 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
     }
 }
 
+/// Walk the resolver-produced graph and emit the
+/// `{integrity}\t{pkg_id}` cache keys
+/// [`pacquet_tarball::prefetch_cas_paths`] uses for its batched
+/// `SELECT ... WHERE key IN (...)` against the store index. Mirrors
+/// the equivalent collection loop in
+/// [`crate::CreateVirtualStore::run`] for the frozen-lockfile path —
+/// same key shape, same dedup, so the fresh-lockfile path's warm
+/// batch hits the same rows pnpm or pacquet wrote on the prior
+/// install.
+///
+/// Skips nodes whose resolver result isn't a tarball with both
+/// `integrity` and a structured `name@version`: git-hosted tarballs
+/// and directory / git / binary resolutions use a different key
+/// shape (`pkg_id`-only) and route through the cold path. Today's
+/// `install_subtree` only handles tarball+integrity anyway, so the
+/// skipped entries can't be served from the prefetch either way.
+fn collect_prefetch_cache_keys(
+    peers_result: &pacquet_resolving_deps_resolver::ResolvePeersResult,
+) -> Vec<String> {
+    let mut keys: Vec<String> = peers_result
+        .graph
+        .values()
+        .filter_map(|node| {
+            let pacquet_lockfile::LockfileResolution::Tarball(tarball) =
+                &node.resolve_result.resolution
+            else {
+                return None;
+            };
+            if tarball.git_hosted == Some(true) {
+                return None;
+            }
+            let integrity = tarball.integrity.as_ref()?.to_string();
+            let name_ver = node.resolve_result.name_ver.as_ref()?;
+            let pkg_id = format!("{}@{}", name_ver.name, name_ver.suffix);
+            Some(pacquet_store_dir::store_index_key(&integrity, &pkg_id))
+        })
+        .collect();
+    keys.sort_unstable();
+    keys.dedup();
+    keys
+}
+
 /// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the
 /// resolver's output.
 ///
@@ -763,6 +793,13 @@ struct InstallCtx<'a> {
     store_index: Option<&'a pacquet_store_dir::SharedReadonlyStoreIndex>,
     store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
     verified_files_cache: &'a SharedVerifiedFilesCache,
+    /// Warm-cache lookup table built once at install start via
+    /// [`pacquet_tarball::prefetch_cas_paths`]. Threaded through to
+    /// [`InstallPackageFromRegistry`] so the per-package
+    /// `run_with_mem_cache` short-circuits the per-snapshot SQLite
+    /// round-trip + per-file `fs::metadata` work when the
+    /// `(integrity, pkg_id)` is already in the CAFS.
+    prefetched_cas_paths: &'a pacquet_tarball::PrefetchedCasPaths,
     logged_methods: &'a AtomicU8,
     resolved_packages: &'a ResolvedPackages,
     requester: &'a str,
@@ -856,6 +893,7 @@ where
         store_index: ctx.store_index,
         store_index_writer: ctx.store_index_writer,
         verified_files_cache: ctx.verified_files_cache,
+        prefetched_cas_paths: Some(ctx.prefetched_cas_paths),
         logged_methods: ctx.logged_methods,
         requester: ctx.requester,
         node_modules_dir,
