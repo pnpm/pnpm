@@ -77,7 +77,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
     }
   }
 
-  const metas = {
+  const metaByName = {
     [wrapperName]: makeMeta(wrapperName, { [aName]: '1.0.0', [bName]: '1.0.0' }, {}),
     [aName]: makeMeta(aName, {}, { [bName]: '1.0.0' }),
     [bName]: makeMeta(bName, {}, { [aName]: '1.0.0' }),
@@ -89,7 +89,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
 
   function arm (): void {
     const agent = getMockAgent().get(registryUrl)
-    for (const [name, meta] of Object.entries(metas)) {
+    for (const [name, meta] of Object.entries(metaByName)) {
       agent.intercept({ path: metadataPath(name), method: 'GET' }).reply(200, meta).persist()
     }
   }
