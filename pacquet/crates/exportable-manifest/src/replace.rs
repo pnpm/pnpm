@@ -133,12 +133,16 @@ pub fn replace_workspace_protocol_peer_dependency(
     if !dep_spec.contains("workspace:") {
         return Ok(dep_spec.to_string());
     }
+    // Mirror upstream's JS `.replace('workspace:', '')`, which removes
+    // only the first occurrence. Rust's `str::replace` is all-occurrence;
+    // use `replacen(_, _, 1)` so compound peer specs like
+    // `^1.0.0 || workspace:>=1 || workspace:>=2` keep parity with pnpm.
     let Some(matched) = find_workspace_peer_segment(dep_spec) else {
-        return Ok(dep_spec.replace("workspace:", ""));
+        return Ok(dep_spec.replacen("workspace:", "", 1));
     };
 
     if !matched.version.is_empty() {
-        return Ok(dep_spec.replace("workspace:", ""));
+        return Ok(dep_spec.replacen("workspace:", "", 1));
     }
 
     let modules_dir_owned: PathBuf;

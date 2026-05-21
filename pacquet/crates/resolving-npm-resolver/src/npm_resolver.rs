@@ -10,11 +10,16 @@
 //! cache; the trait implementation parses the bare specifier, picks a
 //! version, and maps the result to [`ResolveResult`].
 //!
+//! Workspace handling intentionally lives on the npm-resolver side
+//! (mirroring upstream): non-path `workspace:` specs route through
+//! [`try_resolve_from_workspace`](crate::try_resolve_from_workspace())
+//! to a `link:` / `file:` resolution against the install's workspace
+//! package map; the path-relative forms (`workspace:./foo`,
+//! `workspace:../bar`) return `Ok(None)` so the local-resolver in the
+//! chain claims them.
+//!
 //! Out of scope for this port:
 //!
-//! - **Workspace resolution.** `workspace:` specs return `Ok(None)` so
-//!   the dispatcher falls through to the workspace resolver when that
-//!   crate lands.
 //! - **`peekManifestFromStore` fast path.** Upstream short-circuits a
 //!   registry fetch when the lockfile-pinned tarball is already in the
 //!   store. Pacquet today goes through the picker unconditionally;

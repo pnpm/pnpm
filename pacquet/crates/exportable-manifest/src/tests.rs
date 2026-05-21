@@ -106,6 +106,21 @@ fn peer_workspace_dep_rewrites_match_upstream() {
     assert_eq!(rewrite_peer("waldo", "workspace:^1.x", dir), "^1.x");
 }
 
+/// Upstream uses JS `String.prototype.replace('workspace:', '')`, which
+/// strips only the first occurrence. Locks the parity: a compound
+/// peer spec carrying two `workspace:` segments must leave the second
+/// segment untouched.
+#[test]
+fn peer_workspace_strip_only_removes_first_occurrence() {
+    let (_fixture, project) = workspace_fixture();
+    let dir = project.as_path();
+
+    assert_eq!(
+        rewrite_peer("baz", "workspace:^1.0.0 || workspace:^2.0.0", dir),
+        "^1.0.0 || workspace:^2.0.0",
+    );
+}
+
 #[test]
 fn missing_dependency_surfaces_cannot_resolve_error() {
     let fixture = TempDir::new().unwrap();
