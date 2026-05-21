@@ -1,7 +1,8 @@
 use crate::{
-    PackageSelector, ParseOverridesError, VersionOverride, parse_overrides,
-    parse_pkg_and_parent_selector,
+    PackageSelector, ParseOverridesError, VersionOverride, create_overrides_map_from_parsed,
+    parse_overrides, parse_pkg_and_parent_selector,
 };
+use pacquet_catalogs_types::{Catalog, Catalogs};
 use std::collections::HashMap;
 
 fn vo(
@@ -32,14 +33,14 @@ fn sorted(mut overrides: Vec<VersionOverride>) -> Vec<VersionOverride> {
 #[test]
 fn parses_bare_name_override() {
     let input = HashMap::from([("foo".to_string(), "1".to_string())]);
-    let out = parse_overrides(&input).unwrap();
+    let out = parse_overrides(&input, &Catalogs::new()).unwrap();
     assert_eq!(out, vec![vo("foo", "1", None, sel("foo", None))]);
 }
 
 #[test]
 fn parses_name_at_version_override() {
     let input = HashMap::from([("foo@2".to_string(), "1".to_string())]);
-    let out = parse_overrides(&input).unwrap();
+    let out = parse_overrides(&input, &Catalogs::new()).unwrap();
     assert_eq!(out, vec![vo("foo@2", "1", None, sel("foo", Some("2")))]);
 }
 
@@ -49,7 +50,7 @@ fn parses_range_operators_in_target() {
         ("foo@>2".to_string(), "1".to_string()),
         ("foo@3 || >=2".to_string(), "1".to_string()),
     ]);
-    let out = sorted(parse_overrides(&input).unwrap());
+    let out = sorted(parse_overrides(&input, &Catalogs::new()).unwrap());
     assert_eq!(
         out,
         sorted(vec![
@@ -67,7 +68,7 @@ fn parses_parent_child_selectors() {
         ("bar>foo@1".to_string(), "2".to_string()),
         ("bar@1>foo@1".to_string(), "2".to_string()),
     ]);
-    let out = sorted(parse_overrides(&input).unwrap());
+    let out = sorted(parse_overrides(&input, &Catalogs::new()).unwrap());
     assert_eq!(
         out,
         sorted(vec![
@@ -88,7 +89,7 @@ fn range_operator_on_parent_does_not_split() {
         ("foo@>2>bar@>2".to_string(), "1".to_string()),
         ("foo@3 || >=2>bar@3 || >=2".to_string(), "1".to_string()),
     ]);
-    let out = sorted(parse_overrides(&input).unwrap());
+    let out = sorted(parse_overrides(&input, &Catalogs::new()).unwrap());
     assert_eq!(
         out,
         sorted(vec![
@@ -107,7 +108,7 @@ fn range_operator_on_parent_does_not_split() {
 fn rejects_invalid_selector() {
     let input = HashMap::from([("%".to_string(), "2".to_string())]);
     assert_eq!(
-        parse_overrides(&input).unwrap_err(),
+        parse_overrides(&input, &Catalogs::new()).unwrap_err(),
         ParseOverridesError::InvalidSelector { selector: "%".to_string() },
     );
 }
@@ -120,7 +121,7 @@ fn rejects_invalid_selector_with_whitespace() {
     // because `parse_wanted_dependency` doesn't validate the alias.
     let input = HashMap::from([("foo > bar".to_string(), "2".to_string())]);
     assert_eq!(
-        parse_overrides(&input).unwrap_err(),
+        parse_overrides(&input, &Catalogs::new()).unwrap_err(),
         ParseOverridesError::InvalidSelector { selector: "foo > bar".to_string() },
     );
 }
@@ -139,12 +140,12 @@ fn parse_pkg_and_parent_selector_parent_child() {
 }
 
 #[test]
-fn catalog_protocol_in_override_value_errors() {
-    // Pacquet doesn't support catalogs yet; a `catalog:` value in an
-    // override surfaces as `CatalogInOverrides`, matching upstream's
-    // behavior on an empty catalog table.
+fn catalog_protocol_with_missing_entry_errors() {
+    // An empty catalog table can never resolve a `catalog:` value;
+    // upstream surfaces this as `ERR_PNPM_CATALOG_IN_OVERRIDES` with
+    // the underlying "No catalog entry" message.
     let input = HashMap::from([("foo".to_string(), "catalog:default".to_string())]);
-    let err = parse_overrides(&input).unwrap_err();
+    let err = parse_overrides(&input, &Catalogs::new()).unwrap_err();
     let ParseOverridesError::CatalogInOverrides { message } = err else {
         panic!("expected CatalogInOverrides, got {err:?}");
     };
@@ -152,4 +153,56 @@ fn catalog_protocol_in_override_value_errors() {
         message.contains("foo") && message.contains("default"),
         "message should mention target and catalog name, got: {message}",
     );
+}
+
+/// `catalog:` resolves to the catalog's specifier when the entry exists.
+/// Matches upstream's
+/// [`parseOverrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L28-L41)
+/// behavior where `matchCatalogResolveResult.found` returns the
+/// resolved specifier and the entry's `newBareSpecifier` is rewritten
+/// to it.
+#[test]
+fn catalog_protocol_resolves_to_catalog_specifier() {
+    let mut catalogs = Catalogs::new();
+    let mut default = Catalog::new();
+    default.insert("foo".to_string(), "^1.2.3".to_string());
+    catalogs.insert("default".to_string(), default);
+
+    let input = HashMap::from([("foo".to_string(), "catalog:".to_string())]);
+    let out = parse_overrides(&input, &catalogs).unwrap();
+    assert_eq!(out, vec![vo("foo", "^1.2.3", None, sel("foo", None))]);
+}
+
+/// `catalog:name` looks up the named catalog by name.
+#[test]
+fn catalog_protocol_with_named_catalog_resolves() {
+    let mut catalogs = Catalogs::new();
+    let mut shared = Catalog::new();
+    shared.insert("bar".to_string(), "2.0.0".to_string());
+    catalogs.insert("shared".to_string(), shared);
+
+    let input = HashMap::from([("bar".to_string(), "catalog:shared".to_string())]);
+    let out = parse_overrides(&input, &catalogs).unwrap();
+    assert_eq!(out, vec![vo("bar", "2.0.0", None, sel("bar", None))]);
+}
+
+/// `create_overrides_map_from_parsed` flattens the parsed entries back
+/// into the `selector → newBareSpecifier` map shape — with catalog
+/// resolution already applied. Mirrors upstream's
+/// [`createOverridesMapFromParsed`](https://github.com/pnpm/pnpm/blob/4a36b9a110/lockfile/settings-checker/src/createOverridesMapFromParsed.ts).
+#[test]
+fn create_overrides_map_returns_resolved_specifiers() {
+    let mut catalogs = Catalogs::new();
+    let mut default = Catalog::new();
+    default.insert("foo".to_string(), "^1.2.3".to_string());
+    catalogs.insert("default".to_string(), default);
+
+    let input = HashMap::from([
+        ("foo".to_string(), "catalog:".to_string()),
+        ("bar".to_string(), "2.0.0".to_string()),
+    ]);
+    let parsed = parse_overrides(&input, &catalogs).unwrap();
+    let map = create_overrides_map_from_parsed(&parsed);
+    assert_eq!(map.get("foo").map(String::as_str), Some("^1.2.3"));
+    assert_eq!(map.get("bar").map(String::as_str), Some("2.0.0"));
 }

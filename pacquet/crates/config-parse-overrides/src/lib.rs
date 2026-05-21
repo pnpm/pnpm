@@ -19,16 +19,20 @@
 //! `3 || >=2` are not mistaken for a parent>child split.
 //!
 //! Catalog protocol: when the override value uses the `catalog:` form
-//! pnpm resolves it against the workspace's named catalogs. Pacquet
-//! does not have catalog support yet, so a `catalog:` override here
+//! it is resolved against the workspace's named catalogs before being
+//! stored on the parsed entry, matching pnpm's
+//! `parseOverrides(overrides, catalogs)` signature. A `catalog:` value
+//! that misses (no entry, recursive, or uses a forbidden inner protocol)
 //! surfaces as [`ParseOverridesError::CatalogInOverrides`] (matching
-//! upstream's `ERR_PNPM_CATALOG_IN_OVERRIDES`). When catalogs land in
-//! pacquet, this function gains the catalog table parameter upstream
-//! threads through, and the error fires only on genuine
-//! misconfiguration.
+//! upstream's `ERR_PNPM_CATALOG_IN_OVERRIDES`). Pass an empty
+//! [`Catalogs`] map when the caller has no catalogs configured — any
+//! `catalog:` value will then fall through to the missing-entry branch,
+//! same as upstream.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
+use pacquet_catalogs_types::Catalogs;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use std::collections::HashMap;
 
@@ -48,9 +52,10 @@ pub struct VersionOverride {
     /// The dependency the override targets.
     pub target_pkg: PackageSelector,
 
-    /// The replacement spec (or `-` to delete, or a `link:`/`file:`/
-    /// `catalog:` reference). Catalog references are resolved against
-    /// the workspace's catalogs before this is stored.
+    /// The replacement spec (or `-` to delete, or a `link:`/`file:`
+    /// reference). `catalog:` references are resolved against the
+    /// workspace's catalogs before this is stored, so downstream
+    /// consumers never see the `catalog:` form here.
     pub new_bare_specifier: String,
 }
 
@@ -80,9 +85,9 @@ pub enum ParseOverridesError {
         selector: String,
     },
 
-    /// The override value uses the `catalog:` protocol but no catalog
-    /// table can resolve it (or, in pacquet today, catalogs aren't
-    /// wired up at all). Mirrors upstream's
+    /// The override value uses the `catalog:` protocol but the
+    /// configured catalogs can't resolve it (missing entry, recursive
+    /// definition, or forbidden inner protocol). Mirrors upstream's
     /// `ERR_PNPM_CATALOG_IN_OVERRIDES` at
     /// <https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L35>.
     #[display("Could not resolve a catalog in the overrides: {message}")]
@@ -102,29 +107,12 @@ pub enum ParseOverridesError {
 /// [`parse_overrides_iter`] with an ordered map (e.g. `IndexMap`)
 /// or pre-sort by key. The functional behavior of each entry —
 /// selector splitting via [`parse_pkg_and_parent_selector`] and
-/// catalog-protocol detection — is independent of order.
+/// `catalog:` resolution — is independent of order.
 pub fn parse_overrides(
     overrides: &HashMap<String, String>,
+    catalogs: &Catalogs,
 ) -> Result<Vec<VersionOverride>, ParseOverridesError> {
-    let mut out = Vec::with_capacity(overrides.len());
-    for (selector, new_bare_specifier) in overrides {
-        let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(selector)?;
-        if let Some(catalog_name) = parse_catalog_protocol(new_bare_specifier) {
-            return Err(ParseOverridesError::CatalogInOverrides {
-                message: format!(
-                    "No catalog entry '{}' was found for catalog '{}'.",
-                    target_pkg.name, catalog_name,
-                ),
-            });
-        }
-        out.push(VersionOverride {
-            selector: selector.clone(),
-            parent_pkg,
-            target_pkg,
-            new_bare_specifier: new_bare_specifier.clone(),
-        });
-    }
-    Ok(out)
+    parse_overrides_iter(overrides.iter(), catalogs)
 }
 
 /// Stable-ordered variant of [`parse_overrides`] for callers that
@@ -133,6 +121,7 @@ pub fn parse_overrides(
 /// to [`parse_overrides`]; only the input iterator differs.
 pub fn parse_overrides_iter<'a, Iter>(
     overrides: Iter,
+    catalogs: &Catalogs,
 ) -> Result<Vec<VersionOverride>, ParseOverridesError>
 where
     Iter: IntoIterator<Item = (&'a String, &'a String)>,
@@ -142,22 +131,31 @@ where
     let mut out = Vec::with_capacity(lower_bound);
     for (selector, new_bare_specifier) in iter {
         let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(selector)?;
-        if let Some(catalog_name) = parse_catalog_protocol(new_bare_specifier) {
-            return Err(ParseOverridesError::CatalogInOverrides {
-                message: format!(
-                    "No catalog entry '{}' was found for catalog '{}'.",
-                    target_pkg.name, catalog_name,
-                ),
-            });
-        }
+        let resolved_specifier =
+            resolve_catalog_in_value(catalogs, &target_pkg.name, new_bare_specifier)?;
         out.push(VersionOverride {
             selector: selector.clone(),
             parent_pkg,
             target_pkg,
-            new_bare_specifier: new_bare_specifier.clone(),
+            new_bare_specifier: resolved_specifier,
         });
     }
     Ok(out)
+}
+
+/// Flatten parsed overrides back into the `selector → newBareSpecifier`
+/// map shape used by lockfile freshness checks. Mirrors upstream's
+/// [`createOverridesMapFromParsed`](https://github.com/pnpm/pnpm/blob/4a36b9a110/lockfile/settings-checker/src/createOverridesMapFromParsed.ts).
+/// The resulting map's values are post-catalog-resolution, so it
+/// compares apples-to-apples against `lockfile.overrides`, which pnpm
+/// writes out with `catalog:` already expanded.
+pub fn create_overrides_map_from_parsed(
+    parsed_overrides: &[VersionOverride],
+) -> HashMap<String, String> {
+    parsed_overrides
+        .iter()
+        .map(|entry| (entry.selector.clone(), entry.new_bare_specifier.clone()))
+        .collect()
 }
 
 /// Split a raw selector key into its (optional) parent half and its
@@ -201,16 +199,32 @@ fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesE
     Ok(PackageSelector { name, bare_specifier: wanted.bare_specifier })
 }
 
-/// Mirrors pnpm's
-/// [`parseCatalogProtocol`](https://github.com/pnpm/pnpm/blob/4a36b9a110/catalogs/protocol-parser/src/parseCatalogProtocol.ts).
-/// Returns `Some("default")` for a bare `"catalog:"`, `Some(name)` for
-/// `"catalog:name"`, and `None` when the spec is not a catalog
-/// reference. The bare `"catalog:"` shorthand normalizes to
-/// `"default"` to match upstream.
-fn parse_catalog_protocol(bare_specifier: &str) -> Option<&str> {
-    const CATALOG_PROTOCOL: &str = "catalog:";
-    let raw = bare_specifier.strip_prefix(CATALOG_PROTOCOL)?.trim();
-    Some(if raw.is_empty() { "default" } else { raw })
+/// Run the override value through the catalog resolver. Mirrors
+/// upstream's `matchCatalogResolveResult` arm at
+/// <https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L28-L41>:
+/// `found` returns the resolved specifier, `unused` (non-`catalog:`)
+/// returns the value verbatim, and `misconfiguration` (missing entry
+/// or recursive / forbidden inner protocol) raises
+/// [`ParseOverridesError::CatalogInOverrides`] with the resolver's
+/// error message.
+fn resolve_catalog_in_value(
+    catalogs: &Catalogs,
+    target_name: &str,
+    new_bare_specifier: &str,
+) -> Result<String, ParseOverridesError> {
+    let wanted = WantedDependency {
+        alias: target_name.to_string(),
+        bare_specifier: new_bare_specifier.to_string(),
+    };
+    match resolve_from_catalog(catalogs, &wanted) {
+        CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
+        CatalogResolutionResult::Unused => Ok(new_bare_specifier.to_string()),
+        CatalogResolutionResult::Misconfiguration(misconfiguration) => {
+            Err(ParseOverridesError::CatalogInOverrides {
+                message: misconfiguration.error.to_string(),
+            })
+        }
+    }
 }
 
 #[cfg(test)]

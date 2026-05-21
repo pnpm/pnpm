@@ -1652,6 +1652,110 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
     drop(dir);
 }
 
+/// `pnpm.overrides` values can reference a workspace catalog via the
+/// `catalog:` protocol; pnpm resolves them against `catalogs:` in
+/// `pnpm-workspace.yaml` and writes the *resolved* specifier to
+/// `pnpm-lock.yaml#overrides`. The freshness check must therefore
+/// resolve `catalog:` on the config side too before comparing — a
+/// raw string compare would treat `catalog:` ≠ `<concrete>` on every
+/// install. Mirrors pnpm's
+/// [`parseOverrides(overrides, catalogs)`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L20-L44)
+/// →
+/// [`createOverridesMapFromParsed`](https://github.com/pnpm/pnpm/blob/4a36b9a110/lockfile/settings-checker/src/createOverridesMapFromParsed.ts)
+/// pipeline. Regression test for the case the user hit on a workspace
+/// whose `pnpm.overrides` declared catalog-backed entries.
+#[tokio::test]
+async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness_check() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    seed_placeholder_virtual_store_slot(&virtual_store_dir);
+
+    // The catalog lives in `pnpm-workspace.yaml` next to the manifest;
+    // `Install::run` walks up from the manifest dir to find it.
+    std::fs::write(
+        project_root.join("pnpm-workspace.yaml"),
+        text_block! {
+            "catalogs:"
+            "  default:"
+            "    placeholder: 1.0.0"
+        },
+    )
+    .unwrap();
+
+    let manifest_path = project_root.join("package.json");
+    std::fs::write(
+        &manifest_path,
+        r#"{"name":"my-app","version":"1.0.0","dependencies":{"placeholder":"^9"}}"#,
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    // Override value is `catalog:`, which must resolve to the
+    // catalog's `placeholder: 1.0.0` entry before the freshness
+    // comparison. The lockfile records the *resolved* `1.0.0`, so a
+    // raw compare would fail on every install.
+    let mut overrides = indexmap::IndexMap::new();
+    overrides.insert("placeholder".to_string(), "catalog:".to_string());
+    config.overrides = Some(overrides);
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "overrides:"
+        "  placeholder: 1.0.0"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      placeholder:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "packages:"
+        "  placeholder@1.0.0:"
+        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://invalid.local/placeholder.tgz'}"
+        "snapshots:"
+        "  placeholder@1.0.0: {}"
+    })
+    .expect("parse fixture lockfile with overrides");
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    // The freshness check must accept the install; before the fix
+    // pacquet would surface `OutdatedLockfile::OverridesChanged`
+    // because `catalog:` ≠ `1.0.0` as raw strings. (The install may
+    // still fail later for unrelated reasons in this minimal fixture,
+    // but the overrides gate must pass.)
+    if let Err(InstallError::OutdatedLockfile { reason }) = &result {
+        panic!("unexpected OutdatedLockfile after catalog resolution: {reason:?}");
+    }
+
+    drop(dir);
+}
+
 /// Negative-case: lockfile loads successfully but has no
 /// `importers["."]` entry for the project being installed. Distinct
 /// from `NoLockfile` (file missing entirely) — here the file is
