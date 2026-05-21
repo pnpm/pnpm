@@ -127,7 +127,25 @@ async fn range_specifier_picks_max_in_range() {
 }
 
 #[tokio::test]
-async fn workspace_specifier_returns_none_for_chain_fallthrough() {
+async fn workspace_path_form_falls_through_to_local_resolver() {
+    let server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // `workspace:./foo` and `workspace:../foo` are owned by the local
+    // resolver in the chain — `try_resolve_from_workspace` defers on
+    // them so the dispatcher falls through.
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("workspace:./acme".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    assert!(result.is_none());
+}
+
+#[tokio::test]
+async fn workspace_version_without_workspace_packages_surfaces_error() {
     let server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
@@ -137,8 +155,19 @@ async fn workspace_specifier_returns_none_for_chain_fallthrough() {
         bare_specifier: Some("workspace:*".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
-    assert!(result.is_none());
+    // Mirrors pnpm's
+    // [`Cannot resolve package from workspace because opts.workspacePackages is not defined`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830)
+    // throw when the resolver receives a `workspace:` spec but the
+    // install caller never populated `workspace_packages`.
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("workspace_packages must be populated for workspace: specifiers");
+    let message = err.to_string();
+    assert!(
+        message.contains("workspace packages were not loaded"),
+        "unexpected error message: {message}",
+    );
 }
 
 #[tokio::test]

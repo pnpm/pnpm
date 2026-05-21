@@ -2200,6 +2200,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-exportable-manifest"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-package-manifest",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "pacquet-fs"
 version = "0.0.1"
 dependencies = [
@@ -2637,6 +2648,8 @@ dependencies = [
  "pacquet-resolving-jsr-specifier-parser",
  "pacquet-resolving-local-resolver",
  "pacquet-resolving-resolver-base",
+ "pacquet-workspace-range-resolver",
+ "pacquet-workspace-spec",
  "pipe-trait",
  "pretty_assertions",
  "reqwest",
@@ -2762,6 +2775,17 @@ dependencies = [
  "tempfile",
  "wax",
 ]
+
+[[package]]
+name = "pacquet-workspace-range-resolver"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+]
+
+[[package]]
+name = "pacquet-workspace-spec"
+version = "0.0.1"
 
 [[package]]
 name = "pacquet-workspace-state"

@@ -38,6 +38,7 @@ pacquet-modules-yaml                      = { path = "pacquet/crates/modules-yam
 pacquet-network                           = { path = "pacquet/crates/network" }
 pacquet-config                            = { path = "pacquet/crates/config" }
 pacquet-executor                          = { path = "pacquet/crates/executor" }
+pacquet-exportable-manifest               = { path = "pacquet/crates/exportable-manifest" }
 pacquet-directory-fetcher                 = { path = "pacquet/crates/directory-fetcher" }
 pacquet-git-fetcher                       = { path = "pacquet/crates/git-fetcher" }
 pacquet-deps-path                         = { path = "pacquet/crates/deps-path" }
@@ -57,6 +58,8 @@ pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-p
 pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }
 pacquet-resolving-tarball-resolver        = { path = "pacquet/crates/resolving-tarball-resolver" }
 pacquet-workspace                         = { path = "pacquet/crates/workspace" }
+pacquet-workspace-range-resolver          = { path = "pacquet/crates/workspace-range-resolver" }
+pacquet-workspace-spec                    = { path = "pacquet/crates/workspace-spec" }
 pacquet-workspace-state                   = { path = "pacquet/crates/workspace-state" }
 
 # Tasks

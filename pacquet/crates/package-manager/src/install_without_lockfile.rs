@@ -89,6 +89,22 @@ pub struct InstallWithoutLockfile<'a, DependencyGroupList> {
     /// Catalogs parsed from `pnpm-workspace.yaml`. Empty for projects
     /// without a workspace manifest.
     pub catalogs: Catalogs,
+    /// Lockfile root for the install, used by the resolver chain to
+    /// compute `link:` / `file:` relative paths and to anchor
+    /// workspace-package resolution. Mirrors upstream's `lockfileDir`
+    /// argument on `resolveDependencies`. Equal to the manifest's
+    /// parent directory under single-project installs and to the
+    /// `pnpm-workspace.yaml` root under monorepos.
+    pub lockfile_dir: &'a Path,
+    /// Workspace-sibling lookup the [`NpmResolver`] consults when it
+    /// sees a `workspace:` spec. `None` when this install isn't inside
+    /// a `pnpm-workspace.yaml` workspace; the resolver then errors out
+    /// on any `workspace:` spec via
+    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` —
+    /// matching pnpm's
+    /// [`Cannot resolve package from workspace because opts.workspacePackages is not defined`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830)
+    /// behavior.
+    pub workspace_packages: Option<pacquet_resolving_resolver_base::WorkspacePackages>,
 }
 
 /// Error type of [`InstallWithoutLockfile`].
@@ -175,6 +191,8 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             logged_methods,
             requester,
             catalogs,
+            lockfile_dir,
+            workspace_packages,
         } = self;
 
         let store_dir: &'static _ = &config.store_dir;
@@ -308,6 +326,12 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
                 &[manifest],
             );
 
+        // Thread the manifest's directory and the lockfile root into
+        // the resolver's `ResolveOptions` so `workspace:` and `link:`
+        // resolutions can compute the right relative paths.
+        let project_dir =
+            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+
         let importer_opts = ResolveImporterOptions {
             auto_install_peers: config.auto_install_peers,
             auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
@@ -317,6 +341,9 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
                 default_tag: Some("latest".to_string()),
                 published_by,
                 published_by_exclude,
+                project_dir,
+                lockfile_dir: lockfile_dir.to_path_buf(),
+                workspace_packages,
                 ..ResolveOptions::default()
             },
             catalogs,

@@ -10,11 +10,16 @@
 //! cache; the trait implementation parses the bare specifier, picks a
 //! version, and maps the result to [`ResolveResult`].
 //!
+//! Workspace handling intentionally lives on the npm-resolver side
+//! (mirroring upstream): non-path `workspace:` specs route through
+//! [`try_resolve_from_workspace`](crate::try_resolve_from_workspace())
+//! to a `link:` / `file:` resolution against the install's workspace
+//! package map; the path-relative forms (`workspace:./foo`,
+//! `workspace:../bar`) return `Ok(None)` so the local-resolver in the
+//! chain claims them.
+//!
 //! Out of scope for this port:
 //!
-//! - **Workspace resolution.** `workspace:` specs return `Ok(None)` so
-//!   the dispatcher falls through to the workspace resolver when that
-//!   crate lands.
 //! - **`peekManifestFromStore` fast path.** Upstream short-circuits a
 //!   registry fetch when the lockfile-pinned tarball is already in the
 //!   store. Pacquet today goes through the picker unconditionally;
@@ -40,6 +45,7 @@ use crate::{
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
+    resolve_from_workspace::{ResolveFromWorkspaceOptions, try_resolve_from_workspace},
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
@@ -122,14 +128,34 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let default_tag = opts.default_tag.as_deref().unwrap_or("latest");
 
-        // `workspace:` is owned by the workspace resolver. Decline so
-        // the chain dispatches there once that crate lands.
-        if wanted_dependency
-            .bare_specifier
-            .as_deref()
-            .is_some_and(|bare| bare.starts_with("workspace:"))
+        // `workspace:` is intercepted before the npm pick — only the
+        // path-relative forms (`workspace:./foo`, `workspace:../bar`)
+        // fall through here so the local-resolver in the chain claims
+        // them. Everything else routes through
+        // [`try_resolve_from_workspace`], mirroring upstream's
+        // [`resolveNpm`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L412-L429)
+        // gate.
+        if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
+            && bare.starts_with("workspace:")
         {
-            return Ok(None);
+            if bare.starts_with("workspace:.") {
+                return Ok(None);
+            }
+            let registry = pick_registry_for_package(
+                &self.registries,
+                wanted_dependency.alias.as_deref().unwrap_or_default(),
+                wanted_dependency.bare_specifier.as_deref(),
+            );
+            let ws_opts = ResolveFromWorkspaceOptions {
+                project_dir: opts.project_dir.as_path(),
+                lockfile_dir: opts.lockfile_dir.as_path(),
+                registry: &registry,
+                default_tag,
+                workspace_packages: opts.workspace_packages.as_ref(),
+                inject_workspace_packages: opts.inject_workspace_packages,
+            };
+            return try_resolve_from_workspace(wanted_dependency, &ws_opts)
+                .map_err(|err| Box::new(err) as ResolveError);
         }
 
         // `jsr:` resolves through the `@jsr` registry under the
