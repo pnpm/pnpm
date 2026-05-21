@@ -528,7 +528,7 @@ fn pkg_dir_under(modules_dir: &Path, name: &PkgName) -> PathBuf {
 
 /// Fallback (non-lockfile) path: enumerate slots via `read_dir`,
 /// then walk each slot's `node_modules` to discover children. Used
-/// only by [`crate::InstallWithoutLockfile`] today; the lockfile
+/// only by [`crate::InstallWithFreshLockfile`] today; the lockfile
 /// path bypasses every directory enumeration in here.
 fn run_with_readdir<Sys>(virtual_store_dir: &Path) -> Result<(), LinkVirtualStoreBinsError>
 where
@@ -564,7 +564,7 @@ where
         // still present would have `link_bins_excluding` collect the
         // siblings and `create_dir_all` the missing `<pkg>` chain to
         // hold the shims, leaving an orphan package directory on
-        // disk. This path runs only for [`crate::InstallWithoutLockfile`]
+        // disk. This path runs only for [`crate::InstallWithFreshLockfile`]
         // and visits ~direct-deps slots (small N), so the probe cost
         // is trivial; the lockfile-driven path bypasses this by
         // treating the slot's own pkg dir as an invariant of

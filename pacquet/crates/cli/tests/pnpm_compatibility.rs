@@ -45,10 +45,18 @@ fn same_file_structure() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     let modules_dir = workspace.join("node_modules");
+    // Cleanup also drops `pnpm-lock.yaml` because the fresh-lockfile
+    // install path writes one, and leaving it would let pnpm's second
+    // install pick a different code path (frozen-with-existing-lockfile)
+    // than pacquet's first install (fresh), which the
+    // `.pnpm-needs-build-marker` artifact in the GVS store difference
+    // would surface as a spurious diff here.
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
     let cleanup = || {
         eprintln!("Cleaning up...");
         fs::remove_dir_all(&store_dir).expect("delete store dir");
         fs::remove_dir_all(&modules_dir).expect("delete node_modules");
+        let _ = fs::remove_file(&lockfile_path);
     };
 
     eprintln!("Creating package.json...");
@@ -118,10 +126,15 @@ fn same_index_file_contents() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     let modules_dir = workspace.join("node_modules");
+    // Cleanup also drops `pnpm-lock.yaml` so pnpm doesn't pick a
+    // different install code path than pacquet on the second leg —
+    // see the matching note in `same_file_structure`.
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
     let cleanup = || {
         eprintln!("Cleaning up...");
         fs::remove_dir_all(&store_dir).expect("delete store dir");
         fs::remove_dir_all(&modules_dir).expect("delete node_modules");
+        let _ = fs::remove_file(&lockfile_path);
     };
 
     eprintln!("Creating package.json...");

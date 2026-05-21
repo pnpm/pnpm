@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc, sync::atomic::AtomicU8, 
 
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
-    InstallWithoutLockfile, InstallWithoutLockfileError, ResolvedPackages,
+    InstallWithFreshLockfile, InstallWithFreshLockfileError, ResolvedPackages,
     build_resolution_verifiers,
 };
 use derive_more::{Display, Error};
@@ -121,14 +121,8 @@ pub enum InstallError {
     #[diagnostic(code(pacquet_package_manager::no_lockfile))]
     NoLockfile,
 
-    #[display(
-        "Installing with a writable lockfile is not yet supported. Disable lockfile in .npmrc (lockfile=false) or pass --frozen-lockfile with an existing pnpm-lock.yaml."
-    )]
-    #[diagnostic(code(pacquet_package_manager::unsupported_lockfile_mode))]
-    UnsupportedLockfileMode,
-
     #[diagnostic(transparent)]
-    WithoutLockfile(#[error(source)] InstallWithoutLockfileError),
+    WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
 
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
@@ -400,10 +394,12 @@ where
         //    no-lockfile install, which is also what the integrated
         //    benchmark has been measuring.
         //
-        // 2. Otherwise follow `config.lockfile`. `true` means we'd
-        //    normally generate / update a lockfile, which pacquet
-        //    doesn't support yet → `UnsupportedLockfileMode`. `false`
-        //    means "lockfile disabled, resolve from registry".
+        // 2. Otherwise the fresh-lockfile path runs: the resolver
+        //    walks the manifest, materializes `node_modules`, and the
+        //    resolved graph is serialized to `pnpm-lock.yaml`. The
+        //    save-to-disk step honors `config.lockfile`: setting it to
+        //    `false` keeps the resolver running but skips the write,
+        //    matching pnpm's documented opt-out.
         // The third tuple element is `hoisted_locations`: the
         // per-depPath list of lockfile-relative directories the
         // hoisted linker placed each package at. Empty under the
@@ -579,7 +575,7 @@ where
             // every reachable consumer of `<store_dir>/links/...`.
             //
             // Gated on `frozen_lockfile && enable_global_virtual_store`:
-            // `InstallWithoutLockfile` keeps the project-local virtual
+            // `InstallWithFreshLockfile` keeps the project-local virtual
             // store via `VirtualStoreLayout::legacy`, and a registry
             // entry for it would point at a project that never
             // touches the shared store.
@@ -614,12 +610,10 @@ where
                 frozen_result.hoisted_locations,
                 frozen_result.skipped,
             )
-        } else if config.lockfile {
-            return Err(InstallError::UnsupportedLockfileMode);
         } else {
-            // The no-lockfile path has no installability check (no
-            // `packages:` metadata to evaluate constraints against),
-            // so its skip set is empty by construction.
+            // The fresh-lockfile path has no installability check
+            // (no `packages:` metadata to evaluate constraints
+            // against), so its skip set is empty by construction.
             // Build the workspace-sibling lookup the npm resolver
             // consults for `workspace:` specs. `None` when the install
             // isn't inside a `pnpm-workspace.yaml` workspace (no
@@ -630,7 +624,7 @@ where
             let workspace_packages =
                 build_workspace_packages_map(&workspace_root, workspace_manifest.as_ref())
                     .map_err(InstallError::FindWorkspaceProjects)?;
-            let hd = InstallWithoutLockfile {
+            let hd = InstallWithFreshLockfile {
                 tarball_mem_cache,
                 resolved_packages,
                 http_client,
@@ -646,7 +640,7 @@ where
             }
             .run::<Reporter>()
             .await
-            .map_err(InstallError::WithoutLockfile)?;
+            .map_err(InstallError::WithFreshLockfile)?;
             (hd, BTreeMap::new(), crate::SkippedSnapshots::new())
         };
 
@@ -654,7 +648,7 @@ where
 
         // `Stage::ImportingDone` is emitted inside the install paths
         // (`InstallFrozenLockfile` between symlink and build, and
-        // `InstallWithoutLockfile` after the writer task) so that any
+        // `InstallWithFreshLockfile` after the writer task) so that any
         // subsequent `pnpm:lifecycle` events render after the import
         // progress display has closed. Mirrors upstream's emit point in
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>.
