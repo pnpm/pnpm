@@ -131,14 +131,14 @@ jobs:
       - name: Build pacquet release binary
         run: cargo build --locked --release --bin pacquet
 
-      - name: Install pnpm and Node
+      - name: Install pnpm
+        # Leave `runtime:` unset so pnpm uses the runner's pre-installed Node
+        # for tooling, and `pnx node@runtime:24.6.0` (used by `pn bundle`) can
+        # still fetch its own pinned Node version on demand. Pinning a runtime
+        # here breaks that fetch with ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND.
         uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
         with:
           install: false
-          # Node 22.13.0 matches the minimum supported version in pnpm/package.json
-          # (engines.node = ">=22.13") and is known to work with jest's ESM VM
-          # modules path; newer 24.x patches have a regression that breaks it.
-          runtime: node@22.13.0
 
       - name: Cache pnpm
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -155,15 +155,15 @@ jobs:
       - name: pnpm install
         run: pnpm install --frozen-lockfile
 
-      - name: Build pnpm bundle
-        run: pnpm --filter pnpm run compile
+      - name: Compile TypeScript (bundles pnpm)
+        run: pn compile-only
 
       - name: Run pnpm e2e against pacquet
         working-directory: pnpm
         env:
           PNPM_E2E_BIN: ${{ github.workspace }}/target/release/pacquet
-        # `pnpm test` would rebuild the bundle we just built; invoke jest
-        # directly via the same env the hidden `.test` script uses.
+        # `pn test` would re-run compile; invoke jest directly with the
+        # same env the hidden `.test` script uses.
         run: |
           pnpm exec cross-env \
             NODE_OPTIONS="--experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" \
