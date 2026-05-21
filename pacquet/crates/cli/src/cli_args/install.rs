@@ -80,6 +80,26 @@ pub struct InstallArgs {
     #[clap(long)]
     pub frozen_lockfile: bool,
 
+    /// Skip the per-importer `package.json` ↔ `pnpm-lock.yaml`
+    /// freshness check that normally guards `--frozen-lockfile`.
+    /// Intended for callers that just resolved and wrote the
+    /// lockfile themselves (today: the pnpm CLI delegating
+    /// materialization to pacquet via `configDependencies`), where
+    /// the manifest may still be the pre-mutation copy while the
+    /// lockfile is already post-mutation — the upstream resolver
+    /// will rewrite the manifest right after pacquet returns. See
+    /// <https://github.com/pnpm/pnpm/issues/11797>.
+    ///
+    /// Narrow on purpose: only gates
+    /// [`pacquet_lockfile::satisfies_package_manifest`]. Settings
+    /// drift (`overrides`, `ignoredOptionalDependencies`,
+    /// `pnpmfileChecksum`, …) still aborts. A future broader flag
+    /// matching pnpm's internal `ignorePackageManifest` (used by
+    /// `pnpm fetch`) would skip linking / hoisting / pruning too;
+    /// that's deliberately a separate name.
+    #[clap(long)]
+    pub ignore_manifest_check: bool,
+
     /// Skip the install of any runtime dependencies
     /// (`node@runtime:`, `deno@runtime:`, `bun@runtime:`).
     /// Their archives aren't fetched, their slots aren't
@@ -140,6 +160,7 @@ impl InstallArgs {
             dependency_options,
             supported_architectures,
             frozen_lockfile,
+            ignore_manifest_check,
             no_runtime,
             node_linker,
             offline: _,
@@ -183,6 +204,7 @@ impl InstallArgs {
             lockfile_path: lockfile_path.as_deref(),
             dependency_groups: dependency_options.dependency_groups(),
             frozen_lockfile,
+            ignore_manifest_check,
             skip_runtimes,
             resolved_packages,
             supported_architectures,

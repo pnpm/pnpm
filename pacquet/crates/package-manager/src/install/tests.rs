@@ -58,6 +58,7 @@ async fn should_install_dependencies() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -115,6 +116,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -155,6 +157,7 @@ async fn should_error_when_writable_lockfile_mode_is_used() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -224,6 +227,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -286,6 +290,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -365,6 +370,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -429,6 +435,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -513,6 +520,7 @@ async fn install_emits_pnpm_event_sequence() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -654,6 +662,7 @@ async fn install_writes_modules_yaml() {
         // groups to the on-disk `included` field.
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -751,6 +760,7 @@ async fn install_writes_workspace_state() {
         // dispatched groups.
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -865,6 +875,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: false,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -984,6 +995,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1078,6 +1090,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1180,6 +1193,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1226,6 +1240,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1314,6 +1329,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -1404,6 +1420,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -1416,6 +1433,67 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
     assert!(
         matches!(err, InstallError::OutdatedLockfile { .. }),
         "expected OutdatedLockfile, got {err:?}",
+    );
+
+    drop(dir);
+}
+
+/// `--ignore-manifest-check` (`Install::ignore_manifest_check = true`)
+/// bypasses the [`satisfies_package_manifest`] gate, so an install
+/// whose manifest has drifted from the lockfile proceeds past the
+/// freshness check. Same setup as
+/// `frozen_lockfile_errors_when_manifest_drifts_from_lockfile`, just
+/// with the flag flipped: we now expect the install to reach the
+/// fetch site and fail there (network / integrity error against the
+/// bogus tarball URL) rather than abort early with `OutdatedLockfile`.
+///
+/// Issue context: <https://github.com/pnpm/pnpm/issues/11797>.
+#[tokio::test]
+async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    // Deliberately leave the `placeholder` dep out — same drift the
+    // sibling test exercises. With `ignore_manifest_check: true` the
+    // install must accept the drift and move on to materialization.
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
+        .expect("parse partial-install fixture lockfile");
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        ignore_manifest_check: true,
+        skip_runtimes: false,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    let err = result.expect_err("bogus tarball URL must still surface a downstream error");
+    assert!(
+        !matches!(err, InstallError::OutdatedLockfile { .. }),
+        "ignore_manifest_check should bypass the freshness gate, got OutdatedLockfile: {err:?}",
     );
 
     drop(dir);
@@ -1465,6 +1543,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -1552,6 +1631,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -1609,6 +1689,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -1693,6 +1774,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -1767,6 +1849,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -1847,6 +1930,7 @@ async fn frozen_lockfile_under_gvs_registers_each_workspace_importer() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         resolved_packages: &Default::default(),
         supported_architectures: None,
@@ -2045,6 +2129,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2165,6 +2250,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2261,6 +2347,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2363,6 +2450,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2450,6 +2538,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2540,6 +2629,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         // `--no-optional` shape: Optional NOT in the dispatch list.
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -2627,6 +2717,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
@@ -2711,6 +2802,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
@@ -2801,6 +2893,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         resolved_packages: &Default::default(),
@@ -2889,6 +2982,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: true,
         supported_architectures: None,
         resolved_packages: &Default::default(),
@@ -2983,6 +3077,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
@@ -3079,6 +3174,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
+        ignore_manifest_check: false,
         skip_runtimes: false,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),

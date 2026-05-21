@@ -94,6 +94,7 @@ where
             lockfile_path,
             dependency_groups: list_dependency_groups(),
             frozen_lockfile: false,
+            ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             resolved_packages,
             supported_architectures,

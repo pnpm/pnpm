@@ -64,6 +64,18 @@ where
     pub lockfile_path: Option<&'a Path>,
     pub dependency_groups: DependencyGroupList,
     pub frozen_lockfile: bool,
+    /// Skip the per-importer `package.json` ↔ `pnpm-lock.yaml`
+    /// freshness check ([`satisfies_package_manifest`]) that
+    /// normally guards `--frozen-lockfile`. Surfaced as
+    /// `--ignore-manifest-check` on the CLI; intended for the pnpm
+    /// CLI's `configDependencies` delegation path, where pnpm has
+    /// just resolved and written the lockfile but hasn't yet written
+    /// the updated manifest. Settings-drift checks (`overrides`,
+    /// `ignoredOptionalDependencies`, …) still run — they don't
+    /// inspect the manifest and the bug this flag addresses is
+    /// specifically the per-dep specifier mismatch from
+    /// <https://github.com/pnpm/pnpm/issues/11797>.
+    pub ignore_manifest_check: bool,
     /// When `true`, runtime dependencies (`node@runtime:` /
     /// `deno@runtime:` / `bun@runtime:`) are skipped — their
     /// archives aren't fetched, their slots aren't materialized,
@@ -237,6 +249,7 @@ where
             lockfile_path,
             dependency_groups,
             frozen_lockfile,
+            ignore_manifest_check,
             skip_runtimes,
             supported_architectures,
             node_linker,
@@ -510,13 +523,25 @@ where
                 .unwrap_or_default();
             let is_ignored_optional: &dyn Fn(&str) -> bool =
                 &|name: &str| ignored_set.contains(name);
-            satisfies_package_manifest(
-                importer,
-                manifest_for_freshness,
-                Lockfile::ROOT_IMPORTER_KEY,
-                is_ignored_optional,
-            )
-            .map_err(|reason| InstallError::OutdatedLockfile { reason })?;
+            // `--ignore-manifest-check` skips this gate. The pnpm CLI
+            // passes it when delegating materialization through
+            // `configDependencies`: pnpm has just resolved the tree
+            // and written the lockfile, but hasn't yet written the
+            // post-mutation `package.json` to disk (it does that
+            // after `mutateModules` returns), so the freshness check
+            // would always fire on `pnpm up` / `add` / `remove`. See
+            // <https://github.com/pnpm/pnpm/issues/11797>. Settings
+            // drift (`overrides`, `ignoredOptionalDependencies`)
+            // already ran above and is unaffected.
+            if !ignore_manifest_check {
+                satisfies_package_manifest(
+                    importer,
+                    manifest_for_freshness,
+                    Lockfile::ROOT_IMPORTER_KEY,
+                    is_ignored_optional,
+                )
+                .map_err(|reason| InstallError::OutdatedLockfile { reason })?;
+            }
 
             let frozen_result = InstallFrozenLockfile {
                 http_client,
