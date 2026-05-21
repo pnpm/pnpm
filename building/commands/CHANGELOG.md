@@ -1,5 +1,12 @@
 # @pnpm/building.commands
 
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [881a865]
+  - @pnpm/installing.commands@1100.4.2
+
 ## 1100.0.20
 
 ### Patch Changes
