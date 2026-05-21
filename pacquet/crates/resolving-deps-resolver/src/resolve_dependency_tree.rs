@@ -4,6 +4,11 @@ use async_recursion::async_recursion;
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
+use pacquet_catalogs_resolver::{
+    CatalogResolutionError, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
+    resolve_from_catalog,
+};
+use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{ResolveError, ResolveOptions, Resolver, WantedDependency};
 use pipe_trait::Pipe;
@@ -48,6 +53,13 @@ pub enum ResolveDependencyTreeError {
         #[error(not(source))]
         specifier: String,
     },
+
+    /// A `catalog:` specifier on a direct dependency referenced a
+    /// missing entry, used a forbidden protocol, or was otherwise
+    /// misconfigured. The inner error carries the upstream
+    /// `ERR_PNPM_CATALOG_ENTRY_*` code and message.
+    #[diagnostic(transparent)]
+    CatalogMisconfiguration(#[error(source)] CatalogResolutionError),
 }
 
 /// Walk `manifest` plus the entries in `dependency_groups`, dispatch
@@ -304,6 +316,35 @@ where
     );
 
     Ok(Some(DirectDep { alias, node_id, id }))
+}
+
+/// Replace `catalog:` bare specifiers on direct dependencies with the
+/// version recorded in the catalogs map. Non-`catalog:` specifiers
+/// pass through unchanged.
+///
+/// Catalog resolution runs only on importer-level deps, matching
+/// upstream's
+/// [importer-only scope](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L600).
+/// A misconfigured entry surfaces immediately rather than masquerading
+/// as a `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+pub(crate) fn resolve_catalog_specifiers(
+    specs: Vec<(String, String)>,
+    catalogs: &Catalogs,
+) -> Result<Vec<(String, String)>, ResolveDependencyTreeError> {
+    specs
+        .into_iter()
+        .map(|(name, range)| {
+            let wanted =
+                CatalogWantedDependency { alias: name.clone(), bare_specifier: range.clone() };
+            match resolve_from_catalog(catalogs, &wanted) {
+                CatalogResolutionResult::Found(found) => Ok((name, found.resolution.specifier)),
+                CatalogResolutionResult::Unused => Ok((name, range)),
+                CatalogResolutionResult::Misconfiguration(misconfig) => {
+                    Err(ResolveDependencyTreeError::CatalogMisconfiguration(misconfig.error))
+                }
+            }
+        })
+        .collect()
 }
 
 /// Render `{alias}@{bare}` (either half dropped when absent) for the

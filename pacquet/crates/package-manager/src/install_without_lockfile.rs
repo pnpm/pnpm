@@ -7,6 +7,7 @@ use dashmap::{DashMap, mapref::entry::Entry};
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
 use pacquet_config::Config;
 use pacquet_engine_runtime_bun_resolver::BunResolver;
@@ -85,6 +86,9 @@ pub struct InstallWithoutLockfile<'a, DependencyGroupList> {
     pub logged_methods: &'a AtomicU8,
     /// Install root, threaded into reporter `requester` fields.
     pub requester: &'a str,
+    /// Catalogs parsed from `pnpm-workspace.yaml`. Empty for projects
+    /// without a workspace manifest.
+    pub catalogs: Catalogs,
 }
 
 /// Error type of [`InstallWithoutLockfile`].
@@ -170,6 +174,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
             resolved_packages,
             logged_methods,
             requester,
+            catalogs,
         } = self;
 
         let store_dir: &'static _ = &config.store_dir;
@@ -314,6 +319,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
                 published_by_exclude,
                 ..ResolveOptions::default()
             },
+            catalogs,
         };
 
         let importer_result =

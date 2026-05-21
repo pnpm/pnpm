@@ -1972,6 +1972,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
+name = "pacquet-catalogs-config"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-catalogs-types",
+ "pacquet-workspace",
+]
+
+[[package]]
+name = "pacquet-catalogs-protocol-parser"
+version = "0.0.1"
+dependencies = [
+ "pacquet-catalogs-types",
+]
+
+[[package]]
+name = "pacquet-catalogs-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-catalogs-protocol-parser",
+ "pacquet-catalogs-types",
+]
+
+[[package]]
+name = "pacquet-catalogs-types"
+version = "0.0.1"
+
+[[package]]
 name = "pacquet-cli"
 version = "0.0.1"
 dependencies = [
@@ -2366,6 +2397,8 @@ dependencies = [
  "insta",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-catalogs-config",
+ "pacquet-catalogs-types",
  "pacquet-cmd-shim",
  "pacquet-config",
  "pacquet-crypto-hash",
@@ -2527,6 +2560,8 @@ dependencies = [
  "futures-util",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-catalogs-resolver",
+ "pacquet-catalogs-types",
  "pacquet-deps-path",
  "pacquet-lockfile",
  "pacquet-package-manifest",
@@ -2719,6 +2754,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "pacquet-catalogs-types",
  "pacquet-package-manifest",
  "pretty_assertions",
  "serde",

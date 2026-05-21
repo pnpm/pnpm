@@ -7,7 +7,10 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
-use crate::{DepPath, resolve_importer, resolve_importer::ResolveImporterOptions};
+use crate::{
+    DepPath, ResolveDependencyTreeError, resolve_importer,
+    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
+};
 
 struct StubResolver {
     table: HashMap<(String, String), ResolveResult>,
@@ -86,6 +89,7 @@ fn default_opts() -> ResolveImporterOptions {
         resolve_peers_from_workspace_root: false,
         all_preferred_versions: PreferredVersions::new(),
         base_opts: ResolveOptions::default(),
+        catalogs: pacquet_catalogs_types::Catalogs::new(),
     }
 }
 
@@ -765,4 +769,58 @@ async fn auto_install_hoisted_peer_dep_reuses_regular_dep_version() {
         vec!["c@2.0.0".to_string()],
         "expected one c@2.0.0 entry (not a second copy via the peer arm), got: {c_entries:?}",
     );
+}
+
+/// `catalog:` on a direct dependency is rewritten to the catalog's
+/// recorded specifier before the resolver chain sees the wanted dep.
+/// Mirrors upstream's
+/// [importer-only catalog dereference](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L611).
+#[tokio::test]
+async fn catalog_protocol_on_direct_dep_is_rewritten() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("foo".to_string(), "^1.0.0".to_string()),
+        fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
+
+    let mut catalogs = pacquet_catalogs_types::Catalogs::new();
+    catalogs.insert(
+        "default".to_string(),
+        [("foo".to_string(), "^1.0.0".to_string())].into_iter().collect(),
+    );
+
+    let opts = ResolveImporterOptions { catalogs, ..default_opts() };
+    let result =
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    assert_eq!(result.resolved_tree.direct.len(), 1);
+    assert_eq!(result.resolved_tree.direct[0].alias, "foo");
+    // The resolver chain only sees the catalog-rewritten range.
+    let calls = resolver.calls.lock().unwrap();
+    assert_eq!(&*calls, &[("foo".to_string(), "^1.0.0".to_string())]);
+}
+
+/// A misconfigured `catalog:` entry (here: missing alias) short-
+/// circuits resolution with the upstream `CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`
+/// error rather than falling through to `SpecNotSupported`.
+#[tokio::test]
+async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
+    let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
+
+    let err = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .expect_err("missing catalog entry must error");
+    match err {
+        ResolveImporterError::Resolve(ResolveDependencyTreeError::CatalogMisconfiguration(
+            inner,
+        )) => {
+            assert_eq!(
+                inner.to_string(),
+                "No catalog entry 'foo' was found for catalog 'default'.",
+            );
+        }
+        other => panic!("expected CatalogMisconfiguration, got {other:?}"),
+    }
 }

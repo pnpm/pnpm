@@ -2,6 +2,7 @@ use super::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceManifest, read_workspace_manifest,
 };
+use pacquet_catalogs_types::{Catalog, Catalogs};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::TempDir;
@@ -63,6 +64,40 @@ fn empty_packages_array_preserved_as_some_empty() {
     fs::write(tmp.path().join(WORKSPACE_MANIFEST_FILENAME), "packages: []\n").unwrap();
     let manifest = read_workspace_manifest(tmp.path()).unwrap().unwrap();
     assert_eq!(manifest.packages, Some(Vec::<String>::new()));
+}
+
+#[test]
+fn parses_top_level_catalog_field() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(
+        tmp.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "catalog:\n  foo: ^1.0.0\n  bar: ^2.0.0\n",
+    )
+    .unwrap();
+    let manifest = read_workspace_manifest(tmp.path()).unwrap().unwrap();
+    let mut expected = Catalog::new();
+    expected.insert("foo".to_string(), "^1.0.0".to_string());
+    expected.insert("bar".to_string(), "^2.0.0".to_string());
+    assert_eq!(manifest.catalog, Some(expected));
+    assert_eq!(manifest.catalogs, None);
+}
+
+#[test]
+fn parses_named_catalogs_field() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(
+        tmp.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "catalogs:\n  default:\n    foo: ^1.0.0\n  legacy:\n    bar: ^2.0.0\n",
+    )
+    .unwrap();
+    let manifest = read_workspace_manifest(tmp.path()).unwrap().unwrap();
+    let mut expected = Catalogs::new();
+    expected
+        .insert("default".to_string(), Catalog::from([("foo".to_string(), "^1.0.0".to_string())]));
+    expected
+        .insert("legacy".to_string(), Catalog::from([("bar".to_string(), "^2.0.0".to_string())]));
+    assert_eq!(manifest.catalog, None);
+    assert_eq!(manifest.catalogs, Some(expected));
 }
 
 #[test]
