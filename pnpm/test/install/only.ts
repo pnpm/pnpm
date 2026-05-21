@@ -1,15 +1,18 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 const basicPackageManifest = loadJsonFileSync<PackageManifest>(path.join(import.meta.dirname, '../utils/simple-package.json'))
 
-test('production install (with --production flag)', async () => {
+skipIfPacquet('production install (with --production flag)', async () => {
   const project = prepare(basicPackageManifest)
 
   await execPnpm(['install', '--production'])
@@ -19,7 +22,7 @@ test('production install (with --production flag)', async () => {
   project.has('is-positive')
 })
 
-test('install dev dependencies only', async () => {
+skipIfPacquet('install dev dependencies only', async () => {
   const project = prepare({
     dependencies: {
       'is-positive': '^1.0.0',

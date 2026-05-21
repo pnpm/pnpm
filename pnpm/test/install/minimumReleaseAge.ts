@@ -6,7 +6,11 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 // The public npm registry is used here instead of verdaccio because the
 // registry mock doesn't include the per-version `time` field in full-metadata
@@ -26,7 +30,7 @@ const IMMATURE_FOR_EVERYTHING = 60 * 24 * 365 * 27
 const omitMinReleaseAgeEnv = { omitEnvDefaults: ['pnpm_config_minimum_release_age' as const] }
 
 describe('lockfile minimumReleaseAge verification', () => {
-  test('install rejects a lockfile entry that does not satisfy the policy in strict mode', async () => {
+  skipIfPacquet('install rejects a lockfile entry that does not satisfy the policy in strict mode', async () => {
     // Step 1: populate a lockfile under no policy. The resolver picks
     // is-odd@0.1.2 (latest 0.1.x) without applying any maturity filter.
     prepare({
@@ -120,7 +124,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 
-  test('a fresh install records the just-written lockfile in the verification cache', async () => {
+  skipIfPacquet('a fresh install records the just-written lockfile in the verification cache', async () => {
     // Reproduces the "install foo, rm -rf node_modules, install" flow:
     // the lockfile written by the first install must be recorded under
     // its post-resolution content, otherwise the second install re-runs
@@ -188,7 +192,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(output).toMatch(/is-odd@0\.1\.2/)
   })
 
-  test('loose mode auto-adds fresh immature picks to minimumReleaseAgeExclude', () => {
+  skipIfPacquet('loose mode auto-adds fresh immature picks to minimumReleaseAgeExclude', () => {
     // Fresh resolution under loose mode: the resolver's lowest-version
     // fallback picks an immature version, and the install layer surfaces it
     // to `minimumReleaseAgeExclude`. The verifier sees an empty lockfile at
@@ -243,7 +247,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
   })
 
-  test('subsequent installs run cleanly once the exclude list is populated', () => {
+  skipIfPacquet('subsequent installs run cleanly once the exclude list is populated', () => {
     // Round-trip the auto-collect: first install populates the exclude list
     // from fresh resolution, the next install runs the verifier against the
     // now-populated list and succeeds without re-announcing anything. The
@@ -268,7 +272,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     )
   })
 
-  test('recursive --no-save leaves the workspace manifest untouched even when picks are collected (shared lockfile)', () => {
+  skipIfPacquet('recursive --no-save leaves the workspace manifest untouched even when picks are collected (shared lockfile)', () => {
     // The shared-lockfile recursive branch in recursive.ts: a single
     // `mutateModules` call across all importers. Same drain-only-when-
     // saving gate has to hold here.
@@ -294,7 +298,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
   })
 
-  test('recursive --no-save leaves the workspace manifest untouched even when picks are collected (per-project lockfiles)', () => {
+  skipIfPacquet('recursive --no-save leaves the workspace manifest untouched even when picks are collected (per-project lockfiles)', () => {
     // The other recursive branch: with sharedWorkspaceLockfile: false
     // the per-project loop is taken instead of the single
     // mutateModules call. The post-loop updateWorkspaceManifest at the
@@ -322,7 +326,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(workspaceManifest.minimumReleaseAgeExclude).toBeUndefined()
   })
 
-  test('--no-save leaves the workspace manifest untouched even when picks are collected', () => {
+  skipIfPacquet('--no-save leaves the workspace manifest untouched even when picks are collected', () => {
     // `--no-save` means "don't persist anything from this install" — the
     // auto-add should obey that. Without the gate, the info log would
     // claim entries were added that never reached pnpm-workspace.yaml,

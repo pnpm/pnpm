@@ -1,14 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from '../utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('pnpm config list reads npm options but ignores other settings from .npmrc', () => {
+skipIfPacquet('pnpm config list reads npm options but ignores other settings from .npmrc', () => {
   prepare()
   fs.writeFileSync('.npmrc', [
     // npm options
@@ -42,7 +45,7 @@ test('pnpm config list reads npm options but ignores other settings from .npmrc'
   expect(list).not.toHaveProperty(['packages'])
 })
 
-test('pnpm config list reads workspace-specific settings from pnpm-workspace.yaml', () => {
+skipIfPacquet('pnpm config list reads workspace-specific settings from pnpm-workspace.yaml', () => {
   const workspaceManifest = {
     dlxCacheMaxAge: 1234,
     trustPolicyExclude: ['foo', 'bar'],
@@ -71,7 +74,7 @@ test('pnpm config list reads workspace-specific settings from pnpm-workspace.yam
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })
 
-test('pnpm config list ignores non camelCase settings from pnpm-workspace.yaml', () => {
+skipIfPacquet('pnpm config list ignores non camelCase settings from pnpm-workspace.yaml', () => {
   const workspaceManifest = {
     'dlx-cache-max-age': 1234,
     'trust-policy-exclude': ['foo', 'bar'],
@@ -103,7 +106,7 @@ test('pnpm config list ignores non camelCase settings from pnpm-workspace.yaml',
 
 // This behavior is not really desired, it is but a side-effect of the config loader not validating pnpm-workspace.yaml.
 // Still, removing it can be considered a breaking change, so this test is here to track for that.
-test('pnpm config list still reads unknown camelCase keys from pnpm-workspace.yaml', () => {
+skipIfPacquet('pnpm config list still reads unknown camelCase keys from pnpm-workspace.yaml', () => {
   const workspaceManifest = {
     thisOptionIsNotDefinedByPnpm: 'some-value',
   }
@@ -118,7 +121,7 @@ test('pnpm config list still reads unknown camelCase keys from pnpm-workspace.ya
   }
 })
 
-test('pnpm config list --json shows all keys in camelCase', () => {
+skipIfPacquet('pnpm config list --json shows all keys in camelCase', () => {
   const workspaceManifest = {
     dlxCacheMaxAge: 1234,
     allowBuilds: { foo: true, bar: true },
@@ -147,7 +150,7 @@ test('pnpm config list --json shows all keys in camelCase', () => {
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
 })
 
-test('pnpm config list shows settings from global config.yaml', () => {
+skipIfPacquet('pnpm config list shows settings from global config.yaml', () => {
   prepare()
 
   const XDG_CONFIG_HOME = path.resolve('.config')

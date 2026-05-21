@@ -1,12 +1,15 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeJsonFileSync } from 'write-json-file'
 
-import { execPnpmSync } from './utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('pnpm with current runs the currently active pnpm even when the project pins a different version', () => {
+skipIfPacquet('pnpm with current runs the currently active pnpm even when the project pins a different version', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -20,7 +23,7 @@ test('pnpm with current runs the currently active pnpm even when the project pin
   expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
 
-test('pnpm with current bypasses the packageManager check when an unrelated package manager is pinned', () => {
+skipIfPacquet('pnpm with current bypasses the packageManager check when an unrelated package manager is pinned', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -34,7 +37,7 @@ test('pnpm with current bypasses the packageManager check when an unrelated pack
   expect(stderr.toString()).not.toContain('This project is configured to use yarn')
 })
 
-test('pnpm with current bypasses devEngines.packageManager with onFail=download', () => {
+skipIfPacquet('pnpm with current bypasses devEngines.packageManager with onFail=download', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -54,7 +57,7 @@ test('pnpm with current bypasses devEngines.packageManager with onFail=download'
   expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
 
-test('pnpm with forwards subsequent args to the child pnpm', () => {
+skipIfPacquet('pnpm with forwards subsequent args to the child pnpm', () => {
   prepare()
   writeJsonFileSync('package.json', {
     name: 'project',
@@ -67,7 +70,7 @@ test('pnpm with forwards subsequent args to the child pnpm', () => {
   expect(stdout.toString().trim()).toMatch(/^\d+\.\d+\.\d+/)
 })
 
-test('pnpm with fails when no spec is provided', () => {
+skipIfPacquet('pnpm with fails when no spec is provided', () => {
   prepare()
 
   const { status, stderr } = execPnpmSync(['with'])
@@ -76,7 +79,7 @@ test('pnpm with fails when no spec is provided', () => {
   expect(stderr.toString()).toContain('Missing version argument')
 })
 
-test('pnpm with <version> downloads and runs the specified pnpm version', () => {
+skipIfPacquet('pnpm with <version> downloads and runs the specified pnpm version', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -87,7 +90,7 @@ test('pnpm with <version> downloads and runs the specified pnpm version', () => 
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
-test('pnpm with <version> ignores the packageManager pin and uses the requested version', () => {
+skipIfPacquet('pnpm with <version> ignores the packageManager pin and uses the requested version', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }

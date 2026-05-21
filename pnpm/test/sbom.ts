@@ -1,9 +1,13 @@
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('pnpm sbom --sbom-format cyclonedx outputs valid JSON to stdout', async () => {
+skipIfPacquet('pnpm sbom --sbom-format cyclonedx outputs valid JSON to stdout', async () => {
   prepare({
     dependencies: {
       'is-positive': '3.1.0',
@@ -21,7 +25,7 @@ test('pnpm sbom --sbom-format cyclonedx outputs valid JSON to stdout', async () 
   expect(parsed.components.length).toBeGreaterThan(0)
 })
 
-test('pnpm sbom --sbom-format spdx outputs valid JSON to stdout', async () => {
+skipIfPacquet('pnpm sbom --sbom-format spdx outputs valid JSON to stdout', async () => {
   prepare({
     dependencies: {
       'is-positive': '3.1.0',
@@ -38,7 +42,7 @@ test('pnpm sbom --sbom-format spdx outputs valid JSON to stdout', async () => {
   expect(parsed.dataLicense).toBe('CC0-1.0')
 })
 
-test('pnpm sbom warnings go to stderr, not stdout', async () => {
+skipIfPacquet('pnpm sbom warnings go to stderr, not stdout', async () => {
   prepare({
     dependencies: {
       'is-positive': '3.1.0',

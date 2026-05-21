@@ -1,10 +1,12 @@
-import { test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('hoist the dependency graph', async () => {
+skipIfPacquet('hoist the dependency graph', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'express@4.16.2'])
@@ -20,7 +22,7 @@ test('hoist the dependency graph', async () => {
   project.hasNot('.pnpm/node_modules/cookie')
 })
 
-test('shamefully hoist the dependency graph', async () => {
+skipIfPacquet('shamefully hoist the dependency graph', async () => {
   const project = prepare()
 
   writeYamlFileSync('pnpm-workspace.yaml', { shamefullyHoist: true })
@@ -38,7 +40,7 @@ test('shamefully hoist the dependency graph', async () => {
   project.hasNot('cookie')
 })
 
-test('shamefully-hoist: applied to all the workspace projects when set to true in the root pnpm-workspace.yaml file', async () => {
+skipIfPacquet('shamefully-hoist: applied to all the workspace projects when set to true in the root pnpm-workspace.yaml file', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -74,7 +76,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   projects.project.has('@pnpm.e2e/foobar')
 })
 
-test('shamefully-hoist: applied to all the workspace projects when set to true in the root pnpm-workspace.yaml file (with dedupe-direct-deps=true)', async () => {
+skipIfPacquet('shamefully-hoist: applied to all the workspace projects when set to true in the root pnpm-workspace.yaml file (with dedupe-direct-deps=true)', async () => {
   const projects = preparePackages([
     {
       location: '.',

@@ -1,18 +1,22 @@
 import fs from 'node:fs'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 const CONFIG = [
   '--config.verify-deps-before-run=install',
   '--reporter=append-only',
 ] as const
 
-test('verify-deps-before-run=install reuses the same flags as specified by the workspace state (#9109)', async () => {
+skipIfPacquet('verify-deps-before-run=install reuses the same flags as specified by the workspace state (#9109)', async () => {
   const manifest: ProjectManifest = {
     name: 'root',
     private: true,

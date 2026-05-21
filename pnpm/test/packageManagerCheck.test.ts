@@ -2,9 +2,12 @@ import { describe, expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from './utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
+skipIfPacquet('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
   prepare({
     name: 'project',
     version: '1.0.0',
@@ -20,7 +23,7 @@ test('install should fail if the used pnpm version does not satisfy the pnpm ver
   expect(stdout.toString()).toContain('Your pnpm version is incompatible with')
 })
 
-test('install should not fail if the used pnpm version does not satisfy the pnpm version specified in packageManager', async () => {
+skipIfPacquet('install should not fail if the used pnpm version does not satisfy the pnpm version specified in packageManager', async () => {
   prepare({
     name: 'project',
     version: '1.0.0',
@@ -36,7 +39,7 @@ test('install should not fail if the used pnpm version does not satisfy the pnpm
   expect(stderr.toString()).toContain('This project is configured to use 0.0.0 of pnpm. Your current pnpm is')
 })
 
-test('install should fail if the project requires a different package manager', async () => {
+skipIfPacquet('install should fail if the project requires a different package manager', async () => {
   prepare({
     name: 'project',
     version: '1.0.0',
@@ -91,7 +94,7 @@ test('some commands should not fail if the required package manager is not pnpm'
   expect(status).toBe(0)
 })
 
-test('devEngines.packageManager with onFail=error should fail on version mismatch', async () => {
+skipIfPacquet('devEngines.packageManager with onFail=error should fail on version mismatch', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -108,7 +111,7 @@ test('devEngines.packageManager with onFail=error should fail on version mismatc
   expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
 })
 
-test('devEngines.packageManager with onFail=warn should warn on version mismatch', async () => {
+skipIfPacquet('devEngines.packageManager with onFail=warn should warn on version mismatch', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -143,7 +146,7 @@ test('devEngines.packageManager with onFail=ignore should not check version', as
   expect(stderr.toString()).not.toContain('0.0.1')
 })
 
-test('devEngines.packageManager defaults to onFail=download (#11676)', async () => {
+skipIfPacquet('devEngines.packageManager defaults to onFail=download (#11676)', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -168,7 +171,7 @@ test('devEngines.packageManager defaults to onFail=download (#11676)', async () 
   expect(stderr.toString()).toContain('does not switch versions when running under corepack')
 })
 
-test('devEngines.packageManager with a different PM name should fail with onFail=error', async () => {
+skipIfPacquet('devEngines.packageManager with a different PM name should fail with onFail=error', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -185,7 +188,7 @@ test('devEngines.packageManager with a different PM name should fail with onFail
   expect(stderr.toString()).toContain('This project is configured to use yarn')
 })
 
-test('devEngines.packageManager array selects the pnpm entry', async () => {
+skipIfPacquet('devEngines.packageManager array selects the pnpm entry', async () => {
   prepare({
     devEngines: {
       packageManager: [
@@ -219,7 +222,7 @@ test('devEngines.packageManager array defaults onFail to ignore for non-last ele
   expect(status).toBe(0)
 })
 
-test('devEngines.packageManager takes precedence over packageManager field', async () => {
+skipIfPacquet('devEngines.packageManager takes precedence over packageManager field', async () => {
   const versionProcess = execPnpmSync(['--version'])
   const pnpmVersion = versionProcess.stdout.toString().trim()
   prepare({
@@ -258,7 +261,7 @@ test('no warning when packageManager and devEngines.packageManager specify the s
   expect(stderr.toString()).not.toContain('Cannot use both')
 })
 
-test('warns when packageManager specifies a different package manager from devEngines.packageManager', async () => {
+skipIfPacquet('warns when packageManager specifies a different package manager from devEngines.packageManager', async () => {
   prepare({
     packageManager: 'yarn@1.2.3',
     devEngines: {
@@ -275,7 +278,7 @@ test('warns when packageManager specifies a different package manager from devEn
   expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
 })
 
-test('warns when packageManager version does not match the devEngines.packageManager version string exactly', async () => {
+skipIfPacquet('warns when packageManager version does not match the devEngines.packageManager version string exactly', async () => {
   prepare({
     packageManager: 'pnpm@1.2.3',
     devEngines: {
@@ -311,7 +314,7 @@ test('pmOnFail=ignore via env var bypasses the devEngines.packageManager check',
   expect(stderr.toString()).not.toContain('0.0.1')
 })
 
-test('pmOnFail via --pm-on-fail CLI flag bypasses the devEngines.packageManager check', async () => {
+skipIfPacquet('pmOnFail via --pm-on-fail CLI flag bypasses the devEngines.packageManager check', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -326,7 +329,7 @@ test('pmOnFail via --pm-on-fail CLI flag bypasses the devEngines.packageManager 
   expect(execPnpmSync(['install', '--config.pm-on-fail=ignore']).status).toBe(0)
 })
 
-test('devEngines.packageManager check runs even when pnpm is invoked via corepack', async () => {
+skipIfPacquet('devEngines.packageManager check runs even when pnpm is invoked via corepack', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -353,7 +356,7 @@ test('devEngines.packageManager check runs even when pnpm is invoked via corepac
   expect(stdout.toString()).toContain('Corepack invoked pnpm')
 })
 
-test('devEngines.packageManager onFail=download surfaces a regular error under corepack instead of switching versions', async () => {
+skipIfPacquet('devEngines.packageManager onFail=download surfaces a regular error under corepack instead of switching versions', async () => {
   prepare({
     devEngines: {
       packageManager: {
@@ -406,7 +409,7 @@ test('pmOnFail=ignore set in pnpm-workspace.yaml bypasses the devEngines.package
 // silently disappeared whenever it was combined with `--version` or
 // `--help` — leaving users with no way to opt out of the strict
 // packageManager check just to read help or check the running version.
-test.each([
+skipIfPacquet.each([
   [['--pm-on-fail=ignore', '--version']],
   [['--version', '--pm-on-fail=ignore']],
   [['audit', '--pm-on-fail=ignore', '--help']],

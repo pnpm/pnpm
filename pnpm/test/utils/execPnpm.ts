@@ -11,6 +11,21 @@ export const binDir = path.join(import.meta.dirname, '../..', isWindows() ? 'dis
 export const pnpmBinLocation = path.join(binDir, 'pnpm.mjs')
 export const pnpxBinLocation = path.join(import.meta.dirname, '../../bin/pnpx.mjs')
 
+/**
+ * When set, execPnpm spawns this binary directly instead of `node pnpm.mjs`.
+ * Lets the same test suite run against the pacquet Rust port for parity checks.
+ */
+const pnpmE2eBin = process.env.PNPM_E2E_BIN
+
+export const isPacquetMode = pnpmE2eBin != null && pnpmE2eBin !== ''
+
+function pnpmCommand (args: readonly string[]): { file: string, args: string[] } {
+  if (isPacquetMode) {
+    return { file: pnpmE2eBin!, args: [...args] }
+  }
+  return { file: process.execPath, args: [pnpmBinLocation, ...args] }
+}
+
 // The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
 // for 3 minutes to make it more clear what specific part of a test is timing
 // out.
@@ -26,7 +41,8 @@ export async function execPnpm (
   }
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const proc = crossSpawn.spawn(process.execPath, [pnpmBinLocation, ...args], {
+    const cmd = pnpmCommand(args)
+    const proc = crossSpawn.spawn(cmd.file, cmd.args, {
       env: {
         ...createEnv(opts),
         ...opts?.env,
@@ -68,7 +84,8 @@ export function spawnPnpm (
     storeDir?: string
   }
 ): NodeChildProcess {
-  return crossSpawn.spawn(process.execPath, [pnpmBinLocation, ...args], {
+  const cmd = pnpmCommand(args)
+  return crossSpawn.spawn(cmd.file, cmd.args, {
     env: {
       ...createEnv(opts),
       ...opts?.env,
@@ -141,7 +158,8 @@ export function execPnpmSync (
   args: string[],
   opts?: ExecPnpmSyncOpts
 ): ChildProcess {
-  const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
+  const cmd = pnpmCommand(args)
+  const execResult = crossSpawn.sync(cmd.file, cmd.args, {
     cwd: opts?.cwd,
     env: {
       ...createEnv({ omitEnvDefaults: opts?.omitEnvDefaults }),

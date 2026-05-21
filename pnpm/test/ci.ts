@@ -5,7 +5,10 @@ import { expect, test } from '@jest/globals'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from './utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
 test('pnpm ci fails when lockfile is missing', () => {
   tempDir()
@@ -21,7 +24,7 @@ test('pnpm ci fails when lockfile is missing', () => {
   expect(result.status).not.toBe(0)
 })
 
-test('pnpm ci removes node_modules and installs from lockfile', () => {
+skipIfPacquet('pnpm ci removes node_modules and installs from lockfile', () => {
   prepare({
     name: 'test-ci-clean-install',
     version: '1.0.0',
@@ -48,7 +51,7 @@ test('pnpm ci removes node_modules and installs from lockfile', () => {
   expect(fs.existsSync(path.join(process.cwd(), 'node_modules', 'is-positive'))).toBe(true)
 })
 
-test('pnpm ci reinstalls workspace package node_modules', () => {
+skipIfPacquet('pnpm ci reinstalls workspace package node_modules', () => {
   preparePackages([
     {
       name: 'foo',

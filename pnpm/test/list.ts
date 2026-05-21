@@ -1,13 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('ls --filter=not-exist --json should prints an empty array (#9672)', async () => {
+skipIfPacquet('ls --filter=not-exist --json should prints an empty array (#9672)', async () => {
   preparePackages([
     {
       location: 'packages/foo',
@@ -27,7 +31,7 @@ test('ls --filter=not-exist --json should prints an empty array (#9672)', async 
   expect(JSON.parse(stdout.toString())).toStrictEqual([])
 })
 
-test('ls should load a finder from .pnpmfile.cjs', async () => {
+skipIfPacquet('ls should load a finder from .pnpmfile.cjs', async () => {
   prepare()
   const pnpmfile = `
 module.exports = { finders: { hasPeerA } }
@@ -46,7 +50,7 @@ function hasPeerA (context) {
   expect(result.stdout.toString()).toMatch('@pnpm.e2e/peer-a@^1.0.0')
 })
 
-test('pnpm list returns correct paths with global virtual store', async () => {
+skipIfPacquet('pnpm list returns correct paths with global virtual store', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',

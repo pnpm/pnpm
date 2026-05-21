@@ -1,11 +1,15 @@
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('verify-deps-before-run does not emit unsupported engine warnings for workspace projects', async () => {
+skipIfPacquet('verify-deps-before-run does not emit unsupported engine warnings for workspace projects', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',

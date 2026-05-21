@@ -5,14 +5,17 @@ import getPort from 'get-port'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from './utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 import { isPortInUse } from './utils/isPortInUse.js'
 
 const f = fixtures(import.meta.dirname)
 const multipleScriptsErrorExit = f.find('multiple-scripts-error-exit')
 const testOnPosix = isWindows() ? test.skip : test
 
-test('should print json format error when publish --json failed', async () => {
+skipIfPacquet('should print json format error when publish --json failed', async () => {
   prepare({
     name: 'test-publish-package-no-version',
     version: undefined,
@@ -26,7 +29,7 @@ test('should print json format error when publish --json failed', async () => {
   expect(error?.message).toBe('Package version is not defined in the package.json.')
 })
 
-test('should print json format error when add dependency on workspace root', async () => {
+skipIfPacquet('should print json format error when add dependency on workspace root', async () => {
   preparePackages([
     {
       name: 'project-a',
@@ -62,7 +65,7 @@ testOnPosix('should clean up child processes when process exited', async () => {
   expect(await isPortInUse(barPort)).toBe(false)
 })
 
-test('should print error summary when some packages fail with --no-bail', async () => {
+skipIfPacquet('should print error summary when some packages fail with --no-bail', async () => {
   preparePackages([
     {
       location: 'project-1',

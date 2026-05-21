@@ -1,13 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test("exec should respect the caller's current working directory", async () => {
+skipIfPacquet("exec should respect the caller's current working directory", async () => {
   prepare({
     name: 'root',
     version: '1.0.0',
@@ -32,7 +36,7 @@ test("exec should respect the caller's current working directory", async () => {
   expect(fs.readFileSync(cmdFilePath, 'utf8')).toBe(subdirPath)
 })
 
-test('silent exec does not print verifyDepsBeforeRun install output', async () => {
+skipIfPacquet('silent exec does not print verifyDepsBeforeRun install output', async () => {
   prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
     verifyDepsBeforeRun: 'install',

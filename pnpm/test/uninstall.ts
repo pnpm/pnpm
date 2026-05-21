@@ -1,14 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare } from '@pnpm/prepare'
 import PATH from 'path-name'
 
-import { execPnpm } from './utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('uninstall package and remove from appropriate property', async () => {
+skipIfPacquet('uninstall package and remove from appropriate property', async () => {
   const project = prepare()
   await execPnpm(['install', '--save-optional', 'is-positive@3.1.0'])
 
@@ -28,7 +31,7 @@ test('uninstall package and remove from appropriate property', async () => {
   expect(pkgJson.optionalDependencies).toBeUndefined()
 })
 
-test('uninstall global package with its bin files', async () => {
+skipIfPacquet('uninstall global package with its bin files', async () => {
   prepare()
 
   const global = process.cwd()

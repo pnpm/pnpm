@@ -1,17 +1,22 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  pnpmBinLocation,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
-test('single dependency', async () => {
+skipIfPacquet('single dependency', async () => {
   const manifest: ProjectManifest = {
     name: 'root',
     private: true,
@@ -106,7 +111,7 @@ test('single dependency', async () => {
   await execPnpm([...CONFIG, 'run', 'checkEnv'])
 })
 
-test('deleting node_modules after install', async () => {
+skipIfPacquet('deleting node_modules after install', async () => {
   const manifest: ProjectManifest = {
     name: 'root',
     private: true,
@@ -149,7 +154,7 @@ test('deleting node_modules after install', async () => {
   }
 })
 
-test('no dependencies', async () => {
+skipIfPacquet('no dependencies', async () => {
   const manifest: ProjectManifest = {
     name: 'root',
     private: true,
@@ -180,7 +185,7 @@ test('no dependencies', async () => {
   }
 })
 
-test('nested `pnpm run` should not check for mutated manifest', async () => {
+skipIfPacquet('nested `pnpm run` should not check for mutated manifest', async () => {
   const manifest: ProjectManifest = {
     name: 'root',
     private: true,

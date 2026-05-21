@@ -1,17 +1,19 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
-const testOnPosix = isWindows() ? test.skip : test
 
-test('run -r: pass the args to the command that is specified in the build script', async () => {
+skipIfPacquet('run -r: pass the args to the command that is specified in the build script', async () => {
   preparePackages([{
     name: 'project',
     scripts: {
@@ -33,7 +35,7 @@ test('run -r: pass the args to the command that is specified in the build script
   ])
 })
 
-test('run: pass the args to the command that is specified in the build script', async () => {
+skipIfPacquet('run: pass the args to the command that is specified in the build script', async () => {
   prepare({
     name: 'project',
     scripts: {
@@ -58,7 +60,7 @@ test('run: pass the args to the command that is specified in the build script', 
 // Before pnpm v7, `--` was required to pass flags to a build script. Now all
 // arguments after the script name should be passed to the build script, even
 // `--`.
-test('run: pass all arguments after script name to the build script, even --', async () => {
+skipIfPacquet('run: pass all arguments after script name to the build script, even --', async () => {
   prepare({
     name: 'project',
     scripts: {
@@ -80,7 +82,7 @@ test('run: pass all arguments after script name to the build script, even --', a
   ])
 })
 
-test('exit code of child process is preserved', async () => {
+skipIfPacquet('exit code of child process is preserved', async () => {
   prepare({
     scripts: {
       foo: 'exit 87',
@@ -90,7 +92,7 @@ test('exit code of child process is preserved', async () => {
   expect(result.status).toBe(87)
 })
 
-test('recursive test: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
+skipIfPacquet('recursive test: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
   preparePackages([{
     name: 'project',
     scripts: {
@@ -105,7 +107,7 @@ test('recursive test: pass the args to the command that is specified in the buil
   )
 })
 
-test('start: run "node server.js" by default', async () => {
+skipIfPacquet('start: run "node server.js" by default', async () => {
   prepare({}, { manifestFormat: 'YAML' })
 
   fs.writeFileSync('server.js', 'console.log("Hello world!")', 'utf8')
@@ -115,7 +117,7 @@ test('start: run "node server.js" by default', async () => {
   expect((result.stdout as Buffer).toString('utf8')).toMatch(/Hello world!/)
 })
 
-test('install-test: install dependencies and runs tests', async () => {
+skipIfPacquet('install-test: install dependencies and runs tests', async () => {
   prepare({
     scripts: {
       test: 'node -e "process.stdout.write(\'test\')" > ./output.txt',
@@ -128,7 +130,7 @@ test('install-test: install dependencies and runs tests', async () => {
   expect(scriptsRan.trim()).toBe('test')
 })
 
-test('silent run only prints the output of the child process', async () => {
+skipIfPacquet('silent run only prints the output of the child process', async () => {
   prepare({
     scripts: {
       hi: 'echo hi && exit 1',
@@ -140,7 +142,7 @@ test('silent run only prints the output of the child process', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('silent run does not print verifyDepsBeforeRun install output', async () => {
+skipIfPacquet('silent run does not print verifyDepsBeforeRun install output', async () => {
   prepare({
     scripts: {
       hi: 'echo hi',
@@ -158,7 +160,7 @@ test('silent run does not print verifyDepsBeforeRun install output', async () =>
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
+skipIfPacquet('pnpm run with preferSymlinkedExecutables true', async () => {
   prepare({
     scripts: {
       build: 'node -e "console.log(process.env.NODE_PATH)"',
@@ -174,7 +176,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
   expect(result.stdout.toString()).toContain(`project${path.sep}node_modules${path.sep}.pnpm${path.sep}node_modules`)
 })
 
-testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir', async () => {
+skipIfPacquet('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir', async () => {
   prepare({
     scripts: {
       build: 'node -e "console.log(process.env.NODE_PATH)"',
@@ -191,7 +193,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
   expect(result.stdout.toString()).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
 })
 
-test('collapse output when running multiple scripts in one project', async () => {
+skipIfPacquet('collapse output when running multiple scripts in one project', async () => {
   prepare({
     scripts: {
       script1: 'echo 1',
@@ -221,7 +223,7 @@ test('do not collapse output when running multiple scripts in one project sequen
   expect(output).not.toContain('script2: 2')
 })
 
-test('--parallel should work with single project', async () => {
+skipIfPacquet('--parallel should work with single project', async () => {
   prepare({
     scripts: {
       script1: 'echo 1',
@@ -236,7 +238,7 @@ test('--parallel should work with single project', async () => {
   expect(output).toContain('script2: 2')
 })
 
-test('--reporter-hide-prefix should hide workspace prefix', async () => {
+skipIfPacquet('--reporter-hide-prefix should hide workspace prefix', async () => {
   prepare({
     scripts: {
       script1: 'echo 1',
@@ -253,7 +255,7 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).not.toContain('script2: 2')
 })
 
-test('hidden scripts (starting with .) cannot be run directly', () => {
+skipIfPacquet('hidden scripts (starting with .) cannot be run directly', () => {
   prepare({
     scripts: {
       '.build': 'echo hidden',
@@ -267,7 +269,7 @@ test('hidden scripts (starting with .) cannot be run directly', () => {
   expect(output).toContain('HIDDEN_SCRIPT')
 })
 
-test('hidden scripts can be called from other scripts', () => {
+skipIfPacquet('hidden scripts can be called from other scripts', () => {
   prepare({
     scripts: {
       '.build': 'echo hidden-ok',
@@ -280,7 +282,7 @@ test('hidden scripts can be called from other scripts', () => {
   expect(result.stdout.toString()).toContain('hidden-ok')
 })
 
-test('hidden scripts are not shown in pnpm run listing', () => {
+skipIfPacquet('hidden scripts are not shown in pnpm run listing', () => {
   prepare({
     scripts: {
       '.internal': 'echo hidden',
@@ -293,7 +295,7 @@ test('hidden scripts are not shown in pnpm run listing', () => {
   expect(result.stdout.toString()).not.toContain('.internal')
 })
 
-test('regex selector skips hidden scripts', () => {
+skipIfPacquet('regex selector skips hidden scripts', () => {
   prepare({
     scripts: {
       '.build-internal': 'echo hidden',

@@ -26,9 +26,13 @@ import { symlinkDir } from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('no projects matched the filters', async () => {
+skipIfPacquet('no projects matched the filters', async () => {
   preparePackages([
     {
       name: 'project',
@@ -53,7 +57,7 @@ test('no projects matched the filters', async () => {
   }
 })
 
-test('no projects found', async () => {
+skipIfPacquet('no projects found', async () => {
   prepareEmpty()
 
   {
@@ -66,7 +70,7 @@ test('no projects found', async () => {
   }
 })
 
-test('empty pnpm-workspace.yaml should not break pnpm run -r', async () => {
+skipIfPacquet('empty pnpm-workspace.yaml should not break pnpm run -r', async () => {
   prepare({
     name: 'project',
     version: '1.0.0',
@@ -109,7 +113,7 @@ invalidWorkspaceManifests.forEach((filename) => {
   })
 })
 
-test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
+skipIfPacquet('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -153,7 +157,7 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   projects['project-1'].has('project-4')
 })
 
-test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies and save-workspace-protocol is "rolling"', async () => {
+skipIfPacquet('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies and save-workspace-protocol is "rolling"', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -198,7 +202,7 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   projects['project-1'].has('project-4')
 })
 
-test('linking a package inside a monorepo with --link-workspace-packages', async () => {
+skipIfPacquet('linking a package inside a monorepo with --link-workspace-packages', async () => {
   await using server = await createTestIpcServer()
 
   const projects = preparePackages([
@@ -281,7 +285,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   }
 })
 
-test('topological order of packages with self-dependencies in monorepo is correct', async () => {
+skipIfPacquet('topological order of packages with self-dependencies in monorepo is correct', async () => {
   await using server1 = await createTestIpcServer()
   await using server2 = await createTestIpcServer()
 
@@ -333,7 +337,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
   expect(server2.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
 
-test('testPattern is respected by the test script', async () => {
+skipIfPacquet('testPattern is respected by the test script', async () => {
   await using server = await createTestIpcServer()
 
   const remote = temporaryDirectory()
@@ -401,7 +405,7 @@ test('testPattern is respected by the test script', async () => {
   expect(server.getLines().sort()).toEqual(['project-2', 'project-4'])
 })
 
-test('changedFilesIgnorePattern is respected', async () => {
+skipIfPacquet('changedFilesIgnorePattern is respected', async () => {
   const remote = temporaryDirectory()
 
   preparePackages([
@@ -509,7 +513,7 @@ test('changedFilesIgnorePattern is respected', async () => {
   ])
 })
 
-test('do not get confused by filtered dependencies when searching for dependents in monorepo', async () => {
+skipIfPacquet('do not get confused by filtered dependencies when searching for dependents in monorepo', async () => {
   /*
    In this test case, we are filtering for 'project-2' and its dependents with
    two projects in the dependency hierarchy, that can be ignored for this query,
@@ -569,7 +573,7 @@ test('do not get confused by filtered dependencies when searching for dependents
   expect(project2Output < project4Output).toBeTruthy()
 })
 
-test('installation with --link-workspace-packages links packages even if they were previously installed from registry', async () => {
+skipIfPacquet('installation with --link-workspace-packages links packages even if they were previously installed from registry', async () => {
   const projects = preparePackages([
     {
       name: 'project',
@@ -607,7 +611,7 @@ test('installation with --link-workspace-packages links packages even if they we
   }
 })
 
-test('shared-workspace-lockfile: installation with --link-workspace-packages links packages even if they were previously installed from registry', async () => {
+skipIfPacquet('shared-workspace-lockfile: installation with --link-workspace-packages links packages even if they were previously installed from registry', async () => {
   const projects = preparePackages([
     {
       name: 'project',
@@ -661,7 +665,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   }
 })
 
-test('recursive install with link-workspace-packages and shared-workspace-lockfile', async () => {
+skipIfPacquet('recursive install with link-workspace-packages and shared-workspace-lockfile', async () => {
   await using server = await createTestIpcServer()
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const projects = preparePackages([
@@ -731,7 +735,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   }
 })
 
-test('recursive install with shared-workspace-lockfile builds workspace projects in correct order', async () => {
+skipIfPacquet('recursive install with shared-workspace-lockfile builds workspace projects in correct order', async () => {
   await using server1 = await createTestIpcServer()
   await using server2 = await createTestIpcServer()
 
@@ -825,7 +829,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
   ])
 })
 
-test('recursive installation with shared-workspace-lockfile and a readPackage hook', async () => {
+skipIfPacquet('recursive installation with shared-workspace-lockfile and a readPackage hook', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -866,7 +870,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
   projects['project-1'].hasNot('project-1')
 })
 
-test('local packages should be preferred when running "pnpm install" inside a workspace', async () => {
+skipIfPacquet('local packages should be preferred when running "pnpm install" inside a workspace', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -898,7 +902,7 @@ test('local packages should be preferred when running "pnpm install" inside a wo
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1437
-test('shared-workspace-lockfile: create shared lockfile format when installation is inside workspace', async () => {
+skipIfPacquet('shared-workspace-lockfile: create shared lockfile format when installation is inside workspace', async () => {
   prepare({
     dependencies: {
       'is-positive': '1.0.0',
@@ -919,7 +923,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
-test("shared-workspace-lockfile: don't install dependencies in projects that are outside of the current workspace", async () => {
+skipIfPacquet("shared-workspace-lockfile: don't install dependencies in projects that are outside of the current workspace", async () => {
   preparePackages([
     {
       location: 'workspace-1/package-1',
@@ -993,7 +997,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
   })
 })
 
-test('shared-workspace-lockfile: install dependencies in projects that are relative to the workspace directory', async () => {
+skipIfPacquet('shared-workspace-lockfile: install dependencies in projects that are relative to the workspace directory', async () => {
   preparePackages([
     {
       location: 'monorepo/workspace',
@@ -1105,7 +1109,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
   })
 })
 
-test('shared-workspace-lockfile: entries of removed projects should be removed from shared lockfile', async () => {
+skipIfPacquet('shared-workspace-lockfile: entries of removed projects should be removed from shared lockfile', async () => {
   preparePackages([
     {
       name: 'package-1',
@@ -1159,7 +1163,7 @@ test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is f
   project.has('is-positive')
 })
 
-test('shared-workspace-lockfile: removing a package recursively', async () => {
+skipIfPacquet('shared-workspace-lockfile: removing a package recursively', async () => {
   preparePackages([
     {
       name: 'project1',
@@ -1212,7 +1216,7 @@ test('shared-workspace-lockfile: removing a package recursively', async () => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
-test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async () => {
+skipIfPacquet('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async () => {
   preparePackages([
     {
       name: 'foo',
@@ -1278,7 +1282,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }
 })
 
-test('dependencies of workspace projects are built during headless installation', async () => {
+skipIfPacquet('dependencies of workspace projects are built during headless installation', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -1314,7 +1318,7 @@ test('dependencies of workspace projects are built during headless installation'
   }
 })
 
-test("linking the package's bin to another workspace package in a monorepo", async () => {
+skipIfPacquet("linking the package's bin to another workspace package in a monorepo", async () => {
   const projects = preparePackages([
     {
       name: 'hello',
@@ -1349,7 +1353,7 @@ test("linking the package's bin to another workspace package in a monorepo", asy
   projects.main.isExecutable('.bin/hello')
 })
 
-test('pnpm sees the bins from the root of the workspace', async () => {
+skipIfPacquet('pnpm sees the bins from the root of the workspace', async () => {
   preparePackages([
     {
       location: '.',
@@ -1464,7 +1468,7 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
   })).toBeTruthy() // root project is present even when explicitly ignored
 })
 
-test('custom virtual store directory in a workspace with not shared lockfile', async () => {
+skipIfPacquet('custom virtual store directory in a workspace with not shared lockfile', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -1511,7 +1515,7 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
   }
 })
 
-test('custom virtual store directory in a workspace with shared lockfile', async () => {
+skipIfPacquet('custom virtual store directory in a workspace with shared lockfile', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -1547,7 +1551,7 @@ test('custom virtual store directory in a workspace with shared lockfile', async
   }
 })
 
-test('pnpm run should ignore the root project', async () => {
+skipIfPacquet('pnpm run should ignore the root project', async () => {
   preparePackages([
     {
       location: '.',
@@ -1573,7 +1577,7 @@ test('pnpm run should ignore the root project', async () => {
   expect(fs.existsSync('project/test')).toBeTruthy()
 })
 
-test('pnpm run should include the workspace root when --workspace-root option is used', async () => {
+skipIfPacquet('pnpm run should include the workspace root when --workspace-root option is used', async () => {
   preparePackages([
     {
       location: '.',
@@ -1600,7 +1604,7 @@ test('pnpm run should include the workspace root when --workspace-root option is
   expect(fs.existsSync('project/test')).toBeTruthy()
 })
 
-test('pnpm run should include the workspace root when include-workspace-root is set to true', async () => {
+skipIfPacquet('pnpm run should include the workspace root when include-workspace-root is set to true', async () => {
   preparePackages([
     {
       location: '.',
@@ -1630,7 +1634,7 @@ test('pnpm run should include the workspace root when include-workspace-root is 
   expect(fs.existsSync('project/test')).toBeTruthy()
 })
 
-test('legacy directory filtering', async () => {
+skipIfPacquet('legacy directory filtering', async () => {
   preparePackages([
     {
       location: 'packages/project-1',
@@ -1659,7 +1663,7 @@ test('legacy directory filtering', async () => {
   expect(output).toContain('project-2')
 })
 
-test('directory filtering', async () => {
+skipIfPacquet('directory filtering', async () => {
   preparePackages([
     {
       location: 'packages/project-1',
@@ -1691,7 +1695,7 @@ test('directory filtering', async () => {
   }
 })
 
-test('run --stream should prefix with dir name', async () => {
+skipIfPacquet('run --stream should prefix with dir name', async () => {
   preparePackages([
     {
       location: '.',
@@ -1773,7 +1777,7 @@ packages/alfa test: OK`
   )
 })
 
-test('run --reporter-hide-prefix should hide prefix', async () => {
+skipIfPacquet('run --reporter-hide-prefix should hide prefix', async () => {
   preparePackages([
     {
       location: '.',
@@ -1858,7 +1862,7 @@ packages/alfa test: Done`
   )
 })
 
-test('peer dependencies are resolved from the root of the workspace when a new dependency is added to a workspace project', async () => {
+skipIfPacquet('peer dependencies are resolved from the root of the workspace when a new dependency is added to a workspace project', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -1887,7 +1891,7 @@ test('peer dependencies are resolved from the root of the workspace when a new d
   expect(lockfile.snapshots).toHaveProperty(['ajv-keywords@1.5.0(ajv@4.10.4)'])
 })
 
-test('overrides in workspace project should be taken into account when shared-workspace-lockfiles is false', async () => {
+skipIfPacquet('overrides in workspace project should be taken into account when shared-workspace-lockfiles is false', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -1919,7 +1923,7 @@ test('overrides in workspace project should be taken into account when shared-wo
   })
 })
 
-test('deploy should keep files created by lifecycle scripts', async () => {
+skipIfPacquet('deploy should keep files created by lifecycle scripts', async () => {
   const preparedManifests = {
     root: {
       name: 'root',
@@ -1970,7 +1974,7 @@ test('deploy should keep files created by lifecycle scripts', async () => {
   }
 })
 
-test('rebuild in a directory created with "pnpm deploy" should run lifecycle scripts', async () => {
+skipIfPacquet('rebuild in a directory created with "pnpm deploy" should run lifecycle scripts', async () => {
   const preparedManifests = {
     root: {
       name: 'root',

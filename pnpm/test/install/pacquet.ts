@@ -4,7 +4,11 @@ import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't
 // carry it (or its platform-specific binary sub-packages). Pinned to a
@@ -38,7 +42,7 @@ async function prepareWithPacquet (opts: PrepareOpts = {}): Promise<void> {
   await execPnpm([PUBLIC_REGISTRY, 'install'])
 }
 
-test('pnpm install --frozen-lockfile delegates to pacquet when declared in configDependencies', async () => {
+skipIfPacquet('pnpm install --frozen-lockfile delegates to pacquet when declared in configDependencies', async () => {
   await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '3.1.0' } } })
   expect(fs.existsSync('node_modules/.pnpm-config/pacquet/bin/pacquet')).toBe(true)
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
@@ -56,7 +60,7 @@ test('pnpm install --frozen-lockfile delegates to pacquet when declared in confi
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
-test('bare `pnpm install` (no --frozen-lockfile) delegates the materialization to pacquet', async () => {
+skipIfPacquet('bare `pnpm install` (no --frozen-lockfile) delegates the materialization to pacquet', async () => {
   await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '3.1.0' } } })
   await fs.promises.rm('node_modules', { recursive: true, force: true })
 

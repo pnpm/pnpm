@@ -14,9 +14,10 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import {
   execPnpm,
   execPnpmSync,
+  skipIfPacquet,
 } from '../utils/index.js'
 
-test('recursive installation with packageConfigs', async () => {
+skipIfPacquet('recursive installation with packageConfigs', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -56,7 +57,7 @@ test('recursive installation with packageConfigs', async () => {
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
-test('workspace packageConfigs is always read', async () => {
+skipIfPacquet('workspace packageConfigs is always read', async () => {
   const projects = preparePackages([
     {
       location: 'workspace/project-1',
@@ -111,7 +112,7 @@ test('workspace packageConfigs is always read', async () => {
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
-test('recursive installation of packages with hooks', async () => {
+skipIfPacquet('recursive installation of packages with hooks', async () => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
   const projects = preparePackages([
@@ -158,7 +159,7 @@ test('recursive installation of packages with hooks', async () => {
   expect(lockfile2.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
-test('recursive installation of packages in workspace ignores hooks in packages', async () => {
+skipIfPacquet('recursive installation of packages in workspace ignores hooks in packages', async () => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
   preparePackages([
@@ -209,7 +210,7 @@ test('recursive installation of packages in workspace ignores hooks in packages'
   expect(depPaths).toContain('is-number@1.0.0')
 })
 
-test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile is used', async () => {
+skipIfPacquet('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile is used', async () => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
   const projects = preparePackages([
@@ -256,7 +257,7 @@ test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile
   expect(lockfile2.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
-test('recursive command with filter from config', async () => {
+skipIfPacquet('recursive command with filter from config', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -336,7 +337,7 @@ test('non-recursive install ignores filter from config', async () => {
   projects['project-3'].hasNot('minimatch')
 })
 
-test('adding new dependency in the root should fail if neither --workspace-root nor --ignore-workspace-root-check are used', async () => {
+skipIfPacquet('adding new dependency in the root should fail if neither --workspace-root nor --ignore-workspace-root-check are used', async () => {
   const project = preparePackages([
     {
       location: '.',
@@ -384,7 +385,7 @@ test('adding new dependency in the root should fail if neither --workspace-root 
   }
 })
 
-test('--workspace-packages', async () => {
+skipIfPacquet('--workspace-packages', async () => {
   const projects = preparePackages([
     {
       location: 'project-1',
@@ -419,7 +420,7 @@ test('--workspace-packages', async () => {
   projects['project-2'].hasNot('is-positive')
 })
 
-test('set recursive-install to false in .npmrc would disable recursive install in workspace', async () => {
+skipIfPacquet('set recursive-install to false in .npmrc would disable recursive install in workspace', async () => {
   const projects = preparePackages([
     {
       location: 'workspace/project-1',
@@ -459,7 +460,7 @@ test('set recursive-install to false in .npmrc would disable recursive install i
   projects['project-2'].hasNot('is-negative')
 })
 
-test('set recursive-install to false would install as --filter {.}...', async () => {
+skipIfPacquet('set recursive-install to false would install as --filter {.}...', async () => {
   const projects = preparePackages([
     {
       location: 'workspace/project-1',

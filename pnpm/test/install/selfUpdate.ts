@@ -1,15 +1,19 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH_NAME from 'path-name'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('self-update updates the packageManager field in package.json', async () => {
+skipIfPacquet('self-update updates the packageManager field in package.json', async () => {
   prepare({
     packageManager: 'pnpm@9.0.0',
   })
@@ -27,7 +31,7 @@ test('self-update updates the packageManager field in package.json', async () =>
   expect(loadJsonFileSync<ProjectManifest>('package.json').packageManager).toBe('pnpm@10.0.0')
 })
 
-test('version switch reuses pnpm previously installed by self-update', async () => {
+skipIfPacquet('version switch reuses pnpm previously installed by self-update', async () => {
   prepare({})
 
   const pnpmHome = process.cwd()

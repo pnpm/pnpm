@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { readYamlFileSync } from 'read-yaml-file'
@@ -9,9 +9,10 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
+  skipIfPacquet,
 } from './utils/index.js'
 
-test('update <dep>', async () => {
+skipIfPacquet('update <dep>', async () => {
   const project = prepare()
 
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest')
@@ -31,7 +32,7 @@ test('update <dep>', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
 })
 
-test('update --no-save', async () => {
+skipIfPacquet('update --no-save', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   const project = prepare({
     dependencies: {
@@ -48,7 +49,7 @@ test('update --no-save', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
 })
 
-test('update', async () => {
+skipIfPacquet('update', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.0.0', 'latest')
   const project = prepare({
     dependencies: {
@@ -69,7 +70,7 @@ test('update', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
-test('recursive update --no-save', async () => {
+skipIfPacquet('recursive update --no-save', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   preparePackages([
     {
@@ -92,7 +93,7 @@ test('recursive update --no-save', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
 })
 
-test('recursive update', async () => {
+skipIfPacquet('recursive update', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   preparePackages([
     {
@@ -115,7 +116,7 @@ test('recursive update', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
-test('recursive update --no-shared-workspace-lockfile', async function () {
+skipIfPacquet('recursive update --no-shared-workspace-lockfile', async function () {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   const projects = preparePackages([
     {
@@ -140,7 +141,7 @@ test('recursive update --no-shared-workspace-lockfile', async function () {
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
-test('update --latest', async function () {
+skipIfPacquet('update --latest', async function () {
   const project = prepare()
 
   await Promise.all([
@@ -167,7 +168,7 @@ test('update --latest', async function () {
   expect(pkg.dependencies?.['is-negative']).toBe('github:kevva/is-negative')
 })
 
-test('update --latest --save-exact', async function () {
+skipIfPacquet('update --latest --save-exact', async function () {
   const project = prepare()
 
   await Promise.all([
@@ -194,7 +195,7 @@ test('update --latest --save-exact', async function () {
   expect(pkg.dependencies?.['is-negative']).toBe('github:kevva/is-negative')
 })
 
-test('update --latest specific dependency', async function () {
+skipIfPacquet('update --latest specific dependency', async function () {
   const project = prepare()
 
   await Promise.all([
@@ -222,7 +223,7 @@ test('update --latest specific dependency', async function () {
   expect(pkg.dependencies?.['is-negative']).toBe('github:kevva/is-negative')
 })
 
-test('update --latest --prod', async function () {
+skipIfPacquet('update --latest --prod', async function () {
   const project = prepare()
 
   await Promise.all([
@@ -246,7 +247,7 @@ test('update --latest --prod', async function () {
   project.has('@pnpm.e2e/dep-of-pkg-with-1-dep') // not pruned
 })
 
-test('recursive update --latest on projects that do not share a lockfile', async () => {
+skipIfPacquet('recursive update --latest on projects that do not share a lockfile', async () => {
   await Promise.all([
     addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
@@ -299,7 +300,7 @@ test('recursive update --latest on projects that do not share a lockfile', async
   expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
 })
 
-test('recursive update --latest --prod on projects that do not share a lockfile', async () => {
+skipIfPacquet('recursive update --latest --prod on projects that do not share a lockfile', async () => {
   await Promise.all([
     addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
@@ -366,7 +367,7 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
   projects['project-2'].has('@pnpm.e2e/foo')
 })
 
-test('recursive update --latest specific dependency on projects that do not share a lockfile', async () => {
+skipIfPacquet('recursive update --latest specific dependency on projects that do not share a lockfile', async () => {
   await Promise.all([
     addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
@@ -423,7 +424,7 @@ test('recursive update --latest specific dependency on projects that do not shar
   expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
 })
 
-test('recursive update --latest on projects with a shared a lockfile', async () => {
+skipIfPacquet('recursive update --latest on projects with a shared a lockfile', async () => {
   await Promise.all([
     addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
@@ -475,7 +476,7 @@ test('recursive update --latest on projects with a shared a lockfile', async () 
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
 })
 
-test('recursive update --latest --prod on projects with a shared a lockfile', async () => {
+skipIfPacquet('recursive update --latest --prod on projects with a shared a lockfile', async () => {
   await Promise.all([
     addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
@@ -540,7 +541,7 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
   projects['project-2'].has('@pnpm.e2e/bar')
 })
 
-test('recursive update --latest specific dependency on projects with a shared a lockfile', async () => {
+skipIfPacquet('recursive update --latest specific dependency on projects with a shared a lockfile', async () => {
   await Promise.all([
     addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest'),
@@ -596,7 +597,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
 })
 
-test('deep update', async function () {
+skipIfPacquet('deep update', async function () {
   const project = prepare()
 
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -612,7 +613,7 @@ test('deep update', async function () {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test('update to latest without downgrading already defined prerelease (#7436)', async function () {
+skipIfPacquet('update to latest without downgrading already defined prerelease (#7436)', async function () {
   prepare()
 
   await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
@@ -656,7 +657,7 @@ test('update to latest without downgrading already defined prerelease (#7436)', 
   expect(lockfile3).not.toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
 })
 
-test('update with tag @latest will downgrade prerelease', async function () {
+skipIfPacquet('update with tag @latest will downgrade prerelease', async function () {
   prepare()
 
   await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
@@ -687,7 +688,7 @@ test('update with tag @latest will downgrade prerelease', async function () {
   expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@2.0.0'])
 })
 
-test('update indirect dependency should not update package.json', async function () {
+skipIfPacquet('update indirect dependency should not update package.json', async function () {
   const project = prepare({
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
@@ -725,7 +726,7 @@ test('update indirect dependency should not update package.json', async function
   expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
 })
 
-test('update to latest recursive workspace (outdated, updated, prerelease, outdated)', async function () {
+skipIfPacquet('update to latest recursive workspace (outdated, updated, prerelease, outdated)', async function () {
   await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
 
   preparePackages([
@@ -804,7 +805,7 @@ test('update to latest recursive workspace (outdated, updated, prerelease, outda
   expect(lockfile2).toHaveProperty(['packages', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
 })
 
-test('update to latest recursive workspace (prerelease, outdated)', async function () {
+skipIfPacquet('update to latest recursive workspace (prerelease, outdated)', async function () {
   await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
 
   preparePackages([

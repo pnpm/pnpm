@@ -12,12 +12,13 @@ import {
   execPnpm,
   execPnpmSync,
   execPnpxSync,
+  skipIfPacquet,
 } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
-test('commands that were previously passed through to npm now fail', () => {
+skipIfPacquet('commands that were previously passed through to npm now fail', () => {
   const result = execPnpmSync(['access', 'public'])
 
   expect(result.status).not.toBe(0)
@@ -25,7 +26,7 @@ test('commands that were previously passed through to npm now fail', () => {
   expect(output).toContain('ERR_PNPM_NOT_IMPLEMENTED')
 })
 
-test('installs in the folder where the package.json file is', async () => {
+skipIfPacquet('installs in the folder where the package.json file is', async () => {
   const project = prepare()
 
   fs.mkdirSync('subdir')
@@ -38,7 +39,7 @@ test('installs in the folder where the package.json file is', async () => {
   project.isExecutable('.bin/rimraf')
 })
 
-test('pnpm import does not move modules created by npm', async () => {
+skipIfPacquet('pnpm import does not move modules created by npm', async () => {
   prepare()
 
   await execa('npm', ['install', 'is-positive@1.0.0', '--save'])
@@ -62,7 +63,7 @@ test('previously passed through commands fail without package.json', async () =>
   expect(result.status).not.toBe(0)
 })
 
-test('pnpm fails when an unsupported command is used', async () => {
+skipIfPacquet('pnpm fails when an unsupported command is used', async () => {
   prepare()
 
   const { status } = execPnpmSync(['unsupported-command'])
@@ -70,7 +71,7 @@ test('pnpm fails when an unsupported command is used', async () => {
   expect(status).toBe(1)
 })
 
-test('pnpm fails when no command is specified', async () => {
+skipIfPacquet('pnpm fails when no command is specified', async () => {
   prepare()
 
   const { status, stdout } = execPnpmSync([])
@@ -79,7 +80,7 @@ test('pnpm fails when no command is specified', async () => {
   expect(stdout.toString()).toMatch(/Usage:/)
 })
 
-test('command fails when an unsupported flag is used', async () => {
+skipIfPacquet('command fails when an unsupported flag is used', async () => {
   prepare()
 
   const { status, stderr } = execPnpmSync(['update', '--save-dev'])
@@ -88,7 +89,7 @@ test('command fails when an unsupported flag is used', async () => {
   expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
 })
 
-test('implicit run command fails when an unsupported top-level flag is used', () => {
+skipIfPacquet('implicit run command fails when an unsupported top-level flag is used', () => {
   prepare({
     scripts: {
       web: 'node -e "console.log(\'script should not run\')"',
@@ -103,7 +104,7 @@ test('implicit run command fails when an unsupported top-level flag is used', ()
   expect(stderr.toString()).toMatch(/Did you mean 'filter'/)
 })
 
-test('command fails when a deprecated option is used', async () => {
+skipIfPacquet('command fails when a deprecated option is used', async () => {
   prepare()
 
   const { status, stderr } = execPnpmSync(['install', '--no-lock'])
@@ -112,7 +113,7 @@ test('command fails when a deprecated option is used', async () => {
   expect(stderr.toString()).toMatch(/Unknown option: 'lock'/)
 })
 
-test('command fails when deprecated options are used', async () => {
+skipIfPacquet('command fails when deprecated options are used', async () => {
   prepare()
 
   const { status, stderr } = execPnpmSync(['install', '--no-lock', '--independent-leaves'])
@@ -121,7 +122,7 @@ test('command fails when deprecated options are used', async () => {
   expect(stderr.toString()).toMatch(/Unknown options: 'lock', 'independent-leaves'/)
 })
 
-test('adding new dep does not fail if node_modules was created with --public-hoist-pattern=eslint-*', async () => {
+skipIfPacquet('adding new dep does not fail if node_modules was created with --public-hoist-pattern=eslint-*', async () => {
   const project = prepare()
 
   await execPnpm(['add', 'is-positive', '--public-hoist-pattern=eslint-*'])
@@ -151,7 +152,7 @@ test('pnpx works', () => {
   expect(result.status).toBe(0)
 })
 
-test('exit code from plugin is used to end the process', () => {
+skipIfPacquet('exit code from plugin is used to end the process', () => {
   process.chdir(hasOutdatedDepsFixture)
   const result = execPnpmSync(['outdated'])
 
@@ -159,13 +160,13 @@ test('exit code from plugin is used to end the process', () => {
   expect(result.stdout.toString()).toMatch(/is-positive/)
 })
 
-test('if an unknown command is executed, run it', async () => {
+skipIfPacquet('if an unknown command is executed, run it', async () => {
   prepare({})
   await execPnpm(['node', '-e', "require('fs').writeFileSync('foo','','utf8')"])
   expect(fs.readFileSync('foo', 'utf8')).toBe('')
 })
 
-test.each([
+skipIfPacquet.each([
   { message: 'npm_command env available on special lifecycle hooks', script: 'prepare', command: 'install' },
   { message: 'npm_command env available on special lifecycle hooks (alias)', script: 'prepare', command: 'i', expected: 'install' },
   { message: 'npm_command env available on pre lifecycle hooks', script: 'prepack', command: 'pack' },

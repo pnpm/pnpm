@@ -9,6 +9,7 @@ on:
     types: [opened, synchronize]
     paths:
       - 'pacquet/**'
+      - 'pnpm/test/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -27,6 +28,7 @@ on:
       - main
     paths:
       - 'pacquet/**'
+      - 'pnpm/test/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -111,6 +113,61 @@ jobs:
           just test
 
           just registry-mock end
+
+  pnpm-e2e:
+    name: pnpm e2e (against pacquet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Rust Toolchain
+        uses: ./.github/actions/rustup
+        with:
+          save-cache: ${{ github.ref_name == 'main' }}
+          shared-key: 'pnpm-e2e'
+
+      - name: Build pacquet release binary
+        run: cargo build --locked --release --bin pacquet
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+        with:
+          install: false
+          # Node 22.13.0 matches the minimum supported version in pnpm/package.json
+          # (engines.node = ">=22.13") and is known to work with jest's ESM VM
+          # modules path; newer 24.x patches have a regression that breaks it.
+          runtime: node@22.13.0
+
+      - name: Cache pnpm
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          key: pnpm-e2e-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-e2e-${{ runner.os }}-
+          path: |
+            ${{ env.PNPM_HOME }}/store/v11
+            ${{ env.HOME }}/.local/share/pnpm/store/v11
+        timeout-minutes: 1
+        continue-on-error: true
+
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build pnpm bundle
+        run: pnpm --filter pnpm run compile
+
+      - name: Run pnpm e2e against pacquet
+        working-directory: pnpm
+        env:
+          PNPM_E2E_BIN: ${{ github.workspace }}/target/release/pacquet
+        # `pnpm test` would rebuild the bundle we just built; invoke jest
+        # directly via the same env the hidden `.test` script uses.
+        run: |
+          pnpm exec cross-env \
+            NODE_OPTIONS="--experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" \
+            jest
 
   doc:
     name: Doc

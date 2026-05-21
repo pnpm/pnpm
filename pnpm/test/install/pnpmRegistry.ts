@@ -3,7 +3,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterAll, beforeAll, expect, test } from '@jest/globals'
+import { afterAll, beforeAll, expect } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -11,7 +11,10 @@ import { loadJsonFileSync } from 'load-json-file'
 import { createRegistryServer } from 'pnpm-agent'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -73,7 +76,7 @@ afterAll(async () => {
   await fs.promises.rm(tmpBaseDir, { recursive: true, force: true })
 })
 
-test('pnpm install uses pnpm agent when configured', async () => {
+skipIfPacquet('pnpm install uses pnpm agent when configured', async () => {
   prepare({
     dependencies: {
       'is-positive': '1.0.0',
@@ -96,7 +99,7 @@ test('pnpm install uses pnpm agent when configured', async () => {
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
 })
 
-test('pnpm add uses pnpm agent when configured', async () => {
+skipIfPacquet('pnpm add uses pnpm agent when configured', async () => {
   prepare({
     dependencies: {
       'is-negative': '1.0.0',
@@ -122,7 +125,7 @@ test('pnpm add uses pnpm agent when configured', async () => {
   expect(manifest.dependencies?.['is-negative']).toBe('1.0.0')
 })
 
-test('pnpm remove uses pnpm agent when configured', async () => {
+skipIfPacquet('pnpm remove uses pnpm agent when configured', async () => {
   prepare({
     dependencies: {
       'is-positive': '1.0.0',
@@ -147,7 +150,7 @@ test('pnpm remove uses pnpm agent when configured', async () => {
   expect(manifest.dependencies?.['is-negative']).toBeUndefined()
 })
 
-test('pnpm add without a version uses the pnpm agent and writes the save-prefix spec from the lockfile', async () => {
+skipIfPacquet('pnpm add without a version uses the pnpm agent and writes the save-prefix spec from the lockfile', async () => {
   prepare({})
 
   requestCount = 0
@@ -166,7 +169,7 @@ test('pnpm add without a version uses the pnpm agent and writes the save-prefix 
   expect(manifest.dependencies?.['is-positive']).toMatch(/^\^\d+\.\d+\.\d+$/)
 })
 
-test('pnpm add -D uses pnpm agent and targets devDependencies', async () => {
+skipIfPacquet('pnpm add -D uses pnpm agent and targets devDependencies', async () => {
   prepare({})
 
   requestCount = 0
@@ -186,7 +189,7 @@ test('pnpm add -D uses pnpm agent and targets devDependencies', async () => {
   expect(manifest.dependencies?.['is-positive']).toBeUndefined()
 })
 
-test('pnpm add with multiple selectors uses pnpm agent', async () => {
+skipIfPacquet('pnpm add with multiple selectors uses pnpm agent', async () => {
   prepare({})
 
   requestCount = 0
@@ -204,7 +207,7 @@ test('pnpm add with multiple selectors uses pnpm agent', async () => {
   expect(manifest.dependencies?.['is-negative']).toBe('1.0.0')
 })
 
-test('pnpm --filter remove inside a workspace uses pnpm agent', async () => {
+skipIfPacquet('pnpm --filter remove inside a workspace uses pnpm agent', async () => {
   preparePackages([
     {
       name: 'project-a',
@@ -244,7 +247,7 @@ test('pnpm --filter remove inside a workspace uses pnpm agent', async () => {
   expect(projectBManifest.dependencies?.['is-positive']).toBe('1.0.0')
 })
 
-test('pnpm add inside a workspace project uses pnpm agent', async () => {
+skipIfPacquet('pnpm add inside a workspace project uses pnpm agent', async () => {
   preparePackages([
     {
       name: 'project-a',
@@ -279,7 +282,7 @@ test('pnpm add inside a workspace project uses pnpm agent', async () => {
   expect(projectBManifest.dependencies?.['is-negative']).toBe('1.0.0')
 })
 
-test('pnpm install with agent works in a workspace with multiple projects', async () => {
+skipIfPacquet('pnpm install with agent works in a workspace with multiple projects', async () => {
   preparePackages([
     {
       name: 'project-a',

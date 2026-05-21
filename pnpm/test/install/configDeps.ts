@@ -4,9 +4,13 @@ import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('installing configDependencies migrating to env lockfile', async () => {
+skipIfPacquet('installing configDependencies migrating to env lockfile', async () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
@@ -20,7 +24,7 @@ test('installing configDependencies migrating to env lockfile', async () => {
   expect(envLockfile?.importers['.'].configDependencies['@pnpm.e2e/foo'].version).toBe('100.0.0')
 })
 
-test('installing configDependencies fails with --frozen-lockfile if env lockfile is missing', async () => {
+skipIfPacquet('installing configDependencies fails with --frozen-lockfile if env lockfile is missing', async () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {

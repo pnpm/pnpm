@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -13,9 +13,10 @@ import {
   addDistTag,
   execPnpm,
   execPnpmSync,
+  skipIfPacquet,
 } from '../utils/index.js'
 
-test('readPackage hook', async () => {
+skipIfPacquet('readPackage hook', async () => {
   const project = prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
@@ -40,7 +41,7 @@ test('readPackage hook', async () => {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('readPackage async hook', async () => {
+skipIfPacquet('readPackage async hook', async () => {
   const project = prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
@@ -65,7 +66,7 @@ test('readPackage async hook', async () => {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('readPackage hook makes installation fail if it does not return the modified package manifests', async () => {
+skipIfPacquet('readPackage hook makes installation fail if it does not return the modified package manifests', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
@@ -82,7 +83,7 @@ test('readPackage hook makes installation fail if it does not return the modifie
   expect(result.status).toBe(1)
 })
 
-test('readPackage hook from custom location', async () => {
+skipIfPacquet('readPackage hook from custom location', async () => {
   const project = prepare()
 
   fs.writeFileSync('pnpm.js', `
@@ -107,7 +108,7 @@ test('readPackage hook from custom location', async () => {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('readPackage hook from global pnpmfile', async () => {
+skipIfPacquet('readPackage hook from global pnpmfile', async () => {
   const project = prepare()
 
   fs.writeFileSync('../.pnpmfile.cjs', `
@@ -132,7 +133,7 @@ test('readPackage hook from global pnpmfile', async () => {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
+skipIfPacquet('readPackage hook from global pnpmfile and local pnpmfile', async () => {
   const project = prepare()
 
   fs.writeFileSync('../.pnpmfile.cjs', `
@@ -173,7 +174,7 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
   project.storeHas('is-positive', '1.0.0')
 })
 
-test('readPackage async hook from global pnpmfile and local pnpmfile', async () => {
+skipIfPacquet('readPackage async hook from global pnpmfile and local pnpmfile', async () => {
   const project = prepare()
 
   fs.writeFileSync('../.pnpmfile.cjs', `
@@ -214,7 +215,7 @@ test('readPackage async hook from global pnpmfile and local pnpmfile', async () 
   project.storeHas('is-positive', '1.0.0')
 })
 
-test('readPackage hook from pnpmfile at root of workspace', async () => {
+skipIfPacquet('readPackage hook from pnpmfile at root of workspace', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -260,7 +261,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
   })
 })
 
-test('readPackage hook during update', async () => {
+skipIfPacquet('readPackage hook during update', async () => {
   const project = prepare({
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '*',
@@ -289,7 +290,7 @@ test('readPackage hook during update', async () => {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('prints meaningful error when there is syntax error in .pnpmfile.cjs', async () => {
+skipIfPacquet('prints meaningful error when there is syntax error in .pnpmfile.cjs', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', '/boom', 'utf8')
@@ -300,7 +301,7 @@ test('prints meaningful error when there is syntax error in .pnpmfile.cjs', asyn
   expect(proc.status).toBe(1)
 })
 
-test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
+skipIfPacquet('fails when .pnpmfile.cjs requires a non-existed module', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
@@ -311,7 +312,7 @@ test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
   expect(proc.status).toBe(1)
 })
 
-test('ignore .pnpmfile.cjs when --ignore-pnpmfile is used', async () => {
+skipIfPacquet('ignore .pnpmfile.cjs when --ignore-pnpmfile is used', async () => {
   const project = prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
@@ -335,7 +336,7 @@ test('ignore .pnpmfile.cjs when --ignore-pnpmfile is used', async () => {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async () => {
+skipIfPacquet('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async () => {
   const project = prepare({
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '*',
@@ -363,7 +364,7 @@ test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test('pnpmfile: pass log function to readPackage hook', async () => {
+skipIfPacquet('pnpmfile: pass log function to readPackage hook', async () => {
   const project = prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
@@ -401,7 +402,7 @@ test('pnpmfile: pass log function to readPackage hook', async () => {
   expect(hookLog.message).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0')
 })
 
-test('pnpmfile: pass log function to readPackage hook of global and local pnpmfile', async () => {
+skipIfPacquet('pnpmfile: pass log function to readPackage hook of global and local pnpmfile', async () => {
   const project = prepare()
 
   fs.writeFileSync('../.pnpmfile.cjs', `
@@ -465,7 +466,7 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
   expect(hookLogs[0].from).not.toBe(hookLogs[1].from)
 })
 
-test('pnpmfile: run afterAllResolved hook', async () => {
+skipIfPacquet('pnpmfile: run afterAllResolved hook', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
@@ -495,7 +496,7 @@ test('pnpmfile: run afterAllResolved hook', async () => {
   expect(hookLog.message).toBe('All resolved')
 })
 
-test('pnpmfile: run async afterAllResolved hook', async () => {
+skipIfPacquet('pnpmfile: run async afterAllResolved hook', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
@@ -525,7 +526,7 @@ test('pnpmfile: run async afterAllResolved hook', async () => {
   expect(hookLog.message).toBe('All resolved')
 })
 
-test('readPackage hook normalizes the package manifest', async () => {
+skipIfPacquet('readPackage hook normalizes the package manifest', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.cjs', `
@@ -548,7 +549,7 @@ test('readPackage hook normalizes the package manifest', async () => {
   await execPnpm(['install', '@pnpm.e2e/dep-of-pkg-with-1-dep'])
 })
 
-test('readPackage hook overrides project package', async () => {
+skipIfPacquet('readPackage hook overrides project package', async () => {
   const project = prepare({
     name: 'test-read-package-hook',
   })
@@ -577,7 +578,7 @@ test('readPackage hook overrides project package', async () => {
   expect(pkg.dependencies).toBeFalsy()
 })
 
-test('readPackage hook is used during removal inside a workspace', async () => {
+skipIfPacquet('readPackage hook is used during removal inside a workspace', async () => {
   preparePackages([
     {
       name: 'project',
@@ -621,7 +622,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   expect(lockfile.packages!['@pnpm.e2e/abc@1.0.0'].peerDependencies!['is-negative']).toBe('1.0.0')
 })
 
-test('preResolution hook', async () => {
+skipIfPacquet('preResolution hook', async () => {
   prepare()
   const pnpmfile = `
     const fs = require('fs')
@@ -658,7 +659,7 @@ test('preResolution hook', async () => {
   })
 })
 
-test('pass readPackage with shared lockfile', async () => {
+skipIfPacquet('pass readPackage with shared lockfile', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
