@@ -27,13 +27,19 @@ export interface MakeRunPacquetOpts {
    */
   packageName: 'pacquet' | '@pnpm/pacquet'
   /**
-   * The user's original `pnpm` argv (`process.argv.slice(2)`). When
-   * `isInstallCommand` is true the flags (everything after the
-   * `install`/`i` token) ride along to pacquet's own `install`
-   * subcommand verbatim; otherwise we only inspect it to warn about
-   * flags pacquet won't see.
+   * The parsed pnpm argv from `@pnpm/cli.parse-cli-args` — `original`
+   * preserves the user's exact tokens (so `--key=value` stays joined,
+   * which pacquet's `--config.<key>=<value>` parser requires), and
+   * `remain` lists the positionals (the `install`/`i` command token
+   * among them). When `isInstallCommand` is true we forward
+   * `original` minus positionals to pacquet's own `install`
+   * subcommand; otherwise we only inspect it to warn about flags
+   * pacquet won't see.
    */
-  argv: string[]
+  argv: {
+    original: string[]
+    remain: string[]
+  }
   /**
    * `true` when the user invoked `pnpm install` (or `pnpm i`). Gates
    * flag forwarding: pacquet's `install` subcommand mirrors pnpm's
@@ -177,24 +183,33 @@ function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm
 
 /**
  * From `pnpm install`/`pnpm i`, return everything in argv that should
- * ride along to pacquet's own `install` subcommand. That's every entry
- * after the leading command-name token (`install` / `i` / nothing) —
- * pacquet's clap parser walks the same `--prod`, `--dev`, `--no-optional`,
- * `--no-runtime`, `--node-linker`, `--offline`, `--prefer-offline`,
- * `--cpu`, `--os`, `--libc`, `--frozen-lockfile` surface pnpm itself
- * accepts on `install`, so we don't reshape them.
+ * ride along to pacquet's own `install` subcommand. Drops the
+ * positionals nopt classified (`install` / `i`, plus anything users
+ * typed positionally) since pacquet's `install` doesn't accept any —
+ * leaving them in produces `error: unexpected argument 'install'
+ * found`. Pacquet's clap parser walks the same `--prod`, `--dev`,
+ * `--no-optional`, `--no-runtime`, `--node-linker`, `--offline`,
+ * `--prefer-offline`, `--cpu`, `--os`, `--libc`, `--frozen-lockfile`
+ * surface pnpm itself accepts on `install`, so the flags don't need
+ * reshaping.
  *
- * `--reporter=ndjson` is dropped if the user passed it explicitly: we
- * always emit our own copy at the head of the args, and clap's
- * "last-value-wins" parse for options-with-value would otherwise let a
- * user-supplied `--reporter=...` override the one we depend on for
+ * Flags we always inject ourselves (`--reporter=ndjson`,
+ * `--frozen-lockfile`, `--ignore-manifest-check`) are dropped from
+ * the forwarded set: clap rejects most of those as "used multiple
+ * times", and even where it doesn't, a user-supplied
+ * `--reporter=other` would override the one we depend on for
  * NDJSON-to-streamParser plumbing.
  */
-function collectForwardedFlags (argv: string[]): string[] {
-  const first = argv[0]
-  const flags = first === 'install' || first === 'i' ? argv.slice(1) : argv
-  return flags.filter((arg) => arg !== '--reporter=ndjson')
+function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
+  const positionals = new Set(argv.remain)
+  return argv.original.filter((arg) => !positionals.has(arg) && !ALWAYS_INJECTED.has(arg))
 }
+
+const ALWAYS_INJECTED = new Set([
+  '--reporter=ndjson',
+  '--frozen-lockfile',
+  '--ignore-manifest-check',
+])
 
 /**
  * From a non-install command (`add`, `update`, `dedupe`, ...), pull the
@@ -210,8 +225,8 @@ function collectForwardedFlags (argv: string[]): string[] {
  * those configure pnpm's runtime and aren't intended for the install
  * engine.
  */
-function collectDroppedFlags (argv: string[]): string[] {
-  return argv.filter((arg) => {
+function collectDroppedFlags (argv: { original: string[] }): string[] {
+  return argv.original.filter((arg) => {
     if (!arg.startsWith('-')) return false
     if (arg === '--frozen-lockfile' || arg === '--reporter=ndjson') return false
     if (arg.startsWith('--config.')) return false

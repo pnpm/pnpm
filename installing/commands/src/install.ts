@@ -350,7 +350,9 @@ export type InstallCommandOptions = Pick<Config,
 | 'selectedProjectsGraph'
 > & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
   argv: {
+    cooked: string[]
     original: string[]
+    remain: string[]
   }
   fixLockfile?: boolean
   frozenLockfileIfExists?: boolean
