@@ -225,6 +225,199 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
     }
 }
 
+mod block_exotic_subdeps {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    use pacquet_package_manifest::DependencyGroup;
+    use pacquet_resolving_resolver_base::ResolveOptions;
+
+    use super::{StubResolver, fake_manifest, fake_result};
+    use crate::resolve_dependency_tree::{
+        ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+    };
+
+    fn git_result(
+        name: &str,
+        version: &str,
+        manifest: serde_json::Value,
+    ) -> pacquet_resolving_resolver_base::ResolveResult {
+        let mut result = fake_result(name, version, manifest);
+        result.resolved_via = "git-repository".to_string();
+        result
+    }
+
+    /// A transitive dep resolved via an exotic protocol fails the
+    /// install when `block_exotic_subdeps` is on. Mirrors upstream's
+    /// `EXOTIC_SUBDEP` error.
+    #[tokio::test]
+    async fn rejects_exotic_transitive_dep() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("foo".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "foo",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "dependencies": { "say-hi": "github:zkochan/hi" }
+                }),
+            ),
+        );
+        table.insert(
+            ("say-hi".to_string(), "github:zkochan/hi".to_string()),
+            git_result(
+                "say-hi",
+                "1.0.0",
+                serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
+
+        let err = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions {
+                    block_exotic_subdeps: true,
+                    ..ResolveOptions::default()
+                },
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .expect_err("exotic subdep must error");
+        match err {
+            ResolveDependencyTreeError::ExoticSubdep { specifier, resolved_via } => {
+                assert_eq!(specifier, "say-hi");
+                assert_eq!(resolved_via, "git-repository");
+            }
+            other => panic!("expected ExoticSubdep, got {other:?}"),
+        }
+    }
+
+    /// An exotic *direct* dep still resolves — the gate only fires
+    /// past the importer.
+    #[tokio::test]
+    async fn allows_exotic_direct_dep() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("is-negative".to_string(), "kevva/is-negative#1.0.0".to_string()),
+            git_result(
+                "is-negative",
+                "1.0.0",
+                serde_json::json!({ "name": "is-negative", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) =
+            fake_manifest(serde_json::json!({ "is-negative": "kevva/is-negative#1.0.0" }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions {
+                    block_exotic_subdeps: true,
+                    ..ResolveOptions::default()
+                },
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .expect("direct exotic dep should resolve");
+        assert_eq!(tree.direct.len(), 1);
+        assert_eq!(tree.direct[0].alias, "is-negative");
+    }
+
+    /// A registry subdep is fine when the gate is on.
+    #[tokio::test]
+    async fn allows_registry_subdep() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("foo".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "foo",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "dependencies": { "bar": "^2.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("bar".to_string(), "^2.0.0".to_string()),
+            fake_result("bar", "2.0.0", serde_json::json!({ "name": "bar", "version": "2.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
+
+        resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions {
+                    block_exotic_subdeps: true,
+                    ..ResolveOptions::default()
+                },
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .expect("registry subdep must pass");
+    }
+
+    /// With the gate off, an exotic subdep walks like any other.
+    #[tokio::test]
+    async fn allows_exotic_subdep_when_disabled() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("foo".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "foo",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "dependencies": { "say-hi": "github:zkochan/hi" }
+                }),
+            ),
+        );
+        table.insert(
+            ("say-hi".to_string(), "github:zkochan/hi".to_string()),
+            git_result(
+                "say-hi",
+                "1.0.0",
+                serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions {
+                    block_exotic_subdeps: false,
+                    ..ResolveOptions::default()
+                },
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .expect("exotic subdep must pass when disabled");
+        assert!(tree.packages.contains_key("say-hi@1.0.0"));
+    }
+}
+
 mod peers {
     use std::collections::HashMap;
     use std::sync::Mutex;

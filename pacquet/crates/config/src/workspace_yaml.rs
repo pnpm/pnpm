@@ -148,6 +148,7 @@ pub struct WorkspaceSettings {
     pub dedupe_peer_dependents: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
+    pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
     pub side_effects_cache: Option<bool>,
     pub side_effects_cache_readonly: Option<bool>,
@@ -356,6 +357,7 @@ impl WorkspaceSettings {
         self.dedupe_peer_dependents = None;
         self.strict_peer_dependencies = None;
         self.resolve_peers_from_workspace_root = None;
+        self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
@@ -445,6 +447,7 @@ impl WorkspaceSettings {
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, strict_peer_dependencies,
             resolve_peers_from_workspace_root, verify_store_integrity,
+            block_exotic_subdeps,
             side_effects_cache, side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,

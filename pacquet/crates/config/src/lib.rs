@@ -492,6 +492,15 @@ pub struct Config {
     #[default = true]
     pub resolve_peers_from_workspace_root: bool,
 
+    /// When `true`, reject exotic (git, tarball, file, …) dependencies
+    /// reached transitively from the importer. Direct deps remain
+    /// allowed. Mirrors pnpm's
+    /// [`blockExoticSubdeps`](https://github.com/pnpm/pnpm/blob/df990fdb51/config/reader/src/Config.ts#L222).
+    /// Default `true` to match pnpm v11's
+    /// [`block-exotic-subdeps`](https://github.com/pnpm/pnpm/blob/df990fdb51/config/reader/src/index.ts#L187).
+    #[default = true]
+    pub block_exotic_subdeps: bool,
+
     /// Whether to verify each CAFS file's on-disk integrity before reusing it
     /// for an install. When `true` (pnpm's default), the store-index cache
     /// lookup stats each referenced file and re-hashes any whose mtime has

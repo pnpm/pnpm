@@ -215,6 +215,13 @@ pub struct ResolveOptions {
     /// resolution. Mirrors upstream's `dryRun` flag at the resolver
     /// boundary.
     pub dry_run: bool,
+    /// When `true`, reject exotic (git, tarball, file, …) dependencies
+    /// appearing anywhere below the importer. Direct dependencies are
+    /// still allowed; only transitive deps are gated. The check
+    /// consults [`ResolveResult::resolved_via`] against the closed set
+    /// of non-exotic provenance tags. Mirrors pnpm's
+    /// [`blockExoticSubdeps`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts#L1420-L1434).
+    pub block_exotic_subdeps: bool,
 }
 
 /// In-memory manifest shape a resolver may attach to its

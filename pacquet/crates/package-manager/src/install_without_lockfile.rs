@@ -361,6 +361,7 @@ impl<'a, DependencyGroupList> InstallWithoutLockfile<'a, DependencyGroupList> {
                 project_dir,
                 lockfile_dir: lockfile_dir.to_path_buf(),
                 workspace_packages,
+                block_exotic_subdeps: config.block_exotic_subdeps,
                 ..ResolveOptions::default()
             },
             catalogs,
