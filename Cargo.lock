@@ -2076,6 +2076,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-config-parse-overrides"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-resolving-parse-wanted-dependency",
+]
+
+[[package]]
 name = "pacquet-crypto-hash"
 version = "0.0.1"
 dependencies = [
@@ -2412,6 +2421,7 @@ dependencies = [
  "pacquet-catalogs-types",
  "pacquet-cmd-shim",
  "pacquet-config",
+ "pacquet-config-parse-overrides",
  "pacquet-crypto-hash",
  "pacquet-deps-path",
  "pacquet-directory-fetcher",

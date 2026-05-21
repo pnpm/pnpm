@@ -1421,6 +1421,157 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
     drop(dir);
 }
 
+/// `pnpm.overrides` drift between the lockfile-recorded map and the
+/// current config surfaces as `OutdatedLockfile` with a
+/// `StalenessReason::OverridesChanged` payload. Mirrors upstream's
+/// `getOutdatedLockfileSetting → 'overrides'` branch firing
+/// `LockfileConfigMismatchError` under `--frozen-lockfile`.
+#[tokio::test]
+async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    // Config declares an override the lockfile doesn't carry → drift.
+    let mut overrides = indexmap::IndexMap::new();
+    overrides.insert("placeholder".to_string(), "9.9.9".to_string());
+    config.overrides = Some(overrides);
+    let config = config.leak();
+
+    // Lockfile fixture has *no* `overrides:` key.
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .: {}"
+    })
+    .expect("parse minimal lockfile");
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        skip_runtimes: false,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    let err = result.expect_err("overrides drift must surface as OutdatedLockfile");
+    match err {
+        InstallError::OutdatedLockfile {
+            reason: pacquet_lockfile::StalenessReason::OverridesChanged { .. },
+        } => {}
+        other => panic!("expected OutdatedLockfile::OverridesChanged, got {other:?}"),
+    }
+
+    drop(dir);
+}
+
+/// When `pnpm.overrides` is set, the freshness check applies overrides
+/// to a clone of the manifest before comparing against the lockfile.
+/// Without this step, the lockfile's post-override specifier and the
+/// manifest's pre-override specifier would always disagree, failing
+/// every frozen install with `SpecifiersDiffer`. This test pins that
+/// behavior: a manifest declaring `foo: ^1` plus an override
+/// `foo: 2.0.0` lines up with a lockfile that records `foo: 2.0.0` —
+/// after override application — and the install proceeds.
+#[tokio::test]
+async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    seed_placeholder_virtual_store_slot(&virtual_store_dir);
+
+    let manifest_path = dir.path().join("package.json");
+    // Manifest lists `placeholder: ^9` (pre-override). Without
+    // override application this would trip the freshness check
+    // because the lockfile records `placeholder: 1.0.0`.
+    std::fs::write(
+        &manifest_path,
+        r#"{"name":"my-app","version":"1.0.0","dependencies":{"placeholder":"^9"}}"#,
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    let mut overrides = indexmap::IndexMap::new();
+    overrides.insert("placeholder".to_string(), "1.0.0".to_string());
+    config.overrides = Some(overrides);
+    let config = config.leak();
+
+    // Lockfile carries the SAME override map so the drift check
+    // passes; the importer's specifier reflects the post-override
+    // value `1.0.0`.
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "overrides:"
+        "  placeholder: 1.0.0"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      placeholder:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "packages:"
+        "  placeholder@1.0.0:"
+        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://invalid.local/placeholder.tgz'}"
+        "snapshots:"
+        "  placeholder@1.0.0: {}"
+    })
+    .expect("parse fixture lockfile with overrides");
+
+    let result = Install {
+        tarball_mem_cache: &Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        skip_runtimes: false,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    // The install should not fail with `OutdatedLockfile` — the
+    // overrider rewrites `placeholder: ^9 → 1.0.0` on the cloned
+    // manifest, lining up with the lockfile. (The install may still
+    // fail later for unrelated reasons in this minimal fixture, but
+    // the freshness gate must pass.)
+    if let Err(InstallError::OutdatedLockfile { reason }) = &result {
+        panic!("unexpected OutdatedLockfile after override application: {reason:?}");
+    }
+
+    drop(dir);
+}
+
 /// Negative-case: lockfile loads successfully but has no
 /// `importers["."]` entry for the project being installed. Distinct
 /// from `NoLockfile` (file missing entirely) — here the file is

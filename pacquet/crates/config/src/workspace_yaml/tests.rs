@@ -709,6 +709,80 @@ fn omitting_ignored_optional_dependencies_keeps_default() {
     assert!(config.ignored_optional_dependencies.is_none());
 }
 
+/// `overrides` parses as an ordered string→string map and applies
+/// onto `Config::overrides`. Order is preserved because the field is
+/// an `IndexMap` — pnpm's lockfile-drift comparison is
+/// order-insensitive, but the read-package hook iterates the map and
+/// downstream diagnostics reference the keys in user-supplied order.
+#[test]
+fn parses_overrides_from_yaml_and_applies() {
+    let yaml = r#"
+overrides:
+  foo: '1.2.3'
+  '@scope/bar': '^2.0.0'
+  'baz>qux': '-'
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let overrides = settings.overrides.as_ref().expect("overrides parsed");
+    let entries: Vec<_> =
+        overrides.iter().map(|(key, value)| (key.as_str(), value.as_str())).collect();
+    assert_eq!(entries, vec![("foo", "1.2.3"), ("@scope/bar", "^2.0.0"), ("baz>qux", "-")]);
+
+    let mut config = Config::new();
+    assert!(config.overrides.is_none(), "default is None");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let applied = config.overrides.expect("overrides applied");
+    assert_eq!(applied.get("foo").map(String::as_str), Some("1.2.3"));
+    assert_eq!(applied.get("@scope/bar").map(String::as_str), Some("^2.0.0"));
+    assert_eq!(applied.get("baz>qux").map(String::as_str), Some("-"));
+}
+
+/// An empty `overrides:` map collapses to `None` on `Config`, matching
+/// upstream's `delete settings.overrides` short-circuit in
+/// `getOptionsFromPnpmSettings`. Without this collapse, an empty
+/// `overrides: {}` would diverge from "no key set" at the lockfile-
+/// drift comparison.
+#[test]
+fn empty_overrides_map_collapses_to_none() {
+    let yaml = "overrides: {}\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert!(settings.overrides.as_ref().is_some_and(indexmap::IndexMap::is_empty));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.overrides.is_none(), "empty map collapses to None");
+}
+
+/// An explicit `overrides: {}` from a later layer (env overlay,
+/// later `apply_to` call) clears a non-empty value set by an earlier
+/// layer. Without the empty-clears-prior semantic, an env override
+/// like `PNPM_CONFIG_OVERRIDES={}` would be a silent no-op against a
+/// non-empty workspace yaml.
+#[test]
+fn empty_overrides_clears_prior_non_empty_assignment() {
+    let mut config = Config::new();
+    let yaml_with_overrides = "overrides:\n  foo: '1.2.3'\n";
+    let earlier: WorkspaceSettings = serde_saphyr::from_str(yaml_with_overrides).unwrap();
+    earlier.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.overrides.is_some(), "non-empty overrides applied");
+
+    let later: WorkspaceSettings = serde_saphyr::from_str("overrides: {}\n").unwrap();
+    later.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.overrides.is_none(), "explicit empty must clear earlier non-empty");
+}
+
+/// Absent `overrides` leaves the config field at `None`.
+#[test]
+fn omitting_overrides_keeps_default() {
+    let yaml = "name: stub\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap_or_default();
+    assert!(settings.overrides.is_none());
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.overrides.is_none());
+}
+
 /// `hoistingLimits` deserializes as a map keyed by importer
 /// locator (e.g. `'.@'`); inner value is a list of alias names.
 /// Mirrors upstream's [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10)

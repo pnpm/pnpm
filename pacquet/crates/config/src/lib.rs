@@ -696,6 +696,18 @@ pub struct Config {
     /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
     pub ignored_optional_dependencies: Option<Vec<String>>,
 
+    /// `overrides` from `pnpm-workspace.yaml`. Raw `selector → spec`
+    /// map; see [`WorkspaceSettings::overrides`] for the field's
+    /// contract. `$dep-name` self-references are resolved against
+    /// the root manifest's direct deps before this field lands here.
+    /// Empty maps collapse to `None`. Drives the read-package hook
+    /// that rewrites manifests during install, and the lockfile-side
+    /// drift check at
+    /// [`getOutdatedLockfileSetting.ts:50-52`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L52).
+    ///
+    /// [`WorkspaceSettings::overrides`]: crate::workspace_yaml::WorkspaceSettings::overrides
+    pub overrides: Option<IndexMap<String, String>>,
+
     /// pnpm's packument cache directory. Used by the lockfile
     /// verification gate to memoize past results in
     /// `<cache_dir>/lockfile-verified.jsonl`, and by the npm verifier
