@@ -194,20 +194,29 @@ function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm
  * reshaping.
  *
  * Flags we always inject ourselves (`--frozen-lockfile`,
- * `--ignore-manifest-check`) are dropped — clap rejects them as
- * "used multiple times" otherwise. `--reporter` is stripped in any
- * form (`--reporter=foo`, `--reporter foo`): pacquet's `reporter`
- * is a clap value option with last-value-wins semantics, so a
- * user-supplied value would override our `--reporter=ndjson` and
- * break the NDJSON-to-streamParser plumbing the default reporter
- * relies on.
+ * `--ignore-manifest-check`) are dropped in every form the user can
+ * type them — positive (`--frozen-lockfile`), negated
+ * (`--no-frozen-lockfile`), and any `=value` form. Pacquet's clap
+ * defines these as plain `#[clap(long)] bool` flags, so a duplicate
+ * `--frozen-lockfile` or a conflicting `--no-frozen-lockfile`
+ * crashes the parser with "used multiple times" / "unexpected
+ * argument". The user's `--no-frozen-lockfile` intent is already
+ * honored upstream (pnpm did a fresh resolve before delegating);
+ * pacquet's role here is just lockfile-driven materialization.
+ *
+ * `--reporter` is stripped in any form (`--reporter=foo`,
+ * `--reporter foo`): pacquet's `reporter` is a clap value option
+ * with last-value-wins semantics, so a user-supplied value would
+ * override our `--reporter=ndjson` and break the
+ * NDJSON-to-streamParser plumbing the default reporter relies on.
  */
 function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
   const positionals = new Set(argv.remain)
   const result: string[] = []
   for (let i = 0; i < argv.original.length; i++) {
     const arg = argv.original[i]
-    if (positionals.has(arg) || ALWAYS_INJECTED.has(arg)) continue
+    if (positionals.has(arg)) continue
+    if (isAlwaysInjected(arg)) continue
     if (arg.startsWith('--reporter=')) continue
     if (arg === '--reporter') {
       // Consume the next token as the reporter value (`--reporter foo`).
@@ -219,10 +228,15 @@ function collectForwardedFlags (argv: { original: string[], remain: string[] }):
   return result
 }
 
-const ALWAYS_INJECTED = new Set([
-  '--frozen-lockfile',
-  '--ignore-manifest-check',
-])
+const ALWAYS_INJECTED_FLAGS = ['frozen-lockfile', 'ignore-manifest-check'] as const
+
+function isAlwaysInjected (arg: string): boolean {
+  for (const name of ALWAYS_INJECTED_FLAGS) {
+    if (arg === `--${name}` || arg === `--no-${name}`) return true
+    if (arg.startsWith(`--${name}=`) || arg.startsWith(`--no-${name}=`)) return true
+  }
+  return false
+}
 
 /**
  * From a non-install command (`add`, `update`, `dedupe`, ...), pull the
