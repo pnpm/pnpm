@@ -12,9 +12,10 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
-import type { EngineDependency } from '@pnpm/types'
+import type { EngineDependency, ProjectManifest } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -124,6 +125,9 @@ export async function main (inputArgv: string[]): Promise<void> {
           await syncEnvLockfile(config, context)
         }
       }
+    }
+    if (cmd !== 'setup' && context.rootProjectManifest != null && !cliOptions.global) {
+      checkRuntime(context.rootProjectManifest)
     }
     // `pnpm set` / `pnpm get` are separate top-level commands whose handlers
     // delegate to the `config` command internally. They are not rewritten to
@@ -442,4 +446,31 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
       }
     }
   }
+}
+
+function checkRuntime (manifest: ProjectManifest): void {
+  const runtime = getNodeRuntime(manifest)
+  if (!runtime?.name || !runtime.version) return
+  if (runtime.onFail !== 'error' && runtime.onFail !== 'warn') return
+  const currentNodeVersion = getSystemNodeVersion() ?? process.version
+  if (semver.satisfies(currentNodeVersion, runtime.version, { includePrerelease: true })) return
+
+  const msg = `This project is configured to use ${runtime.version} of Node.js. Your current Node.js is ${currentNodeVersion}`
+  if (runtime.onFail === 'error') {
+    throw new PnpmError('BAD_NODE_VERSION', msg, {
+      hint: 'If you want to bypass this version check, set devEngines.runtime.onFail to "warn" or "ignore", or set the "runtimeOnFail" configuration to "warn" or "ignore"',
+    })
+  }
+  globalWarn(msg)
+}
+
+function getNodeRuntime (manifest: ProjectManifest): EngineDependency | undefined {
+  for (const enginesFieldName of ['devEngines', 'engines'] as const) {
+    const enginesRuntime = manifest[enginesFieldName]?.runtime
+    if (enginesRuntime == null) continue
+    const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
+    const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
+    if (nodeRuntime) return nodeRuntime
+  }
+  return undefined
 }

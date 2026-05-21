@@ -7677,6 +7677,9 @@ importers:
       '@pnpm/engine.runtime.commands':
         specifier: workspace:*
         version: link:../engine/runtime/commands
+      '@pnpm/engine.runtime.system-node-version':
+        specifier: workspace:*
+        version: link:../engine/runtime/system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../core/error

@@ -143,6 +143,40 @@ test('devEngines.packageManager with onFail=ignore should not check version', as
   expect(stderr.toString()).not.toContain('0.0.1')
 })
 
+test('devEngines.runtime with onFail=error should fail on Node.js version mismatch', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '11111.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project is configured to use 11111.0.0 of Node.js')
+})
+
+test('devEngines.runtime with onFail=warn should warn on Node.js version mismatch', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '11111.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stdout } = execPnpmSync(['exec', 'node', '--version'])
+
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('This project is configured to use 11111.0.0 of Node.js')
+})
+
 test('devEngines.packageManager defaults to onFail=download (#11676)', async () => {
   prepare({
     devEngines: {

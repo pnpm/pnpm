@@ -100,6 +100,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/engine.pm.commands": "workspace:*",
     "@pnpm/engine.runtime.commands": "workspace:*",
+    "@pnpm/engine.runtime.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
