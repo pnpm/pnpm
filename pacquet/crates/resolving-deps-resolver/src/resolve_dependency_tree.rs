@@ -38,7 +38,7 @@ use crate::{
 pub struct ResolveDependencyTreeOptions {
     pub base_opts: ResolveOptions,
     /// Configured `patchedDependencies`, grouped by package name. Threaded
-    /// through so [`resolve_node`] can append `(patch_hash=<hash>)` to
+    /// through so the per-node walker can append `(patch_hash=<hash>)` to
     /// each matched package's `pkgIdWithPatchHash` and record the patch
     /// key on [`crate::ResolvedTree::applied_patches`] for the
     /// `ERR_PNPM_UNUSED_PATCH` post-walk check. Mirrors upstream's
@@ -159,7 +159,7 @@ impl TreeCtx {
     }
 
     /// Attach the install's `patchedDependencies` map. When `Some`,
-    /// [`resolve_node`] looks every resolved `name@version` up via
+    /// the per-node walker looks every resolved `name@version` up via
     /// [`get_patch_info`] and appends `(patch_hash=<hash>)` to the
     /// `pkgIdWithPatchHash` on a match.
     pub fn with_patched_dependencies(
