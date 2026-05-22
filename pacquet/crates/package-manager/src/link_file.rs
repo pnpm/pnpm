@@ -25,12 +25,6 @@ pub enum LinkFileError {
         #[error(source)]
         error: io::Error,
     },
-    #[display("failed to remove stale dirent at {path:?}: {error}")]
-    RemoveStale {
-        path: PathBuf,
-        #[error(source)]
-        error: io::Error,
-    },
 }
 
 // Downgrade state machine used by both `Auto` and `CloneOrCopy`.
@@ -122,37 +116,25 @@ pub fn link_file<Reporter: self::Reporter>(
     source_file: &Path,
     target_link: &Path,
 ) -> Result<(), LinkFileError> {
-    // If the target resolves to a live file (directly or via a
-    // symlink), a prior install placed it and there's nothing to do.
-    // `fs::metadata` follows symlinks and returns `Err(NotFound)` for
-    // dangling ones — so only treat `NotFound` as the "might need
-    // cleanup" case. For anything else (`PermissionDenied`, transient
-    // NFS errors, ...) fall through to the import call below without
-    // touching the existing dirent: deleting a potentially live
-    // symlink on a stat error would be more destructive than letting
-    // the real error surface.
-    match fs::metadata(target_link) {
-        Ok(_) => return Ok(()),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            // A dangling symlink left behind by an interrupted prior
-            // install still returns a dirent from `symlink_metadata`
-            // (which doesn't follow). Scrub it so the subsequent link
-            // / copy doesn't collide with `AlreadyExists` and so the
-            // installed package isn't left with a silently-missing
-            // file.
-            if let Ok(meta) = fs::symlink_metadata(target_link)
-                && meta.file_type().is_symlink()
-            {
-                fs::remove_file(target_link).map_err(|error| LinkFileError::RemoveStale {
-                    path: target_link.to_path_buf(),
-                    error,
-                })?;
-            }
-        }
-        Err(_) => {
-            // Non-`NotFound` stat error. Leave the dirent alone; the
-            // import call below will surface the real problem.
-        }
+    // Single `stat` short-circuit. If the target resolves to a live
+    // file (directly or via a symlink), a prior install placed it
+    // and there's nothing to do — return without paying for the
+    // import syscall (which would overwrite on the `Copy` /
+    // `Auto`-fallback-to-copy path, mismatching the no-op contract
+    // the test suite locks in).
+    //
+    // Cutting the second `symlink_metadata` from the old shape —
+    // it was a pure pessimization: in the clean-install case both
+    // calls returned `NotFound`, doubling per-file `stat` count
+    // (~260k extra syscalls on the alotta-files fixture). Defer
+    // the dangling-symlink detection to the EEXIST recovery path
+    // below, which only fires when the import call itself sees the
+    // dirent.
+    //
+    // For `NotFound` and any other stat error, fall through to the
+    // import call — it will surface the real error or succeed.
+    if fs::metadata(target_link).is_ok() {
+        return Ok(());
     }
 
     // Hardlinking a file from the store into `node_modules` means any
@@ -161,7 +143,37 @@ pub fn link_file<Reporter: self::Reporter>(
     // Current pnpm's indexed-pkg-importer does not guard against this
     // either — postinstall handling lives in the script runner, not the
     // import layer — so there's nothing to gate on here.
-    let result = match method {
+    match try_import::<Reporter>(method, logged, source_file, target_link) {
+        Ok(()) => Ok(()),
+        // Mirrors pnpm's `linkOrCopy`: on EEXIST, return without
+        // touching disk. The pre-flight `fs::metadata` short-circuit
+        // above covers the live-target case for the `Copy` /
+        // `Auto`→copy path (where the import syscall would silently
+        // overwrite rather than surface EEXIST); when execution
+        // reaches here the import syscall *did* surface EEXIST,
+        // which can only happen if a concurrent writer raced ahead
+        // between the stat and the syscall. No additional stat is
+        // needed — the dirent exists, the contents are
+        // content-addressed, so the no-op contract holds.
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(LinkFileError::Import {
+            from: source_file.to_path_buf(),
+            to: target_link.to_path_buf(),
+            error,
+        }),
+    }
+}
+
+/// Run the import syscall for the configured `method`. Surfaces
+/// the raw `io::Error` so the caller can dispatch on
+/// `ErrorKind::AlreadyExists` for the EEXIST recovery path.
+fn try_import<Reporter: self::Reporter>(
+    method: PackageImportMethod,
+    logged: &AtomicU8,
+    source_file: &Path,
+    target_link: &Path,
+) -> io::Result<()> {
+    match method {
         PackageImportMethod::Auto => {
             static AUTO_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             auto_link::<Reporter>(logged, &AUTO_STATE, source_file, target_link)
@@ -200,29 +212,6 @@ pub fn link_file<Reporter: self::Reporter>(
                 log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
             })
             .map(drop),
-    };
-
-    match result {
-        Ok(()) => Ok(()),
-        // TOCTOU: another writer created the target between our
-        // `fs::metadata` short-circuit and the import syscall. The
-        // file is now there, which is exactly what our docstring
-        // promises, so honour the "existing target is a no-op"
-        // contract instead of failing the install. Verify via
-        // `fs::metadata` (follows symlinks; returns NotFound for
-        // dangling) so a newly-appeared broken symlink doesn't
-        // quietly pass as success.
-        Err(error)
-            if error.kind() == io::ErrorKind::AlreadyExists
-                && fs::metadata(target_link).is_ok() =>
-        {
-            Ok(())
-        }
-        Err(error) => Err(LinkFileError::Import {
-            from: source_file.to_path_buf(),
-            to: target_link.to_path_buf(),
-            error,
-        }),
     }
 }
 

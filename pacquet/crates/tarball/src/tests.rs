@@ -1533,20 +1533,27 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     drop(store_dir_keep);
 }
 
-/// `run_with_mem_cache`'s in-process dedup emits `pnpm:progress`
-/// exactly once per URL — only the first writer's
-/// `run_without_mem_cache` call fires the event. Mirrors pnpm's
-/// [`packageRequester`](https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L410-L436):
-/// the emit is attached via `.then()` on the first writer's
-/// promise and `await`s from later callers don't re-trigger the
-/// handler.
+/// `run_with_mem_cache`'s `Available` short-circuit emits
+/// `pnpm:progress found_in_store` against the *caller's* reporter,
+/// regardless of who originally populated the slot. The
+/// `PrefetchingResolver` populates the slot via a `SilentReporter`
+/// so the resolve-time fetch doesn't fire `fetched` ahead of the
+/// install pass's `resolved`; the install pass's later
+/// `run_with_mem_cache` call must still produce the
+/// `found_in_store` event for `@pnpm/cli.default-reporter` to see
+/// the documented `resolved → fetched|found_in_store → imported`
+/// triple. Without the emit on the short-circuit, the install pass
+/// would silently skip past the cache hit and the event triple
+/// would be missing its middle.
 ///
 /// Drives two `run_with_mem_cache` calls for the same URL but
-/// different `package_id`s. The first goes through
-/// `run_without_mem_cache` (network fetch + `fetched`); the second
-/// hits the immediate-`Available` branch and must emit nothing.
+/// different `package_id`s. The first uses `SilentReporter`
+/// (modelling the prefetcher). The second uses the recording
+/// reporter (modelling the install pass) and hits the
+/// immediate-`Available` branch — the only event captured must be
+/// a single `found_in_store` for the install pass's `package_id`.
 #[tokio::test]
-async fn mem_cache_hit_does_not_re_emit_for_second_requester() {
+async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     use std::sync::Mutex;
 
     use pacquet_reporter::{LogEvent, ProgressMessage};
@@ -1578,9 +1585,9 @@ async fn mem_cache_hit_does_not_re_emit_for_second_requester() {
     let mem_cache = MemCache::default();
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
-    // First requester: `package_id = "first@1.0.0"`. Drives the
-    // network fetch.
-    EVENTS.lock().unwrap().clear();
+    // First requester: silent (mirrors the `PrefetchingResolver`
+    // route, which uses `SilentReporter` so its resolve-time
+    // emits don't land before the install pass emits `resolved`).
     DownloadTarballToStore {
         http_client: &client,
         store_dir: store_path,
@@ -1599,16 +1606,15 @@ async fn mem_cache_hit_does_not_re_emit_for_second_requester() {
         ignore_file_pattern: None,
         offline: false,
     }
-    .run_with_mem_cache::<RecordingReporter>(&mem_cache)
+    .run_with_mem_cache::<pacquet_reporter::SilentReporter>(&mem_cache)
     .await
     .expect("first call should populate the mem cache");
 
-    // First call's emits: `started` (per attempt) + `fetched` once.
-    // Drain so the next call's emits are isolated.
-    EVENTS.lock().unwrap().clear();
-
     // Second requester: same URL, different `package_id`. Hits the
-    // immediate-`Available` branch in `run_with_mem_cache`.
+    // immediate-`Available` branch — must emit one `found_in_store`
+    // against the recording reporter so consumers see the cache
+    // hit even though the owner emit was silent.
+    EVENTS.lock().unwrap().clear();
     DownloadTarballToStore {
         http_client: &client,
         store_dir: store_path,
@@ -1632,14 +1638,28 @@ async fn mem_cache_hit_does_not_re_emit_for_second_requester() {
     .expect("second call should reuse the mem cache");
 
     let captured = EVENTS.lock().unwrap();
-    assert!(
-        !captured.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log)
-                if matches!(&log.message, ProgressMessage::FoundInStore { .. })
-        )),
-        "found_in_store must NOT re-fire for the second requester; got {captured:?}",
+    let found_in_store_events: Vec<_> = captured
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                LogEvent::Progress(log)
+                    if matches!(&log.message, ProgressMessage::FoundInStore { .. }),
+            )
+        })
+        .collect();
+    assert_eq!(
+        found_in_store_events.len(),
+        1,
+        "exactly one found_in_store emit expected on Available short-circuit; got {captured:?}",
     );
+    if let LogEvent::Progress(log) = found_in_store_events[0]
+        && let ProgressMessage::FoundInStore { package_id, .. } = &log.message
+    {
+        assert_eq!(package_id, "second@2.0.0");
+    } else {
+        unreachable!("captured event filtered above");
+    }
     assert!(
         !captured.iter().any(|e| matches!(
             e,

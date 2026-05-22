@@ -11,10 +11,12 @@ use std::{path::PathBuf, sync::Arc};
 
 /// Application state when running `pacquet run` or `pacquet install`.
 pub struct State {
-    /// Shared cache that storing downloaded tarballs. Held behind
-    /// [`Arc`] so every install sub-pipeline can share the same
-    /// handle without per-call clones; the per-package call takes a
-    /// borrowed `&MemCache` via deref.
+    /// Shared cache that stores downloaded tarballs. Held behind
+    /// [`Arc`] so the resolve-time prefetch
+    /// ([`pacquet_package_manager::PrefetchingResolver`]) can capture
+    /// an owned clone into the `tokio::spawn`ed background download
+    /// while every install sub-pipeline still takes a borrowed
+    /// `&MemCache` via deref.
     pub tarball_mem_cache: Arc<MemCache>,
     /// HTTP client to make HTTP requests. Held behind [`std::sync::Arc`] so
     /// the lockfile-verification gate can own a clone for the

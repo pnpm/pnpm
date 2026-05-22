@@ -160,27 +160,32 @@ fn explicit_clone_surfaces_errors() {
     assert!(matches!(err, LinkFileError::Import { .. }), "got: {err:?}");
 }
 
-/// A dangling symlink left behind by an interrupted install is a
-/// corrupt target: if we short-circuit on it as "already present"
-/// the package ends up with a silently-missing file while the
-/// install reports success. Remove the broken link, re-materialize,
-/// and confirm the final dirent is a real file with the expected
-/// contents.
+/// A dangling symlink left behind by an interrupted install is left
+/// alone. Matches pnpm's `linkOrCopy` (`fs/indexed-pkg-importer/src/index.ts`),
+/// which returns on `EEXIST` without inspecting the dirent — the
+/// downside is that a dangling symlink survives until something
+/// rewrites the slot, the upside is a single import syscall per file
+/// instead of stat-then-link-then-maybe-unlink. The pre-flight
+/// `fs::metadata` short-circuit in `link_file` does not fire for a
+/// dangling symlink (the syscall follows the link and returns
+/// `NotFound`), so the import syscall runs and surfaces `EEXIST`,
+/// which we treat as a no-op.
 #[test]
 #[cfg(unix)]
-fn dangling_symlink_is_replaced() {
+fn dangling_symlink_is_preserved() {
     let tmp = tempdir().unwrap();
     let src = write_source(tmp.path(), "src.txt", b"fresh");
     let dst = tmp.path().join("dst.txt");
-    std::os::unix::fs::symlink(tmp.path().join("never-created"), &dst).unwrap();
+    let dangling_target = tmp.path().join("never-created");
+    std::os::unix::fs::symlink(&dangling_target, &dst).unwrap();
 
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &dst)
-        .expect("dangling symlink should be scrubbed, then hardlinked");
+        .expect("EEXIST must be treated as no-op, matching pnpm");
 
     let meta = fs::symlink_metadata(&dst).unwrap();
     eprintln!("dst file_type={:?}", meta.file_type());
-    assert!(!meta.file_type().is_symlink(), "dangling link must be replaced with a real file");
-    assert_eq!(fs::read(&dst).unwrap(), b"fresh");
+    assert!(meta.file_type().is_symlink(), "dangling symlink stays in place");
+    assert_eq!(std::fs::read_link(&dst).unwrap(), dangling_target, "target unchanged");
 }
 
 /// Live symlinks (pointing at real files) should still short-circuit
