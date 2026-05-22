@@ -160,9 +160,14 @@ async fn does_not_hoist_when_disabled() {
     let result =
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
 
-    let direct: Vec<&str> =
-        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
-    assert!(!direct.contains(&"react"));
+    assert!(
+        !result
+            .peers_result
+            .direct_dependencies_by_alias
+            .keys()
+            .map(String::as_str)
+            .any(|name| name == "react")
+    );
     assert!(result.peers_result.peer_dependency_issues.missing.contains_key("react"));
 }
 

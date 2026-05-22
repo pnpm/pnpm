@@ -285,8 +285,7 @@ fn skipped_parent_does_not_drag_descendants_into_build_queue() {
         (s_key.clone(), snap(&[("c", "1.0.0")])),
         (c_key.clone(), snap(&[])),
     ]);
-    let requires_build =
-        requires([(root_key, false), (s_key.clone(), false), (c_key, true)]);
+    let requires_build = requires([(root_key, false), (s_key.clone(), false), (c_key, true)]);
     let importers = root_importers(&[("root", "1.0.0")]);
 
     let skipped = SkippedSnapshots::from_set(HashSet::from([s_key]));

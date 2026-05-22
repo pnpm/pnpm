@@ -994,8 +994,7 @@ fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
         &[
             PackageBinSource::new(hoisted, Arc::new(manifest_hoisted))
                 .with_origin(BinOrigin::Hoisted),
-            PackageBinSource::new(direct, Arc::new(manifest_direct))
-                .with_origin(BinOrigin::Direct),
+            PackageBinSource::new(direct, Arc::new(manifest_direct)).with_origin(BinOrigin::Direct),
         ],
         &bins,
     )
@@ -1045,8 +1044,7 @@ fn hoisted_origin_loses_to_existing_direct() {
     // candidate is processed second.
     link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(direct, Arc::new(manifest_direct))
-                .with_origin(BinOrigin::Direct),
+            PackageBinSource::new(direct, Arc::new(manifest_direct)).with_origin(BinOrigin::Direct),
             PackageBinSource::new(hoisted, Arc::new(manifest_hoisted))
                 .with_origin(BinOrigin::Hoisted),
         ],
