@@ -382,7 +382,7 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
     let mut snapshots = HashMap::new();
     snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(key.clone(), synthetic_metadata(None, None, Some(&["darwin"]), None));
+    packages.insert(key, synthetic_metadata(None, None, Some(&["darwin"]), None));
 
     let mut host = host("20.10.0", "linux", "x64");
     host.supported_architectures = Some(pacquet_package_is_installable::SupportedArchitectures {
@@ -563,7 +563,7 @@ fn disjoint_subsets_preserve_len_and_iter() {
 
     // `add_fetch_failed` against the same key is similarly a no-op
     // — installability has highest precedence.
-    skipped.add_fetch_failed(key.clone());
+    skipped.add_fetch_failed(key);
     assert_eq!(skipped.len(), 1);
 }
 

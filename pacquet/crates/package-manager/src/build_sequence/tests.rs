@@ -252,7 +252,7 @@ fn skipped_patched_snapshot_does_not_enter_build_queue() {
         },
     )]);
 
-    let skipped = SkippedSnapshots::from_set(HashSet::from([a_key.clone()]));
+    let skipped = SkippedSnapshots::from_set(HashSet::from([a_key]));
 
     let chunks = build_sequence(&requires_build, Some(&patches), &snapshots, &importers, &skipped);
 
@@ -286,7 +286,7 @@ fn skipped_parent_does_not_drag_descendants_into_build_queue() {
         (c_key.clone(), snap(&[])),
     ]);
     let requires_build =
-        requires([(root_key.clone(), false), (s_key.clone(), false), (c_key.clone(), true)]);
+        requires([(root_key, false), (s_key.clone(), false), (c_key, true)]);
     let importers = root_importers(&[("root", "1.0.0")]);
 
     let skipped = SkippedSnapshots::from_set(HashSet::from([s_key]));

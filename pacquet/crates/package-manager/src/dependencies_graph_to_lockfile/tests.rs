@@ -72,7 +72,7 @@ fn make_node_with_optional(
 ) -> DependenciesGraphNode {
     let dep_path = DepPath::from(format!("{name}@{version}"));
     DependenciesGraphNode {
-        dep_path: dep_path.clone(),
+        dep_path,
         resolved_package_id: format!("{name}@{version}"),
         resolve_result: std::sync::Arc::new(make_resolve_result(name, version, manifest)),
         children,

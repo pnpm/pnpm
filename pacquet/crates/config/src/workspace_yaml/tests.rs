@@ -588,7 +588,7 @@ supportedArchitectures:
   os: [darwin]
 "#;
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let raw = settings.supported_architectures.clone().expect("field present");
+    let raw = settings.supported_architectures.expect("field present");
     assert_eq!(raw.os.as_deref(), Some(&["darwin".to_string()][..]));
     assert!(raw.cpu.is_none());
     assert!(raw.libc.is_none());

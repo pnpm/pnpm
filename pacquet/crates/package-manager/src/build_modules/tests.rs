@@ -704,7 +704,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     let mut overlay = std::collections::HashMap::new();
     overlay.insert("any-key".to_string(), std::collections::HashMap::new());
     let mut side_effects_maps = std::collections::HashMap::new();
-    side_effects_maps.insert(pkg_key.clone(), std::sync::Arc::new(overlay));
+    side_effects_maps.insert(pkg_key, std::sync::Arc::new(overlay));
 
     let err = BuildModules {
         layout: &VirtualStoreLayout::legacy(

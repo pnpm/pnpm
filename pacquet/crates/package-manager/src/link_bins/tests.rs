@@ -50,7 +50,7 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
 
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
-            virtual_dir.clone(),
+            virtual_dir,
             pacquet_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
@@ -121,7 +121,7 @@ fn skips_slot_own_package_when_walking_children() {
 
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
-            virtual_dir.clone(),
+            virtual_dir,
             pacquet_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
@@ -149,7 +149,7 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
     let nonexistent = tmp.path().join("does-not-exist");
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
-            nonexistent.clone(),
+            nonexistent,
             pacquet_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
@@ -190,7 +190,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
 
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
-            virtual_dir.clone(),
+            virtual_dir,
             pacquet_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
@@ -244,7 +244,7 @@ fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
 
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
-            virtual_dir.clone(),
+            virtual_dir,
             pacquet_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
@@ -297,7 +297,7 @@ fn link_virtual_store_bins_handles_unscoped_name_with_plus() {
 
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
-            virtual_dir.clone(),
+            virtual_dir,
             pacquet_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
@@ -325,7 +325,7 @@ fn link_virtual_store_bins_skips_slot_without_node_modules() {
     create_dir_all(virtual_dir.join("incomplete@1.0.0")).unwrap();
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
-            virtual_dir.clone(),
+            virtual_dir,
             pacquet_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
@@ -355,7 +355,7 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
     create_dir_all(virtual_dir.join("foo@1.0.0/node_modules")).unwrap();
     LinkVirtualStoreBins {
         layout: &VirtualStoreLayout::legacy(
-            virtual_dir.clone(),
+            virtual_dir,
             pacquet_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,

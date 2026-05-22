@@ -717,8 +717,8 @@ mod tests {
         let mut snapshots = HashMap::new();
         snapshots.insert(pins_22.clone(), pins_22_snapshot);
         snapshots.insert(pins_20.clone(), pins_20_snapshot);
-        snapshots.insert(node22_key.clone(), SnapshotEntry::default());
-        snapshots.insert(node20_key.clone(), SnapshotEntry::default());
+        snapshots.insert(node22_key, SnapshotEntry::default());
+        snapshots.insert(node20_key, SnapshotEntry::default());
 
         // Both siblings are approved builders so the engine portion
         // of the hash isn't dropped by the engine-agnostic gating.

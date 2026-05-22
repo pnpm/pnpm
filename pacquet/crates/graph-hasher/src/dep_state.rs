@@ -127,7 +127,7 @@ where
         "id": node.full_pkg_id.clone(),
         "deps": Value::Object(deps_obj),
     }));
-    cache.insert(dep_path.clone(), hashed.clone());
+    cache.insert(dep_path.clone(), hashed);
     cache.get(dep_path).expect("just inserted").clone()
 }
 

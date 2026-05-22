@@ -150,6 +150,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 clone_on_ref_ptr             = "warn"
 if_then_some_else_none       = "warn"
 unnecessary_lazy_evaluations = "warn"
+redundant_clone              = "warn"
 
 [profile.release]
 opt-level     = 3

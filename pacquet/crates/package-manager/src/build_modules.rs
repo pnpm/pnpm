@@ -713,8 +713,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                             details: Some(err.to_string()),
                             package: SkippedOptionalPackage::Installed {
                                 id: pkg_dir.to_string_lossy().into_owned(),
-                                name: name.clone(),
-                                version: version.clone(),
+                                name,
+                                version,
                             },
                             prefix: lockfile_dir.to_string_lossy().into_owned(),
                             reason: SkippedOptionalReason::BuildFailure,

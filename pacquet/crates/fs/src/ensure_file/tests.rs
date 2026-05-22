@@ -276,7 +276,7 @@ fn file_equals_bytes_handles_multi_chunk_files() {
 
     assert!(file_equals_bytes(&path, &content).unwrap());
 
-    let mut perturbed = content.clone();
+    let mut perturbed = content;
     *perturbed.last_mut().unwrap() ^= 0xff;
     assert!(!file_equals_bytes(&path, &perturbed).unwrap());
 }
