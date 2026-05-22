@@ -1,6 +1,18 @@
 use pacquet_network::{AuthHeaders, ThrottledClient};
 
-use super::{FetchFullMetadataOptions, fetch_full_metadata};
+use super::{FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata};
+
+/// Unwrap a [`FetchFullMetadataOutcome::Modified`], panicking on
+/// `NotModified`. Used by the success-path tests below where the
+/// mock always responds 200.
+fn expect_modified(outcome: FetchFullMetadataOutcome) -> pacquet_registry::Package {
+    match outcome {
+        FetchFullMetadataOutcome::Modified(pkg) => *pkg,
+        FetchFullMetadataOutcome::NotModified => {
+            panic!("expected Modified outcome, got NotModified")
+        }
+    }
+}
 
 /// Fetches against a real `mockito` server that asserts the request
 /// arrives with the *full*-metadata `Accept` header
@@ -57,9 +69,12 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         full_metadata: true,
+        etag: None,
+        modified: None,
     };
 
-    let pkg = fetch_full_metadata("acme", &opts).await.expect("server returns 200");
+    let pkg =
+        expect_modified(fetch_full_metadata("acme", &opts).await.expect("server returns 200"));
     assert_eq!(pkg.name, "acme");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     let version = pkg.versions.get("1.0.0").expect("version present");
@@ -86,6 +101,8 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         full_metadata: true,
+        etag: None,
+        modified: None,
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
@@ -139,10 +156,13 @@ async fn fetch_full_metadata_encodes_scoped_name() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         full_metadata: true,
+        etag: None,
+        modified: None,
     };
 
-    let pkg =
-        fetch_full_metadata("@scope/pkg", &opts).await.expect("encoded scoped name reaches mock");
+    let pkg = expect_modified(
+        fetch_full_metadata("@scope/pkg", &opts).await.expect("encoded scoped name reaches mock"),
+    );
     assert_eq!(pkg.name, "@scope/pkg");
     mock.assert_async().await;
 }
@@ -171,12 +191,54 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
         http_client: &http_client,
         auth_headers: &auth_headers,
         full_metadata: true,
+        etag: None,
+        modified: None,
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("malformed JSON must surface");
     assert!(
         matches!(err, super::FetchMetadataError::Decode { .. }),
         "expected Decode variant, got: {err:?}",
+    );
+    mock.assert_async().await;
+}
+
+/// When the caller supplies `etag` / `modified`, the request carries
+/// `If-None-Match` / `If-Modified-Since` and a registry `304` answers
+/// with [`FetchFullMetadataOutcome::NotModified`] instead of a body.
+/// Matches upstream's
+/// [`notModified`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L41-L86)
+/// short-circuit, which `maybeUpgradeAbbreviatedMetaForReleaseAge`
+/// relies on to coalesce the upgrade fetch against the registry's
+/// representation cache.
+#[tokio::test]
+async fn fetch_full_metadata_returns_not_modified_on_304() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"fresh""#)
+        .match_header("if-modified-since", "Wed, 15 Jan 2025 12:00:00 GMT")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: Some(r#"W/"fresh""#),
+        modified: Some("Wed, 15 Jan 2025 12:00:00 GMT"),
+    };
+
+    let outcome = fetch_full_metadata("acme", &opts).await.expect("304 must succeed");
+    assert!(
+        matches!(outcome, FetchFullMetadataOutcome::NotModified),
+        "expected NotModified, got: {outcome:?}",
     );
     mock.assert_async().await;
 }

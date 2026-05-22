@@ -10,7 +10,10 @@ use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use crate::{
-    npm_resolver::NpmResolver, pick_package::InMemoryPackageMetaCache,
+    npm_resolver::NpmResolver,
+    pick_package::{
+        InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+    },
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
@@ -60,6 +63,8 @@ fn build_resolver_with_registries(
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+        fetch_locker: shared_packument_fetch_locker(),
+        picked_manifest_cache: shared_picked_manifest_cache(),
         cache_dir: Some(cache_dir.path().to_path_buf()),
         offline: false,
         prefer_offline: false,
@@ -335,4 +340,130 @@ async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
     // resolver seam returns the parser error as a boxed `dyn Error`
     // so we can't downcast to the variant directly.
     assert_eq!(msg, "Package names from JSR must have a scope", "unexpected error message: {msg}");
+}
+
+/// Two NpmResolvers pointing at different registries, sharing the
+/// same `picked_manifest_cache`, must not hand each other the
+/// other's manifest when both happen to pick `acme@1.0.0`. Two
+/// registries can serve different artifacts under the same
+/// `name@version` (a public + private package collision, or a
+/// fork), and collapsing the cache key to `name@version` alone
+/// would propagate one registry's manifest into the other
+/// resolver's `ResolveResult`, breaking the downstream dependency
+/// graph / peer extraction / lockfile metadata.
+///
+/// The fixture for each registry serves a payload that differs by
+/// `dependencies`, so the cache leak shows up as the second
+/// resolver's `manifest.dependencies` being the *first* registry's
+/// when the bug is present. With the registry-scoped key in place
+/// each resolver gets its own manifest.
+#[tokio::test]
+async fn shared_manifest_cache_does_not_leak_across_registries() {
+    fn body_with_dep(dep_name: &str, dep_range: &str) -> String {
+        format!(
+            r#"{{
+                "name": "acme",
+                "dist-tags": {{ "latest": "1.0.0" }},
+                "modified": "2025-01-15T12:00:00.000Z",
+                "time": {{ "1.0.0": "2024-01-10T08:30:00.000Z" }},
+                "versions": {{
+                    "1.0.0": {{
+                        "name": "acme",
+                        "version": "1.0.0",
+                        "dependencies": {{ "{dep_name}": "{dep_range}" }},
+                        "dist": {{
+                            "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                            "shasum": "0000000000000000000000000000000000000000",
+                            "tarball": "https://registry/acme-1.0.0.tgz"
+                        }}
+                    }}
+                }}
+            }}"#,
+        )
+    }
+
+    let mut server_a = mockito::Server::new_async().await;
+    let _mock_a = server_a
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body_with_dep("left-pad", "^1.0.0"))
+        .create_async()
+        .await;
+    let mut server_b = mockito::Server::new_async().await;
+    let _mock_b = server_b
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body_with_dep("right-pad", "^2.0.0"))
+        .create_async()
+        .await;
+
+    // Shared cache — the leak path. The fix is the cache key
+    // including the registry; without it, whichever resolver runs
+    // second would return the other's manifest.
+    let shared_picked_cache = shared_picked_manifest_cache();
+    let shared_fetch_locker = shared_packument_fetch_locker();
+
+    let make_resolver = |registry: String| -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
+        let mut registries = HashMap::new();
+        registries.insert("default".to_string(), registry);
+        let cache_dir = TempDir::new().expect("tempdir");
+        let resolver = NpmResolver {
+            registries,
+            named_registries: HashMap::new(),
+            http_client: Arc::new(ThrottledClient::default()),
+            auth_headers: Arc::new(AuthHeaders::default()),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: Arc::clone(&shared_fetch_locker),
+            picked_manifest_cache: Arc::clone(&shared_picked_cache),
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+            full_metadata: false,
+        };
+        (resolver, cache_dir)
+    };
+
+    let (resolver_a, _cache_dir_a) = make_resolver(format!("{}/", server_a.url()));
+    let (resolver_b, _cache_dir_b) = make_resolver(format!("{}/", server_b.url()));
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let result_a = resolver_a
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect("resolver A")
+        .expect("resolver A picks");
+    let result_b = resolver_b
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect("resolver B")
+        .expect("resolver B picks");
+
+    let deps_a = result_a
+        .manifest
+        .as_ref()
+        .and_then(|m| m.get("dependencies"))
+        .and_then(|d| d.as_object())
+        .expect("resolver A manifest carries dependencies");
+    let deps_b = result_b
+        .manifest
+        .as_ref()
+        .and_then(|m| m.get("dependencies"))
+        .and_then(|d| d.as_object())
+        .expect("resolver B manifest carries dependencies");
+
+    assert!(deps_a.contains_key("left-pad"), "resolver A keeps its own manifest: {deps_a:?}");
+    assert!(
+        deps_b.contains_key("right-pad"),
+        "resolver B got its own manifest, not resolver A's: {deps_b:?}",
+    );
+    assert!(
+        !deps_b.contains_key("left-pad"),
+        "resolver B must not see resolver A's `left-pad`: {deps_b:?}",
+    );
 }

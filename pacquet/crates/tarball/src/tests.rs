@@ -1533,20 +1533,20 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     drop(store_dir_keep);
 }
 
-/// `run_with_mem_cache`'s in-process dedup must still fire
-/// `pnpm:progress found_in_store` for the *second* requester of a
-/// shared tarball URL. Without it, the per-package counters in
-/// pnpm's reporter would only advance for the first package sharing
-/// a URL — every later package would resolve and import successfully
-/// but never tick the "fetched" gauge.
+/// `run_with_mem_cache`'s in-process dedup emits `pnpm:progress`
+/// exactly once per URL — only the first writer's
+/// `run_without_mem_cache` call fires the event. Mirrors pnpm's
+/// [`packageRequester`](https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L410-L436):
+/// the emit is attached via `.then()` on the first writer's
+/// promise and `await`s from later callers don't re-trigger the
+/// handler.
 ///
 /// Drives two `run_with_mem_cache` calls for the same URL but
 /// different `package_id`s. The first goes through
 /// `run_without_mem_cache` (network fetch + `fetched`); the second
-/// hits the immediate-`Available` branch and must emit
-/// `found_in_store` for *its* package_id.
+/// hits the immediate-`Available` branch and must emit nothing.
 #[tokio::test]
-async fn mem_cache_hit_emits_found_in_store_for_second_requester() {
+async fn mem_cache_hit_does_not_re_emit_for_second_requester() {
     use std::sync::Mutex;
 
     use pacquet_reporter::{LogEvent, ProgressMessage};
@@ -1633,16 +1633,12 @@ async fn mem_cache_hit_emits_found_in_store_for_second_requester() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|e| matches!(
+        !captured.iter().any(|e| matches!(
             e,
             LogEvent::Progress(log)
-                if matches!(
-                    &log.message,
-                    ProgressMessage::FoundInStore { package_id, requester }
-                        if package_id == "second@2.0.0" && requester == "/proj",
-                )
+                if matches!(&log.message, ProgressMessage::FoundInStore { .. })
         )),
-        "found_in_store must fire for the second requester's package_id; got {captured:?}",
+        "found_in_store must NOT re-fire for the second requester; got {captured:?}",
     );
     assert!(
         !captured.iter().any(|e| matches!(

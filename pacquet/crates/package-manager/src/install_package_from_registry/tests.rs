@@ -4,7 +4,10 @@ use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_network::ThrottledClient;
 use pacquet_registry_mock::AutoMockInstance;
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
-use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
+use pacquet_resolving_npm_resolver::{
+    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
+};
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
 use pipe_trait::Pipe;
@@ -97,6 +100,8 @@ async fn resolve_via_mock(
         http_client,
         auth_headers: Default::default(),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+        fetch_locker: shared_packument_fetch_locker(),
+        picked_manifest_cache: shared_picked_manifest_cache(),
         cache_dir: Some(cache_dir.to_path_buf()),
         offline: false,
         prefer_offline: false,
@@ -152,6 +157,7 @@ pub async fn should_install_package_from_pre_resolved_result() {
         store_index: None,
         store_index_writer: None,
         verified_files_cache: &verified_files_cache,
+        prefetched_cas_paths: None,
         logged_methods: &logged_methods,
         requester: "",
         alias: "@pnpm.e2e/hello-world-js-bin",
@@ -237,6 +243,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         store_index: None,
         store_index_writer: None,
         verified_files_cache: &verified_files_cache,
+        prefetched_cas_paths: None,
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "first-alias",
@@ -258,6 +265,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         store_index: None,
         store_index_writer: None,
         verified_files_cache: &verified_files_cache,
+        prefetched_cas_paths: None,
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "second-alias",
@@ -349,6 +357,7 @@ async fn install_emits_progress_sequence() {
         store_index: None,
         store_index_writer: None,
         verified_files_cache: &verified_files_cache,
+        prefetched_cas_paths: None,
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "@pnpm.e2e/hello-world-js-bin",
@@ -450,6 +459,7 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
         store_index: None,
         store_index_writer: None,
         verified_files_cache: &verified_files_cache,
+        prefetched_cas_paths: None,
         logged_methods: &logged_methods,
         requester: "",
         alias: "bar",

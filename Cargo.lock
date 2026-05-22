@@ -2650,6 +2650,7 @@ dependencies = [
  "chrono",
  "dashmap",
  "derive_more",
+ "futures-util",
  "indexmap",
  "miette 7.6.0",
  "mockito",

@@ -29,7 +29,7 @@ use pacquet_resolving_resolver_base::{
 };
 
 use crate::{
-    npm_resolver::{PickedFromRegistry, build_resolve_result},
+    npm_resolver::{BuildResolveResult, PickedFromRegistry, build_resolve_result},
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
     },
@@ -69,6 +69,15 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub meta_cache: Arc<Cache>,
+    /// Shared per-cache-key packument fetch serializer. See
+    /// [`crate::PackumentFetchLocker`]. Same handle as the sibling
+    /// [`crate::NpmResolver`] so concurrent picks for the same
+    /// `(registry, name)` across resolvers coalesce.
+    pub fetch_locker: crate::PackumentFetchLocker,
+    /// Shared per-`(pkg_name, version)` manifest JSON cache. See
+    /// [`crate::PickedManifestCache`]. Same handle as the sibling
+    /// [`crate::NpmResolver`].
+    pub picked_manifest_cache: crate::PickedManifestCache,
     pub cache_dir: Option<PathBuf>,
     pub offline: bool,
     pub prefer_offline: bool,
@@ -138,15 +147,17 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         // `@acme/private`), not the local alias. Callers that omit
         // an explicit alias (`pnpm add gh:@acme/foo`) still get the
         // right entry in `node_modules` and the lockfile.
-        let result = build_resolve_result(
-            &picked.meta,
-            &picked.version,
-            &spec,
-            Some(spec.name.as_str()),
-            NAMED_REGISTRY_RESOLVED_VIA,
-            opts.published_by,
-            opts.published_by_exclude.as_ref(),
-        )?;
+        let result = build_resolve_result(BuildResolveResult {
+            meta: &picked.meta,
+            picked: &picked.version,
+            spec: &spec,
+            alias: Some(spec.name.as_str()),
+            resolved_via: NAMED_REGISTRY_RESOLVED_VIA,
+            registry,
+            published_by: opts.published_by,
+            published_by_exclude: opts.published_by_exclude.as_ref(),
+            picked_manifest_cache: &self.picked_manifest_cache,
+        })?;
 
         Ok(Some(result))
     }
@@ -200,6 +211,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
             meta_cache: self.meta_cache.as_ref(),
+            fetch_locker: &self.fetch_locker,
             cache_dir: self.cache_dir.as_deref(),
             offline: self.offline,
             prefer_offline: self.prefer_offline,

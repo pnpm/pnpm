@@ -76,7 +76,7 @@ pub enum LocalResolverUpdate {
 #[derive(Debug, Clone)]
 pub struct LocalResolveResult {
     pub id: PkgResolutionId,
-    pub manifest: Option<serde_json::Value>,
+    pub manifest: Option<std::sync::Arc<serde_json::Value>>,
     pub normalized_bare_specifier: Option<String>,
     pub resolution: LockfileResolution,
     /// `local-filesystem` — the same `resolvedVia` tag upstream uses
@@ -263,7 +263,7 @@ async fn resolve_spec(
 
     Ok(Some(LocalResolveResult {
         id: spec.id.clone(),
-        manifest: Some(manifest),
+        manifest: Some(std::sync::Arc::new(manifest)),
         normalized_bare_specifier: Some(spec.normalized_bare_specifier),
         resolution: LockfileResolution::Directory(DirectoryResolution {
             directory: spec.dependency_path,

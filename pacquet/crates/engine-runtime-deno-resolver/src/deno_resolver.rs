@@ -116,7 +116,7 @@ impl DenoResolver {
             name_ver: None,
             latest: None,
             published_at: None,
-            manifest: Some(manifest),
+            manifest: Some(std::sync::Arc::new(manifest)),
             resolution,
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
@@ -164,10 +164,10 @@ impl DenoResolver {
             return Ok(Some(LatestInfo::default()));
         };
         Ok(Some(LatestInfo {
-            latest_manifest: Some(serde_json::json!({
+            latest_manifest: Some(std::sync::Arc::new(serde_json::json!({
                 "name": "deno",
                 "version": name_ver.suffix.to_string(),
-            })),
+            }))),
         }))
     }
 }

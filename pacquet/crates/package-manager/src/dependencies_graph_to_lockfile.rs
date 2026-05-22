@@ -263,7 +263,7 @@ fn build_packages_and_snapshots(
 /// `dependencies` / `optionalDependencies` / `transitivePeerDependencies` /
 /// `optional` / `patched`, which go on the snapshot below).
 fn build_package_metadata(node: &DependenciesGraphNode) -> PackageMetadata {
-    let manifest = node.resolve_result.manifest.as_ref();
+    let manifest = node.resolve_result.manifest.as_deref();
 
     let engines = manifest
         .and_then(|m| m.get("engines"))

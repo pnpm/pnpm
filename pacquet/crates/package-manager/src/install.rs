@@ -40,7 +40,11 @@ pub struct Install<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    pub tarball_mem_cache: &'a MemCache,
+    /// Shared in-memory tarball cache. Held behind [`Arc`] so the
+    /// prefetcher constructed in [`InstallWithFreshLockfile::run`]
+    /// can capture an owned clone into the background download task
+    /// while the install-side calls still take `&MemCache` via deref.
+    pub tarball_mem_cache: Arc<MemCache>,
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
     /// Same client behind an [`Arc`] for the lockfile-verification
@@ -268,7 +272,7 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     /// Execute the subroutine.
-    pub async fn run<Reporter: self::Reporter>(self) -> Result<(), InstallError> {
+    pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
             resolved_packages,

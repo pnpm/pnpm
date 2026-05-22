@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use async_recursion::async_recursion;
 use derive_more::{Display, Error};
@@ -15,7 +15,17 @@ use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{ResolveError, ResolveOptions, Resolver, WantedDependency};
 use pipe_trait::Pipe;
 use serde_json::Value;
-use tokio::sync::Mutex;
+
+/// Acquire a [`Mutex`] guard, recovering from poisoning the same way
+/// the rest of pacquet does (`build_modules.rs`, `pick_package.rs`,
+/// …). The mutexes guarded by this helper hold short HashMap /
+/// HashSet inserts with no invariants that survive a panic, so the
+/// install can keep going after the unrelated panic that poisoned
+/// the lock — better than escalating into a hard install-wide
+/// failure.
+fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
+    mutex.lock().unwrap_or_else(|err| err.into_inner())
+}
 
 use crate::{
     node_id::NodeId,
@@ -112,11 +122,15 @@ impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
 ///
 /// Resolves siblings in parallel via `try_join_all` at every level.
 /// The per-package dedupe gate is a shared `HashMap` behind a
-/// [`tokio::sync::Mutex`]: a sibling already resolving an id `X` makes
-/// later visitors skip the recursion the in-flight task is running and
-/// reuse the eventually-populated `ResolvedPackage`. Per-occurrence
-/// tree nodes are still allocated for each visit — only the
-/// `ResolvedPackage` envelope is shared.
+/// [`std::sync::Mutex`]: a second visitor to the same resolved id `X`
+/// AND-folds its `optional` flag into the existing
+/// [`ResolvedPackage`] envelope and reuses it. It still allocates a
+/// fresh [`DependenciesTreeNode`] for the current occurrence and
+/// recurses on `X`'s children — only the resolver-side envelope is
+/// shared. The critical sections are short `HashMap` inserts with no
+/// `await` inside, so a sync mutex is the right tool — tokio's async
+/// mutex adds per-acquire overhead that the resolve hot path was
+/// paying once per visit per ctx field.
 pub async fn resolve_dependency_tree<DependencyGroupList, Chain>(
     resolver: &Chain,
     manifest: &PackageManifest,
@@ -205,13 +219,29 @@ impl TreeCtx {
     /// cumulative [`DirectDep`] list (initial walk + each hoist
     /// iteration's contributions) as `direct`.
     pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
+        // `std::sync::Mutex::into_inner` returns `Result` to surface
+        // poisoning; recover from it the same way the per-acquire
+        // `lock_recoverable` helper does so a panic in an unrelated
+        // task doesn't escalate into a hard install failure here.
         ResolvedTree {
             direct,
-            packages: self.packages.into_inner(),
-            dependencies_tree: self.dependencies_tree.into_inner(),
-            all_peer_dep_names: self.all_peer_dep_names.into_inner(),
-            policy_violations: self.policy_violations.into_inner(),
-            applied_patches: self.applied_patches.into_inner(),
+            packages: self.packages.into_inner().unwrap_or_else(|err| err.into_inner()),
+            dependencies_tree: self
+                .dependencies_tree
+                .into_inner()
+                .unwrap_or_else(|err| err.into_inner()),
+            all_peer_dep_names: self
+                .all_peer_dep_names
+                .into_inner()
+                .unwrap_or_else(|err| err.into_inner()),
+            policy_violations: self
+                .policy_violations
+                .into_inner()
+                .unwrap_or_else(|err| err.into_inner()),
+            applied_patches: self
+                .applied_patches
+                .into_inner()
+                .unwrap_or_else(|err| err.into_inner()),
         }
     }
 
@@ -219,14 +249,14 @@ impl TreeCtx {
     /// `self`. The orchestrator's hoist loop snapshots after each
     /// [`extend_tree`] call to run [`fn@crate::resolve_peers`] over the
     /// growing tree and find missing peers to hoist next.
-    pub async fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+    pub fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
         ResolvedTree {
             direct,
-            packages: self.packages.lock().await.clone(),
-            dependencies_tree: self.dependencies_tree.lock().await.clone(),
-            all_peer_dep_names: self.all_peer_dep_names.lock().await.clone(),
-            policy_violations: self.policy_violations.lock().await.clone(),
-            applied_patches: self.applied_patches.lock().await.clone(),
+            packages: lock_recoverable(&self.packages).clone(),
+            dependencies_tree: lock_recoverable(&self.dependencies_tree).clone(),
+            all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
+            policy_violations: lock_recoverable(&self.policy_violations).clone(),
+            applied_patches: lock_recoverable(&self.applied_patches).clone(),
         }
     }
 
@@ -234,10 +264,8 @@ impl TreeCtx {
     /// so far. Used by the orchestrator to keep `allPreferredVersions`
     /// in sync — mirrors upstream's resolveDependency-time push at
     /// [`resolveDependencies.ts:1440`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1440).
-    pub async fn resolved_versions(&self) -> Vec<(String, String)> {
-        self.packages
-            .lock()
-            .await
+    pub fn resolved_versions(&self) -> Vec<(String, String)> {
+        lock_recoverable(&self.packages)
             .values()
             .filter_map(|pkg| {
                 let name_ver = pkg.result.name_ver.as_ref()?;
@@ -320,9 +348,14 @@ where
             specifier: render_specifier(&wanted),
         });
     };
+    // Wrap in `Arc` once so the two store sites below (the per-id
+    // `ResolvedPackage` envelope and the later peer-resolved graph
+    // node) share one heap-allocated `ResolveResult` instead of
+    // cloning every `String` field per occurrence.
+    let result = Arc::new(result);
 
     if let Some(violation) = result.policy_violation.clone() {
-        ctx.policy_violations.lock().await.push(violation);
+        lock_recoverable(&ctx.policy_violations).push(violation);
     }
 
     if ctx.base_opts.block_exotic_subdeps
@@ -356,7 +389,7 @@ where
     // [`resolvedPkgsById[...].optional = ... && currentIsOptional`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1630)
     // arm.
     {
-        let mut packages = ctx.packages.lock().await;
+        let mut packages = lock_recoverable(&ctx.packages);
         match packages.get_mut(&id) {
             Some(existing) => {
                 existing.optional = existing.optional && current_is_optional;
@@ -366,7 +399,7 @@ where
                 // Collect peer names for the peer-resolution stage's
                 // `parentPkgs` filter (only peers count as parents).
                 {
-                    let mut all_peers = ctx.all_peer_dep_names.lock().await;
+                    let mut all_peers = lock_recoverable(&ctx.all_peer_dep_names);
                     for name in peer_dependencies.keys() {
                         all_peers.insert(name.clone());
                     }
@@ -375,7 +408,7 @@ where
                     id.clone(),
                     ResolvedPackage {
                         id: id.clone(),
-                        result: result.clone(),
+                        result: Arc::clone(&result),
                         peer_dependencies,
                         optional: current_is_optional,
                     },
@@ -420,7 +453,7 @@ where
     let children: BTreeMap<String, NodeId> =
         child_results.into_iter().flatten().map(|dep| (dep.alias, dep.node_id)).collect();
 
-    ctx.dependencies_tree.lock().await.insert(
+    lock_recoverable(&ctx.dependencies_tree).insert(
         node_id,
         DependenciesTreeNode {
             resolved_package_id: id.clone(),
@@ -507,7 +540,7 @@ async fn build_pkg_id_with_patch_hash(
     let Some(patch) = get_patch_info(Some(groups), &name, &version)? else {
         return Ok(prefixed);
     };
-    ctx.applied_patches.lock().await.insert(patch.key.clone());
+    lock_recoverable(&ctx.applied_patches).insert(patch.key.clone());
     Ok(format!("{prefixed}(patch_hash={})", patch.hash))
 }
 

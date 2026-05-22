@@ -47,6 +47,14 @@ pub struct InstallPackageFromRegistry<'a> {
     /// per-package fetch. See `DownloadTarballToStore::verified_files_cache`
     /// for the rationale.
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
+    /// Warm-cache prefetch result built once per install via
+    /// [`pacquet_tarball::prefetch_cas_paths`] — `cache_key →
+    /// Arc<cas_paths>`. When `Some`, the
+    /// `DownloadTarballToStore::run_without_mem_cache` cache-lookup
+    /// branch reads from here before falling back to the per-snapshot
+    /// SQLite lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
+    /// the resolve hot path.
+    pub prefetched_cas_paths: Option<&'a pacquet_tarball::PrefetchedCasPaths>,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -107,6 +115,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
             store_index,
             store_index_writer,
             verified_files_cache,
+            prefetched_cas_paths,
             logged_methods,
             requester,
             node_modules_dir,
@@ -139,7 +148,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
 
         if first_visit {
             let (tarball_url, integrity) = extract_tarball(&resolution.resolution)?;
-            let unpacked_size = manifest_unpacked_size(resolution.manifest.as_ref());
+            let unpacked_size = manifest_unpacked_size(resolution.manifest.as_deref());
 
             // `pnpm:progress resolved` mirrors pnpm's emit at
             // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>:
@@ -168,7 +177,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
                 package_url: tarball_url,
                 package_id: &package_id,
                 requester,
-                prefetched_cas_paths: None,
+                prefetched_cas_paths,
                 retry_opts: retry_opts_from_config(config),
                 auth_headers: &config.auth_headers,
                 ignore_file_pattern: None,
@@ -216,7 +225,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
 
 /// Pull the tarball URL + integrity hash out of the resolver-produced
 /// resolution. Refuses any shape the npm install path can't fetch.
-fn extract_tarball(
+pub(crate) fn extract_tarball(
     resolution: &LockfileResolution,
 ) -> Result<(&str, Integrity), InstallPackageFromRegistryError> {
     match resolution {
@@ -243,7 +252,7 @@ fn extract_tarball(
 /// Read `dist.unpackedSize` off the resolver-fetched manifest. Returns
 /// `None` when missing or non-numeric — the tarball extractor treats it
 /// as a hint, not a hard requirement.
-fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
+pub(crate) fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
     // `usize::try_from` so a `u64` value larger than the host's
     // `usize` (32-bit targets) degrades to "no hint" rather than
     // truncating silently and producing an undersized pre-allocation.
