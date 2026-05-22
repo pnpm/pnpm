@@ -128,12 +128,11 @@ impl BenchmarkScenario {
     /// element (`install` or `add`), followed by any flags.
     pub fn install_args(self) -> &'static [&'static str] {
         match self {
-            BenchmarkScenario::CleanInstall => &["install"],
+            BenchmarkScenario::CleanInstall | BenchmarkScenario::FullResolution => &["install"],
             BenchmarkScenario::FrozenLockfile
             | BenchmarkScenario::FrozenLockfileHotCache
             | BenchmarkScenario::GvsWarm => &["install", "--frozen-lockfile"],
             BenchmarkScenario::Peek => &["add", "is-odd"],
-            BenchmarkScenario::FullResolution => &["install", "--no-frozen-lockfile"],
         }
     }
 
