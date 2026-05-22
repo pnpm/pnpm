@@ -12,10 +12,28 @@ pub async fn ensure_virtual_registry(registry: &str) {
     };
 }
 
-/// Common git-repo check. Asserts `<path>/.git` exists.
+/// Common git-repo check. Asserts `<path>/.git` exists as a directory
+/// (a regular clone) or as a file whose contents begin with `gitdir:`
+/// (a linked git worktree's pointer to the real gitdir). Validating
+/// the file's contents rather than its mere existence avoids
+/// misclassifying an arbitrary file named `.git` as a worktree
+/// pointer.
 fn ensure_git_repo_common(path: &Path) {
     assert!(path.is_dir(), "{path:?} is not a directory");
-    assert!(path.join(".git").is_dir(), "{path:?} is not a git repository");
+    let dot_git = path.join(".git");
+    if dot_git.is_dir() {
+        return;
+    }
+    if dot_git.is_file() {
+        let contents = std::fs::read_to_string(&dot_git)
+            .unwrap_or_else(|error| panic!("read {dot_git:?}: {error}"));
+        assert!(
+            contents.trim_start().starts_with("gitdir:"),
+            "{path:?} has a `.git` file that is not a worktree gitdir pointer",
+        );
+        return;
+    }
+    panic!("{path:?} is not a git repository");
 }
 
 /// Assert that `path` is a git checkout of the pacquet codebase.
