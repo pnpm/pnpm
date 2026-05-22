@@ -165,8 +165,14 @@ jobs:
 
       - name: 'Benchmark: Clean Install'
         shell: bash
-        # Same timeout rationale as the steps above.
-        timeout-minutes: 10
+        # No-lockfile scenario: pacquet does fresh resolution against
+        # the registry, ~3-5x slower than pnpm on `alotta-files`
+        # (pnpm/pnpm#11832), so a single iteration runs longer than
+        # the frozen-lockfile steps. 20 min leaves headroom for the
+        # default hyperfine 1 warmup + 10 timed runs across all three
+        # benchmark targets without losing the per-command timeout
+        # safety net the other steps document.
+        timeout-minutes: 20
         run: |
           just integrated-benchmark --scenario=clean-install --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.md
@@ -174,8 +180,8 @@ jobs:
 
       - name: 'Benchmark: Full Resolution'
         shell: bash
-        # Same timeout rationale as the steps above.
-        timeout-minutes: 10
+        # Same timeout rationale as the clean-install step above.
+        timeout-minutes: 20
         run: |
           just integrated-benchmark --scenario=full-resolution --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FULL_RESOLUTION.md
