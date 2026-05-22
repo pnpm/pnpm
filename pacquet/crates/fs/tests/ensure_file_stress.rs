@@ -50,7 +50,8 @@ fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::Exi
     let content_path: Arc<Path> = Arc::from(content_path.to_path_buf());
     let target_path: Arc<Path> = Arc::from(target_path.to_path_buf());
 
-    (0..WORKER_COUNT)
+    #[allow(clippy::needless_collect, reason = "For spawns all worker subprocesses in parallel")]
+    let handles: Vec<_> = (0..WORKER_COUNT)
         .map(|_| {
             let content_path = Arc::clone(&content_path);
             let target_path = Arc::clone(&target_path);
@@ -62,8 +63,8 @@ fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::Exi
                     .expect("spawn cafs_stress_worker")
             })
         })
-        .map(|handle| handle.join().expect("worker thread"))
-        .collect()
+        .collect();
+    handles.into_iter().map(|handle| handle.join().expect("worker thread")).collect()
 }
 
 /// Sha-512-hex the byte slice, the same digest format
