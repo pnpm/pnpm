@@ -152,6 +152,7 @@ if_then_some_else_none       = "warn"
 unnecessary_lazy_evaluations = "warn"
 redundant_clone              = "warn"
 needless_collect             = "warn"
+or_fun_call                  = "warn"
 
 [profile.release]
 opt-level     = 3
