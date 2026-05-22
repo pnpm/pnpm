@@ -122,46 +122,99 @@ pub fn link_file<Reporter: self::Reporter>(
     source_file: &Path,
     target_link: &Path,
 ) -> Result<(), LinkFileError> {
-    // If the target resolves to a live file (directly or via a
-    // symlink), a prior install placed it and there's nothing to do.
-    // `fs::metadata` follows symlinks and returns `Err(NotFound)` for
-    // dangling ones — so only treat `NotFound` as the "might need
-    // cleanup" case. For anything else (`PermissionDenied`, transient
-    // NFS errors, ...) fall through to the import call below without
-    // touching the existing dirent: deleting a potentially live
-    // symlink on a stat error would be more destructive than letting
-    // the real error surface.
-    match fs::metadata(target_link) {
-        Ok(_) => return Ok(()),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            // A dangling symlink left behind by an interrupted prior
-            // install still returns a dirent from `symlink_metadata`
-            // (which doesn't follow). Scrub it so the subsequent link
-            // / copy doesn't collide with `AlreadyExists` and so the
-            // installed package isn't left with a silently-missing
-            // file.
-            if let Ok(meta) = fs::symlink_metadata(target_link)
-                && meta.file_type().is_symlink()
-            {
-                fs::remove_file(target_link).map_err(|error| LinkFileError::RemoveStale {
-                    path: target_link.to_path_buf(),
-                    error,
-                })?;
-            }
-        }
-        Err(_) => {
-            // Non-`NotFound` stat error. Leave the dirent alone; the
-            // import call below will surface the real problem.
-        }
-    }
-
+    // Optimistically run the import syscall without a pre-flight
+    // stat. Mirrors pnpm's `tryImportIndexedDir` which calls
+    // `fs.linkSync(src, dst)` directly and lets the kernel surface
+    // EEXIST when the target is already there. On a clean install
+    // — the common case — the target dirent doesn't exist, so the
+    // syscall succeeds on the first try and the per-file cost is a
+    // single `link`/`clonefile`/`copy`. The previous shape ran
+    // `fs::metadata` + `fs::symlink_metadata` before every link to
+    // pre-detect existing targets and dangling symlinks; with
+    // ~130k files per `alotta-files` install that was ~260k extra
+    // `stat` syscalls (almost all on `NotFound` paths) and a
+    // measurable chunk of the install-phase wallclock. The EEXIST
+    // recovery path below covers both the "live target already
+    // there" case (skip) and the "dangling symlink left from a
+    // crashed prior install" case (unlink + retry).
+    //
     // Hardlinking a file from the store into `node_modules` means any
     // package that edits its own files at runtime (postinstall scripts
     // are the usual offender) ends up mutating the shared store copy.
     // Current pnpm's indexed-pkg-importer does not guard against this
     // either — postinstall handling lives in the script runner, not the
     // import layer — so there's nothing to gate on here.
-    let result = match method {
+    let result = try_import::<Reporter>(method, logged, source_file, target_link);
+
+    let error = match result {
+        Ok(()) => return Ok(()),
+        Err(error) => error,
+    };
+
+    if error.kind() != io::ErrorKind::AlreadyExists {
+        return Err(LinkFileError::Import {
+            from: source_file.to_path_buf(),
+            to: target_link.to_path_buf(),
+            error,
+        });
+    }
+
+    // EEXIST recovery. Either a prior install placed a real file
+    // here (no-op) or a crashed prior install left a dangling
+    // symlink (scrub + retry). `fs::metadata` follows symlinks and
+    // returns `NotFound` for dangling ones, so it cleanly
+    // distinguishes the two.
+    if fs::metadata(target_link).is_ok() {
+        // Live target, identical content guaranteed by CAS — no-op.
+        return Ok(());
+    }
+
+    // Live dirent that doesn't resolve to a regular file (or
+    // doesn't resolve at all): either a dangling symlink or a
+    // broken dirent of another shape. `symlink_metadata` doesn't
+    // follow links, so an `Ok` here is the dangling-symlink case
+    // — scrub the dirent so the retry below doesn't re-EEXIST.
+    // Anything else falls through to the original error rather
+    // than risking destruction of a live non-symlink dirent.
+    let Ok(meta) = fs::symlink_metadata(target_link) else {
+        return Err(LinkFileError::Import {
+            from: source_file.to_path_buf(),
+            to: target_link.to_path_buf(),
+            error,
+        });
+    };
+    if !meta.file_type().is_symlink() {
+        return Err(LinkFileError::Import {
+            from: source_file.to_path_buf(),
+            to: target_link.to_path_buf(),
+            error,
+        });
+    }
+    fs::remove_file(target_link).map_err(|error| LinkFileError::RemoveStale {
+        path: target_link.to_path_buf(),
+        error,
+    })?;
+
+    match try_import::<Reporter>(method, logged, source_file, target_link) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(LinkFileError::Import {
+            from: source_file.to_path_buf(),
+            to: target_link.to_path_buf(),
+            error,
+        }),
+    }
+}
+
+/// Run the import syscall for the configured `method`. Surfaces
+/// the raw `io::Error` so the caller can dispatch on
+/// `ErrorKind::AlreadyExists` for the EEXIST recovery path.
+fn try_import<Reporter: self::Reporter>(
+    method: PackageImportMethod,
+    logged: &AtomicU8,
+    source_file: &Path,
+    target_link: &Path,
+) -> io::Result<()> {
+    match method {
         PackageImportMethod::Auto => {
             static AUTO_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             auto_link::<Reporter>(logged, &AUTO_STATE, source_file, target_link)
@@ -186,11 +239,10 @@ pub fn link_file<Reporter: self::Reporter>(
                 .map(drop),
             Err(error) => Err(error),
         },
-        PackageImportMethod::Clone => {
-            reflink_copy::reflink(source_file, target_link).inspect(|_| {
+        PackageImportMethod::Clone => reflink_copy::reflink(source_file, target_link)
+            .inspect(|_| {
                 log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
-            })
-        }
+            }),
         PackageImportMethod::CloneOrCopy => {
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             clone_or_copy_link::<Reporter>(logged, &CLONE_OR_COPY_STATE, source_file, target_link)
@@ -200,29 +252,6 @@ pub fn link_file<Reporter: self::Reporter>(
                 log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
             })
             .map(drop),
-    };
-
-    match result {
-        Ok(()) => Ok(()),
-        // TOCTOU: another writer created the target between our
-        // `fs::metadata` short-circuit and the import syscall. The
-        // file is now there, which is exactly what our docstring
-        // promises, so honour the "existing target is a no-op"
-        // contract instead of failing the install. Verify via
-        // `fs::metadata` (follows symlinks; returns NotFound for
-        // dangling) so a newly-appeared broken symlink doesn't
-        // quietly pass as success.
-        Err(error)
-            if error.kind() == io::ErrorKind::AlreadyExists
-                && fs::metadata(target_link).is_ok() =>
-        {
-            Ok(())
-        }
-        Err(error) => Err(LinkFileError::Import {
-            from: source_file.to_path_buf(),
-            to: target_link.to_path_buf(),
-            error,
-        }),
     }
 }
 
