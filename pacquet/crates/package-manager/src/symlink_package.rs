@@ -2,7 +2,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_fs::force_symlink_dir;
 use std::{
-    fs, io,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -47,12 +47,13 @@ pub fn symlink_package(
     symlink_target: &Path,
     symlink_path: &Path,
 ) -> Result<(), SymlinkPackageError> {
-    if let Some(parent) = symlink_path.parent() {
-        fs::create_dir_all(parent).map_err(|error| SymlinkPackageError::CreateParentDir {
-            dir: parent.to_path_buf(),
-            error,
-        })?;
-    }
+    // `force_symlink_dir` handles missing parent dirs via its own
+    // `NotFound` retry that calls `create_dir_all` once and reissues
+    // the symlink syscall. Pre-creating the parent here would just
+    // pay an extra `stat` per symlink (~3-5k per install on the
+    // alotta-files fixture) for the common case of a parent that
+    // already exists from a prior `import_indexed_dir` populate or
+    // sibling symlink.
     force_symlink_dir(symlink_target, symlink_path).map_err(|error| {
         SymlinkPackageError::SymlinkDir {
             symlink_target: symlink_target.to_path_buf(),
