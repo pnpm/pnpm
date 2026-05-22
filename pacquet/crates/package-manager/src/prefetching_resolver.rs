@@ -25,9 +25,10 @@
 
 use crate::install_package_from_registry::{extract_tarball, manifest_unpacked_size};
 use crate::retry_config::retry_opts_from_config;
+use dashmap::DashSet;
 use pacquet_config::Config;
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
     WantedDependency,
@@ -72,6 +73,17 @@ struct OwnedFetchCtx {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    /// Set of URLs that already had a prefetch task spawned, used as
+    /// an atomic check-and-claim gate so concurrent resolves for the
+    /// same tarball can't both pass a non-atomic `MemCache` lookup and
+    /// race two spawns into the cache. [`DashSet::insert`] returns
+    /// `true` only for the caller that wins the slot; later callers
+    /// observe `false` and skip the spawn entirely. The
+    /// [`MemCache`]-side dedup still backstops correctness (the loser
+    /// would have parked on `Notify` instead of doing work), but
+    /// without this gate the bench saw ~3-5k redundant spawns per
+    /// install on the alotta-files fixture (one per dependent edge).
+    spawned_urls: Arc<DashSet<String>>,
 }
 
 /// Wraps an inner [`Resolver`] and, after each successful resolve that
@@ -118,6 +130,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            spawned_urls: Arc::new(DashSet::new()),
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
     }
@@ -156,6 +169,22 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // behaviour without adding a divergence.
         let Some(name_ver) = result.name_ver.as_ref() else { return };
 
+        // Per-occurrence atomic dedup: the deps resolver calls
+        // `resolve()` once per (parent, child) edge. Concurrent calls
+        // for the same tarball must collapse to a single spawn —
+        // `MemCache` would dedup correctness-wise via its `InProgress`
+        // slot, but two losers would still both `tokio::spawn` and
+        // both `await` the `Notify`, contributing only scheduler /
+        // lock churn. Use [`DashSet::insert`] as a check-and-claim
+        // primitive: only the caller that flips the membership from
+        // absent → present spawns; everyone else returns. The
+        // `MemCache` is *not* atomic for this purpose — its
+        // `contains_key` + `insert` is a TOCTOU pair under racing
+        // resolvers (P3 from the code review).
+        if !self.ctx.spawned_urls.insert(package_url.to_string()) {
+            return;
+        }
+
         let package_id = format!("{}@{}", name_ver.name, name_ver.suffix);
         let package_url = package_url.to_string();
         let package_unpacked_size = manifest_unpacked_size(result.manifest.as_deref());
@@ -173,9 +202,27 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let verify_store_integrity = self.ctx.verify_store_integrity;
 
         tokio::spawn(async move {
-            // Result is intentionally discarded — see the doc comment
-            // above. The `MemCache` carries success / failure state to
-            // the install path.
+            // Route the prefetch download through `SilentReporter`,
+            // not the install's reporter. `DownloadTarballToStore`
+            // emits `pnpm:progress fetched` / `found_in_store`
+            // internally; if the install's reporter received those
+            // from the prefetch task, they would land *before*
+            // `install_subtree::install_package_from_registry` emits
+            // the `resolved` event for the same package, breaking
+            // the documented `resolved → fetched/found_in_store →
+            // imported` order pnpm's reporter consumers (notably
+            // `@pnpm/cli.default-reporter`) depend on. The install
+            // pass's own `run_with_mem_cache` call still uses the
+            // real `Reporter` and emits the events in the right
+            // order — the second call short-circuits via `MemCache`
+            // but its `emit_progress_found_in_store` / `emit_*`
+            // path runs uniformly. Mirrors pnpm's
+            // `packageRequester.requestPackage` shape: the
+            // `fetching` promise runs early but the per-event emit
+            // is driven by the install pass that `await`s it.
+            //
+            // Result is intentionally discarded — the `MemCache`
+            // carries success / failure state to the install path.
             let _ = DownloadTarballToStore {
                 http_client: &http_client,
                 store_dir,
@@ -194,7 +241,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 ignore_file_pattern: None,
                 offline,
             }
-            .run_with_mem_cache::<Reporter>(&mem_cache)
+            .run_with_mem_cache::<SilentReporter>(&mem_cache)
             .await;
         });
     }

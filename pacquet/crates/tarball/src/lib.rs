@@ -1841,8 +1841,31 @@ impl<'a> DownloadTarballToStore<'a> {
             // which attaches the emit via `.then()` on the first
             // writer's promise; later `await`s of the same promise
             // do not re-trigger the handler.
-            let notify = match &*cache_lock.write().await {
+            //
+            // Read-lock the state read: the variant inspection below
+            // doesn't mutate anything, and a `write().await` would
+            // serialize every late visitor for a popular tarball
+            // (e.g. dozens of peer-suffix variants of the same
+            // package) behind a single exclusive guard, even though
+            // they're all just observing the in-progress / available
+            // flag. The owner branch below is the only writer; the
+            // RwLock's reader-writer fairness guarantees the owner
+            // still makes progress.
+            let notify = match &*cache_lock.read().await {
                 CacheValue::Available(cas_paths) => {
+                    // Another task (typically the resolve-time
+                    // `PrefetchingResolver` spawn) already populated
+                    // the slot. The owner's `run_without_mem_cache`
+                    // path emitted `pnpm:progress fetched` /
+                    // `found_in_store` on its own reporter — usually
+                    // the silent prefetcher reporter, so the install
+                    // pass needs to emit the equivalent now from its
+                    // own reporter so consumers see the
+                    // `resolved → found_in_store → imported` triple.
+                    // Treat this as a `found_in_store` (the content
+                    // is already on disk / in cache from our
+                    // perspective).
+                    emit_progress_found_in_store::<Reporter>(package_id, requester);
                     return Ok(Arc::clone(cas_paths));
                 }
                 CacheValue::InProgress(notify) => Arc::clone(notify),
@@ -1856,7 +1879,14 @@ impl<'a> DownloadTarballToStore<'a> {
             tracing::info!(target: "pacquet::download", ?package_url, "Wait for cache");
             notify.notified().await;
             match &*cache_lock.read().await {
-                CacheValue::Available(cas_paths) => Ok(Arc::clone(cas_paths)),
+                CacheValue::Available(cas_paths) => {
+                    // Same rationale as the pre-notify `Available`
+                    // branch above — emit `found_in_store` so the
+                    // install pass's reporter sees the event the
+                    // owner's silent emit dropped.
+                    emit_progress_found_in_store::<Reporter>(package_id, requester);
+                    Ok(Arc::clone(cas_paths))
+                }
                 CacheValue::Failed => {
                     Err(TarballError::SiblingFetchFailed { url: package_url.to_string() })
                 }
