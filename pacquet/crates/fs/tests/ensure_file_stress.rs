@@ -52,7 +52,7 @@ fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::Exi
 
     #[allow(
         clippy::needless_collect,
-        reason = "Collecting the handles is needed to spawn all worker subprocesses before joining them",
+        reason = "Collecting the handles is needed to spawn all worker subprocesses before joining them"
     )]
     let handles: Vec<_> = (0..WORKER_COUNT)
         .map(|_| {
