@@ -16,7 +16,7 @@ import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
-import { type OtpContext, publishWithOtpHandling } from './otp.js'
+import { type OtpContext, type OtpPublishResponse, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
@@ -47,6 +47,7 @@ export type PublishPackedPkgOptions = Pick<Config,
   otp?: string // NOTE: There is no existing test for the One-time Password feature
   provenance?: boolean
   provenanceFile?: string // NOTE: This field is currently not supported
+  stage?: boolean
 }
 
 /**
@@ -74,6 +75,8 @@ export interface PublishSummary {
   entryCount: number
   /** Names of bundled dependencies included in the tarball (typically empty). */
   bundled: string[]
+  /** Staged publish identifier returned by the registry. Only present for staged publishes. */
+  stageId?: string
 }
 
 export async function publishPackedPkg (
@@ -85,6 +88,7 @@ export async function publishPackedPkg (
   const publishOptions = await createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
   const { registry } = publishOptions
+  const isStage = opts.stage === true
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
   const summary: PublishSummary = {
     id: `${name}@${version}`,
@@ -102,17 +106,23 @@ export async function publishPackedPkg (
     bundled: extractBundledDependencies(publishedManifest),
   }
   if (opts.dryRun) {
-    globalWarn(`Skip publishing ${name}@${version} (dry run)`)
+    globalWarn(`Skip ${isStage ? 'staging' : 'publishing'} ${name}@${version} (dry run)`)
     return summary
   }
-  const response = await publishWithOtpHandling({
-    context: createPublishContext(opts),
-    manifest: publishedManifest,
-    publishOptions,
-    tarballData,
-  })
+  const context = createPublishContext(opts)
+  const response: StagePublishResponse = isStage
+    ? await context.publish(publishedManifest, tarballData, publishOptions) as StagePublishResponse
+    : await publishWithOtpHandling({
+      context,
+      manifest: publishedManifest,
+      publishOptions,
+      tarballData,
+    })
   if (response.ok) {
-    globalInfo(`✅ Published package ${name}@${version}`)
+    if (isStage && response.stageId) {
+      summary.stageId = response.stageId
+    }
+    globalInfo(`✅ ${isStage ? 'Staged' : 'Published'} package ${name}@${version}`)
     return summary
   }
   throw await createFailedToPublishError(packResult, response)
@@ -145,6 +155,15 @@ function extractBundledDependencies (manifest: ExportedManifest): string[] {
   return []
 }
 
+type StagePublishOptions = PublishOptions & {
+  command?: string
+  stage?: boolean
+}
+
+type StagePublishResponse = OtpPublishResponse & {
+  stageId?: string
+}
+
 /**
  * @internal Exported for unit testing of the access / registry / auth fallback rules. Not part of the package's
  *   public API.
@@ -173,12 +192,13 @@ export async function createPublishOptions (manifest: ExportedManifest, options:
     userAgent,
   } = options
 
+  const npmCommand = options.stage === true ? 'stage' : 'publish'
   const headers: PublishOptions['headers'] = {
     'npm-auth-type': 'web',
-    'npm-command': 'publish',
+    'npm-command': npmCommand,
   }
 
-  const publishOptions: PublishOptions = {
+  const publishOptions: StagePublishOptions = {
     access,
     defaultTag,
     fetchRetries,
@@ -201,10 +221,15 @@ export async function createPublishOptions (manifest: ExportedManifest, options:
     ca: tls?.ca,
     cert: tls?.cert,
     key: tls?.key,
-    npmCommand: 'publish',
+    npmCommand,
     token: creds && extractToken(creds),
     username: creds?.basicAuth?.username,
     password: creds?.basicAuth?.password,
+  }
+
+  if (options.stage === true) {
+    publishOptions.command = 'stage'
+    publishOptions.stage = true
   }
 
   if (registry) {

@@ -113,6 +113,7 @@ export async function recursivePublish (
     }
     const chunks = sortProjects(opts.selectedProjectsGraph)
     const tag = opts.tag ?? 'latest'
+    const commandArgs = opts.stage ? ['stage', 'publish'] : ['publish']
     for (const chunk of chunks) {
       // We can't run publish concurrently due to the npm CLI asking for OTP.
       // NOTE: If we solve the OTP issue, we still need to limit packages concurrency.
@@ -128,7 +129,7 @@ export async function recursivePublish (
           dir: pkg.rootDir,
           argv: {
             original: [
-              'publish',
+              ...commandArgs,
               '--tag',
               tag,
               '--registry',
