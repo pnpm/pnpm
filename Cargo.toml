@@ -125,7 +125,7 @@ zip                = { version = "8", default-features = false, features = ["def
 zune-inflate       = { version = "0.2.54" }
 
 # Dev dependencies
-assert_cmd        = { version = "2.2.1" }
+assert_cmd        = { version = "2.2.2" }
 criterion         = { version = "0.8.2", features = ["async_tokio"] }
 pretty_assertions = { version = "1.4.1" }
 project-root      = { version = "0.2.2" }
