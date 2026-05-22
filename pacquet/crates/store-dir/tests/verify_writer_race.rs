@@ -203,7 +203,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
 
 /// Sanity check: the lock acquired by [`pacquet_fs::cas_write_lock`]
 /// keys on the absolute path. Two callers asking for the same path
-/// receive an `Arc` to the same `Mutex` — the property the Option-C
+/// receive a reference to the same `Mutex` — the property the Option-C
 /// fix relies on for the verifier to wait on the writer.
 #[test]
 fn cas_write_lock_returns_same_mutex_for_same_path() {
@@ -214,7 +214,7 @@ fn cas_write_lock_returns_same_mutex_for_same_path() {
     let lock_b = pacquet_fs::cas_write_lock(&path);
 
     assert!(
-        Arc::ptr_eq(&lock_a, &lock_b),
-        "cas_write_lock must hand out the same Arc<Mutex<()>> for the same path",
+        std::ptr::eq(lock_a, lock_b),
+        "cas_write_lock must hand out the same Mutex<()> for the same path",
     );
 }

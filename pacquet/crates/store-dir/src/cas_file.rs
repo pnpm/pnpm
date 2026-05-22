@@ -11,9 +11,23 @@ use std::path::PathBuf;
 impl StoreDir {
     /// Path to a file in the store directory.
     pub fn cas_file_path(&self, hash: FileHash, executable: bool) -> PathBuf {
-        let hex = format!("{hash:x}");
+        // Sha-512 → 64 bytes → 128 hex chars. Render into a stack
+        // buffer so the per-file path build doesn't pay a String
+        // allocation just for the digest. `write!` of `{:02x}` is
+        // identical on the wire to `format!("{hash:x}")` for the
+        // `digest::Output<Sha512>` value (a fixed-size byte array
+        // whose `LowerHex` impl emits each byte as `%02x`).
+        use std::io::Write as _;
+        let mut hex_buf = [0u8; 128];
+        let mut writer = &mut hex_buf[..];
+        for byte in hash.iter() {
+            // `write!` on `&mut [u8]` never errors when the buffer is
+            // large enough — 128 bytes is exactly the digest length.
+            write!(writer, "{byte:02x}").expect("hex buffer sized for full sha-512 digest");
+        }
+        let hex = std::str::from_utf8(&hex_buf).expect("LowerHex of byte digest is ASCII");
         let suffix = if executable { "-exec" } else { "" };
-        self.file_path_by_hex_str(&hex, suffix)
+        self.file_path_by_hex_str(hex, suffix)
     }
 
     /// Path to a content-addressed file given its pre-computed hex digest
