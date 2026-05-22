@@ -220,17 +220,17 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             None => return Ok(None),
         };
 
-        let result = build_resolve_result(
-            &picked.meta,
-            &picked.version,
-            &spec,
-            wanted_dependency.alias.as_deref(),
-            NPM_REGISTRY_RESOLVED_VIA,
-            opts.published_by,
-            opts.published_by_exclude.as_ref(),
-            &registry,
-            &self.picked_manifest_cache,
-        )?;
+        let result = build_resolve_result(BuildResolveResult {
+            meta: &picked.meta,
+            picked: &picked.version,
+            spec: &spec,
+            alias: wanted_dependency.alias.as_deref(),
+            resolved_via: NPM_REGISTRY_RESOLVED_VIA,
+            registry: &registry,
+            published_by: opts.published_by,
+            published_by_exclude: opts.published_by_exclude.as_ref(),
+            picked_manifest_cache: &self.picked_manifest_cache,
+        })?;
 
         Ok(Some(result))
     }
@@ -268,17 +268,17 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             None => return Ok(None),
         };
 
-        let result = build_resolve_result(
-            &picked.meta,
-            &picked.version,
-            &jsr_spec.spec,
-            Some(jsr_spec.jsr_pkg_name.as_str()),
-            JSR_REGISTRY_RESOLVED_VIA,
-            opts.published_by,
-            opts.published_by_exclude.as_ref(),
+        let result = build_resolve_result(BuildResolveResult {
+            meta: &picked.meta,
+            picked: &picked.version,
+            spec: &jsr_spec.spec,
+            alias: Some(jsr_spec.jsr_pkg_name.as_str()),
+            resolved_via: JSR_REGISTRY_RESOLVED_VIA,
             registry,
-            &self.picked_manifest_cache,
-        )?;
+            published_by: opts.published_by,
+            published_by_exclude: opts.published_by_exclude.as_ref(),
+            picked_manifest_cache: &self.picked_manifest_cache,
+        })?;
 
         Ok(Some(result))
     }
@@ -387,18 +387,37 @@ pub(crate) struct PickedFromRegistry {
     pub(crate) version: PackageVersion,
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Input bundle for [`build_resolve_result`]. Grouped so the
+/// 9-field signature stays a struct literal at the (3) call sites
+/// instead of a positional argument list that clippy flags as
+/// `too_many_arguments` (and that's painful to extend when the
+/// next field lands).
+pub(crate) struct BuildResolveResult<'a> {
+    pub meta: &'a Package,
+    pub picked: &'a PackageVersion,
+    pub spec: &'a RegistryPackageSpec,
+    pub alias: Option<&'a str>,
+    pub resolved_via: &'a str,
+    pub registry: &'a str,
+    pub published_by: Option<DateTime<Utc>>,
+    pub published_by_exclude: Option<&'a PackageVersionPolicy>,
+    pub picked_manifest_cache: &'a crate::PickedManifestCache,
+}
+
 pub(crate) fn build_resolve_result(
-    meta: &Package,
-    picked: &PackageVersion,
-    spec: &RegistryPackageSpec,
-    alias: Option<&str>,
-    resolved_via: &str,
-    published_by: Option<DateTime<Utc>>,
-    published_by_exclude: Option<&PackageVersionPolicy>,
-    registry: &str,
-    picked_manifest_cache: &crate::PickedManifestCache,
+    args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {
+    let BuildResolveResult {
+        meta,
+        picked,
+        spec,
+        alias,
+        resolved_via,
+        registry,
+        published_by,
+        published_by_exclude,
+        picked_manifest_cache,
+    } = args;
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
     let version_str = picked.version.to_string();

@@ -29,7 +29,7 @@ use pacquet_resolving_resolver_base::{
 };
 
 use crate::{
-    npm_resolver::{PickedFromRegistry, build_resolve_result},
+    npm_resolver::{BuildResolveResult, PickedFromRegistry, build_resolve_result},
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
     },
@@ -147,17 +147,17 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         // `@acme/private`), not the local alias. Callers that omit
         // an explicit alias (`pnpm add gh:@acme/foo`) still get the
         // right entry in `node_modules` and the lockfile.
-        let result = build_resolve_result(
-            &picked.meta,
-            &picked.version,
-            &spec,
-            Some(spec.name.as_str()),
-            NAMED_REGISTRY_RESOLVED_VIA,
-            opts.published_by,
-            opts.published_by_exclude.as_ref(),
+        let result = build_resolve_result(BuildResolveResult {
+            meta: &picked.meta,
+            picked: &picked.version,
+            spec: &spec,
+            alias: Some(spec.name.as_str()),
+            resolved_via: NAMED_REGISTRY_RESOLVED_VIA,
             registry,
-            &self.picked_manifest_cache,
-        )?;
+            published_by: opts.published_by,
+            published_by_exclude: opts.published_by_exclude.as_ref(),
+            picked_manifest_cache: &self.picked_manifest_cache,
+        })?;
 
         Ok(Some(result))
     }

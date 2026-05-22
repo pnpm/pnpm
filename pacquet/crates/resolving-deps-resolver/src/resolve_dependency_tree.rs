@@ -122,15 +122,15 @@ impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
 ///
 /// Resolves siblings in parallel via `try_join_all` at every level.
 /// The per-package dedupe gate is a shared `HashMap` behind a
-/// [`std::sync::Mutex`]: a sibling already resolving an id `X` makes
-/// later visitors skip the recursion the in-flight task is running and
-/// reuse the eventually-populated `ResolvedPackage`. The critical
-/// sections are short `HashMap` inserts with no `await` inside, so
-/// a sync mutex is the right tool — tokio's async mutex adds
-/// per-acquire overhead that the resolve hot path was paying once
-/// per visit per ctx field.
-/// Per-occurrence tree nodes are still allocated for each visit —
-/// only the `ResolvedPackage` envelope is shared.
+/// [`std::sync::Mutex`]: a second visitor to the same resolved id `X`
+/// AND-folds its `optional` flag into the existing
+/// [`ResolvedPackage`] envelope and reuses it. It still allocates a
+/// fresh [`DependenciesTreeNode`] for the current occurrence and
+/// recurses on `X`'s children — only the resolver-side envelope is
+/// shared. The critical sections are short `HashMap` inserts with no
+/// `await` inside, so a sync mutex is the right tool — tokio's async
+/// mutex adds per-acquire overhead that the resolve hot path was
+/// paying once per visit per ctx field.
 pub async fn resolve_dependency_tree<DependencyGroupList, Chain>(
     resolver: &Chain,
     manifest: &PackageManifest,

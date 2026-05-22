@@ -469,15 +469,19 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         );
 
         // Drop the resolver (and its packument cache) before the
-        // install pass. Dropping `resolver` releases the strong
-        // reference held by the `ArcResolver` wrapper; the standalone
-        // `npm_resolver` binding holds a second strong reference
-        // because the deno- and bun-resolvers were handed a clone of
-        // the same `Arc` for their version-selection delegate. Drop
-        // both so the `NpmResolver`'s meta cache is freed before the
-        // install pass starts pulling tarballs into the CAFS.
+        // install pass. Each `Arc` is cloned twice during resolver
+        // construction (once into `NpmResolver`, once into
+        // `NamedRegistryResolver`, then again into the deno- / bun-
+        // resolvers via `Arc::clone(&npm_resolver)`), and the local
+        // bindings each still hold one strong reference of their
+        // own. Releasing every reference takes an explicit drop on
+        // each binding — letting the cache shrink before the install
+        // pass starts pulling tarballs into the CAFS.
         drop(resolver);
         drop(npm_resolver);
+        drop(meta_cache);
+        drop(fetch_locker);
+        drop(picked_manifest_cache);
 
         // Open the read-only SQLite index, spawn the batched writer,
         // and allocate the install-scoped `verifiedFilesCache`. Same
