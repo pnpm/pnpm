@@ -99,11 +99,16 @@ pub trait PackageMetaCache: Send + Sync {
     /// `Map.get` semantics — pnpm's metaCache returns object
     /// references, not copies, and pacquet matches that contract.
     fn get(&self, key: &str) -> Option<Arc<Package>>;
-    /// Insert/overwrite `meta` under `key`. The orchestrator only
-    /// inserts after a fresh fetch — never replays a stale on-disk
-    /// load. Takes [`Arc<Package>`] so callers can share the same
-    /// handle they hand back to [`PickPackageResult`] without an
-    /// extra clone.
+    /// Insert/overwrite `meta` under `key`. The orchestrator inserts
+    /// after a fresh fetch and after any disk-fast-path that returns
+    /// successfully — populating the cache from the disk read avoids
+    /// re-paying the `spawn_blocking` + `serde_json::from_str` for
+    /// every later resolve of the same `(registry, name)` within the
+    /// install. The cache is install-scoped, so a disk-loaded entry
+    /// can't outlive the freshness window the disk read already
+    /// accepted; the next install starts a fresh cache. Takes
+    /// [`Arc<Package>`] so callers can share the same handle they
+    /// hand back to [`PickPackageResult`] without an extra clone.
     fn set(&self, key: String, meta: Arc<Package>);
 }
 
@@ -530,6 +535,18 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // always full so this branch shouldn't fire today,
             // but the swallow-and-fall-through matches upstream.
             if let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta) {
+                // Promote the disk-loaded packument into the
+                // install-scoped in-memory cache so later resolves
+                // for the same `(registry, name)` skip the
+                // `spawn_blocking` + multi-MB `serde_json::from_str`
+                // this branch just paid. The cache is rebuilt per
+                // install, so populating it here can't outlive the
+                // freshness window the disk read already accepted —
+                // the next install starts a fresh cache and
+                // re-evaluates the disk shortcut.
+                if !opts.dry_run {
+                    ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
+                }
                 return Ok(PickPackageResult {
                     meta: Arc::clone(meta),
                     picked_package: Some(picked),
@@ -549,6 +566,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         if let Some(ref meta) = meta_cached_in_store
             && let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta)
         {
+            // Same rationale as the version-spec fast path above —
+            // promote the disk-loaded packument into the
+            // install-scoped in-memory cache.
+            if !opts.dry_run {
+                ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
+            }
             return Ok(PickPackageResult { meta: Arc::clone(meta), picked_package: Some(picked) });
         }
     }
