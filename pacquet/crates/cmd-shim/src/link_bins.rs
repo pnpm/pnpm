@@ -453,15 +453,13 @@ where
     // themselves still get computed inside the `cfg!(windows)` branch
     // below — moving the `generate_*` calls there keeps Unix builds
     // off the `relative_target_windows` allocation path entirely.
-    let windows_shims = if cfg!(windows) {
+    let windows_shims = cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(shim_path, "cmd");
         let ps1_path = with_extension_appended(shim_path, "ps1");
         let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref());
         let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref());
-        Some((cmd_path, cmd_body, ps1_path, ps1_body))
-    } else {
-        None
-    };
+        (cmd_path, cmd_body, ps1_path, ps1_body)
+    });
 
     // Idempotent skip fires only when every flavor that *should* be
     // present is present and pointing at the right target. The `.sh`

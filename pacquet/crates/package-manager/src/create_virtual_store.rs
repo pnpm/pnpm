@@ -624,16 +624,14 @@ impl<'a> CreateVirtualStore<'a> {
         // need to reason across the two branches. Cold-batch
         // entries are appended at the bottom of the function once
         // the cold-batch fetch finishes.
-        let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = if is_hoisted {
+        let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = is_hoisted.then(|| {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
             for (snapshot_key, _snapshot, cas_paths) in &warm {
                 let pkg_id = PkgIdWithPatchHash::from(snapshot_key.to_string());
                 map.entry(pkg_id).or_insert_with(|| (***cas_paths).clone());
             }
-            Some(map)
-        } else {
-            None
-        };
+            map
+        });
 
         let import_method = config.package_import_method;
         if !is_hoisted {

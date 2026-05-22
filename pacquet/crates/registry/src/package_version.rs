@@ -152,7 +152,7 @@ where
             Ok(Some(value))
         }
         fn visit_bool<Err: de::Error>(self, value: bool) -> Result<Self::Value, Err> {
-            Ok(if value { Some(String::new()) } else { None })
+            Ok(value.then(String::new))
         }
         fn visit_none<Err: de::Error>(self) -> Result<Self::Value, Err> {
             Ok(None)

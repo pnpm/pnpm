@@ -294,11 +294,7 @@ async fn read_node_assets_from_mirror(
                 error: Arc::new(error),
             }) as ResolveError
         })?;
-        let prefix = if matches!(archive, BinaryArchive::Zip) {
-            Some(address.basename.clone())
-        } else {
-            None
-        };
+        let prefix = matches!(archive, BinaryArchive::Zip).then(|| address.basename.clone());
         let binary = BinaryResolution {
             url,
             integrity,

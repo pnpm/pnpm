@@ -221,11 +221,7 @@ fn pick_matching_local_version_or_null(
             resolve_workspace_range("*", &raw)
         }
         RegistryPackageSpecType::Version => {
-            if versions.contains_key(&spec.fetch_spec) {
-                Some(spec.fetch_spec.clone())
-            } else {
-                None
-            }
+            versions.contains_key(&spec.fetch_spec).then(|| spec.fetch_spec.clone())
         }
         RegistryPackageSpecType::Range => {
             let raw: Vec<String> = versions.keys().cloned().collect();

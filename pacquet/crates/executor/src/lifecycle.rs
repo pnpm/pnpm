@@ -164,11 +164,8 @@ pub fn run_postinstall_hooks<Reporter: self::Reporter>(
     }
 
     let install_script = get_script("install").map(String::from).or_else(|| {
-        if get_script("preinstall").is_none() && opts.pkg_root.join("binding.gyp").exists() {
-            Some("node-gyp rebuild".to_string())
-        } else {
-            None
-        }
+        (get_script("preinstall").is_none() && opts.pkg_root.join("binding.gyp").exists())
+            .then(|| "node-gyp rebuild".to_string())
     });
     if let Some(script) = &install_script
         && script != "npx only-allow pnpm"
