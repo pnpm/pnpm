@@ -166,7 +166,7 @@ async fn does_not_hoist_when_disabled() {
             .direct_dependencies_by_alias
             .keys()
             .map(String::as_str)
-            .any(|name| name == "react")
+            .any(|name| name == "react"),
     );
     assert!(result.peers_result.peer_dependency_issues.missing.contains_key("react"));
 }

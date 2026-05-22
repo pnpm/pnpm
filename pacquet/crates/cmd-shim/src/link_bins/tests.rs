@@ -1225,7 +1225,7 @@ fn link_node_bin_hardlinks_node_exe_on_windows() {
     let manifest: Value =
         serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
     )
     .unwrap();
@@ -1268,7 +1268,7 @@ fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
     let manifest: Value =
         serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
     )
     .unwrap();
