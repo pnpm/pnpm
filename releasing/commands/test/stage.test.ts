@@ -253,8 +253,12 @@ async function createRegistry (handler: RegistryHandler): Promise<{ close: () =>
       url: new URL(req.url ?? '/', `http://${req.headers.host}`),
     }
     requests.push(request)
-    const response = await handler(request)
-    writeResponse(res, response)
+    try {
+      const response = await handler(request)
+      writeResponse(res, response)
+    } catch (error: unknown) {
+      writeResponse(res, { status: 500, body: String(error) })
+    }
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()

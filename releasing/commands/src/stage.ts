@@ -537,7 +537,12 @@ async function summarizeTarball (tarballData: Buffer): Promise<PublishSummary> {
       stream.on('error', reject)
       stream.on('end', () => {
         if (header.name === 'package/package.json') {
-          manifest = JSON.parse(Buffer.concat(chunks).toString())
+          try {
+            manifest = JSON.parse(Buffer.concat(chunks).toString())
+          } catch (error: unknown) {
+            reject(error)
+            return
+          }
         }
         next()
       })
