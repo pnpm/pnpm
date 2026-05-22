@@ -417,10 +417,14 @@ where
         }
     }
 
-    // Allocate a fresh NodeId for this occurrence. Two parents sharing
-    // the same `pkgIdWithPatchHash` get different `NodeId`s so the peer
-    // resolver can attach different peer suffixes per call site.
-    let node_id = NodeId::next();
+    // Leaves (no deps / optional deps / peers / peerDependenciesMeta)
+    // reuse the package id as their `NodeId`, collapsing every parent
+    // edge onto one tree node. Non-leaves still get a fresh per-
+    // occurrence id so the peer resolver can attach different peer
+    // suffixes per call site. Mirrors upstream's
+    // [`resolveDependencies.ts:1580`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580).
+    let is_leaf = pkg_is_leaf(&result);
+    let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
@@ -453,15 +457,26 @@ where
     let children: BTreeMap<String, NodeId> =
         child_results.into_iter().flatten().map(|dep| (dep.alias, dep.node_id)).collect();
 
-    lock_recoverable(&ctx.dependencies_tree).insert(
-        node_id,
-        DependenciesTreeNode {
+    // Repeat-visit leaves collapse onto one tree node; keep the
+    // shallowest depth seen so downstream consumers that read
+    // `tree_node.depth` (the peer pass folds it onto the graph node's
+    // `depth`) match upstream's
+    // [`Math.min(...)` arm](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1636-L1637).
+    // Per-occurrence counter ids are unique by construction, so the
+    // `and_modify` arm is dead for non-leaves.
+    lock_recoverable(&ctx.dependencies_tree)
+        .entry(node_id.clone())
+        .and_modify(|node| {
+            if node.depth > depth {
+                node.depth = depth;
+            }
+        })
+        .or_insert_with(|| DependenciesTreeNode {
             resolved_package_id: id.clone(),
             children,
             depth,
             installable: true,
-        },
-    );
+        });
 
     Ok(Some(DirectDep { alias, node_id, id }))
 }
@@ -653,6 +668,25 @@ fn extract_peer_dependencies(
     }
 
     peers
+}
+
+/// `true` when the package has no `dependencies`, `optionalDependencies`,
+/// `peerDependencies`, or `peerDependenciesMeta`. Mirrors upstream's
+/// [`pkgIsLeaf`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1735-L1742).
+///
+/// Conservatively returns `false` when the manifest is missing — a
+/// future visit may reveal children, and collapsing onto a leaf
+/// `NodeId` would lose that information.
+fn pkg_is_leaf(result: &pacquet_resolving_resolver_base::ResolveResult) -> bool {
+    let Some(manifest) = result.manifest.as_ref() else { return false };
+    is_empty_or_absent(manifest.get("dependencies"))
+        && is_empty_or_absent(manifest.get("optionalDependencies"))
+        && is_empty_or_absent(manifest.get("peerDependencies"))
+        && is_empty_or_absent(manifest.get("peerDependenciesMeta"))
+}
+
+fn is_empty_or_absent(value: Option<&Value>) -> bool {
+    value.and_then(Value::as_object).is_none_or(serde_json::Map::is_empty)
 }
 
 /// Provenance tags that count as non-exotic for `blockExoticSubdeps`.

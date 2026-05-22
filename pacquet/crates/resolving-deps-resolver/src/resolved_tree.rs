@@ -24,11 +24,15 @@ pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;
 ///   resolved package, no per-occurrence repetition. Upstream calls
 ///   the equivalent index `resolvedPkgsById`.
 /// - [`dependencies_tree`](Self::dependencies_tree) is the **per-
-///   occurrence tree**, keyed by [`NodeId`]. Every parent → child edge
-///   has a fresh child `NodeId`, even when two parents share the same
-///   `pkgIdWithPatchHash`, because the peer-resolution stage needs
-///   per-occurrence state (a shared package under two parents can
-///   compute different peer suffixes).
+///   occurrence tree**, keyed by [`NodeId`]. Non-leaf nodes get a fresh
+///   child `NodeId` per parent occurrence so the peer-resolution stage
+///   can compute different peer suffixes per call site. Leaves (no
+///   `dependencies`, `optionalDependencies`, `peerDependencies`, or
+///   `peerDependenciesMeta`) collapse onto one shared `NodeId`,
+///   mirroring upstream's
+///   [`pkgIsLeaf` reuse](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580):
+///   a leaf has no per-occurrence state worth distinguishing, so every
+///   parent that references it points at the same tree node.
 #[derive(Debug, Default, Clone)]
 pub struct ResolvedTree {
     pub direct: Vec<DirectDep>,
@@ -74,9 +78,10 @@ pub struct DirectDep {
 /// for the npm-shaped slice pacquet currently exposes.
 ///
 /// **Children live on [`DependenciesTreeNode`], not here.** Two parents
-/// that share a resolved package each get their own per-occurrence
-/// tree node with its own children edges — a `ResolvedPackage` is the
-/// dedup-shared *envelope*, not a tree node.
+/// that share a non-leaf resolved package each get their own per-
+/// occurrence tree node with its own children edges; leaves collapse
+/// onto one shared tree node (see [`DependenciesTree`]). Either way,
+/// `ResolvedPackage` is the dedup-shared *envelope*, not a tree node.
 #[derive(Debug, Clone)]
 pub struct ResolvedPackage {
     pub id: String,

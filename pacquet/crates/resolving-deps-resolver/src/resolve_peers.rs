@@ -212,8 +212,12 @@ impl<'tree> Walker<'tree> {
         let parent_chain_names: Vec<String> = Vec::new();
         let mut direct_by_alias = BTreeMap::new();
         for direct in &self.tree.direct {
-            let output =
-                self.resolve_node(direct.node_id, &importer_parents, &parent_chain_names, 0);
+            let output = self.resolve_node(
+                direct.node_id.clone(),
+                &importer_parents,
+                &parent_chain_names,
+                0,
+            );
             direct_by_alias.insert(direct.alias.clone(), output.dep_path);
         }
         self.patch_pending_peer_edges();
@@ -304,7 +308,7 @@ impl<'tree> Walker<'tree> {
                 missing_peers: HashMap::new(),
             };
         }
-        self.in_progress.insert(node_id);
+        self.in_progress.insert(node_id.clone());
 
         let tree_node = self.tree.dependencies_tree[&node_id].clone();
         let pkg = self.tree.packages[&tree_node.resolved_package_id].clone();
@@ -330,7 +334,7 @@ impl<'tree> Walker<'tree> {
             }
             let parent_ref = ParentRef {
                 version: child_version,
-                node_id: Some(*child_node_id),
+                node_id: Some(child_node_id.clone()),
                 alias: if alias != &child_real_name { Some(alias.clone()) } else { None },
             };
             if alias_relevant {
@@ -355,14 +359,14 @@ impl<'tree> Walker<'tree> {
         let mut child_dep_paths: BTreeMap<String, DepPath> = BTreeMap::new();
         for (alias, child_node_id) in &tree_node.children {
             let child_output = self.resolve_node(
-                *child_node_id,
+                child_node_id.clone(),
                 &child_parent_refs,
                 &child_chain_names,
                 depth + 1,
             );
             child_dep_paths.insert(alias.clone(), child_output.dep_path);
             for (peer_alias, peer_node_id) in child_output.external_resolved_peers {
-                if tree_node.children.values().any(|id| *id == peer_node_id) {
+                if tree_node.children.values().any(|id| id == &peer_node_id) {
                     // Resolved against one of *this node's* children —
                     // not external from this node's perspective.
                     // Compare by NodeId (not alias) because `children`
@@ -403,7 +407,7 @@ impl<'tree> Walker<'tree> {
         // on itself).
         let mut all_resolved_peers = external_from_children;
         for (peer_alias, peer_node_id) in &own_resolved_peers {
-            all_resolved_peers.insert(peer_alias.clone(), *peer_node_id);
+            all_resolved_peers.insert(peer_alias.clone(), peer_node_id.clone());
         }
         all_resolved_peers.remove(&pkg_name);
 
@@ -420,7 +424,7 @@ impl<'tree> Walker<'tree> {
         } else {
             let mut peer_ids: Vec<PeerId> = all_resolved_peers
                 .values()
-                .map(|peer_node_id| self.build_peer_id(*peer_node_id))
+                .map(|peer_node_id| self.build_peer_id(peer_node_id))
                 .collect();
             // Sorting happens inside `create_peer_dep_graph_hash`, but
             // we deduplicate by stringified form here to mirror
@@ -436,9 +440,9 @@ impl<'tree> Walker<'tree> {
         // propagated state before inserting into the graph (so any
         // cycle the graph insert hits via `child_dep_paths` can find
         // this node's depPath).
-        self.node_dep_paths.insert(node_id, dep_path.clone());
-        self.node_external_peers.insert(node_id, all_resolved_peers.clone());
-        self.node_missing_peers.insert(node_id, all_missing_peers.clone());
+        self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
+        self.node_external_peers.insert(node_id.clone(), all_resolved_peers.clone());
+        self.node_missing_peers.insert(node_id.clone(), all_missing_peers.clone());
 
         // The children's depPath edges become this node's graph children.
         // Resolved peers become extra edges, aliased by peer name. If a
@@ -455,7 +459,7 @@ impl<'tree> Walker<'tree> {
                 self.pending_peer_edges.push(PendingPeerEdge {
                     parent_dep_path: dep_path.clone(),
                     peer_alias: peer_alias.clone(),
-                    peer_node_id: *peer_node_id,
+                    peer_node_id: peer_node_id.clone(),
                 });
             }
         }
@@ -510,7 +514,7 @@ impl<'tree> Walker<'tree> {
         // `external_from_children` filter above — `children` is keyed
         // by install alias while peers may be keyed by the resolved
         // package's real name.
-        let own_child_ids: HashSet<NodeId> = tree_node.children.values().copied().collect();
+        let own_child_ids: HashSet<&NodeId> = tree_node.children.values().collect();
         let external_to_report: HashMap<String, NodeId> = all_resolved_peers
             .into_iter()
             .filter(|(_, peer_node_id)| !own_child_ids.contains(peer_node_id))
@@ -565,8 +569,8 @@ impl<'tree> Walker<'tree> {
                         },
                     );
                 }
-                if let Some(parent_node_id) = parent.node_id {
-                    resolved.insert(peer_name.to_string(), parent_node_id);
+                if let Some(parent_node_id) = parent.node_id.as_ref() {
+                    resolved.insert(peer_name.to_string(), parent_node_id.clone());
                 }
             }
         }
@@ -576,11 +580,11 @@ impl<'tree> Walker<'tree> {
     /// peer's depPath is already in `node_dep_paths`, use it (the
     /// `DepPath` form). Otherwise (the cycle path), fall back to
     /// `name@version` from the resolved package.
-    fn build_peer_id(&self, peer_node_id: NodeId) -> PeerId {
-        if let Some(dep_path) = self.node_dep_paths.get(&peer_node_id) {
+    fn build_peer_id(&self, peer_node_id: &NodeId) -> PeerId {
+        if let Some(dep_path) = self.node_dep_paths.get(peer_node_id) {
             return PeerId::DepPath(dep_path.clone());
         }
-        let tree_node = &self.tree.dependencies_tree[&peer_node_id];
+        let tree_node = &self.tree.dependencies_tree[peer_node_id];
         let pkg = &self.tree.packages[&tree_node.resolved_package_id];
         let (name, version) = pkg_name_version(&pkg.result);
         PeerId::Pair { name, version }
@@ -605,7 +609,7 @@ fn insert_parent_ref(
     }
     let parent_ref = ParentRef {
         version: version.clone(),
-        node_id: Some(direct.node_id),
+        node_id: Some(direct.node_id.clone()),
         alias: if direct.alias != real_name { Some(direct.alias.clone()) } else { None },
     };
     if alias_relevant {
