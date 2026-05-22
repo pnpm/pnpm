@@ -60,7 +60,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
         with:
           tool: cross
 
