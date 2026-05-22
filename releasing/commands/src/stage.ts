@@ -206,7 +206,7 @@ async function stagePublish (
     : result.publishedPackages ?? []
   if (publishedPackages.length > 0) {
     return {
-      output: publishedPackages.map(renderStagePublishSummary).join('\n'),
+      output: publishedPackages.map((summary) => renderStagePublishSummary(summary, { dryRun: opts.dryRun === true })).join('\n'),
       exitCode: result.exitCode ?? 0,
     }
   }
@@ -218,7 +218,7 @@ async function stageList (opts: StageOptions, params: string[]): Promise<string>
   let packageFilter: string | undefined
   if (params[0]) {
     const spec = parseStagePackageSpec(params[0])
-    if (spec.rawSpec !== '*') {
+    if (spec.rawSpec !== '' && spec.rawSpec !== '*') {
       throw new PnpmError('STAGE_VERSION_SPECIFIER_UNSUPPORTED', 'Version specifiers are not supported for listing staged packages')
     }
     packageFilter = spec.name
@@ -302,10 +302,11 @@ async function stageDownload (opts: StageOptions, params: string[]): Promise<str
   const tarballData = Buffer.from(await response.arrayBuffer())
   const summary = await summarizeTarball(tarballData)
   const filename = `${normalizePackageName(summary.name)}-${summary.version}-${stageId}.tgz`
+  const downloadedSummary = { ...summary, filename }
   await fs.writeFile(path.resolve(opts.dir ?? process.cwd(), filename), tarballData)
 
-  if (opts.json) return JSON.stringify({ [summary.name]: summary }, null, 2)
-  return `${renderTarballSummary(summary)}\n${filename}`
+  if (opts.json) return JSON.stringify({ [summary.name]: downloadedSummary }, null, 2)
+  return `${renderTarballSummary(downloadedSummary)}\n${filename}`
 }
 
 function keyByPackageName (packages: Array<PublishSummary | { name?: string, version?: string }>): Record<string, PublishSummary | { name?: string, version?: string }> {
@@ -317,12 +318,13 @@ function keyByPackageName (packages: Array<PublishSummary | { name?: string, ver
   return keyed
 }
 
-function renderStagePublishSummary (summary: PublishSummary | { name?: string, version?: string }): string {
+function renderStagePublishSummary (summary: PublishSummary | { name?: string, version?: string }, opts: { dryRun: boolean }): string {
   const id = 'id' in summary && summary.id
     ? summary.id
     : summary.name && summary.version
       ? `${summary.name}@${summary.version}`
       : summary.name ?? '<unknown package>'
+  if (opts.dryRun) return `+ ${id} (would stage)`
   if ('stageId' in summary && summary.stageId) {
     return `+ ${id} (staged with id ${summary.stageId})`
   }
@@ -390,7 +392,20 @@ async function stageRequestWithOtp (
   return withOtpHandling({
     context,
     fetchOptions: createWebAuthFetchOptions(opts),
-    operation: async (otp) => stageRequest(opts, registry, url, init, action, otp ?? getConfiguredOtp(opts)),
+    operation: async (otp) => stageRequest(
+      opts,
+      registry,
+      url,
+      {
+        ...init,
+        headers: {
+          'npm-auth-type': 'web',
+          ...init.headers,
+        },
+      },
+      action,
+      otp ?? getConfiguredOtp(opts)
+    ),
   })
 }
 
@@ -408,6 +423,7 @@ async function stageRequest (
     body: init.body,
     fullMetadata: true,
     headers: {
+      'npm-command': 'stage',
       ...init.headers,
       ...(otp != null ? { 'npm-otp': otp } : {}),
     },

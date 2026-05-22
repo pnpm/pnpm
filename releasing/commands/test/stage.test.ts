@@ -74,6 +74,10 @@ describe('stage command', () => {
       if (request.method === 'GET' && request.url.pathname === '/-/stage') {
         expect(request.url.searchParams.get('page')).toBe('0')
         expect(request.url.searchParams.get('perPage')).toBe('100')
+        const packageFilter = request.url.searchParams.get('package')
+        if (packageFilter != null) {
+          expect(packageFilter).toBe('@scope/example-package')
+        }
         return { body: { items: [item], page: 0, perPage: 100, total: 1 } }
       }
       if (request.method === 'GET' && request.url.pathname === `/-/stage/${STAGE_ID}`) {
@@ -88,6 +92,13 @@ describe('stage command', () => {
         json: true,
       }, ['list'])
       expect(JSON.parse(listResult as string)).toStrictEqual([item])
+
+      const filteredListResult = await stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage', 'list', '--json'] },
+        json: true,
+      }, ['list', '@scope/example-package'])
+      expect(JSON.parse(filteredListResult as string)).toStrictEqual([item])
 
       const viewResult = await stage.handler({
         ...stageOpts(registry.url),
@@ -106,13 +117,21 @@ describe('stage command', () => {
   })
 
   test('stage approve and reject send configured OTP', async () => {
-    const seen: Array<{ method: string, pathname: string, otp: string | undefined }> = []
+    const seen: Array<{ authType: string | undefined, method: string, npmCommand: string | undefined, otp: string | undefined, pathname: string }> = []
     const registry = await createRegistry((request) => {
       seen.push({
+        authType: headerValue(request.headers['npm-auth-type']),
         method: request.method,
+        npmCommand: headerValue(request.headers['npm-command']),
+        otp: headerValue(request.headers['npm-otp']),
         pathname: request.url.pathname,
-        otp: Array.isArray(request.headers['npm-otp']) ? request.headers['npm-otp'][0] : request.headers['npm-otp'],
       })
+      if (request.headers['npm-auth-type'] !== 'web') {
+        return { status: 400, body: { error: 'missing web auth header' } }
+      }
+      if (request.headers['npm-command'] !== 'stage') {
+        return { status: 400, body: { error: 'missing npm command header' } }
+      }
       if (request.headers['npm-otp'] !== '123456') {
         return { status: 400, body: { error: 'missing otp' } }
       }
@@ -136,8 +155,8 @@ describe('stage command', () => {
       await expect(stage.handler(opts, ['reject', STAGE_ID]))
         .resolves.toBe(`Staged package ${STAGE_ID} has been rejected.`)
       expect(seen).toEqual([
-        { method: 'POST', pathname: `/-/stage/${STAGE_ID}/approve`, otp: '123456' },
-        { method: 'DELETE', pathname: `/-/stage/${STAGE_ID}`, otp: '123456' },
+        { authType: 'web', method: 'POST', npmCommand: 'stage', otp: '123456', pathname: `/-/stage/${STAGE_ID}/approve` },
+        { authType: 'web', method: 'DELETE', npmCommand: 'stage', otp: '123456', pathname: `/-/stage/${STAGE_ID}` },
       ])
     } finally {
       await registry.close()
@@ -178,10 +197,33 @@ describe('stage command', () => {
       expect(output[pkgName]).toMatchObject({
         name: pkgName,
         version: '1.0.0',
-        filename: 'scope-stage-download-json-1.0.0.tgz',
+        filename: `scope-stage-download-json-1.0.0-${STAGE_ID}.tgz`,
       })
       expect(output.undefined).toBeUndefined()
       expect(fs.existsSync(path.join(downloadDir, `scope-stage-download-json-1.0.0-${STAGE_ID}.tgz`))).toBe(true)
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage publish --dry-run reports that packages would be staged', async () => {
+    const pkgName = '@scope/stage-publish-dry-run'
+    prepare({ name: pkgName, version: '1.0.0' })
+
+    const registry = await createRegistry(() => ({ status: 500, body: { error: 'dry run should not upload' } }))
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage', 'publish', '--dry-run'] },
+        dir: process.cwd(),
+        dryRun: true,
+      }, ['publish'])
+
+      expect(result).toStrictEqual({
+        exitCode: 0,
+        output: `+ ${pkgName}@1.0.0 (would stage)`,
+      })
+      expect(registry.requests).toHaveLength(0)
     } finally {
       await registry.close()
     }
@@ -222,6 +264,10 @@ async function createRegistry (handler: RegistryHandler): Promise<{ close: () =>
     requests,
     url: `http://127.0.0.1:${address.port}/`,
   }
+}
+
+function headerValue (value: http.IncomingHttpHeaders[string]): string | undefined {
+  return Array.isArray(value) ? value[0] : value
 }
 
 function readRequestBody (req: http.IncomingMessage): Promise<Buffer> {
