@@ -30,7 +30,7 @@ use pacquet_resolving_local_resolver::{
 };
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    merge_named_registries,
+    merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
@@ -81,7 +81,10 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 ///   `pnpm-lock.yaml`; the caller writes it to `<lockfile_dir>/pnpm-lock.yaml`.
 #[must_use]
 pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
-    pub tarball_mem_cache: &'a MemCache,
+    /// Shared in-memory tarball cache. Held behind [`Arc`] for parity
+    /// with the [`crate::Install`] surface; the install-side calls
+    /// take `&MemCache` via deref.
+    pub tarball_mem_cache: Arc<MemCache>,
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
     /// Same client behind an [`Arc`] for the [`NpmResolver`], whose
@@ -228,7 +231,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
     /// frozen-lockfile install ([`crate::InstallFrozenLockfile::run`]).
     /// The signature symmetry keeps `Install::run` from branching on
     /// which sub-path produced the result.
-    pub async fn run<Reporter: self::Reporter>(
+    pub async fn run<Reporter: self::Reporter + 'static>(
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError>
     where
@@ -284,12 +287,29 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 
         let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
 
+        // One per-cache-key packument fetch serializer shared between
+        // the npm and named-registry resolvers. Ports upstream's
+        // [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L42-L44):
+        // concurrent picks for the same `(registry, name)` coalesce
+        // into a single network fetch instead of firing N parallel
+        // HTTP GETs queued behind the `ThrottledClient` semaphore.
+        let fetch_locker = shared_packument_fetch_locker();
+
+        // One per-`(name, version)` JSON manifest cache shared between
+        // the npm and named-registry resolvers, so duplicate picks of
+        // the same package version reuse the already-serialised
+        // `Arc<Value>` instead of re-running `serde_json::to_value` for
+        // every occurrence of a shared dep in the tree.
+        let picked_manifest_cache = shared_picked_manifest_cache();
+
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
             named_registries: merged_named_registries.clone(),
             http_client: Arc::clone(&http_client_arc),
             auth_headers: Arc::clone(&config.auth_headers),
             meta_cache: Arc::clone(&meta_cache),
+            fetch_locker: Arc::clone(&fetch_locker),
+            picked_manifest_cache: Arc::clone(&picked_manifest_cache),
             cache_dir: Some(config.cache_dir.clone()),
             offline: config.offline,
             prefer_offline: config.prefer_offline,
@@ -329,6 +349,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             http_client: Arc::clone(&http_client_arc),
             auth_headers: Arc::clone(&config.auth_headers),
             meta_cache: Arc::clone(&meta_cache),
+            fetch_locker: Arc::clone(&fetch_locker),
+            picked_manifest_cache: Arc::clone(&picked_manifest_cache),
             cache_dir: Some(config.cache_dir.clone()),
             offline: config.offline,
             prefer_offline: config.prefer_offline,
@@ -433,28 +455,39 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             catalogs,
         };
 
+        let phase_start = std::time::Instant::now();
         let importer_result =
             resolve_importer(&*resolver, manifest, dependency_groups, importer_opts)
                 .await
                 .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "resolve_importer",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            nodes = importer_result.peers_result.graph.len(),
+            "phase complete",
+        );
 
-        // Drop the resolver (and its meta cache) before the install
-        // pass: the tree captures every `ResolveResult` we need.
-        // Dropping `resolver` releases the `ArcResolver` wrapper's
-        // strong reference to `npm_resolver`; the standalone
-        // `npm_resolver` binding holds a second strong reference
-        // because the deno- and bun-resolvers were handed a clone of
-        // the same `Arc` for their version-selection delegate. Drop
-        // both so the `NpmResolver` (and its packument cache) can be
-        // freed before the install pass starts allocating tarballs.
+        // Drop the resolver (and its packument cache) before the
+        // install pass. Each `Arc` is cloned twice during resolver
+        // construction (once into `NpmResolver`, once into
+        // `NamedRegistryResolver`, then again into the deno- / bun-
+        // resolvers via `Arc::clone(&npm_resolver)`), and the local
+        // bindings each still hold one strong reference of their
+        // own. Releasing every reference takes an explicit drop on
+        // each binding — letting the cache shrink before the install
+        // pass starts pulling tarballs into the CAFS.
         drop(resolver);
         drop(npm_resolver);
+        drop(meta_cache);
+        drop(fetch_locker);
+        drop(picked_manifest_cache);
 
-        // Open the read-only SQLite index once per install, shared across
-        // every `DownloadTarballToStore`. See the matching comment in
-        // `create_virtual_store.rs` for the full rationale, including the
-        // `JoinError`-to-cache-miss degradation (with a `warn!` so it
-        // stays diagnosable).
+        // Open the read-only SQLite index, spawn the batched writer,
+        // and allocate the install-scoped `verifiedFilesCache`. Same
+        // shape `create_virtual_store::run` opens for the frozen-
+        // lockfile install path — the warm-cache prefetch below shares
+        // them with the per-package install routines.
         let store_index =
             match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))
                 .await
@@ -471,18 +504,53 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             };
         let store_index_ref = store_index.as_ref();
 
-        // Batched store-index writer. See `create_virtual_store.rs` for
-        // the full rationale — we spawn once, every tarball just queues a
-        // row, and one writer task flushes them in batched transactions.
         let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
         let store_index_writer_ref = Some(&store_index_writer);
 
-        // Install-scoped `verifiedFilesCache`. See the matching block
-        // in `create_virtual_store.rs` for the full rationale — pnpm
-        // threads one `Set<string>` through every package's verify
-        // pass so a CAFS path stat'd for one package skips the stat
-        // for any later package referencing the same blob.
         let verified_files_cache = SharedVerifiedFilesCache::default();
+
+        // Warm-cache batched prefetch: collect every `(integrity,
+        // pkg_id)` pair the resolver produced, run one batched SQL
+        // `SELECT ... WHERE key IN (...)` against the store index,
+        // then verify each row's files on rayon. Mirrors what
+        // `create_virtual_store::run` already does for the frozen-
+        // lockfile path. Without this, the per-package `run_with_mem_cache`
+        // → `load_cached_cas_paths` flow fires N individual `spawn_blocking`
+        // tasks that all serialize on `Arc<Mutex<StoreIndex>>` — at ~1k
+        // resolved packages the Mutex contention dominates the resolve-
+        // walk wall-clock under global virtual store, where the install
+        // side is otherwise just symlinking.
+        let cache_keys: Vec<String> = collect_prefetch_cache_keys(&importer_result.peers_result);
+        let cache_keys_len = cache_keys.len();
+        let phase_start = std::time::Instant::now();
+        let prefetch = pacquet_tarball::prefetch_cas_paths(
+            store_index_ref.cloned(),
+            store_dir,
+            cache_keys,
+            config.verify_store_integrity,
+            SharedVerifiedFilesCache::clone(&verified_files_cache),
+        )
+        .await;
+        // `side_effects_maps` is intentionally dropped: the fresh-
+        // lockfile path skips the build phase today (see the
+        // `importing_done` emit at the tail of this function), so
+        // there is no `is_built` gate to feed. Keep the binding name
+        // explicit so a future port that wires builds in does not
+        // miss the source.
+        let pacquet_tarball::PrefetchResult {
+            cas_paths: prefetched_cas_paths,
+            manifests: prefetched_manifests,
+            side_effects_maps: _,
+        } = prefetch;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "prefetch_cas_paths",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            cache_keys = cache_keys_len,
+            hits = prefetched_cas_paths.len(),
+            manifest_hits = prefetched_manifests.len(),
+            "phase complete",
+        );
 
         // Peer-resolution result (collected by `resolve_importer` after
         // the hoist loop converged). Peer issues collected here are not
@@ -521,9 +589,27 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // way.
         let allow_build_policy = AllowBuildPolicy::from_config(config)
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
-        let layout_lockfile = config
-            .enable_global_virtual_store
-            .then(|| build_fresh_lockfile(config, manifest, &importer_result));
+        // Build the freshly-resolved lockfile structure
+        // unconditionally: GVS needs `snapshots:` / `packages:` to
+        // compute the layout, and the bin-link pass below uses the
+        // same maps to drive the lockfile-driven
+        // `LinkVirtualStoreBins` path (skipping the per-slot
+        // `read_dir` enumeration and the per-child `package.json`
+        // read when the prefetched manifest is available). The build
+        // is cheap — ~3 ms on the alotta-files fixture — and it is
+        // what we end up saving below anyway.
+        //
+        // Named `built_lockfile` to keep it distinct from
+        // [`Self::wanted_lockfile`], which is the *previous* run's
+        // lockfile threaded in for preferred-versions seeding.
+        let phase_start = std::time::Instant::now();
+        let built_lockfile = build_fresh_lockfile(config, manifest, &importer_result);
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "build_fresh_lockfile",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
         let engine_name: Option<String> = if config.enable_global_virtual_store {
             tokio::task::spawn_blocking(|| {
                 pacquet_graph_hasher::detect_node_major()
@@ -535,16 +621,25 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         } else {
             None
         };
+        let phase_start = std::time::Instant::now();
         let layout = VirtualStoreLayout::new(
             config,
             engine_name.as_deref(),
-            layout_lockfile.as_ref().and_then(|lockfile| lockfile.snapshots.as_ref()),
-            layout_lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref()),
+            built_lockfile.snapshots.as_ref(),
+            built_lockfile.packages.as_ref(),
             Some(&allow_build_policy),
         );
+        if config.enable_global_virtual_store {
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "virtual_store_layout_new",
+                elapsed_ms = phase_start.elapsed().as_millis() as u64,
+                "phase complete",
+            );
+        }
 
         let install_ctx = InstallCtx {
-            tarball_mem_cache,
+            tarball_mem_cache: tarball_mem_cache.as_ref(),
             http_client,
             config,
             graph: &peers_result.graph,
@@ -552,11 +647,13 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             store_index: store_index_ref,
             store_index_writer: store_index_writer_ref,
             verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: &prefetched_cas_paths,
             logged_methods,
             resolved_packages,
             requester,
         };
 
+        let phase_start = std::time::Instant::now();
         peers_result
             .direct_dependencies_by_alias
             .iter()
@@ -565,6 +662,12 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             })
             .pipe(future::try_join_all)
             .await?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "install_subtree",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Drop the orchestration's writer handle so the channel closes,
         // then wait for the final batch flush. See `create_virtual_store.rs`
@@ -595,27 +698,69 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         link_bins::<Host>(&config.modules_dir, &config.modules_dir.join(".bin"))
             .map_err(InstallWithFreshLockfileError::LinkBins)?;
 
-        // No prefetched manifests are available — fall back to the
-        // legacy readdir-driven path (slots discovered by walking
-        // `<virtual_store_dir>` or `<store_dir>/links` per the active
-        // layout, child manifests read from disk). The frozen-lockfile
-        // path skips both via [`LinkVirtualStoreBins::snapshots`] /
-        // `package_manifests`.
+        // Walk the resolved graph once and project the prefetched
+        // bundled-manifest map into a [`crate::PackageManifests`]
+        // keyed by `PkgNameVerPeer.without_peer()` — the same key
+        // shape the lockfile-driven bin linker uses. Peer-variants of
+        // the same `pkgIdWithPatchHash` share one prefetched entry
+        // because they share the same tarball / store-index row, so
+        // the first insert wins via `entry().or_insert_with`. Cold-
+        // batch packages (cache miss → downloaded fresh in this run)
+        // are absent from the map; `run_lockfile_driven` falls back
+        // to a per-child `package.json` read for those.
+        let package_manifests: crate::PackageManifests = {
+            let mut map: crate::PackageManifests =
+                HashMap::with_capacity(prefetched_manifests.len());
+            for node in importer_result.peers_result.graph.values() {
+                let pacquet_lockfile::LockfileResolution::Tarball(tarball) =
+                    &node.resolve_result.resolution
+                else {
+                    continue;
+                };
+                if tarball.git_hosted == Some(true) {
+                    continue;
+                }
+                let Some(integrity) = tarball.integrity.as_ref() else { continue };
+                let Some(name_ver) = node.resolve_result.name_ver.as_ref() else { continue };
+                let pkg_id = format!("{}@{}", name_ver.name, name_ver.suffix);
+                let cache_key = pacquet_store_dir::store_index_key(&integrity.to_string(), &pkg_id);
+                let Some(manifest) = prefetched_manifests.get(&cache_key) else { continue };
+                let Ok(package_key) = node.dep_path.as_str().parse::<PackageKey>() else {
+                    continue;
+                };
+                map.entry(package_key.without_peer()).or_insert_with(|| Arc::clone(manifest));
+            }
+            map
+        };
+
+        // Drive the lockfile-driven `LinkVirtualStoreBins` path. The
+        // bin linker iterates `snapshots:` (no per-slot `read_dir`)
+        // and reads each child's manifest from `package_manifests`
+        // (no per-child `package.json` disk read on warm hits) —
+        // same shape the frozen-lockfile path uses via
+        // [`crate::CreateVirtualStore::run`].
         //
-        // The bin linker reuses the install-scoped `layout` above so
-        // GVS installs walk the shared `<store_dir>/links/...`
-        // directory instead of the project-local
-        // `<virtual_store_dir>/.pnpm` one.
-        let empty_manifests = std::collections::HashMap::new();
+        // `packages: None` on purpose: the freshly-built lockfile's
+        // `packages:` rows carry an incomplete `has_bin` because the
+        // resolver's `PackageVersion` deserializer does not include
+        // the `bin` field. Trusting the empty-by-omission
+        // `has_bin_set` here would filter out every child and skip
+        // bin linking entirely. With `packages: None` the bin linker
+        // falls through to "process every child" and lets each
+        // child's actual manifest (`bin` present or not) decide.
+        // Threading `bin` through `PackageVersion` is the proper
+        // fix; once that lands, pass
+        // `built_lockfile.packages.as_ref()` here to recover the
+        // ~95% slot short-circuit the frozen path enjoys.
+        //
+        // The fresh-lockfile path has no installability check yet
+        // (no `packages:` constraint eval), so the skip set is empty.
         let empty_skipped = crate::SkippedSnapshots::new();
         LinkVirtualStoreBins {
             layout: &layout,
-            snapshots: None,
+            snapshots: built_lockfile.snapshots.as_ref(),
             packages: None,
-            package_manifests: &empty_manifests,
-            // The without-lockfile path has no installability check
-            // (no `packages:` metadata to evaluate constraints
-            // against), so the skip set is empty by definition.
+            package_manifests: &package_manifests,
             skipped: &empty_skipped,
         }
         .run()
@@ -641,16 +786,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // current-lockfile pointing at an incomplete install — needs
         // `.modules.yaml` to land first.
         let wanted_lockfile = if config.lockfile {
-            // GVS already built one above for the layout — reuse it
-            // rather than walking the resolver graph again. When GVS
-            // is off, `layout_lockfile` is `None` and we build here.
-            let lockfile_to_save = layout_lockfile
-                .unwrap_or_else(|| build_fresh_lockfile(config, manifest, &importer_result));
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
-            lockfile_to_save
+            built_lockfile
                 .save_to_path(&target)
                 .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
-            Some(lockfile_to_save)
+            Some(built_lockfile)
         } else {
             None
         };
@@ -671,6 +811,48 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             wanted_lockfile,
         })
     }
+}
+
+/// Walk the resolver-produced graph and emit the
+/// `{integrity}\t{pkg_id}` cache keys
+/// [`pacquet_tarball::prefetch_cas_paths`] uses for its batched
+/// `SELECT ... WHERE key IN (...)` against the store index. Mirrors
+/// the equivalent collection loop in
+/// [`crate::CreateVirtualStore::run`] for the frozen-lockfile path —
+/// same key shape, same dedup, so the fresh-lockfile path's warm
+/// batch hits the same rows pnpm or pacquet wrote on the prior
+/// install.
+///
+/// Skips nodes whose resolver result isn't a tarball with both
+/// `integrity` and a structured `name@version`: git-hosted tarballs
+/// and directory / git / binary resolutions use a different key
+/// shape (`pkg_id`-only) and route through the cold path. Today's
+/// `install_subtree` only handles tarball+integrity anyway, so the
+/// skipped entries can't be served from the prefetch either way.
+fn collect_prefetch_cache_keys(
+    peers_result: &pacquet_resolving_deps_resolver::ResolvePeersResult,
+) -> Vec<String> {
+    let mut keys: Vec<String> = peers_result
+        .graph
+        .values()
+        .filter_map(|node| {
+            let pacquet_lockfile::LockfileResolution::Tarball(tarball) =
+                &node.resolve_result.resolution
+            else {
+                return None;
+            };
+            if tarball.git_hosted == Some(true) {
+                return None;
+            }
+            let integrity = tarball.integrity.as_ref()?.to_string();
+            let name_ver = node.resolve_result.name_ver.as_ref()?;
+            let pkg_id = format!("{}@{}", name_ver.name, name_ver.suffix);
+            Some(pacquet_store_dir::store_index_key(&integrity, &pkg_id))
+        })
+        .collect();
+    keys.sort_unstable();
+    keys.dedup();
+    keys
 }
 
 /// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the
@@ -722,6 +904,13 @@ struct InstallCtx<'a> {
     store_index: Option<&'a pacquet_store_dir::SharedReadonlyStoreIndex>,
     store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
     verified_files_cache: &'a SharedVerifiedFilesCache,
+    /// Warm-cache lookup table built once at install start via
+    /// [`pacquet_tarball::prefetch_cas_paths`]. Threaded through to
+    /// [`InstallPackageFromRegistry`] so the per-package
+    /// `run_with_mem_cache` short-circuits the per-snapshot SQLite
+    /// round-trip + per-file `fs::metadata` work when the
+    /// `(integrity, pkg_id)` is already in the CAFS.
+    prefetched_cas_paths: &'a pacquet_tarball::PrefetchedCasPaths,
     logged_methods: &'a AtomicU8,
     resolved_packages: &'a ResolvedPackages,
     requester: &'a str,
@@ -815,6 +1004,7 @@ where
         store_index: ctx.store_index,
         store_index_writer: ctx.store_index_writer,
         verified_files_cache: ctx.verified_files_cache,
+        prefetched_cas_paths: Some(ctx.prefetched_cas_paths),
         logged_methods: ctx.logged_methods,
         requester: ctx.requester,
         node_modules_dir,

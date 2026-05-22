@@ -22,6 +22,7 @@ use pacquet_resolving_local_resolver::{
 };
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NamedRegistryResolver, merge_named_registries,
+    shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, WantedDependency};
 use tempfile::TempDir;
@@ -37,6 +38,8 @@ fn named_registry_resolver(
         http_client: Arc::new(ThrottledClient::default()),
         auth_headers: Arc::new(AuthHeaders::default()),
         meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+        fetch_locker: shared_packument_fetch_locker(),
+        picked_manifest_cache: shared_picked_manifest_cache(),
         // No cache_dir means no on-disk mirror — every fetch goes
         // through the network. The link / workspace / file tests never
         // hit named-registry, so this is fine without mocks.

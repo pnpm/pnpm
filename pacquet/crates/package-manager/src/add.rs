@@ -17,7 +17,7 @@ where
     ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    pub tarball_mem_cache: &'a MemCache,
+    pub tarball_mem_cache: std::sync::Arc<MemCache>,
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
     pub http_client_arc: std::sync::Arc<ThrottledClient>,
@@ -51,7 +51,7 @@ where
     ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    pub async fn run<Reporter: self::Reporter>(self) -> Result<(), AddError> {
+    pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
         let Add {
             tarball_mem_cache,
             http_client,

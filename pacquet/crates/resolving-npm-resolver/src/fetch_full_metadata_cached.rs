@@ -27,8 +27,8 @@ use crate::{
     FetchMetadataError,
     fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
     mirror::{
-        ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta, load_meta_headers,
-        prepare_json_for_disk, save_meta,
+        ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
+        load_meta_headers_async, prepare_json_for_disk, save_meta,
     },
     registry_url::to_registry_url,
 };
@@ -116,7 +116,7 @@ pub async fn fetch_full_metadata_cached(
         },
         None => None,
     };
-    let cache_headers = mirror_path.as_deref().and_then(load_meta_headers);
+    let cache_headers = load_meta_headers_async(mirror_path.as_deref()).await;
 
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
@@ -148,8 +148,8 @@ pub async fn fetch_full_metadata_cached(
                 pkg_name: pkg_name.to_string(),
             });
         };
-        return load_meta(&path).ok_or_else(|| FetchMetadataError::CacheMissingAfter304 {
-            pkg_name: pkg_name.to_string(),
+        return load_meta_async(Some(&path)).await.ok_or_else(|| {
+            FetchMetadataError::CacheMissingAfter304 { pkg_name: pkg_name.to_string() }
         });
     }
 

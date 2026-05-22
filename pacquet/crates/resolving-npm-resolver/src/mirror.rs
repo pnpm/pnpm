@@ -232,6 +232,45 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     Some(meta)
 }
 
+/// Async sibling of [`load_meta`]. The body is a blocking
+/// `fs::read_to_string` plus a `serde_json::from_str` that can chew
+/// through a multi-KB to multi-MB packument body — neither yields, so
+/// calling [`load_meta`] directly from an async task on the resolve
+/// hot path blocks the tokio worker for the duration of the read +
+/// parse. With hundreds of unique packuments per install, that
+/// serializes the resolve walk against the size of the runtime's
+/// worker pool. This wrapper dispatches the work to
+/// [`tokio::task::spawn_blocking`] so the async scheduler keeps
+/// progressing other resolves and HTTP fetches while one packument's
+/// body parses on the blocking pool. Matches upstream's stance:
+/// pnpm's loadMeta is an awaited `fs.readFile` + `JSON.parse` that
+/// runs on libuv's worker pool, the same separation tokio gives us
+/// via `spawn_blocking`.
+///
+/// `JoinError` (panic in the blocking task) and `None` from
+/// [`load_meta`] (missing / unreadable file) both collapse to
+/// `None`. The caller's response to either is the same — fall
+/// through to the network fetch — so distinguishing them is not
+/// load-bearing.
+///
+/// Returns `None` immediately when `pkg_mirror` is `None`, skipping
+/// the spawn-blocking dispatch entirely on the no-cache-dir branch.
+pub async fn load_meta_async(pkg_mirror: Option<&Path>) -> Option<Package> {
+    let pkg_mirror = pkg_mirror?.to_path_buf();
+    tokio::task::spawn_blocking(move || load_meta(&pkg_mirror)).await.ok().flatten()
+}
+
+/// Async sibling of [`load_meta_headers`]. Same rationale as
+/// [`load_meta_async`] — the synchronous body opens a file and
+/// parses a short JSON header line, blocking the worker for the
+/// duration. The headers-only read is cheap (~100 bytes typically)
+/// but is invoked on every cache-warm pick, so the cumulative block
+/// time is still meaningful with hundreds of packuments.
+pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHeaders> {
+    let pkg_mirror = pkg_mirror?.to_path_buf();
+    tokio::task::spawn_blocking(move || load_meta_headers(&pkg_mirror)).await.ok().flatten()
+}
+
 /// Atomic write: serialize to a sibling temp file, then `rename` it
 /// over the target. Mirrors pnpm's
 /// [`saveMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L667-L676).

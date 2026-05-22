@@ -8,7 +8,7 @@
 //! pnpm's
 //! [`createResolver`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/default-resolver/src/index.ts#L97-L173).
 
-use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin};
+use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
@@ -236,6 +236,16 @@ pub struct ResolveOptions {
 /// in-memory manifest lands, swap this alias for it.
 pub type DependencyManifest = serde_json::Value;
 
+/// `Arc`-shared variant of [`DependencyManifest`], used in
+/// [`ResolveResult::manifest`]. Wrapping the manifest avoids the
+/// deep-clone of the JSON tree every time a `ResolveResult`
+/// propagates — the deps-resolver stores one copy in
+/// `ResolvedPackage` and another in each `DependenciesGraph` node,
+/// each `Clone` cost dropped from O(manifest size) to a refcount
+/// bump. Mirrors JS object-reference semantics — pnpm's
+/// `resolveResult.manifest` is an object, not a deep copy.
+pub type SharedDependencyManifest = Arc<DependencyManifest>;
+
 /// Outcome of one [`Resolver::resolve`] call when the resolver claims
 /// the wanted dependency. Mirrors pnpm's
 /// [`ResolveResult`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L212-L237).
@@ -261,7 +271,10 @@ pub struct ResolveResult {
     pub published_at: Option<String>,
     /// The manifest fragment the resolver fetched. Optional because
     /// some protocols defer manifest reading to the fetch step.
-    pub manifest: Option<DependencyManifest>,
+    /// Held as [`SharedDependencyManifest`] (`Arc`-shared) so the
+    /// deps-resolver's tree walk and the per-snapshot graph copies
+    /// don't deep-clone the JSON tree per occurrence.
+    pub manifest: Option<SharedDependencyManifest>,
     /// Where the artifact lives. Pacquet reuses
     /// [`LockfileResolution`] for this — same shape as upstream's
     /// `Resolution`, which is the discriminated union over
@@ -309,7 +322,7 @@ pub struct LatestQuery {
 /// (`Ok(Some(LatestInfo { latest_manifest: None }))`).
 #[derive(Debug, Default, Clone)]
 pub struct LatestInfo {
-    pub latest_manifest: Option<DependencyManifest>,
+    pub latest_manifest: Option<SharedDependencyManifest>,
 }
 
 /// Error type the resolver seam uses. Boxed-trait-object today so each

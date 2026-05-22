@@ -93,6 +93,18 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub meta_cache: Arc<Cache>,
+    /// Per-cache-key packument fetch serializer. Shared across this
+    /// resolver and the sibling [`crate::NamedRegistryResolver`] so
+    /// concurrent picks for the same `(registry, name)` coalesce
+    /// into one network fetch. Construct via
+    /// [`crate::shared_packument_fetch_locker`] once per install.
+    pub fetch_locker: crate::PackumentFetchLocker,
+    /// Per-`(pkg_name, version)` cache for the JSON manifest the
+    /// resolver builds from the picker output. Shared across this
+    /// resolver and [`crate::NamedRegistryResolver`] so picks of the
+    /// same package version across registries coalesce. Construct
+    /// via [`crate::shared_picked_manifest_cache`] once per install.
+    pub picked_manifest_cache: crate::PickedManifestCache,
     /// Root of the on-disk metadata mirror. `None` disables every
     /// disk read/write — the picker goes straight to the network on
     /// each cache miss.
@@ -208,15 +220,17 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             None => return Ok(None),
         };
 
-        let result = build_resolve_result(
-            &picked.meta,
-            &picked.version,
-            &spec,
-            wanted_dependency.alias.as_deref(),
-            NPM_REGISTRY_RESOLVED_VIA,
-            opts.published_by,
-            opts.published_by_exclude.as_ref(),
-        )?;
+        let result = build_resolve_result(BuildResolveResult {
+            meta: &picked.meta,
+            picked: &picked.version,
+            spec: &spec,
+            alias: wanted_dependency.alias.as_deref(),
+            resolved_via: NPM_REGISTRY_RESOLVED_VIA,
+            registry: &registry,
+            published_by: opts.published_by,
+            published_by_exclude: opts.published_by_exclude.as_ref(),
+            picked_manifest_cache: &self.picked_manifest_cache,
+        })?;
 
         Ok(Some(result))
     }
@@ -254,15 +268,17 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             None => return Ok(None),
         };
 
-        let result = build_resolve_result(
-            &picked.meta,
-            &picked.version,
-            &jsr_spec.spec,
-            Some(jsr_spec.jsr_pkg_name.as_str()),
-            JSR_REGISTRY_RESOLVED_VIA,
-            opts.published_by,
-            opts.published_by_exclude.as_ref(),
-        )?;
+        let result = build_resolve_result(BuildResolveResult {
+            meta: &picked.meta,
+            picked: &picked.version,
+            spec: &jsr_spec.spec,
+            alias: Some(jsr_spec.jsr_pkg_name.as_str()),
+            resolved_via: JSR_REGISTRY_RESOLVED_VIA,
+            registry,
+            published_by: opts.published_by,
+            published_by_exclude: opts.published_by_exclude.as_ref(),
+            picked_manifest_cache: &self.picked_manifest_cache,
+        })?;
 
         Ok(Some(result))
     }
@@ -293,6 +309,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
             meta_cache: self.meta_cache.as_ref(),
+            fetch_locker: &self.fetch_locker,
             cache_dir: self.cache_dir.as_deref(),
             offline: self.offline,
             prefer_offline: self.prefer_offline,
@@ -363,22 +380,47 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
 }
 
 /// Picker output threaded through to [`build_resolve_result`].
+/// `meta` is shared as [`Arc<Package>`] to avoid deep-cloning the
+/// full packument (with all versions) on every pick.
 pub(crate) struct PickedFromRegistry {
-    pub(crate) meta: Package,
+    pub(crate) meta: std::sync::Arc<Package>,
     pub(crate) version: PackageVersion,
 }
 
+/// Input bundle for [`build_resolve_result`]. Grouped so the
+/// 9-field signature stays a struct literal at the (3) call sites
+/// instead of a positional argument list that clippy flags as
+/// `too_many_arguments` (and that's painful to extend when the
+/// next field lands).
+pub(crate) struct BuildResolveResult<'a> {
+    pub meta: &'a Package,
+    pub picked: &'a PackageVersion,
+    pub spec: &'a RegistryPackageSpec,
+    pub alias: Option<&'a str>,
+    pub resolved_via: &'a str,
+    pub registry: &'a str,
+    pub published_by: Option<DateTime<Utc>>,
+    pub published_by_exclude: Option<&'a PackageVersionPolicy>,
+    pub picked_manifest_cache: &'a crate::PickedManifestCache,
+}
+
 pub(crate) fn build_resolve_result(
-    meta: &Package,
-    picked: &PackageVersion,
-    spec: &RegistryPackageSpec,
-    alias: Option<&str>,
-    resolved_via: &str,
-    published_by: Option<DateTime<Utc>>,
-    published_by_exclude: Option<&PackageVersionPolicy>,
+    args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {
+    let BuildResolveResult {
+        meta,
+        picked,
+        spec,
+        alias,
+        resolved_via,
+        registry,
+        published_by,
+        published_by_exclude,
+        picked_manifest_cache,
+    } = args;
     let pkg_name =
         PkgName::parse(picked.name.as_str()).map_err(|err| Box::new(err) as ResolveError)?;
+    let version_str = picked.version.to_string();
     let name_ver = PkgNameVer::new(pkg_name.clone(), picked.version.clone());
     let id = (&name_ver).into();
     // The picker always carries a tarball URL on its `dist` payload —
@@ -395,11 +437,31 @@ pub(crate) fn build_resolve_result(
         git_hosted: None,
         path: None,
     });
-    let published_at = meta.published_at(&picked.version.to_string()).map(str::to_string);
-    let manifest = Some(serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?);
+    let published_at = meta.published_at(&version_str).map(str::to_string);
+    // Dedupe `serde_json::to_value(picked)` across picks of the
+    // same `(registry, pkg_name, version)` triple — see
+    // [`PickedManifestCache`] for the rationale. The cache is shared
+    // across the npm / JSR / named-registry resolvers, so the key
+    // has to scope by `registry` too; two registries may serve
+    // different artifacts under the same `name@version`, and
+    // collapsing them would hand the second registry's resolver
+    // the first registry's manifest — wrong dependency graph,
+    // wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
+    // `{registry}\x00{name}` scoping shape.
+    let manifest_cache_key = format!("{registry}\x00{}@{version_str}", picked.name);
+    let manifest = match picked_manifest_cache.get(&manifest_cache_key) {
+        Some(cached) => Some(Arc::clone(cached.value())),
+        None => {
+            let arc = Arc::new(
+                serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?,
+            );
+            picked_manifest_cache.insert(manifest_cache_key, Arc::clone(&arc));
+            Some(arc)
+        }
+    };
     let policy_violation = detect_min_release_age_violation(
         &pkg_name,
-        &picked.version.to_string(),
+        &version_str,
         published_at.as_deref(),
         &resolution,
         published_by,

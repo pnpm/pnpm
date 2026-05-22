@@ -164,7 +164,7 @@ where
         .collect();
     let initial_wanted = resolve_catalog_specifiers(initial_wanted, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
-    update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions).await;
+    update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 
     let mut parent_pkg_aliases: HashSet<String> =
         direct.iter().map(|dep| dep.alias.clone()).collect();
@@ -172,7 +172,7 @@ where
 
     loop {
         loop {
-            let snapshot = ctx.snapshot(direct.clone()).await;
+            let snapshot = ctx.snapshot(direct.clone());
             let peers_result = resolve_peers(&snapshot, ResolvePeersOptions::default());
 
             let (missing_required, fresh_optional) = partition_missing_peers(
@@ -227,7 +227,7 @@ where
                 hoisted.into_iter().map(|(name, range)| (name, range, false)).collect();
             let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
             direct.extend(new_direct);
-            update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions).await;
+            update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
         }
 
         if all_missing_optional_peers.is_empty() {
@@ -249,7 +249,7 @@ where
             hoisted_optional.into_iter().map(|(name, range)| (name, range, false)).collect();
         let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
         direct.extend(new_direct);
-        update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions).await;
+        update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
         all_missing_optional_peers.clear();
     }
 
@@ -368,8 +368,8 @@ fn build_workspace_root_deps(
 /// = 'version'` assignment at
 /// [`resolveDependencies.ts:1440`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1440).
 /// Idempotent: only inserts when no entry exists for `(name, version)`.
-async fn update_preferred_versions_with_ctx(ctx: &TreeCtx, preferred: &mut PreferredVersions) {
-    for (name, version) in ctx.resolved_versions().await {
+fn update_preferred_versions_with_ctx(ctx: &TreeCtx, preferred: &mut PreferredVersions) {
+    for (name, version) in ctx.resolved_versions() {
         let bucket = preferred.entry(name).or_default();
         bucket.entry(version).or_insert(VersionSelectorEntry::Plain(VersionSelectorType::Version));
     }

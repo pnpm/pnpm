@@ -38,6 +38,7 @@ tracing     = { workspace = true }
 pacquet-resolving-default-resolver = { workspace = true }
 pacquet-resolving-local-resolver   = { workspace = true }
 
+futures-util      = { workspace = true }
 mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 ssri              = { workspace = true }

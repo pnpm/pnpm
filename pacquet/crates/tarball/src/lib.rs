@@ -1779,7 +1779,49 @@ impl<'a> DownloadTarballToStore<'a> {
         self,
         mem_cache: &'a MemCache,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let &DownloadTarballToStore { package_url, package_id, requester, .. } = &self;
+        let &DownloadTarballToStore {
+            package_url,
+            package_id,
+            package_integrity,
+            prefetched_cas_paths,
+            requester,
+            ..
+        } = &self;
+
+        // Warm-cache fast path: when [`prefetch_cas_paths`] already
+        // batched the `(integrity, pkg_id)` row in at install start,
+        // return the `Arc<HashMap>` straight through instead of
+        // calling [`Self::run_without_mem_cache`] (which clones the
+        // inner per-file map by value before wrapping it in a fresh
+        // `Arc`). On warm installs every snapshot lands here; the
+        // deep clone the previous path was paying — entire
+        // `HashMap<String, PathBuf>` per snapshot, where each entry
+        // is a `String` + `PathBuf` allocation — adds up to dominant
+        // memory traffic by 1k+ snapshots.
+        //
+        // Also stash the `Arc` into `mem_cache` keyed by URL so a
+        // second fetch of the same tarball (e.g. peer-resolved
+        // variants of the same package) hits the in-memory cache
+        // without re-checking the prefetched map. Matches what the
+        // normal path does with the result of
+        // [`Self::run_without_mem_cache`].
+        if let Some(prefetched) = prefetched_cas_paths {
+            let cache_key = store_index_key(&package_integrity.to_string(), package_id);
+            if let Some(cas_paths) = prefetched.get(&cache_key) {
+                tracing::info!(
+                    target: "pacquet::download",
+                    ?package_url,
+                    ?package_id,
+                    "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
+                );
+                emit_progress_found_in_store::<Reporter>(package_id, requester);
+                let cas_paths = Arc::clone(cas_paths);
+                let cache_lock =
+                    Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
+                mem_cache.insert(package_url.to_string(), cache_lock);
+                return Ok(cas_paths);
+            }
+        }
 
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?
         // TODO: If it's not implemented yet, implement it
@@ -1792,18 +1834,15 @@ impl<'a> DownloadTarballToStore<'a> {
         // inner `Arc` out and drop the `Ref` immediately.
         let existing = mem_cache.get(package_url).map(|entry| Arc::clone(entry.value()));
         if let Some(cache_lock) = existing {
+            // `pnpm:progress` fires exactly once per URL — only the
+            // first writer's `run_without_mem_cache` call emits.
+            // Mirrors pnpm's
+            // [`packageRequester`](https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L410-L436),
+            // which attaches the emit via `.then()` on the first
+            // writer's promise; later `await`s of the same promise
+            // do not re-trigger the handler.
             let notify = match &*cache_lock.write().await {
                 CacheValue::Available(cas_paths) => {
-                    // The mem cache deduplicates concurrent fetches of the
-                    // same tarball URL. The first requester goes through
-                    // `run_without_mem_cache` and emits `fetched` /
-                    // `found_in_store` for *its* package_id; later
-                    // requesters share the bytes here without reaching
-                    // those emit sites. From this requester's
-                    // perspective the package is already in the store, so
-                    // emit `found_in_store` so the per-package counters
-                    // in pnpm's reporter increment correctly.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester);
                     return Ok(Arc::clone(cas_paths));
                 }
                 CacheValue::InProgress(notify) => Arc::clone(notify),
@@ -1817,14 +1856,7 @@ impl<'a> DownloadTarballToStore<'a> {
             tracing::info!(target: "pacquet::download", ?package_url, "Wait for cache");
             notify.notified().await;
             match &*cache_lock.read().await {
-                CacheValue::Available(cas_paths) => {
-                    // Same rationale as the immediate-`Available`
-                    // branch above: this requester didn't drive the
-                    // fetch, but its package_id still needs
-                    // `found_in_store` for the counter to advance.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester);
-                    Ok(Arc::clone(cas_paths))
-                }
+                CacheValue::Available(cas_paths) => Ok(Arc::clone(cas_paths)),
                 CacheValue::Failed => {
                     Err(TarballError::SiblingFetchFailed { url: package_url.to_string() })
                 }

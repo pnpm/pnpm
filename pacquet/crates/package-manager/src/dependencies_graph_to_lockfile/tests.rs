@@ -33,7 +33,7 @@ fn make_resolve_result(name: &str, version: &str, manifest: serde_json::Value) -
         name_ver: Some(name_ver),
         latest: None,
         published_at: None,
-        manifest: Some(manifest),
+        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: make_registry_resolution(),
         resolved_via: "npm-registry".to_string(),
         normalized_bare_specifier: None,
@@ -74,7 +74,7 @@ fn make_node_with_optional(
     DependenciesGraphNode {
         dep_path: dep_path.clone(),
         resolved_package_id: format!("{name}@{version}"),
-        resolve_result: make_resolve_result(name, version, manifest),
+        resolve_result: std::sync::Arc::new(make_resolve_result(name, version, manifest)),
         children,
         peer_dependencies,
         transitive_peer_dependencies,
@@ -265,7 +265,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     let react_dom = DependenciesGraphNode {
         dep_path: react_dom_dep_path.clone(),
         resolved_package_id: "react-dom@17.0.2".to_string(),
-        resolve_result: make_resolve_result(
+        resolve_result: std::sync::Arc::new(make_resolve_result(
             "react-dom",
             "17.0.2",
             json!({
@@ -273,7 +273,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
                 "version": "17.0.2",
                 "peerDependencies": { "react": "17.0.2" },
             }),
-        ),
+        )),
         children: react_dom_children,
         peer_dependencies: react_dom_peers,
         transitive_peer_dependencies: HashSet::new(),

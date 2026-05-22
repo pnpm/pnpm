@@ -169,7 +169,7 @@ pub struct InstallArgs {
 }
 
 impl InstallArgs {
-    pub async fn run<Reporter: self::Reporter>(self, state: State) -> miette::Result<()> {
+    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
         let InstallArgs {
@@ -226,7 +226,7 @@ impl InstallArgs {
             .parent()
             .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
         Install {
-            tarball_mem_cache,
+            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
             http_client_arc: std::sync::Arc::clone(http_client),
             config,

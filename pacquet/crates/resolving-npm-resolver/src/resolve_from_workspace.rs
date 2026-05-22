@@ -262,7 +262,7 @@ fn resolve_from_local_package(
         name_ver: None,
         latest: None,
         published_at: None,
-        manifest: Some(local_package.manifest.clone()),
+        manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: "workspace".to_string(),
         normalized_bare_specifier: None,
