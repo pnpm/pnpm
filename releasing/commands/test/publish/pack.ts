@@ -464,9 +464,9 @@ test('pack: remove publishConfig', async () => {
   })
 })
 
-test('pack: preserves packageManager and publish lifecycle scripts when preserveManifestFields is enabled, but still omits pnpm', async () => {
+test('pack: preserves packageManager and publish lifecycle scripts when skipManifestObfuscation is enabled, but still omits pnpm', async () => {
   prepare({
-    name: 'preserve-manifest-fields',
+    name: 'skip-manifest-obfuscation',
     version: '1.0.0',
     packageManager: 'pnpm@10.0.0',
     pnpm: {
@@ -484,13 +484,13 @@ test('pack: preserves packageManager and publish lifecycle scripts when preserve
     dir: process.cwd(),
     extraBinPaths: [],
     packDestination: process.cwd(),
-    preserveManifestFields: true,
+    skipManifestObfuscation: true,
   })
 
-  await tar.x({ file: 'preserve-manifest-fields-1.0.0.tgz' })
+  await tar.x({ file: 'skip-manifest-obfuscation-1.0.0.tgz' })
 
   expect((await import(path.resolve('package/package.json'))).default).toEqual({
-    name: 'preserve-manifest-fields',
+    name: 'skip-manifest-obfuscation',
     version: '1.0.0',
     packageManager: 'pnpm@10.0.0',
     scripts: {

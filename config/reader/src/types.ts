@@ -139,7 +139,7 @@ export const pnpmTypes = {
   'test-pattern': [String, Array],
   'changed-files-ignore-pattern': [String, Array],
   'embed-readme': Boolean,
-  'preserve-manifest-fields': Boolean,
+  'skip-manifest-obfuscation': Boolean,
   'update-notifier': Boolean,
   'agent': [null, String],
   'registry-supports-time-field': Boolean,

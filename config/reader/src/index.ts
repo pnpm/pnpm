@@ -208,7 +208,7 @@ export async function getConfig (opts: {
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
-    'preserve-manifest-fields': false,
+    'skip-manifest-obfuscation': false,
     'registry-supports-time-field': false,
     'virtual-store-dir-max-length': isWindows() ? 60 : 120,
     'virtual-store-only': false,

@@ -28,7 +28,7 @@ export interface MakePublishManifestOptions {
   catalogs: Catalogs
   hooks?: Hooks
   modulesDir?: string
-  preserveManifestFields?: boolean
+  skipManifestObfuscation?: boolean
   readmeFile?: string
 }
 
@@ -38,7 +38,7 @@ export async function createExportableManifest (
   opts: MakePublishManifestOptions
 ): Promise<ExportedManifest> {
   let publishManifest: ProjectManifest
-  if (opts.preserveManifestFields) {
+  if (opts.skipManifestObfuscation) {
     publishManifest = omit(['pnpm' as keyof ProjectManifest], clone(originalManifest))
   } else {
     publishManifest = omit(['scripts', 'packageManager', 'pnpm' as keyof ProjectManifest], originalManifest)

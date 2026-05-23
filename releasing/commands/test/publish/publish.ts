@@ -381,10 +381,10 @@ test('publish: package with publishConfig.directory', async () => {
   expect(fs.existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
 })
 
-test('publish: preserves packageManager and publish lifecycle scripts when preserveManifestFields is enabled, but still omits pnpm', async () => {
+test('publish: preserves packageManager and publish lifecycle scripts when skipManifestObfuscation is enabled, but still omits pnpm', async () => {
   preparePackages([
     {
-      name: 'test-publish-preserve-manifest-fields',
+      name: 'test-publish-skip-manifest-obfuscation',
       version: '1.0.0',
       packageManager: 'pnpm@10.0.0',
       pnpm: {
@@ -396,26 +396,26 @@ test('publish: preserves packageManager and publish lifecycle scripts when prese
       },
     } as Parameters<typeof preparePackages>[0][number] & { pnpm?: Record<string, unknown> },
     {
-      name: 'test-publish-preserve-manifest-fields-installation',
+      name: 'test-publish-skip-manifest-obfuscation-installation',
       version: '1.0.0',
     },
   ])
 
-  process.chdir('test-publish-preserve-manifest-fields')
+  process.chdir('test-publish-skip-manifest-obfuscation')
   await publish.handler({
     ...DEFAULT_OPTS,
     argv: { original: ['publish'] },
     configByUri: CONFIG_BY_URI,
     dir: process.cwd(),
-    preserveManifestFields: true,
+    skipManifestObfuscation: true,
   }, [])
 
-  process.chdir('../test-publish-preserve-manifest-fields-installation')
-  crossSpawn.sync(pnpmBin, ['add', 'test-publish-preserve-manifest-fields', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  process.chdir('../test-publish-skip-manifest-obfuscation-installation')
+  crossSpawn.sync(pnpmBin, ['add', 'test-publish-skip-manifest-obfuscation', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
 
-  const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-preserve-manifest-fields/package.json'))
+  const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-skip-manifest-obfuscation/package.json'))
   expect(publishedManifest).toEqual({
-    name: 'test-publish-preserve-manifest-fields',
+    name: 'test-publish-skip-manifest-obfuscation',
     version: '1.0.0',
     packageManager: 'pnpm@10.0.0',
     scripts: {

@@ -82,7 +82,7 @@ test('publish lifecycle scripts are removed', async () => {
   })
 })
 
-test('packageManager and publish lifecycle scripts are preserved when preserveManifestFields is enabled, but pnpm is still omitted', async () => {
+test('packageManager and publish lifecycle scripts are preserved when skipManifestObfuscation is enabled, but pnpm is still omitted', async () => {
   const manifest: ProjectManifest & { pnpm?: Record<string, unknown> } = {
     name: 'foo',
     version: '1.0.0',
@@ -98,7 +98,7 @@ test('packageManager and publish lifecycle scripts are preserved when preserveMa
 
   expect(await createExportableManifest(process.cwd(), manifest, {
     ...defaultOpts,
-    preserveManifestFields: true,
+    skipManifestObfuscation: true,
   })).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
@@ -110,7 +110,7 @@ test('packageManager and publish lifecycle scripts are preserved when preserveMa
   })
 })
 
-test('preserveManifestFields does not mutate the original manifest', async () => {
+test('skipManifestObfuscation does not mutate the original manifest', async () => {
   const manifest: ProjectManifest = {
     name: 'foo',
     version: '1.0.0',
@@ -121,7 +121,7 @@ test('preserveManifestFields does not mutate the original manifest', async () =>
 
   expect(await createExportableManifest(process.cwd(), manifest, {
     ...defaultOpts,
-    preserveManifestFields: true,
+    skipManifestObfuscation: true,
     readmeFile: 'readme content',
   })).toStrictEqual({
     name: 'foo',
