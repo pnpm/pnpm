@@ -160,14 +160,13 @@ async fn does_not_hoist_when_disabled() {
     let result =
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
 
-    assert!(
-        !result
-            .peers_result
-            .direct_dependencies_by_alias
-            .keys()
-            .map(String::as_str)
-            .any(|name| name == "react"),
-    );
+    #[expect(
+        clippy::needless_collect,
+        reason = "Collecting into a Vec keeps the assertion readable; `.any(...)` on the iterator would be denser without saving meaningful work."
+    )]
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(!direct.contains(&"react"));
     assert!(result.peers_result.peer_dependency_issues.missing.contains_key("react"));
 }
 

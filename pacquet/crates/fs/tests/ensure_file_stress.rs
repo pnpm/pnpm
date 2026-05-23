@@ -50,7 +50,7 @@ fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::Exi
     let content_path: Arc<Path> = Arc::from(content_path.to_path_buf());
     let target_path: Arc<Path> = Arc::from(target_path.to_path_buf());
 
-    #[allow(
+    #[expect(
         clippy::needless_collect,
         reason = "Collecting the handles is needed to spawn all worker subprocesses before joining them"
     )]
