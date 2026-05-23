@@ -42,15 +42,19 @@ if ! git -C "$REPO_ROOT" rev-parse --verify --quiet refs/heads/main >/dev/null; 
   git -C "$REPO_ROOT" fetch --no-tags origin main:main
 fi
 
-# Scenario list mirrors bench.sh's original six. Order = the order they
-# were measured before; `generate-results.js` used this same order.
+# Scenario list: `slug:Display label`. The slug matches the
+# orchestrator's `--scenario` value (the clap-derived kebab-case name
+# from `BenchmarkScenario`). All six start with `node_modules` wiped
+# — "Fresh" names that target state. "Isolated linker" names the
+# `nodeLinker` mode; alternatives (`hoisted`, `pnp`) and populated-
+# node_modules counterparts are reserved for future scenarios.
 SCENARIOS=(
-  "frozen-lockfile-hot-cache:Headless (warm store+cache)"
-  "peek:Re-resolution (add dep, warm)"
-  "full-resolution:Full resolution (warm, no lockfile)"
-  "frozen-lockfile:Headless (cold store+cache)"
-  "clean-install:Cold install (nothing warm)"
-  "gvs-warm:GVS warm reinstall (warm global store)"
+  "isolated-linker.fresh-restore.hot-cache.hot-store:Isolated linker: fresh restore, hot cache + hot store"
+  "isolated-linker.fresh-add-dep.hot-cache.hot-store:Isolated linker: fresh add new dep, hot cache + hot store"
+  "isolated-linker.fresh-install.hot-cache.hot-store:Isolated linker: fresh install, hot cache + hot store"
+  "isolated-linker.fresh-restore.cold-cache.cold-store:Isolated linker: fresh restore, cold cache + cold store"
+  "isolated-linker.fresh-install.cold-cache.cold-store:Isolated linker: fresh install, cold cache + cold store"
+  "gvs-linker.fresh-restore.hot-cache.hot-store:GVS linker: fresh restore, hot cache + hot store"
 )
 
 # Pre-build both revisions once. Subsequent scenario invocations still
@@ -120,6 +124,25 @@ for entry in "${SCENARIOS[@]}"; do
 
   i=$((i + 1))
 done
+
+# Combine the per-scenario hyperfine JSONs into one Bencher-shaped
+# report. Keep only the @HEAD result from each scenario and rename
+# `.command` to the scenario name so Bencher's shell_hyperfine adapter
+# names the benchmark after the scenario instead of `pnpm@HEAD`.
+if command -v jq >/dev/null; then
+  bencher_inputs=()
+  for entry in "${SCENARIOS[@]}"; do
+    scenario="${entry%%:*}"
+    jq --arg s "$scenario" \
+      '.results |= [.[] | select(.command == "pnpm@HEAD") | .command = $s]' \
+      "$BENCH_DIR/${scenario}.json" > "$BENCH_DIR/${scenario}-bencher.json"
+    bencher_inputs+=("$BENCH_DIR/${scenario}-bencher.json")
+  done
+  jq -s '{results: map(.results) | add}' \
+    "${bencher_inputs[@]}" > "$BENCH_DIR/bencher-results.json"
+else
+  echo "warning: jq not on PATH; skipping bencher-results.json generation" >&2
+fi
 
 echo
 echo "━━━ Results ━━━"

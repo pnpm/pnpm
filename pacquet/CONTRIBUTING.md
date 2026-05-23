@@ -140,22 +140,22 @@ Then use the `integrated-benchmark` task to run benchmarks. For example:
 
 ```sh
 # Compare the branch you are working on against main
-just integrated-benchmark --scenario=frozen-lockfile pacquet@my-branch pacquet@main
+just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store pacquet@my-branch pacquet@main
 ```
 
 ```sh
 # Compare the current commit against the previous commit
-just integrated-benchmark --scenario=frozen-lockfile pacquet@HEAD pacquet@HEAD~
+just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store pacquet@HEAD pacquet@HEAD~
 ```
 
 ```sh
 # Compare pacquet of the current commit against pnpm
-just integrated-benchmark --scenario=frozen-lockfile --with-pnpm pacquet@HEAD
+just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --with-pnpm pacquet@HEAD
 ```
 
 ```sh
 # Compare pacquet of the current commit, pacquet of main, and pnpm against each other
-just integrated-benchmark --scenario=frozen-lockfile --with-pnpm pacquet@HEAD pacquet@main
+just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --with-pnpm pacquet@HEAD pacquet@main
 ```
 
 ```sh

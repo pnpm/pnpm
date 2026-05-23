@@ -98,20 +98,40 @@ pub enum RegistryMode {
     Virtual,
 }
 
+/// Slug shape: `<linker>.<action>.<cache state>.<store state>`. Dots
+/// separate the four axes that the bench varies, so charts and
+/// dashboards can group by leading segment (`isolated-linker.*`,
+/// `gvs-linker.*`, future `hoisted-linker.*` / `pnp-linker.*`).
+///
+/// Every current variant starts with `node_modules` wiped — "fresh"
+/// names that target state; future variants that begin with a
+/// populated `node_modules` will use a different action prefix.
+//
+// Five of six variants share the `Isolated` prefix today; the lint
+// will stop firing once the `Hoisted*` and `Pnp*` linker buckets land.
+// Keeping the prefix is intentional — it mirrors the slug's leading
+// segment and makes the linker grouping legible in code.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum BenchmarkScenario {
-    /// Clean install: no lockfile, cold cache.
-    CleanInstall,
-    /// Frozen lockfile, cold cache.
-    FrozenLockfile,
-    /// Frozen lockfile, warm cache.
-    FrozenLockfileHotCache,
-    /// Re-resolution: add a dep to an existing lockfile, warm cache.
-    Peek,
-    /// Full resolution without a lockfile, warm cache.
-    FullResolution,
-    /// GVS warm reinstall: frozen lockfile, warm GVS.
-    GvsWarm,
+    /// No lockfile, cold cache + cold store. Mirrors `pnpm install` with nothing on disk.
+    #[value(name = "isolated-linker.fresh-install.cold-cache.cold-store")]
+    IsolatedFreshInstallColdCacheColdStore,
+    /// No lockfile, hot cache + hot store. Resolves everything against an already-populated store.
+    #[value(name = "isolated-linker.fresh-install.hot-cache.hot-store")]
+    IsolatedFreshInstallHotCacheHotStore,
+    /// Frozen lockfile, cold cache + cold store. The typical CI shape.
+    #[value(name = "isolated-linker.fresh-restore.cold-cache.cold-store")]
+    IsolatedFreshRestoreColdCacheColdStore,
+    /// Frozen lockfile, hot cache + hot store. The repeat-headless-install shape.
+    #[value(name = "isolated-linker.fresh-restore.hot-cache.hot-store")]
+    IsolatedFreshRestoreHotCacheHotStore,
+    /// `pnpm add <dep>` against an existing lockfile, hot cache + hot store.
+    #[value(name = "isolated-linker.fresh-add-dep.hot-cache.hot-store")]
+    IsolatedFreshAddDepHotCacheHotStore,
+    /// Frozen lockfile, hot cache + hot store, `enableGlobalVirtualStore: true` with a pre-warmed GVS.
+    #[value(name = "gvs-linker.fresh-restore.hot-cache.hot-store")]
+    GvsFreshRestoreHotCacheHotStore,
 }
 
 /// Per-iteration cleanup applied by hyperfine's `--prepare`.
@@ -128,11 +148,14 @@ impl BenchmarkScenario {
     /// element (`install` or `add`), followed by any flags.
     pub fn install_args(self) -> &'static [&'static str] {
         match self {
-            BenchmarkScenario::CleanInstall | BenchmarkScenario::FullResolution => &["install"],
-            BenchmarkScenario::FrozenLockfile
-            | BenchmarkScenario::FrozenLockfileHotCache
-            | BenchmarkScenario::GvsWarm => &["install", "--frozen-lockfile"],
-            BenchmarkScenario::Peek => &["add", "is-odd"],
+            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => &["install"],
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
+            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
+                &["install", "--frozen-lockfile"]
+            }
+            BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
         }
     }
 
@@ -146,18 +169,18 @@ impl BenchmarkScenario {
     /// value up regardless of which config source it prefers.
     pub fn lockfile_enabled(self) -> bool {
         match self {
-            BenchmarkScenario::CleanInstall | BenchmarkScenario::FullResolution => false,
-            BenchmarkScenario::FrozenLockfile
-            | BenchmarkScenario::FrozenLockfileHotCache
-            | BenchmarkScenario::Peek
-            | BenchmarkScenario::GvsWarm => true,
+            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => false,
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
+            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => true,
         }
     }
 
     /// Whether to seed a `pnpm-lock.yaml` into the bench dir during
-    /// init. Scenarios that start without a lockfile (`CleanInstall`,
-    /// `FullResolution`) skip this; scenarios that consume a lockfile
-    /// or mutate one (`Peek`, the frozen variants, `GvsWarm`) need it.
+    /// init. The two install variants skip this; the restore, add-dep,
+    /// and GVS variants need it.
     pub fn lockfile<Text, LoadLockfile>(self, load_lockfile: LoadLockfile) -> Option<String>
     where
         Text: Into<String>,
@@ -172,25 +195,25 @@ impl BenchmarkScenario {
         const SAVED_LOCKFILE: (&str, &str) = ("pnpm-lock.yaml", ".saved-pnpm-lock.yaml");
         const SAVED_PACKAGE_JSON: (&str, &str) = ("package.json", ".saved-package.json");
         match self {
-            BenchmarkScenario::CleanInstall => Cleanup {
+            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore => Cleanup {
                 remove: &["node_modules", "pnpm-lock.yaml", "store-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
-            BenchmarkScenario::FrozenLockfile => {
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => {
                 Cleanup { remove: &["node_modules", "store-dir"], restore: &[SAVED_LOCKFILE] }
             }
-            BenchmarkScenario::FrozenLockfileHotCache => {
+            BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
-            BenchmarkScenario::Peek => Cleanup {
+            BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => Cleanup {
                 remove: &["node_modules"],
                 restore: &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON],
             },
-            BenchmarkScenario::FullResolution => Cleanup {
+            BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => Cleanup {
                 remove: &["node_modules", "pnpm-lock.yaml"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
-            BenchmarkScenario::GvsWarm => {
+            BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
         }
@@ -200,7 +223,7 @@ impl BenchmarkScenario {
     /// in the workspace manifest, and a pre-warm pass that primes the
     /// store before hyperfine's warmup runs.
     pub fn enables_gvs(self) -> bool {
-        matches!(self, BenchmarkScenario::GvsWarm)
+        matches!(self, BenchmarkScenario::GvsFreshRestoreHotCacheHotStore)
     }
 }
 

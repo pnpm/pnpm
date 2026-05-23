@@ -297,9 +297,9 @@ impl WorkEnv {
         // scenarios wipe `node_modules` and `store-dir`, hot-cache wipes
         // only `node_modules` so the warmup-populated store survives
         // into the timed runs. Scenarios that mutate `package.json` or
-        // the lockfile (peek, full-resolution, clean-install) restore
-        // a pristine copy saved during `init()` so the next iteration
-        // sees the same starting state.
+        // the lockfile (the add-dep variant and the no-lockfile install
+        // variants) restore a pristine copy saved during `init()` so the
+        // next iteration sees the same starting state.
         let cleanup = scenario.cleanup();
         let cleanup_command =
             build_cleanup_command(&cleanup, self.benchmarked_ids(), |id| self.bench_dir(id));
