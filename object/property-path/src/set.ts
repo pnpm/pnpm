@@ -14,9 +14,11 @@ export class EmptyPropertyPathError extends PnpmError {
 /**
  * Set the value at a nested property path on {@link object}.
  *
- * Creates intermediate objects or arrays as needed. If an intermediate node is
- * a scalar, it is replaced with a new container (array when the next segment is
- * numeric, object otherwise) before descending.
+ * Creates intermediate objects or arrays as needed. If an intermediate node
+ * exists but its shape disagrees with the next path segment (a scalar where a
+ * container is needed, an array where an object is needed, or vice versa), it
+ * is replaced with a fresh container so the write is persisted in a shape that
+ * round-trips through `JSON.stringify`.
  *
  * Throws on unsafe keys (`__proto__`, `constructor`, `prototype`) to prevent
  * prototype pollution.
@@ -30,8 +32,10 @@ export function setObjectValueByPropertyPath (object: ObjectOrArray, propertyPat
   for (let i = 0; i < path.length - 1; i++) {
     const key = path[i]
     const current = (obj as Record<string | number, unknown>)[key]
-    if (typeof current !== 'object' || current === null) {
-      const replacement: ObjectOrArray = typeof path[i + 1] === 'number' ? [] : {}
+    const needsArray = typeof path[i + 1] === 'number'
+    const isContainer = typeof current === 'object' && current !== null
+    if (!isContainer || Array.isArray(current) !== needsArray) {
+      const replacement: ObjectOrArray = needsArray ? [] : {}
       ;(obj as Record<string | number, unknown>)[key] = replacement
       obj = replacement
     } else {

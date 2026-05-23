@@ -36,6 +36,18 @@ test('replaces a scalar intermediate with an array when the next segment is nume
   expect(obj).toEqual({ keywords: ['pnpm'] })
 })
 
+test('replaces an array intermediate with an object when the next segment is a string', () => {
+  const obj: Record<string, unknown> = { contributors: [] }
+  setObjectValueByPropertyPathString(obj, 'contributors.name', 'Alice')
+  expect(obj).toEqual({ contributors: { name: 'Alice' } })
+})
+
+test('replaces an object intermediate with an array when the next segment is numeric', () => {
+  const obj: Record<string, unknown> = { contributors: { x: 1 } }
+  setObjectValueByPropertyPathString(obj, 'contributors[0]', 'Alice')
+  expect(obj).toEqual({ contributors: ['Alice'] })
+})
+
 test('overwrites an existing value', () => {
   const obj: Record<string, unknown> = { scripts: { build: 'old' } }
   setObjectValueByPropertyPathString(obj, 'scripts.build', 'new')

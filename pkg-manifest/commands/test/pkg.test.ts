@@ -347,6 +347,42 @@ describe('pkg command', () => {
       }
     })
 
+    test('filters by --workspace <name>', async () => {
+      const { allProjects, selectedProjectsGraph } = setupWorkspace({
+        'pkg-a': { name: 'pkg-a', version: '1.0.0' },
+        'pkg-b': { name: 'pkg-b', version: '2.0.0' },
+        'pkg-c': { name: 'pkg-c', version: '3.0.0' },
+      })
+
+      await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        workspace: ['pkg-a', 'pkg-c'],
+        allProjects,
+        selectedProjectsGraph,
+      }, ['set', 'license=MIT'])
+
+      const read = (name: string) =>
+        JSON.parse(fs.readFileSync(path.join(tmpDir, name, 'package.json'), 'utf8'))
+      expect(read('pkg-a').license).toBe('MIT')
+      expect(read('pkg-b').license).toBeUndefined()
+      expect(read('pkg-c').license).toBe('MIT')
+    })
+
+    test('throws when --workspace matches no packages', async () => {
+      const { allProjects, selectedProjectsGraph } = setupWorkspace({
+        'pkg-a': { name: 'pkg-a', version: '1.0.0' },
+      })
+
+      await expect(handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        workspace: 'does-not-exist',
+        allProjects,
+        selectedProjectsGraph,
+      }, ['get', 'name'])).rejects.toMatchObject({ code: 'ERR_PNPM_PKG_WORKSPACE_NO_MATCH' })
+    })
+
     test('throws when used outside of a workspace', async () => {
       await expect(handler({ dir: tmpDir, workspaces: true }, ['get']))
         .rejects.toMatchObject({ code: 'ERR_PNPM_PKG_WORKSPACE_NO_ROOT' })

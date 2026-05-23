@@ -81,11 +81,20 @@ async function handleWorkspaceCommand (opts: PkgCommandOptions, subcmd: string, 
     throw new PnpmError('PKG_WORKSPACE_NO_ROOT', 'Cannot use workspace options outside of a workspace')
   }
 
-  const selectedProjects = opts.selectedProjectsGraph
+  const allSelected = opts.selectedProjectsGraph
     ? Object.values(opts.selectedProjectsGraph)
     : opts.allProjects?.map(p => ({ package: p })) ?? []
 
+  const selectedProjects = filterByWorkspaceNames(allSelected, opts.workspace)
+
   if (selectedProjects.length === 0) {
+    if (opts.workspace) {
+      const requested = Array.isArray(opts.workspace) ? opts.workspace : [opts.workspace]
+      throw new PnpmError(
+        'PKG_WORKSPACE_NO_MATCH',
+        `No workspace packages matched: ${requested.map(name => JSON.stringify(name)).join(', ')}`
+      )
+    }
     throw new PnpmError('PKG_WORKSPACE_NO_PACKAGES', 'No workspace packages found')
   }
 
@@ -216,6 +225,14 @@ async function pkgFix (opts: PkgCommandOptions): Promise<void> {
 
 function isPlainObject (value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+type SelectedProject = { package: { rootDir: string, manifest: Record<string, unknown> } }
+
+function filterByWorkspaceNames (projects: SelectedProject[], workspace: string | string[] | undefined): SelectedProject[] {
+  if (!workspace) return projects
+  const names = new Set(Array.isArray(workspace) ? workspace : [workspace])
+  return projects.filter(({ package: pkg }) => typeof pkg.manifest.name === 'string' && names.has(pkg.manifest.name))
 }
 
 export function help (): string {
