@@ -6,7 +6,7 @@ import { createCompletionServer, generateCompletion } from '@pnpm/cli.commands'
 import { config, getCommand, setCommand } from '@pnpm/config.commands'
 import { types as allTypes } from '@pnpm/config.reader'
 import { audit, licenses, sbom } from '@pnpm/deps.compliance.commands'
-import { bugs, docs, list, ll, outdated, peers, view, why } from '@pnpm/deps.inspection.commands'
+import { bugs, docs, list, ll, outdated, peers, repo, view, why } from '@pnpm/deps.inspection.commands'
 import { selfUpdate, setup, withCmd } from '@pnpm/engine.pm.commands'
 import { env, runtime } from '@pnpm/engine.runtime.commands'
 import {
@@ -174,6 +174,7 @@ const commands: CommandDefinition[] = [
   rebuild,
   recursive,
   remove,
+  repo,
   restart,
   root,
   run,
