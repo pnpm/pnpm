@@ -152,7 +152,9 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => &["install"],
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
-            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => &["install", "--frozen-lockfile"],
+            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
+                &["install", "--frozen-lockfile"]
+            }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
         }
     }
