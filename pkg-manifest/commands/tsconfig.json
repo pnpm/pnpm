@@ -14,7 +14,7 @@
     { "path": "../../config/reader" },
     { "path": "../../core/error" },
     { "path": "../../object/property-path" },
-    { "path": "../reader" },
-    { "path": "../../workspace/project-manifest-writer" }
+    { "path": "../../workspace/project-manifest-writer" },
+    { "path": "../reader" }
   ]
 }
