@@ -101,14 +101,7 @@ async function handleWorkspaceCommand (opts: PkgCommandOptions, subcmd: string, 
     const entries = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
       const manifest = await readProjectManifestOnly(pkg.rootDir) as Record<string, unknown>
       const pkgName = String(manifest.name ?? path.relative(workspaceDir, pkg.rootDir))
-      if (args.length === 0) {
-        return [pkgName, manifest] as const
-      }
-      const result: Record<string, unknown> = {}
-      for (const key of args) {
-        result[key] = getObjectValueByPropertyPathString(manifest, key)
-      }
-      return [pkgName, result] as const
+      return [pkgName, selectFromManifest(manifest, args)] as const
     }))
     return JSON.stringify(Object.fromEntries(entries), undefined, 2)
   }
@@ -121,10 +114,6 @@ async function handleWorkspaceCommand (opts: PkgCommandOptions, subcmd: string, 
 async function pkgGet (opts: PkgCommandOptions, args: string[]): Promise<string> {
   const manifest = await readProjectManifestOnly(opts.dir) as Record<string, unknown>
 
-  if (args.length === 0) {
-    return JSON.stringify(manifest, undefined, 2)
-  }
-
   if (args.length === 1) {
     const value = getObjectValueByPropertyPathString(manifest, args[0])
     if (value === undefined) return ''
@@ -132,11 +121,16 @@ async function pkgGet (opts: PkgCommandOptions, args: string[]): Promise<string>
     return typeof value === 'string' ? value : JSON.stringify(value, undefined, 2)
   }
 
+  return JSON.stringify(selectFromManifest(manifest, args), undefined, 2)
+}
+
+function selectFromManifest (manifest: Record<string, unknown>, args: string[]): unknown {
+  if (args.length === 0) return manifest
   const result: Record<string, unknown> = {}
   for (const key of args) {
     result[key] = getObjectValueByPropertyPathString(manifest, key)
   }
-  return JSON.stringify(result, undefined, 2)
+  return result
 }
 
 async function pkgSet (opts: PkgCommandOptions, args: string[]): Promise<void> {
