@@ -9,7 +9,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'prefix',
   'profile',
   'repo',
-  'set-script',
   'team',
   'token',
   'xmas',
