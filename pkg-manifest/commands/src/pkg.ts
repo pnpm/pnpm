@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { docsUrl } from '@pnpm/cli.utils'
+import { docsUrl, readProjectManifest, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -8,8 +8,7 @@ import {
   getObjectValueByPropertyPathString,
   setObjectValueByPropertyPathString,
 } from '@pnpm/object.property-path'
-import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
-import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
+import type { ProjectManifest } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -99,21 +98,19 @@ async function handleWorkspaceCommand (opts: PkgCommandOptions, subcmd: string, 
   }
 
   if (subcmd === 'get') {
-    const results: Record<string, unknown> = {}
-    for (const { package: pkg } of selectedProjects) {
-      const manifest = readPackageJsonFromDirRawSync(pkg.rootDir) as unknown as Record<string, unknown>
+    const entries = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
+      const manifest = await readProjectManifestOnly(pkg.rootDir) as Record<string, unknown>
       const pkgName = String(manifest.name ?? path.relative(workspaceDir, pkg.rootDir))
       if (args.length === 0) {
-        results[pkgName] = manifest
-      } else {
-        const result: Record<string, unknown> = {}
-        for (const key of args) {
-          result[key] = getObjectValueByPropertyPathString(manifest, key)
-        }
-        results[pkgName] = result
+        return [pkgName, manifest] as const
       }
-    }
-    return JSON.stringify(results, undefined, 2)
+      const result: Record<string, unknown> = {}
+      for (const key of args) {
+        result[key] = getObjectValueByPropertyPathString(manifest, key)
+      }
+      return [pkgName, result] as const
+    }))
+    return JSON.stringify(Object.fromEntries(entries), undefined, 2)
   }
 
   await Promise.all(selectedProjects.map(({ package: pkg }) =>
@@ -122,7 +119,7 @@ async function handleWorkspaceCommand (opts: PkgCommandOptions, subcmd: string, 
 }
 
 async function pkgGet (opts: PkgCommandOptions, args: string[]): Promise<string> {
-  const manifest = readPackageJsonFromDirRawSync(opts.dir) as unknown as Record<string, unknown>
+  const manifest = await readProjectManifestOnly(opts.dir) as Record<string, unknown>
 
   if (args.length === 0) {
     return JSON.stringify(manifest, undefined, 2)
@@ -149,8 +146,7 @@ async function pkgSet (opts: PkgCommandOptions, args: string[]): Promise<void> {
     })
   }
 
-  const manifest = readPackageJsonFromDirRawSync(opts.dir) as unknown as Record<string, unknown>
-  const manifestPath = path.join(opts.dir, 'package.json')
+  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
 
   for (const arg of args) {
     const eqIndex = arg.indexOf('=')
@@ -171,10 +167,10 @@ async function pkgSet (opts: PkgCommandOptions, args: string[]): Promise<void> {
       }
     }
 
-    setObjectValueByPropertyPathString(manifest, key, value)
+    setObjectValueByPropertyPathString(manifest as unknown as Record<string, unknown>, key, value)
   }
 
-  await writeProjectManifest(manifestPath, manifest)
+  await writeProjectManifest(manifest)
 }
 
 async function pkgDelete (opts: PkgCommandOptions, args: string[]): Promise<void> {
@@ -184,43 +180,38 @@ async function pkgDelete (opts: PkgCommandOptions, args: string[]): Promise<void
     })
   }
 
-  const manifest = readPackageJsonFromDirRawSync(opts.dir) as unknown as Record<string, unknown>
-  const manifestPath = path.join(opts.dir, 'package.json')
+  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
 
   for (const key of args) {
-    deleteObjectValueByPropertyPathString(manifest, key)
+    deleteObjectValueByPropertyPathString(manifest as unknown as Record<string, unknown>, key)
   }
 
-  await writeProjectManifest(manifestPath, manifest)
+  await writeProjectManifest(manifest)
 }
 
 async function pkgFix (opts: PkgCommandOptions): Promise<void> {
-  const manifest = readPackageJsonFromDirRawSync(opts.dir) as unknown as Record<string, unknown>
-  const manifestPath = path.join(opts.dir, 'package.json')
+  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
+  const m = manifest as ProjectManifest & Record<string, unknown>
 
-  const originalManifest = JSON.parse(JSON.stringify(manifest))
-
-  if ('name' in manifest && typeof manifest.name !== 'string') {
-    delete manifest.name
+  if ('name' in m && typeof m.name !== 'string') {
+    delete m.name
   }
 
-  if ('version' in manifest && typeof manifest.version !== 'string') {
-    delete manifest.version
+  if ('version' in m && typeof m.version !== 'string') {
+    delete m.version
   }
 
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
-    if (field in manifest && !isPlainObject(manifest[field])) {
-      delete manifest[field]
+    if (field in m && !isPlainObject(m[field])) {
+      delete m[field]
     }
   }
 
-  if ('bin' in manifest && typeof manifest.bin !== 'string' && !isPlainObject(manifest.bin)) {
-    delete manifest.bin
+  if ('bin' in m && typeof m.bin !== 'string' && !isPlainObject(m.bin)) {
+    delete m.bin
   }
 
-  if (JSON.stringify(originalManifest) !== JSON.stringify(manifest)) {
-    await writeProjectManifest(manifestPath, manifest)
-  }
+  await writeProjectManifest(manifest)
 }
 
 function isPlainObject (value: unknown): value is Record<string, unknown> {

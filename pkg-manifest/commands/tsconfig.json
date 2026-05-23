@@ -13,8 +13,7 @@
     { "path": "../../cli/utils" },
     { "path": "../../config/reader" },
     { "path": "../../core/error" },
-    { "path": "../../object/property-path" },
-    { "path": "../../workspace/project-manifest-writer" },
-    { "path": "../reader" }
+    { "path": "../../core/types" },
+    { "path": "../../object/property-path" }
   ]
 }

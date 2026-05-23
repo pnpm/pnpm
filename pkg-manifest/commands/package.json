@@ -25,8 +25,7 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/object.property-path": "workspace:*",
-    "@pnpm/pkg-manifest.reader": "workspace:*",
-    "@pnpm/workspace.project-manifest-writer": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "render-help": "catalog:"
   },
   "devDependencies": {

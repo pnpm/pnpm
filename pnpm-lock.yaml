@@ -7615,12 +7615,9 @@ importers:
       '@pnpm/object.property-path':
         specifier: workspace:*
         version: link:../../object/property-path
-      '@pnpm/pkg-manifest.reader':
+      '@pnpm/types':
         specifier: workspace:*
-        version: link:../reader
-      '@pnpm/workspace.project-manifest-writer':
-        specifier: workspace:*
-        version: link:../../workspace/project-manifest-writer
+        version: link:../../core/types
       render-help:
         specifier: 'catalog:'
         version: 2.0.0
