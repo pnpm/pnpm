@@ -18,16 +18,10 @@ export async function updateProjectManifest (
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
-  // directDependencies and wantedDependencies are not aligned by index
-  // (linked deps like workspace:* are excluded from directDependencies),
-  // so match by alias instead.
-  const wantedDepsByAlias = new Map(
-    importer.wantedDependencies.map((wd) => [wd.alias, wd] as const)
-  )
   const specsToUpsert: PackageSpecObject[] = opts.directDependencies
-    .filter((rdd) => wantedDepsByAlias.get(rdd.alias)?.updateSpec)
-    .map((rdd) => {
-      const wantedDep = wantedDepsByAlias.get(rdd.alias)!
+    .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
+    .map((rdd, index) => {
+      const wantedDep = importer.wantedDependencies[index]!
       return {
         alias: rdd.alias,
         peer: importer.peer,

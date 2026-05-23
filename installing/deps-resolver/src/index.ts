@@ -345,16 +345,10 @@ export async function resolveDependencies (
   for (const project of projectsToResolve) {
     if (!project.updatePackageManifest) continue
     const resolvedImporter = resolvedImporters[project.id]
-    // Build a map from alias to wantedDependency for O(1) lookup, since
-    // directDependencies and wantedDependencies are not aligned by index
-    // (linked deps like workspace:* are excluded from directDependencies).
-    const wantedDepsByAlias = new Map(
-      project.wantedDependencies.map((wd) => [wd.alias, wd] as const)
-    )
-    for (const dep of resolvedImporter.directDependencies) {
-      const wantedDep = wantedDepsByAlias.get(dep.alias)
-      const updateSpec = wantedDep?.updateSpec ?? false
+    for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
+      const updateSpec = project.wantedDependencies[i]?.updateSpec ?? false
       if (!updateSpec) continue
+      const dep = resolvedImporter.directDependencies[i]
       if (dep.catalogLookup == null) continue
       // If normalizedBareSpecifier isn't defined, this catalog entry was resolved from cache.
       // Avoid updating the updatedCatalogs map since it is likely unchanged.
