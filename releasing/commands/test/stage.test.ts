@@ -163,6 +163,24 @@ describe('stage command', () => {
     }
   })
 
+  test('stage approve enters the web-auth OTP flow when the registry responds 401 with authUrl/doneUrl', async () => {
+    const registry = await createRegistry(() => ({
+      status: 401,
+      body: {
+        authUrl: 'https://www.npmjs.com/auth/cli/test-auth-id',
+        doneUrl: 'https://registry.example.com/-/v1/done?authId=test-auth-id',
+      },
+    }))
+    try {
+      await expect(stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage'] },
+      }, ['approve', STAGE_ID])).rejects.toMatchObject({ code: 'ERR_PNPM_OTP_NON_INTERACTIVE' })
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage download --json is keyed by package name and writes the staged tarball', async () => {
     const pkgName = '@scope/stage-download-json'
     prepare({ name: pkgName, version: '1.0.0' })

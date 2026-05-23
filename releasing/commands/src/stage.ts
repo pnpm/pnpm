@@ -425,8 +425,7 @@ async function stageRequest (context: StageContext, params: StageRequestParams):
     timeout: context.opts.fetchTimeout,
   })
   if (!response.ok) {
-    await throwIfOtpRequired(response)
-    await throwStageRegistryError(response, params.action)
+    await throwOnErrorResponse(response, params.action)
   }
   return response
 }
@@ -456,30 +455,37 @@ function createWebAuthFetchOptions (opts: StageOptions): WebAuthFetchOptions {
   }
 }
 
-async function throwIfOtpRequired (response: Response): Promise<void> {
-  if (response.status !== 401) return
-  const wwwAuthenticate = response.headers.get('www-authenticate')
-  if (!wwwAuthenticate?.includes('otp')) return
-
-  let body: unknown
-  try {
-    body = await response.json()
-  } catch {}
-
-  throw SyntheticOtpError.fromUnknownBody(globalWarn, body)
-}
-
-async function throwStageRegistryError (response: Response, action: string): Promise<never> {
+async function throwOnErrorResponse (response: Response, action: string): Promise<never> {
   let text = ''
   try {
     text = await response.text()
   } catch {}
+  let parsed: unknown
+  try {
+    parsed = text ? JSON.parse(text) : undefined
+  } catch {}
+
+  if (response.status === 401 && isOtpChallenge(response, parsed)) {
+    throw SyntheticOtpError.fromUnknownBody(globalWarn, parsed)
+  }
   throw new StageRegistryError({
     action,
     status: response.status,
     statusText: response.statusText,
     text,
   })
+}
+
+function isOtpChallenge (response: Response, body: unknown): boolean {
+  if (hasWebAuthUrls(body)) return true
+  const wwwAuthenticate = response.headers.get('www-authenticate')?.toLowerCase()
+  return wwwAuthenticate?.includes('otp') === true
+}
+
+function hasWebAuthUrls (body: unknown): boolean {
+  if (body == null || typeof body !== 'object') return false
+  const record = body as Record<string, unknown>
+  return typeof record.authUrl === 'string' && typeof record.doneUrl === 'string'
 }
 
 class StageRegistryError extends PnpmError {
