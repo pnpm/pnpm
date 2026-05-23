@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Validate `devEngines.runtime` Node.js ranges when `onFail` is set to `error` or `warn`.
+Validate `devEngines.runtime` and `engines.runtime` Node.js ranges when `onFail` is set to `error` or `warn`.
