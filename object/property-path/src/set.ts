@@ -36,15 +36,31 @@ export function setObjectValueByPropertyPath (object: ObjectOrArray, propertyPat
     const isContainer = typeof current === 'object' && current !== null
     if (!isContainer || Array.isArray(current) !== needsArray) {
       const replacement: ObjectOrArray = needsArray ? [] : {}
-      ;(obj as Record<string | number, unknown>)[key] = replacement
+      defineOwnProperty(obj, key, replacement)
       obj = replacement
     } else {
       obj = current as ObjectOrArray
     }
   }
 
-  const lastKey = path[path.length - 1]
-  ;(obj as Record<string | number, unknown>)[lastKey] = value
+  defineOwnProperty(obj, path[path.length - 1], value)
+}
+
+/**
+ * Set a value as an own enumerable, writable, configurable property.
+ *
+ * Using `Object.defineProperty` rather than bracket assignment ensures that
+ * even if a `__proto__`-like key slipped past {@link rejectUnsafeKeys}, the
+ * write would create an own property instead of invoking the prototype
+ * setter, so this assignment site cannot be a prototype-pollution sink.
+ */
+function defineOwnProperty (obj: ObjectOrArray, key: string | number, value: unknown): void {
+  Object.defineProperty(obj, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  })
 }
 
 export const setObjectValueByPropertyPathString = (object: ObjectOrArray, propertyPath: string, value: unknown): void =>
