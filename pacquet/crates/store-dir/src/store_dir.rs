@@ -26,8 +26,15 @@ pub const STORE_VERSION: &str = "v11";
 ///   where `<root>` already includes the `v11` suffix, so the two tools share both the
 ///   physical layout *and* the user-visible `storeDir` string written to
 ///   `.modules.yaml`.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(transparent)]
+//
+// `#[serde(from = "PathBuf", into = "PathBuf")]` routes both
+// directions through the `PathBuf` boundary so deserialization goes
+// back through [`From<PathBuf>`] and the [`STORE_VERSION`] suffix
+// invariant holds for persisted unsuffixed paths too — the previous
+// `#[serde(transparent)]` derive deserialised straight into the
+// `root` field and bypassed the auto-append.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "PathBuf", into = "PathBuf")]
 pub struct StoreDir {
     /// The `STORE_VERSION`-suffixed store path, equivalent to pnpm's
     /// [`storeDir`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42).
@@ -44,9 +51,17 @@ pub struct StoreDir {
     /// `stat` per file. After the first hit, the shard is cached and
     /// subsequent writes skip the syscall entirely. Populated lazily by
     /// [`StoreDir::write_cas_file`]; duplicate inserts across threads are
-    /// harmless since `create_dir_all` is idempotent.
-    #[serde(skip, default)]
+    /// harmless since `create_dir_all` is idempotent. Not part of the
+    /// serialised wire shape — `#[serde(from/into)]` round-trips only
+    /// through `PathBuf`, so the cache is regenerated empty on every
+    /// deserialise.
     ensured_shards: DashSet<u8>,
+}
+
+impl From<StoreDir> for PathBuf {
+    fn from(store_dir: StoreDir) -> Self {
+        store_dir.root
+    }
 }
 
 /// Manual `PartialEq` / `Eq`: the shard cache is runtime state, two stores

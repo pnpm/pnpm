@@ -53,6 +53,26 @@ fn modules_yaml_serialized_store_dir_carries_store_version() {
     assert_eq!(recorded, pnpm_would_emit);
 }
 
+/// Deserialising an unsuffixed path (e.g. one persisted by an older
+/// pacquet that hadn't normalised yet) must route through
+/// [`From<PathBuf>`] and gain the [`STORE_VERSION`] suffix. The
+/// previous `#[serde(transparent)]` derive wrote straight into
+/// `root` and bypassed the auto-append, leaving the suffix invariant
+/// silently violated on the live `StoreDir`.
+#[test]
+fn deserialize_applies_store_version_to_unsuffixed_path() {
+    let json = r#""/home/user/.local/share/pnpm/store""#;
+    let store: StoreDir = serde_json::from_str(json).expect("deserialize StoreDir");
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
+}
+
+#[test]
+fn deserialize_preserves_already_suffixed_path() {
+    let json = r#""/home/user/.local/share/pnpm/store/v11""#;
+    let store: StoreDir = serde_json::from_str(json).expect("deserialize StoreDir");
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
+}
+
 /// `init` on a fresh store should materialize `v11/files/00..ff`
 /// and populate the shard cache so later `write_cas_file` calls
 /// can skip their lazy mkdir.

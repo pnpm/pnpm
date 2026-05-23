@@ -455,8 +455,9 @@ mod tests {
     /// Subdir guard: when the store lives inside the project, the
     /// function is a silent no-op — registering would otherwise create
     /// a self-referential symlink. The `STORE_VERSION` subdir
-    /// (`store_dir.root()` after [`StoreDir::from`] applies the suffix)
-    /// is materialised on disk so [`path_contains`]'s canonical-form
+    /// (`store_dir.root()` after [`StoreDir::new`] routes the path
+    /// through [`From<PathBuf>`] and applies the suffix) is
+    /// materialised on disk so [`path_contains`]'s canonical-form
     /// comparison sees both sides as canonical paths even on macOS,
     /// where `/tmp` symlinks to `/private/tmp` and a missing target
     /// would silently fall back to lexical comparison and miss the
