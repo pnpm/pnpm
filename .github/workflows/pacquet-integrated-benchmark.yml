@@ -2,6 +2,25 @@ name: Pacquet Integrated-Benchmark
 
 on:
   workflow_dispatch:
+  push:
+    # Update Bencher's baseline for the `pacquet` testbed whenever
+    # something that could move pacquet's install perf lands on main.
+    # Paths mirror the pull_request filter below.
+    branches: [main]
+    paths:
+      - 'pacquet/**/*.rs'
+      - 'pacquet/**/Cargo.toml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'justfile'
+      - 'pacquet/tasks/registry-mock/package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'pacquet/tasks/integrated-benchmark/src/fixtures/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/workflows/pacquet-integrated-benchmark.yml'
   pull_request:
     types: [opened, synchronize]
     paths:
@@ -242,15 +261,45 @@ jobs:
             echo '</details>'
           ) > bench-work-env/SUMMARY.md
 
+      - name: Build Bencher-shaped report
+        # Combine the four scenario JSONs into one hyperfine-shaped
+        # file that Bencher's shell_hyperfine adapter accepts. We
+        # keep only the @HEAD result from each scenario and rename
+        # `.command` to the scenario name, so Bencher names the
+        # benchmark after the scenario instead of `pacquet@HEAD`.
+        shell: bash
+        run: |
+          scenarios=(
+            'FROZEN_LOCKFILE:frozen-lockfile'
+            'FROZEN_LOCKFILE_HOT_CACHE:frozen-lockfile-hot-cache'
+            'CLEAN_INSTALL:clean-install'
+            'FULL_RESOLUTION:full-resolution'
+          )
+          inputs=()
+          for entry in "${scenarios[@]}"; do
+            file_tag="${entry%%:*}"
+            name="${entry#*:}"
+            src="bench-work-env/BENCHMARK_REPORT_${file_tag}.json"
+            dst="bench-work-env/${name}-bencher.json"
+            jq --arg s "$name" \
+              '.results |= [.[] | select(.command == "pacquet@HEAD") | .command = $s]' \
+              "$src" > "$dst"
+            inputs+=("$dst")
+          done
+          jq -s '{results: map(.results) | add}' \
+            "${inputs[@]}" > bench-work-env/bencher-results.json
+
       - name: Stage artifact contents
-        # The artifact carries only the rendered report. The PR number
-        # and runner OS are derived from the trusted workflow_run
-        # event payload in the comment-posting workflow, not from
-        # fork-controlled artifact contents.
+        # The artifact carries the rendered report plus the
+        # Bencher-shaped JSON consumed by the comment-posting
+        # workflow. The PR number and runner OS are derived from the
+        # trusted workflow_run event payload in that workflow, not
+        # from fork-controlled artifact contents.
         shell: bash
         run: |
           mkdir -p benchmark-artifact
           cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
+          cp bench-work-env/bencher-results.json benchmark-artifact/bencher-results.json
 
       - name: Upload benchmark report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -259,3 +308,30 @@ jobs:
           path: benchmark-artifact/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Install Bencher CLI
+        if: github.event_name == 'push'
+        uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+
+      - name: Upload main baseline to Bencher
+        # Only runs on push to main — secrets are available in that
+        # context. PR runs (including from forks) upload via the
+        # workflow_run comment workflow, which executes in the base
+        # repo's privilege context.
+        if: github.event_name == 'push'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${BENCHER_API_TOKEN:-}" ]; then
+            echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
+            exit 0
+          fi
+          bencher run \
+            --project pnpm \
+            --testbed pacquet \
+            --branch main \
+            --adapter shell_hyperfine \
+            --file bench-work-env/bencher-results.json \
+            --github-actions "$GITHUB_TOKEN"

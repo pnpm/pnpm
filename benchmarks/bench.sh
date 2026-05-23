@@ -121,6 +121,23 @@ for entry in "${SCENARIOS[@]}"; do
   i=$((i + 1))
 done
 
+# Combine the per-scenario hyperfine JSONs into one Bencher-shaped
+# report. Keep only the @HEAD result from each scenario and rename
+# `.command` to the scenario name so Bencher's shell_hyperfine adapter
+# names the benchmark after the scenario instead of `pnpm@HEAD`.
+if command -v jq >/dev/null; then
+  bencher_inputs=()
+  for entry in "${SCENARIOS[@]}"; do
+    scenario="${entry%%:*}"
+    jq --arg s "$scenario" \
+      '.results |= [.[] | select(.command == "pnpm@HEAD") | .command = $s]' \
+      "$BENCH_DIR/${scenario}.json" > "$BENCH_DIR/${scenario}-bencher.json"
+    bencher_inputs+=("$BENCH_DIR/${scenario}-bencher.json")
+  done
+  jq -s '{results: map(.results) | add}' \
+    "${bencher_inputs[@]}" > "$BENCH_DIR/bencher-results.json"
+fi
+
 echo
 echo "━━━ Results ━━━"
 cat "$results_md"

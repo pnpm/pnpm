@@ -34,6 +34,10 @@ The script:
 4. Writes a per-scenario `BENCHMARK_REPORT.md` / `.json` and a
    consolidated `results.md` into the temp work-env. The path is printed
    at the end of the run.
+5. Emits `bencher-results.json` — a hyperfine-shaped file with one
+   result per scenario (the `@HEAD` revision only, `command` renamed to
+   the scenario name) that the `Benchmarks` GitHub Actions workflow
+   uploads to [Bencher](https://bencher.dev) for continuous tracking.
 
 ## Scenarios
 
