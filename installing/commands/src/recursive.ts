@@ -88,6 +88,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
 | 'tag'
+| 'trustLockfile'
 | 'cleanupUnusedCatalogs'
 | 'packageConfigs'
 | 'updateConfig'

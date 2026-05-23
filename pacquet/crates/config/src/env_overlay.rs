@@ -170,6 +170,7 @@ impl WorkspaceSettings {
             "MINIMUM_RELEASE_AGE_IGNORE_MISSING_TIME"
         );
         json_field!(minimum_release_age_strict, "MINIMUM_RELEASE_AGE_STRICT");
+        json_field!(trust_lockfile, "TRUST_LOCKFILE");
         enum_field!(trust_policy, "TRUST_POLICY", TrustPolicy);
         json_field!(trust_policy_exclude, "TRUST_POLICY_EXCLUDE");
         json_field!(trust_policy_ignore_after, "TRUST_POLICY_IGNORE_AFTER");

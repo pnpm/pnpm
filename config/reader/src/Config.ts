@@ -267,6 +267,7 @@ export interface Config extends OptionsFromRootManifest {
   minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
+  trustLockfile?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number

@@ -61,6 +61,7 @@ export const pnpmConfigFileKeys = [
   'state-dir',
   'store-dir',
   'strict-dep-builds',
+  'trust-lockfile',
   'trust-policy',
   'trust-policy-exclude',
   'trust-policy-ignore-after',

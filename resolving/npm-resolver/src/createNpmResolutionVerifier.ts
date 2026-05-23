@@ -2,7 +2,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import type { PackageMeta } from '@pnpm/resolving.registry.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   Resolution,
   ResolutionVerifier,
@@ -372,14 +372,64 @@ function fetchFullMetaForTrust (
     // `!meta` fallback emits. The cache still holds the rejected promise
     // so repeat verifier calls for the same (registry, name) within one
     // install don't refetch a known-failing endpoint.
+    //
+    // The fetched packument is projected down to just the trust-relevant
+    // fields (per-version `_npmUser.trustedPublisher` and
+    // `dist.attestations.provenance`, plus the package-level `time` map)
+    // before being stored. The full document — dependency maps, scripts,
+    // READMEs for every version — would otherwise stay resident in this
+    // map for the entire install, which on multi-thousand-entry
+    // workspaces OOMs CI runners with a 2GB heap (see #11860).
     cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
       registry,
       authHeaderValue: context.getAuthHeaderValueByURI(registry),
       cacheDir: context.cacheDir,
-    })
+    }).then(projectTrustMeta)
     context.fullMetaForTrustCache.set(cacheKey, cachedPromise)
   }
   return cachedPromise
+}
+
+// Project the full packument to a minimal `PackageMeta`-shaped view
+// that exposes only the fields `failIfTrustDowngraded` reads:
+//   • `name` and `modified` for error messages and cache keys
+//   • `time` for the per-version publish-date walk
+//   • `versions[v]._npmUser.trustedPublisher`
+//   • `versions[v].dist.attestations.provenance`
+// The shape is still a valid `PackageMeta` so the downstream consumer
+// doesn't have to special-case it — only the bulk fields (dependency
+// graph, scripts, README, etc.) are dropped.
+function projectTrustMeta (meta: PackageMeta): PackageMeta {
+  const versions: Record<string, PackageInRegistry> = {}
+  for (const [version, manifest] of Object.entries(meta.versions ?? {})) {
+    versions[version] = projectTrustManifest(manifest)
+  }
+  return {
+    name: meta.name,
+    'dist-tags': {},
+    versions,
+    time: meta.time,
+    modified: meta.modified,
+    etag: meta.etag,
+  }
+}
+
+function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
+  // Drop everything except the trust-evidence fields. `PackageInRegistry.dist`
+  // is typed as requiring `shasum` and `tarball`, but the trust check never
+  // reads them; cast away the unsoundness so callers see the same nominal
+  // shape without the per-version dependency graph / scripts / README bulk
+  // carrying through. `_npmUser` is similarly narrowed to just
+  // `trustedPublisher` — the only sub-field the trust check inspects — so
+  // we don't keep maintainer name/email PII resident in the cache.
+  const trustedPublisher = manifest._npmUser?.trustedPublisher
+  const provenance = manifest.dist?.attestations?.provenance
+  return {
+    _npmUser: trustedPublisher != null ? { trustedPublisher } : undefined,
+    dist: provenance != null
+      ? { attestations: { provenance } }
+      : undefined,
+  } as unknown as PackageInRegistry
 }
 
 type PublishedAtTimeMap = Record<string, string | undefined>
@@ -400,10 +450,14 @@ interface PublishedAtLookupContext {
    * Per-(registry+name) memo of the abbreviated metadata fetch.
    * Abbreviated is what the resolver populates by default, so on a
    * non-frozen install the conditional GET hits the disk mirror at
-   * ~zero cost. Resolves to the parsed metadata or `undefined` on
-   * failure.
+   * ~zero cost. Stores only the two fields the shortcut reads —
+   * package-level `modified` plus the set of currently-listed version
+   * names — so the multi-hundred-KB packument can be GC'd as soon as
+   * the fetch returns (the cache only needs to dedupe network/disk
+   * round-trips, not full document storage). Resolves to `undefined`
+   * on failure.
    */
-  abbreviatedMetaCache: Map<string, Promise<{ modified?: string, versions?: Record<string, unknown> } | undefined>>
+  abbreviatedMetaCache: Map<string, Promise<AbbreviatedMetaProjection | undefined>>
   /**
    * Per-(registry+name+version) memo of the final published-at answer
    * the verifier hands to the policy check. One install verifies each
@@ -523,7 +577,7 @@ async function tryAbbreviatedModifiedShortcut (
   // publish time — but only for versions the registry currently lists.
   // An unpublished or never-published pin would otherwise pass the gate
   // on a stale package-level timestamp.
-  if (!meta?.versions || !(version in meta.versions)) return undefined
+  if (!meta?.versionNames?.has(version)) return undefined
   return modified
 }
 
@@ -531,7 +585,7 @@ function fetchAbbreviatedMeta (
   context: PublishedAtLookupContext,
   registry: string,
   name: string
-): Promise<{ modified?: string, versions?: Record<string, unknown> } | undefined> {
+): Promise<AbbreviatedMetaProjection | undefined> {
   const cacheKey = `${registry}\x00${name}`
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
   if (cachedPromise == null) {
@@ -539,10 +593,30 @@ function fetchAbbreviatedMeta (
       registry,
       authHeaderValue: context.getAuthHeaderValueByURI(registry),
       cacheDir: context.cacheDir,
-    }).catch(() => undefined)
+    }).then(projectAbbreviatedMeta, () => undefined)
     context.abbreviatedMetaCache.set(cacheKey, cachedPromise)
   }
   return cachedPromise
+}
+
+// Project the abbreviated packument down to the two fields the verifier
+// actually reads — package-level `modified` and the set of version names
+// for the existence check inside `tryAbbreviatedModifiedShortcut`. The
+// resolver populates the abbreviated mirror with every version's
+// dependency / engine / dist info, which can run to hundreds of KB per
+// package and accumulate to many GB across a multi-thousand-entry
+// lockfile (see #11860). The full document is GC-able as soon as this
+// closure returns.
+function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
+  return {
+    modified: meta.modified,
+    versionNames: meta.versions ? new Set(Object.keys(meta.versions)) : undefined,
+  }
+}
+
+interface AbbreviatedMetaProjection {
+  modified?: string
+  versionNames?: Set<string>
 }
 
 function readLocalMetaTime (

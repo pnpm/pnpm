@@ -145,6 +145,7 @@ export async function handler (
   | 'workspacePackagePatterns'
   | 'sharedWorkspaceLockfile'
   | 'cleanupUnusedCatalogs'
+  | 'trustLockfile'
   > & Pick<ConfigContext,
   | 'allProjects'
   | 'allProjectsGraph'

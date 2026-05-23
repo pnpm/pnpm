@@ -65,6 +65,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache',
     'store-dir',
     'strict-peer-dependencies',
+    'trust-lockfile',
     'trust-policy',
     'trust-policy-exclude',
     'trust-policy-ignore-after',
@@ -231,6 +232,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--trust-policy-ignore-after <minutes>',
           },
           {
+            description: 'Trust the lockfile and skip the supply-chain verification step that re-applies minimumReleaseAge / trustPolicy to each lockfile entry. Use only when the lockfile is part of the trusted base (closed-source projects, CI runs against an already-verified lockfile)',
+            name: '--trust-lockfile',
+          },
+          {
             description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',
             name: '--package-import-method auto',
           },
@@ -324,6 +329,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'tag'
+| 'trustLockfile'
 | 'allowBuilds'
 | 'optional'
 | 'virtualStoreDir'

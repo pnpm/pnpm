@@ -29,7 +29,7 @@ use chrono::{DateTime, Utc};
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName};
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_registry::Package;
+use pacquet_registry::{NpmUser, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
@@ -535,7 +535,16 @@ impl NpmResolutionVerifier {
                 return entry.clone();
             }
         }
-        let result = self.fetch_full_meta(registry, name).await.map(Arc::new);
+        // Project the packument to just the fields `fail_if_trust_downgraded`
+        // reads before stashing in the cache. The full document — dependency
+        // graphs, dist-tags, scripts, READMEs for every version — would
+        // otherwise stay resident in this map for the entire install, which
+        // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
+        // cap (see [#11860]).
+        //
+        // [#11860]: https://github.com/pnpm/pnpm/issues/11860
+        let result =
+            self.fetch_full_meta(registry, name).await.map(project_trust_meta).map(Arc::new);
         let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
         cache.entry(key).or_insert(result).clone()
     }
@@ -645,6 +654,72 @@ fn build_policy_snapshot(
         },
     );
     map
+}
+
+/// Build a [`Package`] that retains only the fields
+/// [`fail_if_trust_downgraded`] reads: the package name, the per-version
+/// `time` map, and per-version trust evidence (`_npmUser.trustedPublisher`
+/// and `dist.attestations.provenance`). Drops everything else — dependency
+/// graphs, scripts, READMEs — so the per-install trust-meta cache stays
+/// bounded by the trust-evidence footprint, not the full packument size.
+///
+/// Mirrors pnpm's `projectTrustMeta` in
+/// [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/main/resolving/npm-resolver/src/createNpmResolutionVerifier.ts).
+///
+/// [`fail_if_trust_downgraded`]: crate::trust_checks::fail_if_trust_downgraded
+fn project_trust_meta(meta: Package) -> Package {
+    let versions = meta
+        .versions
+        .iter()
+        .map(|(version, manifest)| (version.clone(), project_trust_package_version(manifest)))
+        .collect();
+    Package {
+        name: meta.name,
+        dist_tags: std::collections::HashMap::new(),
+        versions,
+        time: meta.time,
+        modified: meta.modified,
+        etag: meta.etag,
+        mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
+    }
+}
+
+fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
+    let attestations =
+        version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).map(|prov| {
+            pacquet_registry::AttestationsDist { provenance: Some(prov.clone()), url: None }
+        });
+    // `get_trust_evidence` only reads `npm_user.trusted_publisher`; drop
+    // the maintainer `name` / `email` PII so the projected cache entry
+    // doesn't hold per-version publisher metadata that downstream
+    // doesn't need.
+    let npm_user =
+        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).map(|trusted| {
+            NpmUser { name: None, email: None, trusted_publisher: Some(trusted.clone()) }
+        });
+    PackageVersion {
+        // `fail_if_trust_downgraded` keys off the outer `meta.versions`
+        // map and the version-level npm_user / attestations fields. The
+        // per-version `name`, `version`, and `dist` non-attestation fields
+        // are never read, so empty placeholders are fine — clone of the
+        // parsed semver keeps the typed shape valid without paying for
+        // the upstream dependency graph.
+        name: String::new(),
+        version: version.version.clone(),
+        dist: PackageDistribution {
+            integrity: None,
+            shasum: None,
+            tarball: String::new(),
+            file_count: None,
+            unpacked_size: None,
+            attestations,
+        },
+        dependencies: None,
+        dev_dependencies: None,
+        peer_dependencies: None,
+        npm_user,
+        deprecated: None,
+    }
 }
 
 #[cfg(test)]

@@ -97,6 +97,15 @@ where
     /// the install proceeds normally. See
     /// `pacquet_config::Config::skip_runtimes`.
     pub skip_runtimes: bool,
+    /// Effective `trustLockfile` value for *this* invocation. The CLI
+    /// layer ORs the `--trust-lockfile` flag with `config.trust_lockfile`
+    /// so a yaml `true` can't be overridden back to `false` from the
+    /// CLI — matching pnpm's stance on similar flags. Threaded as a
+    /// separate field for the same reason [`Self::skip_runtimes`] is:
+    /// `state.config` is a shared `&'static Config`, so the CLI
+    /// override merge happens in the caller and lands here as a
+    /// fully-resolved value.
+    pub trust_lockfile: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
     /// with the CLI per-axis overrides (`--cpu` / `--os` / `--libc`).
@@ -287,6 +296,7 @@ where
             prefer_frozen_lockfile,
             ignore_manifest_check,
             skip_runtimes,
+            trust_lockfile,
             supported_architectures,
             node_linker,
         } = self;
@@ -385,8 +395,14 @@ where
         // `lockfile.is_none()` (writable-lockfile path) skips the
         // gate entirely — fresh local resolution is already filtered
         // by the resolver's per-version gate (when pacquet's
-        // resolver lands).
-        if let Some(loaded_lockfile) = lockfile {
+        // resolver lands). `trust_lockfile` (the OR of yaml's
+        // `trustLockfile` and the `--trust-lockfile` CLI flag,
+        // resolved in [`crate::cli_args::install::InstallArgs::run`])
+        // is the opt-out for environments where the install can
+        // treat the on-disk lockfile as already-trusted (see [#11860]).
+        //
+        // [#11860]: https://github.com/pnpm/pnpm/issues/11860
+        if let Some(loaded_lockfile) = lockfile.filter(|_| !trust_lockfile) {
             let derived_lockfile_path = lockfile_path
                 .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf);
             let verifiers = build_resolution_verifiers(config, Arc::clone(&http_client_arc))
