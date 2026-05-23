@@ -156,7 +156,7 @@ jobs:
         timeout-minutes: 15
         run: just integrated-benchmark --build-only pacquet@HEAD pacquet@main
 
-      - name: 'Benchmark: Fresh restore, cold cache + cold store, isolated linker'
+      - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         shell: bash
         # Hyperfine has no per-command timeout, so a single hanging
         # install takes the whole step down with the GHA default job
@@ -164,11 +164,11 @@ jobs:
         # headroom, and a failure surfaces fast enough to iterate on.
         timeout-minutes: 10
         run: |
-          just integrated-benchmark --scenario=fresh-restore-cold-cache-cold-store-isolated --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED.json
+          just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
 
-      - name: 'Benchmark: Fresh restore, hot cache + hot store, isolated linker'
+      - name: 'Benchmark: Isolated linker: fresh restore, hot cache + hot store'
         shell: bash
         # Same timeout rationale as the cold-cache step above. Each
         # timed run wipes only `node_modules`; the per-revision store
@@ -176,11 +176,11 @@ jobs:
         # iteration so timed runs all see a hot store.
         timeout-minutes: 10
         run: |
-          just integrated-benchmark --scenario=fresh-restore-hot-cache-hot-store-isolated --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED.json
+          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
 
-      - name: 'Benchmark: Fresh install, cold cache + cold store, isolated linker'
+      - name: 'Benchmark: Isolated linker: fresh install, cold cache + cold store'
         shell: bash
         # No-lockfile scenario: pacquet does fresh resolution against
         # the registry, ~3-5x slower than pnpm on `alotta-files`
@@ -191,18 +191,18 @@ jobs:
         # safety net the other steps document.
         timeout-minutes: 20
         run: |
-          just integrated-benchmark --scenario=fresh-install-cold-cache-cold-store-isolated --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED.json
+          just integrated-benchmark --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
 
-      - name: 'Benchmark: Fresh install, hot cache + hot store, isolated linker'
+      - name: 'Benchmark: Isolated linker: fresh install, hot cache + hot store'
         shell: bash
         # Same timeout rationale as the cold-cache install step above.
         timeout-minutes: 20
         run: |
-          just integrated-benchmark --scenario=fresh-install-hot-cache-hot-store-isolated --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED.json
+          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
 
       - name: Generate summary
         shell: bash
@@ -210,50 +210,50 @@ jobs:
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
             echo
-            echo '### Scenario: Fresh restore, cold cache + cold store, isolated linker'
+            echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store'
             echo
-            cat bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED.md
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED.json
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
             echo '```'
             echo
             echo '</details>'
             echo
-            echo '### Scenario: Fresh restore, hot cache + hot store, isolated linker'
+            echo '### Scenario: Isolated linker: fresh restore, hot cache + hot store'
             echo
-            cat bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED.md
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED.json
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
             echo
-            echo '### Scenario: Fresh install, cold cache + cold store, isolated linker'
+            echo '### Scenario: Isolated linker: fresh install, cold cache + cold store'
             echo
-            cat bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED.md
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED.json
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
             echo '```'
             echo
             echo '</details>'
             echo
-            echo '### Scenario: Fresh install, hot cache + hot store, isolated linker'
+            echo '### Scenario: Isolated linker: fresh install, hot cache + hot store'
             echo
-            cat bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED.md
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED.json
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -268,10 +268,10 @@ jobs:
         shell: bash
         run: |
           scenarios=(
-            'FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED:fresh-restore-cold-cache-cold-store-isolated'
-            'FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED:fresh-restore-hot-cache-hot-store-isolated'
-            'FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED:fresh-install-cold-cache-cold-store-isolated'
-            'FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED:fresh-install-hot-cache-hot-store-isolated'
+            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store'
+            'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store'
+            'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store'
+            'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store'
           )
           inputs=()
           for entry in "${scenarios[@]}"; do

@@ -41,19 +41,23 @@ The script:
 
 ## Scenarios
 
-Every scenario starts with `node_modules` wiped — "Fresh" names that
-target state. The `nodeLinker` mode is `isolated` in all six; future
-scenarios will introduce `hoisted` / `pnp` variants and counterparts
-that begin with a populated `node_modules`.
+Slugs follow `<linker>.<action>.<cache state>.<store state>` so the
+leading segment groups runs by linker mode. Today there are two
+groups (`isolated-linker.*` and `gvs-linker.*`); future scenarios
+will add `hoisted-linker.*` and `pnp-linker.*`.
+
+Every current scenario starts with `node_modules` wiped — "fresh"
+names that target state; future variants that begin with a populated
+`node_modules` will use a different action prefix.
 
 | # | Slug | Lockfile | Cache | Store | Description |
 |---|---|---|---|---|---|
-| 1 | `fresh-restore-hot-cache-hot-store-isolated` | ✔ frozen | hot | hot | Restore from lockfile with both directories warm (repeat-headless shape) |
-| 2 | `fresh-add-dep-hot-cache-hot-store-isolated` | ✔ + add dep | hot | hot | `pnpm add <dep>` against an existing lockfile |
-| 3 | `fresh-install-hot-cache-hot-store-isolated` | ✗ | hot | hot | Resolve from scratch with both directories warm |
-| 4 | `fresh-restore-cold-cache-cold-store-isolated` | ✔ frozen | cold | cold | Restore from lockfile with cold disks (typical CI shape) |
-| 5 | `fresh-install-cold-cache-cold-store-isolated` | ✗ | cold | cold | True cold start — no lockfile, nothing cached |
-| 6 | `fresh-restore-hot-cache-hot-store-isolated-gvs` | ✔ frozen | hot | hot + GVS | Frozen-lockfile restore with `enableGlobalVirtualStore: true`, pre-warmed GVS |
+| 1 | `isolated-linker.fresh-restore.hot-cache.hot-store` | ✔ frozen | hot | hot | Restore from lockfile with both directories hot (repeat-headless shape) |
+| 2 | `isolated-linker.fresh-add-dep.hot-cache.hot-store` | ✔ + add dep | hot | hot | `pnpm add <dep>` against an existing lockfile |
+| 3 | `isolated-linker.fresh-install.hot-cache.hot-store` | ✗ | hot | hot | Resolve from scratch with both directories hot |
+| 4 | `isolated-linker.fresh-restore.cold-cache.cold-store` | ✔ frozen | cold | cold | Restore from lockfile with cold disks (typical CI shape) |
+| 5 | `isolated-linker.fresh-install.cold-cache.cold-store` | ✗ | cold | cold | True cold start — no lockfile, nothing cached |
+| 6 | `gvs-linker.fresh-restore.hot-cache.hot-store` | ✔ frozen | hot | hot + GVS | Frozen-lockfile restore with `enableGlobalVirtualStore: true`, pre-warmed GVS |
 
 All scenarios use `--ignore-scripts` and isolated store/cache directories per revision.
 

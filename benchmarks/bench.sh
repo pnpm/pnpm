@@ -49,12 +49,12 @@ fi
 # `nodeLinker` mode; alternatives (`hoisted`, `pnp`) and populated-
 # node_modules counterparts are reserved for future scenarios.
 SCENARIOS=(
-  "fresh-restore-hot-cache-hot-store-isolated:Fresh restore, hot cache + hot store, isolated linker"
-  "fresh-add-dep-hot-cache-hot-store-isolated:Fresh add new dep, hot cache + hot store, isolated linker"
-  "fresh-install-hot-cache-hot-store-isolated:Fresh install, hot cache + hot store, isolated linker"
-  "fresh-restore-cold-cache-cold-store-isolated:Fresh restore, cold cache + cold store, isolated linker"
-  "fresh-install-cold-cache-cold-store-isolated:Fresh install, cold cache + cold store, isolated linker"
-  "fresh-restore-hot-cache-hot-store-isolated-gvs:Fresh restore, hot cache + hot store + GVS, isolated linker"
+  "isolated-linker.fresh-restore.hot-cache.hot-store:Isolated linker: fresh restore, hot cache + hot store"
+  "isolated-linker.fresh-add-dep.hot-cache.hot-store:Isolated linker: fresh add new dep, hot cache + hot store"
+  "isolated-linker.fresh-install.hot-cache.hot-store:Isolated linker: fresh install, hot cache + hot store"
+  "isolated-linker.fresh-restore.cold-cache.cold-store:Isolated linker: fresh restore, cold cache + cold store"
+  "isolated-linker.fresh-install.cold-cache.cold-store:Isolated linker: fresh install, cold cache + cold store"
+  "gvs-linker.fresh-restore.hot-cache.hot-store:GVS linker: fresh restore, hot cache + hot store"
 )
 
 # Pre-build both revisions once. Subsequent scenario invocations still
