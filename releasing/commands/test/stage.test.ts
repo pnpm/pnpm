@@ -181,6 +181,61 @@ describe('stage command', () => {
     }
   })
 
+  test('stage approve completes via the web-auth polling flow when the registry returns a token', async () => {
+    const webOtpToken = 'web-auth-token-xyz'
+    let baseUrl = ''
+    const approveCalls: Array<string | undefined> = []
+    const registry = await createRegistry((request) => {
+      if (request.method === 'POST' && request.url.pathname === `/-/stage/${STAGE_ID}/approve`) {
+        const otp = headerValue(request.headers['npm-otp'])
+        approveCalls.push(otp)
+        if (otp === webOtpToken) {
+          return { status: 201, body: { ok: true } }
+        }
+        return {
+          status: 401,
+          body: {
+            authUrl: 'http://example.invalid/auth-redirect',
+            doneUrl: new URL('/-/v1/done?authId=test', baseUrl).href,
+          },
+        }
+      }
+      if (request.method === 'GET' && request.url.pathname === '/-/v1/done') {
+        return { status: 200, body: { token: webOtpToken } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    baseUrl = registry.url
+    const restoreTty = forceInteractiveTty()
+    try {
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage'] },
+      }, ['approve', STAGE_ID])
+      expect(result).toBe(`Staged package ${STAGE_ID} approved and published successfully.`)
+      expect(approveCalls).toEqual([undefined, webOtpToken])
+    } finally {
+      restoreTty()
+      await registry.close()
+    }
+  }, 15000)
+
+  test('stage approve surfaces 401 without web-auth or otp signals as a registry error', async () => {
+    const registry = await createRegistry(() => ({
+      status: 401,
+      body: { error: 'unauthorized' },
+      headers: { 'www-authenticate': 'Basic realm="example"' },
+    }))
+    try {
+      await expect(stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage'] },
+      }, ['approve', STAGE_ID])).rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_REGISTRY_ERROR' })
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage download --json is keyed by package name and writes the staged tarball', async () => {
     const pkgName = '@scope/stage-download-json'
     prepare({ name: pkgName, version: '1.0.0' })
@@ -290,6 +345,25 @@ async function createRegistry (handler: RegistryHandler): Promise<{ close: () =>
 
 function headerValue (value: http.IncomingHttpHeaders[string]): string | undefined {
   return Array.isArray(value) ? value[0] : value
+}
+
+function forceInteractiveTty (): () => void {
+  const originalStdin = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
+  const originalStdout = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
+  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
+  Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true })
+  return () => {
+    if (originalStdin) {
+      Object.defineProperty(process.stdin, 'isTTY', originalStdin)
+    } else {
+      delete (process.stdin as { isTTY?: boolean }).isTTY
+    }
+    if (originalStdout) {
+      Object.defineProperty(process.stdout, 'isTTY', originalStdout)
+    } else {
+      delete (process.stdout as { isTTY?: boolean }).isTTY
+    }
+  }
 }
 
 function readRequestBody (req: http.IncomingMessage): Promise<Buffer> {
