@@ -310,28 +310,35 @@ jobs:
           retention-days: 14
 
       - name: Install Bencher CLI
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
 
-      - name: Upload main baseline to Bencher
-        # Only runs on push to main — secrets are available in that
-        # context. PR runs (including from forks) upload via the
-        # workflow_run comment workflow, which executes in the base
-        # repo's privilege context.
-        if: github.event_name == 'push'
+      - name: Upload results to Bencher
+        # Runs on push and workflow_dispatch — both execute in the
+        # base-repo privilege context where secrets are available.
+        # PR runs (including from forks) skip this step and upload
+        # via the workflow_run comment workflow instead.
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
           if [ -z "${BENCHER_API_TOKEN:-}" ]; then
             echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
             exit 0
           fi
-          bencher run \
-            --project pnpm \
-            --testbed pacquet \
-            --branch main \
-            --adapter shell_hyperfine \
-            --file bench-work-env/bencher-results.json \
+          args=(
+            --project pnpm
+            --testbed pacquet
+            --adapter shell_hyperfine
+            --file bench-work-env/bencher-results.json
             --github-actions "$GITHUB_TOKEN"
+          )
+          if [ "$REF_NAME" = "main" ]; then
+            args+=(--branch main)
+          else
+            args+=(--branch "$REF_NAME" --start-point main --start-point-reset)
+          fi
+          bencher run "${args[@]}"
