@@ -49,6 +49,6 @@ test('findWorkspaceProjects() outputs warnings for non-root workspace project', 
     jest.mocked(logger.warn).mock.calls
       .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
   ).toStrictEqual([
-    [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. You should configure "resolutions" at the root of the workspace instead.` }],
+    [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Use the "overrides" field in pnpm-workspace.yaml at the root of the workspace instead.` }],
   ])
 })
