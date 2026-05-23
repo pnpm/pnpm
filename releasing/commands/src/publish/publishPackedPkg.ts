@@ -10,6 +10,7 @@ import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
+import { extractBundledDependencies, type PublishSummary } from '../tarball/publishSummary.js'
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
@@ -20,6 +21,8 @@ import { type OtpContext, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
+
+export type { PublishSummary }
 
 export type PublishPackedPkgOptions = Pick<Config,
 | 'configByUri'
@@ -47,33 +50,7 @@ export type PublishPackedPkgOptions = Pick<Config,
   otp?: string // NOTE: There is no existing test for the One-time Password feature
   provenance?: boolean
   provenanceFile?: string // NOTE: This field is currently not supported
-}
-
-/**
- * Per-package summary describing a successful publish, modeled after `npm publish --json`.
- * Returned to callers and serialized to stdout when `pnpm publish --json` is used.
- */
-export interface PublishSummary {
-  /** Human-readable identifier `${name}@${version}`. */
-  id: string
-  name: string
-  version: string
-  /** Compressed tarball size in bytes. */
-  size: number
-  /** Total uncompressed size of all files in the tarball, in bytes. */
-  unpackedSize: number
-  /** Lowercase hex SHA-1 digest of the tarball. */
-  shasum: string
-  /** SRI-formatted SHA-512 digest of the tarball (e.g. `sha512-...`). */
-  integrity: string
-  /** Tarball file basename (e.g. `pkg-1.0.0.tgz`). */
-  filename: string
-  /** Files inside the tarball, in the same shape `pnpm pack --json` emits. */
-  files: Array<{ path: string }>
-  /** Number of files inside the tarball. */
-  entryCount: number
-  /** Names of bundled dependencies included in the tarball (typically empty). */
-  bundled: string[]
+  stage?: boolean
 }
 
 export async function publishPackedPkg (
@@ -85,6 +62,7 @@ export async function publishPackedPkg (
   const publishOptions = await createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
   const { registry } = publishOptions
+  const isStage = opts.stage === true
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
   const summary: PublishSummary = {
     id: `${name}@${version}`,
@@ -102,17 +80,21 @@ export async function publishPackedPkg (
     bundled: extractBundledDependencies(publishedManifest),
   }
   if (opts.dryRun) {
-    globalWarn(`Skip publishing ${name}@${version} (dry run)`)
+    globalWarn(`Skip ${isStage ? 'staging' : 'publishing'} ${name}@${version} (dry run)`)
     return summary
   }
+  const context = createPublishContext(opts)
   const response = await publishWithOtpHandling({
-    context: createPublishContext(opts),
+    context,
     manifest: publishedManifest,
     publishOptions,
     tarballData,
   })
   if (response.ok) {
-    globalInfo(`✅ Published package ${name}@${version}`)
+    if (isStage && response.stageId) {
+      summary.stageId = response.stageId
+    }
+    globalInfo(`✅ ${isStage ? 'Staged' : 'Published'} package ${name}@${version}`)
     return summary
   }
   throw await createFailedToPublishError(packResult, response)
@@ -132,17 +114,9 @@ export function createPublishContext (opts: PublishPackedPkgOptions): OtpContext
   }
 }
 
-/**
- * npm accepts both `bundledDependencies` and `bundleDependencies` in package.json and normalizes
- * to a list of dependency names. We mirror that normalization so consumers see a consistent array.
- */
-function extractBundledDependencies (manifest: ExportedManifest): string[] {
-  const raw = manifest.bundledDependencies ?? manifest.bundleDependencies
-  if (!raw) return []
-  if (Array.isArray(raw)) return raw
-  // `true` means "bundle every dependency" per npm's semantics; expand it to the dependency names.
-  if (raw === true) return Object.keys(manifest.dependencies ?? {})
-  return []
+type StagePublishOptions = PublishOptions & {
+  command?: string
+  stage?: boolean
 }
 
 /**
@@ -173,12 +147,13 @@ export async function createPublishOptions (manifest: ExportedManifest, options:
     userAgent,
   } = options
 
+  const npmCommand = options.stage === true ? 'stage' : 'publish'
   const headers: PublishOptions['headers'] = {
     'npm-auth-type': 'web',
-    'npm-command': 'publish',
+    'npm-command': npmCommand,
   }
 
-  const publishOptions: PublishOptions = {
+  const publishOptions: StagePublishOptions = {
     access,
     defaultTag,
     fetchRetries,
@@ -201,10 +176,15 @@ export async function createPublishOptions (manifest: ExportedManifest, options:
     ca: tls?.ca,
     cert: tls?.cert,
     key: tls?.key,
-    npmCommand: 'publish',
+    npmCommand,
     token: creds && extractToken(creds),
     username: creds?.basicAuth?.username,
     password: creds?.basicAuth?.password,
+  }
+
+  if (options.stage === true) {
+    publishOptions.command = 'stage'
+    publishOptions.stage = true
   }
 
   if (registry) {
