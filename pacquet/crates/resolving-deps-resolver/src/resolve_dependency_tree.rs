@@ -177,8 +177,8 @@ pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> 
 /// dep across revisits.
 ///
 /// `optional` is part of the key because the npm resolver's
-/// [`pick_package`] toggles between the abbreviated and full packument
-/// based on `wanted.optional` ([`pick_package.rs:391`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201)) —
+/// `pick_package` toggles between the abbreviated and full packument
+/// based on `wanted.optional` ([`pickPackage.ts:391`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201)) —
 /// caching by `(alias, bare_specifier)` alone would let an optional
 /// caller satisfy itself with a non-optional caller's abbreviated
 /// result, losing the `libc`/`cpu`/`os` filter inputs that mode
@@ -221,7 +221,7 @@ pub struct TreeCtx {
     /// re-enters the resolver chain. pacquet shortcuts at the layer
     /// above that (the wanted-dep edge) because a `(name, range)`
     /// pair that's already been resolved doesn't need
-    /// [`pick_package`]'s in-memory packument lookup, cache-key
+    /// `pick_package`'s in-memory packument lookup, cache-key
     /// formatting, or semver matching repeated. On the `alotta-files`
     /// fixture this collapses the ~3 redundant `resolver.resolve()`
     /// calls per package the tree walk used to drive into one.
