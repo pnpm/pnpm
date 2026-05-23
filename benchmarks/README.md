@@ -41,14 +41,19 @@ The script:
 
 ## Scenarios
 
-| # | Name (orchestrator) | Lockfile | Store + Cache | Description |
-|---|---|---|---|---|
-| 1 | `frozen-lockfile-hot-cache` | ✔ frozen | warm | Headless install (repeat install with warm store) |
-| 2 | `peek` | ✔ + add dep | warm | Re-resolution: add a new dep to an existing lockfile |
-| 3 | `full-resolution` | ✗ | warm | Resolve everything from scratch with warm cache |
-| 4 | `frozen-lockfile` | ✔ frozen | cold | Typical CI install — fetch all packages with lockfile |
-| 5 | `clean-install` | ✗ | cold | True cold start — nothing cached |
-| 6 | `gvs-warm` | ✔ frozen | warm + GVS | GVS warm reinstall (frozen lockfile, warm global virtual store) |
+Every scenario starts with `node_modules` wiped — "Fresh" names that
+target state. The `nodeLinker` mode is `isolated` in all six; future
+scenarios will introduce `hoisted` / `pnp` variants and counterparts
+that begin with a populated `node_modules`.
+
+| # | Slug | Lockfile | Cache | Store | Description |
+|---|---|---|---|---|---|
+| 1 | `fresh-restore-hot-cache-hot-store-isolated` | ✔ frozen | hot | hot | Restore from lockfile with both directories warm (repeat-headless shape) |
+| 2 | `fresh-add-dep-hot-cache-hot-store-isolated` | ✔ + add dep | hot | hot | `pnpm add <dep>` against an existing lockfile |
+| 3 | `fresh-install-hot-cache-hot-store-isolated` | ✗ | hot | hot | Resolve from scratch with both directories warm |
+| 4 | `fresh-restore-cold-cache-cold-store-isolated` | ✔ frozen | cold | cold | Restore from lockfile with cold disks (typical CI shape) |
+| 5 | `fresh-install-cold-cache-cold-store-isolated` | ✗ | cold | cold | True cold start — no lockfile, nothing cached |
+| 6 | `fresh-restore-hot-cache-hot-store-isolated-gvs` | ✔ frozen | hot | hot + GVS | Frozen-lockfile restore with `enableGlobalVirtualStore: true`, pre-warmed GVS |
 
 All scenarios use `--ignore-scripts` and isolated store/cache directories per revision.
 

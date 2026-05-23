@@ -156,7 +156,7 @@ jobs:
         timeout-minutes: 15
         run: just integrated-benchmark --build-only pacquet@HEAD pacquet@main
 
-      - name: 'Benchmark: Frozen Lockfile'
+      - name: 'Benchmark: Fresh restore, cold cache + cold store, isolated linker'
         shell: bash
         # Hyperfine has no per-command timeout, so a single hanging
         # install takes the whole step down with the GHA default job
@@ -164,47 +164,45 @@ jobs:
         # headroom, and a failure surfaces fast enough to iterate on.
         timeout-minutes: 10
         run: |
-          just integrated-benchmark --scenario=frozen-lockfile --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.json
+          just integrated-benchmark --scenario=fresh-restore-cold-cache-cold-store-isolated --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED.json
 
-      - name: 'Benchmark: Frozen Lockfile (Hot Cache)'
+      - name: 'Benchmark: Fresh restore, hot cache + hot store, isolated linker'
         shell: bash
-        # Same timeout rationale as the cold-cache step above.
-        # Mirrors pnpm's "Headless install (frozen lockfile, warm
-        # store+cache)" benchmark: each timed run wipes only
-        # `node_modules`, the per-revision store survives, and
-        # hyperfine's warmup run is what populates it on the first
+        # Same timeout rationale as the cold-cache step above. Each
+        # timed run wipes only `node_modules`; the per-revision store
+        # survives, and hyperfine's warmup populates it on the first
         # iteration so timed runs all see a hot store.
         timeout-minutes: 10
         run: |
-          just integrated-benchmark --scenario=frozen-lockfile-hot-cache --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.json
+          just integrated-benchmark --scenario=fresh-restore-hot-cache-hot-store-isolated --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED.json
 
-      - name: 'Benchmark: Clean Install'
+      - name: 'Benchmark: Fresh install, cold cache + cold store, isolated linker'
         shell: bash
         # No-lockfile scenario: pacquet does fresh resolution against
         # the registry, ~3-5x slower than pnpm on `alotta-files`
         # (pnpm/pnpm#11832), so a single iteration runs longer than
-        # the frozen-lockfile steps. 20 min leaves headroom for the
-        # default hyperfine 1 warmup + 10 timed runs across all three
+        # the restore steps. 20 min leaves headroom for the default
+        # hyperfine 1 warmup + 10 timed runs across all three
         # benchmark targets without losing the per-command timeout
         # safety net the other steps document.
         timeout-minutes: 20
         run: |
-          just integrated-benchmark --scenario=clean-install --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.json
+          just integrated-benchmark --scenario=fresh-install-cold-cache-cold-store-isolated --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED.json
 
-      - name: 'Benchmark: Full Resolution'
+      - name: 'Benchmark: Fresh install, hot cache + hot store, isolated linker'
         shell: bash
-        # Same timeout rationale as the clean-install step above.
+        # Same timeout rationale as the cold-cache install step above.
         timeout-minutes: 20
         run: |
-          just integrated-benchmark --scenario=full-resolution --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
-          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FULL_RESOLUTION.md
-          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FULL_RESOLUTION.json
+          just integrated-benchmark --scenario=fresh-install-hot-cache-hot-store-isolated --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED.json
 
       - name: Generate summary
         shell: bash
@@ -212,50 +210,50 @@ jobs:
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
             echo
-            echo '### Scenario: Frozen Lockfile'
+            echo '### Scenario: Fresh restore, cold cache + cold store, isolated linker'
             echo
-            cat bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.md
+            cat bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE.json
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED.json
             echo '```'
             echo
             echo '</details>'
             echo
-            echo '### Scenario: Frozen Lockfile (Hot Cache)'
+            echo '### Scenario: Fresh restore, hot cache + hot store, isolated linker'
             echo
-            cat bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.md
+            cat bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FROZEN_LOCKFILE_HOT_CACHE.json
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED.json
             echo '```'
             echo
             echo '</details>'
             echo
-            echo '### Scenario: Clean Install'
+            echo '### Scenario: Fresh install, cold cache + cold store, isolated linker'
             echo
-            cat bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.md
+            cat bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_CLEAN_INSTALL.json
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED.json
             echo '```'
             echo
             echo '</details>'
             echo
-            echo '### Scenario: Full Resolution'
+            echo '### Scenario: Fresh install, hot cache + hot store, isolated linker'
             echo
-            cat bench-work-env/BENCHMARK_REPORT_FULL_RESOLUTION.md
+            cat bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
             echo
             echo '```json'
-            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FULL_RESOLUTION.json
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED.json
             echo '```'
             echo
             echo '</details>'
@@ -270,10 +268,10 @@ jobs:
         shell: bash
         run: |
           scenarios=(
-            'FROZEN_LOCKFILE:frozen-lockfile'
-            'FROZEN_LOCKFILE_HOT_CACHE:frozen-lockfile-hot-cache'
-            'CLEAN_INSTALL:clean-install'
-            'FULL_RESOLUTION:full-resolution'
+            'FRESH_RESTORE_COLD_CACHE_COLD_STORE_ISOLATED:fresh-restore-cold-cache-cold-store-isolated'
+            'FRESH_RESTORE_HOT_CACHE_HOT_STORE_ISOLATED:fresh-restore-hot-cache-hot-store-isolated'
+            'FRESH_INSTALL_COLD_CACHE_COLD_STORE_ISOLATED:fresh-install-cold-cache-cold-store-isolated'
+            'FRESH_INSTALL_HOT_CACHE_HOT_STORE_ISOLATED:fresh-install-hot-cache-hot-store-isolated'
           )
           inputs=()
           for entry in "${scenarios[@]}"; do
