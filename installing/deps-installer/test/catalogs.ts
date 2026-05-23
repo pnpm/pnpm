@@ -2180,7 +2180,7 @@ describe('update', () => {
 
     // The catalog should be updated to the latest version.
     expect(updatedCatalogs).toBeTruthy()
-    expect(updatedCatalogs!.default?.['@pnpm.e2e.foo']).toBeFalsy()
+    expect(updatedCatalogs!.default?.['@pnpm.e2e/foo']).toMatch(/^[\^~]?100\.1\.0$/)
   })
 
   // Simulates `pnpm upgrade -r --latest` with multiple deps (catalog + non-catalog)
@@ -2440,9 +2440,9 @@ describe('update', () => {
     expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
     expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
 
-    // The catalog should be updated
+    // The catalog should be updated to the latest version.
     expect(updatedCatalogs).toBeTruthy()
-    expect(updatedCatalogs!.default?.['@pnpm.e2e.foo']).toBeFalsy()
+    expect(updatedCatalogs!.default?.['@pnpm.e2e/foo']).toMatch(/^[\^~]?100\.1\.0$/)
   })
 
   // Simulates `pnpm upgrade -r` (no --latest, no package names) in a monorepo.
@@ -2501,9 +2501,10 @@ describe('update', () => {
     expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
     expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
 
-    // The catalog should be updated to the newer version
-    expect(updatedCatalogs).toBeTruthy()
-    expect(updatedCatalogs!.default?.['@pnpm.e2e.foo']).toBeFalsy()
+    // The catalog should be updated to the newer version (within the ^1.0.0 range).
+    expect(updatedCatalogs).toEqual({
+      default: { '@pnpm.e2e/foo': '^1.3.0' },
+    })
   })
 })
 
