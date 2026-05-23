@@ -143,6 +143,181 @@ test('devEngines.packageManager with onFail=ignore should not check version', as
   expect(stderr.toString()).not.toContain('0.0.1')
 })
 
+test('devEngines.runtime with onFail=error should fail on Node.js version mismatch', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
+test('devEngines.runtime with onFail=warn should warn on Node.js version mismatch', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+  const output = stdout.toString() + stderr.toString()
+
+  expect(status).toBe(0)
+  expect(output).toContain('This project requires Node.js 99999.0.0')
+})
+
+test('devEngines.runtime with onFail=ignore should not check Node.js version', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+  const output = stdout.toString() + stderr.toString()
+
+  expect(status).toBe(0)
+  expect(output).not.toContain('99999.0.0')
+})
+
+test('engines.runtime with onFail=error should fail on Node.js version mismatch', async () => {
+  prepare({
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
+test('engines.runtime with onFail=warn should warn on Node.js version mismatch', async () => {
+  prepare({
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+  const output = stdout.toString() + stderr.toString()
+
+  expect(status).toBe(0)
+  expect(output).toContain('This project requires Node.js 99999.0.0')
+})
+
+test('engines.runtime with onFail=error should fail on invalid Node.js version range', async () => {
+  prepare({
+    engines: {
+      runtime: {
+        name: 'node',
+        version: 'invalid range',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires an invalid Node.js version range: invalid range')
+})
+
+test('devEngines.runtime with onFail=error should fail on invalid Node.js version range', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: 'invalid range',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires an invalid Node.js version range: invalid range')
+  expect(stderr.toString()).toContain('--runtime-on-fail=ignore')
+})
+
+test('devEngines.runtime with onFail=warn should warn on invalid Node.js version range', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: 'invalid range',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+  const output = stdout.toString() + stderr.toString()
+
+  expect(status).toBe(0)
+  expect(output).toContain('This project requires an invalid Node.js version range: invalid range')
+})
+
+test('devEngines.runtime with onFail=error should fail when Node.js version range is missing', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires a Node.js runtime but does not specify a version range')
+})
+
+test('devEngines.runtime with onFail=error should not block version output', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--version'])
+
+  expect(status).toBe(0)
+  expect(stdout.toString()).toMatch(/\d+\.\d+\.\d+/)
+  expect(stderr.toString()).not.toContain('This project requires Node.js 99999.0.0')
+})
+
 test('devEngines.packageManager defaults to onFail=download (#11676)', async () => {
   prepare({
     devEngines: {

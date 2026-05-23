@@ -12,6 +12,7 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-node-version'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { EngineDependency } from '@pnpm/types'
@@ -103,25 +104,33 @@ export async function main (inputArgv: string[]): Promise<void> {
       workspaceDir,
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
-    if (cmd !== 'setup' && context.wantedPackageManager != null && !shouldSkipPmHandling(cmd, cliParams)) {
-      const pm = context.wantedPackageManager
-      if (pm.onFail !== 'ignore') {
-        if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
-          // Corepack owns version switching; pnpm only switches versions when
-          // the user is running pnpm directly.
-          await switchCliVersion(config, context)
-        } else if (cliOptions.global) {
-          globalWarn('Using --global skips the package manager check for this project')
-        } else {
-          // checkPackageManager and syncEnvLockfile run regardless of how pnpm
-          // was invoked. Different developers on the same project may use
-          // corepack or invoke pnpm directly, and the lockfile's
-          // `packageManagerDependencies` entry must stay consistent across both
-          // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
-          // it only writes to the lockfile when the project opted in (via
-          // `devEngines.packageManager`, or a v12+ `packageManager` pin).
-          checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
-          await syncEnvLockfile(config, context)
+    if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
+      if (context.wantedPackageManager != null) {
+        const pm = context.wantedPackageManager
+        if (pm.onFail !== 'ignore') {
+          if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
+            // Corepack owns version switching; pnpm only switches versions when
+            // the user is running pnpm directly.
+            await switchCliVersion(config, context)
+          } else if (cliOptions.global) {
+            globalWarn('Using --global skips the package manager check for this project')
+          } else {
+            // checkPackageManager and syncEnvLockfile run regardless of how pnpm
+            // was invoked. Different developers on the same project may use
+            // corepack or invoke pnpm directly, and the lockfile's
+            // `packageManagerDependencies` entry must stay consistent across both
+            // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
+            // it only writes to the lockfile when the project opted in (via
+            // `devEngines.packageManager`, or a v12+ `packageManager` pin).
+            checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
+            await syncEnvLockfile(config, context)
+          }
+        }
+      }
+      if (cmd != null && !cliOptions.global) {
+        const runtime = getWantedRuntime(context)
+        if (runtime != null) {
+          checkRuntime(runtime)
         }
       }
     }
@@ -394,8 +403,8 @@ function printError (message: string, hint?: string): void {
 }
 
 /**
- * Whether to skip the packageManager/devEngines handling block (both auto
- * download and warn/error check). Returns true when the command itself
+ * Whether to skip the packageManager/runtime handling block (both auto
+ * download and warn/error checks). Returns true when the command itself
  * opts out via `skipPackageManagerCheck: true`, or when the user is asking
  * for help on such a command — `pnpm help <skippable>` and
  * `pnpm <skippable> --help` (which parse-cli-args rewrites to the same
@@ -442,4 +451,47 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
       }
     }
   }
+}
+
+function getWantedRuntime (context: ConfigContext): EngineDependency | undefined {
+  const manifest = context.rootProjectManifest
+  if (manifest == null) return undefined
+  for (const enginesFieldName of ['devEngines', 'engines'] as const) {
+    const enginesRuntime = manifest[enginesFieldName]?.runtime
+    if (enginesRuntime == null) continue
+    const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
+    const nodeRuntime = runtimes.find(({ name }) => name === 'node')
+    if (nodeRuntime != null) return nodeRuntime
+  }
+  return undefined
+}
+
+function checkRuntime (runtime: EngineDependency): void {
+  if (runtime.onFail == null || runtime.onFail === 'ignore' || runtime.onFail === 'download') return
+  if (runtime.name !== 'node') return
+  const wantedNodeRange = runtime.version
+  if (!wantedNodeRange || !semver.validRange(wantedNodeRange)) {
+    const msg = wantedNodeRange
+      ? `This project requires an invalid Node.js version range: ${wantedNodeRange}`
+      : 'This project requires a Node.js runtime but does not specify a version range'
+    if (runtime.onFail === 'error') {
+      throw new PnpmError('BAD_NODE_VERSION', msg, { hint: getRuntimeOnFailHint() })
+    }
+    globalWarn(msg)
+    return
+  }
+  const currentNodeVersion = getSystemNodeVersion() ?? process.version
+  if (semver.satisfies(currentNodeVersion, wantedNodeRange, { includePrerelease: true })) return
+
+  const msg = `This project requires Node.js ${wantedNodeRange}. Your current Node.js is ${currentNodeVersion}`
+  if (runtime.onFail === 'error') {
+    throw new PnpmError('BAD_NODE_VERSION', msg, {
+      hint: getRuntimeOnFailHint(),
+    })
+  }
+  globalWarn(msg)
+}
+
+function getRuntimeOnFailHint (): string {
+  return 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'
 }
