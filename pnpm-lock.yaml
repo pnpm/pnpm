@@ -7601,6 +7601,37 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  pkg-manifest/commands:
+    dependencies:
+      '@pnpm/cli.utils':
+        specifier: workspace:*
+        version: link:../../cli/utils
+      '@pnpm/config.reader':
+        specifier: workspace:*
+        version: link:../../config/reader
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/object.property-path':
+        specifier: workspace:*
+        version: link:../../object/property-path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      render-help:
+        specifier: 'catalog:'
+        version: 2.0.0
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.3.0
+      '@pnpm/pkg-manifest.commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+
   pkg-manifest/reader:
     dependencies:
       '@pnpm/error':
@@ -7777,6 +7808,9 @@ importers:
       '@pnpm/patching.commands':
         specifier: workspace:*
         version: link:../patching/commands
+      '@pnpm/pkg-manifest.commands':
+        specifier: workspace:*
+        version: link:../pkg-manifest/commands
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../pkg-manifest/reader

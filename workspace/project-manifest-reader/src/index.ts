@@ -290,7 +290,7 @@ function normalize (manifest: ProjectManifest): ProjectManifest {
   for (const key in manifest) {
     if (Object.hasOwn(manifest, key)) {
       const value = manifest[key as keyof ProjectManifest]
-      if (typeof value !== 'object' || !dependencyKeys.has(key)) {
+      if (typeof value !== 'object' || value === null || !dependencyKeys.has(key)) {
         result[key] = structuredClone(value)
       } else {
         const keys = Object.keys(value)
