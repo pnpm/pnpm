@@ -70,7 +70,7 @@
     "password-policy": "0.0.3",
     "postcss-reporter": "^7.0.5",
     "progress": "^2.0.3",
-    "qs": "^6.11.0",
+    "qs": "^6.15.2",
     "raw-loader": "^4.0.2",
     "rc-slider": "^10.0.1",
     "react": "^18.2.0",
