@@ -10,6 +10,7 @@ import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
+import { extractBundledDependencies, type PublishSummary } from '../tarball/publishSummary.js'
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
@@ -20,6 +21,8 @@ import { type OtpContext, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
+
+export type { PublishSummary }
 
 export type PublishPackedPkgOptions = Pick<Config,
 | 'configByUri'
@@ -48,35 +51,6 @@ export type PublishPackedPkgOptions = Pick<Config,
   provenance?: boolean
   provenanceFile?: string // NOTE: This field is currently not supported
   stage?: boolean
-}
-
-/**
- * Per-package summary describing a successful publish, modeled after `npm publish --json`.
- * Returned to callers and serialized to stdout when `pnpm publish --json` is used.
- */
-export interface PublishSummary {
-  /** Human-readable identifier `${name}@${version}`. */
-  id: string
-  name: string
-  version: string
-  /** Compressed tarball size in bytes. */
-  size: number
-  /** Total uncompressed size of all files in the tarball, in bytes. */
-  unpackedSize: number
-  /** Lowercase hex SHA-1 digest of the tarball. */
-  shasum: string
-  /** SRI-formatted SHA-512 digest of the tarball (e.g. `sha512-...`). */
-  integrity: string
-  /** Tarball file basename (e.g. `pkg-1.0.0.tgz`). */
-  filename: string
-  /** Files inside the tarball, in the same shape `pnpm pack --json` emits. */
-  files: Array<{ path: string }>
-  /** Number of files inside the tarball. */
-  entryCount: number
-  /** Names of bundled dependencies included in the tarball (typically empty). */
-  bundled: string[]
-  /** Staged publish identifier returned by the registry. Only present for staged publishes. */
-  stageId?: string
 }
 
 export async function publishPackedPkg (
@@ -138,19 +112,6 @@ export function createPublishContext (opts: PublishPackedPkgOptions): OtpContext
     ...SHARED_CONTEXT,
     fetch: createDispatchedFetch({ ...opts, timeout: opts.fetchTimeout }),
   }
-}
-
-/**
- * npm accepts both `bundledDependencies` and `bundleDependencies` in package.json and normalizes
- * to a list of dependency names. We mirror that normalization so consumers see a consistent array.
- */
-function extractBundledDependencies (manifest: ExportedManifest): string[] {
-  const raw = manifest.bundledDependencies ?? manifest.bundleDependencies
-  if (!raw) return []
-  if (Array.isArray(raw)) return raw
-  // `true` means "bundle every dependency" per npm's semantics; expand it to the dependency names.
-  if (raw === true) return Object.keys(manifest.dependencies ?? {})
-  return []
 }
 
 type StagePublishOptions = PublishOptions & {
