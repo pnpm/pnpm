@@ -318,6 +318,15 @@ fn install_resolves_env_var_in_npmrc_registry() {
 /// pnpm), all three peers should appear in `node_modules/.pnpm/`.
 /// Without the orchestrator's hoist loop they'd be missing, and the
 /// peer-resolution issue list would carry three entries.
+///
+/// Transitive auto-installed peers are NOT also linked at
+/// `node_modules/<alias>` — pnpm's `addDirectDependenciesToLockfile`
+/// iterates only `getAllDependenciesFromManifest(manifest)`, so
+/// transitive peers live in `snapshots:` / `packages:` only and
+/// consumers reach them through their parent's slot's `node_modules`.
+/// Hoisting them at the importer would require listing them in
+/// `importer.dependencies`, which breaks `satisfiesPackageManifest`
+/// and pushes every later install onto the fresh-resolve path.
 #[test]
 fn auto_install_peers_hoists_missing_peers_at_importer() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -350,15 +359,6 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
         assert!(
             entries.iter().any(|name| name.starts_with(&prefix) && !name.contains('_')),
             "expected {peer} to be auto-installed; .pnpm/ entries: {entries:?}",
-        );
-    }
-    // The top-level alias symlink should also point at the auto-installed
-    // peer — pacquet hoists peers all the way to the importer's node_modules.
-    for peer in ["peer-a", "peer-b", "peer-c"] {
-        let symlink_path = workspace.join(format!("node_modules/@pnpm.e2e/{peer}"));
-        assert!(
-            is_symlink_or_junction(&symlink_path).unwrap_or(false),
-            "expected node_modules/@pnpm.e2e/{peer} to be a symlink to the hoisted peer",
         );
     }
 
