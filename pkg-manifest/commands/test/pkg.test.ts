@@ -100,6 +100,34 @@ describe('pkg command', () => {
 
       await expect(handler({ dir: tmpDir }, ['set', 'invalidformat'])).rejects.toThrow()
     })
+
+    test('sets nested values through array index notation', async () => {
+      const manifest = { name: 'test-package' }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['set', 'contributors[0].name=Alice'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.contributors).toEqual([{ name: 'Alice' }])
+    })
+
+    test('replaces a scalar intermediate value with an object when descending', async () => {
+      const manifest = { scripts: 'echo hi' }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['set', 'scripts.test=vitest'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.scripts).toEqual({ test: 'vitest' })
+    })
+
+    test('rejects unsafe keys to prevent prototype pollution', async () => {
+      const manifest = { name: 'test-package' }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await expect(handler({ dir: tmpDir }, ['set', '__proto__.polluted=true'])).rejects.toThrow()
+      await expect(handler({ dir: tmpDir }, ['set', 'constructor.prototype.polluted=true'])).rejects.toThrow()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(({} as any).polluted).toBeUndefined()
+    })
   })
 
   describe('delete subcommand', () => {
@@ -136,6 +164,18 @@ describe('pkg command', () => {
 
       await expect(handler({ dir: tmpDir }, ['delete'])).rejects.toThrow()
     })
+
+    test('removes an array element without leaving a hole', async () => {
+      const manifest = {
+        name: 'test-package',
+        contributors: [{ name: 'Alice' }, { name: 'Bob' }],
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['delete', 'contributors[0]'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.contributors).toEqual([{ name: 'Bob' }])
+    })
   })
 
   describe('fix subcommand', () => {
@@ -156,6 +196,32 @@ describe('pkg command', () => {
       const manifest = {
         name: 'test-package',
         dependencies: 'invalid' as unknown,
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['fix'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.dependencies).toBeUndefined()
+    })
+
+    test('removes array-valued object fields', async () => {
+      const manifest: Record<string, unknown> = {
+        name: 'test-package',
+        dependencies: [],
+        scripts: [],
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['fix'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.dependencies).toBeUndefined()
+      expect(updated.scripts).toBeUndefined()
+    })
+
+    test('removes null-valued object fields', async () => {
+      const manifest: Record<string, unknown> = {
+        name: 'test-package',
+        dependencies: null,
       }
       fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
 

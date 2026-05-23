@@ -1,5 +1,5 @@
 ---
-"@pnpm/pkg.commands": minor
+"@pnpm/pkg-manifest.commands": minor
 "pnpm": minor
 ---
 

@@ -187,6 +187,7 @@ async function set (
     }
 
     const parsedPath = Array.from(parsePropertyPath(key))
+    rejectUnsafeKeys(parsedPath)
     setObjectValueByPropertyPath(manifest, parsedPath, value)
   }
 
@@ -205,6 +206,7 @@ async function _delete (opts: { dir: string }, args: string[]): Promise<void> {
 
   for (const key of args) {
     const parsedPath = Array.from(parsePropertyPath(key))
+    rejectUnsafeKeys(parsedPath)
     deleteObjectValueByPropertyPath(manifest, parsedPath)
   }
 
@@ -217,32 +219,21 @@ async function fix (opts: { dir: string }): Promise<void> {
 
   const originalManifest = JSON.parse(JSON.stringify(manifest))
 
-  if (manifest.name != null && typeof manifest.name !== 'string') {
+  if ('name' in manifest && typeof manifest.name !== 'string') {
     delete manifest.name
   }
 
-  if (manifest.version != null && typeof manifest.version !== 'string') {
+  if ('version' in manifest && typeof manifest.version !== 'string') {
     delete manifest.version
   }
 
-  if (manifest.dependencies != null && typeof manifest.dependencies !== 'object') {
-    delete manifest.dependencies
-  }
-  if (manifest.devDependencies != null && typeof manifest.devDependencies !== 'object') {
-    delete manifest.devDependencies
-  }
-  if (manifest.optionalDependencies != null && typeof manifest.optionalDependencies !== 'object') {
-    delete manifest.optionalDependencies
-  }
-  if (manifest.peerDependencies != null && typeof manifest.peerDependencies !== 'object') {
-    delete manifest.peerDependencies
+  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts']) {
+    if (field in manifest && !isPlainObject(manifest[field])) {
+      delete manifest[field]
+    }
   }
 
-  if (manifest.scripts != null && typeof manifest.scripts !== 'object') {
-    delete manifest.scripts
-  }
-
-  if (manifest.bin != null && typeof manifest.bin !== 'string' && typeof manifest.bin !== 'object') {
+  if ('bin' in manifest && typeof manifest.bin !== 'string' && !isPlainObject(manifest.bin)) {
     delete manifest.bin
   }
 
@@ -251,49 +242,43 @@ async function fix (opts: { dir: string }): Promise<void> {
   }
 }
 
+function isPlainObject (value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 type ObjectOrArray = Record<string | number, unknown> | unknown[]
 
-function setObjectValueByPropertyPath (obj: ObjectOrArray, path: (string | number | { type: 'empty-bracket' })[], value: unknown): void {
-  for (let i = 0; i < path.length - 1; i++) {
-    const key = path[i]
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
-    if (typeof key === 'object' && 'type' in key && key.type === 'empty-bracket') {
-      if (!Array.isArray(obj)) {
-        obj = [] as unknown[]
-      }
-      ;(obj as unknown[]).push({})
-      obj = (obj as unknown[])[(obj as unknown[]).length - 1] as ObjectOrArray
-      continue
+function rejectUnsafeKeys (parsedPath: Array<string | number>): void {
+  for (const segment of parsedPath) {
+    if (typeof segment === 'string' && UNSAFE_KEYS.has(segment)) {
+      throw new PnpmError('PKG_UNSAFE_KEY', `Key "${segment}" is not allowed in a property path`)
     }
-
-    if (
-      typeof obj !== 'object' ||
-      obj === null ||
-      (!Object.hasOwn(obj, key as string | number) && !(Array.isArray(obj) && typeof key === 'number'))
-    ) {
-      if (Array.isArray(obj)) {
-        (obj as unknown[])[key as number] = typeof path[i + 1] === 'number' ? [] : {}
-      } else {
-        (obj as Record<string | number, unknown>)[key as string | number] = typeof path[i + 1] === 'number' ? [] : {}
-      }
-    }
-    obj = (obj as Record<string | number, unknown>)[key as string | number] as ObjectOrArray
-  }
-
-  const lastKey = path[path.length - 1]
-  if (typeof lastKey === 'object' && 'type' in lastKey && lastKey.type === 'empty-bracket') {
-    if (!Array.isArray(obj)) {
-      throw new PnpmError('PKG_SET_INVALID_PATH', 'Cannot use [] on non-array')
-    }
-    (obj as unknown[]).push(value)
-  } else {
-    (obj as Record<string | number, unknown>)[lastKey as string | number] = value
   }
 }
 
-function deleteObjectValueByPropertyPath (obj: ObjectOrArray, path: (string | number)[]): void {
-  for (let i = 0; i < path.length - 1; i++) {
-    const key = path[i]
+function setObjectValueByPropertyPath (obj: ObjectOrArray, propertyPath: Array<string | number>, value: unknown): void {
+  for (let i = 0; i < propertyPath.length - 1; i++) {
+    const key = propertyPath[i]
+    const nextIsNumber = typeof propertyPath[i + 1] === 'number'
+    const current = (obj as Record<string | number, unknown>)[key]
+    if (typeof current !== 'object' || current === null) {
+      const replacement: ObjectOrArray = nextIsNumber ? [] : {}
+      ;(obj as Record<string | number, unknown>)[key] = replacement
+      obj = replacement
+    } else {
+      obj = current as ObjectOrArray
+    }
+  }
+
+  const lastKey = propertyPath[propertyPath.length - 1]
+  ;(obj as Record<string | number, unknown>)[lastKey] = value
+}
+
+function deleteObjectValueByPropertyPath (obj: ObjectOrArray, propertyPath: Array<string | number>): void {
+  for (let i = 0; i < propertyPath.length - 1; i++) {
+    const key = propertyPath[i]
     if (
       typeof obj !== 'object' ||
       obj === null ||
@@ -305,7 +290,11 @@ function deleteObjectValueByPropertyPath (obj: ObjectOrArray, path: (string | nu
     obj = (obj as Record<string | number, unknown>)[key] as ObjectOrArray
   }
 
-  const lastKey = path[path.length - 1]
+  const lastKey = propertyPath[propertyPath.length - 1]
+  if (Array.isArray(obj) && typeof lastKey === 'number') {
+    obj.splice(lastKey, 1)
+    return
+  }
   delete (obj as Record<string | number, unknown>)[lastKey]
 }
 
@@ -347,7 +336,7 @@ export function help (): string {
           },
           {
             description: 'Run in all workspace packages',
-            name: '--workspaces, -w',
+            name: '--workspaces',
           },
         ],
       },
