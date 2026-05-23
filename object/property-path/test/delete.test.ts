@@ -35,6 +35,18 @@ test('no-op on a missing path', () => {
   expect(obj).toEqual({ name: 'foo' })
 })
 
+test('no-op when an intermediate value is null', () => {
+  const obj: Record<string, unknown> = { a: null }
+  deleteObjectValueByPropertyPathString(obj, 'a.b')
+  expect(obj).toEqual({ a: null })
+})
+
+test('no-op when an intermediate value is a scalar', () => {
+  const obj: Record<string, unknown> = { a: 'scalar' }
+  deleteObjectValueByPropertyPathString(obj, 'a.b')
+  expect(obj).toEqual({ a: 'scalar' })
+})
+
 test('no-op on an empty property path', () => {
   const obj: Record<string, unknown> = { name: 'foo' }
   deleteObjectValueByPropertyPathString(obj, '')

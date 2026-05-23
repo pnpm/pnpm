@@ -31,6 +31,8 @@ export function deleteObjectValueByPropertyPath (object: ObjectOrArray, property
     obj = (obj as Record<string | number, unknown>)[key] as ObjectOrArray
   }
 
+  if (typeof obj !== 'object' || obj === null) return
+
   const lastKey = path[path.length - 1]
   if (Array.isArray(obj) && isArrayIndex(lastKey)) {
     obj.splice(Number(lastKey), 1)
