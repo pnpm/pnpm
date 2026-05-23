@@ -3,7 +3,11 @@ import path from 'node:path'
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { getObjectValueByPropertyPath, parsePropertyPath } from '@pnpm/object.property-path'
+import {
+  deleteObjectValueByPropertyPathString,
+  getObjectValueByPropertyPathString,
+  setObjectValueByPropertyPathString,
+} from '@pnpm/object.property-path'
 import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { renderHelp } from 'render-help'
@@ -23,19 +27,18 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['pkg']
 
-export async function handler (
-  opts: {
-    dir: string
-    json?: boolean
-    workspace?: string | string[]
-    workspaces?: boolean
-    ws?: boolean
-    workspaceDir?: string
-    allProjects?: Array<{ rootDir: string; manifest: Record<string, unknown> }>
-    selectedProjectsGraph?: Record<string, { package: { rootDir: string; manifest: Record<string, unknown> } }>
-  },
-  params: string[]
-): Promise<string | void> {
+interface PkgCommandOptions {
+  dir: string
+  json?: boolean
+  workspace?: string | string[]
+  workspaces?: boolean
+  ws?: boolean
+  workspaceDir?: string
+  allProjects?: Array<{ rootDir: string, manifest: Record<string, unknown> }>
+  selectedProjectsGraph?: Record<string, { package: { rootDir: string, manifest: Record<string, unknown> } }>
+}
+
+export async function handler (opts: PkgCommandOptions, params: string[]): Promise<string | void> {
   if (params.length === 0) {
     throw new PnpmError('PKG_MISSING_SUBCOMMAND', 'Missing subcommand', {
       hint: help(),
@@ -48,22 +51,23 @@ export async function handler (
 
   const [subcmd, ...args] = params
 
-  const workspaces = opts.workspaces || opts.ws
-  const workspaceArgs = opts.workspace
-
-  if (workspaces || workspaceArgs) {
+  if (opts.workspaces || opts.ws || opts.workspace) {
     return handleWorkspaceCommand(opts, subcmd, args)
   }
 
+  return runSubcommand(opts, subcmd, args)
+}
+
+async function runSubcommand (opts: PkgCommandOptions, subcmd: string, args: string[]): Promise<string | void> {
   switch (subcmd) {
     case 'get':
-      return get(opts, args)
+      return pkgGet(opts, args)
     case 'set':
-      return set(opts, args)
+      return pkgSet(opts, args)
     case 'delete':
-      return _delete(opts, args)
+      return pkgDelete(opts, args)
     case 'fix':
-      return fix(opts)
+      return pkgFix(opts)
     default:
       throw new PnpmError('PKG_UNKNOWN_SUBCOMMAND', `Unknown subcommand "${subcmd}"`, {
         hint: help(),
@@ -71,20 +75,7 @@ export async function handler (
   }
 }
 
-async function handleWorkspaceCommand (
-  opts: {
-    dir: string
-    json?: boolean
-    workspace?: string | string[]
-    workspaces?: boolean
-    ws?: boolean
-    workspaceDir?: string
-    allProjects?: Array<{ rootDir: string; manifest: Record<string, unknown> }>
-    selectedProjectsGraph?: Record<string, { package: { rootDir: string; manifest: Record<string, unknown> } }>
-  },
-  subcmd: string,
-  args: string[]
-): Promise<string | void> {
+async function handleWorkspaceCommand (opts: PkgCommandOptions, subcmd: string, args: string[]): Promise<string | void> {
   const workspaceDir = opts.workspaceDir
   if (!workspaceDir) {
     throw new PnpmError('PKG_WORKSPACE_NO_ROOT', 'Cannot use workspace options outside of a workspace')
@@ -102,15 +93,13 @@ async function handleWorkspaceCommand (
     const results: Record<string, unknown> = {}
     for (const { package: pkg } of selectedProjects) {
       const manifest = readPackageJsonFromDirRawSync(pkg.rootDir) as unknown as Record<string, unknown>
-      const pkgName = String(manifest.name || path.relative(workspaceDir, pkg.rootDir))
+      const pkgName = String(manifest.name ?? path.relative(workspaceDir, pkg.rootDir))
       if (args.length === 0) {
         results[pkgName] = manifest
       } else {
         const result: Record<string, unknown> = {}
         for (const key of args) {
-          const parsedPath = Array.from(parsePropertyPath(key))
-          const value = getObjectValueByPropertyPath(manifest, parsedPath)
-          result[key] = value
+          result[key] = getObjectValueByPropertyPathString(manifest, key)
         }
         results[pkgName] = result
       }
@@ -118,46 +107,33 @@ async function handleWorkspaceCommand (
     return JSON.stringify(results, undefined, 2)
   }
 
-  const promises = selectedProjects.map(async ({ package: pkg }) => {
-    const pkgOpts = { ...opts, dir: pkg.rootDir }
-    switch (subcmd) {
-      case 'set':
-        return set(pkgOpts, args)
-      case 'delete':
-        return _delete(pkgOpts, args)
-      case 'fix':
-        return fix(pkgOpts)
-      default:
-        throw new PnpmError('PKG_UNKNOWN_SUBCOMMAND', `Unknown subcommand "${subcmd}"`, {
-          hint: help(),
-        })
-    }
-  })
-
-  await Promise.all(promises)
+  await Promise.all(selectedProjects.map(({ package: pkg }) =>
+    runSubcommand({ ...opts, dir: pkg.rootDir }, subcmd, args)
+  ))
 }
 
-async function get (opts: { dir: string }, args: string[]): Promise<string> {
+async function pkgGet (opts: PkgCommandOptions, args: string[]): Promise<string> {
   const manifest = readPackageJsonFromDirRawSync(opts.dir) as unknown as Record<string, unknown>
 
   if (args.length === 0) {
     return JSON.stringify(manifest, undefined, 2)
   }
 
-  const result: Record<string, unknown> = {}
-  for (const key of args) {
-    const parsedPath = Array.from(parsePropertyPath(key))
-    const value = getObjectValueByPropertyPath(manifest, parsedPath)
-    result[key] = value
+  if (args.length === 1) {
+    const value = getObjectValueByPropertyPathString(manifest, args[0])
+    if (value === undefined) return ''
+    if (opts.json) return JSON.stringify(value, undefined, 2)
+    return typeof value === 'string' ? value : JSON.stringify(value, undefined, 2)
   }
 
+  const result: Record<string, unknown> = {}
+  for (const key of args) {
+    result[key] = getObjectValueByPropertyPathString(manifest, key)
+  }
   return JSON.stringify(result, undefined, 2)
 }
 
-async function set (
-  opts: { dir: string; json?: boolean },
-  args: string[]
-): Promise<void> {
+async function pkgSet (opts: PkgCommandOptions, args: string[]): Promise<void> {
   if (args.length === 0) {
     throw new PnpmError('PKG_SET_MISSING_ARGS', 'Missing key=value pairs', {
       hint: help(),
@@ -182,19 +158,17 @@ async function set (
       try {
         value = JSON.parse(value as string)
       } catch {
-        throw new PnpmError('PKG_SET_JSON_PARSE', `Failed to parse value as JSON: "${value}"`)
+        throw new PnpmError('PKG_SET_JSON_PARSE', `Failed to parse value as JSON: "${value as string}"`)
       }
     }
 
-    const parsedPath = Array.from(parsePropertyPath(key))
-    rejectUnsafeKeys(parsedPath)
-    setObjectValueByPropertyPath(manifest, parsedPath, value)
+    setObjectValueByPropertyPathString(manifest, key, value)
   }
 
   await writeProjectManifest(manifestPath, manifest)
 }
 
-async function _delete (opts: { dir: string }, args: string[]): Promise<void> {
+async function pkgDelete (opts: PkgCommandOptions, args: string[]): Promise<void> {
   if (args.length === 0) {
     throw new PnpmError('PKG_DELETE_MISSING_ARGS', 'Missing keys to delete', {
       hint: help(),
@@ -205,15 +179,13 @@ async function _delete (opts: { dir: string }, args: string[]): Promise<void> {
   const manifestPath = path.join(opts.dir, 'package.json')
 
   for (const key of args) {
-    const parsedPath = Array.from(parsePropertyPath(key))
-    rejectUnsafeKeys(parsedPath)
-    deleteObjectValueByPropertyPath(manifest, parsedPath)
+    deleteObjectValueByPropertyPathString(manifest, key)
   }
 
   await writeProjectManifest(manifestPath, manifest)
 }
 
-async function fix (opts: { dir: string }): Promise<void> {
+async function pkgFix (opts: PkgCommandOptions): Promise<void> {
   const manifest = readPackageJsonFromDirRawSync(opts.dir) as unknown as Record<string, unknown>
   const manifestPath = path.join(opts.dir, 'package.json')
 
@@ -227,7 +199,7 @@ async function fix (opts: { dir: string }): Promise<void> {
     delete manifest.version
   }
 
-  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts']) {
+  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
     if (field in manifest && !isPlainObject(manifest[field])) {
       delete manifest[field]
     }
@@ -244,58 +216,6 @@ async function fix (opts: { dir: string }): Promise<void> {
 
 function isPlainObject (value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-type ObjectOrArray = Record<string | number, unknown> | unknown[]
-
-const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
-
-function rejectUnsafeKeys (parsedPath: Array<string | number>): void {
-  for (const segment of parsedPath) {
-    if (typeof segment === 'string' && UNSAFE_KEYS.has(segment)) {
-      throw new PnpmError('PKG_UNSAFE_KEY', `Key "${segment}" is not allowed in a property path`)
-    }
-  }
-}
-
-function setObjectValueByPropertyPath (obj: ObjectOrArray, propertyPath: Array<string | number>, value: unknown): void {
-  for (let i = 0; i < propertyPath.length - 1; i++) {
-    const key = propertyPath[i]
-    const nextIsNumber = typeof propertyPath[i + 1] === 'number'
-    const current = (obj as Record<string | number, unknown>)[key]
-    if (typeof current !== 'object' || current === null) {
-      const replacement: ObjectOrArray = nextIsNumber ? [] : {}
-      ;(obj as Record<string | number, unknown>)[key] = replacement
-      obj = replacement
-    } else {
-      obj = current as ObjectOrArray
-    }
-  }
-
-  const lastKey = propertyPath[propertyPath.length - 1]
-  ;(obj as Record<string | number, unknown>)[lastKey] = value
-}
-
-function deleteObjectValueByPropertyPath (obj: ObjectOrArray, propertyPath: Array<string | number>): void {
-  for (let i = 0; i < propertyPath.length - 1; i++) {
-    const key = propertyPath[i]
-    if (
-      typeof obj !== 'object' ||
-      obj === null ||
-      !Object.hasOwn(obj, key) ||
-      (Array.isArray(obj) && typeof key !== 'number')
-    ) {
-      return
-    }
-    obj = (obj as Record<string | number, unknown>)[key] as ObjectOrArray
-  }
-
-  const lastKey = propertyPath[propertyPath.length - 1]
-  if (Array.isArray(obj) && typeof lastKey === 'number') {
-    obj.splice(lastKey, 1)
-    return
-  }
-  delete (obj as Record<string | number, unknown>)[lastKey]
 }
 
 export function help (): string {
@@ -327,7 +247,7 @@ export function help (): string {
         title: 'Options',
         list: [
           {
-            description: 'Parse values as JSON when setting',
+            description: 'When setting, parse the value as JSON. When getting a single key, return its JSON-encoded form instead of the raw value',
             name: '--json',
           },
           {
@@ -341,7 +261,7 @@ export function help (): string {
         ],
       },
     ],
-    url: docsUrl('cli/pkg'),
+    url: docsUrl('pkg'),
     usages: [
       'pnpm pkg get [<key> [<key> ...]]',
       'pnpm pkg set <key>=<value> [<key>=<value> ...]',

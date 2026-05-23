@@ -28,7 +28,28 @@ describe('pkg command', () => {
       expect(parsed.version).toBe('1.0.0')
     })
 
-    test('gets specific keys', async () => {
+    test('gets a single key as a raw value', async () => {
+      const manifest = { name: 'test-package', version: '1.0.0' }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      expect(await handler({ dir: tmpDir }, ['get', 'name'])).toBe('test-package')
+    })
+
+    test('returns an empty string when a single key is missing', async () => {
+      const manifest = { name: 'test-package' }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      expect(await handler({ dir: tmpDir }, ['get', 'description'])).toBe('')
+    })
+
+    test('gets a single key as JSON when --json is set', async () => {
+      const manifest = { name: 'test-package' }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      expect(await handler({ dir: tmpDir, json: true }, ['get', 'name'])).toBe('"test-package"')
+    })
+
+    test('returns an object when multiple keys are requested', async () => {
       const manifest = {
         name: 'test-package',
         version: '1.0.0',
@@ -36,8 +57,7 @@ describe('pkg command', () => {
       }
       fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
 
-      const result = await handler({ dir: tmpDir }, ['get', 'name', 'version'])
-      const parsed = JSON.parse(result as string)
+      const parsed = JSON.parse(await handler({ dir: tmpDir }, ['get', 'name', 'version']) as string)
       expect(parsed.name).toBe('test-package')
       expect(parsed.version).toBe('1.0.0')
       expect(parsed.description).toBeUndefined()
@@ -50,9 +70,7 @@ describe('pkg command', () => {
       }
       fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
 
-      const result = await handler({ dir: tmpDir }, ['get', 'scripts.build'])
-      const parsed = JSON.parse(result as string)
-      expect(parsed['scripts.build']).toBe('tsc')
+      expect(await handler({ dir: tmpDir }, ['get', 'scripts.build'])).toBe('tsc')
     })
   })
 
@@ -252,6 +270,96 @@ describe('pkg command', () => {
       expect(types).toHaveProperty('workspace')
       expect(types).toHaveProperty('workspaces')
       expect(types).toHaveProperty('ws')
+    })
+  })
+
+  describe('workspace mode', () => {
+    function setupWorkspace (manifests: Record<string, Record<string, unknown>>) {
+      const allProjects = Object.entries(manifests).map(([name, manifest]) => {
+        const rootDir = path.join(tmpDir, name)
+        fs.mkdirSync(rootDir, { recursive: true })
+        fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify(manifest, null, 2))
+        return { rootDir, manifest }
+      })
+      const selectedProjectsGraph = Object.fromEntries(
+        allProjects.map(p => [p.rootDir, { package: p }])
+      )
+      return { allProjects, selectedProjectsGraph }
+    }
+
+    test('aggregates `get` results from each selected workspace package', async () => {
+      const { allProjects, selectedProjectsGraph } = setupWorkspace({
+        'pkg-a': { name: 'pkg-a', version: '1.0.0' },
+        'pkg-b': { name: 'pkg-b', version: '2.0.0' },
+      })
+
+      const result = await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        workspaces: true,
+        allProjects,
+        selectedProjectsGraph,
+      }, ['get', 'name'])
+
+      expect(JSON.parse(result as string)).toEqual({
+        'pkg-a': { name: 'pkg-a' },
+        'pkg-b': { name: 'pkg-b' },
+      })
+    })
+
+    test('runs `set` against every selected workspace package', async () => {
+      const { allProjects, selectedProjectsGraph } = setupWorkspace({
+        'pkg-a': { name: 'pkg-a', version: '1.0.0' },
+        'pkg-b': { name: 'pkg-b', version: '2.0.0' },
+      })
+
+      await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        workspaces: true,
+        allProjects,
+        selectedProjectsGraph,
+      }, ['set', 'license=MIT'])
+
+      for (const { rootDir } of allProjects) {
+        const updated = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'))
+        expect(updated.license).toBe('MIT')
+      }
+    })
+
+    test('runs `delete` against every selected workspace package', async () => {
+      const { allProjects, selectedProjectsGraph } = setupWorkspace({
+        'pkg-a': { name: 'pkg-a', version: '1.0.0', extra: 'a' },
+        'pkg-b': { name: 'pkg-b', version: '2.0.0', extra: 'b' },
+      })
+
+      await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        workspaces: true,
+        allProjects,
+        selectedProjectsGraph,
+      }, ['delete', 'extra'])
+
+      for (const { rootDir } of allProjects) {
+        const updated = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'))
+        expect(updated.extra).toBeUndefined()
+      }
+    })
+
+    test('throws when used outside of a workspace', async () => {
+      await expect(handler({ dir: tmpDir, workspaces: true }, ['get']))
+        .rejects.toMatchObject({ code: 'ERR_PNPM_PKG_WORKSPACE_NO_ROOT' })
+    })
+
+    test('throws when no workspace packages were selected', async () => {
+      await expect(handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        workspaces: true,
+        allProjects: [],
+        selectedProjectsGraph: {},
+      }, ['get'])).rejects.toMatchObject({ code: 'ERR_PNPM_PKG_WORKSPACE_NO_PACKAGES' })
     })
   })
 })
