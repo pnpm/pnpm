@@ -136,6 +136,8 @@ if command -v jq >/dev/null; then
   done
   jq -s '{results: map(.results) | add}' \
     "${bencher_inputs[@]}" > "$BENCH_DIR/bencher-results.json"
+else
+  echo "warning: jq not on PATH; skipping bencher-results.json generation" >&2
 fi
 
 echo

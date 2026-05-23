@@ -123,7 +123,7 @@ jobs:
           --file "$BENCH_DIR/bencher-results.json"
           --github-actions "$GITHUB_TOKEN"
         )
-        if [ "$EVENT_NAME" = "push" ]; then
+        if [ "$EVENT_NAME" = "push" ] || [ "$REF_NAME" = "main" ]; then
           args+=(--branch main)
         elif [ -n "$INPUT_PR_NUMBER" ]; then
           args+=(--branch "pr/$INPUT_PR_NUMBER" --start-point main --start-point-reset)
