@@ -116,10 +116,36 @@ fn build_root_importer(
     for (alias, dep_path) in direct {
         let Some(node) = graph.get(dep_path) else { continue };
         let Ok(name_for_key) = PkgName::parse(alias.as_str()) else { continue };
-        let Some(specifier) = read_manifest_specifier(manifest, alias) else { continue };
+        let manifest_specifier = read_manifest_specifier(manifest, alias);
         let version = importer_dep_version(alias, node);
-        let spec = ResolvedDependencySpec { specifier: specifier.clone(), version };
-        specifiers.insert(alias.clone(), specifier);
+        // Auto-installed peers (added by the resolver under
+        // `autoInstallPeers: true`) don't appear in the manifest, so
+        // `read_manifest_specifier` returns `None` for them. Pnpm
+        // records them in the lockfile under `dependencies` with a
+        // synthetic specifier so a downstream install knows they're
+        // hoisted at the importer level. Mirror that here: fall back
+        // to the resolved version string when the manifest has no
+        // specifier. The `specifiers:` map only carries
+        // user-authored values, so it skips the synthetic entry.
+        let synthetic_specifier;
+        let (specifier_for_spec, record_specifier) = match manifest_specifier {
+            Some(spec) => {
+                let owned = spec.clone();
+                (spec, Some(owned))
+            }
+            None => {
+                synthetic_specifier = match &version {
+                    ImporterDepVersion::Regular(ver) => ver.version().to_string(),
+                    ImporterDepVersion::Alias(name_ver) => name_ver.suffix.version().to_string(),
+                    ImporterDepVersion::Link(target) => format!("link:{target}"),
+                };
+                (synthetic_specifier.clone(), None)
+            }
+        };
+        let spec = ResolvedDependencySpec { specifier: specifier_for_spec, version };
+        if let Some(value) = record_specifier {
+            specifiers.insert(alias.clone(), value);
+        }
         let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);
         match group {
             DependencyGroup::Dev => {
