@@ -10,6 +10,7 @@ import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type DispatcherOptions } from '@pnpm/network.fetch'
 import {
+  createDefaultPackageMetaCache,
   createResolutionVerifiers,
   createResolver as _createResolver,
   type ResolutionVerifierFactoryOptions,
@@ -69,12 +70,18 @@ export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
 
-  const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
+  // One per-install LRU shared with both the resolver's pickPackage
+  // pass and the verifier's lookup chain. When the resolver populates
+  // an entry for a given `name`, a later verify of the same name
+  // (e.g. the post-resolution gate, or a second `mutateModules` call
+  // in the same long-lived process) reuses it instead of re-fetching.
+  const metaCache = createDefaultPackageMetaCache()
+  const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, metaCache, customResolvers: opts.customResolvers })
   return {
     fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts),
     resolve,
     clearResolutionCache,
-    resolutionVerifiers: createResolutionVerifiers(fetchFromRegistry, opts),
+    resolutionVerifiers: createResolutionVerifiers(fetchFromRegistry, { ...opts, metaCache }),
   }
 }
 

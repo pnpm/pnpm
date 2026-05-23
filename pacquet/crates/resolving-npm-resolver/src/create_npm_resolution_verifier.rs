@@ -41,6 +41,7 @@ use crate::{
     fetch_attestation_published_at, fetch_full_metadata_cached,
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{build_named_registry_prefixes, pick_registry_for_package},
+    pick_package::PackageMetaCache,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE},
 };
@@ -51,7 +52,6 @@ use crate::{
 ///
 /// The verifier owns the option bag once constructed — these fields
 /// flow into [`NpmResolutionVerifier`] verbatim.
-#[derive(Debug)]
 pub struct CreateNpmResolutionVerifierOptions {
     /// Minimum age in **minutes** a published version must reach
     /// before it is accepted. `None` disables the age check.
@@ -97,6 +97,14 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// writes 200 responses back; when `None`, every fetch is
     /// unconditional. Mirrors upstream's `cacheDir` option.
     pub cache_dir: Option<PathBuf>,
+    /// Per-install [`PackageMetaCache`] shared with the npm resolver.
+    /// When provided, the verifier reads a cached packument before
+    /// fetching — a name the resolver already pulled during the same
+    /// install yields the cached document instead of a fresh
+    /// disk/network round-trip. Optional: frozen-install paths and
+    /// unit tests don't have a resolver running alongside, in which
+    /// case the verifier falls back to its own fetch chain.
+    pub meta_cache: Option<Arc<dyn PackageMetaCache>>,
     /// Override for `Utc::now()` when computing the age cutoff and
     /// the `trustPolicyIgnoreAfter` window. `None` falls back to
     /// wall-clock at construction time.
@@ -125,6 +133,7 @@ pub struct NpmResolutionVerifier {
     http_client: Arc<ThrottledClient>,
     auth_headers: Arc<AuthHeaders>,
     cache_dir: Option<PathBuf>,
+    meta_cache: Option<Arc<dyn PackageMetaCache>>,
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: PublishedAtLookupContext,
@@ -206,6 +215,7 @@ pub fn create_npm_resolution_verifier(
         http_client: opts.http_client,
         auth_headers: opts.auth_headers,
         cache_dir: opts.cache_dir,
+        meta_cache: opts.meta_cache,
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
@@ -535,16 +545,30 @@ impl NpmResolutionVerifier {
                 return entry.clone();
             }
         }
-        // Project the packument to just the fields `fail_if_trust_downgraded`
-        // reads before stashing in the cache. The full document — dependency
-        // graphs, dist-tags, scripts, READMEs for every version — would
-        // otherwise stay resident in this map for the entire install, which
-        // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
-        // cap (see [#11860]).
-        //
-        // [#11860]: https://github.com/pnpm/pnpm/issues/11860
-        let result =
-            self.fetch_full_meta(registry, name).await.map(project_trust_meta).map(Arc::new);
+        // Fast path: if the resolver already pulled the full packument
+        // during the same install (`{registry}\x00{name}:full` key in
+        // the shared metaCache, populated when `pickPackage` upgrades
+        // for `minimumReleaseAge`), reuse it. Abbreviated entries are
+        // rejected here — `fail_if_trust_downgraded` needs per-version
+        // `time` and per-version trust evidence, both of which only
+        // the full form carries.
+        let shared = self.meta_cache.as_ref().and_then(|cache| cache.get(&format!("{key}:full")));
+        let result = if let Some(meta) = shared {
+            Ok(Arc::new(project_trust_meta(meta.as_ref())))
+        } else {
+            // Project the packument to just the fields `fail_if_trust_downgraded`
+            // reads before stashing in the cache. The full document — dependency
+            // graphs, dist-tags, scripts, READMEs for every version — would
+            // otherwise stay resident in this map for the entire install, which
+            // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
+            // cap (see [#11860]).
+            //
+            // [#11860]: https://github.com/pnpm/pnpm/issues/11860
+            self.fetch_full_meta(registry, name)
+                .await
+                .map(|meta| project_trust_meta(&meta))
+                .map(Arc::new)
+        };
         let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
         cache.entry(key).or_insert(result).clone()
     }
@@ -667,19 +691,24 @@ fn build_policy_snapshot(
 /// [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/main/resolving/npm-resolver/src/createNpmResolutionVerifier.ts).
 ///
 /// [`fail_if_trust_downgraded`]: crate::trust_checks::fail_if_trust_downgraded
-fn project_trust_meta(meta: Package) -> Package {
+fn project_trust_meta(meta: &Package) -> Package {
+    // Borrowed `meta` so the shared-cache fast path (which only holds
+    // `Arc<Package>`) doesn't pay for a full deep-clone of the
+    // packument it's about to discard. Only the fields downstream
+    // reads are cloned out; the bulk of the document (per-version
+    // dependency maps, scripts, README) drops on the original.
     let versions = meta
         .versions
         .iter()
         .map(|(version, manifest)| (version.clone(), project_trust_package_version(manifest)))
         .collect();
     Package {
-        name: meta.name,
+        name: meta.name.clone(),
         dist_tags: std::collections::HashMap::new(),
         versions,
-        time: meta.time,
-        modified: meta.modified,
-        etag: meta.etag,
+        time: meta.time.clone(),
+        modified: meta.modified.clone(),
+        etag: meta.etag.clone(),
         mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
     }
 }
