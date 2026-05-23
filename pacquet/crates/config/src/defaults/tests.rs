@@ -79,7 +79,7 @@ fn test_default_store_dir_with_xdg_env() {
     let store_dir = default_store_dir::<EnvWithXdgDataHome>();
     assert_eq!(
         display_store_dir(&store_dir),
-        format!("/tmp/xdg_data_home/pnpm/store/{STORE_VERSION}")
+        format!("/tmp/xdg_data_home/pnpm/store/{STORE_VERSION}"),
     );
 }
 
