@@ -381,7 +381,7 @@ test('publish: package with publishConfig.directory', async () => {
   expect(fs.existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
 })
 
-test('publish: preserves manifest fields when preserveManifestFields is enabled', async () => {
+test('publish: preserves packageManager and publish lifecycle scripts when preserveManifestFields is enabled, but still omits pnpm', async () => {
   preparePackages([
     {
       name: 'test-publish-preserve-manifest-fields',
@@ -418,9 +418,6 @@ test('publish: preserves manifest fields when preserveManifestFields is enabled'
     name: 'test-publish-preserve-manifest-fields',
     version: '1.0.0',
     packageManager: 'pnpm@10.0.0',
-    pnpm: {
-      testField: true,
-    },
     scripts: {
       prepublishOnly: 'echo prepublishOnly',
       postinstall: 'echo postinstall',

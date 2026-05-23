@@ -82,7 +82,7 @@ test('publish lifecycle scripts are removed', async () => {
   })
 })
 
-test('all manifest fields are preserved when preserveManifestFields is enabled', async () => {
+test('packageManager and publish lifecycle scripts are preserved when preserveManifestFields is enabled, but pnpm is still omitted', async () => {
   const manifest: ProjectManifest & { pnpm?: Record<string, unknown> } = {
     name: 'foo',
     version: '1.0.0',
@@ -103,9 +103,6 @@ test('all manifest fields are preserved when preserveManifestFields is enabled',
     name: 'foo',
     version: '1.0.0',
     packageManager: 'pnpm@10.0.0',
-    pnpm: {
-      testField: true,
-    },
     scripts: {
       prepublishOnly: 'echo',
       postinstall: 'echo hello',

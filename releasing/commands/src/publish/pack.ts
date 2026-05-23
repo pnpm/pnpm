@@ -85,7 +85,7 @@ export function help (): string {
             shortAlias: '-r',
           },
           {
-            description: 'Preserve all original manifest fields in the packed manifest instead of stripping fields like scripts, packageManager, and pnpm.',
+            description: 'Preserve the original packageManager field and publish lifecycle scripts in the packed manifest instead of stripping them. The pnpm-specific "pnpm" field is still omitted.',
             name: '--preserve-manifest-fields',
           },
           {

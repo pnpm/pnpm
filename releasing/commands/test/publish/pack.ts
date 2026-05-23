@@ -464,7 +464,7 @@ test('pack: remove publishConfig', async () => {
   })
 })
 
-test('pack: preserves manifest fields when preserveManifestFields is enabled', async () => {
+test('pack: preserves packageManager and publish lifecycle scripts when preserveManifestFields is enabled, but still omits pnpm', async () => {
   prepare({
     name: 'preserve-manifest-fields',
     version: '1.0.0',
@@ -493,9 +493,6 @@ test('pack: preserves manifest fields when preserveManifestFields is enabled', a
     name: 'preserve-manifest-fields',
     version: '1.0.0',
     packageManager: 'pnpm@10.0.0',
-    pnpm: {
-      testField: true,
-    },
     scripts: {
       prepublishOnly: 'echo prepublishOnly',
       postinstall: 'echo postinstall',
