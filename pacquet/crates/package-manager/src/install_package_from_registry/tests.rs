@@ -75,6 +75,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         minimum_release_age_exclude: None,
         minimum_release_age_ignore_missing_time: true,
         minimum_release_age_strict: None,
+        trust_lockfile: false,
         trust_policy: Default::default(),
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,

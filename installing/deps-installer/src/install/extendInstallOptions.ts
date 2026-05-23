@@ -213,6 +213,23 @@ export interface StrictInstallOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
+  /**
+   * Skip the lockfile supply-chain verification pass entirely. When
+   * true, `verifyLockfileResolutions` is not called even if
+   * `resolutionVerifiers` is non-empty — the install trusts the
+   * lockfile as-is. Trade-off: a poisoned lockfile (e.g. one a
+   * contributor authored under a weaker policy than CI enforces) can
+   * slip through. Use only in environments where the lockfile is
+   * effectively part of the trusted base — closed-source projects
+   * where every commit comes from a trusted author, fully reproducible
+   * CI runs against an already-verified lockfile, etc.
+   *
+   * Added for #11860: on workspaces with thousands of locked entries,
+   * the verification pass holds the per-package registry metadata
+   * needed for the trust check resident in memory and can OOM CI
+   * runners with a 2GB heap cap.
+   */
+  trustLockfile?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
   /**

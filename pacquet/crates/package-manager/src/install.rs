@@ -28,6 +28,7 @@ use pacquet_reporter::{
     ContextLog, LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter, Stage,
     StageLog, SummaryLog,
 };
+use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_state::{
     NodeLinker as WorkspaceStateNodeLinker, ProjectEntry, UpdateWorkspaceStateError,
@@ -97,6 +98,15 @@ where
     /// the install proceeds normally. See
     /// `pacquet_config::Config::skip_runtimes`.
     pub skip_runtimes: bool,
+    /// Effective `trustLockfile` value for *this* invocation. The CLI
+    /// layer ORs the `--trust-lockfile` flag with `config.trust_lockfile`
+    /// so a yaml `true` can't be overridden back to `false` from the
+    /// CLI — matching pnpm's stance on similar flags. Threaded as a
+    /// separate field for the same reason [`Self::skip_runtimes`] is:
+    /// `state.config` is a shared `&'static Config`, so the CLI
+    /// override merge happens in the caller and lands here as a
+    /// fully-resolved value.
+    pub trust_lockfile: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
     /// with the CLI per-axis overrides (`--cpu` / `--os` / `--libc`).
@@ -287,6 +297,7 @@ where
             prefer_frozen_lockfile,
             ignore_manifest_check,
             skip_runtimes,
+            trust_lockfile,
             supported_architectures,
             node_linker,
         } = self;
@@ -385,12 +396,31 @@ where
         // `lockfile.is_none()` (writable-lockfile path) skips the
         // gate entirely — fresh local resolution is already filtered
         // by the resolver's per-version gate (when pacquet's
-        // resolver lands).
-        if let Some(loaded_lockfile) = lockfile {
+        // resolver lands). `trust_lockfile` (the OR of yaml's
+        // `trustLockfile` and the `--trust-lockfile` CLI flag,
+        // resolved in [`crate::cli_args::install::InstallArgs::run`])
+        // is the opt-out for environments where the install can
+        // treat the on-disk lockfile as already-trusted (see [#11860]).
+        //
+        // [#11860]: https://github.com/pnpm/pnpm/issues/11860
+        // One per-install packument cache shared with both the
+        // lockfile-verifier (below) and the resolver in
+        // `install_with_fresh_lockfile` (further down). The
+        // single instance lets a name the resolver fetched during this
+        // install short-circuit the verifier's own fetch chain, and
+        // vice versa. Mirrors pnpm's `installing/client` wiring.
+        let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+
+        if let Some(loaded_lockfile) = lockfile.filter(|_| !trust_lockfile) {
             let derived_lockfile_path = lockfile_path
                 .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf);
-            let verifiers = build_resolution_verifiers(config, Arc::clone(&http_client_arc))
-                .map_err(InstallError::BuildVerifiers)?;
+            let verifiers = build_resolution_verifiers(
+                config,
+                Arc::clone(&http_client_arc),
+                Some(Arc::clone(&meta_cache)
+                    as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
+            )
+            .map_err(InstallError::BuildVerifiers)?;
             verify_lockfile_resolutions::<Reporter>(
                 loaded_lockfile,
                 &verifiers,
@@ -645,6 +675,7 @@ where
                 catalogs,
                 lockfile_dir: &workspace_root,
                 workspace_packages,
+                meta_cache: Arc::clone(&meta_cache),
                 // States 3 and 4 of the dispatch share this branch.
                 // State 3 (lockfile present but stale or
                 // `preferFrozenLockfile: false`) passes the existing

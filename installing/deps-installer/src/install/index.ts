@@ -383,7 +383,7 @@ export async function mutateModules (
     !ctx.lockfileHadConflicts &&
     ctx.existsNonEmptyWantedLockfile &&
     (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)
-  if (!willDelegateToPacquet) {
+  if (!willDelegateToPacquet && !opts.trustLockfile) {
     const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
     const wantedLockfilePath = cacheActive
       ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({

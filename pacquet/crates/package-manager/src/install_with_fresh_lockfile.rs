@@ -126,6 +126,12 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// `update: false` resolver mode at
     /// <https://github.com/pnpm/pnpm/blob/097983fbca/lockfile/preferred-versions/src/index.ts#L13-L33>.
     pub wanted_lockfile: Option<&'a Lockfile>,
+    /// Per-install packument cache shared with the lockfile-verifier
+    /// constructed in [`Install::run`](crate::Install::run). The
+    /// resolver writes to it during `pick_package`; the verifier reads
+    /// from it to skip duplicate fetches when both touch the same
+    /// `(registry, name)`.
+    pub meta_cache: Arc<InMemoryPackageMetaCache>,
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -268,6 +274,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             lockfile_dir,
             workspace_packages,
             wanted_lockfile,
+            meta_cache,
         } = self;
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
@@ -310,8 +317,6 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?;
         let named_registry_aliases: std::collections::HashSet<String> =
             merged_named_registries.keys().cloned().collect();
-
-        let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
 
         // One per-cache-key packument fetch serializer shared between
         // the npm and named-registry resolvers. Ports upstream's

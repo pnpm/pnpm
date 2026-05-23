@@ -166,6 +166,13 @@ pub struct InstallArgs {
     /// path the way upstream does.
     #[clap(long)]
     pub prefer_offline: bool,
+
+    /// Skip the lockfile supply-chain verification pass entirely.
+    /// Overrides `pnpm-workspace.yaml#trustLockfile`. Mirrors pnpm's
+    /// `--trust-lockfile`. See [`pacquet_config::Config::trust_lockfile`].
+    /// Added for [pnpm/pnpm#11860](https://github.com/pnpm/pnpm/issues/11860).
+    #[clap(long = "trust-lockfile")]
+    pub trust_lockfile: bool,
 }
 
 impl InstallArgs {
@@ -183,6 +190,7 @@ impl InstallArgs {
             node_linker,
             offline: _,
             prefer_offline: _,
+            trust_lockfile,
         } = self;
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
@@ -213,6 +221,12 @@ impl InstallArgs {
         // matching pnpm's stance on the same flag.
         let skip_runtimes = config.skip_runtimes || no_runtime;
 
+        // Same shape as `skip_runtimes`: yaml `trustLockfile: true`
+        // or the CLI flag turns the verification skip on. There's no
+        // CLI inverse — relax the yaml value if you need to flip it
+        // back off for a single invocation.
+        let trust_lockfile = config.trust_lockfile || trust_lockfile;
+
         // `--node-linker` flag (if passed) overrides the
         // yaml/npmrc value for this invocation. Mirrors pnpm's
         // override-on-explicit-flag semantics.
@@ -238,6 +252,7 @@ impl InstallArgs {
             prefer_frozen_lockfile,
             ignore_manifest_check,
             skip_runtimes,
+            trust_lockfile,
             resolved_packages,
             supported_architectures,
             node_linker,

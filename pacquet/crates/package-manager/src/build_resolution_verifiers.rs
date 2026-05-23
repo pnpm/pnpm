@@ -25,7 +25,7 @@ use pacquet_config::{
 };
 use pacquet_network::ThrottledClient;
 use pacquet_resolving_npm_resolver::{
-    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier,
+    CreateNpmResolutionVerifierOptions, PackageMetaCache, create_npm_resolution_verifier,
 };
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 
@@ -58,9 +58,17 @@ pub enum BuildVerifiersError {
 /// Assemble the verifier list for this install. Returns an empty
 /// `Vec` when neither policy is active — the runner short-circuits
 /// on an empty list, so the caller doesn't need a separate guard.
+///
+/// `meta_cache` is the optional per-install packument cache shared
+/// with the resolver. When provided, the verifier reads it before
+/// fetching: a `(registry, name)` the resolver already pulled
+/// during the same install yields the cached document instead of a
+/// fresh round-trip. Pass `None` from contexts where no resolver
+/// runs alongside (the frozen-install path, unit tests).
 pub fn build_resolution_verifiers(
     config: &Config,
     http_client: Arc<ThrottledClient>,
+    meta_cache: Option<Arc<dyn PackageMetaCache>>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
     let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
 
@@ -111,6 +119,7 @@ pub fn build_resolution_verifiers(
         http_client,
         auth_headers: Arc::clone(&config.auth_headers),
         cache_dir: Some(config.cache_dir.clone()),
+        meta_cache,
         now: None,
     };
 

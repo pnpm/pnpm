@@ -105,6 +105,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
 | 'tag'
+| 'trustLockfile'
 | 'allowBuilds'
 | 'optional'
 | 'workspaceConcurrency'

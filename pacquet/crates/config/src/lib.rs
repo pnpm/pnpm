@@ -787,6 +787,24 @@ pub struct Config {
     /// [`Self::resolved_minimum_release_age_strict`].
     pub minimum_release_age_strict: Option<bool>,
 
+    /// Skip the lockfile supply-chain verification pass entirely. When
+    /// `true`, the install trusts the lockfile as-is and never calls
+    /// `verify_lockfile_resolutions`, even if other policies
+    /// (`minimum_release_age`, `trust_policy`) are active. Use only in
+    /// environments where the lockfile is effectively part of the
+    /// trusted base — closed-source projects with trusted committers,
+    /// fully reproducible CI against an already-verified lockfile. A
+    /// poisoned lockfile (e.g. one a contributor authored under a
+    /// weaker policy than CI enforces) will slip through. Mirrors
+    /// pnpm's [`trustLockfile`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/Config.ts).
+    ///
+    /// Added for [#11860](https://github.com/pnpm/pnpm/issues/11860):
+    /// on multi-thousand-entry workspaces, the verification pass holds
+    /// the per-package registry metadata needed for the trust check
+    /// resident in memory and can OOM CI runners with a 2GB heap cap.
+    /// Default `false` — verification stays on by default.
+    pub trust_lockfile: bool,
+
     /// Trust-evidence policy applied to lockfile entries; see
     /// [`TrustPolicy`].
     pub trust_policy: TrustPolicy,

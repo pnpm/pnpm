@@ -8,6 +8,7 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createGitResolver, type GitResolveResult, resolveLatestFromGit } from '@pnpm/resolving.git-resolver'
 import { type LocalResolveResult, resolveFromLocalPath, resolveFromLocalScheme, resolveLatestFromLocal } from '@pnpm/resolving.local-resolver'
 import {
+  createDefaultPackageMetaCache,
   createNpmResolutionVerifier,
   type CreateNpmResolutionVerifierOptions,
   createNpmResolver,
@@ -31,6 +32,10 @@ import type {
 } from '@pnpm/resolving.resolver-base'
 import { resolveFromTarball, resolveLatestFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
 import type { RegistryConfig } from '@pnpm/types'
+
+export {
+  createDefaultPackageMetaCache,
+}
 
 export type {
   PackageMeta,
@@ -182,6 +187,7 @@ export type ResolutionVerifierFactoryOptions =
   | 'trustPolicy'
   | 'trustPolicyExclude'
   | 'trustPolicyIgnoreAfter'
+  | 'metaCache'
   | 'now'
   > & {
     configByUri?: Record<string, RegistryConfig>
@@ -224,6 +230,7 @@ export function createResolutionVerifiers (
     fetchOpts,
     getAuthHeaderValueByURI,
     cacheDir: opts.cacheDir,
+    metaCache: opts.metaCache,
     now: opts.now,
   })
   if (npmVerifier) verifiers.push(npmVerifier)

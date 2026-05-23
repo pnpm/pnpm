@@ -119,6 +119,7 @@ export const pnpmTypes = {
   'strict-dep-builds': Boolean,
   'strict-store-pkg-content-check': Boolean,
   'strict-peer-dependencies': Boolean,
+  'trust-lockfile': Boolean,
   'trust-policy': ['off', 'no-downgrade'] satisfies TrustPolicy[],
   'trust-policy-exclude': [String, Array],
   'trust-policy-ignore-after': Number,

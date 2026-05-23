@@ -865,6 +865,7 @@ minimumReleaseAgeExclude:
   - "is-*"
 minimumReleaseAgeIgnoreMissingTime: true
 minimumReleaseAgeStrict: true
+trustLockfile: true
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - "@scope/legacy"
@@ -879,6 +880,7 @@ trustPolicyIgnoreAfter: 525600
     );
     assert_eq!(settings.minimum_release_age_ignore_missing_time, Some(true));
     assert_eq!(settings.minimum_release_age_strict, Some(true));
+    assert_eq!(settings.trust_lockfile, Some(true));
     assert_eq!(settings.trust_policy, Some(TrustPolicy::NoDowngrade));
     assert_eq!(settings.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]));
     assert_eq!(settings.trust_policy_ignore_after, Some(525_600));
@@ -894,6 +896,7 @@ trustPolicyIgnoreAfter: 525600
     assert!(config.minimum_release_age_ignore_missing_time);
     assert_eq!(config.minimum_release_age_strict, Some(true));
     assert!(config.resolved_minimum_release_age_strict());
+    assert!(config.trust_lockfile);
     assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
     assert_eq!(config.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]));
     assert_eq!(config.trust_policy_ignore_after, Some(525_600));
