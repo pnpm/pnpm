@@ -1,5 +1,5 @@
 import { parsePropertyPath } from './parse.js'
-import { rejectUnsafeKeys } from './unsafe-keys.js'
+import { rejectUnsafeKeys } from './unsafeKeys.js'
 
 type ObjectOrArray = Record<string | number, unknown> | unknown[]
 
