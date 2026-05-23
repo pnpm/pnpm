@@ -166,6 +166,31 @@ pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> 
     manifest.dependencies([DependencyGroup::Optional]).map(|(name, _)| name.to_string()).collect()
 }
 
+/// Cache key for [`TreeCtx::resolved_by_wanted`].
+///
+/// The npm-shaped slice pacquet exposes today calls
+/// [`Resolver::resolve`] with only three [`WantedDependency`] fields
+/// populated — `alias`, `bare_specifier`, and `optional` (see the
+/// `WantedDependency` literals in [`extend_tree`] and the recursive
+/// arm of [`fn@resolve_node`]). Anything else stays at `Default::default()`,
+/// so a tuple over those three fields uniquely identifies a wanted
+/// dep across revisits.
+///
+/// `optional` is part of the key because the npm resolver's
+/// [`pick_package`] toggles between the abbreviated and full packument
+/// based on `wanted.optional` ([`pick_package.rs:391`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201)) —
+/// caching by `(alias, bare_specifier)` alone would let an optional
+/// caller satisfy itself with a non-optional caller's abbreviated
+/// result, losing the `libc`/`cpu`/`os` filter inputs that mode
+/// supplies.
+type WantedKey = (Option<String>, Option<String>, Option<bool>);
+
+/// One entry in [`TreeCtx::children_specs_by_id`] —
+/// `(child_alias, child_range, child_optional)` triples extracted from
+/// a resolved package's manifest's `dependencies` plus
+/// `optionalDependencies` sections.
+type ChildSpec = (String, String, bool);
+
 /// Mutable workspace for an in-flight tree walk. The orchestrator
 /// (`resolve_importer`) holds one of these across hoist iterations and
 /// extends it via [`extend_tree`] so newly-hoisted peer dependencies
@@ -185,6 +210,30 @@ pub struct TreeCtx {
     /// matched against at least one resolved package. Mirrors upstream's
     /// `ctx.appliedPatches`.
     applied_patches: Mutex<HashSet<String>>,
+    /// Memoised [`Resolver::resolve`] results keyed by the parts of
+    /// [`WantedDependency`] the npm slice actually populates (see
+    /// [`WantedKey`]).
+    ///
+    /// pnpm's `resolveDependencies` carries the equivalent skip via the
+    /// [`isNew` gate](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1584) —
+    /// the second time a `pkgIdWithPatchHash` is reached, the walker
+    /// reuses the existing `resolvedPkgsById` envelope and never
+    /// re-enters the resolver chain. pacquet shortcuts at the layer
+    /// above that (the wanted-dep edge) because a `(name, range)`
+    /// pair that's already been resolved doesn't need
+    /// [`pick_package`]'s in-memory packument lookup, cache-key
+    /// formatting, or semver matching repeated. On the `alotta-files`
+    /// fixture this collapses the ~3 redundant `resolver.resolve()`
+    /// calls per package the tree walk used to drive into one.
+    resolved_by_wanted:
+        Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
+    /// Cached `extract_children` output keyed by `pkgIdWithPatchHash`.
+    /// First visit walks the manifest's `dependencies` /
+    /// `optionalDependencies`; subsequent visits clone the `Arc` and
+    /// skip the JSON traversal. Paired with [`Self::resolved_by_wanted`]
+    /// so a revisit's per-call CPU is two HashMap lookups and an
+    /// `Arc::clone`.
+    children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
 }
 
 impl TreeCtx {
@@ -199,6 +248,8 @@ impl TreeCtx {
             policy_violations: Mutex::new(Vec::new()),
             patched_dependencies: None,
             applied_patches: Mutex::new(HashSet::new()),
+            resolved_by_wanted: Mutex::new(HashMap::new()),
+            children_specs_by_id: Mutex::new(HashMap::new()),
         }
     }
 
@@ -339,20 +390,44 @@ where
 {
     let current_is_optional = wanted.optional.unwrap_or(false) || parent_optional;
 
-    let result = resolver
-        .resolve(&wanted, &ctx.base_opts)
-        .await
-        .map_err(|err: ResolveError| ResolveDependencyTreeError::Resolve(err.to_string()))?;
-    let Some(result) = result else {
-        return Err(ResolveDependencyTreeError::SpecNotSupported {
-            specifier: render_specifier(&wanted),
-        });
+    // Memoise the per-wanted resolve. The first caller for a given
+    // `(alias, bare_specifier, optional)` runs the resolver chain and
+    // stores the `Arc<ResolveResult>` on `ctx.resolved_by_wanted`;
+    // every later caller for the same wanted dep clones the `Arc` and
+    // skips the chain entirely. Concurrent first-callers can both miss
+    // the cache and run `resolver.resolve` in parallel — the resolver's
+    // own per-cache-key semaphore (`pick_package::fetch_locker`)
+    // already coalesces those into a single network fetch, so the
+    // doubled work is bounded to in-memory packument lookups + semver
+    // matching, and the second to finish loses the `insert` race
+    // harmlessly (the entry holds an `Arc` to an equivalent
+    // `ResolveResult`).
+    let cache_key: WantedKey =
+        (wanted.alias.clone(), wanted.bare_specifier.clone(), wanted.optional);
+    let cached = lock_recoverable(&ctx.resolved_by_wanted).get(&cache_key).map(Arc::clone);
+    let result = match cached {
+        Some(result) => result,
+        None => {
+            let result =
+                resolver.resolve(&wanted, &ctx.base_opts).await.map_err(|err: ResolveError| {
+                    ResolveDependencyTreeError::Resolve(err.to_string())
+                })?;
+            let Some(result) = result else {
+                return Err(ResolveDependencyTreeError::SpecNotSupported {
+                    specifier: render_specifier(&wanted),
+                });
+            };
+            // Wrap in `Arc` once so the cache, the per-id
+            // `ResolvedPackage` envelope, and the later peer-resolved
+            // graph node share one heap-allocated `ResolveResult`
+            // instead of cloning every `String` field per occurrence.
+            let result = Arc::new(result);
+            lock_recoverable(&ctx.resolved_by_wanted)
+                .entry(cache_key)
+                .or_insert_with(|| Arc::clone(&result));
+            result
+        }
     };
-    // Wrap in `Arc` once so the two store sites below (the per-id
-    // `ResolvedPackage` envelope and the later peer-resolved graph
-    // node) share one heap-allocated `ResolveResult` instead of
-    // cloning every `String` field per occurrence.
-    let result = Arc::new(result);
 
     if let Some(violation) = result.policy_violation.clone() {
         lock_recoverable(&ctx.policy_violations).push(violation);
@@ -429,14 +504,30 @@ where
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
 
-    let child_specs = extract_children(&result);
+    // Look up cached children specs first; only walk the manifest on
+    // a miss. The cache value is held by `Arc` so revisits clone the
+    // refcount instead of the inner `Vec<(String, String, bool)>`.
+    let child_specs = {
+        let cache = lock_recoverable(&ctx.children_specs_by_id);
+        cache.get(&id).map(Arc::clone)
+    };
+    let child_specs = match child_specs {
+        Some(specs) => specs,
+        None => {
+            let specs = Arc::new(extract_children(&result));
+            lock_recoverable(&ctx.children_specs_by_id)
+                .entry(id.clone())
+                .or_insert_with(|| Arc::clone(&specs));
+            specs
+        }
+    };
     let child_results = child_specs
-        .into_iter()
+        .iter()
         .map(|(child_name, child_range, child_optional)| {
             let child_wanted = WantedDependency {
-                alias: Some(child_name),
-                bare_specifier: Some(child_range),
-                optional: Some(child_optional),
+                alias: Some(child_name.clone()),
+                bare_specifier: Some(child_range.clone()),
+                optional: Some(*child_optional),
                 ..WantedDependency::default()
             };
             let next_ancestors = next_ancestors.clone();
@@ -589,9 +680,7 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 /// `optionalDependencies`. The walker propagates this through
 /// `current_is_optional` so [`ResolvedPackage::optional`] reflects
 /// whether every path to the node went through an optional edge.
-fn extract_children(
-    result: &pacquet_resolving_resolver_base::ResolveResult,
-) -> Vec<(String, String, bool)> {
+fn extract_children(result: &pacquet_resolving_resolver_base::ResolveResult) -> Vec<ChildSpec> {
     let Some(manifest) = result.manifest.as_ref() else { return Vec::new() };
     let mut out = Vec::new();
     collect_deps(manifest, "dependencies", false, &mut out);
@@ -599,12 +688,7 @@ fn extract_children(
     out
 }
 
-fn collect_deps(
-    manifest: &Value,
-    key: &str,
-    optional: bool,
-    out: &mut Vec<(String, String, bool)>,
-) {
+fn collect_deps(manifest: &Value, key: &str, optional: bool, out: &mut Vec<ChildSpec>) {
     let Some(map) = manifest.get(key).and_then(Value::as_object) else { return };
     for (name, range) in map {
         if let Some(range_str) = range.as_str() {
