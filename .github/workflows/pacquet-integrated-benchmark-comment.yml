@@ -26,6 +26,7 @@ permissions:
   actions: read
   issues: write
   pull-requests: write
+  checks: write
 
 jobs:
   comment:
@@ -154,12 +155,17 @@ jobs:
             echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
             exit 0
           fi
+          # `--start-point-clone-thresholds` so the PR branch inherits the
+          # threshold configured on main; `--err` so the action surfaces
+          # a regression on the PR check.
           bencher run \
             --project pnpm \
             --testbed pacquet \
             --branch "pr/$PR_NUMBER" \
             --start-point main \
             --start-point-reset \
+            --start-point-clone-thresholds \
+            --err \
             --adapter shell_hyperfine \
             --file benchmark-artifact/bencher-results.json \
             --ci-number "$PR_NUMBER" \
