@@ -1,6 +1,7 @@
 import { docsUrl, readProjectManifest } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { setObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { renderHelp } from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -26,9 +27,7 @@ export async function handler (
   const command = commandParts.join(' ')
 
   const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
-  manifest.scripts ??= {}
-  manifest.scripts[name] = command
-
+  setObjectValueByPropertyPath(manifest as unknown as Record<string, unknown>, ['scripts', name], command)
   await writeProjectManifest(manifest)
 }
 

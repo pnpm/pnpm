@@ -46,8 +46,33 @@ describe('set-script command', () => {
     expect(written.scripts.lint).toBe('eslint --fix src')
   })
 
+  test('accepts script names that contain dots, hyphens, and quotes', async () => {
+    await setScript.handler({ dir: tmpDir }, ['my-build', 'tsc -b'])
+    await setScript.handler({ dir: tmpDir }, ['pre.publish', 'echo'])
+    await setScript.handler({ dir: tmpDir }, ['weird"name', 'echo weird'])
+
+    const written = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+    expect(written.scripts).toEqual({
+      'my-build': 'tsc -b',
+      'pre.publish': 'echo',
+      'weird"name': 'echo weird',
+    })
+  })
+
+  test('accepts script names containing an equals sign', async () => {
+    await setScript.handler({ dir: tmpDir }, ['with=eq', 'echo with=eq'])
+
+    const written = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+    expect(written.scripts['with=eq']).toBe('echo with=eq')
+  })
+
   test('throws when arguments are missing', async () => {
     await expect(setScript.handler({ dir: tmpDir }, ['build']))
       .rejects.toThrow('Missing script name or command')
+  })
+
+  test('rejects unsafe script names', async () => {
+    await expect(setScript.handler({ dir: tmpDir }, ['__proto__', 'echo']))
+      .rejects.toThrow()
   })
 })
