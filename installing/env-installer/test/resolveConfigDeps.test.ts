@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
-import { readEnvLockfile } from '@pnpm/lockfile.fs'
+import { readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
@@ -138,6 +138,46 @@ test('rejects an optionalDependency declared with a non-exact version', async ()
     store: storeController,
     storeDir,
   })).rejects.toThrow(/only exact versions are supported/)
+})
+
+test('orphan optional subdeps from a previous resolution are pruned', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  // Simulate a prior resolution that left optional subdeps for a now-removed
+  // version of a config dependency. The stale `foo@99.0.0` and its optional
+  // subdep `bar@1.0.0` are not referenced from any current configDependency.
+  await writeEnvLockfile(process.cwd(), {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': { configDependencies: {} },
+    },
+    packages: {
+      '@pnpm.e2e/foo@99.0.0': { resolution: { integrity: 'sha512-stale==' } },
+      '@pnpm.e2e/bar@1.0.0': { resolution: { integrity: 'sha512-stale==' } },
+    },
+    snapshots: {
+      '@pnpm.e2e/foo@99.0.0': { optionalDependencies: { '@pnpm.e2e/bar': '1.0.0' } },
+      '@pnpm.e2e/bar@1.0.0': { optional: true },
+    },
+  })
+
+  await resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+  })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile!.packages['@pnpm.e2e/foo@99.0.0']).toBeUndefined()
+  expect(envLockfile!.packages['@pnpm.e2e/bar@1.0.0']).toBeUndefined()
+  expect(envLockfile!.snapshots['@pnpm.e2e/foo@99.0.0']).toBeUndefined()
+  expect(envLockfile!.snapshots['@pnpm.e2e/bar@1.0.0']).toBeUndefined()
+  expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toBeDefined()
 })
 
 test('fails with frozenLockfile', async () => {
