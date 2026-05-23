@@ -224,18 +224,18 @@ async function stageList (opts: StageOptions, params: string[]): Promise<string>
     packageFilter = spec.name
   }
 
-  const registry = getStageRegistry(opts, packageFilter)
+  const context = createStageContext(opts, packageFilter)
   const items: StageItem[] = []
   let page = 0
   while (true) {
-    const url = new URL('-/stage', registry)
+    const url = new URL('-/stage', context.registry)
     url.searchParams.set('page', page.toString())
     url.searchParams.set('perPage', PER_PAGE.toString())
     if (packageFilter) {
       url.searchParams.set('package', packageFilter)
     }
     // eslint-disable-next-line no-await-in-loop
-    const res = await stageJsonRequest<StageListResponse>(opts, registry, url.href, 'list staged packages')
+    const res = await stageJsonRequest<StageListResponse>(context, { url: url.href, action: 'list staged packages' })
     items.push(...res.items)
     if (items.length >= res.total || res.items.length < PER_PAGE) break
     page++
@@ -252,53 +252,45 @@ async function stageList (opts: StageOptions, params: string[]): Promise<string>
 
 async function stageView (opts: StageOptions, params: string[]): Promise<string> {
   const stageId = requireStageId(params, 'view')
-  const registry = getStageRegistry(opts)
-  const item = await stageJsonRequest<StageItem>(
-    opts,
-    registry,
-    new URL(`-/stage/${stageId}`, registry).href,
-    `view staged package ${stageId}`
-  )
+  const context = createStageContext(opts)
+  const item = await stageJsonRequest<StageItem>(context, {
+    url: new URL(`-/stage/${stageId}`, context.registry).href,
+    action: `view staged package ${stageId}`,
+  })
   return opts.json ? JSON.stringify(item, null, 2) : renderStageItem(item)
 }
 
 async function stageApprove (opts: StageOptions, params: string[]): Promise<string> {
   const stageId = requireStageId(params, 'approve')
-  const registry = getStageRegistry(opts)
-  await stageRequestWithOtp(
-    opts,
-    registry,
-    new URL(`-/stage/${stageId}/approve`, registry).href,
-    { method: 'POST' },
-    `approve staged package ${stageId}`
-  )
+  const context = createStageContext(opts)
+  await stageRequestWithOtp(context, {
+    url: new URL(`-/stage/${stageId}/approve`, context.registry).href,
+    init: { method: 'POST' },
+    action: `approve staged package ${stageId}`,
+  })
   return `Staged package ${stageId} approved and published successfully.`
 }
 
 async function stageReject (opts: StageOptions, params: string[]): Promise<string> {
   const stageId = requireStageId(params, 'reject')
-  const registry = getStageRegistry(opts)
+  const context = createStageContext(opts)
   globalWarn('Rejecting will permanently delete this staged publish record and tarball from the registry.')
-  await stageRequestWithOtp(
-    opts,
-    registry,
-    new URL(`-/stage/${stageId}`, registry).href,
-    { method: 'DELETE' },
-    `reject staged package ${stageId}`
-  )
+  await stageRequestWithOtp(context, {
+    url: new URL(`-/stage/${stageId}`, context.registry).href,
+    init: { method: 'DELETE' },
+    action: `reject staged package ${stageId}`,
+  })
   return `Staged package ${stageId} has been rejected.`
 }
 
 async function stageDownload (opts: StageOptions, params: string[]): Promise<string> {
   const stageId = requireStageId(params, 'download')
-  const registry = getStageRegistry(opts)
-  const response = await stageRequest(
-    opts,
-    registry,
-    new URL(`-/stage/${stageId}/tarball`, registry).href,
-    { method: 'GET' },
-    `download staged package ${stageId}`
-  )
+  const context = createStageContext(opts)
+  const response = await stageRequest(context, {
+    url: new URL(`-/stage/${stageId}/tarball`, context.registry).href,
+    init: { method: 'GET' },
+    action: `download staged package ${stageId}`,
+  })
   const tarballData = Buffer.from(await response.arrayBuffer())
   const summary = await summarizeTarball(tarballData)
   const filename = `${normalizePackageName(summary.name)}-${summary.version}-${stageId}.tgz`
@@ -355,6 +347,24 @@ function requireStageId (params: string[], subcommand: StageSubcommand): string 
   return stageId
 }
 
+interface StageContext {
+  opts: StageOptions
+  registry: string
+  authHeaderValue: string | undefined
+  fetchFromRegistry: ReturnType<typeof createFetchFromRegistry>
+}
+
+function createStageContext (opts: StageOptions, packageName?: string): StageContext {
+  const registry = getStageRegistry(opts, packageName)
+  const getAuthHeaderByUri = createGetAuthHeaderByURI(opts.configByUri ?? {} as Record<string, RegistryConfig>, registry)
+  return {
+    opts,
+    registry,
+    authHeaderValue: getAuthHeaderByUri(registry),
+    fetchFromRegistry: createFetchFromRegistry(opts),
+  }
+}
+
 function getStageRegistry (opts: StageOptions, packageName?: string): string {
   const registries = getRegistries(opts)
   const registry = packageName
@@ -371,68 +381,52 @@ function normalizeRegistryUrl (registry: string): string {
   return registry.endsWith('/') ? registry : `${registry}/`
 }
 
-async function stageJsonRequest<T> (
-  opts: StageOptions,
-  registry: string,
-  url: string,
+interface StageRequestParams {
+  url: string
   action: string
-): Promise<T> {
-  const response = await stageRequest(opts, registry, url, { method: 'GET' }, action)
+  init?: StageRequestInit
+  otp?: string
+}
+
+async function stageJsonRequest<T> (context: StageContext, params: { url: string, action: string }): Promise<T> {
+  const response = await stageRequest(context, { url: params.url, action: params.action, init: { method: 'GET' } })
   return await response.json() as T
 }
 
 async function stageRequestWithOtp (
-  opts: StageOptions,
-  registry: string,
-  url: string,
-  init: StageRequestInit,
-  action: string
+  context: StageContext,
+  params: { url: string, init: StageRequestInit, action: string }
 ): Promise<Response> {
-  const context = createPublishContext(opts)
   return withOtpHandling({
-    context,
-    fetchOptions: createWebAuthFetchOptions(opts),
-    operation: async (otp) => stageRequest(
-      opts,
-      registry,
-      url,
-      {
-        ...init,
-        headers: {
-          'npm-auth-type': 'web',
-          ...init.headers,
-        },
-      },
-      action,
-      otp ?? getConfiguredOtp(opts)
-    ),
+    context: createPublishContext(context.opts),
+    fetchOptions: createWebAuthFetchOptions(context.opts),
+    operation: async (otp) => stageRequest(context, {
+      url: params.url,
+      action: params.action,
+      init: params.init,
+      otp: otp ?? getConfiguredOtp(context.opts),
+    }),
   })
 }
 
-async function stageRequest (
-  opts: StageOptions,
-  registry: string,
-  url: string,
-  init: StageRequestInit,
-  action: string,
-  otp?: string
-): Promise<Response> {
-  const fetchFromRegistry = createFetchFromRegistry(opts)
-  const response = await fetchFromRegistry(url, {
-    authHeaderValue: getAuthHeader(opts, registry),
+async function stageRequest (context: StageContext, params: StageRequestParams): Promise<Response> {
+  const init = params.init ?? { method: 'GET' }
+  const response = await context.fetchFromRegistry(params.url, {
+    authHeaderValue: context.authHeaderValue,
     body: init.body,
     fullMetadata: true,
     headers: {
+      'npm-auth-type': 'web',
       'npm-command': 'stage',
       ...init.headers,
-      ...(otp != null ? { 'npm-otp': otp } : {}),
+      ...(params.otp != null ? { 'npm-otp': params.otp } : {}),
     },
     method: init.method,
-    timeout: opts.fetchTimeout,
+    timeout: context.opts.fetchTimeout,
   })
   if (!response.ok) {
     await throwIfOtpRequired(response)
-    await throwStageRegistryError(response, action)
+    await throwStageRegistryError(response, params.action)
   }
   return response
 }
@@ -441,11 +435,6 @@ interface StageRequestInit {
   body?: string
   headers?: Record<string, string>
   method: 'DELETE' | 'GET' | 'POST'
-}
-
-function getAuthHeader (opts: StageOptions, registry: string): string | undefined {
-  const getAuthHeaderByUri = createGetAuthHeaderByURI(opts.configByUri ?? {} as Record<string, RegistryConfig>, registry)
-  return getAuthHeaderByUri(registry)
 }
 
 function getConfiguredOtp (opts: StageOptions): string | undefined {

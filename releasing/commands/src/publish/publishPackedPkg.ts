@@ -16,7 +16,7 @@ import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
-import { type OtpContext, type OtpPublishResponse, publishWithOtpHandling } from './otp.js'
+import { type OtpContext, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
@@ -110,8 +110,8 @@ export async function publishPackedPkg (
     return summary
   }
   const context = createPublishContext(opts)
-  const response: StagePublishResponse = isStage
-    ? await context.publish(publishedManifest, tarballData, publishOptions) as StagePublishResponse
+  const response = isStage
+    ? await context.publish(publishedManifest, tarballData, publishOptions)
     : await publishWithOtpHandling({
       context,
       manifest: publishedManifest,
@@ -158,10 +158,6 @@ function extractBundledDependencies (manifest: ExportedManifest): string[] {
 type StagePublishOptions = PublishOptions & {
   command?: string
   stage?: boolean
-}
-
-type StagePublishResponse = OtpPublishResponse & {
-  stageId?: string
 }
 
 /**

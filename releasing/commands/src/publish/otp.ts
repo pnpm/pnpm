@@ -13,6 +13,8 @@ export interface OtpPublishResponse {
   readonly status: number
   readonly statusText: string
   readonly text: () => Promise<string>
+  /** Set by the registry only when the publish was staged (i.e. `stage: true` was sent). */
+  readonly stageId?: string
 }
 
 export type OtpPublishFn = (
