@@ -1222,13 +1222,17 @@ impl Config {
         // diverges from TypeScript's case-sensitive program when the
         // workspace is case-sensitive and the home is not.
         if !store_dir_explicit && let Some(home_dir) = Sys::home_dir() {
-            // The "pnpm home dir" pnpm probes against is the parent of
-            // the home store (`~/Library/pnpm` for `~/Library/pnpm/store`).
-            // Fall back to the user's actual home if no parent is
-            // available — same-volume linkability is what we're after,
-            // and the home dir is on the same volume as any of its
-            // children.
-            let store_root = self.store_dir.root().to_path_buf();
+            // `store_dir.root()` already carries the [`STORE_VERSION`]
+            // suffix that [`StoreDir::from`] applied, so the
+            // un-suffixed home store sits one level above. The "pnpm
+            // home dir" pnpm probes against is the parent of that
+            // un-suffixed home store (`~/Library/pnpm` for
+            // `~/Library/pnpm/store`). Fall back to the user's actual
+            // home whenever a parent is unavailable — same-volume
+            // linkability is what we're after, and the home dir is on
+            // the same volume as any of its children.
+            let store_root_versioned = self.store_dir.root().to_path_buf();
+            let store_root = store_root_versioned.parent().unwrap_or(&home_dir).to_path_buf();
             let pnpm_home_dir = store_root.parent().unwrap_or(&home_dir).to_path_buf();
             let resolved =
                 store_path::resolve_store_dir::<Sys>(store_root, &pnpm_home_dir, start_dir);
@@ -1423,7 +1427,10 @@ mod tests {
             }
         }
         let store_dir = default_store_dir::<EnvWithPnpmHome>();
-        assert_eq!(display_store_dir(&store_dir), "/hello/store");
+        assert_eq!(
+            display_store_dir(&store_dir),
+            format!("/hello/store/{}", pacquet_store_dir::STORE_VERSION),
+        );
     }
 
     /// Companion to [`should_use_pnpm_home_env_var`]: when
@@ -1451,7 +1458,10 @@ mod tests {
             }
         }
         let store_dir = default_store_dir::<EnvWithXdgDataHome>();
-        assert_eq!(display_store_dir(&store_dir), "/hello/pnpm/store");
+        assert_eq!(
+            display_store_dir(&store_dir),
+            format!("/hello/pnpm/store/{}", pacquet_store_dir::STORE_VERSION),
+        );
     }
 
     #[test]
