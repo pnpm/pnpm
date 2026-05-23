@@ -170,7 +170,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
 
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
-    config.modules_dir = modules_dir.clone();
+    config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 

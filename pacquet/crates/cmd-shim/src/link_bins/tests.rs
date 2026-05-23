@@ -49,7 +49,7 @@ fn writes_shim_flavors_matching_host_platform() {
     let manifest_value: Value =
         serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
+        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
         &bins_dir,
     )
     .unwrap();
@@ -216,8 +216,8 @@ fn lexical_compare_breaks_tie_when_neither_owns() {
     // discovery order.
     link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(beta.clone(), Arc::new(manifest_beta)),
-            PackageBinSource::new(alpha.clone(), Arc::new(manifest_alpha)),
+            PackageBinSource::new(beta, Arc::new(manifest_beta)),
+            PackageBinSource::new(alpha, Arc::new(manifest_alpha)),
         ],
         &bins,
     )
@@ -832,8 +832,8 @@ fn ownership_breaks_bin_conflicts_when_existing_owns() {
     let bins = tmp.path().join(".bin");
     link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(npm.clone(), Arc::new(manifest_npm)),
-            PackageBinSource::new(aaa_other.clone(), Arc::new(manifest_other)),
+            PackageBinSource::new(npm, Arc::new(manifest_npm)),
+            PackageBinSource::new(aaa_other, Arc::new(manifest_other)),
         ],
         &bins,
     )
@@ -938,7 +938,7 @@ fn ownership_breaks_bin_conflicts() {
     let bins = tmp.path().join(".bin");
     link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(aaa_other.clone(), Arc::new(manifest_other)),
+            PackageBinSource::new(aaa_other, Arc::new(manifest_other)),
             PackageBinSource::new(npm.clone(), Arc::new(manifest_npm)),
         ],
         &bins,
@@ -992,10 +992,9 @@ fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
     let bins = tmp.path().join(".bin");
     link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(hoisted.clone(), Arc::new(manifest_hoisted))
+            PackageBinSource::new(hoisted, Arc::new(manifest_hoisted))
                 .with_origin(BinOrigin::Hoisted),
-            PackageBinSource::new(direct.clone(), Arc::new(manifest_direct))
-                .with_origin(BinOrigin::Direct),
+            PackageBinSource::new(direct, Arc::new(manifest_direct)).with_origin(BinOrigin::Direct),
         ],
         &bins,
     )
@@ -1045,9 +1044,8 @@ fn hoisted_origin_loses_to_existing_direct() {
     // candidate is processed second.
     link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(direct.clone(), Arc::new(manifest_direct))
-                .with_origin(BinOrigin::Direct),
-            PackageBinSource::new(hoisted.clone(), Arc::new(manifest_hoisted))
+            PackageBinSource::new(direct, Arc::new(manifest_direct)).with_origin(BinOrigin::Direct),
+            PackageBinSource::new(hoisted, Arc::new(manifest_hoisted))
                 .with_origin(BinOrigin::Hoisted),
         ],
         &bins,
@@ -1086,7 +1084,7 @@ fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
     let manifest: Value =
         serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
     )
     .unwrap();
@@ -1141,7 +1139,7 @@ fn link_node_bin_replaces_dangling_symlink() {
     let manifest: Value =
         serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
     )
     .unwrap();
@@ -1189,7 +1187,7 @@ fn link_node_bin_does_not_corrupt_hardlinked_target() {
     let manifest: Value =
         serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
     )
     .unwrap();
@@ -1227,7 +1225,7 @@ fn link_node_bin_hardlinks_node_exe_on_windows() {
     let manifest: Value =
         serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
     )
     .unwrap();
@@ -1270,7 +1268,7 @@ fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
     let manifest: Value =
         serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
     )
     .unwrap();

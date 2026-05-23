@@ -357,7 +357,7 @@ impl<'a> CreateVirtualStore<'a> {
         // the legacy path is empty, so the skip gate would
         // incorrectly mark every warm slot as "broken" and emit
         // `BrokenModules` for the wrong path.
-        let survivors: Vec<(&PackageKey, &SnapshotEntry)> = snapshots
+        let survivors = snapshots
             .iter()
             // Reason 1: installability skip. Drop entirely.
             .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
@@ -409,9 +409,7 @@ impl<'a> CreateVirtualStore<'a> {
                     }));
                     true
                 }
-            })
-            .collect();
-
+            });
         // Validate every surviving snapshot upfront so a malformed
         // lockfile (missing metadata, missing tarball integrity,
         // currently-unsupported directory / git resolution) errors
@@ -437,7 +435,6 @@ impl<'a> CreateVirtualStore<'a> {
         //   warm-reinstall path).
         type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, Option<String>);
         let snapshot_entries: Vec<SnapshotWithCacheKey<'_>> = survivors
-            .into_iter()
             .map(|(snapshot_key, snapshot)| {
                 snapshot_cache_key(snapshot_key, packages).map(|key| (snapshot_key, snapshot, key))
             })
@@ -461,7 +458,7 @@ impl<'a> CreateVirtualStore<'a> {
             // `skipped_entries` too — they were never installed, so
             // there's no store-index row to keep warm for the
             // build-cache lookup. Only the current-lockfile-skip
-            // path (`survivors` filtered above) should contribute
+            // path (`snapshot_entries` filtered above) should contribute
             // here.
             .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
             .map(|(snapshot_key, snapshot)| {

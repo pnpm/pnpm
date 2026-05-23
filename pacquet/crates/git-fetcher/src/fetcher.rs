@@ -109,7 +109,7 @@ impl<'a> GitFetcher<'a> {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
 
-        let git_bin = self.git_bin.unwrap_or(Path::new("git"));
+        let git_bin = self.git_bin.unwrap_or_else(|| Path::new("git"));
         if should_use_shallow(self.repo, self.git_shallow_hosts) {
             exec_git_with(git_bin, &["init"], Some(temp_location))?;
             exec_git_with(git_bin, &["remote", "add", "origin", self.repo], Some(temp_location))?;

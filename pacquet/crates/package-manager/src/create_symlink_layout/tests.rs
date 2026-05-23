@@ -47,7 +47,7 @@ fn links_matching_optional_sibling_alongside_regular_deps() {
     let tmp = tempdir().expect("tempdir");
     let virtual_store_dir = tmp.path().to_path_buf();
     let layout = VirtualStoreLayout::legacy(
-        virtual_store_dir.clone(),
+        virtual_store_dir,
         pacquet_config::default_virtual_store_dir_max_length() as usize,
     );
 

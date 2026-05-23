@@ -405,7 +405,7 @@ fn symlink_skips_dropped_nodes() {
     std::fs::create_dir_all(layout.slot_dir(&kept_key).join("node_modules/kept")).unwrap();
 
     let mut skipped: HashSet<PackageKey> = HashSet::new();
-    skipped.insert(dropped_key.clone());
+    skipped.insert(dropped_key);
 
     super::symlink_hoisted_dependencies(
         &hoisted,

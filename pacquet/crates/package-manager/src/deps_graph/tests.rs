@@ -112,10 +112,8 @@ fn optional_dependencies_fold_into_children() {
         ),
         (opt_key.clone(), SnapshotEntry::default()),
     ]);
-    let packages = HashMap::from([
-        (parent_key.clone(), registry_metadata()),
-        (opt_key.clone(), registry_metadata()),
-    ]);
+    let packages =
+        HashMap::from([(parent_key.clone(), registry_metadata()), (opt_key, registry_metadata())]);
 
     let graph = build_deps_graph(&snapshots, &packages);
     let parent_node = graph.get(&parent_key).expect("parent node");
@@ -129,7 +127,7 @@ fn optional_dependencies_fold_into_children() {
 #[test]
 fn snapshot_without_metadata_is_skipped() {
     let pkg = key("orphan", "1.0.0");
-    let snapshots = HashMap::from([(pkg.clone(), SnapshotEntry::default())]);
+    let snapshots = HashMap::from([(pkg, SnapshotEntry::default())]);
     let packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
 
     let graph = build_deps_graph(&snapshots, &packages);

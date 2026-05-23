@@ -149,6 +149,9 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 [workspace.lints.clippy]
 clone_on_ref_ptr             = "warn"
 if_then_some_else_none       = "warn"
+needless_collect             = "warn"
+or_fun_call                  = "warn"
+redundant_clone              = "warn"
 unnecessary_lazy_evaluations = "warn"
 
 [profile.release]

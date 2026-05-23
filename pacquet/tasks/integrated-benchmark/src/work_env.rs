@@ -63,7 +63,7 @@ impl WorkEnv {
     /// pacquet repo when the caller didn't override it — useful when
     /// the same monorepo checkout contains both code bases.
     fn pnpm_repository(&self) -> &'_ Path {
-        self.pnpm_repository.as_deref().unwrap_or(self.repository())
+        self.pnpm_repository.as_deref().unwrap_or_else(|| self.repository())
     }
 
     fn bench_dir(&self, id: BenchId) -> PathBuf {

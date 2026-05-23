@@ -363,7 +363,11 @@ where
         && is_exotic_resolved_via(&result.resolved_via)
     {
         return Err(ResolveDependencyTreeError::ExoticSubdep {
-            specifier: wanted.alias.clone().or(wanted.bare_specifier.clone()).unwrap_or_default(),
+            specifier: wanted
+                .alias
+                .clone()
+                .or_else(|| wanted.bare_specifier.clone())
+                .unwrap_or_default(),
             resolved_via: result.resolved_via.clone(),
         });
     }
@@ -378,7 +382,7 @@ where
     let alias = result
         .alias
         .clone()
-        .or(wanted.alias.clone())
+        .or_else(|| wanted.alias.clone())
         .or_else(|| result.name_ver.as_ref().map(|nv| nv.name.to_string()))
         .unwrap_or_else(|| id.clone());
 
@@ -663,7 +667,7 @@ fn extract_peer_dependencies(
             peers
                 .entry(name.clone())
                 .and_modify(|entry| entry.optional = entry.optional || optional)
-                .or_insert(PeerDep { version: "*".to_string(), optional });
+                .or_insert_with(|| PeerDep { version: "*".to_string(), optional });
         }
     }
 

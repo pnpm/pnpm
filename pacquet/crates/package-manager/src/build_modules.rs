@@ -713,8 +713,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                             details: Some(err.to_string()),
                             package: SkippedOptionalPackage::Installed {
                                 id: pkg_dir.to_string_lossy().into_owned(),
-                                name: name.clone(),
-                                version: version.clone(),
+                                name,
+                                version,
                             },
                             prefix: lockfile_dir.to_string_lossy().into_owned(),
                             reason: SkippedOptionalReason::BuildFailure,
@@ -855,7 +855,7 @@ fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) -> Vec<Path
     let mut bin_dirs: Vec<PathBuf> = Vec::new();
     let mut dir: PathBuf = pkg_root.to_path_buf();
     loop {
-        let parent = dir.parent().unwrap_or(Path::new(""));
+        let parent = dir.parent().unwrap_or_else(|| Path::new(""));
         let parent_starts_with_at =
             parent.to_str().and_then(|text| text.chars().next()).is_some_and(|ch| ch == '@');
         if !parent_starts_with_at {

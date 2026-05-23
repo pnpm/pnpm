@@ -203,7 +203,7 @@ fn resolve_ref_from_refs(
             .strip_prefix("refs/tags/")
             .expect("guard above ensures the prefix")
             .strip_suffix("^{}")
-            .unwrap_or(key.strip_prefix("refs/tags/").expect("guarded"));
+            .unwrap_or_else(|| key.strip_prefix("refs/tags/").expect("guarded"));
         if Version::parse(cleaned).is_ok() || Version::parse(strip_v(cleaned)).is_ok() {
             v_tags.insert(cleaned.to_string());
         }

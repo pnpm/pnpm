@@ -1847,7 +1847,7 @@ mod tests {
         );
         let lockfile_dir = PathBuf::from("/repo");
         let opts = LockfileToHoistedDepGraphOptions {
-            lockfile_dir: lockfile_dir.clone(),
+            lockfile_dir,
             ..LockfileToHoistedDepGraphOptions::default()
         };
         let result =
@@ -1886,7 +1886,7 @@ mod tests {
         let mut externals = BTreeSet::new();
         externals.insert("a".to_string());
         let opts = LockfileToHoistedDepGraphOptions {
-            lockfile_dir: lockfile_dir.clone(),
+            lockfile_dir,
             external_dependencies: externals,
             ..LockfileToHoistedDepGraphOptions::default()
         };

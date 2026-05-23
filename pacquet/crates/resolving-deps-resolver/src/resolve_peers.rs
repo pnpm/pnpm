@@ -608,7 +608,7 @@ fn insert_parent_ref(
         return;
     }
     let parent_ref = ParentRef {
-        version: version.clone(),
+        version,
         node_id: Some(direct.node_id.clone()),
         alias: (direct.alias != real_name).then(|| direct.alias.clone()),
     };

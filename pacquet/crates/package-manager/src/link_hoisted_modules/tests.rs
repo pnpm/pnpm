@@ -258,7 +258,7 @@ fn missing_cas_for_required_dep_errors() {
     graph.insert(dir.clone(), make_node("a", "a@1.0.0", "a@1.0.0", dir.clone()));
 
     let mut hierarchy_children = BTreeMap::new();
-    hierarchy_children.insert(dir.clone(), DepHierarchy::default());
+    hierarchy_children.insert(dir, DepHierarchy::default());
     let mut hierarchy = BTreeMap::new();
     hierarchy.insert(lockfile_dir.clone(), DepHierarchy(hierarchy_children));
 
@@ -369,7 +369,7 @@ fn orphan_already_removed_is_tolerated() {
     let mut prev_graph = DependenciesGraph::new();
     prev_graph.insert(
         phantom_orphan.clone(),
-        make_node("phantom", "phantom@1.0.0", "phantom@1.0.0", phantom_orphan.clone()),
+        make_node("phantom", "phantom@1.0.0", "phantom@1.0.0", phantom_orphan),
     );
 
     let (graph, hierarchy, cas_paths) = flat_layout(

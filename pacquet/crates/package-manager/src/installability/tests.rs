@@ -355,11 +355,11 @@ fn duplicate_metadata_dedupes_reporter_events() {
 
     // ...but the reporter only sees one event for the metadata row.
     let events = take_events();
-    let skipped_events: Vec<_> = events
+    let skipped_events_count = events
         .iter()
         .filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_)))
-        .collect();
-    assert_eq!(skipped_events.len(), 1, "must dedup per metadata row");
+        .count();
+    assert_eq!(skipped_events_count, 1, "must dedup per metadata row");
 }
 
 /// `supportedArchitectures` widens the host triple so an optional
@@ -382,7 +382,7 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
     let mut snapshots = HashMap::new();
     snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(key.clone(), synthetic_metadata(None, None, Some(&["darwin"]), None));
+    packages.insert(key, synthetic_metadata(None, None, Some(&["darwin"]), None));
 
     let mut host = host("20.10.0", "linux", "x64");
     host.supported_architectures = Some(pacquet_package_is_installable::SupportedArchitectures {
@@ -557,13 +557,12 @@ fn disjoint_subsets_preserve_len_and_iter() {
     // higher-precedence subset wins — `len` and `iter` see exactly
     // one entry, matching `contains`.
     assert_eq!(skipped.len(), 1);
-    let collected: Vec<&PackageKey> = skipped.iter().collect();
-    assert_eq!(collected.len(), 1);
+    assert_eq!(skipped.iter().count(), 1);
     assert!(skipped.contains(&key));
 
     // `add_fetch_failed` against the same key is similarly a no-op
     // — installability has highest precedence.
-    skipped.add_fetch_failed(key.clone());
+    skipped.add_fetch_failed(key);
     assert_eq!(skipped.len(), 1);
 }
 

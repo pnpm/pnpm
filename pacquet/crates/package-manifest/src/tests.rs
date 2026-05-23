@@ -368,7 +368,7 @@ fn from_path_applies_convert_engines_runtime() {
 fn from_path_errors_no_importer_when_missing() {
     let dir = tempdir().unwrap();
     let missing = dir.path().join("does-not-exist").join("package.json");
-    let result = PackageManifest::from_path(missing.clone());
+    let result = PackageManifest::from_path(missing);
     let err = match result {
         Err(err) => err,
         Ok(_) => panic!("missing package.json should not parse"),

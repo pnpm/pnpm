@@ -224,7 +224,7 @@ fn collect_candidates(lockfile: &Lockfile) -> Vec<Candidate> {
         let resolution_json = serde_json::to_string(&metadata.resolution)
             .expect("LockfileResolution must serialize for candidate dedupe");
         let key = format!("{name}@{version}@{resolution_json}");
-        deduped.entry(key).or_insert(Candidate {
+        deduped.entry(key).or_insert_with(|| Candidate {
             name,
             version,
             resolution: metadata.resolution.clone(),

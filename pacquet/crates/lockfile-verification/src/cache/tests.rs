@@ -217,8 +217,7 @@ fn append_only_log_records_each_call() {
         );
     }
     let contents = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
-    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
-    assert_eq!(lines.len(), 3);
+    assert_eq!(contents.lines().filter(|line| !line.is_empty()).count(), 3);
 }
 
 /// Compaction kicks in past the byte threshold: a poisoned log full
