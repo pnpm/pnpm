@@ -28,6 +28,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  checks: write
 
 # Don't cancel-in-progress — killing a bench mid-run wastes a long
 # CI job and produces no usable data.
@@ -123,12 +124,28 @@ jobs:
           --file "$BENCH_DIR/bencher-results.json"
           --github-actions "$GITHUB_TOKEN"
         )
+        # `--start-point-clone-thresholds` so the forked branch inherits
+        # the threshold configured on main; `--err` so the workflow fails
+        # when a sample breaches the upper boundary. Main pushes skip
+        # both — by then the regression has already landed.
         if [ "$EVENT_NAME" = "push" ] || [ "$REF_NAME" = "main" ]; then
           args+=(--branch main)
         elif [ -n "$INPUT_PR_NUMBER" ]; then
-          args+=(--branch "pr/$INPUT_PR_NUMBER" --start-point main --start-point-reset)
+          args+=(
+            --branch "pr/$INPUT_PR_NUMBER"
+            --start-point main
+            --start-point-reset
+            --start-point-clone-thresholds
+            --err
+          )
         else
-          args+=(--branch "$REF_NAME" --start-point main --start-point-reset)
+          args+=(
+            --branch "$REF_NAME"
+            --start-point main
+            --start-point-reset
+            --start-point-clone-thresholds
+            --err
+          )
         fi
         bencher run "${args[@]}"
 

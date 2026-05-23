@@ -48,6 +48,7 @@ concurrency:
 # the base-repo privilege context via `workflow_run`.
 permissions:
   contents: read
+  checks: write
 
 jobs:
   benchmark:
@@ -334,9 +335,19 @@ jobs:
             --file bench-work-env/bencher-results.json
             --github-actions "$GITHUB_TOKEN"
           )
+          # `--start-point-clone-thresholds` so the forked branch inherits
+          # the threshold configured on main; `--err` so the workflow fails
+          # when a sample breaches the upper boundary. Main pushes skip
+          # both — by then the regression has already landed.
           if [ "$REF_NAME" = "main" ]; then
             args+=(--branch main)
           else
-            args+=(--branch "$REF_NAME" --start-point main --start-point-reset)
+            args+=(
+              --branch "$REF_NAME"
+              --start-point main
+              --start-point-reset
+              --start-point-clone-thresholds
+              --err
+            )
           fi
           bencher run "${args[@]}"
