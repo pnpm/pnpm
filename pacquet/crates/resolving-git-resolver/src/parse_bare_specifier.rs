@@ -338,7 +338,7 @@ fn percent_decode_str(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use parking_lot::Mutex;
 
     use super::{
         GitProbe, PartialSpec, ProbeFuture, correct_url, parse_bare_specifier, parse_git_params,
@@ -353,13 +353,13 @@ mod tests {
     impl GitProbe for Fake {
         fn https_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
             Box::pin(async move {
-                self.calls.lock().unwrap().push(format!("head {url}"));
+                self.calls.lock().push(format!("head {url}"));
                 self.head_ok
             })
         }
         fn ls_remote_exit_code<'a>(&'a self, repo: &'a str) -> ProbeFuture<'a> {
             Box::pin(async move {
-                self.calls.lock().unwrap().push(format!("ls {repo}"));
+                self.calls.lock().push(format!("ls {repo}"));
                 self.ls_ok
             })
         }
@@ -441,7 +441,7 @@ mod tests {
         assert_eq!(spec.fetch_spec, "https://example.com/repo.git");
         assert_eq!(spec.git_committish.as_deref(), Some("abc"));
         // Direct spec shouldn't probe.
-        assert!(probe.calls.lock().unwrap().is_empty());
+        assert!(probe.calls.lock().is_empty());
     }
 
     #[tokio::test]

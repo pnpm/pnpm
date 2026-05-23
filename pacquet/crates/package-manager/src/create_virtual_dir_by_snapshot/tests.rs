@@ -4,11 +4,8 @@ use pacquet_lockfile::{PackageKey, SnapshotEntry};
 use pacquet_reporter::{
     LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter,
 };
-use std::{
-    collections::HashMap,
-    path::Path,
-    sync::{Mutex, atomic::AtomicU8},
-};
+use parking_lot::Mutex;
+use std::{collections::HashMap, path::Path, sync::atomic::AtomicU8};
 use tempfile::tempdir;
 
 /// `optimistic_wire_method` is the source of truth for the
@@ -40,7 +37,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -51,7 +48,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     let snapshot = SnapshotEntry::default();
     let package_key: PackageKey = "react@18.0.0".parse().expect("valid v9 snapshot key");
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     // `tokio::task::block_in_place` matches how the production
     // call-site (the `warm_work` closure in `CreateVirtualStore`)
@@ -79,7 +76,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     .run::<RecordingReporter>()
     .expect("empty-cas-paths run should succeed");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let imported = captured.iter().find_map(|event| match event {
         LogEvent::Progress(log) => match &log.message {
             ProgressMessage::Imported { method, requester, to } => {

@@ -441,16 +441,16 @@ fn clone_or_copy_respects_cached_copy_state() {
 #[test]
 fn log_method_once_emits_first_call_per_method_only() {
     use pacquet_reporter::{LogEvent, PackageImportMethod as WireImportMethod, Reporter};
-    use std::sync::Mutex;
+    use parking_lot::Mutex;
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
     // Reset in case nextest reuses the process for a retry of this test.
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -472,7 +472,7 @@ fn log_method_once_emits_first_call_per_method_only() {
         WireImportMethod::Hardlink,
     );
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let kinds: Vec<WireImportMethod> = captured
         .iter()
         .map(|event| match event {

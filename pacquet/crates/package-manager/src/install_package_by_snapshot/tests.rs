@@ -8,8 +8,8 @@ use pacquet_lockfile::{
     PlatformAssetResolution, PlatformAssetTarget,
 };
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
+use parking_lot::Mutex;
 use pretty_assertions::assert_eq;
-use std::sync::Mutex;
 
 /// `emit_progress_resolved` fires exactly one `pnpm:progress`
 /// `resolved` event with the supplied (`package_id`, `requester`).
@@ -21,14 +21,14 @@ fn emits_resolved_with_supplied_identifiers() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     emit_progress_resolved::<RecordingReporter>("react@18.0.0", "/proj");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     assert!(
         matches!(
             captured.as_slice(),

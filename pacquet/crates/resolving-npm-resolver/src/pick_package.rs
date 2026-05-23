@@ -50,10 +50,11 @@
 //! wall-clock by the dedup factor and putting the resolve walk
 //! 3-5× behind pnpm on the `alotta-files` benchmark.
 
+use parking_lot::Mutex;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use chrono::{DateTime, Utc};
@@ -88,7 +89,7 @@ use crate::{
 ///
 /// Implementations must be safe to call concurrently from multiple
 /// resolve tasks. The default [`InMemoryPackageMetaCache`] uses a
-/// std `Mutex`; a tokio-aware variant can land later if the
+/// `parking_lot::Mutex`; a tokio-aware variant can land later if the
 /// contention shows up in benchmarks.
 pub trait PackageMetaCache: Send + Sync {
     /// Shared handle to the cached packument for `key`, or `None`
@@ -181,16 +182,14 @@ pub struct InMemoryPackageMetaCache {
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
     fn get(&self, key: &str) -> Option<Arc<Package>> {
-        // Mirror the rest of the codebase (e.g. `build_modules.rs`):
-        // recover from poisoning instead of escalating an unrelated
-        // panic into a hard install-wide failure. The cache is a
-        // plain HashMap of `Arc<Package>` — no broken invariants
-        // can survive across a poisoned lock.
-        self.inner.lock().unwrap_or_else(|err| err.into_inner()).get(key).map(Arc::clone)
+        // Cache lookup is intentionally tolerant of unrelated panics:
+        // this map stores independently reusable entries, so a failed
+        // concurrent path should not collapse the whole install.
+        self.inner.lock().get(key).map(Arc::clone)
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.lock().unwrap_or_else(|err| err.into_inner()).insert(key, meta);
+        self.inner.lock().insert(key, meta);
     }
 }
 
@@ -901,7 +900,7 @@ static WARNED_MISSING_TIME: std::sync::OnceLock<Mutex<indexmap::IndexSet<String>
 
 fn warn_missing_time_once(pkg_name: &str) {
     let lock = WARNED_MISSING_TIME.get_or_init(|| Mutex::new(indexmap::IndexSet::new()));
-    let mut warned = lock.lock().unwrap_or_else(|err| err.into_inner());
+    let mut warned = lock.lock();
     if warned.contains(pkg_name) {
         return;
     }

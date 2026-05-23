@@ -7,7 +7,7 @@
 //! install should pay the disk/network costs at most once per
 //! `(registry, name)` pair (for package-scoped lookups) or once per
 //! `(registry, name, version)` triple (for the final published-at
-//! answer). The maps live behind `tokio::sync::Mutex` so the
+//! answer). The maps live behind `parking_lot::Mutex` so the
 //! buffer-unordered fan-out the lockfile-verification runner uses
 //! can share one context across concurrent tasks without contending
 //! on the publishing record itself.
@@ -21,7 +21,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use pacquet_registry::Package;
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 
 /// Per-version time map keyed by version string. The verifier only
 /// reads the publish timestamp for a specific version, so storing

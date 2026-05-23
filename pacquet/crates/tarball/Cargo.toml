@@ -22,6 +22,7 @@ derive_more   = { workspace = true }
 futures-util  = { workspace = true }
 miette        = { workspace = true }
 num_cpus      = { workspace = true }
+parking_lot   = { workspace = true }
 pipe-trait    = { workspace = true }
 rayon         = { workspace = true }
 reqwest       = { workspace = true }

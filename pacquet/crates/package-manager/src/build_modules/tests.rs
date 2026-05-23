@@ -9,12 +9,12 @@ use pacquet_lockfile::{
 use pacquet_reporter::{IgnoredScriptsLog, LogEvent, Reporter, SilentReporter};
 #[cfg(unix)]
 use pacquet_reporter::{SkippedOptionalPackage, SkippedOptionalReason};
+use parking_lot::Mutex;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    sync::Mutex,
 };
 use tempfile::tempdir;
 
@@ -480,12 +480,12 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 #[test]
 fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -534,7 +534,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     .expect("optional build failure must NOT abort the install");
     dbg!(&ignored);
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS.lock().clone();
     dbg!(&captured);
     let skipped_event = captured
         .iter()
@@ -574,12 +574,12 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 #[test]
 fn using_side_effects_cache_skips_rebuild() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -674,7 +674,7 @@ fn using_side_effects_cache_skips_rebuild() {
     // emitted a `Script` (and a non-zero `Exit`) event, plus
     // returned `Err(BuildModulesError::LifecycleScript(...))` from
     // `.run()`.
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS.lock().clone();
     let any_lifecycle = captured.iter().any(|e| matches!(e, LogEvent::Lifecycle(_)));
     assert!(!any_lifecycle, "side-effects cache hit must skip lifecycle scripts: {captured:#?}");
 }
@@ -832,12 +832,12 @@ fn create_failing_postinstall_fixture(virtual_store_dir: &Path, key: &PackageKey
 #[test]
 fn ignored_scripts_event_carries_returned_names() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -847,13 +847,13 @@ fn ignored_scripts_event_carries_returned_names() {
         package_names: names.clone(),
     }));
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS.lock().clone();
     dbg!(&captured);
     assert!(
         matches!(
             captured.as_slice(),
             [LogEvent::IgnoredScripts(IgnoredScriptsLog { package_names, .. })]
-                if package_names == &names,
+                if *package_names == names,
         ),
         "captured: {captured:?}",
     );

@@ -320,8 +320,9 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
 #[cfg(unix)]
 #[test]
 fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
+    use parking_lot::Mutex;
     use std::os::unix::fs::MetadataExt;
-    use std::sync::{Arc, Barrier, Mutex};
+    use std::sync::{Arc, Barrier};
     use std::thread;
 
     let tmp = tempdir().unwrap();
@@ -342,7 +343,7 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
                 barrier.wait();
                 ensure_file(&path, &content, None).expect("each writer should succeed");
                 let ino = fs::metadata(&*path).unwrap().ino();
-                observed.lock().unwrap().push(ino);
+                observed.lock().push(ino);
             })
         })
         .collect();
@@ -354,7 +355,7 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
     let final_meta = fs::metadata(&*path).unwrap();
     assert_eq!(fs::read(&*path).unwrap(), *content);
     assert_eq!(final_meta.len(), content.len() as u64);
-    let observed = observed.lock().unwrap();
+    let observed = observed.lock();
     let first = observed[0];
     assert!(
         observed.iter().all(|ino| *ino == first),

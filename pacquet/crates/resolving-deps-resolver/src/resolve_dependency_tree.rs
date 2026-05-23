@@ -1,5 +1,6 @@
+use parking_lot::{Mutex, MutexGuard};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 
 use async_recursion::async_recursion;
 use derive_more::{Display, Error};
@@ -16,15 +17,12 @@ use pacquet_resolving_resolver_base::{ResolveError, ResolveOptions, Resolver, Wa
 use pipe_trait::Pipe;
 use serde_json::Value;
 
-/// Acquire a [`Mutex`] guard, recovering from poisoning the same way
-/// the rest of pacquet does (`build_modules.rs`, `pick_package.rs`,
-/// …). The mutexes guarded by this helper hold short HashMap /
-/// HashSet inserts with no invariants that survive a panic, so the
-/// install can keep going after the unrelated panic that poisoned
-/// the lock — better than escalating into a hard install-wide
-/// failure.
+/// Acquire a [`Mutex`] guard. The protected maps hold short-lived
+/// inserts/reads with no invariants that need rollback, so an unrelated
+/// panic can still continue through best-effort resolution rather than
+/// failing the whole install on this lock path.
 fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
-    mutex.lock().unwrap_or_else(|err| err.into_inner())
+    mutex.lock()
 }
 
 use crate::{
@@ -122,7 +120,7 @@ impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
 ///
 /// Resolves siblings in parallel via `try_join_all` at every level.
 /// The per-package dedupe gate is a shared `HashMap` behind a
-/// [`std::sync::Mutex`]: a second visitor to the same resolved id `X`
+/// [`parking_lot::Mutex`]: a second visitor to the same resolved id `X`
 /// AND-folds its `optional` flag into the existing
 /// [`ResolvedPackage`] envelope and reuses it. It still allocates a
 /// fresh [`DependenciesTreeNode`] for the current occurrence and
@@ -270,29 +268,15 @@ impl TreeCtx {
     /// cumulative [`DirectDep`] list (initial walk + each hoist
     /// iteration's contributions) as `direct`.
     pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
-        // `std::sync::Mutex::into_inner` returns `Result` to surface
-        // poisoning; recover from it the same way the per-acquire
-        // `lock_recoverable` helper does so a panic in an unrelated
-        // task doesn't escalate into a hard install failure here.
+        // `Mutex::into_inner` returns the owned value once all guards are
+        // dropped, and we only call this at the end of the walk.
         ResolvedTree {
             direct,
-            packages: self.packages.into_inner().unwrap_or_else(|err| err.into_inner()),
-            dependencies_tree: self
-                .dependencies_tree
-                .into_inner()
-                .unwrap_or_else(|err| err.into_inner()),
-            all_peer_dep_names: self
-                .all_peer_dep_names
-                .into_inner()
-                .unwrap_or_else(|err| err.into_inner()),
-            policy_violations: self
-                .policy_violations
-                .into_inner()
-                .unwrap_or_else(|err| err.into_inner()),
-            applied_patches: self
-                .applied_patches
-                .into_inner()
-                .unwrap_or_else(|err| err.into_inner()),
+            packages: self.packages.into_inner(),
+            dependencies_tree: self.dependencies_tree.into_inner(),
+            all_peer_dep_names: self.all_peer_dep_names.into_inner(),
+            policy_violations: self.policy_violations.into_inner(),
+            applied_patches: self.applied_patches.into_inner(),
         }
     }
 

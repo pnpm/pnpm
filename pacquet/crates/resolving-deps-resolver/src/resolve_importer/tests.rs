@@ -1,4 +1,5 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use parking_lot::Mutex;
+use std::{collections::HashMap, str::FromStr};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -27,7 +28,7 @@ impl Resolver for StubResolver {
             wanted.alias.clone().unwrap_or_default(),
             wanted.bare_specifier.clone().unwrap_or_default(),
         );
-        self.calls.lock().unwrap().push(key.clone());
+        self.calls.lock().push(key.clone());
         let result = self.table.get(&key).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
@@ -256,7 +257,7 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
         .await
         .unwrap();
 
-    let calls = resolver.calls.lock().unwrap();
+    let calls = resolver.calls.lock();
     // No `react` re-resolve via a different range — the only react
     // request was the direct dep at "18.2.0".
     let react_call_count = calls.iter().filter(|(name, _)| name == "react").count();
@@ -549,7 +550,7 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
     // called multiple times with the same `1.0.0` spec because the
     // tree walker doesn't gate the `resolve()` call on dedup; what
     // matters here is that `^1.0.0` never appears.)
-    let calls = resolver.calls.lock().unwrap();
+    let calls = resolver.calls.lock();
     for name in ["x", "y", "z"] {
         let ranges: Vec<&str> = calls
             .iter()
@@ -597,7 +598,7 @@ async fn auto_install_does_not_hoist_when_root_already_has_dep() {
 
     // The picker must not re-resolve `x` via the peer's `^1.0.0` range
     // when the root already pinned it at `1.0.0`.
-    let calls = resolver.calls.lock().unwrap();
+    let calls = resolver.calls.lock();
     let x_ranges: Vec<String> =
         calls.iter().filter(|(n, _)| n == "x").map(|(_, r)| r.clone()).collect();
     assert_eq!(
@@ -656,7 +657,7 @@ async fn auto_install_does_not_install_same_missing_peer_twice() {
     let y_entries: Vec<&DepPath> =
         result.peers_result.graph.keys().filter(|dp| dp.to_string().starts_with("y@")).collect();
     assert_eq!(y_entries.len(), 1, "expected one y entry, got: {y_entries:?}");
-    let calls = resolver.calls.lock().unwrap();
+    let calls = resolver.calls.lock();
     let y_calls = calls.iter().filter(|(n, _)| n == "y").count();
     assert_eq!(y_calls, 1, "y should be resolved at most once");
 }
@@ -707,7 +708,7 @@ async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
     assert!(direct.contains(&"y"), "importer's own peer dep should land as direct: {direct:?}");
     assert!(direct.contains(&"has-y-peer"));
-    let calls = resolver.calls.lock().unwrap();
+    let calls = resolver.calls.lock();
     let y_ranges: Vec<String> =
         calls.iter().filter(|(n, _)| n == "y").map(|(_, r)| r.clone()).collect();
     assert_eq!(
@@ -802,7 +803,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     assert_eq!(result.resolved_tree.direct.len(), 1);
     assert_eq!(result.resolved_tree.direct[0].alias, "foo");
     // The resolver chain only sees the catalog-rewritten range.
-    let calls = resolver.calls.lock().unwrap();
+    let calls = resolver.calls.lock();
     assert_eq!(&*calls, &[("foo".to_string(), "^1.0.0".to_string())]);
 }
 

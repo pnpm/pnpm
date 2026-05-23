@@ -1,13 +1,14 @@
 use crate::StoreDir;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use parking_lot::Mutex;
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
 };

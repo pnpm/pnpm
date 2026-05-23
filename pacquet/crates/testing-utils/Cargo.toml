@@ -15,6 +15,7 @@ pacquet-registry-mock = { workspace = true }
 
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
+parking_lot       = { workspace = true }
 tempfile          = { workspace = true }
 walkdir           = { workspace = true }
 text-block-macros = { workspace = true }

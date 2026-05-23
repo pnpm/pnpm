@@ -449,13 +449,13 @@ impl NpmResolutionVerifier {
     ) -> Result<Option<String>, String> {
         let key = version_key(registry, &name.to_string(), version);
         {
-            let cache = self.lookup_context.published_at.lock().await;
+            let cache = self.lookup_context.published_at.lock();
             if let Some(value) = cache.get(&key) {
                 return Ok(value.clone());
             }
         }
         let value = self.resolve_published_at(registry, name, version).await?;
-        let mut cache = self.lookup_context.published_at.lock().await;
+        let mut cache = self.lookup_context.published_at.lock();
         Ok(cache.entry(key).or_insert(value).clone())
     }
 
@@ -502,7 +502,7 @@ impl NpmResolutionVerifier {
     ) -> Result<Option<Arc<PublishedAtTimeMap>>, String> {
         let key = package_key(registry, &name.to_string());
         {
-            let cache = self.lookup_context.full_meta.lock().await;
+            let cache = self.lookup_context.full_meta.lock();
             if let Some(entry) = cache.get(&key) {
                 return Ok(entry.clone());
             }
@@ -519,7 +519,7 @@ impl NpmResolutionVerifier {
                 .collect::<PublishedAtTimeMap>()
                 .pipe(Arc::new)
         });
-        let mut cache = self.lookup_context.full_meta.lock().await;
+        let mut cache = self.lookup_context.full_meta.lock();
         Ok(cache.entry(key).or_insert(time_map).clone())
     }
 
@@ -530,13 +530,13 @@ impl NpmResolutionVerifier {
     ) -> Result<Arc<Package>, String> {
         let key = package_key(registry, &name.to_string());
         {
-            let cache = self.lookup_context.full_meta_for_trust.lock().await;
+            let cache = self.lookup_context.full_meta_for_trust.lock();
             if let Some(entry) = cache.get(&key) {
                 return entry.clone();
             }
         }
         let result = self.fetch_full_meta(registry, name).await.map(Arc::new);
-        let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
+        let mut cache = self.lookup_context.full_meta_for_trust.lock();
         cache.entry(key).or_insert(result).clone()
     }
 

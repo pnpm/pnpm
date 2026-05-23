@@ -1,12 +1,13 @@
 use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use parking_lot::Mutex;
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, OnceLock,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
@@ -171,7 +172,7 @@ pub fn ensure_file(
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
     let lock = cas_write_lock(file_path);
-    let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = lock.lock();
 
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);

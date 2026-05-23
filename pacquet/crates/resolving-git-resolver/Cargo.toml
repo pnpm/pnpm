@@ -25,6 +25,7 @@ tracing     = { workspace = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 tokio             = { workspace = true, features = ["macros", "rt"] }
+parking_lot       = { workspace = true }
 
 [lints]
 workspace = true

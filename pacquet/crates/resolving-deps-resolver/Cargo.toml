@@ -24,6 +24,7 @@ futures-util    = { workspace = true }
 miette          = { workspace = true }
 node-semver     = { workspace = true }
 pipe-trait      = { workspace = true }
+parking_lot     = { workspace = true }
 serde_json      = { workspace = true }
 tokio           = { workspace = true, features = ["sync"] }
 

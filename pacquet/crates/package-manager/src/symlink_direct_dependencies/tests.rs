@@ -7,7 +7,8 @@ use pacquet_reporter::{
     AddedRoot, DependencyType, LogEvent, Reporter, RootLog, RootMessage, SilentReporter,
 };
 use pacquet_testing_utils::fs::is_symlink_or_junction;
-use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex};
+use parking_lot::Mutex;
+use std::{collections::HashMap, fs, path::PathBuf};
 use tempfile::tempdir;
 
 /// `pnpm:root added` fires once per direct dependency, after the
@@ -21,12 +22,12 @@ use tempfile::tempdir;
 #[test]
 fn emits_pnpm_root_added_per_direct_dependency() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -109,7 +110,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         "expected a symlink at {dev_dep_link:?}",
     );
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let expected_prefix = project_root.to_string_lossy().into_owned();
     let added: Vec<&AddedRoot> = captured
         .iter()
@@ -154,12 +155,12 @@ fn emits_pnpm_root_added_per_direct_dependency() {
 #[test]
 fn duplicate_dep_across_groups_collapses_to_one_entry() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -222,7 +223,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let added: Vec<&AddedRoot> = captured
         .iter()
         .filter_map(|event| match event {
@@ -249,12 +250,12 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
 #[test]
 fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -316,7 +317,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     // Confirm the reporter saw a `pnpm:root added` with the
     // resolved `link:` payload as `version` and the importer's
     // own `rootDir` as `prefix`.
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
         .filter_map(|event| match event {
@@ -380,12 +381,12 @@ fn empty_importers_is_a_no_op() {
 #[test]
 fn per_importer_prefix_in_pnpm_root_events() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -449,7 +450,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
     .run::<RecordingReporter>()
     .unwrap();
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
         .filter_map(|event| match event {

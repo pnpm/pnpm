@@ -1,4 +1,5 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use parking_lot::Mutex;
+use std::{collections::HashMap, str::FromStr};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -28,7 +29,7 @@ impl Resolver for StubResolver {
             wanted.alias.clone().unwrap_or_default(),
             wanted.bare_specifier.clone().unwrap_or_default(),
         );
-        self.calls.lock().unwrap().push(key.clone());
+        self.calls.lock().push(key.clone());
         let result = self.table.get(&key).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
@@ -239,8 +240,8 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
 }
 
 mod block_exotic_subdeps {
+    use parking_lot::Mutex;
     use std::collections::HashMap;
-    use std::sync::Mutex;
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_resolving_resolver_base::ResolveOptions;
@@ -432,8 +433,8 @@ mod block_exotic_subdeps {
 }
 
 mod peers {
+    use parking_lot::Mutex;
     use std::collections::HashMap;
-    use std::sync::Mutex;
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_resolving_resolver_base::ResolveOptions;
@@ -690,8 +691,9 @@ mod peers {
 }
 
 mod patched_dependencies {
+    use parking_lot::Mutex;
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};

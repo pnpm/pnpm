@@ -16,8 +16,9 @@ use pacquet_testing_utils::fs::{get_all_folders, is_symlink_or_junction};
 use pacquet_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
+use parking_lot::Mutex;
 use pipe_trait::Pipe;
-use std::{path::PathBuf, sync::Mutex};
+use std::path::PathBuf;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -446,12 +447,12 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
 async fn install_emits_pnpm_event_sequence() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
     // Reset in case nextest reuses the process for a retry of this test.
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -504,7 +505,7 @@ async fn install_emits_pnpm_event_sequence() {
     .await
     .expect("empty-lockfile frozen install should succeed");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
 
     // Event ordering matches pnpm: manifest snapshot, context,
     // importing_started, the `pnpm:stats` added/removed pair from
@@ -1003,12 +1004,12 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
 #[tokio::test]
 async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -1078,7 +1079,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     .run::<RecordingReporter>()
     .await;
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let broken: Vec<&BrokenModulesLog> = captured
         .iter()
         .filter_map(|event| match event {
@@ -1108,12 +1109,12 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
 #[tokio::test]
 async fn context_log_reflects_current_lockfile_after_first_install() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -1161,7 +1162,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     assert!(!lockfile.is_empty(), "fixture must be non-empty so the write path persists it");
 
     // First install: `lock.yaml` does not exist yet.
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     Install {
         tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
@@ -1185,7 +1186,6 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
 
     let first_context = EVENTS
         .lock()
-        .unwrap()
         .iter()
         .find_map(|event| match event {
             LogEvent::Context(c) => Some(c.clone()),
@@ -1209,7 +1209,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     // to skip (no snapshots), but the read-after-write loop still
     // fires `current_lockfile_exists: true` because the first
     // install's `lock.yaml` is now on disk.
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     Install {
         tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
@@ -1233,7 +1233,6 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
 
     let second_context = EVENTS
         .lock()
-        .unwrap()
         .iter()
         .find_map(|event| match event {
             LogEvent::Context(c) => Some(c.clone()),
@@ -1258,12 +1257,12 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
 #[tokio::test]
 async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -1299,7 +1298,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
     seed_placeholder_virtual_store_slot(&virtual_store_dir);
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     Install {
         tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
@@ -1325,7 +1324,6 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     // got skipped.
     let added: Vec<u64> = EVENTS
         .lock()
-        .unwrap()
         .iter()
         .filter_map(|event| match event {
             LogEvent::Stats(StatsLog { message: StatsMessage::Added { added, .. }, .. }) => {
@@ -1340,7 +1338,6 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     // removes the snapshot from both warm and cold batches.
     let imported_count = EVENTS
         .lock()
-        .unwrap()
         .iter()
         .filter(|e| {
             matches!(

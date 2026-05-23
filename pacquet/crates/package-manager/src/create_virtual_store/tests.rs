@@ -6,7 +6,8 @@ use pacquet_lockfile::{
     RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
-use std::{collections::HashMap, sync::Mutex};
+use parking_lot::Mutex;
+use std::collections::HashMap;
 
 fn name(text: &str) -> PkgName {
     PkgName::parse(text).expect("parse pkg name")
@@ -50,14 +51,14 @@ fn emits_resolved_then_found_in_store_with_matching_identifiers() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     assert!(
         matches!(
             captured.as_slice(),

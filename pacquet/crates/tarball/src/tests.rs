@@ -1554,7 +1554,7 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
 /// a single `found_in_store` for the install pass's `package_id`.
 #[tokio::test]
 async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
-    use std::sync::Mutex;
+    use parking_lot::Mutex;
 
     use pacquet_reporter::{LogEvent, ProgressMessage};
 
@@ -1563,7 +1563,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     struct RecordingReporter;
     impl pacquet_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -1614,7 +1614,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     // immediate-`Available` branch — must emit one `found_in_store`
     // against the recording reporter so consumers see the cache
     // hit even though the owner emit was silent.
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     DownloadTarballToStore {
         http_client: &client,
         store_dir: store_path,
@@ -1637,7 +1637,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     .await
     .expect("second call should reuse the mem cache");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let found_in_store_events: Vec<_> = captured
         .iter()
         .filter(|e| {
@@ -1791,7 +1791,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 ///   `requester` threaded down from the install layer.
 #[tokio::test]
 async fn fetching_progress_and_fetched_events_fire_during_download() {
-    use std::sync::Mutex;
+    use parking_lot::Mutex;
 
     use pacquet_reporter::{FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _};
 
@@ -1800,7 +1800,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     struct RecordingReporter;
     impl pacquet_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -1819,7 +1819,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     let _ = RecordingReporter::emit; // referenced via turbofish below
 
     fetch_and_extract_with_retry::<RecordingReporter>(
@@ -1840,7 +1840,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     fail.assert_async().await;
     ok.assert_async().await;
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let started: Vec<(u32, Option<u64>)> = captured
         .iter()
         .filter_map(|event| match event {
@@ -1889,7 +1889,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
 /// unreachable URL and asserts `started` fired anyway.
 #[tokio::test]
 async fn started_fires_for_connection_level_failures() {
-    use std::sync::Mutex;
+    use parking_lot::Mutex;
 
     use pacquet_reporter::{FetchingProgressMessage, LogEvent};
 
@@ -1898,7 +1898,7 @@ async fn started_fires_for_connection_level_failures() {
     struct RecordingReporter;
     impl pacquet_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -1911,7 +1911,7 @@ async fn started_fires_for_connection_level_failures() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     let _ = fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         "http://127.0.0.1:1/pkg.tgz", // port 1 is reserved → connect-refused
@@ -1927,7 +1927,7 @@ async fn started_fires_for_connection_level_failures() {
     .await
     .expect_err("connect-refused must surface as a TarballError");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let started: Vec<Option<u64>> = captured
         .iter()
         .filter_map(|event| match event {
@@ -1964,7 +1964,7 @@ async fn started_fires_for_connection_level_failures() {
 /// same path a warm install would.
 #[tokio::test]
 async fn found_in_store_event_fires_on_cache_hit() {
-    use std::sync::Mutex;
+    use parking_lot::Mutex;
 
     use pacquet_reporter::{LogEvent, ProgressMessage};
 
@@ -1973,7 +1973,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     struct RecordingReporter;
     impl pacquet_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -2034,7 +2034,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     .expect("spawn_blocking")
     .expect("index opens after the first install");
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     DownloadTarballToStore {
         http_client: &client,
         store_dir: store_path,
@@ -2057,7 +2057,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     .await
     .expect("second call should hit the store cache");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     assert!(
         captured.iter().any(|e| matches!(
             e,
@@ -2089,7 +2089,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
 /// the response status as `httpStatusCode`.
 #[tokio::test]
 async fn request_retry_event_fires_per_retried_attempt() {
-    use std::sync::Mutex;
+    use parking_lot::Mutex;
 
     use pacquet_reporter::{LogEvent, RequestRetryLog};
 
@@ -2098,7 +2098,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     struct RecordingReporter;
     impl pacquet_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -2117,7 +2117,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
@@ -2137,7 +2137,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     fail.assert_async().await;
     ok.assert_async().await;
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     let retries: Vec<&RequestRetryLog> = captured
         .iter()
         .filter_map(|event| match event {

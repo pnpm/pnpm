@@ -38,9 +38,10 @@
 //! unlinks the file unconditionally, with the fix it blocks on
 //! the lock until the simulated writer releases it.
 
+use parking_lot::Mutex;
 use std::{
     fs,
-    sync::{Arc, Mutex, mpsc},
+    sync::{Arc, mpsc},
     thread,
     time::Duration,
 };
@@ -126,7 +127,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     // writers; with Option C, `verify_file` acquires the same lock
     // before considering a delete.
     let lock = pacquet_fs::cas_write_lock(&target);
-    let guard = lock.lock().unwrap_or_else(|p| p.into_inner());
+    let guard = lock.lock();
 
     // Use a channel to synchronize lock-release with the verifier so
     // we can assert the file's state at a known point.
@@ -143,8 +144,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
         let cache = VerifiedFilesCache::new();
         let result = check_pkg_files_integrity(&verify_store, pkg_index, &cache);
         // Record whether the file survived the verifier's run.
-        *result_slot_writer.lock().expect("result mutex") =
-            Some((target_for_verifier.exists(), result.passed).0);
+        *result_slot_writer.lock() = Some((target_for_verifier.exists(), result.passed).0);
     });
 
     // Wait until the verifier thread has actually started.

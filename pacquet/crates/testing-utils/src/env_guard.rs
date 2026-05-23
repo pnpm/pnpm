@@ -20,10 +20,11 @@
 //! enough to keep env-mutating tests correct under `cargo test` and
 //! `cargo nextest run` alike.
 
+use parking_lot::{Mutex, MutexGuard};
 use std::{
     env,
     ffi::{OsStr, OsString},
-    sync::{Mutex, MutexGuard, OnceLock},
+    sync::OnceLock,
 };
 
 /// Serialization mutex for env-mutating tests. A single `Mutex<()>` —
@@ -44,11 +45,9 @@ pub struct EnvGuard {
     // actually had set, clobbering CI / shell state. `env::var_os` +
     // `OsString` preserves the raw bytes.
     saved: Vec<(&'static str, Option<OsString>)>,
-    // Released on drop, last. Ignore the poison case: if another
-    // env-mutating test panicked while holding the lock, the env vars
-    // it touched were restored by *its* guard's `Drop` before the
-    // unwind propagated, so the environment is in a known state and
-    // the next test can safely proceed.
+    // Released on drop, last. If another env-mutating test panicked
+    // while holding the lock, its own guard's `Drop` restores vars
+    // before unwinding, so the next test can safely proceed.
     _lock: MutexGuard<'static, ()>,
 }
 
@@ -61,7 +60,7 @@ impl EnvGuard {
     where
         Iter: IntoIterator<Item = &'static str>,
     {
-        let lock = env_mutex().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let lock = env_mutex().lock();
         let saved = vars.into_iter().map(|name| (name, env::var_os(name))).collect();
         EnvGuard { saved, _lock: lock }
     }

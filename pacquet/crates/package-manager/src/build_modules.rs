@@ -14,11 +14,11 @@ use pacquet_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
+use parking_lot::Mutex;
 use rayon::prelude::*;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::Mutex,
 };
 
 /// Error from the build-modules step.
@@ -469,14 +469,13 @@ impl<'a> BuildModules<'a> {
             })?;
         }
 
-        // If a chunk worker panicked while holding the
-        // `ignored_builds` lock, rayon's `try_for_each` will have
-        // already propagated the panic (or returned an Err) — so a
-        // poisoned mutex here can only mean the protected state is
-        // mid-insertion. A `BTreeSet::insert` is one atomic
-        // operation from the data-structure's POV (no torn writes),
-        // so the canonical poison-recovery pattern is safe.
-        let ignored_builds = ignored_builds.into_inner().unwrap_or_else(|e| e.into_inner());
+        // If a chunk worker panicked while holding
+        // `ignored_builds`, rayon's `try_for_each` has already
+        // propagated the failure path, and the shared set only tracks
+        // keys appended under normal lock ownership. A `BTreeSet::insert`
+        // is one atomic operation in itself, so consuming the mutex
+        // guard here is still safe for reporting the built snapshots.
+        let ignored_builds = ignored_builds.into_inner();
         Ok(ignored_builds.into_iter().collect())
     }
 }
@@ -551,14 +550,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 // `pnpm:ignored-scripts`. Explicit `false` is
                 // silently denied (above), matching upstream's
                 // switch.
-                // Poison-recover: see the equivalent call site at
-                // the end of `BuildModules::run` for the safety
-                // argument (BTreeSet insertion is atomic from the
-                // data-structure's POV).
-                ignored_builds
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .insert(metadata_key.to_string());
+                ignored_builds.lock().insert(metadata_key.to_string());
                 should_run_scripts = false;
             }
             Some(true) => {}
@@ -586,7 +578,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         // insert atomic from `HashMap`'s POV. A panic mid-walk
         // leaves the map in a usable state — the worst case is
         // an unfinished sub-walk that the next caller will redo.
-        let mut cache_guard = deps_state_cache.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache_guard = deps_state_cache.lock();
         pacquet_graph_hasher::calc_dep_state(
             graph,
             &mut cache_guard,

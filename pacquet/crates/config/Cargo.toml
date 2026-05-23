@@ -35,6 +35,7 @@ libc = { workspace = true }
 pacquet-testing-utils = { workspace = true }
 
 pretty_assertions = { workspace = true }
+parking_lot       = { workspace = true }
 tempfile          = { workspace = true }
 
 [lints]

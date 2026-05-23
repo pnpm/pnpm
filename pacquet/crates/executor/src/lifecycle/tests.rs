@@ -4,9 +4,10 @@ use pacquet_package_manifest::PackageManifestError;
 use pacquet_reporter::{LifecycleMessage, LogEvent, Reporter, SilentReporter};
 #[cfg(unix)]
 use pacquet_reporter::{LifecycleStdio, LogLevel};
+use parking_lot::Mutex;
 #[cfg(unix)]
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, sync::Mutex};
+use std::{collections::HashMap, fs};
 use tempfile::tempdir;
 
 /// Recording-fake reporter that pushes every emitted [`LogEvent`] into
@@ -22,12 +23,12 @@ use tempfile::tempdir;
 #[test]
 fn lifecycle_emits_script_stdio_and_exit_in_order() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -63,7 +64,7 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let ran = run_postinstall_hooks::<RecordingReporter>(opts).expect("postinstall");
     assert!(ran, "postinstall script should report executed");
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS.lock().clone();
     dbg!(&captured);
 
     // Sequence: Script (postinstall) → some Stdio events → Exit (0).
@@ -131,12 +132,12 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
 #[test]
 fn lifecycle_events_carry_optional_flag() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -171,7 +172,7 @@ fn lifecycle_events_carry_optional_flag() {
 
     run_postinstall_hooks::<RecordingReporter>(opts).expect("postinstall");
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS.lock().clone();
     let lifecycle_events: Vec<_> = captured
         .iter()
         .filter_map(|event| match event {
@@ -204,12 +205,12 @@ fn lifecycle_events_carry_optional_flag() {
 #[test]
 fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -245,7 +246,7 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     let err = run_postinstall_hooks::<RecordingReporter>(opts).expect_err("script must fail");
     eprintln!("ERR: {err}");
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS.lock().clone();
     dbg!(&captured);
 
     let last = captured.last().expect("at least one event");

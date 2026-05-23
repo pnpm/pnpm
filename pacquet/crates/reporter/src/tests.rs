@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -772,7 +772,7 @@ fn recording_fake_captures_emitted_events() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -791,7 +791,7 @@ fn recording_fake_captures_emitted_events() {
 
     install_step::<RecordingReporter>();
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     assert_eq!(captured.len(), 2);
     assert!(matches!(
         &captured[0],

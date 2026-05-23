@@ -19,12 +19,13 @@ use pacquet_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
     StoreIndexError, StoreIndexWriter, WriteCasFileError, store_index_key,
 };
+use parking_lot::RwLock;
 use pipe_trait::Pipe;
 use rayon::prelude::*;
 use smart_default::SmartDefault;
 use ssri::Integrity;
 use tar::Archive;
-use tokio::sync::{Notify, RwLock, Semaphore};
+use tokio::sync::{Notify, Semaphore};
 use tracing::instrument;
 use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 
@@ -1021,13 +1022,7 @@ pub async fn prefetch_cas_paths(
         // #294 for the cold-cache regression the per-key loop
         // introduced when every key missed.
         let raw: Vec<(String, Vec<u8>)> = {
-            let Ok(guard) = index.lock() else {
-                tracing::debug!(
-                    target: "pacquet::download",
-                    "store-index mutex poisoned at prefetch start; falling back to per-snapshot lookups",
-                );
-                return PrefetchResult::default();
-            };
+            let guard = index.lock();
             match guard.get_many_raw(&cache_keys) {
                 Ok(rows) => rows,
                 Err(error) => {
@@ -1126,21 +1121,12 @@ async fn load_cached_cas_paths(
     // since the task body moves the original in.
     let outer_cache_key = cache_key.clone();
     let result = tokio::task::spawn_blocking(move || -> Option<HashMap<String, PathBuf>> {
-        // Treat a poisoned mutex as a cache miss rather than propagating the
-        // panic: the `SELECT` is stateless, so the prior panic couldn't have
-        // left the index in an inconsistent shape, and cache lookups are a
-        // best-effort hint anyway — failing over to a fresh download is the
-        // more resilient default than turning every subsequent snapshot into
-        // a crash.
+        // If the shared index cache is temporarily unavailable from a prior
+        // failure, treat this as a cache miss rather than a hard failure:
+        // row lookup is stateless, so failing over to fresh per-snapshot
+        // work is usually the safer default.
         let entry = {
-            let Ok(guard) = index.lock() else {
-                tracing::debug!(
-                    target: "pacquet::download",
-                    ?cache_key,
-                    "store-index mutex poisoned; treating cache lookup as a miss",
-                );
-                return None;
-            };
+            let guard = index.lock();
             guard.get(&cache_key).ok()?
         }?;
 
@@ -1842,16 +1828,11 @@ impl<'a> DownloadTarballToStore<'a> {
             // writer's promise; later `await`s of the same promise
             // do not re-trigger the handler.
             //
-            // Read-lock the state read: the variant inspection below
-            // doesn't mutate anything, and a `write().await` would
-            // serialize every late visitor for a popular tarball
-            // (e.g. dozens of peer-suffix variants of the same
-            // package) behind a single exclusive guard, even though
-            // they're all just observing the in-progress / available
-            // flag. The owner branch below is the only writer; the
-            // RwLock's reader-writer fairness guarantees the owner
-            // still makes progress.
-            let notify = match &*cache_lock.read().await {
+            // Read-lock for this branch so popular tarballs can keep
+            // reading the in-progress/available marker without
+            // serializing every waiter behind an exclusive guard.
+            // The owner branch below is the only writer.
+            let notify = match &*cache_lock.read() {
                 CacheValue::Available(cas_paths) => {
                     // Another task (typically the resolve-time
                     // `PrefetchingResolver` spawn) already populated
@@ -1878,7 +1859,7 @@ impl<'a> DownloadTarballToStore<'a> {
 
             tracing::info!(target: "pacquet::download", ?package_url, "Wait for cache");
             notify.notified().await;
-            match &*cache_lock.read().await {
+            match &*cache_lock.read() {
                 CacheValue::Available(cas_paths) => {
                     // Same rationale as the pre-notify `Available`
                     // branch above — emit `found_in_store` so the
@@ -1921,14 +1902,14 @@ impl<'a> DownloadTarballToStore<'a> {
             match result {
                 Ok(cas_paths) => {
                     let cas_paths = Arc::new(cas_paths);
-                    let mut cache_write = cache_lock.write().await;
+                    let mut cache_write = cache_lock.write();
                     *cache_write = CacheValue::Available(Arc::clone(&cas_paths));
                     drop(cache_write);
                     notify.notify_waiters();
                     Ok(cas_paths)
                 }
                 Err(err) => {
-                    let mut cache_write = cache_lock.write().await;
+                    let mut cache_write = cache_lock.write();
                     *cache_write = CacheValue::Failed;
                     drop(cache_write);
                     mem_cache.remove(package_url);

@@ -23,6 +23,7 @@ serde_json  = { workspace = true }
 ssri        = { workspace = true }
 tokio       = { workspace = true }
 miette      = { workspace = true }
+parking_lot = { workspace = true }
 
 [dev-dependencies]
 mockito           = { workspace = true }

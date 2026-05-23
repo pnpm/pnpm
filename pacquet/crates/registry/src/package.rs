@@ -1,7 +1,5 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use parking_lot::Mutex;
+use std::{collections::HashMap, sync::Arc};
 
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;

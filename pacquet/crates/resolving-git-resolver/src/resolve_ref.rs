@@ -283,7 +283,7 @@ fn resolve_v_tags(tags: &BTreeSet<String>, range: &Range) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use parking_lot::Mutex;
 
     use super::{
         GitCommandRunner, GitResolveRefError, GitRunError, looks_like_version_tag, parse_ls_remote,
@@ -301,7 +301,7 @@ mod tests {
             repo: &'a str,
             ref_: Option<&'a str>,
         ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
-            self.last_args.lock().unwrap().push((repo.to_string(), ref_.map(str::to_string)));
+            self.last_args.lock().push((repo.to_string(), ref_.map(str::to_string)));
             Box::pin(async move { self.result.clone().map_err(|message| GitRunError { message }) })
         }
     }
@@ -321,7 +321,7 @@ mod tests {
         .await
         .expect("resolved");
         assert_eq!(commit, "163360a8d3ae6bee9524541043197ff356f8ed99");
-        assert!(stub.last_args.lock().unwrap().is_empty(), "no ls-remote for full commit");
+        assert!(stub.last_args.lock().is_empty(), "no ls-remote for full commit");
     }
 
     #[tokio::test]

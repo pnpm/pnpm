@@ -14,7 +14,7 @@ use tempfile::tempdir;
 #[cfg(unix)]
 use crate::api::LinkProbe;
 #[cfg(unix)]
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 /// `next_path` walks one path segment at a time from `from` toward
 /// `to`. Mirrors the upstream
@@ -112,9 +112,8 @@ impl PrefixProbe {
     /// scenario so parallel test execution can't race the allowlist
     /// out from under a `resolve_store_dir` call.
     fn with_allow<Output>(prefixes: &[&Path], body: impl FnOnce() -> Output) -> Output {
-        let _scenario =
-            PREFIX_PROBE_SCENARIO_LOCK.lock().expect("PREFIX_PROBE_SCENARIO_LOCK not poisoned");
-        let mut slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");
+        let _scenario = PREFIX_PROBE_SCENARIO_LOCK.lock();
+        let mut slot = ALLOW_PREFIXES.lock();
         slot.clear();
         slot.extend(prefixes.iter().map(|p| p.to_path_buf()));
         drop(slot);
@@ -125,7 +124,7 @@ impl PrefixProbe {
 #[cfg(unix)]
 impl LinkProbe for PrefixProbe {
     fn can_link_between_dirs(_from_dir: &Path, to_dir: &Path) -> bool {
-        let slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");
+        let slot = ALLOW_PREFIXES.lock();
         slot.iter().any(|allowed| to_dir.starts_with(allowed))
     }
 }

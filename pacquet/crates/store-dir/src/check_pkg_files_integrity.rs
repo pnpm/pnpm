@@ -309,7 +309,7 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
     // here — the lock cost only applies to files actually being
     // re-verified, which is rare.
     let lock = pacquet_fs::cas_write_lock(path);
-    let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = lock.lock();
 
     // Re-stat under the lock. The writer (if any) has finished by
     // now, so the size + mtime reflect the committed state. A file

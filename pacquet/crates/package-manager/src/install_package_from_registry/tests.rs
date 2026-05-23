@@ -10,12 +10,13 @@ use pacquet_resolving_npm_resolver::{
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use parking_lot::Mutex;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Arc, Mutex, atomic::AtomicU8},
+    sync::{Arc, atomic::AtomicU8},
 };
 use tempfile::tempdir;
 
@@ -196,12 +197,12 @@ pub async fn should_install_package_from_pre_resolved_result() {
 #[tokio::test]
 async fn second_visit_skips_progress_emits_but_still_links() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -255,7 +256,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     .run::<RecordingReporter>()
     .await
     .expect("first visit installs cleanly");
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     // Second edge: same `(name, version)`, different parent dir.
     InstallPackageFromRegistry {
@@ -280,7 +281,6 @@ async fn second_visit_skips_progress_emits_but_still_links() {
 
     let kinds: Vec<&'static str> = EVENTS
         .lock()
-        .unwrap()
         .iter()
         .filter_map(|event| match event {
             LogEvent::Progress(log) => Some(match &log.message {
@@ -312,12 +312,12 @@ async fn second_visit_skips_progress_emits_but_still_links() {
 #[tokio::test]
 async fn install_emits_progress_sequence() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -372,7 +372,6 @@ async fn install_emits_progress_sequence() {
 
     let progress: Vec<ProgressMessage> = EVENTS
         .lock()
-        .unwrap()
         .iter()
         .filter_map(|event| match event {
             LogEvent::Progress(log) => Some(log.message.clone()),

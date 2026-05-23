@@ -57,6 +57,7 @@ futures-util    = { workspace = true }
 httpdate        = { workspace = true }
 indexmap        = { workspace = true }
 node-semver     = { workspace = true }
+parking_lot     = { workspace = true }
 pathdiff        = { workspace = true }
 pipe-trait      = { workspace = true }
 rayon           = { workspace = true }

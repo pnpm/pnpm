@@ -15,6 +15,7 @@ dashmap     = { workspace = true }
 derive_more = { workspace = true }
 miette      = { workspace = true }
 pathdiff    = { workspace = true }
+parking_lot = { workspace = true }
 
 [dev-dependencies]
 sha2     = { workspace = true }

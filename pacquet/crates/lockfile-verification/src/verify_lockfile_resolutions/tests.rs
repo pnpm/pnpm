@@ -1,7 +1,8 @@
+use parking_lot::Mutex;
 use std::{
     path::Path,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -150,11 +151,11 @@ impl ResolutionVerifier for FailFor {
 #[tokio::test]
 async fn no_verifiers_is_a_noop() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -166,7 +167,7 @@ async fn no_verifiers_is_a_noop() {
     )
     .await;
     assert!(result.is_ok());
-    assert!(EVENTS.lock().unwrap().is_empty(), "no-op must not emit");
+    assert!(EVENTS.lock().is_empty(), "no-op must not emit");
 }
 
 /// Lockfile without `packages:` is a no-op — there's nothing to
@@ -190,11 +191,11 @@ async fn no_packages_section_is_a_noop() {
 #[tokio::test]
 async fn all_ok_emits_started_then_done() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -214,7 +215,7 @@ async fn all_ok_emits_started_then_done() {
     .await
     .expect("all-ok must succeed");
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     assert_eq!(captured.len(), 2, "expected Started + Done, got: {captured:?}");
     match &captured[0] {
         LogEvent::LockfileVerification(log) => match &log.message {
@@ -320,11 +321,11 @@ async fn collect_returns_data_for_all_violations() {
 #[tokio::test]
 async fn failed_path_emits_failed_terminator() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS.lock().clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS.lock().push(event.clone());
         }
     }
 
@@ -337,7 +338,7 @@ async fn failed_path_emits_failed_terminator() {
     )
     .await;
 
-    let captured = EVENTS.lock().unwrap();
+    let captured = EVENTS.lock();
     assert_eq!(captured.len(), 2, "expected Started + Failed, got: {captured:?}");
     match &captured[1] {
         LogEvent::LockfileVerification(log) => assert!(

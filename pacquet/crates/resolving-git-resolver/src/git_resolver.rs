@@ -175,7 +175,8 @@ fn is_ssh(spec: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use parking_lot::Mutex;
+    use std::sync::Arc;
     use std::{future::Future, pin::Pin};
 
     use pacquet_lockfile::LockfileResolution;
@@ -210,7 +211,7 @@ mod tests {
             repo: &'a str,
             ref_: Option<&'a str>,
         ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
-            self.calls.lock().unwrap().push((repo.to_string(), ref_.map(str::to_string)));
+            self.calls.lock().push((repo.to_string(), ref_.map(str::to_string)));
             let stdout = self.stdout.clone();
             Box::pin(async move { Ok(stdout) })
         }
