@@ -55,7 +55,7 @@
     "imports-loader": "^5.0.0",
     "jquery": "^3.7.1",
     "jquery-ui": "1.13.2",
-    "js-cookie": "^3.0.5",
+    "js-cookie": "^3.0.7",
     "json-loader": "^0.5.7",
     "leftpad": "^0.0.1",
     "less": "^4.2.0",
