@@ -110,14 +110,12 @@ export async function publishPackedPkg (
     return summary
   }
   const context = createPublishContext(opts)
-  const response = isStage
-    ? await context.publish(publishedManifest, tarballData, publishOptions)
-    : await publishWithOtpHandling({
-      context,
-      manifest: publishedManifest,
-      publishOptions,
-      tarballData,
-    })
+  const response = await publishWithOtpHandling({
+    context,
+    manifest: publishedManifest,
+    publishOptions,
+    tarballData,
+  })
   if (response.ok) {
     if (isStage && response.stageId) {
       summary.stageId = response.stageId
