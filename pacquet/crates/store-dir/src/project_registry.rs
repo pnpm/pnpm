@@ -454,13 +454,20 @@ mod tests {
 
     /// Subdir guard: when the store lives inside the project, the
     /// function is a silent no-op — registering would otherwise create
-    /// a self-referential symlink.
+    /// a self-referential symlink. The `STORE_VERSION` subdir
+    /// (`store_dir.root()` after [`StoreDir::new`] routes the path
+    /// through [`From<PathBuf>`] and applies the suffix) is
+    /// materialised on disk so [`path_contains`]'s canonical-form
+    /// comparison sees both sides as canonical paths even on macOS,
+    /// where `/tmp` symlinks to `/private/tmp` and a missing target
+    /// would silently fall back to lexical comparison and miss the
+    /// containment.
     #[test]
     fn register_skips_when_store_is_inside_project() {
         let project = tempdir().unwrap();
         let store_path = project.path().join("nested-store");
-        fs::create_dir_all(&store_path).unwrap();
-        let store_dir = StoreDir::new(store_path);
+        let store_dir = StoreDir::new(&store_path);
+        fs::create_dir_all(store_dir.root()).unwrap();
 
         register_project(&store_dir, project.path()).expect("subdir case is a no-op");
         // No projects/ dir should have been created.

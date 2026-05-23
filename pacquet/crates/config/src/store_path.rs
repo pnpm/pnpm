@@ -32,12 +32,17 @@
 //! question without touching disk. The production [`Host`] impl
 //! performs the real link attempts via [`host_can_link_between_dirs`].
 //!
-//! `STORE_VERSION` ("v11") is intentionally *not* appended here:
-//! pacquet's [`pacquet_store_dir::StoreDir`] stores the root one
-//! level above v11 and appends it at access time via
-//! [`pacquet_store_dir::StoreDir::v11`], where pnpm's `getStorePath`
-//! returns the v11-suffixed path directly. Both implementations land
-//! on identical on-disk paths.
+//! [`pacquet_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
+//! this module; the path returned here is the un-suffixed base. Every
+//! caller wraps the result in [`pacquet_store_dir::StoreDir::from`],
+//! which appends the suffix in one place — mirroring pnpm's
+//! [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
+//! `if (!endsWith(v11)) append(v11)` branch. Doing the join at
+//! construction guarantees that everything pacquet exposes externally
+//! (the `storeDir` written to `.modules.yaml`, the path printed by
+//! `pacquet store path`, the NDJSON `context` log event) matches the
+//! value pnpm produces, so switching between the two tools no longer
+//! trips `ERR_PNPM_UNEXPECTED_STORE`.
 //!
 //! [`Host`]: crate::api::Host
 

@@ -1,4 +1,5 @@
 use command_extra::CommandExtra;
+use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::bin::CommandTempCwd;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -39,7 +40,11 @@ fn store_path_should_return_store_dir_from_pnpm_workspace_yaml() {
     let normalize = |path: &str| path.replace('\\', "/");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout).trim_end().pipe(normalize),
-        canonicalize(&workspace).join("foo/bar").to_string_lossy().pipe_as_ref(normalize),
+        canonicalize(&workspace)
+            .join("foo/bar")
+            .join(STORE_VERSION)
+            .to_string_lossy()
+            .pipe_as_ref(normalize),
     );
 
     drop(root); // cleanup

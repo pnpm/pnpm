@@ -4,7 +4,7 @@ use super::{
     resolve_child_concurrency_with_parallelism,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
-use pacquet_store_dir::StoreDir;
+use pacquet_store_dir::{STORE_VERSION, StoreDir};
 use pretty_assertions::assert_eq;
 use std::{io, path::PathBuf};
 
@@ -48,7 +48,7 @@ fn test_default_store_dir_with_pnpm_home_env() {
         }
     }
     let store_dir = default_store_dir::<EnvWithPnpmHome>();
-    assert_eq!(display_store_dir(&store_dir), "/tmp/pnpm-home/store");
+    assert_eq!(display_store_dir(&store_dir), format!("/tmp/pnpm-home/store/{STORE_VERSION}"));
 }
 
 /// `default_store_dir`'s `XDG_DATA_HOME` branch fires only when
@@ -77,7 +77,10 @@ fn test_default_store_dir_with_xdg_env() {
         }
     }
     let store_dir = default_store_dir::<EnvWithXdgDataHome>();
-    assert_eq!(display_store_dir(&store_dir), "/tmp/xdg_data_home/pnpm/store");
+    assert_eq!(
+        display_store_dir(&store_dir),
+        format!("/tmp/xdg_data_home/pnpm/store/{STORE_VERSION}"),
+    );
 }
 
 /// When neither `PNPM_HOME` nor `XDG_DATA_HOME` is set, the
@@ -110,8 +113,8 @@ fn test_default_store_dir_falls_back_to_home_dir() {
     }
     let store_dir = default_store_dir::<NoEnvWithHome>();
     let expected = match std::env::consts::OS {
-        "linux" => "/home/test-user/.local/share/pnpm/store",
-        "macos" => "/home/test-user/Library/pnpm/store",
+        "linux" => format!("/home/test-user/.local/share/pnpm/store/{STORE_VERSION}"),
+        "macos" => format!("/home/test-user/Library/pnpm/store/{STORE_VERSION}"),
         other => panic!("unexpected target OS in test: {other}"),
     };
     assert_eq!(display_store_dir(&store_dir), expected);

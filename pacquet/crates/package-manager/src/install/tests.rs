@@ -12,6 +12,7 @@ use pacquet_reporter::{
     PackageManifestMessage, ProgressLog, ProgressMessage, Reporter, SilentReporter, Stage,
     StageLog, StatsLog, StatsMessage, SummaryLog,
 };
+use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::fs::{get_all_folders, is_symlink_or_junction};
 use pacquet_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
@@ -578,7 +579,7 @@ async fn install_emits_pnpm_event_sequence() {
         unreachable!("second event is context, asserted above");
     };
     assert!(!current_lockfile_exists);
-    assert_eq!(emitted_store_dir, &store_dir.display().to_string());
+    assert_eq!(emitted_store_dir, &store_dir.join(STORE_VERSION).display().to_string());
     assert_eq!(emitted_virtual_store_dir, &virtual_store_dir.to_string_lossy().into_owned());
 
     // Summary's `prefix` must equal the manifest-parent value
@@ -675,7 +676,7 @@ async fn install_writes_modules_yaml() {
     assert!(included.dependencies);
     assert!(!included.dev_dependencies);
     assert!(included.optional_dependencies);
-    assert_eq!(emitted_store_dir, store_dir.display().to_string());
+    assert_eq!(emitted_store_dir, store_dir.join(STORE_VERSION).display().to_string());
     // `read_modules_manifest` resolves `virtualStoreDir` against
     // `modules_dir`, so a relative on-disk value round-trips back
     // to the absolute install-time path.

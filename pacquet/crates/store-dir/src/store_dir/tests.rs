@@ -1,7 +1,7 @@
-use super::StoreDir;
+use super::{STORE_VERSION, StoreDir};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn file_path_by_head_tail() {
@@ -18,6 +18,59 @@ fn tmp() {
     let received = StoreDir::new("/home/user/.local/share/pnpm/store").tmp();
     let expected = Path::new("/home/user/.local/share/pnpm/store/v11/tmp");
     assert_eq!(received, expected);
+}
+
+/// `StoreDir::from(PathBuf)` appends [`STORE_VERSION`] to any path
+/// that doesn't already end with it — matching pnpm's
+/// [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
+/// branch. Both the auto-append happy path and the
+/// already-suffixed idempotent path are pinned here so a regression
+/// would surface as either a missing `v11` (the original bug — pnpm
+/// rejects the resulting `.modules.yaml` with
+/// `ERR_PNPM_UNEXPECTED_STORE`) or a duplicated `v11/v11` segment.
+#[test]
+fn from_pathbuf_auto_appends_store_version_when_missing() {
+    let store = StoreDir::from(PathBuf::from("/home/user/.local/share/pnpm/store"));
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
+}
+
+#[test]
+fn from_pathbuf_does_not_double_append_when_already_suffixed() {
+    let store = StoreDir::from(PathBuf::from("/home/user/.local/share/pnpm/store/v11"));
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
+}
+
+/// Round-trip the `storeDir` string pacquet writes to `.modules.yaml`
+/// against the pnpm comparison contract: pnpm rebuilds `<X>/v11`
+/// from the user's home and demands an exact match against the
+/// recorded value. The constant test makes the bug
+/// `ERR_PNPM_UNEXPECTED_STORE` triggered legible for future readers.
+#[test]
+fn modules_yaml_serialized_store_dir_carries_store_version() {
+    let store = StoreDir::new("/tmp/.pnpm-store");
+    let recorded = store.display().to_string();
+    let pnpm_would_emit = format!("/tmp/.pnpm-store/{STORE_VERSION}");
+    assert_eq!(recorded, pnpm_would_emit);
+}
+
+/// Deserialising an unsuffixed path (e.g. one persisted by an older
+/// pacquet that hadn't normalised yet) must route through
+/// [`From<PathBuf>`] and gain the [`STORE_VERSION`] suffix. The
+/// previous `#[serde(transparent)]` derive wrote straight into
+/// `root` and bypassed the auto-append, leaving the suffix invariant
+/// silently violated on the live `StoreDir`.
+#[test]
+fn deserialize_applies_store_version_to_unsuffixed_path() {
+    let json = r#""/home/user/.local/share/pnpm/store""#;
+    let store: StoreDir = serde_json::from_str(json).expect("deserialize StoreDir");
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
+}
+
+#[test]
+fn deserialize_preserves_already_suffixed_path() {
+    let json = r#""/home/user/.local/share/pnpm/store/v11""#;
+    let store: StoreDir = serde_json::from_str(json).expect("deserialize StoreDir");
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
 }
 
 /// `init` on a fresh store should materialize `v11/files/00..ff`

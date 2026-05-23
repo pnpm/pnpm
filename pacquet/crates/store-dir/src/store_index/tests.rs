@@ -135,7 +135,7 @@ fn index_db_lives_at_store_dir_v11() {
     let store = StoreDir::new(root.path());
     let idx = StoreIndex::open_in(&store).unwrap();
     idx.set("k\tv", &sample_index()).unwrap();
-    assert!(store.v11().join("index.db").exists());
+    assert!(store.root().join("index.db").exists());
 }
 
 /// A row whose bytes are msgpackr-records (as pnpm writes) must decode
