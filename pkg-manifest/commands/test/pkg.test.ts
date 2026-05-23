@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, test } from '@jest/globals'
+import { pkg } from '@pnpm/pkg-manifest.commands'
 import { tempDir } from '@pnpm/prepare'
 
-import { cliOptionsTypes, handler } from '../lib/pkg.js'
+const { cliOptionsTypes, handler } = pkg
 
 describe('pkg command', () => {
   let tmpDir: string
@@ -267,13 +268,14 @@ describe('pkg command', () => {
       const types = cliOptionsTypes()
       expect(types).toHaveProperty('dir')
       expect(types).toHaveProperty('json')
-      expect(types).toHaveProperty('workspace')
-      expect(types).toHaveProperty('workspaces')
-      expect(types).toHaveProperty('ws')
+      expect(types).toHaveProperty('recursive')
+      expect(types).not.toHaveProperty('workspace')
+      expect(types).not.toHaveProperty('workspaces')
+      expect(types).not.toHaveProperty('ws')
     })
   })
 
-  describe('workspace mode', () => {
+  describe('recursive mode', () => {
     function setupWorkspace (manifests: Record<string, Record<string, unknown>>) {
       const allProjects = Object.entries(manifests).map(([name, manifest]) => {
         const rootDir = path.join(tmpDir, name)
@@ -288,7 +290,7 @@ describe('pkg command', () => {
     }
 
     test('aggregates `get` results from each selected workspace package', async () => {
-      const { allProjects, selectedProjectsGraph } = setupWorkspace({
+      const { selectedProjectsGraph } = setupWorkspace({
         'pkg-a': { name: 'pkg-a', version: '1.0.0' },
         'pkg-b': { name: 'pkg-b', version: '2.0.0' },
       })
@@ -296,8 +298,7 @@ describe('pkg command', () => {
       const result = await handler({
         dir: tmpDir,
         workspaceDir: tmpDir,
-        workspaces: true,
-        allProjects,
+        recursive: true,
         selectedProjectsGraph,
       }, ['get', 'name'])
 
@@ -316,8 +317,7 @@ describe('pkg command', () => {
       await handler({
         dir: tmpDir,
         workspaceDir: tmpDir,
-        workspaces: true,
-        allProjects,
+        recursive: true,
         selectedProjectsGraph,
       }, ['set', 'license=MIT'])
 
@@ -336,8 +336,7 @@ describe('pkg command', () => {
       await handler({
         dir: tmpDir,
         workspaceDir: tmpDir,
-        workspaces: true,
-        allProjects,
+        recursive: true,
         selectedProjectsGraph,
       }, ['delete', 'extra'])
 
@@ -347,19 +346,21 @@ describe('pkg command', () => {
       }
     })
 
-    test('filters by --workspace <name>', async () => {
+    test('runs against only the selected projects', async () => {
       const { allProjects, selectedProjectsGraph } = setupWorkspace({
         'pkg-a': { name: 'pkg-a', version: '1.0.0' },
         'pkg-b': { name: 'pkg-b', version: '2.0.0' },
         'pkg-c': { name: 'pkg-c', version: '3.0.0' },
       })
+      const selected = Object.fromEntries(
+        [allProjects[0], allProjects[2]].map(p => [p.rootDir, selectedProjectsGraph[p.rootDir]])
+      )
 
       await handler({
         dir: tmpDir,
         workspaceDir: tmpDir,
-        workspace: ['pkg-a', 'pkg-c'],
-        allProjects,
-        selectedProjectsGraph,
+        recursive: true,
+        selectedProjectsGraph: selected,
       }, ['set', 'license=MIT'])
 
       const read = (name: string) =>
@@ -369,33 +370,18 @@ describe('pkg command', () => {
       expect(read('pkg-c').license).toBe('MIT')
     })
 
-    test('throws when --workspace matches no packages', async () => {
-      const { allProjects, selectedProjectsGraph } = setupWorkspace({
-        'pkg-a': { name: 'pkg-a', version: '1.0.0' },
-      })
-
-      await expect(handler({
-        dir: tmpDir,
-        workspaceDir: tmpDir,
-        workspace: 'does-not-exist',
-        allProjects,
-        selectedProjectsGraph,
-      }, ['get', 'name'])).rejects.toMatchObject({ code: 'ERR_PNPM_PKG_WORKSPACE_NO_MATCH' })
-    })
-
     test('throws when used outside of a workspace', async () => {
-      await expect(handler({ dir: tmpDir, workspaces: true }, ['get']))
-        .rejects.toMatchObject({ code: 'ERR_PNPM_PKG_WORKSPACE_NO_ROOT' })
+      await expect(handler({ dir: tmpDir, recursive: true }, ['get']))
+        .rejects.toMatchObject({ code: 'ERR_PNPM_PKG_RECURSIVE_NO_ROOT' })
     })
 
     test('throws when no workspace packages were selected', async () => {
       await expect(handler({
         dir: tmpDir,
         workspaceDir: tmpDir,
-        workspaces: true,
-        allProjects: [],
+        recursive: true,
         selectedProjectsGraph: {},
-      }, ['get'])).rejects.toMatchObject({ code: 'ERR_PNPM_PKG_WORKSPACE_NO_PACKAGES' })
+      }, ['get'])).rejects.toMatchObject({ code: 'ERR_PNPM_PKG_RECURSIVE_NO_PACKAGES' })
     })
   })
 })

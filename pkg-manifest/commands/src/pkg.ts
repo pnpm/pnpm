@@ -18,9 +18,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
   return {
     dir: types['dir'],
     json: Boolean,
-    workspace: [String, Array],
-    workspaces: Boolean,
-    ws: Boolean,
+    recursive: Boolean,
   }
 }
 
@@ -29,11 +27,8 @@ export const commandNames = ['pkg']
 interface PkgCommandOptions {
   dir: string
   json?: boolean
-  workspace?: string | string[]
-  workspaces?: boolean
-  ws?: boolean
+  recursive?: boolean
   workspaceDir?: string
-  allProjects?: Array<{ rootDir: string, manifest: Record<string, unknown> }>
   selectedProjectsGraph?: Record<string, { package: { rootDir: string, manifest: Record<string, unknown> } }>
 }
 
@@ -50,8 +45,8 @@ export async function handler (opts: PkgCommandOptions, params: string[]): Promi
 
   const [subcmd, ...args] = params
 
-  if (opts.workspaces || opts.ws || opts.workspace) {
-    return handleWorkspaceCommand(opts, subcmd, args)
+  if (opts.recursive) {
+    return handleRecursiveCommand(opts, subcmd, args)
   }
 
   return runSubcommand(opts, subcmd, args)
@@ -74,27 +69,18 @@ async function runSubcommand (opts: PkgCommandOptions, subcmd: string, args: str
   }
 }
 
-async function handleWorkspaceCommand (opts: PkgCommandOptions, subcmd: string, args: string[]): Promise<string | void> {
+async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, args: string[]): Promise<string | void> {
   const workspaceDir = opts.workspaceDir
   if (!workspaceDir) {
-    throw new PnpmError('PKG_WORKSPACE_NO_ROOT', 'Cannot use workspace options outside of a workspace')
+    throw new PnpmError('PKG_RECURSIVE_NO_ROOT', 'Cannot run recursively outside of a workspace')
   }
 
-  const allSelected = opts.selectedProjectsGraph
-    ? Object.values(opts.selectedProjectsGraph)
-    : opts.allProjects?.map(p => ({ package: p })) ?? []
-
-  const selectedProjects = filterByWorkspaceNames(allSelected, opts.workspace)
+  const selectedProjects = opts.selectedProjectsGraph == null
+    ? []
+    : Object.values(opts.selectedProjectsGraph)
 
   if (selectedProjects.length === 0) {
-    if (opts.workspace) {
-      const requested = Array.isArray(opts.workspace) ? opts.workspace : [opts.workspace]
-      throw new PnpmError(
-        'PKG_WORKSPACE_NO_MATCH',
-        `No workspace packages matched: ${requested.map(name => JSON.stringify(name)).join(', ')}`
-      )
-    }
-    throw new PnpmError('PKG_WORKSPACE_NO_PACKAGES', 'No workspace packages found')
+    throw new PnpmError('PKG_RECURSIVE_NO_PACKAGES', 'No workspace packages were selected')
   }
 
   if (subcmd === 'get') {
@@ -212,14 +198,6 @@ function isPlainObject (value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-type SelectedProject = { package: { rootDir: string, manifest: Record<string, unknown> } }
-
-function filterByWorkspaceNames (projects: SelectedProject[], workspace: string | string[] | undefined): SelectedProject[] {
-  if (!workspace) return projects
-  const names = new Set(Array.isArray(workspace) ? workspace : [workspace])
-  return projects.filter(({ package: pkg }) => typeof pkg.manifest.name === 'string' && names.has(pkg.manifest.name))
-}
-
 export function help (): string {
   return renderHelp({
     description: 'Manages your package.json',
@@ -253,12 +231,9 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Run in specific workspace packages',
-            name: '--workspace <name>',
-          },
-          {
-            description: 'Run in all workspace packages',
-            name: '--workspaces',
+            description: 'Run on every workspace project or every project selected by a filter',
+            name: '--recursive',
+            shortAlias: '-r',
           },
         ],
       },
@@ -270,8 +245,9 @@ export function help (): string {
       'pnpm pkg delete <key> [<key> ...]',
       'pnpm pkg fix',
       'pnpm pkg set <key>=<value> --json',
-      'pnpm pkg get name --workspace packages',
-      'pnpm pkg set version=1.0.0 --workspaces',
+      'pnpm -r pkg get name',
+      'pnpm --filter <selector> pkg get name',
+      'pnpm -r pkg set version=1.0.0',
     ],
   })
 }

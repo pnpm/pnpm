@@ -23,6 +23,12 @@ test('removes an array element without leaving a hole', () => {
   expect(obj).toEqual({ contributors: [{ name: 'Bob' }] })
 })
 
+test('removes an array element by string index without leaving a hole', () => {
+  const obj: Record<string, unknown> = { contributors: [{ name: 'Alice' }, { name: 'Bob' }] }
+  deleteObjectValueByPropertyPathString(obj, 'contributors["0"]')
+  expect(obj).toEqual({ contributors: [{ name: 'Bob' }] })
+})
+
 test('no-op on a missing path', () => {
   const obj: Record<string, unknown> = { name: 'foo' }
   deleteObjectValueByPropertyPathString(obj, 'scripts.test')

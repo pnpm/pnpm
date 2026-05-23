@@ -32,8 +32,8 @@ export function deleteObjectValueByPropertyPath (object: ObjectOrArray, property
   }
 
   const lastKey = path[path.length - 1]
-  if (Array.isArray(obj) && typeof lastKey === 'number') {
-    obj.splice(lastKey, 1)
+  if (Array.isArray(obj) && isArrayIndex(lastKey)) {
+    obj.splice(Number(lastKey), 1)
     return
   }
   delete (obj as Record<string | number, unknown>)[lastKey]
@@ -41,3 +41,9 @@ export function deleteObjectValueByPropertyPath (object: ObjectOrArray, property
 
 export const deleteObjectValueByPropertyPathString = (object: ObjectOrArray, propertyPath: string): void =>
   deleteObjectValueByPropertyPath(object, parsePropertyPath(propertyPath))
+
+function isArrayIndex (key: string | number): boolean {
+  if (typeof key === 'number') return Number.isInteger(key) && key >= 0
+  if (!/^(?:0|[1-9]\d*)$/.test(key)) return false
+  return Number.isSafeInteger(Number(key))
+}
