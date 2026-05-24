@@ -46,8 +46,8 @@ fn elf_interpreter(elf: &[u8]) -> Option<&str> {
     let phnum = usize::from(phnum);
 
     for i in 0..phnum {
-        let phdr_start = phoff + i * phentsize;
-        if phdr_start + 8 > elf.len() {
+        let phdr_start = phoff.checked_add(i.checked_mul(phentsize)?)?;
+        if phdr_start.checked_add(40).is_none_or(|end| end > elf.len()) {
             break;
         }
         let p_type = u32::from_le_bytes(elf[phdr_start..phdr_start + 4].try_into().ok()?);
@@ -58,7 +58,7 @@ fn elf_interpreter(elf: &[u8]) -> Option<&str> {
                 u64::from_le_bytes(elf[phdr_start + 32..phdr_start + 40].try_into().ok()?);
             let start: usize = p_offset.try_into().ok()?;
             let p_filesz: usize = p_filesz.try_into().ok()?;
-            let end = start + p_filesz;
+            let end = start.checked_add(p_filesz)?;
             if end <= elf.len() {
                 let interp = core::str::from_utf8(&elf[start..end]).ok()?;
                 let trimmed = interp.trim_end_matches('\0');
@@ -209,5 +209,60 @@ mod tests {
         let not_elf =
             b"\x7fELFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
         assert_eq!(elf_interpreter(not_elf), None);
+    }
+
+    #[test]
+    fn elf_with_overflowing_phoff_returns_none() {
+        let mut elf = vec![0u8; 128];
+        elf[0..4].copy_from_slice(&[0x7f, b'E', b'L', b'F']);
+        elf[4] = 2;
+        elf[5] = 1;
+        elf[6] = 1;
+        elf[16..18].copy_from_slice(&3u16.to_le_bytes());
+        elf[18..20].copy_from_slice(&0x3eu16.to_le_bytes());
+        elf[20..24].copy_from_slice(&1u32.to_le_bytes());
+        elf[32..40].copy_from_slice(&u64::MAX.to_le_bytes());
+        elf[52..54].copy_from_slice(&64u16.to_le_bytes());
+        elf[54..56].copy_from_slice(&56u16.to_le_bytes());
+        elf[56..58].copy_from_slice(&1u16.to_le_bytes());
+        assert_eq!(elf_interpreter(&elf), None);
+    }
+
+    #[test]
+    fn elf_with_overflowing_pfilesz_returns_none() {
+        let mut elf = vec![0u8; 128];
+        elf[0..4].copy_from_slice(&[0x7f, b'E', b'L', b'F']);
+        elf[4] = 2;
+        elf[5] = 1;
+        elf[6] = 1;
+        elf[16..18].copy_from_slice(&3u16.to_le_bytes());
+        elf[18..20].copy_from_slice(&0x3eu16.to_le_bytes());
+        elf[20..24].copy_from_slice(&1u32.to_le_bytes());
+        elf[32..40].copy_from_slice(&64u64.to_le_bytes());
+        elf[52..54].copy_from_slice(&64u16.to_le_bytes());
+        elf[54..56].copy_from_slice(&56u16.to_le_bytes());
+        elf[56..58].copy_from_slice(&1u16.to_le_bytes());
+        elf[64..68].copy_from_slice(&3u32.to_le_bytes());
+        elf[68..72].copy_from_slice(&4u32.to_le_bytes());
+        elf[72..80].copy_from_slice(&(usize::MAX as u64 - 5).to_le_bytes());
+        elf[96..104].copy_from_slice(&20u64.to_le_bytes());
+        assert_eq!(elf_interpreter(&elf), None);
+    }
+
+    #[test]
+    fn elf_with_truncated_phdr_returns_none() {
+        let mut elf = vec![0u8; 72];
+        elf[0..4].copy_from_slice(&[0x7f, b'E', b'L', b'F']);
+        elf[4] = 2;
+        elf[5] = 1;
+        elf[6] = 1;
+        elf[16..18].copy_from_slice(&3u16.to_le_bytes());
+        elf[18..20].copy_from_slice(&0x3eu16.to_le_bytes());
+        elf[20..24].copy_from_slice(&1u32.to_le_bytes());
+        elf[32..40].copy_from_slice(&64u64.to_le_bytes());
+        elf[52..54].copy_from_slice(&64u16.to_le_bytes());
+        elf[54..56].copy_from_slice(&56u16.to_le_bytes());
+        elf[56..58].copy_from_slice(&1u16.to_le_bytes());
+        assert_eq!(elf_interpreter(&elf), None);
     }
 }

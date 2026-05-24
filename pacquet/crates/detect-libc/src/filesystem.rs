@@ -20,7 +20,7 @@ fn read_ldd() -> Option<String> {
     let mut buf = vec![0u8; MAX_LENGTH];
     let bytes_read = file.read(&mut buf).ok()?;
     buf.truncate(bytes_read);
-    String::from_utf8(buf).ok()
+    Some(String::from_utf8_lossy(&buf).into_owned())
 }
 
 fn classify_from_ldd(content: &str) -> Option<Implementation> {
@@ -64,5 +64,16 @@ mod tests {
     #[test]
     fn empty_ldd_content_returns_none() {
         assert_eq!(classify_from_ldd(""), None);
+    }
+
+    #[test]
+    fn binary_content_does_not_block_detection() {
+        let mut buf = vec![0u8; 2048];
+        buf[..10].copy_from_slice(b"musl libc ");
+        buf[10] = 0xFF;
+        buf[11..18].copy_from_slice(b" 1.2.3\n");
+        buf.truncate(18);
+        let content = String::from_utf8_lossy(&buf);
+        assert_eq!(classify_from_ldd(&content), Some(Implementation::Musl));
     }
 }

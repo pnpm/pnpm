@@ -49,7 +49,7 @@ fn parse_ldd(combined: &str) -> Option<Implementation> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{parse_getconf, parse_ldd};
     use crate::Implementation;
 
     #[test]

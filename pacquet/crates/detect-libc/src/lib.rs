@@ -83,6 +83,7 @@ mod tests {
         assert_eq!(Implementation::Musl.as_str(), "musl");
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn detect_integration_host() {
         let result = detect();
