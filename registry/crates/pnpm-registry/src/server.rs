@@ -832,4 +832,3 @@ fn error_response(err: &RegistryError) -> Response {
     tracing::error!(%err, %status, "request failed");
     (status, err.to_string()).into_response()
 }
-
