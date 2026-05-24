@@ -126,68 +126,29 @@ pub fn host_arch() -> &'static str {
     }
 }
 
-/// Host libc family, mapped to the same string `detect-libc.familySync()`
-/// returns upstream. Three return values, matching upstream's
-/// `'glibc' | 'musl' | null` (with `null` translated to `"unknown"`
-/// so the call site stays infallible):
+/// Host libc implementation string. Three return values matching
+/// pnpm's `'glibc' | 'musl' | null` (with `null` translated to
+/// `"unknown"` so the call site stays infallible):
 ///
-/// - `"musl"` — `/lib/ld-musl-*.so.1` (or `/lib64/ld-musl-*`) is
-///   present. Alpine, Void, every musl-based distro.
-/// - `"glibc"` — Linux without a musl loader. Glibc is the
-///   overwhelming default on every other Linux distro; the binary
-///   layout this code runs on always has a libc, so a missing musl
-///   loader on Linux means glibc.
-/// - `"unknown"` — non-Linux host (macOS, Windows, BSD, etc.).
-///   `check_platform` treats this as "skip libc constraint" — see
-///   the upstream call site at
+/// - `"musl"` — musl-based Linux.
+/// - `"glibc"` — glibc-based Linux.
+/// - `"unknown"` — non-Linux host (macOS, Windows, BSD, etc.) or
+///   detection failure. `check_platform` treats this as "skip libc
+///   constraint" — see the upstream call site at
 ///   <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts#L38>.
 ///
-/// Cached after the first call via [`OnceLock`] so a per-install
-/// `InstallabilityHost::detect` doesn't pay a `read_dir` on every
-/// invocation (the directory listing settles to the same answer
-/// for the life of the process, and there's no scenario in which
-/// the host swaps libc mid-run).
-///
-/// Pacquet rolls its own probe instead of pulling in the
-/// `detect-libc` crate to avoid a new workspace dep for what is
-/// effectively a directory-presence check on Linux. Same accuracy
-/// in practice — `detect-libc`'s `familySync` itself just reads
-/// `/usr/bin/ldd` / `/lib`. If a future host triggers a
-/// false-positive `"glibc"` (e.g. embedded Linux without glibc),
-/// the upstream constraint that depended on it will already have
-/// been declared `"glibc"` in `package.json#libc` so the false
-/// positive is harmless: the package is kept, not skipped.
-///
-/// [`OnceLock`]: std::sync::OnceLock
+/// Delegates to [`pacquet_detect_libc::detect()`] for the
+/// actual detection; see that function for the fallback chain. The
+/// result is cached after the first call via [`OnceLock`].
 pub fn host_libc() -> &'static str {
-    static CACHED: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
-    CACHED.get_or_init(detect_host_libc)
-}
+    use std::sync::OnceLock;
 
-#[cfg(target_os = "linux")]
-fn detect_host_libc() -> &'static str {
-    // Musl ships its dynamic loader as `/lib/ld-musl-<arch>.so.1`
-    // (or `/lib64/ld-musl-<arch>.so.1` on some configurations).
-    // Glibc lives at the arch-tuple path (`/lib/x86_64-linux-gnu/`
-    // etc.) and never installs an `ld-musl-*` artifact. The
-    // directory probe is cheaper than spawning `ldd --version` and
-    // doesn't require `ldd` to be on PATH (it isn't, in slim
-    // containers).
-    for dir in ["/lib", "/lib64"] {
-        let Ok(entries) = std::fs::read_dir(dir) else { continue };
-        for entry in entries.flatten() {
-            let name = entry.file_name();
-            if name.as_encoded_bytes().starts_with(b"ld-musl-") {
-                return "musl";
-            }
-        }
-    }
-    "glibc"
-}
-
-#[cfg(not(target_os = "linux"))]
-fn detect_host_libc() -> &'static str {
-    "unknown"
+    static CACHED: OnceLock<&'static str> = OnceLock::new();
+    CACHED.get_or_init(|| {
+        pacquet_detect_libc::detect()
+            .map(pacquet_detect_libc::Implementation::as_str)
+            .unwrap_or("unknown")
+    })
 }
 
 #[cfg(test)]
