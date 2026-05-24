@@ -128,8 +128,8 @@ async fn walks_dependencies_and_builds_flat_tree() {
     assert!(tree.packages.contains_key("foo@1.2.0"));
     let foo_node_id = &tree.direct[0].node_id;
     let foo_tree_node = tree.dependencies_tree.get(foo_node_id).unwrap();
-    assert_eq!(foo_tree_node.children.len(), 1);
-    let bar_node_id = foo_tree_node.children.get("bar").unwrap();
+    assert_eq!(foo_tree_node.children.realized().len(), 1);
+    let bar_node_id = foo_tree_node.children.realized().get("bar").unwrap();
     let bar_tree_node = tree.dependencies_tree.get(bar_node_id).unwrap();
     assert_eq!(bar_tree_node.resolved_package_id, "bar@2.3.0");
     assert!(tree.policy_violations.is_empty());
@@ -199,8 +199,8 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
     // [`pkgIsLeaf` reuse](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580).
     let a_tree = tree.dependencies_tree.get(&tree.direct[0].node_id).unwrap();
     let b_tree = tree.dependencies_tree.get(&tree.direct[1].node_id).unwrap();
-    let shared_via_a = a_tree.children.get("shared").unwrap();
-    let shared_via_b = b_tree.children.get("shared").unwrap();
+    let shared_via_a = a_tree.children.realized().get("shared").unwrap();
+    let shared_via_b = b_tree.children.realized().get("shared").unwrap();
     assert_eq!(shared_via_a, shared_via_b);
     let shared_occurrences =
         tree.dependencies_tree.values().filter(|n| n.resolved_package_id == "shared@1.0.0").count();
@@ -455,7 +455,7 @@ mod peers {
         );
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -467,7 +467,7 @@ mod peers {
         .await
         .unwrap();
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
         assert_eq!(
             result.direct_dependencies_by_alias.get("foo"),
             Some(&DepPath::from("foo@1.0.0".to_string())),
@@ -505,7 +505,7 @@ mod peers {
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) =
             fake_manifest(serde_json::json!({ "react": "18.0.0", "react-dom": "18.0.0" }));
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -518,7 +518,7 @@ mod peers {
         .unwrap();
         assert!(tree.all_peer_dep_names.contains("react"));
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
         let react_dom_dep_path = result
             .direct_dependencies_by_alias
             .get("react-dom")
@@ -553,7 +553,7 @@ mod peers {
         );
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -565,7 +565,7 @@ mod peers {
         .await
         .unwrap();
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
         assert!(result.peer_dependency_issues.missing.contains_key("react"));
         // No resolved peer ⇒ react-dom stays pure.
         assert_eq!(
@@ -604,7 +604,7 @@ mod peers {
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) =
             fake_manifest(serde_json::json!({ "react": "17.0.0", "react-dom": "18.0.0" }));
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -616,7 +616,7 @@ mod peers {
         .await
         .unwrap();
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
         assert!(result.peer_dependency_issues.bad.contains_key("react"));
         let bad = &result.peer_dependency_issues.bad["react"];
         assert_eq!(bad.len(), 1);
@@ -663,7 +663,7 @@ mod peers {
         // Manifest order puts react-dom first.
         let (_tmp, manifest) =
             fake_manifest(serde_json::json!({ "react-dom": "18.0.0", "react": "18.0.0" }));
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -675,7 +675,7 @@ mod peers {
         .await
         .unwrap();
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
         let react_dom_dep_path = result
             .direct_dependencies_by_alias
             .get("react-dom")
@@ -758,7 +758,7 @@ mod peers {
         // closure and no panics.
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "1.0.0" }));
 
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -778,7 +778,7 @@ mod peers {
         assert!(tree.packages.contains_key("zoo@1.0.0"));
 
         // Peer resolution completes without panicking on the cycle.
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
         // Every resolved package surfaces a graph entry, even though
         // their peers form a cycle. The exact peer-suffix shape is
@@ -851,7 +851,7 @@ mod peers {
         // sibling).
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "zoo": "1.0.0", "bar": "1.0.0" }));
 
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -863,7 +863,7 @@ mod peers {
         .await
         .unwrap();
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
         let dep_paths: std::collections::HashSet<String> =
             result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
@@ -956,7 +956,7 @@ mod peers {
             "foo-b": "1.0.0", "bar-b": "1.0.0",
         }));
 
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -968,7 +968,7 @@ mod peers {
         .await
         .unwrap();
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
         // Each foo picks its own bar — they don't cross-pollinate.
         assert_eq!(
@@ -1023,7 +1023,7 @@ mod peers {
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "1.0.0" }));
 
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -1035,7 +1035,7 @@ mod peers {
         .await
         .unwrap();
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
         // `dep` shows up as a BAD peer (1.0.0 supplied but ^10
         // wanted). No missing entry — the peer WAS resolved, just to
@@ -1049,6 +1049,240 @@ mod peers {
         assert_eq!(bad.len(), 1);
         assert_eq!(bad[0].found_version, "1.0.0");
         assert_eq!(bad[0].wanted_range, "10.0.0");
+    }
+
+    /// A child whose first walk had no manifest (`result.manifest ==
+    /// None` — the shape git / tarball / local resolvers return when
+    /// the registry response carries no manifest body) must keep the
+    /// non-leaf classification the eager walk picked when it's reached
+    /// again through a lazy revisit. Regression for the manifest-less
+    /// divergence between `pkg_is_leaf` and the inferred
+    /// `children_by_id.is_empty()` check the lazy realizer used before
+    /// `ResolvedPackage::is_leaf` was persisted.
+    #[tokio::test]
+    async fn revisit_with_no_manifest_child_keeps_per_occurrence_node_id() {
+        use crate::node_id::NodeId;
+        let mut table = HashMap::new();
+        // Two siblings that both depend on `parent`, so `parent` is
+        // walked once eagerly and revisited via the second sibling
+        // (the revisit goes through the lazy children path).
+        table.insert(
+            ("p1".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "p1",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "p1",
+                    "version": "1.0.0",
+                    "dependencies": { "parent": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("p2".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "p2",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "p2",
+                    "version": "1.0.0",
+                    "dependencies": { "parent": "^1.0.0" }
+                }),
+            ),
+        );
+        // `parent` has a peer dep so the peer resolver descends into
+        // every occurrence (purePkgs would otherwise short-circuit
+        // before realize_children runs).
+        table.insert(
+            ("parent".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "parent",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "parent",
+                    "version": "1.0.0",
+                    "dependencies": { "manifestless": "^1.0.0" },
+                    "peerDependencies": { "peer": "^1.0.0" }
+                }),
+            ),
+        );
+        // `manifestless` resolves without a manifest body. Without
+        // persistence, the lazy realizer would misclassify this as a
+        // leaf (children_by_id entry is empty AND peer_dependencies
+        // is empty) and collapse the revisit onto `NodeId::Leaf`.
+        let manifestless = {
+            let mut r = fake_result(
+                "manifestless",
+                "1.0.0",
+                serde_json::json!({ "name": "manifestless", "version": "1.0.0" }),
+            );
+            r.manifest = None;
+            r
+        };
+        table.insert(("manifestless".to_string(), "^1.0.0".to_string()), manifestless);
+        table.insert(
+            ("peer".to_string(), "^1.0.0".to_string()),
+            fake_result("peer", "1.0.0", serde_json::json!({ "name": "peer", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "p1": "^1.0.0",
+            "p2": "^1.0.0",
+            "peer": "^1.0.0",
+        }));
+
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // First-walk classification must be non-leaf — `pkg_is_leaf`
+        // returns false when the manifest is None.
+        assert!(
+            !tree.packages.get("manifestless@1.0.0").expect("manifestless resolved").is_leaf,
+            "manifest-less packages must keep is_leaf=false (eager walker contract)",
+        );
+
+        resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+        // After lazy realization, every occurrence of `manifestless`
+        // must use a Counter NodeId — the same shape the eager walker
+        // assigned on first visit. A `Leaf` NodeId here would mean
+        // `realize_children` misclassified the package and collapsed
+        // distinct occurrences, breaking per-call-site state for any
+        // future visitor that descends through it.
+        let manifestless_node_ids: Vec<&NodeId> = tree
+            .dependencies_tree
+            .iter()
+            .filter(|(_, node)| node.resolved_package_id == "manifestless@1.0.0")
+            .map(|(id, _)| id)
+            .collect();
+        assert!(
+            !manifestless_node_ids.is_empty(),
+            "expected at least one tree entry for manifestless",
+        );
+        for id in &manifestless_node_ids {
+            assert!(
+                matches!(id, NodeId::Counter(_)),
+                "manifest-less child must use Counter NodeId in every occurrence, got {id:?}",
+            );
+        }
+    }
+
+    /// A pure package (no peer deps, peer-clean subtree) reached
+    /// through multiple parents only realizes its children for the
+    /// occurrence the peer resolver walks first. Subsequent
+    /// occurrences hit the `purePkgs` short-circuit before
+    /// `realize_children` runs, so their [`TreeChildren::Lazy`]
+    /// stays Lazy. Regression guard against accidentally moving the
+    /// realize call above the short-circuit.
+    #[tokio::test]
+    async fn pure_revisit_leaves_lazy_children_unrealized() {
+        use crate::resolved_tree::TreeChildren;
+        let mut table = HashMap::new();
+        table.insert(
+            ("p1".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "p1",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "p1",
+                    "version": "1.0.0",
+                    "dependencies": { "pure": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("p2".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "p2",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "p2",
+                    "version": "1.0.0",
+                    "dependencies": { "pure": "^1.0.0" }
+                }),
+            ),
+        );
+        // `pure` has a child so it is non-leaf (per-occurrence
+        // NodeId), but no peer deps anywhere in the subtree — that
+        // makes it eligible for `purePkgs`.
+        table.insert(
+            ("pure".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "pure",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "pure",
+                    "version": "1.0.0",
+                    "dependencies": { "pure_leaf": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("pure_leaf".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "pure_leaf",
+                "1.0.0",
+                serde_json::json!({ "name": "pure_leaf", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "p1": "^1.0.0", "p2": "^1.0.0" }));
+
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Sanity: `pure` got two per-occurrence tree entries, the
+        // first carrying Realized children (eager walk), the second
+        // carrying Lazy children (revisit).
+        let pure_pre: Vec<(&crate::node_id::NodeId, bool)> = tree
+            .dependencies_tree
+            .iter()
+            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0")
+            .map(|(id, node)| (id, matches!(node.children, TreeChildren::Lazy { .. })))
+            .collect();
+        assert_eq!(pure_pre.len(), 2, "expected two occurrences of pure, got {pure_pre:?}");
+        assert!(
+            pure_pre.iter().any(|(_, is_lazy)| !*is_lazy),
+            "first walk should produce a Realized entry",
+        );
+        assert!(
+            pure_pre.iter().any(|(_, is_lazy)| *is_lazy),
+            "revisit should produce a Lazy entry",
+        );
+
+        resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+        // After peer resolution: the lazy occurrence stays Lazy
+        // because `purePkgs` short-circuits before `realize_children`
+        // is called.
+        let still_lazy = tree
+            .dependencies_tree
+            .iter()
+            .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0")
+            .filter(|(_, node)| matches!(node.children, TreeChildren::Lazy { .. }))
+            .count();
+        assert_eq!(
+            still_lazy, 1,
+            "purePkgs short-circuit must leave the revisit's lazy children un-realized",
+        );
     }
 }
 
@@ -1096,7 +1330,7 @@ mod patched_dependencies {
         let mut groups: PatchGroupRecord = PatchGroupRecord::new();
         groups.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
 
-        let tree = resolve_dependency_tree(
+        let mut tree = resolve_dependency_tree(
             &resolver,
             &manifest,
             [DependencyGroup::Prod],
@@ -1113,7 +1347,7 @@ mod patched_dependencies {
         assert!(tree.packages.contains_key("foo@1.0.0(patch_hash=abc123)"));
         assert!(tree.applied_patches.contains("foo@1.0.0"));
 
-        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
         assert_eq!(
             result.direct_dependencies_by_alias.get("foo"),
             Some(&DepPath::from("foo@1.0.0(patch_hash=abc123)".to_string())),
