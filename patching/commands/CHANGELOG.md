@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.0.22
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.commands@1100.5.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/fetching.pick-fetcher@1100.0.8
+
 ## 1100.0.21
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/auth.commands
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+
 ## 1100.1.0
 
 ### Minor Changes

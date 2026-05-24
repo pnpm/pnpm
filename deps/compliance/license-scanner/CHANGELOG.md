@@ -1,5 +1,11 @@
 # @pnpm/license-scanner
 
+## 1100.0.14
+
+### Patch Changes
+
+- @pnpm/store.pkg-finder@1100.0.12
+
 ## 1100.0.13
 
 ### Patch Changes

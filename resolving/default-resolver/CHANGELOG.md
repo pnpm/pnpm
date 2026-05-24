@@ -1,5 +1,16 @@
 # @pnpm/default-resolver
 
+## 1100.3.2
+
+### Patch Changes
+
+- Updated dependencies [212315d]
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/resolving.local-resolver@1101.1.1
+  - @pnpm/engine.runtime.node-resolver@1101.1.1
+  - @pnpm/engine.runtime.bun-resolver@1101.1.2
+  - @pnpm/engine.runtime.deno-resolver@1101.1.2
+
 ## 1100.3.1
 
 ### Patch Changes

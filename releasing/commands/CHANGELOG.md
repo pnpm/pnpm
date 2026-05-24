@@ -1,5 +1,27 @@
 # @pnpm/releasing.commands
 
+## 1100.3.0
+
+### Minor Changes
+
+- 3b62f9d: Add a `skip-manifest-obfuscation` option for `pnpm pack` and `pnpm publish`. When enabled, the original `packageManager` field and publish lifecycle scripts are kept in the packed/published manifest instead of being stripped. The pnpm-specific `pnpm` field continues to be omitted.
+- 508e6d8: Added `pnpm stage` with `publish`, `list`, `view`, `approve`, `reject`, and `download` subcommands for npm staged publishing.
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/releasing.exportable-manifest@1100.1.0
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.commands@1100.5.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/fetching.directory-fetcher@1100.0.12
+  - @pnpm/engine.runtime.commands@1100.0.17
+  - @pnpm/engine.runtime.node-resolver@1101.1.1
+  - @pnpm/installing.client@1100.2.2
+  - @pnpm/exec.lifecycle@1100.0.13
+  - @pnpm/workspace.projects-filter@1100.0.15
+
 ## 1100.2.18
 
 ### Patch Changes

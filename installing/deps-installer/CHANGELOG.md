@@ -1,5 +1,28 @@
 # @pnpm/core
 
+## 1101.4.0
+
+### Minor Changes
+
+- 212315d: Added a new setting `trustLockfile`. When `true`, `pnpm install` skips the supply-chain verification pass that re-applies `minimumReleaseAge` / `trustPolicy='no-downgrade'` to every entry in the loaded lockfile. The install treats the lockfile as already-trusted — useful for closed-source projects where every commit comes from a trusted author, or for CI runs against an already-verified lockfile. Defaults to `false`; verification stays on by default. Set in `pnpm-workspace.yaml`.
+
+  Also cut the memory footprint of the verification pass itself: the per-(registry, name) trust-meta cache previously retained the full packument — dependency graphs, scripts, README, and per-version manifests — for the entire install. On large workspaces (`~4k` lockfile entries with `minimumReleaseAge` + `trustPolicy: no-downgrade` enabled) this could OOM CI runners with a 2GB heap cap. The cache now stores only the fields the trust check actually reads (`time`, per-version `_npmUser.trustedPublisher`, `dist.attestations.provenance`). The abbreviated-metadata cache is similarly projected to just the package-level `modified` field and the set of currently-listed version names. Fixes [#11860](https://github.com/pnpm/pnpm/issues/11860).
+
+### Patch Changes
+
+- Updated dependencies [3422cec]
+- Updated dependencies [e0bd879]
+- Updated dependencies [d7da112]
+  - @pnpm/installing.deps-resolver@1100.1.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/bins.linker@1100.0.9
+  - @pnpm/installing.deps-restorer@1101.1.5
+  - @pnpm/building.after-install@1101.0.16
+  - @pnpm/building.during-install@1101.0.13
+  - @pnpm/exec.lifecycle@1100.0.13
+  - @pnpm/installing.linking.hoist@1100.0.9
+  - @pnpm/installing.package-requester@1101.0.8
+
 ## 1101.3.1
 
 ### Patch Changes

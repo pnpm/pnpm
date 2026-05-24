@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [212315d]
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/installing.client@1100.2.2
+
 ## 1100.1.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
 ## 1100.0.12
 
 ### Patch Changes

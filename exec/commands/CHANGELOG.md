@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1100.1.12
+
+### Patch Changes
+
+- 3d14385: Fixed `pnpm dlx` failing with `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` when the installed package's CAS slot is missing its `package.json`. Observed in the wild for `pnpm dlx node@runtime:<version>` when the GVS slot was populated without the synthesized manifest runtime archives need (they don't ship a `package.json` of their own, so the synthesized one is the only way it gets there; an existing slot from an earlier code path that skipped the synthesis stays incomplete). The bin link itself is wired up from the resolution and remains valid, so `dlx` now falls back to the scopeless package name when the slot's manifest is unreadable — for single-bin packages (the dlx common case, including every `runtime:` spec) this matches what `manifest.bin` would have named. Multi-bin packages already require `--package=<spec> <bin>` to disambiguate and don't enter this code path.
+- Updated dependencies [d7da112]
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.commands@1100.5.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/building.commands@1100.0.22
+  - @pnpm/deps.status@1100.0.18
+  - @pnpm/engine.runtime.commands@1100.0.17
+  - @pnpm/installing.client@1100.2.2
+  - @pnpm/exec.lifecycle@1100.0.13
+  - @pnpm/workspace.injected-deps-syncer@1100.0.14
+
 ## 1100.1.11
 
 ### Patch Changes

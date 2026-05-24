@@ -1,5 +1,12 @@
 # @pnpm/local-resolver
 
+## 1101.1.1
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
 ## 1101.1.0
 
 ### Minor Changes

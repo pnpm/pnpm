@@ -1,5 +1,23 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.3.0
+
+### Minor Changes
+
+- 22cb743: Implement `pnpm repo` command natively, following `npm repo` standards.
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/deps.inspection.list@1100.0.13
+  - @pnpm/global.commands@1100.0.21
+  - @pnpm/deps.inspection.outdated@1100.1.2
+  - @pnpm/resolving.default-resolver@1100.3.2
+
 ## 1100.2.5
 
 ### Patch Changes

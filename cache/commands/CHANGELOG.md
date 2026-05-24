@@ -1,5 +1,15 @@
 # @pnpm/cache.commands
 
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/cache.api@1100.0.16
+
 ## 1100.0.16
 
 ### Patch Changes

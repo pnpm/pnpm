@@ -1,5 +1,11 @@
 # @pnpm/object.property-path
 
+## 1100.1.0
+
+### Minor Changes
+
+- d7da112: Implement `pnpm pkg` command natively, following `npm pkg` standards.
+
 ## 1001.0.0
 
 ### Major Changes

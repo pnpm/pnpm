@@ -1,5 +1,37 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.5.0
+
+### Minor Changes
+
+- 212315d: Added a new setting `trustLockfile`. When `true`, `pnpm install` skips the supply-chain verification pass that re-applies `minimumReleaseAge` / `trustPolicy='no-downgrade'` to every entry in the loaded lockfile. The install treats the lockfile as already-trusted — useful for closed-source projects where every commit comes from a trusted author, or for CI runs against an already-verified lockfile. Defaults to `false`; verification stays on by default. Set in `pnpm-workspace.yaml`.
+
+  Also cut the memory footprint of the verification pass itself: the per-(registry, name) trust-meta cache previously retained the full packument — dependency graphs, scripts, README, and per-version manifests — for the entire install. On large workspaces (`~4k` lockfile entries with `minimumReleaseAge` + `trustPolicy: no-downgrade` enabled) this could OOM CI runners with a 2GB heap cap. The cache now stores only the fields the trust check actually reads (`time`, per-version `_npmUser.trustedPublisher`, `dist.attestations.provenance`). The abbreviated-metadata cache is similarly projected to just the package-level `modified` field and the set of currently-listed version names. Fixes [#11860](https://github.com/pnpm/pnpm/issues/11860).
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [155af87]
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/installing.env-installer@1101.1.2
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.deps-installer@1101.4.0
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/workspace.projects-reader@1101.0.7
+  - @pnpm/building.after-install@1101.0.16
+  - @pnpm/deps.status@1100.0.18
+  - @pnpm/global.commands@1100.0.21
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/workspace.state@1100.0.15
+  - @pnpm/deps.inspection.outdated@1100.1.2
+  - @pnpm/workspace.projects-graph@1100.0.12
+  - @pnpm/workspace.projects-filter@1100.0.15
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.9
+  - @pnpm/store.controller@1101.0.8
+
 ## 1100.4.2
 
 ### Patch Changes

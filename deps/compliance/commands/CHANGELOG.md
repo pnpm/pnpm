@@ -1,5 +1,19 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.2.7
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.commands@1100.5.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/deps.compliance.license-scanner@1100.0.14
+  - @pnpm/deps.compliance.sbom@1100.1.4
+
 ## 1101.2.6
 
 ### Patch Changes

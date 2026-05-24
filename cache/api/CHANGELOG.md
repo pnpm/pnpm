@@ -1,5 +1,14 @@
 # @pnpm/cache.api
 
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/resolving.npm-resolver@1101.3.2
+
 ## 1100.0.15
 
 ### Patch Changes

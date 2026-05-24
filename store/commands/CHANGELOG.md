@@ -1,5 +1,16 @@
 # @pnpm/store.commands
 
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/installing.client@1100.2.2
+
 ## 1100.0.19
 
 ### Patch Changes
