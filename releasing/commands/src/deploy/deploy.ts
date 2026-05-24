@@ -281,6 +281,7 @@ async function deployFromSharedLockfile (
       injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the package snapshots
       overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
+      configDependencies: undefined, // configDependencies (e.g. pacquet) are not installed into the deploy dir, so the install engine they designate isn't on disk to invoke
       hooks: {
         ...opts.hooks,
         readPackage: [
