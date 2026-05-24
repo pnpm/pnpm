@@ -443,7 +443,7 @@ where
             level: LogLevel::Debug,
             current_lockfile_exists: current_lockfile.is_some(),
             store_dir: config.store_dir.display().to_string(),
-            virtual_store_dir: config.virtual_store_dir.to_string_lossy().into_owned(),
+            virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
         }));
 
         Reporter::emit(&LogEvent::Stage(StageLog {
@@ -1068,7 +1068,7 @@ fn build_modules_manifest(
         // <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L294-L298>.
         skipped: skipped.iter_installability().map(ToString::to_string).collect(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.virtual_store_dir.to_string_lossy().into_owned(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     }
