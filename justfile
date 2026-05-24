@@ -54,8 +54,11 @@ fmt:
 check:
   cargo check --locked --workspace --all-targets
 
-# Run all the tests
+# Run all the tests. Builds `pnpm-registry` first because
+# `pacquet-registry-mock` spawns its binary path; cargo doesn't
+# implicitly build cross-crate binaries that a test happens to need.
 test:
+  cargo build --bin=pnpm-registry
   cargo nextest run
 
 # List expected-failing test ports
@@ -84,8 +87,11 @@ codecov:
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
-# Manage registry-mock
+# Manage registry-mock. The launcher spawns `pnpm-registry`, so we
+# build it first — otherwise `pacquet-registry-mock launch` aborts
+# with a "binary not found" error.
 registry-mock +args:
+  cargo build --bin=pnpm-registry
   cargo run --bin=pacquet-registry-mock -- {{args}}
 
 integrated-benchmark +args:
