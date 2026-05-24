@@ -180,7 +180,7 @@ async fn get_three_segments(
 ) -> Response {
     if first == "-" && second == "v1" && third == "search" {
         let query = uri.query().unwrap_or("");
-        return serve_search(&state, query).await;
+        return serve_search(&state, &headers, query).await;
     }
     if second == "-" {
         serve_tarball(&state, &headers, &first, &third).await
@@ -641,7 +641,14 @@ async fn write_tarball_bytes(
 /// -to-exist query returns "No packages found", which an upstream
 /// proxy can't deliver because npm's search is fuzzy and returns
 /// dozens of unrelated matches for almost anything).
-async fn serve_search(state: &AppState, query_string: &str) -> Response {
+///
+/// Results are filtered by the per-package access policy: a package
+/// the caller can't read (e.g. anonymous + `@private/*` or
+/// `@pnpm.e2e/needs-auth` with the default rules) is dropped from
+/// `objects` before the response is built. Without this the search
+/// endpoint would happily enumerate protected packages that the
+/// packument and tarball GETs correctly hide behind 401.
+async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str) -> Response {
     let Some(text) = crate::search::parse_query(query_string) else {
         let body = json!({ "objects": [], "total": 0, "time": now_iso() });
         let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -652,17 +659,32 @@ async fn serve_search(state: &AppState, query_string: &str) -> Response {
             .expect("static-shape response always builds");
     };
     let size = crate::search::parse_size(query_string, 20);
-    match crate::search::run_local_search(&state.inner.config.storage, &text, size).await {
-        Ok(body) => {
-            let bytes = serde_json::to_vec(&body).expect("search response serializes");
-            Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(bytes))
-                .expect("static-shape response always builds")
-        }
-        Err(err) => error_response(&err),
+    let mut body =
+        match crate::search::run_local_search(&state.inner.config.storage, &text, size).await {
+            Ok(body) => body,
+            Err(err) => return error_response(&err),
+        };
+    if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
+        objects.retain(|entry| {
+            let Some(name) =
+                entry.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
+            else {
+                // Malformed entry — be conservative and drop it.
+                return false;
+            };
+            enforce_access(state, headers, name, Action::Access).is_ok()
+        });
+        let visible = objects.len();
+        // Surface the post-filter count so clients can't infer the
+        // existence of hidden packages from a mismatched `total`.
+        body["total"] = json!(visible);
     }
+    let bytes = serde_json::to_vec(&body).expect("search response serializes");
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(bytes))
+        .expect("static-shape response always builds")
 }
 
 /// `PUT /:pkg/-rev/:rev` — overwrite the on-disk packument with the

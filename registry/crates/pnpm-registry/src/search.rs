@@ -29,14 +29,35 @@ use crate::publish::now_iso;
 /// Returns `None` for "no text provided", in which case the
 /// caller should return an empty result rather than dumping the
 /// entire storage.
+///
+/// Three things this avoids:
+/// * The first malformed pair (no `=`) doesn't abort the whole
+///   parse — `size=20&text=foo` shouldn't return None just because
+///   a third pair somewhere is missing an `=`.
+/// * An empty decoded value (`text=`) is treated as "no text",
+///   not as "match everything" — a downstream substring filter
+///   uses `contains(needle)` which is always true for an empty
+///   needle and would dump the entire storage to anonymous
+///   callers.
+/// * `q=` is a *fallback*: when both `text` and `q` are present
+///   `text` wins regardless of order.
 pub fn parse_query(query_string: &str) -> Option<String> {
+    let mut fallback: Option<String> = None;
     for pair in query_string.split('&') {
-        let (key, value) = pair.split_once('=')?;
-        if key == "text" || key == "q" {
-            return Some(percent_decode(value));
+        let Some((key, value)) = pair.split_once('=') else {
+            continue;
+        };
+        let decoded = percent_decode(value);
+        if decoded.is_empty() {
+            continue;
+        }
+        match key {
+            "text" => return Some(decoded),
+            "q" if fallback.is_none() => fallback = Some(decoded),
+            _ => {}
         }
     }
-    None
+    fallback
 }
 
 /// `size=` URL param; bounded the same way npm bounds it (1..=250).
@@ -238,9 +259,33 @@ mod tests {
     }
 
     #[test]
+    fn text_overrides_q_regardless_of_order() {
+        assert_eq!(parse_query("q=fallback&text=primary").as_deref(), Some("primary"));
+        assert_eq!(parse_query("text=primary&q=fallback").as_deref(), Some("primary"));
+    }
+
+    #[test]
     fn no_query() {
         assert!(parse_query("").is_none());
         assert!(parse_query("size=20").is_none());
+    }
+
+    #[test]
+    fn empty_text_is_no_query() {
+        // An empty needle would make `contains("")` true downstream and
+        // dump every package in storage. Treat `text=` the same as no
+        // text at all.
+        assert!(parse_query("text=").is_none());
+        assert!(parse_query("text=&size=20").is_none());
+    }
+
+    #[test]
+    fn malformed_pair_doesnt_abort_parse() {
+        // A pair with no `=` (e.g. trailing `&` or an unkeyed value)
+        // used to short-circuit the whole parse with `?`. Now we just
+        // skip it.
+        assert_eq!(parse_query("flag&text=foo").as_deref(), Some("foo"));
+        assert_eq!(parse_query("text=foo&trailing").as_deref(), Some("foo"));
     }
 
     #[test]

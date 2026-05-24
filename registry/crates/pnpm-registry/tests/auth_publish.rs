@@ -575,6 +575,59 @@ async fn search_finds_packages_by_substring_in_local_storage() {
 }
 
 #[tokio::test]
+async fn search_filters_protected_packages_for_anonymous_callers() {
+    let Some(storage) = registry_mock_storage() else {
+        return;
+    };
+    let app = router(static_config(storage));
+
+    // Anonymous: `@pnpm.e2e/needs-auth` matches the access policy
+    // for $authenticated, so search shouldn't surface it.
+    let response = app
+        .clone()
+        .oneshot(Request::get("/-/v1/search?text=needs-auth&size=20").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    let names: Vec<&str> = body["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|object| object["package"]["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        !names.contains(&"@pnpm.e2e/needs-auth"),
+        "anonymous search must not enumerate @pnpm.e2e/needs-auth; got {names:?}",
+    );
+    assert_eq!(body["total"], names.len(), "total must reflect post-filter count");
+
+    // Authenticated: same query should return the package.
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let response = app
+        .oneshot(
+            Request::get("/-/v1/search?text=needs-auth&size=20")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    let names: Vec<&str> = body["objects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|object| object["package"]["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        names.contains(&"@pnpm.e2e/needs-auth"),
+        "authenticated search must include @pnpm.e2e/needs-auth; got {names:?}",
+    );
+}
+
+#[tokio::test]
 async fn search_returns_empty_for_made_up_query() {
     let Some(storage) = registry_mock_storage() else {
         return;
