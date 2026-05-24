@@ -71,6 +71,7 @@ pnpm-registry = { path = "registry/crates/pnpm-registry", version = "0.0.1" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
+axum = { version = "0.8.7", default-features = false, features = ["http1", "tokio", "json", "matched-path", "original-uri"] }
 clap = { version = "4", features = ["derive", "string"] }
 command-extra = { version = "1.0.0" }
 base64 = { version = "0.22.1" }
@@ -118,9 +119,11 @@ strum              = { version = "0.28.0", features = ["derive"] }
 sysinfo            = { version = "0.39.1" }
 tar                = { version = "0.4.45" }
 text-block-macros  = { version = "0.2.0" }
+tower              = { version = "0.5.3" }
+tower-http         = { version = "0.6.8", features = ["trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal"] }
 walkdir            = { version = "2.5.0" }
 wax                = { version = "0.7.0" }
 which              = { version = "8.0.2" }
