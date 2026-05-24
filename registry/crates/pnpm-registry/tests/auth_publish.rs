@@ -298,6 +298,68 @@ async fn publish_followed_by_dist_tag_set_works() {
 }
 
 #[tokio::test]
+async fn dist_tag_mutations_refresh_time_modified() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("time-mod-pkg", "1.0.0", b"x");
+    let request = Request::put("/time-mod-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    app.clone().oneshot(request).await.unwrap();
+
+    let initial_time = serde_json::from_slice::<Value>(
+        &std::fs::read(storage.join("time-mod-pkg/package.json")).unwrap(),
+    )
+    .unwrap()["time"]["modified"]
+        .as_str()
+        .expect("modified is a string")
+        .to_string();
+
+    // Wait long enough that ISO-millisecond timestamps will differ.
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+    let request = Request::put("/-/package/time-mod-pkg/dist-tags/next")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let after_set = serde_json::from_slice::<Value>(
+        &std::fs::read(storage.join("time-mod-pkg/package.json")).unwrap(),
+    )
+    .unwrap()["time"]["modified"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(initial_time, after_set, "dist-tag PUT should bump time.modified");
+
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+    let request = Request::delete("/-/package/time-mod-pkg/dist-tags/next")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let after_delete = serde_json::from_slice::<Value>(
+        &std::fs::read(storage.join("time-mod-pkg/package.json")).unwrap(),
+    )
+    .unwrap()["time"]["modified"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(after_set, after_delete, "dist-tag DELETE should bump time.modified too");
+}
+
+#[tokio::test]
 async fn dist_tag_set_requires_auth() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));

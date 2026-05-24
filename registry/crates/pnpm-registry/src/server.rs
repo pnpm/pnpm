@@ -896,6 +896,19 @@ where
         return error_response(&err);
     }
     let _ = tag; // tag name is used by the mutate closure
+    // Refresh `time.modified` so clients that rely on it for
+    // freshness (pacquet's pick_package, npm's abbreviated-packument
+    // staleness check) don't see the post-mutation packument as
+    // older than its dist-tag change.
+    let time_entry = packument_obj
+        .entry("time".to_string())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    let Some(time_obj) = time_entry.as_object_mut() else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "stored time is not an object".to_string(),
+        });
+    };
+    time_obj.insert("modified".to_string(), Value::String(now_iso()));
     let new_bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
