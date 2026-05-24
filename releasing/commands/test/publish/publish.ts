@@ -381,6 +381,50 @@ test('publish: package with publishConfig.directory', async () => {
   expect(fs.existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
 })
 
+test('publish: preserves packageManager and publish lifecycle scripts when skipManifestObfuscation is enabled, but still omits pnpm', async () => {
+  preparePackages([
+    {
+      name: 'test-publish-skip-manifest-obfuscation',
+      version: '1.0.0',
+      packageManager: 'pnpm@10.0.0',
+      pnpm: {
+        testField: true,
+      },
+      scripts: {
+        prepublishOnly: 'echo prepublishOnly',
+        postinstall: 'echo postinstall',
+      },
+    } as Parameters<typeof preparePackages>[0][number] & { pnpm?: Record<string, unknown> },
+    {
+      name: 'test-publish-skip-manifest-obfuscation-installation',
+      version: '1.0.0',
+    },
+  ])
+
+  process.chdir('test-publish-skip-manifest-obfuscation')
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    skipManifestObfuscation: true,
+  }, [])
+
+  process.chdir('../test-publish-skip-manifest-obfuscation-installation')
+  crossSpawn.sync(pnpmBin, ['add', 'test-publish-skip-manifest-obfuscation', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+
+  const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-skip-manifest-obfuscation/package.json'))
+  expect(publishedManifest).toEqual({
+    name: 'test-publish-skip-manifest-obfuscation',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      postinstall: 'echo postinstall',
+    },
+  })
+})
+
 test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {
   await using server = await createTestIpcServer()
 

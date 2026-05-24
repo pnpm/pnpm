@@ -152,6 +152,7 @@ export const excludedPnpmKeys = [
   'test-pattern',
   'changed-files-ignore-pattern',
   'embed-readme',
+  'skip-manifest-obfuscation',
   'fail-if-no-match',
   'sync-injected-deps-after-scripts',
   'cpu',
