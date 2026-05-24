@@ -95,7 +95,12 @@ registry-mock +args:
   cargo nextest run --no-run
   cargo run --bin=pacquet-registry-mock -- {{args}}
 
+# The benchmark may auto-spawn the registry mock (via
+# `AutoMockInstance::load_or_init()`), so make sure `pnpm-registry`
+# is built before the executor runs — otherwise the spawn step
+# aborts with "binary not found".
 integrated-benchmark +args:
+  cargo build --bin=pnpm-registry
   cargo run --bin=integrated-benchmark -- {{args}}
 
 cli +args:
