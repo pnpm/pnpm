@@ -213,7 +213,7 @@ function pickImmatureEntries (
   // the discovery notice.
   const reason = promptRequired
     ? '(approved at the prompt)'
-    : '(loose mode allowed these immature versions)'
+    : '(set minimumReleaseAgeStrict to true to gate these updates with a prompt)'
   globalInfo(
     `Added ${sorted.length} ${sorted.length === 1 ? 'entry' : 'entries'} to minimumReleaseAgeExclude in pnpm-workspace.yaml ` +
     `${reason}:\n  ${sorted.join('\n  ')}`
