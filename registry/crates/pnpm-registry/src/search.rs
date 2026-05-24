@@ -82,8 +82,14 @@ pub async fn run_local_search(storage: &Path, query: &str, limit: usize) -> Resu
     let needle = query.to_lowercase();
     let mut matches: Vec<Value> = Vec::new();
     let mut total: usize = 0;
+    let mut scanned: usize = 0;
+    let mut parse_errors: usize = 0;
+    let mut build_errors: usize = 0;
 
-    for path in collect_packument_paths(storage).await? {
+    let paths = collect_packument_paths(storage).await?;
+    let path_count = paths.len();
+    for path in paths {
+        scanned += 1;
         let Some((name, _scope_dir)) = derive_name(&path, storage) else {
             continue;
         };
@@ -95,15 +101,40 @@ pub async fn run_local_search(storage: &Path, query: &str, limit: usize) -> Resu
             continue;
         }
         let Ok(bytes) = fs::read(&path).await else { continue };
-        let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
-        if let Some(pkg) = build_search_package(&name, &packument) {
-            matches.push(json!({
-                "package": pkg,
-                "score": {"final": 1.0, "detail": {"quality": 1.0, "popularity": 1.0, "maintenance": 1.0}},
-                "searchScore": 1.0,
-            }));
+        let packument = match serde_json::from_slice::<Value>(&bytes) {
+            Ok(value) => value,
+            Err(err) => {
+                parse_errors += 1;
+                tracing::warn!(?err, %name, "search: failed to parse packument");
+                continue;
+            }
+        };
+        match build_search_package(&name, &packument) {
+            Some(pkg) => {
+                matches.push(json!({
+                    "package": pkg,
+                    "score": {"final": 1.0, "detail": {"quality": 1.0, "popularity": 1.0, "maintenance": 1.0}},
+                    "searchScore": 1.0,
+                }));
+            }
+            None => {
+                build_errors += 1;
+                tracing::warn!(%name, "search: build_search_package returned None");
+            }
         }
     }
+
+    tracing::info!(
+        ?storage,
+        %query,
+        path_count,
+        scanned,
+        matched = total,
+        returned = matches.len(),
+        parse_errors,
+        build_errors,
+        "search: completed scan",
+    );
 
     Ok(json!({
         "objects": matches,
