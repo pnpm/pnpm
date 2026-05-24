@@ -310,6 +310,22 @@ async fn dist_tag_set_requires_auth() {
 }
 
 #[tokio::test]
+async fn publish_rejects_body_name_that_doesnt_match_url() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("other-name", "1.0.0", b"x");
+    let request = Request::put("/url-name")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn publish_rejects_tarball_that_doesnt_match_package() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));

@@ -531,6 +531,22 @@ async fn publish_package(
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
+
+    // Reject a publish whose body name disagrees with the URL.
+    // npm/verdaccio return 400 here too; without this check a
+    // misrouted PUT silently overwrites the wrong on-disk
+    // package.json with another package's manifest.
+    let body_name = incoming.get("name").and_then(Value::as_str);
+    if body_name.is_some_and(|body_name| body_name != name.as_str()) {
+        return error_response(&RegistryError::BadRequest {
+            reason: format!(
+                "package in URL ({:?}) does not match body ({:?})",
+                name.as_str(),
+                body_name.unwrap_or(""),
+            ),
+        });
+    }
+
     let attachments = match extract_attachments(&mut incoming) {
         Ok(a) => a,
         Err(err) => return error_response(&err),
@@ -551,8 +567,20 @@ async fn publish_package(
         canonical_attachments.push((canonical, attachment.bytes));
     }
 
+    // Seed the merge from whatever the upstream knows about the
+    // package, not just from a cold cache. Without this, a publish
+    // of a brand-new version of an upstream-only package would
+    // start from `None` and the newly-written local packument
+    // would mask every upstream version + dist-tag on subsequent
+    // reads. `update_dist_tag` already does the same fallback —
+    // we just mirror it here.
     let existing_bytes = match state.inner.cache.read_packument_any_age(&name).await {
-        Ok(b) => b,
+        Ok(Some(bytes)) => Some(bytes),
+        Ok(None) => match load_packument_bytes(state, &name).await {
+            PackumentLoad::Ok(bytes) => Some(bytes),
+            PackumentLoad::NotFound => None,
+            PackumentLoad::Err(err) => return error_response(&err),
+        },
         Err(err) => return error_response(&err),
     };
     let existing: Option<Value> = match existing_bytes.as_deref().map(serde_json::from_slice) {

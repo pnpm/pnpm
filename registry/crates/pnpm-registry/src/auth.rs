@@ -212,10 +212,10 @@ mod tests {
     fn adduser_creates_then_validates() {
         let store = UserStore::new();
         let outcome = store.add_or_login("alice", "secret").unwrap();
-        matches!(outcome, UpsertOutcome::Created);
+        assert!(matches!(outcome, UpsertOutcome::Created));
 
         let outcome = store.add_or_login("alice", "secret").unwrap();
-        matches!(outcome, UpsertOutcome::LoggedIn);
+        assert!(matches!(outcome, UpsertOutcome::LoggedIn));
 
         assert!(store.verify("alice", "secret").is_some());
         assert!(store.verify("alice", "wrong").is_none());
