@@ -75,25 +75,35 @@ pub fn tee_to_cache(response: reqwest::Response, write: TarballWrite) -> Body {
 
 async fn run_tee(
     mut upstream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
-    mut write: TarballWrite,
+    write: TarballWrite,
     tx: mpsc::Sender<Result<Bytes, io::Error>>,
     url: String,
 ) {
+    // `cache_write` goes to `None` after a write failure: the temp
+    // file is abandoned and the client continues to receive bytes
+    // from upstream. The cache is best-effort — matching the
+    // fallback that `serve_tarball` already does when `open_tarball_tmp`
+    // fails (see `streaming without cache` log).
+    let mut cache_write = Some(write);
     while let Some(chunk_result) = upstream.next().await {
         let chunk = match chunk_result {
             Ok(chunk) => chunk,
             Err(err) => {
                 tracing::warn!(%url, %err, "upstream stream errored mid-body");
                 let _ = tx.send(Err(io::Error::other(err.to_string()))).await;
-                write.abandon().await;
+                if let Some(write) = cache_write {
+                    write.abandon().await;
+                }
                 return;
             }
         };
-        if let Err(err) = write.file.write_all(&chunk).await {
-            tracing::warn!(%url, ?err, "cache temp-file write failed");
-            let _ = tx.send(Err(err)).await;
-            write.abandon().await;
-            return;
+        if let Some(write) = cache_write.as_mut() {
+            if let Err(err) = write.file.write_all(&chunk).await {
+                tracing::warn!(%url, ?err, "cache temp-file write failed; continuing without cache");
+                if let Some(write) = cache_write.take() {
+                    write.abandon().await;
+                }
+            }
         }
         if tx.send(Ok(chunk)).await.is_err() {
             // Client hung up. Don't keep streaming bytes nobody's
@@ -104,11 +114,15 @@ async fn run_tee(
             // failure mode where a client that aborted *also* poisoned
             // a half-written upstream into our cache.
             tracing::debug!(%url, "client disconnected mid-stream; abandoning cache write");
-            write.abandon().await;
+            if let Some(write) = cache_write {
+                write.abandon().await;
+            }
             return;
         }
     }
-    if let Err(err) = write.finalize().await {
-        tracing::warn!(%url, ?err, "cache finalize failed");
+    if let Some(write) = cache_write {
+        if let Err(err) = write.finalize().await {
+            tracing::warn!(%url, ?err, "cache finalize failed");
+        }
     }
 }

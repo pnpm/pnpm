@@ -482,23 +482,12 @@ async fn upstream_stream_error_clears_cache() {
     let result = to_bytes(response.into_body(), usize::MAX).await;
     assert!(result.is_err(), "expected body to error mid-stream");
 
-    // Give the tee task a moment to observe the upstream error,
-    // remove the temp file, and finish.
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    let dir = cache_dir.join("foo");
-    if dir.exists() {
-        let entries: Vec<_> = std::fs::read_dir(&dir)
-            .unwrap()
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tgz"))
-            .collect();
-        assert!(
-            entries.is_empty(),
-            "expected no .tgz files after mid-stream error, found {} entries",
-            entries.len(),
-        );
-    }
+    // The tee task observes the upstream error and calls
+    // `write.abandon()`. We don't know when that finishes, but it
+    // should happen quickly — poll for it so the test fails fast on
+    // success and gives a 1s budget for the worst case (heavy CI
+    // load).
+    assert!(await_no_tgz(&cache_dir.join("foo"), Duration::from_secs(1)).await);
 }
 
 #[tokio::test]
@@ -527,22 +516,32 @@ async fn client_disconnect_mid_stream_clears_cache() {
 
     // Drop the response without reading the body. The mpsc receiver
     // goes away, the tee task's next `tx.send` returns Err, and
-    // `write.abandon()` runs.
+    // `write.abandon()` runs. Poll for the abandon so the test
+    // doesn't depend on a fixed sleep budget under heavy CI load.
     drop(response);
+    assert!(await_no_tgz(&cache_dir.join("big"), Duration::from_secs(1)).await);
+}
 
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    let dir = cache_dir.join("big");
-    if dir.exists() {
-        let entries: Vec<_> = std::fs::read_dir(&dir)
-            .unwrap()
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tgz"))
-            .collect();
-        assert!(
-            entries.is_empty(),
-            "expected no .tgz files after client disconnect, found {} entries",
-            entries.len(),
-        );
+/// Poll `dir` until it contains no `.tgz` files (or doesn't exist),
+/// up to `budget`. Returns `true` on success, `false` on timeout —
+/// gives the calling test a single deterministic signal that the
+/// tee task observed the abandon condition and cleaned up.
+async fn await_no_tgz(dir: &std::path::Path, budget: Duration) -> bool {
+    let deadline = std::time::Instant::now() + budget;
+    loop {
+        let still_present = dir
+            .read_dir()
+            .map(|iter| {
+                iter.filter_map(Result::ok)
+                    .any(|entry| entry.file_name().to_string_lossy().ends_with(".tgz"))
+            })
+            .unwrap_or(false);
+        if !still_present {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }

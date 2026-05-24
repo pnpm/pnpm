@@ -80,8 +80,11 @@ impl<'a> MockInstanceOptions<'a> {
             File::create(stderr).expect("create file for stderr").into()
         });
         // No `prepare` step needed — `@pnpm/registry-mock`'s npm
-        // tarball ships `registry/storage-cache/` already populated,
-        // and pnpm-registry serves it verbatim in `--static` mode.
+        // tarball ships `registry/storage-cache/` already populated.
+        // pnpm-registry runs in proxy mode against npmjs.org so
+        // off-storage packages (`is-positive`, `json-append`, etc.)
+        // fall through to npm; see `pnpm_registry_command` for the
+        // rationale.
         let process = pnpm_registry_command(port)
             .stdin(Stdio::null())
             .stdout(stdout)

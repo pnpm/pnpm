@@ -38,10 +38,11 @@ pub fn registry_mock() -> &'static Path {
 }
 
 /// The verdaccio-shaped storage that `@pnpm/registry-mock`'s published
-/// npm tarball ships under `registry/storage-cache/`. We hand this to
-/// `pnpm-registry --static --storage <path>` instead of running
-/// verdaccio ourselves; the storage already contains the fixture
-/// packages pacquet's tests rely on, so no `prepare` step is needed.
+/// npm tarball ships under `registry/storage-cache/`. We hand it to
+/// `pnpm-registry --storage <path>` (proxy mode with `npmjs.org`
+/// upstream — see [`crate::pnpm_registry_command`] for why) instead
+/// of running verdaccio ourselves. The storage already contains the
+/// fixture packages, so no `prepare` step is needed.
 pub fn registry_mock_storage() -> &'static Path {
     static STORAGE: OnceLock<PathBuf> = OnceLock::new();
     STORAGE.get_or_init(|| {
