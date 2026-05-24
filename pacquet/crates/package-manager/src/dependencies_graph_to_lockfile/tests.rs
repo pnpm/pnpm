@@ -523,3 +523,203 @@ fn snapshot_optional_flag_round_trips_from_dependencies_graph_node() {
         "snapshot marked optional in the graph propagates to the lockfile",
     );
 }
+
+/// Scenario from
+/// [pnpm/pnpm#11916](https://github.com/pnpm/pnpm/issues/11916): root
+/// declares `optionalDependencies.a` and `dependencies.b`; `a.dependencies = {c}`
+/// and `b.dependencies = {a}`. The resolver's [`DependenciesGraphNode::optional`]
+/// field is stale on `c` — the tree walker marks it `optional: true`
+/// on the `optional → a → c` descent and then misses the AND-fold on
+/// the `prod → b → a` revisit because the lazy-children path doesn't
+/// re-traverse `a`'s subtree. The lockfile-pruner BFS re-derives the
+/// flag from the importer-rooted graph, so `c` ends up `optional:
+/// false` (reachable through the all-non-optional path `prod → b →
+/// a → c`).
+#[test]
+fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_path() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies":         { "b": "^1.0.0" },
+        "optionalDependencies": { "a": "^1.0.0" },
+    }));
+
+    // `c` was first reached via the optional path, so the resolver
+    // left `node.optional = true`. The pruner should flip it back to
+    // false.
+    let c = make_node_with_optional(
+        "c",
+        "1.0.0",
+        json!({ "name": "c", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+        true,
+    );
+
+    // `a` was revisited from `b` so the resolver AND-folded its flag
+    // to false — that part already works. The bug is purely in the
+    // descendants.
+    let mut a_children = BTreeMap::new();
+    a_children.insert("c".to_string(), DepPath::from("c@1.0.0".to_string()));
+    let a = make_node_with_optional(
+        "a",
+        "1.0.0",
+        json!({ "name": "a", "version": "1.0.0", "dependencies": { "c": "^1.0.0" } }),
+        a_children,
+        BTreeMap::new(),
+        HashSet::new(),
+        false,
+    );
+
+    let mut b_children = BTreeMap::new();
+    b_children.insert("a".to_string(), DepPath::from("a@1.0.0".to_string()));
+    let b = make_node_with_optional(
+        "b",
+        "1.0.0",
+        json!({ "name": "b", "version": "1.0.0", "dependencies": { "a": "^1.0.0" } }),
+        b_children,
+        BTreeMap::new(),
+        HashSet::new(),
+        false,
+    );
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(a.dep_path.clone(), a);
+    graph.insert(b.dep_path.clone(), b);
+    graph.insert(c.dep_path.clone(), c);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("a".to_string(), DepPath::from("a@1.0.0".to_string()));
+    direct.insert("b".to_string(), DepPath::from("b@1.0.0".to_string()));
+
+    let resolved = ResolveImporterResult {
+        resolved_tree: ResolvedTree::default(),
+        peers_result: ResolvePeersResult {
+            graph,
+            direct_dependencies_by_alias: direct,
+            peer_dependency_issues: PeerDependencyIssues::default(),
+        },
+    };
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        manifest: &manifest,
+        resolved: &resolved,
+        auto_install_peers: false,
+        exclude_links_from_lockfile: false,
+        overrides: None,
+        ignored_optional_dependencies: None,
+    });
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let a_key: PackageKey = "a@1.0.0".parse().unwrap();
+    let b_key: PackageKey = "b@1.0.0".parse().unwrap();
+    let c_key: PackageKey = "c@1.0.0".parse().unwrap();
+    assert!(!snapshots[&b_key].optional, "b is a direct prod dep");
+    assert!(!snapshots[&a_key].optional, "a is reachable via prod → b → a");
+    assert!(!snapshots[&c_key].optional, "c is reachable via prod → b → a → c");
+}
+
+/// Ported from upstream pnpm's
+/// [`'subdependency is both optional and dev'`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/lockfile/pruner/test/index.ts#L378-L449)
+/// pruner test: when one shared subdep is reached via a dev parent's
+/// `optionalDependencies` and a prod parent's `dependencies`, only
+/// the strictly-optional subdep ends up `optional: true`.
+#[test]
+fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optional() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies":    { "prod-parent": "^1.0.0" },
+        "devDependencies": { "parent": "^1.0.0" },
+    }));
+
+    let subdep = make_node_with_optional(
+        "subdep",
+        "1.0.0",
+        json!({ "name": "subdep", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+        true,
+    );
+    let subdep2 = make_node_with_optional(
+        "subdep2",
+        "1.0.0",
+        json!({ "name": "subdep2", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+        true,
+    );
+
+    let mut parent_children = BTreeMap::new();
+    parent_children.insert("subdep".to_string(), DepPath::from("subdep@1.0.0".to_string()));
+    parent_children.insert("subdep2".to_string(), DepPath::from("subdep2@1.0.0".to_string()));
+    let parent = make_node_with_optional(
+        "parent",
+        "1.0.0",
+        json!({
+            "name": "parent",
+            "version": "1.0.0",
+            "optionalDependencies": { "subdep": "^1.0.0", "subdep2": "^1.0.0" },
+        }),
+        parent_children,
+        BTreeMap::new(),
+        HashSet::new(),
+        false,
+    );
+
+    let mut prod_children = BTreeMap::new();
+    prod_children.insert("subdep2".to_string(), DepPath::from("subdep2@1.0.0".to_string()));
+    let prod_parent = make_node_with_optional(
+        "prod-parent",
+        "1.0.0",
+        json!({
+            "name": "prod-parent",
+            "version": "1.0.0",
+            "dependencies": { "subdep2": "^1.0.0" },
+        }),
+        prod_children,
+        BTreeMap::new(),
+        HashSet::new(),
+        false,
+    );
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(parent.dep_path.clone(), parent);
+    graph.insert(prod_parent.dep_path.clone(), prod_parent);
+    graph.insert(subdep.dep_path.clone(), subdep);
+    graph.insert(subdep2.dep_path.clone(), subdep2);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("parent".to_string(), DepPath::from("parent@1.0.0".to_string()));
+    direct.insert("prod-parent".to_string(), DepPath::from("prod-parent@1.0.0".to_string()));
+
+    let resolved = ResolveImporterResult {
+        resolved_tree: ResolvedTree::default(),
+        peers_result: ResolvePeersResult {
+            graph,
+            direct_dependencies_by_alias: direct,
+            peer_dependency_issues: PeerDependencyIssues::default(),
+        },
+    };
+
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        manifest: &manifest,
+        resolved: &resolved,
+        auto_install_peers: false,
+        exclude_links_from_lockfile: false,
+        overrides: None,
+        ignored_optional_dependencies: None,
+    });
+
+    let snapshots = lockfile.snapshots.as_ref().unwrap();
+    let subdep_key: PackageKey = "subdep@1.0.0".parse().unwrap();
+    let subdep2_key: PackageKey = "subdep2@1.0.0".parse().unwrap();
+    assert!(snapshots[&subdep_key].optional, "subdep only reachable via dev → optional path");
+    assert!(
+        !snapshots[&subdep2_key].optional,
+        "subdep2 is reachable via prod-parent → subdep2 (all non-optional)",
+    );
+}
