@@ -262,20 +262,21 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
       const { cleaned, retained } = cleanupIgnoredGhsas(opts.auditConfig.ignoreGhsas, auditReport)
       if (cleaned.length > 0) {
         globalInfo(`Removed ${cleaned.length} unused ignored GHSA(s): ${cleaned.join(', ')}`)
+        const retainedNormalized = retained.map(normalizeGhsaId)
         await writeSettings({
           ...opts,
           workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
           updatedSettings: {
             auditConfig: {
               ...opts.auditConfig,
-              ignoreGhsas: retained.length > 0 ? retained : undefined,
+              ignoreGhsas: retainedNormalized.length > 0 ? retainedNormalized : undefined,
             },
           },
         })
         // Update opts for subsequent operations
         opts.auditConfig = {
           ...opts.auditConfig,
-          ignoreGhsas: retained.length > 0 ? retained : undefined,
+          ignoreGhsas: retainedNormalized.length > 0 ? retainedNormalized : undefined,
         }
       }
     }
