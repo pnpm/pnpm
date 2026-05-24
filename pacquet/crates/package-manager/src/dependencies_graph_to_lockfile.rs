@@ -73,7 +73,9 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
 
     let importer = build_root_importer(manifest, resolved);
 
-    let (packages, snapshots) = build_packages_and_snapshots(&resolved.peers_result.graph);
+    let optional_overrides = compute_corrected_optional(manifest, resolved);
+    let (packages, snapshots) =
+        build_packages_and_snapshots(&resolved.peers_result.graph, &optional_overrides);
 
     let mut importers: HashMap<String, ProjectSnapshot> = HashMap::with_capacity(1);
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), importer);
@@ -243,8 +245,13 @@ fn real_name(result: &ResolveResult) -> Option<String> {
 ///
 /// Multiple snapshot entries (peer variants) share one packages entry,
 /// so the loop dedupes by peer-stripped key.
+///
+/// `optional_overrides` carries the corrected `optional` flag per
+/// depPath produced by [`compute_corrected_optional`]; a missing
+/// entry falls back to [`DependenciesGraphNode::optional`].
 fn build_packages_and_snapshots(
     graph: &DependenciesGraph,
+    optional_overrides: &HashMap<DepPath, bool>,
 ) -> (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>) {
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
@@ -253,7 +260,7 @@ fn build_packages_and_snapshots(
         let Ok(snapshot_key) = node.dep_path.as_str().parse::<PackageKey>() else { continue };
         let metadata_key = snapshot_key.without_peer();
 
-        let snapshot = build_snapshot_entry(node, graph);
+        let snapshot = build_snapshot_entry(node, graph, optional_overrides);
         snapshots.insert(snapshot_key, snapshot);
 
         packages.entry(metadata_key).or_insert_with(|| build_package_metadata(node));
@@ -372,14 +379,19 @@ fn build_peer_dep_blocks(node: &DependenciesGraphNode) -> PeerDepBlocks {
 /// [`toLockfileDependency`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts#L49-L156):
 /// the `dependencies` / `optionalDependencies` partition follows the
 /// node's own `optionalDependencies` set and peer-optional flag;
-/// `transitivePeerDependencies` is sorted; `optional` is copied from
-/// the resolver's [`DependenciesGraphNode::optional`] (AND-folded
-/// across every visit so a snapshot is marked `optional: true` only
-/// when every path from any importer to it goes through an
-/// `optionalDependencies` edge). `BuildModules` consults this flag to
-/// decide whether a build failure is fatal or should be reported via
+/// `transitivePeerDependencies` is sorted; `optional` is sourced from
+/// [`compute_corrected_optional`] (the lockfile-pruner BFS port,
+/// which re-derives the flag from the importer graph because the
+/// resolver's per-node fold misses transitive descendants on
+/// revisits — see <https://github.com/pnpm/pnpm/issues/11916>).
+/// `BuildModules` consults this flag to decide whether a build
+/// failure is fatal or should be reported via
 /// `pnpm:skipped-optional-dependency`.
-fn build_snapshot_entry(node: &DependenciesGraphNode, graph: &DependenciesGraph) -> SnapshotEntry {
+fn build_snapshot_entry(
+    node: &DependenciesGraphNode,
+    graph: &DependenciesGraph,
+    optional_overrides: &HashMap<DepPath, bool>,
+) -> SnapshotEntry {
     let optional_children = optional_children_of(node);
 
     let mut dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
@@ -400,13 +412,106 @@ fn build_snapshot_entry(node: &DependenciesGraphNode, graph: &DependenciesGraph)
         list
     };
 
+    let optional = optional_overrides.get(&node.dep_path).copied().unwrap_or(node.optional);
+
     SnapshotEntry {
         id: None,
         dependencies: (!dependencies.is_empty()).then_some(dependencies),
         optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),
         transitive_peer_dependencies: (!transitive.is_empty()).then_some(transitive),
         patched: None,
-        optional: node.optional,
+        optional,
+    }
+}
+
+/// Re-derive each snapshot's `optional` flag by walking the graph
+/// from the importer's direct deps, classifying each starting edge by
+/// the dep-group it lives in on the manifest. A package ends up
+/// `optional: false` iff every visit didn't land on it through an
+/// `optionalDependencies` edge — i.e. there exists at least one path
+/// from any importer to it whose edges are all non-optional.
+///
+/// Ports upstream pnpm's
+/// [`copyDependencySubGraph`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/lockfile/pruner/src/index.ts#L160-L205)
+/// BFS, which exists for exactly this reason: the resolver's
+/// per-node AND-fold at
+/// [`resolveDependencies.ts:1630`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencies.ts#L1627-L1648)
+/// updates only the directly-revisited package, so the
+/// already-walked descendants stay stuck at whatever `optional` they
+/// were tagged with on the first visit. See
+/// <https://github.com/pnpm/pnpm/issues/11916> for the scenario.
+///
+/// A missing entry in the returned map means the node was never
+/// reachable from any importer dep — [`build_snapshot_entry`] falls
+/// back to [`DependenciesGraphNode::optional`] for those, matching
+/// upstream's "untouched depLockfile keeps its existing flag" arm.
+fn compute_corrected_optional(
+    manifest: &PackageManifest,
+    resolved: &ResolveImporterResult,
+) -> HashMap<DepPath, bool> {
+    let graph = &resolved.peers_result.graph;
+    let direct = &resolved.peers_result.direct_dependencies_by_alias;
+    let alias_to_group = manifest_alias_to_group(manifest);
+
+    // Partition importer deps by group, mirroring the
+    // `(devDepPaths, optionalDepPaths, prodDepPaths)` split upstream
+    // hands to `copyDependencySubGraph`.
+    let mut dev_seeds: Vec<&DepPath> = Vec::new();
+    let mut optional_seeds: Vec<&DepPath> = Vec::new();
+    let mut prod_seeds: Vec<&DepPath> = Vec::new();
+    for (alias, dep_path) in direct {
+        let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);
+        match group {
+            DependencyGroup::Dev => dev_seeds.push(dep_path),
+            DependencyGroup::Optional => optional_seeds.push(dep_path),
+            DependencyGroup::Prod | DependencyGroup::Peer => prod_seeds.push(dep_path),
+        }
+    }
+
+    let mut walked: HashSet<(&DepPath, bool)> = HashSet::new();
+    let mut visited: HashSet<&DepPath> = HashSet::new();
+    let mut non_optional: HashSet<&DepPath> = HashSet::new();
+
+    walk_subgraph(graph, &mut walked, &mut visited, &mut non_optional, dev_seeds, false);
+    walk_subgraph(graph, &mut walked, &mut visited, &mut non_optional, optional_seeds, true);
+    walk_subgraph(graph, &mut walked, &mut visited, &mut non_optional, prod_seeds, false);
+
+    let mut out: HashMap<DepPath, bool> = HashMap::with_capacity(visited.len());
+    for dep_path in visited {
+        out.insert(dep_path.clone(), !non_optional.contains(dep_path));
+    }
+    out
+}
+
+/// Iterative half of [`compute_corrected_optional`]. Pushes
+/// `(dep_path, optional)` pairs onto an explicit stack rather than
+/// recursing so deep graphs can't blow the call stack. Children
+/// declared by the parent's `optionalDependencies` (or by a
+/// peer-deps-meta `optional: true`) always recurse with
+/// `optional: true`; the rest inherit the parent's `optional`.
+fn walk_subgraph<'g>(
+    graph: &'g DependenciesGraph,
+    walked: &mut HashSet<(&'g DepPath, bool)>,
+    visited: &mut HashSet<&'g DepPath>,
+    non_optional: &mut HashSet<&'g DepPath>,
+    seeds: Vec<&'g DepPath>,
+    optional: bool,
+) {
+    let mut stack: Vec<(&'g DepPath, bool)> = seeds.into_iter().map(|dp| (dp, optional)).collect();
+    while let Some((dep_path, optional)) = stack.pop() {
+        if !walked.insert((dep_path, optional)) {
+            continue;
+        }
+        let Some(node) = graph.get(dep_path) else { continue };
+        visited.insert(dep_path);
+        if !optional {
+            non_optional.insert(dep_path);
+        }
+        let opt_children = optional_children_of(node);
+        for (alias, child_dep_path) in &node.children {
+            let child_optional = optional || opt_children.contains(alias.as_str());
+            stack.push((child_dep_path, child_optional));
+        }
     }
 }
 
