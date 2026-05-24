@@ -65,7 +65,7 @@ pub fn extract_attachments(body: &mut Value) -> Result<Vec<Attachment>, Registry
                     filename: filename.clone(),
                     reason: format!(
                         "length mismatch: header says {expected}, decoded {}",
-                        bytes.len()
+                        bytes.len(),
                     ),
                 });
             }
@@ -176,15 +176,16 @@ pub fn now_iso() -> String {
     let millis = since_epoch.as_millis() as i64;
     // Civil-time conversion without pulling in `chrono`.
     // 86_400_000 ms in a day.
-    let (mut days, ms_in_day) = (millis / 86_400_000, millis.rem_euclid(86_400_000));
+    let (days, ms_in_day) = (millis / 86_400_000, millis.rem_euclid(86_400_000));
     let (h, rem) = (ms_in_day / 3_600_000, ms_in_day.rem_euclid(3_600_000));
     let (m, rem) = (rem / 60_000, rem.rem_euclid(60_000));
     let (s, ms) = (rem / 1000, rem.rem_euclid(1000));
     // Days since 1970-01-01 → year/month/day. Howard Hinnant's
-    // algorithm, adapted to integer days from epoch.
-    let z = days + 719_468; // shift so era is positive
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097) as u32;
+    // algorithm, adapted to integer days from epoch. Shift so era
+    // is positive (719_468 = days from 0000-03-01 to 1970-01-01).
+    let epoch_days = days + 719_468;
+    let era = epoch_days.div_euclid(146_097);
+    let doe = epoch_days.rem_euclid(146_097) as u32;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
     let year = yoe as i64 + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
@@ -192,7 +193,6 @@ pub fn now_iso() -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = if month <= 2 { year + 1 } else { year };
-    let _ = &mut days; // silence unused-mut lint without breaking the chain
     format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}.{ms:03}Z")
 }
 

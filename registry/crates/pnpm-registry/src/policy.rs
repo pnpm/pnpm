@@ -69,7 +69,7 @@ impl PackagePolicy {
 /// Ordered list of [`PackagePolicy`] rules. First match wins,
 /// matching verdaccio's evaluation order — order in the config is
 /// significant, since the catch-all `**` is almost always last.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PackagePolicies {
     rules: Vec<PackagePolicy>,
 }

@@ -613,15 +613,15 @@ async fn remove_dist_tag(
 /// add/remove. Returns 201 on success — verdaccio uses 201 for both
 /// add and remove and the anonymous-npm-registry-client tolerates
 /// 200 or 201, so we standardize on 201.
-async fn update_dist_tag<F>(
+async fn update_dist_tag<Mutate>(
     state: &AppState,
     headers: &HeaderMap,
     raw_name: &str,
     tag: &str,
-    mutate: F,
+    mutate: Mutate,
 ) -> Response
 where
-    F: FnOnce(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
+    Mutate: FnOnce(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
     let raw_name = match urldecode(raw_name) {
         Ok(n) => n,

@@ -266,7 +266,7 @@ mod tests {
         // Wrong password — None, not an error.
         let wrong = format!(
             "Basic {}",
-            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"alice:wrong")
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"alice:wrong"),
         );
         assert!(identify(Some(&wrong), &users, &tokens).is_none());
 
