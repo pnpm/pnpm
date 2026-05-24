@@ -2608,7 +2608,6 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "tokio",
- "which",
 ]
 
 [[package]]
@@ -2983,6 +2982,7 @@ dependencies = [
  "miette 7.6.0",
  "mockito",
  "pacquet-network",
+ "pipe-trait",
  "reqwest",
  "serde",
  "serde_json",

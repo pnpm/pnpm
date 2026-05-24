@@ -36,3 +36,20 @@ pub fn registry_mock() -> &'static Path {
     REGISTRY_MOCK
         .get_or_init(|| workspace_root().join("pacquet").join("tasks").join("registry-mock"))
 }
+
+/// The verdaccio-shaped storage that `@pnpm/registry-mock`'s published
+/// npm tarball ships under `registry/storage-cache/`. We hand this to
+/// `pnpm-registry --static --storage <path>` instead of running
+/// verdaccio ourselves; the storage already contains the fixture
+/// packages pacquet's tests rely on, so no `prepare` step is needed.
+pub fn registry_mock_storage() -> &'static Path {
+    static STORAGE: OnceLock<PathBuf> = OnceLock::new();
+    STORAGE.get_or_init(|| {
+        registry_mock()
+            .join("node_modules")
+            .join("@pnpm")
+            .join("registry-mock")
+            .join("registry")
+            .join("storage-cache")
+    })
+}

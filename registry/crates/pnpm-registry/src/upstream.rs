@@ -11,13 +11,12 @@ use crate::package_name::PackageName;
 /// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,
 /// pool/timeout tuning, concurrency semaphore, and per-registry TLS
 /// routing if it's ever wired in later) and adds the small bit of
-/// glue specific to a proxy: building the upstream URL, fishing the
-/// packument out of the response, and rewriting `dist.tarball`.
+/// glue specific to a proxy: building the upstream URL and fishing
+/// the packument or tarball response out of it.
 #[derive(Debug, Clone)]
 pub struct Upstream {
     client: Arc<ThrottledClient>,
     base: String,
-    public_url: String,
 }
 
 #[derive(Debug)]
@@ -29,22 +28,13 @@ pub enum FetchOutcome<Payload> {
 }
 
 impl Upstream {
-    pub fn new(base: String, public_url: String) -> Self {
-        Self { client: Arc::new(ThrottledClient::new_for_installs()), base, public_url }
+    pub fn new(base: String) -> Self {
+        Self { client: Arc::new(ThrottledClient::new_for_installs()), base }
     }
 
-    /// Fetch a packument from the upstream and rewrite every
-    /// `versions[v].dist.tarball` URL so it points back at this server.
-    /// The rewritten JSON is what gets cached and served.
     pub async fn fetch_packument(&self, name: &PackageName) -> Result<FetchOutcome<Vec<u8>>> {
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
-        let bytes = match self.fetch(&url).await? {
-            FetchOutcome::Ok(bytes) => bytes,
-            FetchOutcome::NotFound => return Ok(FetchOutcome::NotFound),
-        };
-        let mut json: Value = serde_json::from_slice(&bytes)?;
-        rewrite_tarball_urls(&mut json, &self.base, &self.public_url);
-        Ok(FetchOutcome::Ok(serde_json::to_vec(&json)?))
+        self.fetch(&url).await
     }
 
     /// Send the tarball request and return the streaming
@@ -98,11 +88,15 @@ async fn check_status(response: reqwest::Response, url: &str) -> Result<reqwest:
     Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
 }
 
-/// Walk a packument document and replace every string that starts with
-/// `upstream` and refers to a `dist.tarball` URL with a corresponding
-/// `public_url` URL.
-fn rewrite_tarball_urls(value: &mut Value, upstream: &str, public_url: &str) {
-    let upstream = upstream.trim_end_matches('/');
+/// Rewrite every `versions[v].dist.tarball` in `value` to a URL
+/// served by *this* registry instead of whatever URL the source put
+/// there. The new URL is `{public_url}/{pkg}/-/{basename}`, where
+/// `basename` is the last `/`-separated segment of the original
+/// tarball URL. This handles both npm's canonical
+/// `/{pkg}/-/{basename}` shape and verdaccio's
+/// `/{scope}/{name}/-/{scope}/{filename}` shape uniformly — we only
+/// look at the basename, never at the path prefix.
+pub fn rewrite_tarball_urls(value: &mut Value, pkg: &PackageName, public_url: &str) {
     let public_url = public_url.trim_end_matches('/');
     let Some(versions) = value.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
@@ -112,20 +106,22 @@ fn rewrite_tarball_urls(value: &mut Value, upstream: &str, public_url: &str) {
             continue;
         };
         let Some(tarball_value) = dist.get_mut("tarball") else { continue };
-        let Some(tarball) = tarball_value.as_str() else { continue };
-        if let Some(suffix) = tarball.strip_prefix(upstream) {
-            *tarball_value = Value::String(format!("{public_url}{suffix}"));
-        }
+        let Some(basename) = tarball_value.as_str().and_then(|url| url.rsplit('/').next()) else {
+            continue;
+        };
+        let new_url = format!("{public_url}/{}/-/{basename}", pkg.as_str());
+        *tarball_value = Value::String(new_url);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::rewrite_tarball_urls;
+    use crate::package_name::PackageName;
     use serde_json::json;
 
     #[test]
-    fn rewrites_dist_tarball() {
+    fn rewrites_npm_form_tarball() {
         let mut doc = json!({
             "name": "foo",
             "versions": {
@@ -137,7 +133,8 @@ mod tests {
                 }
             }
         });
-        rewrite_tarball_urls(&mut doc, "https://registry.npmjs.org", "http://127.0.0.1:4873");
+        let name = PackageName::parse("foo").unwrap();
+        rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:4873");
         assert_eq!(
             doc["versions"]["1.0.0"]["dist"]["tarball"],
             "http://127.0.0.1:4873/foo/-/foo-1.0.0.tgz",
@@ -146,27 +143,32 @@ mod tests {
     }
 
     #[test]
-    fn leaves_other_hosts_alone() {
+    fn rewrites_verdaccio_form_tarball_for_scoped() {
+        // Verdaccio publishes scoped tarball URLs like
+        // `/@scope/name/-/@scope/name-1.0.0.tgz` — the scope is
+        // present twice. We only care about the basename.
         let mut doc = json!({
             "versions": {
                 "1.0.0": {
                     "dist": {
-                        "tarball": "https://other.example.com/foo/-/foo-1.0.0.tgz"
+                        "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-1.0.0.tgz"
                     }
                 }
             }
         });
-        rewrite_tarball_urls(&mut doc, "https://registry.npmjs.org", "http://127.0.0.1:4873");
+        let name = PackageName::parse("@foo/no-deps").unwrap();
+        rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
         assert_eq!(
             doc["versions"]["1.0.0"]["dist"]["tarball"],
-            "https://other.example.com/foo/-/foo-1.0.0.tgz",
+            "http://127.0.0.1:9999/@foo/no-deps/-/no-deps-1.0.0.tgz",
         );
     }
 
     #[test]
     fn handles_packument_without_versions() {
         let mut doc = json!({ "name": "foo" });
-        rewrite_tarball_urls(&mut doc, "https://registry.npmjs.org", "http://127.0.0.1:4873");
+        let name = PackageName::parse("foo").unwrap();
+        rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:4873");
         assert_eq!(doc, json!({ "name": "foo" }));
     }
 }

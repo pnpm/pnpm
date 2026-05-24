@@ -1,15 +1,15 @@
 mod dirs;
-mod kill_verdaccio;
 mod mock_instance;
-mod node_registry_mock;
 mod pick_port;
+mod pnpm_registry_command;
 mod port_to_url;
+mod process_kill;
 mod registry_anchor;
 mod registry_info;
 
 pub use dirs::*;
 pub use mock_instance::*;
-pub use node_registry_mock::*;
 pub use pick_port::*;
+pub use pnpm_registry_command::*;
 pub use registry_anchor::*;
 pub use registry_info::*;

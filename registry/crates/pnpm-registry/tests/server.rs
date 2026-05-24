@@ -11,10 +11,10 @@ use tower::ServiceExt;
 
 use pnpm_registry::{Config, router};
 
-fn config_for(upstream: &str, cache_dir: std::path::PathBuf) -> Config {
+fn config_for(upstream: &str, storage: std::path::PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    let mut config = Config::new(listen, cache_dir);
-    config.upstream = upstream.to_string();
+    let mut config = Config::proxy(listen, storage);
+    config.upstream = Some(upstream.to_string());
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_secs(60);
     config
@@ -175,14 +175,15 @@ async fn tarball_streaming_finalizes_cache_with_no_tmp_leftover() {
     // By the time the client's stream ends (rx sees None), the tee
     // task has already called finalize, so the cache file is in
     // place at the canonical path and no `.tmp.*` siblings remain.
-    let tarballs_dir = cache_dir.join("big").join("-");
-    let entries: Vec<String> = std::fs::read_dir(&tarballs_dir)
+    let package_dir = cache_dir.join("big");
+    let entries: Vec<String> = std::fs::read_dir(&package_dir)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".tgz"))
         .collect();
     assert_eq!(entries, vec!["big-1.0.0.tgz".to_string()]);
 
-    let cached = std::fs::read(tarballs_dir.join("big-1.0.0.tgz")).unwrap();
+    let cached = std::fs::read(package_dir.join("big-1.0.0.tgz")).unwrap();
     assert_eq!(cached.len(), bytes.len());
     assert_eq!(cached, bytes);
 }
@@ -368,12 +369,14 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
 
     // After both responses drain, both tee tasks have called
     // `finalize` (rename is last-writer-wins on POSIX, and both
-    // wrote identical content). Exactly one file in the tarballs
-    // dir, no `.tmp.*` survivors thanks to the unique-tmp suffix.
-    let dir = cache_dir.join("foo").join("-");
+    // wrote identical content). Exactly one `.tgz` file in the
+    // package dir, no `.tmp.*` survivors thanks to the unique-tmp
+    // suffix.
+    let dir = cache_dir.join("foo");
     let entries: Vec<String> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".tgz"))
         .collect();
     assert_eq!(entries, vec!["foo-1.0.0.tgz".to_string()]);
 
@@ -408,7 +411,7 @@ async fn cache_tmp_open_failure_falls_back_to_uncached_stream() {
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 
     // The cache path under the not-a-dir should not exist.
-    let cache_path = blocked.join("foo").join("-").join("foo-1.0.0.tgz");
+    let cache_path = blocked.join("foo").join("foo-1.0.0.tgz");
     assert!(!cache_path.exists());
 }
 
@@ -483,12 +486,16 @@ async fn upstream_stream_error_clears_cache() {
     // remove the temp file, and finish.
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let dir = cache_dir.join("foo").join("-");
+    let dir = cache_dir.join("foo");
     if dir.exists() {
-        let entries: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
+        let entries: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tgz"))
+            .collect();
         assert!(
             entries.is_empty(),
-            "expected no files after mid-stream error, found {} entries",
+            "expected no .tgz files after mid-stream error, found {} entries",
             entries.len(),
         );
     }
@@ -525,12 +532,16 @@ async fn client_disconnect_mid_stream_clears_cache() {
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    let dir = cache_dir.join("big").join("-");
+    let dir = cache_dir.join("big");
     if dir.exists() {
-        let entries: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
+        let entries: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tgz"))
+            .collect();
         assert!(
             entries.is_empty(),
-            "expected no files after client disconnect, found {} entries",
+            "expected no .tgz files after client disconnect, found {} entries",
             entries.len(),
         );
     }

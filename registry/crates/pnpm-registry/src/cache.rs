@@ -9,28 +9,29 @@ use tokio::io::AsyncWriteExt;
 use crate::error::{RegistryError, Result};
 use crate::package_name::PackageName;
 
-const PACKUMENT_FILE: &str = "packument.json";
-const TARBALLS_DIR: &str = "-";
+const PACKUMENT_FILE: &str = "package.json";
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
-/// writes to the same cache path don't collide on the same temp
-/// filename. Combined with the pid, the suffix is unique across
-/// every writer this process spawns; the rename is still atomic on
-/// POSIX as long as src and dest sit in the same directory (they do).
+/// writes to the same path don't collide on the same temp filename.
+/// Combined with the pid the suffix is unique across every writer this
+/// process spawns; the rename is still atomic on POSIX as long as src
+/// and dest sit in the same directory (they do).
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Filesystem cache for packuments and tarballs. The layout is
-/// verdaccio-shaped:
+/// Verdaccio-shaped on-disk storage for packuments and tarballs:
 ///
 /// ```text
 /// <root>/
 ///   <package>/
-///     packument.json
-///     -/
-///       <package>-<version>.tgz
+///     package.json
+///     <basename>-<version>.tgz
 /// ```
 ///
 /// For scoped packages the package directory is `<root>/@scope/<name>/`.
+/// Tarballs sit flat alongside `package.json` — no `-/` subdirectory.
+/// This is the layout `@pnpm/registry-mock` (and verdaccio itself)
+/// publishes, so a populated verdaccio storage can be served directly
+/// in static mode.
 #[derive(Debug, Clone)]
 pub struct Cache {
     root: PathBuf,
@@ -95,8 +96,9 @@ impl Cache {
         Ok(Some(fs::read(&path).await?))
     }
 
-    /// Read whatever packument is on disk, fresh or stale. Used as a
-    /// fallback when the upstream is unreachable.
+    /// Read whatever packument is on disk, fresh or stale. Used in
+    /// static mode (TTL doesn't apply) and as a fallback when the
+    /// upstream is unreachable.
     pub async fn read_packument_any_age(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
         let path = self.packument_path(name);
         match fs::read(&path).await {
@@ -155,7 +157,7 @@ impl Cache {
     }
 
     fn tarball_path(&self, name: &PackageName, filename: &str) -> PathBuf {
-        self.package_dir(name).join(TARBALLS_DIR).join(filename)
+        self.package_dir(name).join(filename)
     }
 }
 

@@ -1,9 +1,7 @@
 use crate::{
-    PreparedRegistryInfo, RegistryAnchor, RegistryInfo,
-    kill_verdaccio::kill_all_verdaccio_children, node_registry_mock, pick_port::pick_unused_port,
-    port_to_url::port_to_url,
+    PreparedRegistryInfo, RegistryAnchor, RegistryInfo, pick_port::pick_unused_port,
+    pnpm_registry_command, port_to_url::port_to_url,
 };
-use assert_cmd::prelude::*;
 use pipe_trait::Pipe;
 use reqwest::Client;
 use std::{
@@ -11,12 +9,11 @@ use std::{
     path::Path,
     process::{Child, Stdio},
 };
-use sysinfo::{Pid, Signal};
 use tokio::time::{Duration, sleep};
 
 /// Handler of a mocked registry server instance.
 ///
-/// The internal process will be killed on [drop](Drop).
+/// The internal `pnpm-registry` process is terminated on [drop](Drop).
 #[derive(Debug)]
 pub struct MockInstance {
     pub(crate) process: Child,
@@ -24,11 +21,11 @@ pub struct MockInstance {
 
 impl Drop for MockInstance {
     fn drop(&mut self) {
-        let MockInstance { process, .. } = self;
+        let MockInstance { process } = self;
         let pid = process.id();
-        eprintln!("info: Terminating all verdaccio instances below {pid}...");
-        let kill_count = kill_all_verdaccio_children(Pid::from_u32(pid), Signal::Interrupt);
-        eprintln!("info: Terminated {kill_count} verdaccio instances");
+        let _ = process.kill();
+        let _ = process.wait();
+        eprintln!("info: Terminated pnpm-registry pid {pid}");
     }
 }
 
@@ -75,17 +72,6 @@ impl<'a> MockInstanceOptions<'a> {
 
     pub(crate) async fn spawn(self) -> MockInstance {
         let MockInstanceOptions { port, stdout, stderr, .. } = self;
-        let port = port.to_string();
-
-        eprintln!("Preparing...");
-        node_registry_mock()
-            .arg("prepare")
-            .env("PNPM_REGISTRY_MOCK_PORT", &port)
-            .stdin(Stdio::null())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .assert()
-            .success();
 
         let stdout = stdout.map_or_else(Stdio::null, |stdout| {
             File::create(stdout).expect("create file for stdout").into()
@@ -93,13 +79,15 @@ impl<'a> MockInstanceOptions<'a> {
         let stderr = stderr.map_or_else(Stdio::null, |stderr| {
             File::create(stderr).expect("create file for stderr").into()
         });
-        let process = node_registry_mock()
-            .env("PNPM_REGISTRY_MOCK_PORT", &port)
+        // No `prepare` step needed — `@pnpm/registry-mock`'s npm
+        // tarball ships `registry/storage-cache/` already populated,
+        // and pnpm-registry serves it verbatim in `--static` mode.
+        let process = pnpm_registry_command(port)
             .stdin(Stdio::null())
             .stdout(stdout)
             .stderr(stderr)
             .spawn()
-            .expect("spawn mocked registry");
+            .expect("spawn pnpm-registry");
 
         self.wait_for_registry().await;
 
@@ -112,7 +100,7 @@ impl<'a> MockInstanceOptions<'a> {
             eprintln!("info: {port} is already available");
             None
         } else {
-            eprintln!("info: spawning mocked registry...");
+            eprintln!("info: spawning pnpm-registry...");
             self.spawn().await.pipe(Some)
         }
     }

@@ -6,6 +6,7 @@ use axum::extract::{Path, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use serde_json::Value;
 use tower_http::trace::TraceLayer;
 
 use crate::cache::Cache;
@@ -13,7 +14,7 @@ use crate::config::Config;
 use crate::error::RegistryError;
 use crate::package_name::PackageName;
 use crate::streaming;
-use crate::upstream::{FetchOutcome, Upstream};
+use crate::upstream::{FetchOutcome, Upstream, rewrite_tarball_urls};
 
 #[derive(Clone)]
 struct AppState {
@@ -22,15 +23,15 @@ struct AppState {
 
 struct AppInner {
     cache: Cache,
-    upstream: Upstream,
+    upstream: Option<Upstream>,
     config: Config,
 }
 
 /// Build the axum [`Router`] for the registry. Exposed for tests and
 /// for callers that want to drive the app without binding a TCP socket.
 pub fn router(config: Config) -> Router {
-    let cache = Cache::new(config.cache_dir.clone());
-    let upstream = Upstream::new(config.upstream.clone(), config.public_url.clone());
+    let cache = Cache::new(config.storage.clone());
+    let upstream = config.upstream.as_ref().map(|base| Upstream::new(base.clone()));
     let state = AppState { inner: Arc::new(AppInner { cache, upstream, config }) };
     Router::new()
         .route("/{name}", get(get_packument_unscoped))
@@ -98,25 +99,41 @@ async fn serve_packument(state: &AppState, raw_name: &str) -> Response {
         Err(err) => return error_response(&err),
     };
 
+    // Static mode: the on-disk storage is the source of truth. Don't
+    // bother with TTL — serve whatever's there, or 404.
+    let Some(upstream) = state.inner.upstream.as_ref() else {
+        return match state.inner.cache.read_packument_any_age(&name).await {
+            Ok(Some(bytes)) => packument_response_rewritten(&name, &bytes, &state.inner.config)
+                .unwrap_or_else(|err| error_response(&err)),
+            Ok(None) => not_found(),
+            Err(err) => error_response(&err),
+        };
+    };
+
     let ttl = state.inner.config.packument_ttl;
     match state.inner.cache.read_fresh_packument(&name, ttl).await {
-        Ok(Some(bytes)) => return packument_response(bytes),
+        Ok(Some(bytes)) => {
+            return packument_response_rewritten(&name, &bytes, &state.inner.config)
+                .unwrap_or_else(|err| error_response(&err));
+        }
         Ok(None) => {}
         Err(err) => tracing::warn!(?err, package = %name.as_str(), "cache read failed"),
     }
 
-    match state.inner.upstream.fetch_packument(&name).await {
+    match upstream.fetch_packument(&name).await {
         Ok(FetchOutcome::Ok(bytes)) => {
             if let Err(err) = state.inner.cache.write_packument(&name, &bytes).await {
                 tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
             }
-            packument_response(bytes)
+            packument_response_rewritten(&name, &bytes, &state.inner.config)
+                .unwrap_or_else(|err| error_response(&err))
         }
         Ok(FetchOutcome::NotFound) => not_found(),
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), "upstream packument fetch failed");
             match state.inner.cache.read_packument_any_age(&name).await {
-                Ok(Some(bytes)) => packument_response(bytes),
+                Ok(Some(bytes)) => packument_response_rewritten(&name, &bytes, &state.inner.config)
+                    .unwrap_or_else(|err| error_response(&err)),
                 Ok(None) => error_response(&err),
                 Err(cache_err) => error_response(&cache_err),
             }
@@ -141,7 +158,11 @@ async fn serve_tarball(state: &AppState, raw_name: &str, filename: &str) -> Resp
         }
     }
 
-    let response = match state.inner.upstream.fetch_tarball_response(&name, filename).await {
+    let Some(upstream) = state.inner.upstream.as_ref() else {
+        return not_found();
+    };
+
+    let response = match upstream.fetch_tarball_response(&name, filename).await {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
@@ -151,9 +172,6 @@ async fn serve_tarball(state: &AppState, raw_name: &str, filename: &str) -> Resp
     let write = match state.inner.cache.open_tarball_tmp(&name, filename).await {
         Ok(w) => w,
         Err(err) => {
-            // Cache write setup failed (e.g. cache dir not writable).
-            // Don't fail the request — stream upstream straight through
-            // and accept a re-fetch on the next request.
             tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache tmp-open failed; streaming without cache");
             let body = Body::from_stream(response.bytes_stream());
             return tarball_response(body, upstream_len);
@@ -164,7 +182,23 @@ async fn serve_tarball(state: &AppState, raw_name: &str, filename: &str) -> Resp
     tarball_response(body, upstream_len)
 }
 
-fn packument_response(bytes: Vec<u8>) -> Response {
+/// Parse the on-disk packument, rewrite `dist.tarball` URLs to point
+/// at this server, and emit. Parse failures are reported as 502 by
+/// the caller (via `RegistryError::Json`) — a malformed packument
+/// means whatever populated `storage` produced garbage, which is the
+/// same shape of failure as upstream returning garbage.
+fn packument_response_rewritten(
+    name: &PackageName,
+    bytes: &[u8],
+    config: &Config,
+) -> Result<Response, RegistryError> {
+    let mut doc: Value = serde_json::from_slice(bytes)?;
+    rewrite_tarball_urls(&mut doc, name, &config.public_url);
+    let body = serde_json::to_vec(&doc)?;
+    Ok(packument_bytes_response(body))
+}
+
+fn packument_bytes_response(bytes: Vec<u8>) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/json")

@@ -14,21 +14,29 @@ struct Args {
     #[arg(long, default_value = "127.0.0.1:4873")]
     listen: SocketAddr,
 
-    /// Upstream npm registry to proxy and cache from.
+    /// Upstream npm registry to proxy and cache from. Ignored when
+    /// `--static` is set.
     #[arg(long, default_value = "https://registry.npmjs.org")]
     upstream: String,
 
+    /// Storage directory (verdaccio-shaped). In proxy mode this
+    /// doubles as the cache; in static mode it's the source of truth.
+    #[arg(long, default_value = "./storage")]
+    storage: PathBuf,
+
+    /// Serve `--storage` verbatim with no upstream — useful for
+    /// running against a pre-populated verdaccio store (e.g.
+    /// `@pnpm/registry-mock`'s `registry/storage-cache`).
+    #[arg(long = "static")]
+    static_serve: bool,
+
     /// URL clients should use to reach this server. Used when
-    /// rewriting `dist.tarball` URLs in cached packuments.
+    /// rewriting `dist.tarball` URLs in served packuments.
     #[arg(long)]
     public_url: Option<String>,
 
-    /// Directory under which packuments and tarballs are cached.
-    #[arg(long, default_value = "./storage")]
-    cache_dir: PathBuf,
-
     /// Seconds before a cached packument is considered stale and
-    /// refetched. Tarballs are cached indefinitely.
+    /// refetched. Ignored in static mode.
     #[arg(long, default_value_t = 300)]
     packument_ttl_secs: u64,
 }
@@ -42,8 +50,13 @@ async fn main() -> miette::Result<()> {
         .init();
 
     let args = Args::parse();
-    let mut config = Config::new(args.listen, args.cache_dir);
-    config.upstream = args.upstream;
+    let mut config = if args.static_serve {
+        Config::static_serve(args.listen, args.storage)
+    } else {
+        let mut config = Config::proxy(args.listen, args.storage);
+        config.upstream = Some(args.upstream);
+        config
+    };
     if let Some(url) = args.public_url {
         config.public_url = url;
     }

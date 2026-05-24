@@ -7,28 +7,52 @@ use std::time::Duration;
 pub struct Config {
     /// Address the HTTP server binds to.
     pub listen: SocketAddr,
-    /// Upstream registry to proxy and cache from.
-    pub upstream: String,
+    /// Upstream registry to proxy and cache from. `None` puts the
+    /// server in *static* mode: cache misses become `404`, and the
+    /// storage directory is treated as the authoritative source.
+    pub upstream: Option<String>,
     /// URL clients should use to reach this server. Used to rewrite
-    /// `dist.tarball` URLs in cached packuments so tarball requests
-    /// flow through (and get cached by) this server.
+    /// `dist.tarball` URLs in served packuments so tarball requests
+    /// flow through this server.
     pub public_url: String,
-    /// Directory under which packuments and tarballs are cached.
-    pub cache_dir: PathBuf,
+    /// Directory under which packuments and tarballs live. The layout
+    /// is Verdaccio's:
+    ///
+    /// ```text
+    /// <storage>/<pkg>/package.json
+    /// <storage>/<pkg>/<tarball-basename>.tgz
+    /// ```
+    ///
+    /// In proxy mode this doubles as the cache; in static mode it's
+    /// the source of truth.
+    pub storage: PathBuf,
     /// How long a cached packument is considered fresh before it is
-    /// re-fetched from the upstream. Tarballs are content-addressed by
-    /// version and are cached indefinitely.
+    /// re-fetched from the upstream. Ignored in static mode.
     pub packument_ttl: Duration,
 }
 
 impl Config {
-    pub fn new(listen: SocketAddr, cache_dir: PathBuf) -> Self {
+    /// Build a proxy-mode config with the default npm upstream.
+    pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
         let public_url = format!("http://{listen}");
         Self {
             listen,
-            upstream: "https://registry.npmjs.org".to_string(),
+            upstream: Some("https://registry.npmjs.org".to_string()),
             public_url,
-            cache_dir,
+            storage,
+            packument_ttl: Duration::from_secs(5 * 60),
+        }
+    }
+
+    /// Build a static-mode config that serves `storage` verbatim,
+    /// never reaching out to a remote.
+    pub fn static_serve(listen: SocketAddr, storage: PathBuf) -> Self {
+        let public_url = format!("http://{listen}");
+        Self {
+            listen,
+            upstream: None,
+            public_url,
+            storage,
             packument_ttl: Duration::from_secs(5 * 60),
         }
     }
