@@ -89,8 +89,9 @@ test.skip('legacy deploy creates only necessary directories when the root manife
 })
 
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't
-// carry it (or its platform-specific binary sub-packages). Tests are
-// gated on the public registry being reachable.
+// carry it (or its platform-specific binary sub-packages), so this test
+// requires the public registry to be reachable. Matches the pattern in
+// `pnpm/test/install/pacquet.ts`.
 const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
 const PACQUET_VERSION = '0.2.2'
 
