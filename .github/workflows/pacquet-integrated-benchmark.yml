@@ -58,6 +58,13 @@ jobs:
         os: [ubuntu-latest] # windows is skipped because of complexity, macos is skipped because of inconsistency
     name: Run benchmark on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      # On main, HEAD *is* main — comparing them is wasted work, so the
+      # benchmark runs a single revision and the result is uploaded to
+      # Bencher as the new baseline. On every other ref (PRs and
+      # workflow_dispatch from a non-main branch), compare HEAD against
+      # main so the report shows the relative shift.
+      BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD' || 'pacquet@HEAD pacquet@main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -162,7 +169,7 @@ jobs:
       - name: Precompile benchmark revisions
         shell: bash
         timeout-minutes: 15
-        run: just integrated-benchmark --build-only pacquet@HEAD pacquet@main
+        run: just integrated-benchmark --build-only $BENCHMARK_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         shell: bash
@@ -172,7 +179,7 @@ jobs:
         # headroom, and a failure surfaces fast enough to iterate on.
         timeout-minutes: 10
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
 
@@ -184,22 +191,21 @@ jobs:
         # iteration so timed runs all see a hot store.
         timeout-minutes: 10
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
 
       - name: 'Benchmark: Isolated linker: fresh install, cold cache + cold store'
         shell: bash
         # No-lockfile scenario: pacquet does fresh resolution against
-        # the registry, ~3-5x slower than pnpm on `alotta-files`
-        # (pnpm/pnpm#11832), so a single iteration runs longer than
-        # the restore steps. 20 min leaves headroom for the default
-        # hyperfine 1 warmup + 10 timed runs across all three
+        # the registry (pnpm/pnpm#11832), so a single iteration runs
+        # longer than the restore steps. 20 min leaves headroom for the
+        # default hyperfine 1 warmup + 10 timed runs across both
         # benchmark targets without losing the per-command timeout
         # safety net the other steps document.
         timeout-minutes: 20
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          just integrated-benchmark --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
 
@@ -208,7 +214,7 @@ jobs:
         # Same timeout rationale as the cold-cache install step above.
         timeout-minutes: 20
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio --with-pnpm pacquet@HEAD pacquet@main
+          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
 
