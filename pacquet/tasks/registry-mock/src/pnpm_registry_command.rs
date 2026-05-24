@@ -33,16 +33,27 @@ fn pnpm_registry_binary() -> PathBuf {
 }
 
 /// Build a [`Command`] that spawns the `pnpm-registry` binary in
-/// static-serve mode against `@pnpm/registry-mock`'s prepared storage
-/// directory.
+/// proxy mode against `@pnpm/registry-mock`'s prepared storage
+/// directory, with `registry.npmjs.org` as the upstream.
+///
+/// This mirrors verdaccio's `'**': proxy: npmjs` setup in
+/// `@pnpm/registry-mock`'s `registry/config.yaml`: the storage
+/// holds the scoped fixture packages (`@foo`, `@pnpm.e2e`, …) and
+/// anything else (e.g. `is-positive`, `json-append`) is pulled
+/// from npmjs.org on demand.
+///
+/// `--packument-ttl-secs 31536000` (one year) keeps the fixture
+/// packuments authoritative across a test run: their on-disk
+/// mtime is whenever the npm tarball was built, which is far older
+/// than any sane TTL, so a short TTL would mark them stale and try
+/// to refetch from npm — where the fixtures don't exist — and 404.
 ///
 /// `pnpm-registry` is a workspace crate; run
 /// `cargo build -p pnpm-registry` once before invoking the mock if
-/// it isn't already built.
-///
-/// `--public-url` is pinned to `http://localhost:<port>` so the
-/// tarball URLs the registry rewrites match the URL pacquet's tests
-/// expect via `port_to_url`.
+/// it isn't already built. `--public-url` is pinned to
+/// `http://localhost:<port>` so the tarball URLs the registry
+/// rewrites match the URL pacquet's tests expect via
+/// `port_to_url`.
 pub fn pnpm_registry_command(port: u16) -> Command {
     let bin = pnpm_registry_binary();
     assert!(
@@ -51,9 +62,12 @@ pub fn pnpm_registry_command(port: u16) -> Command {
          run `cargo build -p pnpm-registry` before invoking the mock",
     );
     let mut cmd = Command::new(bin);
-    cmd.arg("--static")
-        .arg("--storage")
+    cmd.arg("--storage")
         .arg(registry_mock_storage())
+        .arg("--upstream")
+        .arg("https://registry.npmjs.org")
+        .arg("--packument-ttl-secs")
+        .arg("31536000")
         .arg("--listen")
         .arg(format!("127.0.0.1:{port}"))
         .arg("--public-url")
