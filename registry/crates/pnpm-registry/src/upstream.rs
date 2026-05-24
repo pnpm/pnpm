@@ -141,6 +141,68 @@ pub fn extract_version_manifest(
     Some(manifest)
 }
 
+/// Top-level packument fields preserved in the abbreviated
+/// (`application/vnd.npm.install-v1+json`) form. Mirrors verdaccio's
+/// `convertAbbreviatedManifest` (packages/store/src/storage.ts).
+/// `time` and `readme` go beyond the npm spec but verdaccio keeps
+/// them — `time` specifically for pnpm's `minimumReleaseAge` check.
+const ABBREVIATED_TOP_FIELDS: &[&str] =
+    &["name", "dist-tags", "modified", "time", "_id", "_rev", "readme", "readmeFilename"];
+
+/// Per-version fields preserved in the abbreviated form. Mirrors
+/// verdaccio's `convertAbbreviatedManifest` and the npm spec at
+/// <https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object>.
+const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
+    "name",
+    "version",
+    "deprecated",
+    "bin",
+    "dist",
+    "engines",
+    "funding",
+    "directories",
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies",
+    "bundleDependencies",
+    "cpu",
+    "os",
+    "peerDependenciesMeta",
+    "acceptDependencies",
+    "_hasShrinkwrap",
+    "hasInstallScript",
+];
+
+/// Strip a parsed packument down to the abbreviated install-v1 form.
+/// Should be called *after* `rewrite_tarball_urls` so the returned
+/// document's `dist.tarball` URLs already point at this server.
+pub fn abbreviate_packument(packument: &Value) -> Value {
+    let mut out = serde_json::Map::new();
+    if let Some(obj) = packument.as_object() {
+        for &field in ABBREVIATED_TOP_FIELDS {
+            if let Some(value) = obj.get(field) {
+                out.insert(field.to_string(), value.clone());
+            }
+        }
+        if let Some(versions) = obj.get("versions").and_then(Value::as_object) {
+            let mut abbreviated_versions = serde_json::Map::with_capacity(versions.len());
+            for (version_id, version_value) in versions {
+                let Some(version_obj) = version_value.as_object() else { continue };
+                let mut trimmed = serde_json::Map::new();
+                for &field in ABBREVIATED_VERSION_FIELDS {
+                    if let Some(value) = version_obj.get(field) {
+                        trimmed.insert(field.to_string(), value.clone());
+                    }
+                }
+                abbreviated_versions.insert(version_id.clone(), Value::Object(trimmed));
+            }
+            out.insert("versions".to_string(), Value::Object(abbreviated_versions));
+        }
+    }
+    Value::Object(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{extract_version_manifest, rewrite_tarball_urls};

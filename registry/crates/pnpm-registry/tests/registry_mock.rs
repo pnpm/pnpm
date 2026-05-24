@@ -120,6 +120,82 @@ async fn static_mode_returns_404_for_unknown_package() {
 }
 
 #[tokio::test]
+async fn abbreviated_accept_header_strips_packument() {
+    let storage = registry_mock_storage();
+    let app = router(static_config(storage));
+
+    let response = app
+        .oneshot(
+            Request::get("/@foo/no-deps")
+                .header(
+                    "Accept",
+                    "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get("content-type").and_then(|value| value.to_str().ok()),
+        Some("application/vnd.npm.install-v1+json"),
+    );
+
+    let doc: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+
+    // The fixture packument has `_nodeVersion`, `_id`,
+    // `contributors`, etc. on each version. The abbreviated form
+    // should drop them but keep the install-relevant fields.
+    let version_obj = &doc["versions"]["1.0.0"];
+    assert!(version_obj.get("_nodeVersion").is_none(), "abbreviated form should drop _nodeVersion");
+    assert!(version_obj.get("_id").is_none(), "abbreviated form should drop per-version _id");
+    assert!(version_obj.get("contributors").is_none(), "abbreviated form should drop contributors");
+    assert_eq!(version_obj["name"], "@foo/no-deps");
+    assert_eq!(version_obj["version"], "1.0.0");
+    assert_eq!(
+        version_obj["dist"]["tarball"],
+        format!("{PUBLIC_URL}/@foo/no-deps/-/no-deps-1.0.0.tgz"),
+    );
+    assert!(version_obj["dist"]["integrity"].as_str().unwrap().starts_with("sha512-"));
+
+    // Top-level: keep name, dist-tags. The fixture has `_attachments`,
+    // `_uplinks`, `_distfiles` that the abbreviated form must drop.
+    assert_eq!(doc["name"], "@foo/no-deps");
+    assert_eq!(doc["dist-tags"]["latest"], "1.0.0");
+    assert!(doc.get("_attachments").is_none(), "abbreviated form should drop _attachments");
+    assert!(doc.get("_uplinks").is_none(), "abbreviated form should drop _uplinks");
+    assert!(doc.get("_distfiles").is_none(), "abbreviated form should drop _distfiles");
+    assert!(doc.get("users").is_none(), "abbreviated form should drop users");
+}
+
+#[tokio::test]
+async fn full_packument_served_when_accept_does_not_request_abbreviated() {
+    let storage = registry_mock_storage();
+    let app = router(static_config(storage));
+
+    let response = app
+        .oneshot(
+            Request::get("/@foo/no-deps")
+                .header("Accept", "application/json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get("content-type").and_then(|value| value.to_str().ok()),
+        Some("application/json"),
+    );
+
+    let doc: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    // Full form keeps the fields the abbreviated form drops.
+    assert!(doc["_attachments"].is_object(), "full form should keep _attachments");
+    assert_eq!(doc["versions"]["1.0.0"]["_nodeVersion"], "25.6.1");
+}
+
+#[tokio::test]
 async fn serves_version_manifest_by_dist_tag() {
     let storage = registry_mock_storage();
     let app = router(static_config(storage));

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::Router;
 use axum::body::Body;
 use axum::extract::{Path, State};
-use axum::http::{StatusCode, header};
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use serde_json::Value;
@@ -14,7 +14,17 @@ use crate::config::Config;
 use crate::error::RegistryError;
 use crate::package_name::PackageName;
 use crate::streaming;
-use crate::upstream::{FetchOutcome, Upstream, extract_version_manifest, rewrite_tarball_urls};
+use crate::upstream::{
+    FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+};
+
+/// MIME the npm registry uses for the abbreviated install-v1 form.
+/// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when
+/// resolving for an install — see pacquet's
+/// `resolving-npm-resolver::ACCEPT_ABBREVIATED_DOC`. Returning the
+/// full document instead bloats the wire by 2–10× on packuments with
+/// long version histories.
+const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
 #[derive(Clone)]
 struct AppState {
@@ -65,20 +75,22 @@ async fn shutdown_signal() {
 
 async fn get_packument_unscoped(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Response {
-    serve_packument(&state, &name).await
+    serve_packument(&state, &name, wants_abbreviated(&headers)).await
 }
 
 /// `/{a}/{b}` — scoped packument when `a` starts with `@`, otherwise
 /// the unscoped version manifest endpoint (`/{name}/{version-or-tag}`).
 async fn get_two_segments(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
-        serve_packument(&state, &full).await
+        serve_packument(&state, &full, wants_abbreviated(&headers)).await
     } else {
         serve_version_manifest(&state, &first, &second).await
     }
@@ -89,16 +101,30 @@ async fn get_two_segments(
 /// (`/{scope}/{name}/{version-or-tag}`).
 async fn get_three_segments(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((first, second, third)): Path<(String, String, String)>,
 ) -> Response {
     if second == "-" {
         serve_tarball(&state, &first, &third).await
     } else if first.starts_with('@') {
+        let _ = headers; // version-manifest endpoint always returns the full version object
         let full = format!("{first}/{second}");
         serve_version_manifest(&state, &full, &third).await
     } else {
         not_found()
     }
+}
+
+/// True when the client's `Accept` header offers the
+/// `application/vnd.npm.install-v1+json` abbreviated MIME. We do a
+/// substring match rather than full RFC-7231 q-value parsing — the
+/// npm client always sends it as the top-priority option and a
+/// substring presence is a reliable signal.
+fn wants_abbreviated(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::ACCEPT)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|accept| accept.contains(ABBREVIATED_CONTENT_TYPE))
 }
 
 async fn get_tarball_scoped(
@@ -112,15 +138,17 @@ async fn get_tarball_scoped(
     serve_tarball(&state, &full, &filename).await
 }
 
-async fn serve_packument(state: &AppState, raw_name: &str) -> Response {
+async fn serve_packument(state: &AppState, raw_name: &str, abbreviated: bool) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
     match load_packument_bytes(state, &name).await {
         PackumentLoad::Ok(bytes) => {
-            packument_response_rewritten(&name, &bytes, &state.inner.config)
-                .unwrap_or_else(|err| error_response(&err))
+            match packument_response(&name, &bytes, &state.inner.config, abbreviated) {
+                Ok(response) => response,
+                Err(err) => error_response(&err),
+            }
         }
         PackumentLoad::NotFound => not_found(),
         PackumentLoad::Err(err) => error_response(&err),
@@ -151,7 +179,7 @@ async fn serve_version_manifest(
         return not_found();
     };
     match serde_json::to_vec(&manifest) {
-        Ok(body) => packument_bytes_response(body),
+        Ok(body) => packument_bytes_response(body, "application/json"),
         Err(err) => error_response(&RegistryError::Json(err)),
     }
 }
@@ -243,26 +271,33 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     }
 }
 
-/// Parse the on-disk packument, rewrite `dist.tarball` URLs to point
-/// at this server, and emit. Parse failures are reported as 502 by
-/// the caller (via `RegistryError::Json`) — a malformed packument
-/// means whatever populated `storage` produced garbage, which is the
-/// same shape of failure as upstream returning garbage.
-fn packument_response_rewritten(
+/// Parse the on-disk packument, rewrite `dist.tarball` URLs, and
+/// build the response. When `abbreviated` is true, strip down to
+/// the npm spec's install-v1 field set (mirrors verdaccio's
+/// `convertAbbreviatedManifest`) and tag the response with the
+/// `application/vnd.npm.install-v1+json` content type. Parse
+/// failures surface as 502 via `RegistryError::Json`.
+fn packument_response(
     name: &PackageName,
     bytes: &[u8],
     config: &Config,
+    abbreviated: bool,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
     rewrite_tarball_urls(&mut doc, name, &config.public_url);
-    let body = serde_json::to_vec(&doc)?;
-    Ok(packument_bytes_response(body))
+    let (body, content_type) = if abbreviated {
+        let trimmed = abbreviate_packument(&doc);
+        (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
+    } else {
+        (serde_json::to_vec(&doc)?, "application/json")
+    };
+    Ok(packument_bytes_response(body, content_type))
 }
 
-fn packument_bytes_response(bytes: Vec<u8>) -> Response {
+fn packument_bytes_response(bytes: Vec<u8>, content_type: &'static str) -> Response {
     Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::CONTENT_TYPE, content_type)
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
 }
