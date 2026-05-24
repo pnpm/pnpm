@@ -75,7 +75,8 @@ pub use resolve_importer::{
 };
 pub use resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers};
 pub use resolved_tree::{
-    DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
+    ResolvedTree, TreeChildren,
 };
 
 #[cfg(test)]

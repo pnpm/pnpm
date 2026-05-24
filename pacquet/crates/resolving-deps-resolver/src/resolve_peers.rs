@@ -108,12 +108,12 @@ pub struct ResolvePeersResult {
 /// Resolve peer dependencies for `tree` and emit a depPath-keyed graph.
 ///
 /// Takes `tree` by `&mut` because lazy [`TreeChildren`] entries are
-/// realised in-place during the walk via [`Walker::realize_children`] —
-/// every revisit's `(alias → NodeId)` children map is allocated on
-/// first descent and the parent's `TreeChildren::Lazy` flips to
-/// `Realized` so a second visitor reuses the map without redoing the
-/// work. Pure subtrees that the resolver short-circuits via
-/// [`Walker::pure_pkgs`] never get realised.
+/// realised in-place during the walk — every revisit's `(alias →
+/// NodeId)` children map is allocated on first descent and the
+/// parent's `TreeChildren::Lazy` flips to `Realized` so a second
+/// visitor reuses the map without redoing the work. Pure subtrees
+/// that the resolver short-circuits via its `purePkgs` set never get
+/// realised.
 pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> ResolvePeersResult {
     let walker = Walker {
         tree,
@@ -851,24 +851,28 @@ impl<'tree> Walker<'tree> {
         let child_depth = depth + 1;
         let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
         for edge in children_spec.iter() {
-            if parent_ids.iter().any(|p| p == &edge.pkg_id) {
+            if parent_ids.iter().any(|ancestor_id| ancestor_id == &edge.pkg_id) {
                 continue;
             }
             // Leaf check: a package is a leaf iff its
             // `children_by_id` entry is empty AND it has no peer
             // dependencies. Matches `pkg_is_leaf` in the eager
             // walker.
-            let is_leaf = self.tree.children_by_id.get(&edge.pkg_id).is_none_or(|v| v.is_empty())
+            let is_leaf = self
+                .tree
+                .children_by_id
+                .get(&edge.pkg_id)
+                .is_none_or(|edges| edges.is_empty())
                 && self
                     .tree
                     .packages
                     .get(&edge.pkg_id)
-                    .is_some_and(|p| p.peer_dependencies.is_empty());
+                    .is_some_and(|pkg| pkg.peer_dependencies.is_empty());
             let child_node_id = if is_leaf { NodeId::leaf(&edge.pkg_id) } else { NodeId::next() };
             let child_parent_ids = {
-                let mut v = (*parent_ids).clone();
-                v.push(edge.pkg_id.clone());
-                Arc::new(v)
+                let mut next_ids = (*parent_ids).clone();
+                next_ids.push(edge.pkg_id.clone());
+                Arc::new(next_ids)
             };
             self.tree
                 .dependencies_tree

@@ -237,9 +237,11 @@ pub struct TreeCtx {
     /// Per-`pkgIdWithPatchHash` cache of `(alias, child_pkg_id,
     /// optional)` produced by the first walk. Threaded out via
     /// [`ResolvedTree::children_by_id`] so the peer-resolver's
-    /// `realize_children` can expand a [`TreeChildren::Lazy`] node
-    /// without re-running the resolver chain. See
-    /// [`crate::resolved_tree::ChildEdge`] for the field layout.
+    /// `realize_children` can expand a [`crate::TreeChildren::Lazy`]
+    /// node without re-running the resolver chain. See [`ChildEdge`]
+    /// for the field layout.
+    ///
+    /// [`ChildEdge`]: crate::ChildEdge
     children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
 }
 
