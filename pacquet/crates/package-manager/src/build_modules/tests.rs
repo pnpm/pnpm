@@ -913,6 +913,7 @@ async fn write_path_populates_side_effects_row() {
         CafsFileInfo, HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter,
         store_index_key,
     };
+    use std::os::unix::fs::PermissionsExt;
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
     let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -948,7 +949,22 @@ async fn write_path_populates_side_effects_row() {
     let modules_dir = tempdir().expect("create modules dir");
     let lockfile_dir = tempdir().expect("create lockfile dir");
 
-    create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let pkg_dir = create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+
+    // The actual mode fs::write() assigns depends on the process
+    // umask (typically 0022 → 0o644, but 0002 → 0o664 when
+    // pam_umask's `usergroups` logic matches UID to group name,
+    // the default on Debian for non-root users). Read the real
+    // mode so the pre-seeded row's CafsFileInfo matches what
+    // calculate_diff() will compare, avoiding a false-positive
+    // mode-only mismatch on unchanged files.
+    let actual_mode = {
+        let m = std::fs::metadata(pkg_dir.join("index.js"))
+            .expect("stat index.js")
+            .permissions()
+            .mode();
+        m & 0o777
+    };
 
     // Pre-seed the base PackageFilesIndex row that the WRITE
     // path will mutate. The base captures only `index.js`; the
@@ -967,7 +983,7 @@ async fn write_path_populates_side_effects_row() {
             // `module.exports = 'hi'\n`, the diff for `index.js`
             // stays empty (= no spurious entry in `added`).
             digest: sha512_hex(b"module.exports = 'hi'\n"),
-            mode: 0o644,
+            mode: actual_mode,
             size: b"module.exports = 'hi'\n".len() as u64,
             checked_at: None,
         },
