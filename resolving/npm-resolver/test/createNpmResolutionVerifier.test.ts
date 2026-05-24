@@ -65,7 +65,7 @@ test('createNpmResolutionVerifier() flags a trustedPublisher → provenance down
         dist: {
           tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.1.tgz',
           shasum: 'aa',
-          attestations: { provenance: { url: 'https://example.org/p' } },
+          attestations: { provenance: { predicateType: 'https://example.org/p' } },
         },
         _npmUser: { trustedPublisher: { id: 'gha', oidcConfigId: 'cfg' } },
       },
@@ -75,7 +75,7 @@ test('createNpmResolutionVerifier() flags a trustedPublisher → provenance down
         dist: {
           tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.2.tgz',
           shasum: 'bb',
-          attestations: { provenance: { url: 'https://example.org/p' } },
+          attestations: { provenance: { predicateType: 'https://example.org/p' } },
         },
       },
     },
@@ -113,7 +113,7 @@ test('createNpmResolutionVerifier() passes a same-evidence-level version', async
         dist: {
           tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.1.tgz',
           shasum: 'aa',
-          attestations: { provenance: { url: 'https://example.org/p1' } },
+          attestations: { provenance: { predicateType: 'https://example.org/p1' } },
         },
       },
       '0.0.2': {
@@ -122,7 +122,7 @@ test('createNpmResolutionVerifier() passes a same-evidence-level version', async
         dist: {
           tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.2.tgz',
           shasum: 'bb',
-          attestations: { provenance: { url: 'https://example.org/p2' } },
+          attestations: { provenance: { predicateType: 'https://example.org/p2' } },
         },
       },
     },
