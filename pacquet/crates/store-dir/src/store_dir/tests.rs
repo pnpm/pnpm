@@ -45,11 +45,20 @@ fn from_pathbuf_does_not_double_append_when_already_suffixed() {
 /// from the user's home and demands an exact match against the
 /// recorded value. The constant test makes the bug
 /// `ERR_PNPM_UNEXPECTED_STORE` triggered legible for future readers.
+///
+/// Build the expected value through `Path::join` rather than a
+/// hardcoded `/v11` so the assertion stays valid on Windows: pnpm
+/// uses Node's [`path.join`](https://nodejs.org/api/path.html#pathjoinpaths)
+/// (and [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
+/// goes through it too), which emits `\v11` on Windows; pacquet's
+/// [`From<PathBuf> for StoreDir`] mirrors that with `PathBuf::join`.
+/// Hardcoding `/` here would compare a backslash-joined left against
+/// a slash-joined right and panic on Windows only.
 #[test]
 fn modules_yaml_serialized_store_dir_carries_store_version() {
     let store = StoreDir::new("/tmp/.pnpm-store");
     let recorded = store.display().to_string();
-    let pnpm_would_emit = format!("/tmp/.pnpm-store/{STORE_VERSION}");
+    let pnpm_would_emit = Path::new("/tmp/.pnpm-store").join(STORE_VERSION).display().to_string();
     assert_eq!(recorded, pnpm_would_emit);
 }
 
