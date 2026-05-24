@@ -19,10 +19,16 @@ use std::process::Command;
 ///
 /// 1. Honor `CARGO_BIN_EXE_pnpm-registry` if set — this is the case
 ///    inside pnpm-registry's own integration tests.
-/// 2. Fall back to `$CARGO_TARGET_DIR/<profile>/pnpm-registry`,
-///    defaulting to `<workspace_root>/target` when the env var isn't
-///    set. `<profile>` matches the build profile of the caller via
-///    `cfg!(debug_assertions)`.
+/// 2. Prefer the release binary if one exists at
+///    `$CARGO_TARGET_DIR/release/pnpm-registry`. Critical for the
+///    integrated benchmark: comparing a debug-Rust mock to a
+///    JIT-optimized verdaccio is apples to oranges — the install
+///    measures 20%+ slower purely from unoptimized JSON parse +
+///    serialize on every request. Tests don't need the release
+///    binary, but having a release build override the debug one is
+///    always the right choice when both exist.
+/// 3. Fall back to `$CARGO_TARGET_DIR/debug/pnpm-registry` for
+///    local dev where only `cargo build` ran.
 fn pnpm_registry_binary() -> PathBuf {
     if let Some(path) = env::var_os("CARGO_BIN_EXE_pnpm-registry") {
         return PathBuf::from(path);
@@ -30,8 +36,12 @@ fn pnpm_registry_binary() -> PathBuf {
     let target_dir = env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace_root().join("target"));
-    let profile = if cfg!(debug_assertions) { "debug" } else { "release" };
-    target_dir.join(profile).join(format!("pnpm-registry{}", env::consts::EXE_SUFFIX))
+    let exe = format!("pnpm-registry{}", env::consts::EXE_SUFFIX);
+    let release = target_dir.join("release").join(&exe);
+    if release.is_file() {
+        return release;
+    }
+    target_dir.join("debug").join(&exe)
 }
 
 /// Build a [`Command`] that spawns the `pnpm-registry` binary in

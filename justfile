@@ -98,9 +98,12 @@ registry-mock +args:
 # The benchmark may auto-spawn the registry mock (via
 # `AutoMockInstance::load_or_init()`), so make sure `pnpm-registry`
 # is built before the executor runs — otherwise the spawn step
-# aborts with "binary not found".
+# aborts with "binary not found". Built with `--release` so the
+# mock serves at optimized perf; a debug build would put the
+# Rust mock at a multi-second handicap vs verdaccio, which V8
+# always JITs, polluting the install-perf signal.
 integrated-benchmark +args:
-  cargo build --bin=pnpm-registry
+  cargo build --release --bin=pnpm-registry
   cargo run --bin=integrated-benchmark -- {{args}}
 
 cli +args:

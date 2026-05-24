@@ -62,10 +62,51 @@ pub fn router(config: Config) -> Router {
 pub async fn serve(config: Config) -> crate::error::Result<()> {
     let listen = config.listen;
     let app = router(config);
-    let listener = tokio::net::TcpListener::bind(listen).await?;
+    let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpm-registry listening");
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
     Ok(())
+}
+
+/// Wraps [`tokio::net::TcpListener`] to disable Nagle's algorithm on
+/// every accepted socket.
+///
+/// Node's http server sets `TCP_NODELAY` by default; hyper 1.x
+/// doesn't. With Nagle on, the kernel coalesces small writes and
+/// (on Linux epoll) introduces ~tens-of-µs of per-response delay
+/// while waiting for follow-up bytes that never come — invisible
+/// on macOS's kqueue scheduling, but stacks up across the
+/// thousand-request fan-out of an install benchmark.
+///
+/// Set on a per-socket basis after accept because the option lives
+/// on the *connection*, not the listening socket.
+struct NodelayTcpListener(tokio::net::TcpListener);
+
+impl axum::serve::Listener for NodelayTcpListener {
+    type Io = tokio::net::TcpStream;
+    type Addr = std::net::SocketAddr;
+
+    async fn accept(&mut self) -> (Self::Io, Self::Addr) {
+        loop {
+            match self.0.accept().await {
+                Ok((socket, addr)) => {
+                    // Ignore set_nodelay errors — failure means the
+                    // peer already closed; serving the connection
+                    // will surface that as a normal HTTP error.
+                    let _ = socket.set_nodelay(true);
+                    return (socket, addr);
+                }
+                Err(err) => {
+                    tracing::warn!(?err, "tcp accept error; retrying");
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                }
+            }
+        }
+    }
+
+    fn local_addr(&self) -> std::io::Result<Self::Addr> {
+        self.0.local_addr()
+    }
 }
 
 async fn shutdown_signal() {
