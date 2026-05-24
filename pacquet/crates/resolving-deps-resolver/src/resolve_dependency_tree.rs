@@ -131,17 +131,17 @@ impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
 /// `await` inside, so a sync mutex is the right tool — tokio's async
 /// mutex adds per-acquire overhead that the resolve hot path was
 /// paying once per visit per ctx field.
-pub async fn resolve_dependency_tree<DependencyGroupList, Chain>(
-    resolver: &Chain,
+pub async fn resolve_dependency_tree<DependencyGroupList>(
+    resolver: Arc<dyn Resolver>,
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
     opts: ResolveDependencyTreeOptions,
 ) -> Result<ResolvedTree, ResolveDependencyTreeError>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-    Chain: Resolver + ?Sized,
 {
-    let ctx = TreeCtx::new(opts.base_opts).with_patched_dependencies(opts.patched_dependencies);
+    let ctx =
+        TreeCtx::new(resolver, opts.base_opts).with_patched_dependencies(opts.patched_dependencies);
     let optional_names = importer_optional_dependency_names(manifest);
     let wanted: Vec<(String, String, bool)> = manifest
         .dependencies(dependency_groups)
@@ -150,7 +150,7 @@ where
             (name.to_string(), range.to_string(), optional)
         })
         .collect();
-    let direct = extend_tree(&ctx, resolver, wanted).await?;
+    let direct = extend_tree(&ctx, wanted).await?;
     Ok(ctx.into_resolved_tree(direct))
 }
 
@@ -196,7 +196,18 @@ type ChildSpec = (String, String, bool);
 /// extends it via [`extend_tree`] so newly-hoisted peer dependencies
 /// reuse the existing per-id dedup map instead of restarting the walk.
 pub struct TreeCtx {
-    base_opts: ResolveOptions,
+    /// Resolver chain shared with every per-package
+    /// [`Resolver::resolve`] call. Held as `Arc<dyn Resolver>` so the
+    /// per-level packument prefetch (see [`prefetch_packuments`]) can
+    /// clone it into [`tokio::spawn`]ed tasks — the spawned future
+    /// must own `'static`, which a borrowed `&dyn Resolver` can't
+    /// provide.
+    resolver: Arc<dyn Resolver>,
+    /// Arc-wrapped resolve options shared by every per-package
+    /// `resolve()` call. Arc'd (rather than cloned per call) so the
+    /// prefetch fan-out only bumps a refcount instead of re-cloning
+    /// `PreferredVersions` and `PackageVersionPolicy` per task.
+    base_opts: Arc<ResolveOptions>,
     packages: Mutex<HashMap<String, ResolvedPackage>>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     all_peer_dep_names: Mutex<HashSet<String>>,
@@ -239,9 +250,10 @@ pub struct TreeCtx {
 impl TreeCtx {
     /// Construct an empty context. Calls to [`extend_tree`] populate
     /// `packages` / `dependencies_tree` / `all_peer_dep_names`.
-    pub fn new(base_opts: ResolveOptions) -> Self {
+    pub fn new(resolver: Arc<dyn Resolver>, base_opts: ResolveOptions) -> Self {
         TreeCtx {
-            base_opts,
+            resolver,
+            base_opts: Arc::new(base_opts),
             packages: Mutex::new(HashMap::new()),
             dependencies_tree: Mutex::new(HashMap::new()),
             all_peer_dep_names: Mutex::new(HashSet::new()),
@@ -338,14 +350,11 @@ impl TreeCtx {
 /// importer can't appear in its own ancestor chain), but the walker
 /// may still return `None` for any spec the cycle break gated out;
 /// those are filtered here.
-pub async fn extend_tree<Chain>(
+pub async fn extend_tree(
     ctx: &TreeCtx,
-    resolver: &Chain,
     wanted: Vec<(String, String, bool)>,
-) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
-where
-    Chain: Resolver + ?Sized,
-{
+) -> Result<Vec<DirectDep>, ResolveDependencyTreeError> {
+    prefetch_packuments(&ctx.resolver, &ctx.base_opts, &wanted);
     let results = wanted
         .into_iter()
         .map(|(name, range, optional)| async move {
@@ -355,11 +364,62 @@ where
                 optional: Some(optional),
                 ..WantedDependency::default()
             };
-            resolve_node(ctx, resolver, wanted, &[], 0, false).await
+            resolve_node(ctx, wanted, &[], 0, false).await
         })
         .pipe(future::try_join_all)
         .await?;
     Ok(results.into_iter().flatten().collect())
+}
+
+/// Fire-and-forget packument prefetch for a batch of child specs.
+///
+/// Each spec is dispatched through the resolver chain on its own
+/// [`tokio::spawn`] task; the result is discarded. The npm resolver's
+/// per-`(registry, name)` packument fetch semaphore (see
+/// [`pacquet_resolving_npm_resolver::shared_packument_fetch_locker`])
+/// coalesces this prefetch with the later real `resolve()` call from
+/// the tree walker so the recursion hits the in-memory packument
+/// cache and the per-version manifest cache instead of paying for a
+/// fresh network round-trip plus a fresh JSON parse + serde re-roundtrip
+/// per call site.
+///
+/// Detached spawns matter because the tree walker resolves siblings via
+/// `try_join_all`: those futures cooperate on the current task, so a
+/// CPU-heavy step inside one resolve (JSON parse, semver pick, manifest
+/// serde) blocks the others until it yields. The packument fetch tasks
+/// run on the multi-thread executor instead, so the I/O and the
+/// duplicate-work-after-cache-hit can land on whichever worker is free.
+///
+/// Mirrors upstream pnpm's
+/// [`resolveDependencies` BFS-batched fan-out](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L690-L697)
+/// where every sibling's `pickPackage` runs concurrently via
+/// `Promise.all` before the deferred `postponedResolution` queue
+/// recurses into the next level. Called twice — once at
+/// [`extend_tree`] for the importer's direct deps, and once inside
+/// [`resolve_node`] as soon as a parent's manifest reveals its
+/// children — so every level of the tree gets the same lookahead.
+///
+/// Errors from the prefetch are silently dropped — the real
+/// `resolve()` call later in [`resolve_node`] surfaces the same error
+/// to the caller through the normal error path.
+fn prefetch_packuments(
+    resolver: &Arc<dyn Resolver>,
+    base_opts: &Arc<ResolveOptions>,
+    specs: &[(String, String, bool)],
+) {
+    for (name, range, optional) in specs {
+        let resolver = Arc::clone(resolver);
+        let base_opts = Arc::clone(base_opts);
+        let wanted = WantedDependency {
+            alias: Some(name.clone()),
+            bare_specifier: Some(range.clone()),
+            optional: Some(*optional),
+            ..WantedDependency::default()
+        };
+        tokio::spawn(async move {
+            let _ = resolver.resolve(&wanted, &base_opts).await;
+        });
+    }
 }
 
 /// Resolve one `(alias, range)` edge, register the resolved package in
@@ -377,17 +437,13 @@ where
 /// each other into `graph.insert`, and an empty-children entry for the
 /// cycled occurrence can overwrite the real one.
 #[async_recursion]
-async fn resolve_node<Chain>(
+async fn resolve_node(
     ctx: &TreeCtx,
-    resolver: &Chain,
     wanted: WantedDependency,
     ancestor_ids: &[String],
     depth: i32,
     parent_optional: bool,
-) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
-where
-    Chain: Resolver + ?Sized,
-{
+) -> Result<Option<DirectDep>, ResolveDependencyTreeError> {
     let current_is_optional = wanted.optional.unwrap_or(false) || parent_optional;
 
     // Memoise the per-wanted resolve. The first caller for a given
@@ -408,10 +464,9 @@ where
     let result = match cached {
         Some(result) => result,
         None => {
-            let result =
-                resolver.resolve(&wanted, &ctx.base_opts).await.map_err(|err: ResolveError| {
-                    ResolveDependencyTreeError::Resolve(err.to_string())
-                })?;
+            let result = ctx.resolver.resolve(&wanted, &ctx.base_opts).await.map_err(
+                |err: ResolveError| ResolveDependencyTreeError::Resolve(err.to_string()),
+            )?;
             let Some(result) = result else {
                 return Err(ResolveDependencyTreeError::SpecNotSupported {
                     specifier: render_specifier(&wanted),
@@ -525,6 +580,7 @@ where
             specs
         }
     };
+    prefetch_packuments(&ctx.resolver, &ctx.base_opts, &child_specs);
     let child_results = child_specs
         .iter()
         .map(|(child_name, child_range, child_optional)| {
@@ -536,15 +592,8 @@ where
             };
             let next_ancestors = next_ancestors.clone();
             async move {
-                resolve_node(
-                    ctx,
-                    resolver,
-                    child_wanted,
-                    &next_ancestors,
-                    depth + 1,
-                    current_is_optional,
-                )
-                .await
+                resolve_node(ctx, child_wanted, &next_ancestors, depth + 1, current_is_optional)
+                    .await
             }
         })
         .pipe(future::try_join_all)

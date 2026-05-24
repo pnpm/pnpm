@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use std::{collections::HashMap, str::FromStr, sync::Arc, sync::Mutex};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -14,7 +14,7 @@ use crate::{
 
 struct StubResolver {
     table: HashMap<(String, String), ResolveResult>,
-    calls: Mutex<Vec<(String, String)>>,
+    calls: Arc<Mutex<Vec<(String, String)>>>,
 }
 
 impl Resolver for StubResolver {
@@ -115,12 +115,14 @@ async fn auto_installs_missing_required_peer() {
         ("react".to_string(), "^18.0.0".to_string()),
         fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let direct_aliases: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
@@ -152,13 +154,15 @@ async fn does_not_hoist_when_disabled() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
 
     let mut opts = default_opts();
     opts.auto_install_peers = false;
-    let result =
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    let result = resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], opts)
+        .await
+        .unwrap();
 
     #[expect(
         clippy::needless_collect,
@@ -205,12 +209,14 @@ async fn transitive_required_peer_is_hoisted() {
             serde_json::json!({ "name": "peer-pkg", "version": "1.2.3" }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "outer": "1.0.0" }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
@@ -248,15 +254,17 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
         ("react".to_string(), "18.2.0".to_string()),
         fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "react": "18.2.0", "react-dom": "18.0.0" }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
-    let calls = resolver.calls.lock().unwrap();
+    let calls = calls.lock().unwrap();
     // No `react` re-resolve via a different range — the only react
     // request was the direct dep at "18.2.0".
     let react_call_count = calls.iter().filter(|(name, _)| name == "react").count();
@@ -305,12 +313,14 @@ async fn auto_install_skips_optional_peers_without_preferred_versions() {
         ("peer-a".to_string(), "^1.0.0".to_string()),
         fake_result("peer-a", "1.0.0", serde_json::json!({ "name": "peer-a", "version": "1.0.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "abc": "1.0.0" }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
@@ -359,15 +369,17 @@ async fn auto_install_dedupes_via_range_intersection_when_identical() {
         ("peer-c".to_string(), "1.0.0".to_string()),
         fake_result("peer-c", "1.0.0", serde_json::json!({ "name": "peer-c", "version": "1.0.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "wants-peer-c-1": "1.0.0",
         "wants-peer-c-1.0.0": "1.0.0",
     }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
@@ -413,15 +425,17 @@ async fn auto_install_does_not_install_when_no_intersection() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "wants-peer-c-1": "1.0.0",
         "wants-peer-c-2": "1.0.0",
     }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
@@ -463,7 +477,8 @@ async fn auto_install_from_highest_match_installs_on_conflict() {
         ("peer-c".to_string(), "1.0.0 || 2.0.0".to_string()),
         fake_result("peer-c", "2.0.0", serde_json::json!({ "name": "peer-c", "version": "2.0.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "wants-peer-c-1": "1.0.0",
         "wants-peer-c-2": "1.0.0",
@@ -471,8 +486,9 @@ async fn auto_install_from_highest_match_installs_on_conflict() {
 
     let mut opts = default_opts();
     opts.auto_install_peers_from_highest_match = true;
-    let result =
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    let result = resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], opts)
+        .await
+        .unwrap();
 
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
@@ -528,15 +544,17 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
             fake_result(name, "1.0.0", serde_json::json!({ "name": name, "version": "1.0.0" })),
         );
     }
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "xyz-parent": "1.0.0",
         "xyz-with-xyz": "1.0.0",
     }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
@@ -549,7 +567,7 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
     // called multiple times with the same `1.0.0` spec because the
     // tree walker doesn't gate the `resolve()` call on dedup; what
     // matters here is that `^1.0.0` never appears.)
-    let calls = resolver.calls.lock().unwrap();
+    let calls = calls.lock().unwrap();
     for name in ["x", "y", "z"] {
         let ranges: Vec<&str> = calls
             .iter()
@@ -585,19 +603,21 @@ async fn auto_install_does_not_hoist_when_root_already_has_dep() {
         ("x".to_string(), "1.0.0".to_string()),
         fake_result("x", "1.0.0", serde_json::json!({ "name": "x", "version": "1.0.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "xyz": "1.0.0",
         "x": "1.0.0",
     }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     // The picker must not re-resolve `x` via the peer's `^1.0.0` range
     // when the root already pinned it at `1.0.0`.
-    let calls = resolver.calls.lock().unwrap();
+    let calls = calls.lock().unwrap();
     let x_ranges: Vec<String> =
         calls.iter().filter(|(n, _)| n == "x").map(|(_, r)| r.clone()).collect();
     assert_eq!(
@@ -646,17 +666,19 @@ async fn auto_install_does_not_install_same_missing_peer_twice() {
         ("y".to_string(), "^1.0.0".to_string()),
         fake_result("y", "1.0.0", serde_json::json!({ "name": "y", "version": "1.0.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "outer": "1.0.0" }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let y_entries: Vec<&DepPath> =
         result.peers_result.graph.keys().filter(|dp| dp.to_string().starts_with("y@")).collect();
     assert_eq!(y_entries.len(), 1, "expected one y entry, got: {y_entries:?}");
-    let calls = resolver.calls.lock().unwrap();
+    let calls = calls.lock().unwrap();
     let y_calls = calls.iter().filter(|(n, _)| n == "y").count();
     assert_eq!(y_calls, 1, "y should be resolved at most once");
 }
@@ -689,7 +711,8 @@ async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
         ("y".to_string(), "^1.0.0".to_string()),
         fake_result("y", "1.0.0", serde_json::json!({ "name": "y", "version": "1.0.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest_json(serde_json::json!({
         "name": "root",
         "version": "0.0.0",
@@ -699,15 +722,16 @@ async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
         },
     }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
     assert!(direct.contains(&"y"), "importer's own peer dep should land as direct: {direct:?}");
     assert!(direct.contains(&"has-y-peer"));
-    let calls = resolver.calls.lock().unwrap();
+    let calls = calls.lock().unwrap();
     let y_ranges: Vec<String> =
         calls.iter().filter(|(n, _)| n == "y").map(|(_, r)| r.clone()).collect();
     assert_eq!(
@@ -752,15 +776,17 @@ async fn auto_install_hoisted_peer_dep_reuses_regular_dep_version() {
         ("c".to_string(), "2.0.0".to_string()),
         fake_result("c", "2.0.0", serde_json::json!({ "name": "c", "version": "2.0.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "has-c-in-deps": "1.0.0",
         "wants-c": "1.0.0",
     }));
 
-    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .unwrap();
+    let result =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .unwrap();
 
     let c_entries: Vec<String> = result
         .peers_result
@@ -787,7 +813,8 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
         ("foo".to_string(), "^1.0.0".to_string()),
         fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let resolver: Arc<dyn Resolver> = Arc::new(StubResolver { table, calls: Arc::clone(&calls) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
 
     let mut catalogs = pacquet_catalogs_types::Catalogs::new();
@@ -797,12 +824,13 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     );
 
     let opts = ResolveImporterOptions { catalogs, ..default_opts() };
-    let result =
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    let result = resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], opts)
+        .await
+        .unwrap();
     assert_eq!(result.resolved_tree.direct.len(), 1);
     assert_eq!(result.resolved_tree.direct[0].alias, "foo");
     // The resolver chain only sees the catalog-rewritten range.
-    let calls = resolver.calls.lock().unwrap();
+    let calls = calls.lock().unwrap();
     assert_eq!(&*calls, &[("foo".to_string(), "^1.0.0".to_string())]);
 }
 
@@ -811,12 +839,14 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
 /// error rather than falling through to `SpecNotSupported`.
 #[tokio::test]
 async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
-    let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
+    let resolver: Arc<dyn Resolver> =
+        Arc::new(StubResolver { table: HashMap::new(), calls: Arc::new(Mutex::new(Vec::new())) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
 
-    let err = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
-        .await
-        .expect_err("missing catalog entry must error");
+    let err =
+        resolve_importer(Arc::clone(&resolver), &manifest, [DependencyGroup::Prod], default_opts())
+            .await
+            .expect_err("missing catalog entry must error");
     match err {
         ResolveImporterError::Resolve(ResolveDependencyTreeError::CatalogMisconfiguration(
             inner,

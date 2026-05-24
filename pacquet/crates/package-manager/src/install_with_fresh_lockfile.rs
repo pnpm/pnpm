@@ -451,7 +451,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // download's `pnpm:progress` emits route through the same
         // reporter the install pass uses. See
         // `prefetching_resolver.rs` for the full design rationale.
-        let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
+        let resolver: Arc<dyn Resolver> = Arc::new(PrefetchingResolver::<Reporter>::new(
             inner_resolver,
             PrefetchContext {
                 http_client: &http_client_arc,
@@ -541,7 +541,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 
         let phase_start = std::time::Instant::now();
         let importer_result = resolve_importer(
-            &*resolver,
+            Arc::clone(&resolver),
             manifest,
             dependency_groups.iter().copied(),
             importer_opts,

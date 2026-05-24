@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use std::{collections::HashMap, str::FromStr, sync::Arc, sync::Mutex};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -106,11 +106,12 @@ async fn walks_dependencies_and_builds_flat_tree() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver: Arc<dyn Resolver> =
+        Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(
-        &resolver,
+        Arc::clone(&resolver),
         &manifest,
         [DependencyGroup::Prod],
         ResolveDependencyTreeOptions {
@@ -173,11 +174,12 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver: Arc<dyn Resolver> =
+        Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0", "b": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(
-        &resolver,
+        Arc::clone(&resolver),
         &manifest,
         [DependencyGroup::Prod],
         ResolveDependencyTreeOptions {
@@ -216,11 +218,12 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
 /// diagnostic the chain dispatcher does.
 #[tokio::test]
 async fn declined_specifier_surfaces_spec_not_supported_error() {
-    let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
+    let resolver: Arc<dyn Resolver> =
+        Arc::new(StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) });
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "git+ssh://example.com" }));
 
     let err = resolve_dependency_tree(
-        &resolver,
+        Arc::clone(&resolver),
         &manifest,
         [DependencyGroup::Prod],
         ResolveDependencyTreeOptions {
@@ -240,10 +243,10 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
 
 mod block_exotic_subdeps {
     use std::collections::HashMap;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
 
     use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
 
     use super::{StubResolver, fake_manifest, fake_result};
     use crate::resolve_dependency_tree::{
@@ -286,11 +289,12 @@ mod block_exotic_subdeps {
                 serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
         let err = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -325,12 +329,13 @@ mod block_exotic_subdeps {
                 serde_json::json!({ "name": "is-negative", "version": "1.0.0" }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) =
             fake_manifest(serde_json::json!({ "is-negative": "kevva/is-negative#1.0.0" }));
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -367,11 +372,12 @@ mod block_exotic_subdeps {
             ("bar".to_string(), "^2.0.0".to_string()),
             fake_result("bar", "2.0.0", serde_json::json!({ "name": "bar", "version": "2.0.0" })),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
         resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -410,11 +416,12 @@ mod block_exotic_subdeps {
                 serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -433,10 +440,10 @@ mod block_exotic_subdeps {
 
 mod peers {
     use std::collections::HashMap;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
 
     use pacquet_package_manifest::DependencyGroup;
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
@@ -453,10 +460,11 @@ mod peers {
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -502,11 +510,12 @@ mod peers {
                 }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) =
             fake_manifest(serde_json::json!({ "react": "18.0.0", "react-dom": "18.0.0" }));
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -551,10 +560,11 @@ mod peers {
                 }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -601,11 +611,12 @@ mod peers {
                 }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) =
             fake_manifest(serde_json::json!({ "react": "17.0.0", "react-dom": "18.0.0" }));
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -659,12 +670,13 @@ mod peers {
                 serde_json::json!({ "name": "react", "version": "18.0.0" }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         // Manifest order puts react-dom first.
         let (_tmp, manifest) =
             fake_manifest(serde_json::json!({ "react-dom": "18.0.0", "react": "18.0.0" }));
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -695,7 +707,7 @@ mod patched_dependencies {
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
-    use pacquet_resolving_resolver_base::ResolveOptions;
+    use pacquet_resolving_resolver_base::{ResolveOptions, Resolver};
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
@@ -727,14 +739,15 @@ mod patched_dependencies {
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
         let mut groups: PatchGroupRecord = PatchGroupRecord::new();
         groups.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -766,7 +779,8 @@ mod patched_dependencies {
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
         let info = ExtendedPatchInfo {
@@ -780,7 +794,7 @@ mod patched_dependencies {
         groups.insert("foo".to_string(), group);
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -805,14 +819,15 @@ mod patched_dependencies {
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
         let mut groups: PatchGroupRecord = PatchGroupRecord::new();
         groups.insert("bar".to_string(), exact_group("2.0.0", "bar@2.0.0", "abc"));
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -836,7 +851,8 @@ mod patched_dependencies {
             ("foo".to_string(), "^1.0.0".to_string()),
             fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
         let mut group = PatchGroup::default();
@@ -860,7 +876,7 @@ mod patched_dependencies {
         groups.insert("foo".to_string(), group);
 
         let err = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod],
             ResolveDependencyTreeOptions {
@@ -876,8 +892,8 @@ mod patched_dependencies {
 
 mod optional_propagation {
     use super::{
-        DependencyGroup, HashMap, Mutex, PackageManifest, ResolveDependencyTreeOptions,
-        ResolveOptions, StubResolver, fake_result, resolve_dependency_tree,
+        Arc, DependencyGroup, HashMap, Mutex, PackageManifest, ResolveDependencyTreeOptions,
+        ResolveOptions, Resolver, StubResolver, fake_result, resolve_dependency_tree,
     };
 
     /// `package.json` builder that takes both `dependencies` and
@@ -921,14 +937,15 @@ mod optional_propagation {
                 serde_json::json!({ "name": "regular", "version": "1.0.0" }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = manifest_with_groups(
             serde_json::json!({ "regular": "^1.0.0" }),
             serde_json::json!({ "opt": "^1.0.0" }),
         );
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod, DependencyGroup::Optional],
             ResolveDependencyTreeOptions {
@@ -976,12 +993,13 @@ mod optional_propagation {
                 serde_json::json!({ "name": "transitive", "version": "1.0.0" }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) =
             manifest_with_groups(serde_json::json!({}), serde_json::json!({ "opt": "^1.0.0" }));
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod, DependencyGroup::Optional],
             ResolveDependencyTreeOptions {
@@ -1037,14 +1055,15 @@ mod optional_propagation {
                 serde_json::json!({ "name": "shared", "version": "1.0.0" }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) = manifest_with_groups(
             serde_json::json!({ "regular": "^1.0.0" }),
             serde_json::json!({ "opt": "^1.0.0" }),
         );
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod, DependencyGroup::Optional],
             ResolveDependencyTreeOptions {
@@ -1090,12 +1109,13 @@ mod optional_propagation {
                 serde_json::json!({ "name": "transitive", "version": "1.0.0" }),
             ),
         );
-        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let resolver: Arc<dyn Resolver> =
+            Arc::new(StubResolver { table, calls: Mutex::new(Vec::new()) });
         let (_tmp, manifest) =
             manifest_with_groups(serde_json::json!({ "regular": "^1.0.0" }), serde_json::json!({}));
 
         let tree = resolve_dependency_tree(
-            &resolver,
+            Arc::clone(&resolver),
             &manifest,
             [DependencyGroup::Prod, DependencyGroup::Optional],
             ResolveDependencyTreeOptions {

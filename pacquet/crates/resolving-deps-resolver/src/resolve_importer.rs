@@ -116,15 +116,14 @@ impl From<ResolveDependencyTreeError> for ResolveImporterError {
 
 /// Resolve an importer's full dependency graph with auto-install-peers
 /// hoisting. See the module-level doc for the algorithm.
-pub async fn resolve_importer<DependencyGroupList, Chain>(
-    resolver: &Chain,
+pub async fn resolve_importer<DependencyGroupList>(
+    resolver: Arc<dyn Resolver>,
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
     opts: ResolveImporterOptions,
 ) -> Result<ResolveImporterResult, ResolveImporterError>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-    Chain: Resolver + ?Sized,
 {
     let ResolveImporterOptions {
         auto_install_peers,
@@ -136,7 +135,7 @@ where
         catalogs,
     } = opts;
 
-    let ctx = TreeCtx::new(base_opts).with_patched_dependencies(patched_dependencies);
+    let ctx = TreeCtx::new(resolver, base_opts).with_patched_dependencies(patched_dependencies);
 
     // Mirrors upstream's
     // [`getAllDependenciesFromManifest({ autoInstallPeers })`](https://github.com/pnpm/pnpm/blob/097983fbca/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts):
@@ -163,7 +162,7 @@ where
         })
         .collect();
     let initial_wanted = resolve_catalog_specifiers(initial_wanted, &catalogs)?;
-    let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
+    let mut direct = extend_tree(&ctx, initial_wanted).await?;
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 
     let mut parent_pkg_aliases: HashSet<String> =
@@ -225,7 +224,7 @@ where
             // shape inside `hoistPeers`.
             let new_wanted: Vec<(String, String, bool)> =
                 hoisted.into_iter().map(|(name, range)| (name, range, false)).collect();
-            let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
+            let new_direct = extend_tree(&ctx, new_wanted).await?;
             direct.extend(new_direct);
             update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
         }
@@ -247,7 +246,7 @@ where
         // non-optional matches the required-peer arm above.
         let new_wanted: Vec<(String, String, bool)> =
             hoisted_optional.into_iter().map(|(name, range)| (name, range, false)).collect();
-        let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
+        let new_direct = extend_tree(&ctx, new_wanted).await?;
         direct.extend(new_direct);
         update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
         all_missing_optional_peers.clear();
