@@ -1,5 +1,19 @@
 # @pnpm/config
 
+## 1101.4.0
+
+### Minor Changes
+
+- 3b62f9d: Add a `skip-manifest-obfuscation` option for `pnpm pack` and `pnpm publish`. When enabled, the original `packageManager` field and publish lifecycle scripts are kept in the packed/published manifest instead of being stripped. The pnpm-specific `pnpm` field continues to be omitted.
+- 212315d: Added a new setting `trustLockfile`. When `true`, `pnpm install` skips the supply-chain verification pass that re-applies `minimumReleaseAge` / `trustPolicy='no-downgrade'` to every entry in the loaded lockfile. The install treats the lockfile as already-trusted — useful for closed-source projects where every commit comes from a trusted author, or for CI runs against an already-verified lockfile. Defaults to `false`; verification stays on by default. Set in `pnpm-workspace.yaml`.
+
+  Also cut the memory footprint of the verification pass itself: the per-(registry, name) trust-meta cache previously retained the full packument — dependency graphs, scripts, README, and per-version manifests — for the entire install. On large workspaces (`~4k` lockfile entries with `minimumReleaseAge` + `trustPolicy: no-downgrade` enabled) this could OOM CI runners with a 2GB heap cap. The cache now stores only the fields the trust check actually reads (`time`, per-version `_npmUser.trustedPublisher`, `dist.attestations.provenance`). The abbreviated-metadata cache is similarly projected to just the package-level `modified` field and the set of currently-listed version names. Fixes [#11860](https://github.com/pnpm/pnpm/issues/11860).
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
 ## 1101.3.3
 
 ### Patch Changes

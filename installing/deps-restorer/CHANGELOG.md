@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 1101.1.5
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/bins.linker@1100.0.9
+  - @pnpm/building.during-install@1101.0.13
+  - @pnpm/exec.lifecycle@1100.0.13
+  - @pnpm/installing.linking.hoist@1100.0.9
+  - @pnpm/installing.package-requester@1101.0.8
+
 ## 1101.1.4
 
 ### Patch Changes

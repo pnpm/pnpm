@@ -1,5 +1,17 @@
 # @pnpm/config.deps-installer
 
+## 1101.1.2
+
+### Patch Changes
+
+- 155af87: Fixed `pnpm add --config` leaving orphan entries in `pnpm-lock.env.yaml` (the optional subdependencies of the previously resolved version of the updated config dependency).
+- Updated dependencies [3422cec]
+- Updated dependencies [e0bd879]
+- Updated dependencies [212315d]
+  - @pnpm/installing.deps-resolver@1100.1.3
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/store.controller@1101.0.8
+
 ## 1101.1.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/filter-workspace-packages
 
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.7
+- @pnpm/workspace.projects-graph@1100.0.12
+
 ## 1100.0.14
 
 ### Patch Changes

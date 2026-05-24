@@ -1,5 +1,11 @@
 # pd
 
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.7
+
 ## 1100.0.9
 
 ### Patch Changes

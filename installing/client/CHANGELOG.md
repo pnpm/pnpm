@@ -1,5 +1,17 @@
 # @pnpm/client
 
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [212315d]
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/fetching.directory-fetcher@1100.0.12
+  - @pnpm/engine.runtime.node-resolver@1101.1.1
+  - @pnpm/resolving.default-resolver@1100.3.2
+  - @pnpm/fetching.git-fetcher@1101.0.9
+  - @pnpm/fetching.tarball-fetcher@1101.0.10
+
 ## 1100.2.1
 
 ### Patch Changes
