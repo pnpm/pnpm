@@ -58,11 +58,11 @@
     "typescript": "catalog:",
     "verdaccio": "catalog:"
   },
-  "packageManager": "pnpm@11.2.2",
+  "packageManager": "pnpm@11.3.0",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.2.2",
+      "version": "11.3.0",
       "onFail": "download"
     },
     "runtime": {
