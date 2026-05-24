@@ -334,6 +334,53 @@ async fn publish_rejects_tarball_that_doesnt_match_package() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
+/// `anonymous-npm-registry-client`'s `distTags.add` URL-encodes the
+/// `/` in scoped names: `@scope/pkg` → `@scope%2Fpkg` in the URL.
+/// axum's `Path` extractor percent-decodes path segments, so the
+/// handler sees the decoded value verbatim and never needs to decode
+/// again. This regression test pins that down: if someone reintroduces
+/// a manual `urldecode` (which was previously here and was both
+/// redundant and buggy on literal `%` chars), the `@scope/pkg`
+/// `PackageName::parse` would still pass but a future bug-fix that
+/// changes the decoder could break percent-encoded scoped paths.
+#[tokio::test]
+async fn dist_tag_set_works_with_url_encoded_scoped_path() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    // Publish @scope/pkg@1.0.0 (literal slash in the URL — pnpm
+    // publish uses this form), then set a dist-tag using the
+    // npm-client-style `%2F` encoding to verify the decoded path
+    // reaches the handler.
+    let body = sample_publish_body("@scope/pkg", "1.0.0", b"v1");
+    let request = Request::put("/@scope/pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    app.clone().oneshot(request).await.unwrap();
+
+    let request = Request::put("/-/package/@scope%2Fpkg/dist-tags/beta")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Fetch via the encoded form too — both should round-trip cleanly.
+    let tags = app
+        .oneshot(Request::get("/-/package/@scope%2Fpkg/dist-tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(tags.status(), StatusCode::OK);
+    let tags_body = body_json(tags.into_body()).await;
+    assert_eq!(tags_body["beta"], "1.0.0");
+    assert_eq!(tags_body["latest"], "1.0.0");
+}
+
 #[tokio::test]
 async fn publish_supports_scoped_packages() {
     let tmp = TempDir::new().unwrap();

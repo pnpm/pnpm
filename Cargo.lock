@@ -2990,7 +2990,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "ssri",
  "tempfile",
  "tokio",
  "tower",

@@ -409,13 +409,9 @@ async fn serve_tarball(
 /// * unknown user → create + return 201 with `{ ok, token }`.
 /// * existing user, password matches → return 201 with `{ ok, token }`.
 /// * existing user, password wrong → 401.
-async fn add_user(state: &AppState, raw_name: &str, body: &[u8]) -> Response {
-    // URL-decode the username — npm sends `org.couchdb.user:foo%2Fbar`
-    // (encoded `/`) for usernames that contain special characters.
-    let name = match urldecode(raw_name) {
-        Ok(n) => n,
-        Err(err) => return error_response(&err),
-    };
+async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
+    // axum's `Path` extractor already percent-decodes path segments
+    // (`%2F` → `/`, `%40` → `@`, etc.), so we use `name` verbatim.
     let body: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
@@ -435,11 +431,11 @@ async fn add_user(state: &AppState, raw_name: &str, body: &[u8]) -> Response {
         }
     };
 
-    let outcome = match state.inner.users.add_or_login(&name, password) {
+    let outcome = match state.inner.users.add_or_login(name, password) {
         Ok(o) => o,
         Err(err) => return error_response(&err),
     };
-    let token = state.inner.tokens.issue(&name);
+    let token = state.inner.tokens.issue(name);
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{name}' created"),
         UpsertOutcome::LoggedIn => format!("you are authenticated as '{name}'"),
@@ -463,11 +459,7 @@ async fn publish_package(
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
-    let raw_name = match urldecode(raw_name) {
-        Ok(n) => n,
-        Err(err) => return error_response(&err),
-    };
-    let name = match PackageName::parse(&raw_name) {
+    let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
@@ -547,11 +539,7 @@ async fn write_tarball_bytes(
 /// `GET /-/package/:pkg/dist-tags` — return the packument's
 /// `dist-tags` object.
 async fn get_dist_tags(state: &AppState, headers: &HeaderMap, raw_name: &str) -> Response {
-    let raw_name = match urldecode(raw_name) {
-        Ok(n) => n,
-        Err(err) => return error_response(&err),
-    };
-    let name = match PackageName::parse(&raw_name) {
+    let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
@@ -623,11 +611,7 @@ async fn update_dist_tag<Mutate>(
 where
     Mutate: FnOnce(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
-    let raw_name = match urldecode(raw_name) {
-        Ok(n) => n,
-        Err(err) => return error_response(&err),
-    };
-    let name = match PackageName::parse(&raw_name) {
+    let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
@@ -659,9 +643,15 @@ where
         Err(err) => return error_response(&err),
     };
 
-    let tags_entry = packument
-        .as_object_mut()
-        .expect("packument is always an object")
+    let packument_obj = match packument.as_object_mut() {
+        Some(obj) => obj,
+        None => {
+            return error_response(&RegistryError::BadRequest {
+                reason: "stored packument is not an object".to_string(),
+            });
+        }
+    };
+    let tags_entry = packument_obj
         .entry("dist-tags".to_string())
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
     let tags = match tags_entry.as_object_mut() {
@@ -843,31 +833,3 @@ fn error_response(err: &RegistryError) -> Response {
     (status, err.to_string()).into_response()
 }
 
-/// URL-decode a single path segment that may have been
-/// percent-encoded by the npm client (`@scope%2Fname` → `@scope/name`,
-/// `user%40host.com` → `user@host.com`). We use this only for the
-/// few paths where percent-encoding actually shows up — adduser
-/// usernames and `/-/package/*` package names.
-fn urldecode(input: &str) -> Result<String, RegistryError> {
-    let mut out = String::with_capacity(input.len());
-    let mut chars = input.chars();
-    while let Some(c) = chars.next() {
-        if c == '%' {
-            let high = chars.next().ok_or_else(|| RegistryError::BadRequest {
-                reason: format!("truncated percent-encoding in {input:?}"),
-            })?;
-            let low = chars.next().ok_or_else(|| RegistryError::BadRequest {
-                reason: format!("truncated percent-encoding in {input:?}"),
-            })?;
-            let byte = u8::from_str_radix(&format!("{high}{low}"), 16).map_err(|_| {
-                RegistryError::BadRequest {
-                    reason: format!("invalid percent-encoding in {input:?}"),
-                }
-            })?;
-            out.push(byte as char);
-        } else {
-            out.push(c);
-        }
-    }
-    Ok(out)
-}
