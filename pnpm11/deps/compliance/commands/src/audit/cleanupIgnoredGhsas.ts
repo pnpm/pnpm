@@ -20,8 +20,15 @@ export function cleanupIgnoredGhsas (
       .map(({ github_advisory_id: ghsaId }) => normalizeGhsaId(ghsaId))
   )
 
-  const retained = ignoredGhsas.filter((ghsa) => advisoryGhsaIds.has(normalizeGhsaId(ghsa)))
-  const cleaned = ignoredGhsas.filter((ghsa) => !retained.includes(ghsa))
+  const retained: string[] = []
+  const cleaned: string[] = []
+  for (const ghsa of ignoredGhsas) {
+    if (advisoryGhsaIds.has(normalizeGhsaId(ghsa))) {
+      retained.push(ghsa)
+    } else {
+      cleaned.push(ghsa)
+    }
+  }
 
   return { cleaned, retained }
 }
