@@ -11,7 +11,7 @@
 //! [`Lockfile`] already holds the two maps separately, so this adapter
 //! emits them directly.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use pacquet_lockfile::{
     ComVer, ImporterDepVersion, Lockfile, LockfileSettings, LockfileVersion, PackageKey,
@@ -19,22 +19,43 @@ use pacquet_lockfile::{
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_deps_resolver::{
-    DepPath, DependenciesGraph, DependenciesGraphNode, ResolveImporterResult,
-};
+use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
 use pacquet_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 
-/// Options threaded into [`dependencies_graph_to_lockfile`].
-pub struct GraphToLockfileOptions<'a> {
-    /// The on-disk `package.json` for the root importer. Used to source
+/// One importer's contribution to [`dependencies_graph_to_lockfile`].
+///
+/// Pacquet keeps the per-importer slice narrow — the manifest decides
+/// the dep-group classification of each alias, and
+/// `direct_dependencies_by_alias` (from `resolve_peers`) tells us which
+/// `DepPath` each alias resolved to. The shared `DependenciesGraph`
+/// lives outside this struct because it is importer-independent.
+pub struct ImporterLockfileInput<'a> {
+    /// The on-disk `package.json` for this importer. Used to source
     /// each direct dependency's specifier (the value the user wrote)
     /// and the importer-level dep-group classification
     /// (`dependencies` vs `devDependencies` vs `optionalDependencies`).
     pub manifest: &'a PackageManifest,
-    /// Resolver output: graph keyed by depPath plus the importer's
-    /// `alias → DepPath` map.
-    pub resolved: &'a ResolveImporterResult,
+    /// `alias → DepPath` for the direct dependencies of this importer,
+    /// as emitted by [`pacquet_resolving_deps_resolver::resolve_peers`].
+    pub direct_dependencies_by_alias: BTreeMap<String, DepPath>,
+}
+
+/// Options threaded into [`dependencies_graph_to_lockfile`].
+pub struct GraphToLockfileOptions<'a> {
+    /// One entry per workspace project being installed. Keyed by the
+    /// lockfile importer id (`"."` for the workspace root,
+    /// `"packages/<name>"` for siblings — see
+    /// [`pacquet_workspace::importer_id_from_root_dir`]). Mirrors
+    /// upstream's `importers: ImporterToResolve[]` shape on
+    /// `resolveDependencies`.
+    pub importers: BTreeMap<String, ImporterLockfileInput<'a>>,
+    /// Cross-importer dedup graph keyed by `DepPath`. The fresh-resolve
+    /// dispatch merges every per-importer `peers_result.graph` into
+    /// this one map before calling — identical snapshot keys collapse
+    /// onto one entry, matching upstream's shared
+    /// [`GenericDependenciesGraph`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/index.ts#L84).
+    pub graph: &'a DependenciesGraph,
     /// Round-tripped into the lockfile's top-level `settings:` block
     /// so a subsequent pnpm install can compare its own settings via
     /// `@pnpm/lockfile.settings-checker`'s `getOutdatedLockfileSetting`.
@@ -48,13 +69,15 @@ pub struct GraphToLockfileOptions<'a> {
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
-/// the importer-side context needed to populate the `importers:` map.
+/// the per-importer context needed to populate the `importers:` map.
 ///
 /// The output reflects pnpm v9's wire shape:
 ///
-/// - `importers["."]` carries the root project's `specifiers` and the
+/// - `importers[<id>]` carries each project's `specifiers` and the
 ///   classified `dependencies` / `devDependencies` / `optionalDependencies`
-///   maps keyed by the manifest's declared alias.
+///   maps keyed by the manifest's declared alias. The root project
+///   lives under `"."`; sibling workspace projects under their POSIX
+///   path from the lockfile root (e.g. `"packages/foo"`).
 /// - `packages` carries one [`PackageMetadata`] entry per resolved
 ///   package version, keyed by the *peer-stripped* depPath (the
 ///   `pkgIdWithPatchHash`).
@@ -63,22 +86,22 @@ pub struct GraphToLockfileOptions<'a> {
 ///   snapshot row.
 pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockfile {
     let GraphToLockfileOptions {
-        manifest,
-        resolved,
+        importers: importer_inputs,
+        graph,
         auto_install_peers,
         exclude_links_from_lockfile,
         overrides,
         ignored_optional_dependencies,
     } = opts;
 
-    let importer = build_root_importer(manifest, resolved);
+    let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
+    let (packages, snapshots) = build_packages_and_snapshots(graph, &optional_overrides);
 
-    let optional_overrides = compute_corrected_optional(manifest, resolved);
-    let (packages, snapshots) =
-        build_packages_and_snapshots(&resolved.peers_result.graph, &optional_overrides);
-
-    let mut importers: HashMap<String, ProjectSnapshot> = HashMap::with_capacity(1);
-    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), importer);
+    let mut importers: HashMap<String, ProjectSnapshot> =
+        HashMap::with_capacity(importer_inputs.len());
+    for (id, input) in &importer_inputs {
+        importers.insert(id.clone(), build_importer(input, graph));
+    }
 
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
@@ -93,20 +116,18 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
     }
 }
 
-/// Build the root importer's [`ProjectSnapshot`] from the on-disk
-/// manifest's declared deps + the resolver's per-alias `DepPath` map.
+/// Build an importer's [`ProjectSnapshot`] from its on-disk manifest
+/// plus the per-alias `DepPath` map the resolver produced for that
+/// importer.
 ///
 /// Mirrors upstream's
 /// [`addDirectDependenciesToLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/index.ts#L417-L484):
 /// the manifest decides which dep group each alias lives under, and the
 /// resolver decides the resolved version (peer-suffixed when peers are
 /// involved, alias-prefixed when the alias and real name differ).
-fn build_root_importer(
-    manifest: &PackageManifest,
-    resolved: &ResolveImporterResult,
-) -> ProjectSnapshot {
-    let direct = &resolved.peers_result.direct_dependencies_by_alias;
-    let graph = &resolved.peers_result.graph;
+fn build_importer(input: &ImporterLockfileInput<'_>, graph: &DependenciesGraph) -> ProjectSnapshot {
+    let manifest = input.manifest;
+    let direct = &input.direct_dependencies_by_alias;
 
     let mut dependencies: ResolvedDependencyMap = HashMap::new();
     let mut dev_dependencies: ResolvedDependencyMap = HashMap::new();
@@ -199,21 +220,24 @@ fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<St
 /// Build the version cell for an importer-level dependency, mirroring
 /// pnpm's [`depPathToRef`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/depPathToRef.ts):
 ///
+/// - When the depPath is a workspace-link id (`link:<rel-path>`), emit
+///   the [`ImporterDepVersion::Link`] arm so the lockfile records the
+///   sibling project's relative path instead of trying to parse it as
+///   `name@version`.
 /// - When the resolved real name equals the manifest alias and the
 ///   depPath starts with `<name>@`, drop the prefix so the importer
 ///   carries just the version-with-peer string.
 /// - Otherwise — npm-alias entries, where the alias and real name
 ///   differ — keep the full `<real>@<version-with-peer>` string so the
 ///   snapshot key the importer points at is unambiguous.
-///
-/// `link:` shows up only on the snapshot-level path (workspace siblings
-/// are routed through [`crate::InstallWithFreshLockfile::workspace_packages`]
-/// today), so this function doesn't emit [`ImporterDepVersion::Link`];
-/// the workspace-importer port adds that arm.
 fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDepVersion {
-    let real_name = real_name(&node.resolve_result);
     let dep_path_str = node.dep_path.as_str();
 
+    if let Some(target) = dep_path_str.strip_prefix("link:") {
+        return ImporterDepVersion::Link(target.to_string());
+    }
+
+    let real_name = real_name(&node.resolve_result);
     if let Some(real) = real_name.as_deref() {
         let prefix = format!("{real}@");
         if alias == real
@@ -425,11 +449,11 @@ fn build_snapshot_entry(
 }
 
 /// Re-derive each snapshot's `optional` flag by walking the graph
-/// from the importer's direct deps, classifying each starting edge by
-/// the dep-group it lives in on the manifest. A package ends up
-/// `optional: false` iff every visit didn't land on it through an
-/// `optionalDependencies` edge — i.e. there exists at least one path
-/// from any importer to it whose edges are all non-optional.
+/// from every importer's direct deps, classifying each starting edge
+/// by the dep-group it lives in on that importer's manifest. A
+/// package ends up `optional: false` iff at least one walk reached it
+/// only through non-optional edges — i.e. there exists at least one
+/// path from any importer to it whose edges are all non-optional.
 ///
 /// Ports upstream pnpm's
 /// [`copyDependencySubGraph`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/lockfile/pruner/src/index.ts#L160-L205)
@@ -446,25 +470,26 @@ fn build_snapshot_entry(
 /// back to [`DependenciesGraphNode::optional`] for those, matching
 /// upstream's "untouched depLockfile keeps its existing flag" arm.
 fn compute_corrected_optional(
-    manifest: &PackageManifest,
-    resolved: &ResolveImporterResult,
+    importer_inputs: &BTreeMap<String, ImporterLockfileInput<'_>>,
+    graph: &DependenciesGraph,
 ) -> HashMap<DepPath, bool> {
-    let graph = &resolved.peers_result.graph;
-    let direct = &resolved.peers_result.direct_dependencies_by_alias;
-    let alias_to_group = manifest_alias_to_group(manifest);
-
-    // Partition importer deps by group, mirroring the
+    // Partition every importer's deps by group, mirroring the
     // `(devDepPaths, optionalDepPaths, prodDepPaths)` split upstream
-    // hands to `copyDependencySubGraph`.
+    // hands to `copyDependencySubGraph`. Across importers the union
+    // of non-optional reach is what matters, so seeds are pooled
+    // before walking.
     let mut dev_seeds: Vec<&DepPath> = Vec::new();
     let mut optional_seeds: Vec<&DepPath> = Vec::new();
     let mut prod_seeds: Vec<&DepPath> = Vec::new();
-    for (alias, dep_path) in direct {
-        let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);
-        match group {
-            DependencyGroup::Dev => dev_seeds.push(dep_path),
-            DependencyGroup::Optional => optional_seeds.push(dep_path),
-            DependencyGroup::Prod | DependencyGroup::Peer => prod_seeds.push(dep_path),
+    for input in importer_inputs.values() {
+        let alias_to_group = manifest_alias_to_group(input.manifest);
+        for (alias, dep_path) in &input.direct_dependencies_by_alias {
+            let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);
+            match group {
+                DependencyGroup::Dev => dev_seeds.push(dep_path),
+                DependencyGroup::Optional => optional_seeds.push(dep_path),
+                DependencyGroup::Prod | DependencyGroup::Peer => prod_seeds.push(dep_path),
+            }
         }
     }
 
@@ -539,15 +564,18 @@ fn optional_children_of(node: &DependenciesGraphNode) -> HashSet<String> {
 }
 
 /// Build the `<alias>: <ref>` value the snapshot writes per child edge.
-/// `link:` snapshots aren't produced here — workspace siblings live
-/// outside the dep graph today. The plain / alias discrimination
-/// mirrors importer-side [`importer_dep_version`].
+/// Mirrors importer-side [`importer_dep_version`]: the `link:` branch
+/// emits [`SnapshotDepRef::Link`] for workspace siblings, plain /
+/// alias otherwise.
 fn snapshot_dep_ref(
     alias: &str,
     child_dep_path: &DepPath,
     graph: &DependenciesGraph,
 ) -> Option<SnapshotDepRef> {
     let dep_path_str = child_dep_path.as_str();
+    if let Some(target) = dep_path_str.strip_prefix("link:") {
+        return Some(SnapshotDepRef::Link(target.to_string()));
+    }
     let real_name = graph.get(child_dep_path).and_then(|n| real_name(&n.resolve_result));
     if let Some(real) = real_name.as_deref() {
         let prefix = format!("{real}@");
