@@ -4639,14 +4639,14 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     .expect("up-to-date install should succeed via the short-circuit");
 
     let captured = EVENTS.lock().unwrap();
-    let up_to_date = captured.iter().find_map(|event| match event {
-        LogEvent::Pnpm(log) => Some(log),
-        _ => None,
-    });
-    let up_to_date = up_to_date.expect(
-        "the `name: \"pnpm\"` up-to-date log must be emitted when the install short-circuits",
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log)
+                if log.message == "Lockfile is up to date, resolution step is skipped"
+        )),
+        r#"the `name: "pnpm"` up-to-date log must be emitted when the install short-circuits"#,
     );
-    assert_eq!(up_to_date.message, "Lockfile is up to date, resolution step is skipped");
 
     assert!(
         captured.iter().any(|e| matches!(e, LogEvent::Stage(s) if s.stage == Stage::ImportingDone)),
@@ -4657,11 +4657,14 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         "Summary must fire so `pnpm:root` history renders even on the fast path",
     );
 
-    // Materialization is skipped: no `node_modules/sibling` symlink
-    // is created (link: deps would be symlinked by the regular path).
+    // `Path::exists()` follows symlinks and returns `false` for a
+    // broken target — `symlink_metadata` is the right call to detect
+    // the symlink entry itself, so a dangling sibling symlink would
+    // still fail this assertion. Materialization on the regular
+    // install path always creates the link before falling through.
     let sibling_link = modules_dir.join("sibling");
     assert!(
-        !sibling_link.exists(),
+        std::fs::symlink_metadata(&sibling_link).is_err(),
         "the link: dep must NOT be materialized when the gate fires; \
          a present {sibling_link:?} would mean the install ran the full pipeline",
     );
