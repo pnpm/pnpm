@@ -164,28 +164,6 @@ jobs:
         timeout-minutes: 15
         run: just integrated-benchmark --build-only pacquet@HEAD pacquet@main
 
-      # Without pre-warming, the first cold-cache benchmark scenario
-      # on a fresh CI runner (or whenever the lockfile hash changes
-      # and the pnpm-registry storage cache misses) pays a full
-      # ~2.3k-packument fetch from npmjs, which trips the +25%
-      # latency threshold on `isolated-linker.fresh-restore.cold-cache.cold-store`.
-      # `pnpm fetch` downloads every package in the lockfile into
-      # the pnpm store without linking — perfect for warming. The
-      # actual benchmark runs against a fresh mock instance later,
-      # but it'll find every package already in
-      # `~/.cache/pnpm-registry/storage` and serve from disk.
-      - name: Pre-warm pnpm-registry cache
-        shell: bash
-        timeout-minutes: 8
-        run: |
-          just registry-mock launch
-          PORT=$(jq -r '.info.port' /tmp/pacquet-registry-mock-prepared-registry-info.json)
-          echo "Warming via http://localhost:$PORT/"
-          cd pacquet/tasks/integrated-benchmark/src/fixtures
-          pnpm fetch --registry "http://localhost:$PORT/" \
-            --store-dir "$RUNNER_TEMP/pnpm-registry-warmup-store"
-          just registry-mock end
-
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         shell: bash
         # Hyperfine has no per-command timeout, so a single hanging
