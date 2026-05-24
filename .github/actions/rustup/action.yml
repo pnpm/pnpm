@@ -4,30 +4,29 @@ description: Install Rust with minimal profile and additional components
 
 inputs:
   # See https://rust-lang.github.io/rustup/concepts/components.html
+  # NB: composite-action inputs are always strings at runtime — `type:`
+  # isn't a supported field on the action.yml schema (actionlint flags
+  # it as "unexpected key") and was silently ignored by GitHub Actions.
+  # Consumers compare against the literal `'true'` / `'false'` strings
+  # below, so dropping the annotation is a no-op behaviorally.
   clippy:
     default: false
     required: false
-    type: boolean
   fmt:
     default: false
     required: false
-    type: boolean
   docs:
     default: false
     required: false
-    type: boolean
   restore-cache:
     default: true
     required: false
-    type: boolean
   save-cache:
     default: false
     required: false
-    type: boolean
   shared-key:
     default: 'warm'
     required: false
-    type: string
 
 runs:
   using: composite
