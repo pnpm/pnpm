@@ -4395,3 +4395,286 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         "stale-lockfile fall-through must not surface as OutdatedLockfile, got {err:?}",
     );
 }
+
+/// [`super::is_modules_yaml_consistent`] returns `false` when
+/// `.modules.yaml` is missing, so a first install (no prior state)
+/// can't be mistaken for an up-to-date install.
+#[test]
+fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+    let mut config = Config::new();
+    config.modules_dir = modules_dir.clone();
+    let config = config.leak();
+
+    assert!(!super::is_modules_yaml_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::default(),
+        pacquet_modules_yaml::IncludedDependencies::default(),
+    ));
+}
+
+/// [`super::is_modules_yaml_consistent`] returns `true` when every
+/// layout-determining setting matches what
+/// [`super::build_modules_manifest`] would write for the current
+/// config / linker / dependency-group selection. The roundtrip needs
+/// to be exact because a single drifted setting forces the next
+/// install to rebuild the modules directory.
+#[test]
+fn is_modules_yaml_consistent_returns_true_when_settings_match() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    };
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    assert!(super::is_modules_yaml_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::default(),
+        included,
+    ));
+}
+
+/// `nodeLinker` drift between `.modules.yaml` and the current config
+/// disqualifies the up-to-date short-circuit. Mirrors upstream's
+/// `validateModules` behavior — a different linker forces a full
+/// rebuild of `node_modules` rather than a fast no-op.
+#[test]
+fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Hoisted),
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    assert!(!super::is_modules_yaml_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        pacquet_modules_yaml::IncludedDependencies::default(),
+    ));
+}
+
+/// Dependency-group drift between `.modules.yaml.included` and the
+/// current install request disqualifies the short-circuit. A
+/// previously installed `--no-optional` setup can't be re-used to
+/// satisfy an install that needs optional dependencies.
+#[test]
+fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let prod_only = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let with_optional = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    };
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included: prod_only,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    assert!(!super::is_modules_yaml_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        with_optional,
+    ));
+}
+
+/// End-to-end: when `.modules.yaml`, `<virtual_store_dir>/lock.yaml`,
+/// and the wanted lockfile all agree, [`Install::run`] must emit the
+/// `name: "pnpm"` "Lockfile is up to date" log and return without
+/// running materialization. Mirrors upstream pnpm's
+/// `allProjectsAreUpToDate` + `validateModules` short-circuit at
+/// <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
+#[tokio::test]
+async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    // A sibling `link:` dependency keeps the lockfile non-empty without
+    // requiring registry fetches — the gate fires on the eligibility
+    // checks alone, materialization is never reached so the
+    // (non-existent) link target doesn't matter.
+    manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = store_dir.clone().into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      sibling:"
+        "        specifier: link:../sibling"
+        "        version: link:../sibling"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse minimal v9 lockfile with one link dep");
+
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+
+    // Seed the on-disk state a previous install would have left.
+    let seed_modules = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
+    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        resolved_packages: &Default::default(),
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("up-to-date install should succeed via the short-circuit");
+
+    let captured = EVENTS.lock().unwrap();
+    let up_to_date = captured.iter().find_map(|event| match event {
+        LogEvent::Pnpm(log) => Some(log),
+        _ => None,
+    });
+    let up_to_date = up_to_date.expect(
+        "the `name: \"pnpm\"` up-to-date log must be emitted when the install short-circuits",
+    );
+    assert_eq!(up_to_date.message, "Lockfile is up to date, resolution step is skipped");
+
+    assert!(
+        captured.iter().any(|e| matches!(e, LogEvent::Stage(s) if s.stage == Stage::ImportingDone)),
+        "ImportingDone must close the importing bracket on the fast path",
+    );
+    assert!(
+        captured.iter().any(|e| matches!(e, LogEvent::Summary(_))),
+        "Summary must fire so `pnpm:root` history renders even on the fast path",
+    );
+
+    // Materialization is skipped: no `node_modules/sibling` symlink
+    // is created (link: deps would be symlinked by the regular path).
+    let sibling_link = modules_dir.join("sibling");
+    assert!(
+        !sibling_link.exists(),
+        "the link: dep must NOT be materialized when the gate fires; \
+         a present {sibling_link:?} would mean the install ran the full pipeline",
+    );
+
+    // Workspace state is still refreshed so the next `pnpm run`'s
+    // `verifyDepsBeforeRun` doesn't fire spuriously.
+    let written = load_workspace_state(&project_root)
+        .expect("read workspace state")
+        .expect("workspace state must be written");
+    assert!(
+        written.last_validated_timestamp > 0,
+        "last_validated_timestamp must be refreshed on the fast path",
+    );
+
+    drop(dir);
+}

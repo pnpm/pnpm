@@ -20,13 +20,13 @@ use pacquet_lockfile_verification::{
 };
 use pacquet_modules_yaml::{
     Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
-    WriteModulesError, write_modules_manifest,
+    WriteModulesError, read_modules_manifest, write_modules_manifest,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    ContextLog, LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter, Stage,
-    StageLog, SummaryLog,
+    ContextLog, LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
+    Stage, StageLog, SummaryLog,
 };
 use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_tarball::MemCache;
@@ -543,6 +543,41 @@ where
             false
         };
 
+        // No-op short-circuit. When the frozen-lockfile dispatch is
+        // eligible, the on-disk `.modules.yaml` agrees with the current
+        // config, and `<virtual_store_dir>/lock.yaml` is byte-equal to
+        // the wanted lockfile, nothing needs to be materialized — the
+        // last install already produced exactly this `node_modules`.
+        // Emit the up-to-date log, refresh the workspace-state
+        // timestamp so `pnpm run`'s `verifyDepsBeforeRun` doesn't fire
+        // spuriously, then exit. Mirrors upstream's `validateModules` +
+        // `allProjectsAreUpToDate` fast path at
+        // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
+        if take_frozen_path
+            && let Some(wanted_lockfile) = lockfile
+            && let Some(current) = current_lockfile.as_ref()
+            && wanted_lockfile == current
+            && is_modules_yaml_consistent(&config.modules_dir, config, node_linker, included)
+        {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message: "Lockfile is up to date, resolution step is skipped".to_string(),
+                prefix: prefix.clone(),
+            }));
+            Reporter::emit(&LogEvent::Stage(StageLog {
+                level: LogLevel::Debug,
+                prefix: prefix.clone(),
+                stage: Stage::ImportingDone,
+            }));
+            update_workspace_state(
+                &workspace_root,
+                &build_workspace_state(config, node_linker, included, manifest, lockfile),
+            )
+            .map_err(InstallError::WriteWorkspaceState)?;
+            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+            return Ok(());
+        }
+
         let (hoisted_dependencies, hoisted_locations, frozen_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
@@ -995,6 +1030,40 @@ fn map_node_linker(linker: &NodeLinker) -> ModulesNodeLinker {
         NodeLinker::Hoisted => ModulesNodeLinker::Hoisted,
         NodeLinker::Pnp => ModulesNodeLinker::Pnp,
     }
+}
+
+/// Check whether `<modules_dir>/.modules.yaml` is present and its
+/// recorded layout settings (`nodeLinker`, hoist patterns, store /
+/// virtual-store paths, `virtualStoreDirMaxLength`, included dep
+/// groups, layout version) match what the current install would
+/// produce. Returns `false` when the file is missing, unreadable, or
+/// records a different layout — both cases that disqualify the no-op
+/// short-circuit.
+///
+/// Mirrors the settings checks in upstream's
+/// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts)
+/// minus the prune side effects: a settings mismatch in pnpm forces a
+/// rewrite of `node_modules`, but pacquet's caller falls through to
+/// the regular install path, which rebuilds the layout from scratch
+/// anyway.
+fn is_modules_yaml_consistent(
+    modules_dir: &Path,
+    config: &Config,
+    node_linker: NodeLinker,
+    included: IncludedDependencies,
+) -> bool {
+    let Some(modules) = read_modules_manifest::<Host>(modules_dir).ok().flatten() else {
+        return false;
+    };
+    modules.layout_version == Some(LayoutVersion)
+        && modules.node_linker == Some(map_node_linker(&node_linker))
+        && modules.included == included
+        && modules.hoist_pattern == config.hoist_pattern
+        && modules.public_hoist_pattern == config.public_hoist_pattern
+        && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
+        && modules.store_dir == config.store_dir.display().to_string()
+        && modules.virtual_store_dir
+            == config.effective_virtual_store_dir().to_string_lossy().as_ref()
 }
 
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].

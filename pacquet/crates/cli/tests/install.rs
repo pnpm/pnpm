@@ -504,3 +504,60 @@ fn fresh_install_honors_enable_global_virtual_store() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// End-to-end coverage for the no-op short-circuit. After a successful
+/// install, a second `pacquet install --frozen-lockfile` against an
+/// untouched workspace must skip materialization and emit pnpm's
+/// `name: "pnpm" / level: "info"` "Lockfile is up to date, resolution
+/// step is skipped" log. Mirrors upstream pnpm's behavior at
+/// <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L984>.
+#[test]
+fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
+    use std::process::Command;
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    eprintln!("Priming with the first install...");
+    pacquet.with_arg("install").assert().success();
+
+    eprintln!("Re-running with --frozen-lockfile + --reporter=ndjson...");
+    let pacquet_rerun = Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace);
+    let output = pacquet_rerun
+        .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
+        .output()
+        .expect("run pacquet install --frozen-lockfile");
+    assert!(
+        output.status.success(),
+        "second install must succeed: stderr={}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let up_to_date = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|record| {
+            record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+                && record.get("level").and_then(|v| v.as_str()) == Some("info")
+                && record.get("message").and_then(|v| v.as_str())
+                    == Some("Lockfile is up to date, resolution step is skipped")
+        });
+    assert!(
+        up_to_date.is_some(),
+        "expected `name: \"pnpm\" / level: \"info\"` up-to-date log in NDJSON stderr; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
