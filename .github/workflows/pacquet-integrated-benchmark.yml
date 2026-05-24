@@ -164,44 +164,6 @@ jobs:
         timeout-minutes: 15
         run: just integrated-benchmark --build-only pacquet@HEAD pacquet@main
 
-      # Pre-populate pnpm-registry's `~/.cache/pnpm-registry/storage`
-      # with every packument + tarball the benchmark scenarios will
-      # touch. Without this, the first cold-cache scenario's runs pay
-      # the npmjs fetch cost in-band — hyperfine's single warmup pass
-      # is often not enough to cover both fresh-restore AND
-      # fresh-install paths (they request different packuments).
-      #
-      # `pnpm fetch` only covers tarballs; we use the just-built
-      # `pacquet install` instead because it exercises the exact same
-      # request shape (Accept: install-v1, version-manifest lookups,
-      # tarball downloads) the timed runs do.
-      #
-      # `PNPM_CONFIG_MINIMUM_RELEASE_AGE=0` disables pacquet's
-      # release-age gate, which would otherwise refuse the fixture
-      # lockfile.
-      - name: Pre-warm pnpm-registry cache
-        shell: bash
-        timeout-minutes: 10
-        run: |
-          just registry-mock launch
-          PORT=$(jq -r '.info.port' /tmp/pacquet-registry-mock-prepared-registry-info.json)
-
-          WARMUP=$RUNNER_TEMP/pnpm-registry-warmup
-          rm -rf "$WARMUP"
-          mkdir -p "$WARMUP"
-          cp pacquet/tasks/integrated-benchmark/src/fixtures/{package.json,pnpm-lock.yaml,pnpm-workspace.yaml} "$WARMUP/"
-          echo "registry=http://localhost:$PORT/" > "$WARMUP/.npmrc"
-
-          PACQUET=$(pwd)/bench-work-env/pacquet@HEAD/pacquet/target/release/pacquet
-          cd "$WARMUP"
-          PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 \
-          PNPM_CONFIG_STORE_DIR="$RUNNER_TEMP/pnpm-registry-warmup-store" \
-          PNPM_CONFIG_CACHE_DIR="$RUNNER_TEMP/pnpm-registry-warmup-cache" \
-            "$PACQUET" install
-
-          cd - > /dev/null
-          just registry-mock end
-
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         shell: bash
         # Hyperfine has no per-command timeout, so a single hanging
