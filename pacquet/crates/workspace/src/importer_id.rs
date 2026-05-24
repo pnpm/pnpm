@@ -49,6 +49,6 @@ mod tests {
 
     #[test]
     fn nested_subproject() {
-        assert_eq!(importer_id_from_root_dir(Path::new("/ws"), Path::new("/ws/a/b/c")), "a/b/c",);
+        assert_eq!(importer_id_from_root_dir(Path::new("/ws"), Path::new("/ws/a/b/c")), "a/b/c");
     }
 }
