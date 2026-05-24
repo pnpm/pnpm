@@ -1,5 +1,6 @@
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 use tokio::fs;
@@ -10,6 +11,13 @@ use crate::package_name::PackageName;
 
 const PACKUMENT_FILE: &str = "packument.json";
 const TARBALLS_DIR: &str = "-";
+
+/// Per-process counter feeding [`unique_tmp_path`] so two concurrent
+/// writes to the same cache path don't collide on the same temp
+/// filename. Combined with the pid, the suffix is unique across
+/// every writer this process spawns; the rename is still atomic on
+/// POSIX as long as src and dest sit in the same directory (they do).
+static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Filesystem cache for packuments and tarballs. The layout is
 /// verdaccio-shaped:
@@ -26,6 +34,39 @@ const TARBALLS_DIR: &str = "-";
 #[derive(Debug, Clone)]
 pub struct Cache {
     root: PathBuf,
+}
+
+/// Handle returned from [`Cache::open_tarball_tmp`]. The caller writes
+/// to `file` (and on success calls [`Self::finalize`] to atomically
+/// promote the temp file to the final cache path); dropping the
+/// handle without calling [`Self::finalize`] is treated as abandon —
+/// callers that hit an error mid-write should call [`Self::abandon`]
+/// to actively remove the leftover temp file.
+pub struct TarballWrite {
+    pub file: fs::File,
+    tmp_path: PathBuf,
+    final_path: PathBuf,
+}
+
+impl TarballWrite {
+    /// Sync the file to disk and rename it to its final cache path.
+    pub async fn finalize(self) -> Result<()> {
+        self.file.sync_all().await?;
+        drop(self.file);
+        if let Some(parent) = self.final_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        fs::rename(&self.tmp_path, &self.final_path).await?;
+        Ok(())
+    }
+
+    /// Remove the temp file. Errors are swallowed since the caller
+    /// is already handling a higher-level failure and a leftover
+    /// `*.tmp.*` file is harmless beyond a small amount of disk.
+    pub async fn abandon(self) {
+        drop(self.file);
+        let _ = fs::remove_file(&self.tmp_path).await;
+    }
 }
 
 impl Cache {
@@ -70,27 +111,39 @@ impl Cache {
         write_atomic(&path, bytes).await
     }
 
-    pub async fn read_tarball(
+    /// Open the cached tarball file for streaming, if it exists.
+    /// Returns the open file plus its size (for `Content-Length`).
+    pub async fn open_tarball(
         &self,
         name: &PackageName,
         filename: &str,
-    ) -> Result<Option<Vec<u8>>> {
+    ) -> Result<Option<(fs::File, u64)>> {
         let path = self.tarball_path(name, filename);
-        match fs::read(&path).await {
-            Ok(bytes) => Ok(Some(bytes)),
-            Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
-            Err(err) => Err(err.into()),
-        }
+        let file = match fs::File::open(&path).await {
+            Ok(f) => f,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(err) => return Err(err.into()),
+        };
+        let len = file.metadata().await?.len();
+        Ok(Some((file, len)))
     }
 
-    pub async fn write_tarball(
+    /// Create and open a per-request temp file for a tarball. The
+    /// caller streams bytes into [`TarballWrite::file`] and calls
+    /// [`TarballWrite::finalize`] (or [`TarballWrite::abandon`]) when
+    /// the upstream response ends.
+    pub async fn open_tarball_tmp(
         &self,
         name: &PackageName,
         filename: &str,
-        bytes: &[u8],
-    ) -> Result<()> {
-        let path = self.tarball_path(name, filename);
-        write_atomic(&path, bytes).await
+    ) -> Result<TarballWrite> {
+        let final_path = self.tarball_path(name, filename);
+        if let Some(parent) = final_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        let tmp_path = unique_tmp_path(&final_path);
+        let file = fs::File::create(&tmp_path).await?;
+        Ok(TarballWrite { file, tmp_path, final_path })
     }
 
     fn package_dir(&self, name: &PackageName) -> PathBuf {
@@ -110,11 +163,22 @@ async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).await?;
     }
-    let tmp = path.with_extension("tmp");
+    let tmp = unique_tmp_path(path);
     let mut file = fs::File::create(&tmp).await?;
     file.write_all(bytes).await?;
     file.sync_all().await?;
     drop(file);
     fs::rename(&tmp, path).await?;
     Ok(())
+}
+
+fn unique_tmp_path(base: &Path) -> PathBuf {
+    let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id();
+    let mut name = base.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    name.push(format!(".tmp.{pid}.{counter}"));
+    match base.parent() {
+        Some(parent) => parent.join(name),
+        None => PathBuf::from(name),
+    }
 }

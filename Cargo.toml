@@ -123,7 +123,7 @@ tower              = { version = "0.5.3" }
 tower-http         = { version = "0.6.8", features = ["trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal"] }
+tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
 walkdir            = { version = "2.5.0" }
 wax                = { version = "0.7.0" }
 which              = { version = "8.0.2" }

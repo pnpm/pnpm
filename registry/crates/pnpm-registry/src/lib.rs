@@ -12,6 +12,7 @@ mod config;
 mod error;
 mod package_name;
 mod server;
+mod streaming;
 mod upstream;
 
 pub use config::Config;

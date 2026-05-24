@@ -12,6 +12,7 @@ use crate::cache::Cache;
 use crate::config::Config;
 use crate::error::RegistryError;
 use crate::package_name::PackageName;
+use crate::streaming;
 use crate::upstream::{FetchOutcome, Upstream};
 
 #[derive(Clone)]
@@ -132,24 +133,35 @@ async fn serve_tarball(state: &AppState, raw_name: &str, filename: &str) -> Resp
         return error_response(&err);
     }
 
-    match state.inner.cache.read_tarball(&name, filename).await {
-        Ok(Some(bytes)) => return tarball_response(bytes),
+    match state.inner.cache.open_tarball(&name, filename).await {
+        Ok(Some((file, len))) => return tarball_response(streaming::stream_file(file), Some(len)),
         Ok(None) => {}
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache read failed")
+            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed")
         }
     }
 
-    match state.inner.upstream.fetch_tarball(&name, filename).await {
-        Ok(FetchOutcome::Ok(bytes)) => {
-            if let Err(err) = state.inner.cache.write_tarball(&name, filename, &bytes).await {
-                tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache write failed");
-            }
-            tarball_response(bytes)
+    let response = match state.inner.upstream.fetch_tarball_response(&name, filename).await {
+        Ok(FetchOutcome::Ok(response)) => response,
+        Ok(FetchOutcome::NotFound) => return not_found(),
+        Err(err) => return error_response(&err),
+    };
+    let upstream_len = response.content_length();
+
+    let write = match state.inner.cache.open_tarball_tmp(&name, filename).await {
+        Ok(w) => w,
+        Err(err) => {
+            // Cache write setup failed (e.g. cache dir not writable).
+            // Don't fail the request — stream upstream straight through
+            // and accept a re-fetch on the next request.
+            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache tmp-open failed; streaming without cache");
+            let body = Body::from_stream(response.bytes_stream());
+            return tarball_response(body, upstream_len);
         }
-        Ok(FetchOutcome::NotFound) => not_found(),
-        Err(err) => error_response(&err),
-    }
+    };
+
+    let body = streaming::tee_to_cache(response, write);
+    tarball_response(body, upstream_len)
 }
 
 fn packument_response(bytes: Vec<u8>) -> Response {
@@ -160,12 +172,14 @@ fn packument_response(bytes: Vec<u8>) -> Response {
         .expect("static-shape response always builds")
 }
 
-fn tarball_response(bytes: Vec<u8>) -> Response {
-    Response::builder()
+fn tarball_response(body: Body, content_length: Option<u64>) -> Response {
+    let mut builder = Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/octet-stream")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
+        .header(header::CONTENT_TYPE, "application/octet-stream");
+    if let Some(len) = content_length {
+        builder = builder.header(header::CONTENT_LENGTH, len);
+    }
+    builder.body(body).expect("static-shape response always builds")
 }
 
 fn not_found() -> Response {

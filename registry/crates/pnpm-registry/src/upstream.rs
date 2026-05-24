@@ -47,13 +47,27 @@ impl Upstream {
         Ok(FetchOutcome::Ok(serde_json::to_vec(&json)?))
     }
 
-    pub async fn fetch_tarball(
+    /// Send the tarball request and return the streaming
+    /// [`reqwest::Response`] so the caller can pipe the body straight
+    /// to the client without buffering. Status and 404 handling
+    /// happen here before any bytes are forwarded.
+    pub async fn fetch_tarball_response(
         &self,
         name: &PackageName,
         filename: &str,
-    ) -> Result<FetchOutcome<Vec<u8>>> {
+    ) -> Result<FetchOutcome<reqwest::Response>> {
         let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
-        self.fetch(&url).await
+        let client = self.client.acquire_for_url(&url).await;
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(FetchOutcome::NotFound);
+        }
+        let response = check_status(response, &url).await?;
+        Ok(FetchOutcome::Ok(response))
     }
 
     async fn fetch(&self, url: &str) -> Result<FetchOutcome<Vec<u8>>> {

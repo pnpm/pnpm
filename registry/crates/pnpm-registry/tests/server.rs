@@ -144,6 +144,48 @@ async fn upstream_404_is_propagated() {
 }
 
 #[tokio::test]
+async fn tarball_streaming_finalizes_cache_with_no_tmp_leftover() {
+    let mut upstream = mockito::Server::new_async().await;
+    // Large-ish body so the streaming path is exercised across many
+    // chunks rather than fitting in a single hyper buffer.
+    let bytes = vec![0xAB_u8; 512 * 1024];
+    let _mock = upstream
+        .mock("GET", "/big/-/big-1.0.0.tgz")
+        .with_status(200)
+        .with_body(&bytes)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream.url(), cache_dir.clone()));
+
+    let response = app
+        .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let received = body_bytes(response.into_body()).await;
+    assert_eq!(received.len(), bytes.len());
+    assert_eq!(received, bytes);
+
+    // By the time the client's stream ends (rx sees None), the tee
+    // task has already called finalize, so the cache file is in
+    // place at the canonical path and no `.tmp.*` siblings remain.
+    let tarballs_dir = cache_dir.join("big").join("-");
+    let entries: Vec<String> = std::fs::read_dir(&tarballs_dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(entries, vec!["big-1.0.0.tgz".to_string()]);
+
+    let cached = std::fs::read(tarballs_dir.join("big-1.0.0.tgz")).unwrap();
+    assert_eq!(cached.len(), bytes.len());
+    assert_eq!(cached, bytes);
+}
+
+#[tokio::test]
 async fn upstream_5xx_maps_to_bad_gateway() {
     let mut upstream = mockito::Server::new_async().await;
     let _mock =
