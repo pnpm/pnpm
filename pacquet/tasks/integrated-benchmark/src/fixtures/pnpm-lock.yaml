@@ -213,8 +213,8 @@ importers:
         specifier: ^2.0.3
         version: 2.0.3
       qs:
-        specifier: ^6.11.2
-        version: 6.15.1
+        specifier: ^6.15.2
+        version: 6.15.2
       raw-loader:
         specifier: ^4.0.2
         version: 4.0.2(webpack@5.106.2(cssnano@6.1.2(postcss@8.5.10))(postcss@8.5.10)(uglify-js@3.19.3))
@@ -232,7 +232,7 @@ importers:
         version: 15.6.3
       react-dnd:
         specifier: ^16.0.1
-        version: 16.0.1(@types/node@25.8.0)(react@18.3.1)
+        version: 16.0.1(@types/node@25.9.1)(react@18.3.1)
       react-dnd-html5-backend:
         specifier: ^16.0.1
         version: 16.0.1
@@ -601,8 +601,8 @@ packages:
   '@types/node@25.6.0':
     resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
 
-  '@types/node@25.8.0':
-    resolution: {integrity: sha512-TCFSk8IZh+iLX1xtksoBVtdmgL+1IX0fC9BeU4QqFSuNdN/K+HUlhqOzEmSYYpZUVsLYcPqc9KX+60iDuninSQ==}
+  '@types/node@25.9.1':
+    resolution: {integrity: sha512-xfrlY7UD5rMJk3ZVJP8BNzS28J36YJg+xp+LPXV1TdWxr8uMH5A860QNxYDGQe/ylDSgjxE52Q9VnO7p75tJxg==}
 
   '@types/resize-observer-browser@0.1.11':
     resolution: {integrity: sha512-cNw5iH8JkMkb3QkCoe7DaZiawbDQEUX8t7iuQaRTyLOyQCR2h+ibBD4GJt7p5yhUHrlOeL7ZtbxNHeipqNsBzQ==}
@@ -1946,8 +1946,8 @@ packages:
     resolution: {integrity: sha512-kxpoMgrdtkXZ5h0SeraBS1iRntpTpQ3R8ussdb38+UAFnMGX5DDyJXePm+OCHOcoXvHDw7mc2erbJBpDnl7TPw==}
     engines: {node: '>=0.6'}
 
-  enhanced-resolve@5.21.3:
-    resolution: {integrity: sha512-QyL119InA+XXEkNLNTPCXPugSvOfhwv0JOlGNzvxs0hZaiHLNvXSpudUWsOlsXGWJh8G6ckCScEkVHfX3kw/2Q==}
+  enhanced-resolve@5.22.0:
+    resolution: {integrity: sha512-xYcDWrpELkFzz9SpZ3PlI6Eu6eD93Yf0WLDRxikGhWJ3MAir2SNZTIVCVZqZ/NUyx8AdMc2gT9C0gPiw18kG+A==}
     engines: {node: '>=10.13.0'}
 
   entities@4.5.0:
@@ -4337,8 +4337,8 @@ packages:
     resolution: {integrity: sha512-V/yCWTTF7VJ9hIh18Ugr2zhJMP01MY7c5kh4J870L7imm6/DIzBsNLTXzMwUA3yZ5b/KBqLx8Kp3uRvd7xSe3Q==}
     engines: {node: '>=0.6'}
 
-  qs@6.15.1:
-    resolution: {integrity: sha512-6YHEFRL9mfgcAvql/XhwTvf5jKcOiiupt2FiJxHkiX1z4j7WL8J/jRHYLluORvc1XxB5rV20KoeK00gVJamspg==}
+  qs@6.15.2:
+    resolution: {integrity: sha512-Rzq0KEyX/w/tEybncDgdkZrJgVUsUMk3xjh3t5bv3S1HTAtg+uOYt72+ZfwiQwKdysThkTBdL/rTi6HDmX9Ddw==}
     engines: {node: '>=0.6'}
 
   query-string@4.3.4:
@@ -4474,6 +4474,7 @@ packages:
   react-input-calendar@0.5.4:
     resolution: {integrity: sha512-IqPDrkxj95GeH01rTKQaAZLCeTLZ57jzZeKY1CW+BYe3+CQkF21BrxVkqvlvPLqNVnHO9gEU+f9K4G05llF/4w==}
     engines: {npm: ^3.0.0}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       moment: ^2.10.6
       moment-range: ^2.1.0
@@ -5261,8 +5262,8 @@ packages:
       uglify-js:
         optional: true
 
-  terser@5.47.1:
-    resolution: {integrity: sha512-tPbLXTI6ohPASb/1YViL428oEHu6/qv1OxqYnfaonVCFHqx4+wCd95pHrQWsL5X4pl90CTyW9piSAsS2L0VoMw==}
+  terser@5.48.0:
+    resolution: {integrity: sha512-J/9An6vs9Us6wKRriSFXBWdRZapREHqFzdNUKk0pmu804EMR6dr6winwo7e5JDxN4xahxQsuysyYFwlwj4XN/Q==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -5544,8 +5545,8 @@ packages:
       '@types/webpack':
         optional: true
 
-  webpack-sources@3.4.1:
-    resolution: {integrity: sha512-eACpxRN02yaawnt+uUNIF7Qje6A9zArxBbcAJjK1PK3S9Ycg5jIuJ8pW4q8EMnwNZCEGltcjkRx1QzOxOkKD8A==}
+  webpack-sources@3.5.0:
+    resolution: {integrity: sha512-HPuy+uuoTCaaoEoI1LQ3JN9+vrPBvEesnnX1jADHy728cHSMlq4wUc4afYqahq2B1mhQVZxCXOkNTnXltr+2vQ==}
     engines: {node: '>=10.13.0'}
 
   webpack-split-by-path@2.0.0:
@@ -5967,7 +5968,7 @@ snapshots:
     dependencies:
       undici-types: 7.19.2
 
-  '@types/node@25.8.0':
+  '@types/node@25.9.1':
     dependencies:
       undici-types: 7.24.6
 
@@ -7771,7 +7772,7 @@ snapshots:
       memory-fs: 0.2.0
       tapable: 0.1.10
 
-  enhanced-resolve@5.21.3:
+  enhanced-resolve@5.22.0:
     dependencies:
       graceful-fs: 4.2.11
       tapable: 2.3.3
@@ -8464,7 +8465,7 @@ snapshots:
       '@paralleldrive/cuid2': 2.3.1
       dezalgo: 1.0.4
       once: 1.4.0
-      qs: 6.15.1
+      qs: 6.15.2
 
   forwarded@0.2.0: {}
 
@@ -9250,7 +9251,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 25.8.0
+      '@types/node': 25.9.1
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -10472,7 +10473,7 @@ snapshots:
     dependencies:
       side-channel: 1.1.0
 
-  qs@6.15.1:
+  qs@6.15.2:
     dependencies:
       side-channel: 1.1.0
 
@@ -10546,7 +10547,7 @@ snapshots:
     dependencies:
       dnd-core: 16.0.1
 
-  react-dnd@16.0.1(@types/node@25.8.0)(react@18.3.1):
+  react-dnd@16.0.1(@types/node@25.9.1)(react@18.3.1):
     dependencies:
       '@react-dnd/invariant': 4.0.2
       '@react-dnd/shallowequal': 4.0.2
@@ -10555,7 +10556,7 @@ snapshots:
       hoist-non-react-statics: 3.3.2
       react: 18.3.1
     optionalDependencies:
-      '@types/node': 25.8.0
+      '@types/node': 25.9.1
 
   react-dom@18.3.1(react@18.3.1):
     dependencies:
@@ -11470,7 +11471,7 @@ snapshots:
       formidable: 2.1.5
       methods: 1.1.2
       mime: 2.6.0
-      qs: 6.15.1
+      qs: 6.15.2
       semver: 7.7.4
     transitivePeerDependencies:
       - supports-color
@@ -11544,14 +11545,14 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
-      terser: 5.47.1
+      terser: 5.48.0
       webpack: 5.106.2(cssnano@6.1.2(postcss@8.5.10))(postcss@8.5.10)(uglify-js@3.19.3)
     optionalDependencies:
       cssnano: 6.1.2(postcss@8.5.10)
       postcss: 8.5.10
       uglify-js: 3.19.3
 
-  terser@5.47.1:
+  terser@5.48.0:
     dependencies:
       '@jridgewell/source-map': 0.3.11
       acorn: 8.16.0
@@ -11592,7 +11593,7 @@ snapshots:
       faye-websocket: 0.10.0
       livereload-js: 2.4.0
       object-assign: 4.1.1
-      qs: 6.15.1
+      qs: 6.15.2
     transitivePeerDependencies:
       - supports-color
 
@@ -11887,7 +11888,7 @@ snapshots:
       node-notifier: 9.0.1
       strip-ansi: 6.0.1
 
-  webpack-sources@3.4.1: {}
+  webpack-sources@3.5.0: {}
 
   webpack-split-by-path@2.0.0: {}
 
@@ -11903,7 +11904,7 @@ snapshots:
       acorn-import-phases: 1.0.4(acorn@8.16.0)
       browserslist: 4.28.2
       chrome-trace-event: 1.0.4
-      enhanced-resolve: 5.21.3
+      enhanced-resolve: 5.22.0
       es-module-lexer: 2.1.0
       eslint-scope: 5.1.1
       events: 3.3.0
@@ -11916,7 +11917,7 @@ snapshots:
       tapable: 2.3.3
       terser-webpack-plugin: 5.6.0(cssnano@6.1.2(postcss@8.5.10))(postcss@8.5.10)(uglify-js@3.19.3)(webpack@5.106.2(cssnano@6.1.2(postcss@8.5.10))(postcss@8.5.10)(uglify-js@3.19.3))
       watchpack: 2.5.1
-      webpack-sources: 3.4.1
+      webpack-sources: 3.5.0
     transitivePeerDependencies:
       - '@minify-html/node'
       - '@swc/core'
