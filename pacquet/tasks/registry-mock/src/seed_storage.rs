@@ -26,27 +26,48 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
     }
     fs::create_dir_all(dest)?;
     let mut seeded = 0;
-    for entry in WalkDir::new(src).into_iter().filter_map(Result::ok) {
+    for entry in WalkDir::new(src) {
+        // Propagate traversal errors instead of silently dropping
+        // them: a partial-mirror under a "success" return is much
+        // harder to debug than an explicit failure.
+        let entry = entry.map_err(io::Error::other)?;
         if !entry.file_type().is_file() {
             continue;
         }
         let rel = entry.path().strip_prefix(src).expect("entry under src");
         let dest_path = dest.join(rel);
-        if dest_path.exists() {
-            continue;
-        }
         if let Some(parent) = dest_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        link_or_copy(entry.path(), &dest_path)?;
-        seeded += 1;
+        // We don't pre-check `dest_path.exists()` — a TOCTOU window
+        // is wide enough on a shared CI worker (two pacquet
+        // processes racing past `GuardFile`) that the existence
+        // check could pass and then `hard_link` still trip
+        // `AlreadyExists`. Treat that as success directly inside
+        // `link_or_copy`.
+        match link_or_copy(entry.path(), &dest_path)? {
+            LinkOutcome::Created => seeded += 1,
+            LinkOutcome::AlreadyExists => {}
+        }
     }
     Ok(seeded)
 }
 
-fn link_or_copy(src: &Path, dest: &Path) -> io::Result<()> {
+enum LinkOutcome {
+    Created,
+    AlreadyExists,
+}
+
+fn link_or_copy(src: &Path, dest: &Path) -> io::Result<LinkOutcome> {
     match fs::hard_link(src, dest) {
-        Ok(()) => Ok(()),
-        Err(_) => fs::copy(src, dest).map(|_| ()),
+        Ok(()) => Ok(LinkOutcome::Created),
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Ok(LinkOutcome::AlreadyExists),
+        Err(_) => match fs::copy(src, dest) {
+            Ok(_) => Ok(LinkOutcome::Created),
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+                Ok(LinkOutcome::AlreadyExists)
+            }
+            Err(err) => Err(err),
+        },
     }
 }

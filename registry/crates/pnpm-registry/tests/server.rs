@@ -522,18 +522,21 @@ async fn client_disconnect_mid_stream_clears_cache() {
     assert!(await_no_tgz(&cache_dir.join("big"), Duration::from_secs(1)).await);
 }
 
-/// Poll `dir` until it contains no `.tgz` files (or doesn't exist),
-/// up to `budget`. Returns `true` on success, `false` on timeout —
-/// gives the calling test a single deterministic signal that the
-/// tee task observed the abandon condition and cleaned up.
+/// Poll `dir` until it contains no `.tgz` files *and* no `.tmp.*`
+/// orphans (or doesn't exist), up to `budget`. Returns `true` on
+/// success, `false` on timeout — gives the calling test a single
+/// deterministic signal that the tee task observed the abandon
+/// condition and `write.abandon()` actually unlinked the temp file.
 async fn await_no_tgz(dir: &std::path::Path, budget: Duration) -> bool {
     let deadline = std::time::Instant::now() + budget;
     loop {
         let still_present = dir
             .read_dir()
             .map(|iter| {
-                iter.filter_map(Result::ok)
-                    .any(|entry| entry.file_name().to_string_lossy().ends_with(".tgz"))
+                iter.filter_map(Result::ok).any(|entry| {
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    name.ends_with(".tgz") || name.contains(".tmp.")
+                })
             })
             .unwrap_or(false);
         if !still_present {
