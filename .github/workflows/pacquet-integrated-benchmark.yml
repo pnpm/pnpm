@@ -87,14 +87,21 @@ jobs:
           subsection 'Inspecting branches...'
           git branch
 
-      - name: Cache verdaccio
+      - name: Cache pnpm-registry storage
+        # Persists pnpm-registry's `--storage` dir across CI runs so
+        # cold-cache benchmark scenarios don't refetch ~2.3k unscoped
+        # packages from npmjs on every run. Replaces the older
+        # `~/.local/share/verdaccio/storage` cache from when the mock
+        # was Node + Verdaccio. Path matches `runtime_storage()` in
+        # `pacquet/tasks/registry-mock/src/dirs.rs` (defaults to
+        # `$HOME/.cache/pnpm-registry/storage`).
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          key: integrated-benchmark-verdaccio-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
+          key: integrated-benchmark-pnpm-registry-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
           restore-keys: |
-            integrated-benchmark-verdaccio-
+            integrated-benchmark-pnpm-registry-
           path: |
-            ~/.local/share/verdaccio/storage
+            ~/.cache/pnpm-registry/storage
         timeout-minutes: 1
         continue-on-error: true
 

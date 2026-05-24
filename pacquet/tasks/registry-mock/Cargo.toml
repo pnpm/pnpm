@@ -23,12 +23,14 @@ doc  = false
 [dependencies]
 assert_cmd = { workspace = true }
 clap       = { workspace = true }
+home       = { workspace = true }
 pipe-trait = { workspace = true }
 reqwest    = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 sysinfo    = { workspace = true }
 tokio      = { workspace = true }
+walkdir    = { workspace = true }
 
 [lints]
 workspace = true

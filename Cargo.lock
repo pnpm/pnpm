@@ -2602,12 +2602,14 @@ version = "0.0.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "home",
  "pipe-trait",
  "reqwest",
  "serde",
  "serde_json",
  "sysinfo",
  "tokio",
+ "walkdir",
 ]
 
 [[package]]

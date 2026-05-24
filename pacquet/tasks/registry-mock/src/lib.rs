@@ -6,6 +6,7 @@ mod port_to_url;
 mod process_kill;
 mod registry_anchor;
 mod registry_info;
+mod seed_storage;
 
 pub use dirs::*;
 pub use mock_instance::*;
