@@ -85,14 +85,21 @@ micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
 # Manage registry-mock. The launcher spawns `pnpm-registry`; on
-# Windows you can't overwrite a running .exe, so we pre-build all
-# the test artifacts a subsequent `just test` will need with the
-# exact same invocation. A `-p pnpm-registry`-scoped pre-build is
-# not enough — workspace-wide feature unification gives a
-# different fingerprint and nextest would still try to re-link the
-# running binary, failing with `os error 5` on Windows MSVC.
+# Windows you can't overwrite a running .exe, so we pre-build with
+# the exact invocation a subsequent `just test` will use whenever
+# `cargo-nextest` is installed (the testing workflows install it).
+# When it isn't — e.g. the integrated-benchmark workflow that just
+# wants to launch the mock and run benchmarks against it — fall back
+# to plain `cargo build`. The fingerprint mismatch doesn't matter
+# there because nothing follows up with a workspace `cargo test`.
 registry-mock +args:
-  cargo nextest run --no-run
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if command -v cargo-nextest > /dev/null 2>&1; then
+    cargo nextest run --no-run
+  else
+    cargo build --bin=pnpm-registry
+  fi
   cargo run --bin=pacquet-registry-mock -- {{args}}
 
 # The benchmark may auto-spawn the registry mock (via
