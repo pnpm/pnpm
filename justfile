@@ -54,11 +54,8 @@ fmt:
 check:
   cargo check --locked --workspace --all-targets
 
-# Run all the tests. Builds `pnpm-registry` first because
-# `pacquet-registry-mock` spawns its binary path; cargo doesn't
-# implicitly build cross-crate binaries that a test happens to need.
+# Run all the tests.
 test:
-  cargo build --bin=pnpm-registry
   cargo nextest run
 
 # List expected-failing test ports
@@ -87,11 +84,15 @@ codecov:
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
-# Manage registry-mock. The launcher spawns `pnpm-registry`, so we
-# build it first — otherwise `pacquet-registry-mock launch` aborts
-# with a "binary not found" error.
+# Manage registry-mock. The launcher spawns `pnpm-registry`; on
+# Windows you can't overwrite a running .exe, so we pre-build all
+# the test artifacts a subsequent `just test` will need with the
+# exact same invocation. A `-p pnpm-registry`-scoped pre-build is
+# not enough — workspace-wide feature unification gives a
+# different fingerprint and nextest would still try to re-link the
+# running binary, failing with `os error 5` on Windows MSVC.
 registry-mock +args:
-  cargo build --bin=pnpm-registry
+  cargo nextest run --no-run
   cargo run --bin=pacquet-registry-mock -- {{args}}
 
 integrated-benchmark +args:
