@@ -1,4 +1,4 @@
-import { existsSync as fsExistsSync } from 'node:fs'
+import fs, { existsSync as fsExistsSync } from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
@@ -279,6 +279,9 @@ test('cleanupUnusedIgnoredGhsas removes GHSAs that are no longer in the report',
   const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(tmp, 'pnpm-workspace.yaml'))
   expect(manifest.auditConfig?.ignoreGhsas).toContain('GHSA-42xw-2xvc-qx8m')
   expect(manifest.auditConfig?.ignoreGhsas).not.toContain('GHSA-xxxx-xxxx-xxxx')
+
+  const rawContent = fs.readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
+  expect(rawContent).not.toContain('Expired GHSA')
 })
 
 test('cleanupUnusedIgnoredGhsas is disabled by default - no cleanup', async () => {
