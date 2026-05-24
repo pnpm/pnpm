@@ -14,6 +14,7 @@ import {
   addDistTag,
   execPnpm,
   execPnpmSync,
+  skipIfPacquet,
 } from '../utils/index.js'
 
 const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
@@ -60,7 +61,7 @@ function findGlobalPkgInstall (globalDir: string, pkgName: string): { installDir
   return null
 }
 
-test('global installation', async () => {
+skipIfPacquet('global installation', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -85,7 +86,7 @@ test('global installation', async () => {
   expect(typeof isNegative).toBe('function')
 })
 
-test('global install warns when project has packageManager configured', async () => {
+skipIfPacquet('global install warns when project has packageManager configured', async () => {
   prepare({
     name: 'project',
     version: '1.0.0',
@@ -107,7 +108,7 @@ test('global install warns when project has packageManager configured', async ()
   expect(status).toBe(0)
 })
 
-test('global installation to custom directory with --global-dir', async () => {
+skipIfPacquet('global installation to custom directory with --global-dir', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -121,7 +122,7 @@ test('global installation to custom directory with --global-dir', async () => {
   expect(typeof isPositive).toBe('function')
 })
 
-test('always install latest when doing global installation without spec', async () => {
+skipIfPacquet('always install latest when doing global installation without spec', async () => {
   prepare()
   await addDistTag('@pnpm.e2e/peer-c', '2.0.0', 'latest')
 
@@ -139,7 +140,7 @@ test('always install latest when doing global installation without spec', async 
   expect((await import(path.join(peerCPath!, 'package.json'))).default.version).toBe('2.0.0')
 })
 
-test('run lifecycle events of global packages in correct working directory', async () => {
+skipIfPacquet('run lifecycle events of global packages in correct working directory', async () => {
   if (isWindows()) {
     // Skipping this test on Windows because "$npm_execpath run create-file" will fail on Windows
     return
@@ -177,7 +178,7 @@ test('run lifecycle events of global packages in correct working directory', asy
 // passes `all: true` so `approve-builds` approves every pending build
 // without prompting. The post-approval install must complete and the
 // build artifact must end up in the global install dir.
-test('approve-builds during global add does not produce a doubled modules path', async () => {
+skipIfPacquet('approve-builds during global add does not produce a doubled modules path', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -322,7 +323,7 @@ test.skip('dangerously-allow-all-builds=false in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 })
 
-test('global update to latest', async () => {
+skipIfPacquet('global update to latest', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -339,7 +340,7 @@ test('global update to latest', async () => {
   expect(pkgJson.version).toBe('3.1.0')
 })
 
-test('global update should not crash if there are no global packages', async () => {
+skipIfPacquet('global update should not crash if there are no global packages', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -350,7 +351,7 @@ test('global update should not crash if there are no global packages', async () 
   expect(execPnpmSync(['update', '--global'], { env }).status).toBe(0)
 })
 
-test('global add in loose minimumReleaseAge mode persists immature picks', () => {
+skipIfPacquet('global add in loose minimumReleaseAge mode persists immature picks', () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -382,7 +383,7 @@ test('global add in loose minimumReleaseAge mode persists immature picks', () =>
   expect(workspaceManifest.minimumReleaseAgeExclude).toContain('is-positive@1.0.0')
 })
 
-test('global add in strict minimumReleaseAge mode reports the user-facing error', () => {
+skipIfPacquet('global add in strict minimumReleaseAge mode reports the user-facing error', () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -413,7 +414,7 @@ test('global add in strict minimumReleaseAge mode reports the user-facing error'
   expect(output).not.toContain('ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED')
 })
 
-test('global update in loose minimumReleaseAge mode persists immature picks', () => {
+skipIfPacquet('global update in loose minimumReleaseAge mode persists immature picks', () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -455,7 +456,7 @@ test('global update in loose minimumReleaseAge mode persists immature picks', ()
   ]))
 })
 
-test('global add cleans up stale bins when re-adding a package with different bins', async () => {
+skipIfPacquet('global add cleans up stale bins when re-adding a package with different bins', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -495,7 +496,7 @@ test('global add cleans up stale bins when re-adding a package with different bi
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'new-bin'))).toBeTruthy()
 })
 
-test('global add refuses to install when bin name conflicts with another global package', async () => {
+skipIfPacquet('global add refuses to install when bin name conflicts with another global package', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -535,7 +536,7 @@ test('global add refuses to install when bin name conflicts with another global 
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'pkg-a')).toBeTruthy()
 })
 
-test('global add from a local directory using "."', () => {
+skipIfPacquet('global add from a local directory using "."', () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -581,7 +582,7 @@ test('global add from a local directory using "."', () => {
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'my-local-tool'))).toBeTruthy()
 })
 
-test('global ls --json outputs valid JSON (#11440)', async () => {
+skipIfPacquet('global ls --json outputs valid JSON (#11440)', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -600,7 +601,7 @@ test('global ls --json outputs valid JSON (#11440)', async () => {
   expect(parsed[0].dependencies['is-negative'].version).toBe('1.0.0')
 })
 
-test('global ls --parseable outputs paths', async () => {
+skipIfPacquet('global ls --parseable outputs paths', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -616,7 +617,7 @@ test('global ls --parseable outputs paths', async () => {
   expect(lines.some((line) => line.endsWith(path.join('node_modules', 'is-positive')))).toBe(true)
 })
 
-test('global ls --depth>0 errors across multiple isolated installs', async () => {
+skipIfPacquet('global ls --depth>0 errors across multiple isolated installs', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -632,7 +633,7 @@ test('global ls --depth>0 errors across multiple isolated installs', async () =>
   expect(result.stdout.toString() + result.stderr.toString()).toContain('GLOBAL_LS_DEPTH_NOT_SUPPORTED')
 })
 
-test('global ls --depth>0 shows the full dependency tree of a single global install', async () => {
+skipIfPacquet('global ls --depth>0 shows the full dependency tree of a single global install', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -651,7 +652,7 @@ test('global ls --depth>0 shows the full dependency tree of a single global inst
   expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
 })
 
-test('global ls <transitive> --depth>0 against a single global install reports the match', async () => {
+skipIfPacquet('global ls <transitive> --depth>0 against a single global install reports the match', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -669,7 +670,7 @@ test('global ls <transitive> --depth>0 against a single global install reports t
   expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
 })
 
-test('global ls <pkg> --depth>0 narrows to the install dir containing <pkg> and shows its tree', async () => {
+skipIfPacquet('global ls <pkg> --depth>0 narrows to the install dir containing <pkg> and shows its tree', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -691,7 +692,7 @@ test('global ls <pkg> --depth>0 narrows to the install dir containing <pkg> and 
   expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
 })
 
-test('global remove deletes install group and bin shims', async () => {
+skipIfPacquet('global remove deletes install group and bin shims', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -731,7 +732,7 @@ test('global remove deletes install group and bin shims', async () => {
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-b')).toBeNull()
 })
 
-test('global add installs each space-separated package into its own isolated group', async () => {
+skipIfPacquet('global add installs each space-separated package into its own isolated group', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -755,7 +756,7 @@ test('global add installs each space-separated package into its own isolated gro
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-negative')).toBeTruthy()
 })
 
-test('global add bundles comma-separated packages into a single group', async () => {
+skipIfPacquet('global add bundles comma-separated packages into a single group', async () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -779,7 +780,7 @@ test('global add bundles comma-separated packages into a single group', async ()
   expect(peerC!.installDir).not.toBe(positive!.installDir)
 })
 
-test('global add does not treat commas inside a local path selector as a group separator', () => {
+skipIfPacquet('global add does not treat commas inside a local path selector as a group separator', () => {
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')

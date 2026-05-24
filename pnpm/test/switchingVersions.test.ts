@@ -7,9 +7,12 @@ import isWindows from 'is-windows'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from './utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('switch to the pnpm version specified in the packageManager field of package.json', async () => {
+skipIfPacquet('switch to the pnpm version specified in the packageManager field of package.json', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -22,7 +25,7 @@ test('switch to the pnpm version specified in the packageManager field of packag
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
-test('packageManager field does not write pnpm resolution info to pnpm-lock.yaml', async () => {
+skipIfPacquet('packageManager field does not write pnpm resolution info to pnpm-lock.yaml', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -55,7 +58,7 @@ test('do not switch to the pnpm version specified in the packageManager field of
   expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
 
-test('do not switch to pnpm version that is specified not with a semver version', async () => {
+skipIfPacquet('do not switch to pnpm version that is specified not with a semver version', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -68,7 +71,7 @@ test('do not switch to pnpm version that is specified not with a semver version'
   expect(stderr.toString()).toContain('"kevva/is-positive" is not a valid exact version')
 })
 
-test('do not switch to pnpm version that is specified starting with v', async () => {
+skipIfPacquet('do not switch to pnpm version that is specified starting with v', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -81,7 +84,7 @@ test('do not switch to pnpm version that is specified starting with v', async ()
   expect(stderr.toString()).toContain('you need to specify the version as "9.15.5"')
 })
 
-test('do not switch to pnpm version when a range is specified in packageManager field', async () => {
+skipIfPacquet('do not switch to pnpm version when a range is specified in packageManager field', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -94,7 +97,7 @@ test('do not switch to pnpm version when a range is specified in packageManager 
   expect(stderr.toString()).toContain('not a valid exact version')
 })
 
-test('switch to the pnpm version resolved from devEngines.packageManager with onFail=download', async () => {
+skipIfPacquet('switch to the pnpm version resolved from devEngines.packageManager with onFail=download', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -113,7 +116,7 @@ test('switch to the pnpm version resolved from devEngines.packageManager with on
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
-test('switch to the pnpm version resolved from devEngines.packageManager with a range', async () => {
+skipIfPacquet('switch to the pnpm version resolved from devEngines.packageManager with a range', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -133,7 +136,7 @@ test('switch to the pnpm version resolved from devEngines.packageManager with a 
   expect(stdout.toString()).toContain('Version 9.1.3')
 })
 
-test('devEngines.packageManager with onFail=download reuses resolved version from env lockfile', async () => {
+skipIfPacquet('devEngines.packageManager with onFail=download reuses resolved version from env lockfile', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -159,7 +162,7 @@ test('devEngines.packageManager with onFail=download reuses resolved version fro
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
 })
 
-test('devEngines.packageManager re-resolves when locked version no longer satisfies updated range', async () => {
+skipIfPacquet('devEngines.packageManager re-resolves when locked version no longer satisfies updated range', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -194,7 +197,7 @@ test('devEngines.packageManager re-resolves when locked version no longer satisf
   expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
 })
 
-test('devEngines.packageManager without onFail=download does not switch version', async () => {
+skipIfPacquet('devEngines.packageManager without onFail=download does not switch version', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -214,7 +217,7 @@ test('devEngines.packageManager without onFail=download does not switch version'
   expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
 
-test('throws error if pnpm binary in store is corrupt', () => {
+skipIfPacquet('throws error if pnpm binary in store is corrupt', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const storeDir = path.resolve('store')

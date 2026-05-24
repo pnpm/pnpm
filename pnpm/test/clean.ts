@@ -1,18 +1,21 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages, tempDir } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from './utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
 function writeJsonFile (filePath: string, obj: object): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.writeFileSync(filePath, JSON.stringify(obj))
 }
 
-test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden files', () => {
+skipIfPacquet('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden files', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
 
@@ -46,7 +49,7 @@ test('pnpm clean removes pnpm entries and packages but preserves non-pnpm hidden
   expect(fs.existsSync('node_modules/.cache/some-file')).toBe(true)
 })
 
-test('pnpm clean handles missing node_modules gracefully', () => {
+skipIfPacquet('pnpm clean handles missing node_modules gracefully', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
 
@@ -57,7 +60,7 @@ test('pnpm clean handles missing node_modules gracefully', () => {
   expect(result.status).toBe(0)
 })
 
-test('pnpm clean preserves lockfile by default', () => {
+skipIfPacquet('pnpm clean preserves lockfile by default', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
   fs.writeFileSync('pnpm-lock.yaml', 'lockfileVersion: 9')
@@ -70,7 +73,7 @@ test('pnpm clean preserves lockfile by default', () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
 })
 
-test('pnpm clean preserves lockfile when pnpm-workspace.yaml sets lockfile', () => {
+skipIfPacquet('pnpm clean preserves lockfile when pnpm-workspace.yaml sets lockfile', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
   writeYamlFileSync('pnpm-workspace.yaml', { lockfile: true })
@@ -84,7 +87,7 @@ test('pnpm clean preserves lockfile when pnpm-workspace.yaml sets lockfile', () 
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
 })
 
-test('pnpm clean --lockfile removes lockfile', () => {
+skipIfPacquet('pnpm clean --lockfile removes lockfile', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
   fs.writeFileSync('pnpm-lock.yaml', 'lockfileVersion: 9')
@@ -97,7 +100,7 @@ test('pnpm clean --lockfile removes lockfile', () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
 })
 
-test('pnpm clean works in a workspace', () => {
+skipIfPacquet('pnpm clean works in a workspace', () => {
   preparePackages([
     { name: 'project-a', version: '1.0.0' },
     { name: 'project-b', version: '1.0.0' },
@@ -131,7 +134,7 @@ test('pnpm clean works in a workspace', () => {
   }
 })
 
-test('pnpm clean removes custom virtual-store-dir inside the project', () => {
+skipIfPacquet('pnpm clean removes custom virtual-store-dir inside the project', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
 
@@ -149,7 +152,7 @@ test('pnpm clean removes custom virtual-store-dir inside the project', () => {
   expect(fs.existsSync('node_modules/lodash')).toBe(false)
 })
 
-test('pnpm clean does not remove virtual-store-dir outside the project root', () => {
+skipIfPacquet('pnpm clean does not remove virtual-store-dir outside the project root', () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
 
@@ -167,7 +170,7 @@ test('pnpm clean does not remove virtual-store-dir outside the project root', ()
   expect(fs.existsSync(path.join(outsideDir, 'data'))).toBe(true)
 })
 
-test('pnpm clean --lockfile removes lockfiles in workspace', () => {
+skipIfPacquet('pnpm clean --lockfile removes lockfiles in workspace', () => {
   preparePackages([
     { name: 'project-a', version: '1.0.0' },
     { name: 'project-b', version: '1.0.0' },
@@ -191,7 +194,7 @@ test('pnpm clean --lockfile removes lockfiles in workspace', () => {
   }
 })
 
-test('pnpm clean runs the clean script from package.json when present', () => {
+skipIfPacquet('pnpm clean runs the clean script from package.json when present', () => {
   tempDir()
   writeJsonFile('package.json', {
     name: 'has-clean-script',
@@ -203,7 +206,7 @@ test('pnpm clean runs the clean script from package.json when present', () => {
   expect(result.stdout.toString()).toContain('script-clean-ran')
 })
 
-test('pnpm purge runs the built-in clean even when a clean script exists', () => {
+skipIfPacquet('pnpm purge runs the built-in clean even when a clean script exists', () => {
   tempDir()
   writeJsonFile('package.json', {
     name: 'has-clean-script',
@@ -217,7 +220,7 @@ test('pnpm purge runs the built-in clean even when a clean script exists', () =>
   expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
 })
 
-test('pnpm purge runs the purge script from package.json when present', () => {
+skipIfPacquet('pnpm purge runs the purge script from package.json when present', () => {
   tempDir()
   writeJsonFile('package.json', {
     name: 'has-purge-script',
@@ -229,7 +232,7 @@ test('pnpm purge runs the purge script from package.json when present', () => {
   expect(result.stdout.toString()).toContain('script-purge-ran')
 })
 
-test('pnpm clean runs the built-in when no clean script exists', () => {
+skipIfPacquet('pnpm clean runs the built-in when no clean script exists', () => {
   tempDir()
   writeJsonFile('package.json', { name: 'no-clean-script' })
   fs.mkdirSync('node_modules/.pnpm', { recursive: true })
@@ -239,7 +242,7 @@ test('pnpm clean runs the built-in when no clean script exists', () => {
   expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
 })
 
-test('pnpm clean errors in workspace subdir when root has clean script', () => {
+skipIfPacquet('pnpm clean errors in workspace subdir when root has clean script', () => {
   preparePackages([
     { name: 'project-a', version: '1.0.0' },
   ])
@@ -257,7 +260,7 @@ test('pnpm clean errors in workspace subdir when root has clean script', () => {
   expect(output).toContain('ERR_PNPM_SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT')
 })
 
-test('pnpm pm clean runs the built-in command even when a clean script exists', () => {
+skipIfPacquet('pnpm pm clean runs the built-in command even when a clean script exists', () => {
   tempDir()
   writeJsonFile('package.json', {
     name: 'has-clean-script',
@@ -271,7 +274,7 @@ test('pnpm pm clean runs the built-in command even when a clean script exists', 
   expect(fs.existsSync('node_modules/.pnpm')).toBe(false)
 })
 
-test('pnpm pm clean does not error in workspace subdir when root has clean script', () => {
+skipIfPacquet('pnpm pm clean does not error in workspace subdir when root has clean script', () => {
   preparePackages([
     { name: 'project-a', version: '1.0.0' },
   ])
@@ -289,7 +292,7 @@ test('pnpm pm clean does not error in workspace subdir when root has clean scrip
   expect(fs.existsSync(path.join('project-a', 'node_modules', '.pnpm'))).toBe(false)
 })
 
-test('pnpm clean runs built-in in workspace subdir when root has no clean script', () => {
+skipIfPacquet('pnpm clean runs built-in in workspace subdir when root has no clean script', () => {
   preparePackages([
     { name: 'project-a', version: '1.0.0' },
   ])

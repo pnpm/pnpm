@@ -1,17 +1,21 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
-test('single package workspace', async () => {
+skipIfPacquet('single package workspace', async () => {
   const manifest: ProjectManifest = {
     name: 'root',
     private: true,
@@ -98,7 +102,7 @@ test('single package workspace', async () => {
   await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.pnpm_config_verify_deps_before_run, "false")'])
 })
 
-test('multi-project workspace', async () => {
+skipIfPacquet('multi-project workspace', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',

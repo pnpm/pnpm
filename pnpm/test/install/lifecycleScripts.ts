@@ -9,12 +9,16 @@ import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import {
+  execPnpmSync,
+  pnpmBinLocation,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 const pkgRoot = path.join(import.meta.dirname, '..', '..')
 const pnpmPkg = loadJsonFileSync<PackageManifest>(path.join(pkgRoot, 'package.json'))
 
-test('installation fails if lifecycle script fails', () => {
+skipIfPacquet('installation fails if lifecycle script fails', () => {
   prepare({
     scripts: {
       preinstall: 'exit 1',
@@ -26,7 +30,7 @@ test('installation fails if lifecycle script fails', () => {
   expect(result.status).toBe(1)
 })
 
-test('lifecycle script runs with the correct user agent', () => {
+skipIfPacquet('lifecycle script runs with the correct user agent', () => {
   prepare({
     scripts: {
       preinstall: 'node --eval "console.log(process.env.npm_config_user_agent)"',
@@ -40,7 +44,7 @@ test('lifecycle script runs with the correct user agent', () => {
   expect(result.stdout.toString()).toContain(expectedUserAgentPrefix)
 })
 
-test('preinstall is executed before general installation', () => {
+skipIfPacquet('preinstall is executed before general installation', () => {
   prepare({
     scripts: {
       preinstall: 'echo "Hello world!"',
@@ -53,7 +57,7 @@ test('preinstall is executed before general installation', () => {
   expect(result.stdout.toString()).toContain('Hello world!')
 })
 
-test('postinstall is executed after general installation', () => {
+skipIfPacquet('postinstall is executed after general installation', () => {
   prepare({
     scripts: {
       postinstall: 'echo "Hello world!"',
@@ -66,7 +70,7 @@ test('postinstall is executed after general installation', () => {
   expect(result.stdout.toString()).toContain('Hello world!')
 })
 
-test('postinstall is not executed after named installation', () => {
+skipIfPacquet('postinstall is not executed after named installation', () => {
   prepare({
     scripts: {
       postinstall: 'echo "Hello world!"',
@@ -79,7 +83,7 @@ test('postinstall is not executed after named installation', () => {
   expect(result.stdout.toString()).not.toContain('Hello world!')
 })
 
-test('prepare is not executed after installation with arguments', () => {
+skipIfPacquet('prepare is not executed after installation with arguments', () => {
   prepare({
     scripts: {
       prepare: 'echo "Hello world!"',
@@ -92,7 +96,7 @@ test('prepare is not executed after installation with arguments', () => {
   expect(result.stdout.toString()).not.toContain('Hello world!')
 })
 
-test('prepare is executed after argumentless installation', () => {
+skipIfPacquet('prepare is executed after argumentless installation', () => {
   prepare({
     scripts: {
       prepare: 'echo "Hello world!"',
@@ -146,7 +150,7 @@ test('node-gyp is in the PATH', async () => {
   expect(result.status).toBe(0)
 })
 
-test('selectively allow scripts in some dependencies by --allow-build flag', async () => {
+skipIfPacquet('selectively allow scripts in some dependencies by --allow-build flag', async () => {
   const project = prepare({})
   execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 
@@ -161,7 +165,7 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   })
 })
 
-test('--allow-build flag should specify the package', async () => {
+skipIfPacquet('--allow-build flag should specify the package', async () => {
   const project = prepare({})
   const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--allow-build'])
 
@@ -176,7 +180,7 @@ test('--allow-build flag should specify the package', async () => {
   expect(modulesManifest?.allowBuilds).toBeUndefined()
 })
 
-test('preinstall script does not trigger verify-deps-before-run (#8954)', async () => {
+skipIfPacquet('preinstall script does not trigger verify-deps-before-run (#8954)', async () => {
   const pnpm = `${process.execPath} ${pnpmBinLocation}` // this would fail if either paths happen to contain spaces
 
   prepare({
@@ -197,7 +201,7 @@ test('preinstall script does not trigger verify-deps-before-run (#8954)', async 
   expect(output.stdout.toString()).toContain('hello world')
 })
 
-test('preinstall and postinstall scripts do not trigger verify-deps-before-run when using settings from a config file (#10060)', async () => {
+skipIfPacquet('preinstall and postinstall scripts do not trigger verify-deps-before-run when using settings from a config file (#10060)', async () => {
   const pnpm = `${process.execPath} ${pnpmBinLocation}` // this would fail if either paths happen to contain spaces
 
   prepare({
@@ -223,7 +227,7 @@ test('preinstall and postinstall scripts do not trigger verify-deps-before-run w
   expect(output.stdout.toString()).toContain('hello world')
 })
 
-test('throw an error when strict-dep-builds is true and there are ignored scripts', async () => {
+skipIfPacquet('throw an error when strict-dep-builds is true and there are ignored scripts', async () => {
   const project = prepare({})
   const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--config.strict-dep-builds=true'])
 
@@ -242,7 +246,7 @@ test('throw an error when strict-dep-builds is true and there are ignored script
   })
 })
 
-test('allowBuilds false resolves a strict ignored-build failure on repeat install', async () => {
+skipIfPacquet('allowBuilds false resolves a strict ignored-build failure on repeat install', async () => {
   const project = prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
     optimisticRepeatInstall: true,
@@ -274,7 +278,7 @@ test('allowBuilds false resolves a strict ignored-build failure on repeat instal
   expect(Array.from(modulesManifest?.ignoredBuilds ?? [])).toStrictEqual([])
 })
 
-test('the list of ignored builds is preserved after a repeat install', async () => {
+skipIfPacquet('the list of ignored builds is preserved after a repeat install', async () => {
   const project = prepare({})
   execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', 'esbuild@0.25.0', '--config.optimistic-repeat-install=false'])
 
@@ -289,7 +293,7 @@ test('the list of ignored builds is preserved after a repeat install', async () 
   ])
 })
 
-test('ignored builds are auto-populated as placeholders in allowBuilds', async () => {
+skipIfPacquet('ignored builds are auto-populated as placeholders in allowBuilds', async () => {
   prepare({})
   execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
 
@@ -297,7 +301,7 @@ test('ignored builds are auto-populated as placeholders in allowBuilds', async (
   expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
 })
 
-test('auto-populated placeholders are merged with existing allowBuilds', async () => {
+skipIfPacquet('auto-populated placeholders are merged with existing allowBuilds', async () => {
   prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
     allowBuilds: {
@@ -311,7 +315,7 @@ test('auto-populated placeholders are merged with existing allowBuilds', async (
   expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
 })
 
-test('selective rebuild preserves ignoredBuilds for packages not being rebuilt', async () => {
+skipIfPacquet('selective rebuild preserves ignoredBuilds for packages not being rebuilt', async () => {
   const project = prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
     allowBuilds: {
@@ -332,7 +336,7 @@ test('selective rebuild preserves ignoredBuilds for packages not being rebuilt',
   expect(afterRebuild!.ignoredBuilds).toBeDefined()
 })
 
-test('strictDepBuilds fails for packages with cached side-effects (#11035)', async () => {
+skipIfPacquet('strictDepBuilds fails for packages with cached side-effects (#11035)', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
@@ -365,7 +369,7 @@ test('strictDepBuilds fails for packages with cached side-effects (#11035)', asy
   expect(secondResult.stdout.toString()).toContain('Ignored build scripts:')
 })
 
-test('git dependencies with preparation scripts should be installed when dangerouslyAllowAllBuilds is true', async () => {
+skipIfPacquet('git dependencies with preparation scripts should be installed when dangerouslyAllowAllBuilds is true', async () => {
   prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', { dangerouslyAllowAllBuilds: true })
 
@@ -376,7 +380,7 @@ test('git dependencies with preparation scripts should be installed when dangero
   expect(fs.existsSync('node_modules/test-git-fetch/dist/index.js')).toBeTruthy()
 })
 
-test('--allow-build flag should error when conflicting with allowBuilds: false', async () => {
+skipIfPacquet('--allow-build flag should error when conflicting with allowBuilds: false', async () => {
   prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {
     allowBuilds: { '@pnpm.e2e/install-script-example': false },

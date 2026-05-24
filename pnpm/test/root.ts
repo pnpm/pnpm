@@ -1,14 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
 import PATH_NAME from 'path-name'
 
-import { execPnpmSync } from './utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('pnpm root', async () => {
+skipIfPacquet('pnpm root', async () => {
   tempDir()
   fs.writeFileSync('package.json', '{}', 'utf8')
 
@@ -19,7 +22,7 @@ test('pnpm root', async () => {
   expect(result.stdout.toString()).toBe(path.resolve('node_modules') + '\n')
 })
 
-test('pnpm root -g', async () => {
+skipIfPacquet('pnpm root -g', async () => {
   tempDir()
 
   const global = path.resolve('global')

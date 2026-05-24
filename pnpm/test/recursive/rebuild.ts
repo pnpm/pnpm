@@ -1,10 +1,13 @@
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('`pnpm recursive rebuild` specific dependencies', async () => {
+skipIfPacquet('`pnpm recursive rebuild` specific dependencies', async () => {
   const projects = preparePackages([
     {
       location: '.',

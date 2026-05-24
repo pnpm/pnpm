@@ -1,4 +1,4 @@
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import {
   preparePackages,
 } from '@pnpm/prepare'
@@ -6,9 +6,9 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import type { ProjectManifest } from '@pnpm/types'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from './utils/index.js'
+import { execPnpm, skipIfPacquet } from './utils/index.js'
 
-test.each([
+skipIfPacquet.each([
   { message: '--filter should include devDependencies', filter: '--filter', expected: ['project-1', 'project-3', 'project-4'] },
   { message: '--filter-prod should not include devDependencies', filter: '--filter-prod', expected: ['project-1', 'project-3'] },
 ])('$message', async ({ filter, expected }) => {

@@ -1,11 +1,14 @@
 import fs from 'node:fs'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 
-import { execPnpmSync } from '../utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('pnpm --filter <root> add <pkg> should work', async () => {
+skipIfPacquet('pnpm --filter <root> add <pkg> should work', async () => {
   prepare({
     name: 'root',
     version: '1.0.0',
@@ -24,7 +27,7 @@ test('pnpm --filter <root> add <pkg> should work', async () => {
   expect(pkg.dependencies['is-positive']).toBeTruthy()
 })
 
-test('pnpm --filter . add <pkg> should work', async () => {
+skipIfPacquet('pnpm --filter . add <pkg> should work', async () => {
   prepare({
     name: 'root',
     version: '1.0.0',
@@ -44,7 +47,7 @@ test('pnpm --filter . add <pkg> should work', async () => {
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/11341
-test('pnpm --recursive --filter "!<pkg>" run should still exclude the workspace root', async () => {
+skipIfPacquet('pnpm --recursive --filter "!<pkg>" run should still exclude the workspace root', async () => {
   preparePackages([
     {
       location: '.',
@@ -100,7 +103,7 @@ test('pnpm --recursive --filter "!<pkg>" run should still exclude the workspace 
   expect(stdout).not.toContain('a which$')
 })
 
-test('pnpm --recursive --filter "!<pkg>" --include-workspace-root run should include the workspace root', async () => {
+skipIfPacquet('pnpm --recursive --filter "!<pkg>" --include-workspace-root run should include the workspace root', async () => {
   preparePackages([
     {
       location: '.',

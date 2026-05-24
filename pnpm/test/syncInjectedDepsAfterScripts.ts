@@ -1,12 +1,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from './utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
@@ -61,7 +64,7 @@ function prepareInjectedDepsWorkspace (syncInjectedDepsAfterScripts: string[]) {
   })
 }
 
-test('with sync-injected-deps-after-scripts', async () => {
+skipIfPacquet('with sync-injected-deps-after-scripts', async () => {
   prepareInjectedDepsWorkspace(['build1', 'build2', 'build3'])
 
   await execPnpm(['install'])
@@ -115,7 +118,7 @@ test('with sync-injected-deps-after-scripts', async () => {
   }
 })
 
-test('without sync-injected-deps-after-scripts', async () => {
+skipIfPacquet('without sync-injected-deps-after-scripts', async () => {
   prepareInjectedDepsWorkspace([])
 
   await execPnpm(['install'])
@@ -155,7 +158,7 @@ test('without sync-injected-deps-after-scripts', async () => {
   }
 })
 
-test('filter scripts', async () => {
+skipIfPacquet('filter scripts', async () => {
   prepareInjectedDepsWorkspace(['build1'])
 
   await execPnpm(['install'])
@@ -205,7 +208,7 @@ test('filter scripts', async () => {
   }
 })
 
-test('directories and symlinks', async () => {
+skipIfPacquet('directories and symlinks', async () => {
   prepareInjectedDepsWorkspace(['build1', 'build2', 'build3'])
 
   await execPnpm(['install'])

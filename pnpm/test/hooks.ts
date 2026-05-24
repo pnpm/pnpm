@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { createHash } from '@pnpm/crypto.hash'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
@@ -9,9 +9,13 @@ import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('readPackage hook in single project doesn\'t modify manifest', async () => {
+skipIfPacquet('readPackage hook in single project doesn\'t modify manifest', async () => {
   const project = prepare()
   const pnpmfile = `
       module.exports = { hooks: { readPackage } }
@@ -55,7 +59,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
 })
 
-test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
+skipIfPacquet('readPackage hook in monorepo doesn\'t modify manifest', async () => {
   preparePackages([
     {
       name: 'project-a',
@@ -109,7 +113,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
 })
 
-test('filterLog hook filters peer dependency warning', async () => {
+skipIfPacquet('filterLog hook filters peer dependency warning', async () => {
   prepare()
   const pnpmfile = `
       module.exports = { hooks: { filterLog } }
@@ -129,7 +133,7 @@ test('filterLog hook filters peer dependency warning', async () => {
   )
 })
 
-test('importPackage hooks', async () => {
+skipIfPacquet('importPackage hooks', async () => {
   prepare()
   const pnpmfile = `
     const fs = require('fs')
@@ -161,7 +165,7 @@ test('importPackage hooks', async () => {
   ])
 })
 
-test('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
+skipIfPacquet('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
   const project = prepare({
     dependencies: {
       '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
@@ -237,7 +241,7 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   expect(lockfile3).toStrictEqual(lockfile0)
 })
 
-test('loading a pnpmfile from a config dependency', async () => {
+skipIfPacquet('loading a pnpmfile from a config dependency', async () => {
   prepare({
     dependencies: {
       '@pnpm/x': '1.0.0',
@@ -255,7 +259,7 @@ test('loading a pnpmfile from a config dependency', async () => {
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('@pnpm+y@1.0.0')
 })
 
-test('updateConfig hook', async () => {
+skipIfPacquet('updateConfig hook', async () => {
   prepare()
   const pnpmfile = `
 module.exports = {
@@ -276,7 +280,7 @@ module.exports = {
   expect(nodeModulesFiles).toContain('is-number')
 })
 
-test('loading an ESM pnpmfile', async () => {
+skipIfPacquet('loading an ESM pnpmfile', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.mjs', `
@@ -295,7 +299,7 @@ export const hooks = {
   expect(nodeModulesFiles).toContain('is-number')
 })
 
-test('loading multiple pnpmfiles', async () => {
+skipIfPacquet('loading multiple pnpmfiles', async () => {
   prepare()
 
   fs.writeFileSync('pnpmfile1.cjs', `
@@ -328,7 +332,7 @@ module.exports = {
   expect(nodeModulesFiles).toContain('is-even')
 })
 
-test('automatically loading pnpmfile from a config dependency that has a name that starts with "@pnpm/plugin-"', async () => {
+skipIfPacquet('automatically loading pnpmfile from a config dependency that has a name that starts with "@pnpm/plugin-"', async () => {
   prepare()
 
   await execPnpm(['add', '--config', '@pnpm/plugin-pnpmfile'])

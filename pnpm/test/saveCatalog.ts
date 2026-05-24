@@ -1,4 +1,4 @@
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -7,9 +7,12 @@ import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from './utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('--save-catalog adds catalogs to the manifest of a single package workspace', async () => {
+skipIfPacquet('--save-catalog adds catalogs to the manifest of a single package workspace', async () => {
   const manifest: ProjectManifest = {
     name: 'test-save-catalog',
     version: '0.0.0',
@@ -103,7 +106,7 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
   })
 })
 
-test('--save-catalog adds catalogs to the manifest of a shared lockfile workspace', async () => {
+skipIfPacquet('--save-catalog adds catalogs to the manifest of a shared lockfile workspace', async () => {
   const manifests: ProjectManifest[] = [
     {
       name: 'project-0',
@@ -210,7 +213,7 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
   })
 })
 
-test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace', async () => {
+skipIfPacquet('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace', async () => {
   const manifests: ProjectManifest[] = [
     {
       name: 'project-0',
@@ -330,7 +333,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
   }
 })
 
-test('--save-catalog does not add local workspace dependency as a catalog', async () => {
+skipIfPacquet('--save-catalog does not add local workspace dependency as a catalog', async () => {
   const manifests: ProjectManifest[] = [
     {
       name: 'project-0',
@@ -389,7 +392,7 @@ test('--save-catalog does not add local workspace dependency as a catalog', asyn
   }
 })
 
-test('--save-catalog does not affect new dependencies from package.json', async () => {
+skipIfPacquet('--save-catalog does not affect new dependencies from package.json', async () => {
   const manifest: ProjectManifest = {
     name: 'test-save-catalog',
     version: '0.0.0',
@@ -485,7 +488,7 @@ test('--save-catalog does not affect new dependencies from package.json', async 
   })
 })
 
-test('--save-catalog does not overwrite existing catalogs', async () => {
+skipIfPacquet('--save-catalog does not overwrite existing catalogs', async () => {
   const manifests: ProjectManifest[] = [
     {
       name: 'project-0',
@@ -590,7 +593,7 @@ test('--save-catalog does not overwrite existing catalogs', async () => {
   })
 })
 
-test('--save-catalog creates new workspace manifest with the new catalog (recursive add)', async () => {
+skipIfPacquet('--save-catalog creates new workspace manifest with the new catalog (recursive add)', async () => {
   const manifests: ProjectManifest[] = [
     {
       name: 'project-0',
@@ -669,7 +672,7 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
   })
 })
 
-test('--save-catalog-name', async () => {
+skipIfPacquet('--save-catalog-name', async () => {
   const manifest: ProjectManifest = {
     name: 'test-save-catalog',
     version: '0.0.0',

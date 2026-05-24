@@ -1,12 +1,15 @@
 import fs from 'node:fs'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from './utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('sync bin links after build script', async () => {
+skipIfPacquet('sync bin links after build script', async () => {
   preparePackages([
     {
       name: 'cli-tool',

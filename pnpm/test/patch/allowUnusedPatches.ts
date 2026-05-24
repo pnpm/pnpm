@@ -1,13 +1,16 @@
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from '../utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
-test('allowUnusedPatches=false errors on unused patches', async () => {
+skipIfPacquet('allowUnusedPatches=false errors on unused patches', async () => {
   preparePackages([
     {
       name: 'foo',
@@ -38,7 +41,7 @@ test('allowUnusedPatches=false errors on unused patches', async () => {
   expect(stdout.toString()).toContain('The following patches were not used: is-positive')
 })
 
-test('allowUnusedPatches=true warns about unused patches', async () => {
+skipIfPacquet('allowUnusedPatches=true warns about unused patches', async () => {
   preparePackages([
     {
       name: 'foo',

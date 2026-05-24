@@ -1,14 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from '../utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('pnpm config get reads npm options but ignores other settings from .npmrc', () => {
+skipIfPacquet('pnpm config get reads npm options but ignores other settings from .npmrc', () => {
   prepare()
   fs.writeFileSync('.npmrc', [
     // npm options
@@ -65,7 +68,7 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
   }
 })
 
-test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml', () => {
+skipIfPacquet('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml', () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
@@ -99,7 +102,7 @@ test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml
   }
 })
 
-test('pnpm config get ignores non camelCase settings from pnpm-workspace.yaml', () => {
+skipIfPacquet('pnpm config get ignores non camelCase settings from pnpm-workspace.yaml', () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     'dlx-cache-max-age': 1234,
@@ -127,7 +130,7 @@ test('pnpm config get ignores non camelCase settings from pnpm-workspace.yaml', 
   }
 })
 
-test('pnpm config get accepts a property path', () => {
+skipIfPacquet('pnpm config get accepts a property path', () => {
   const workspaceManifest = {
     packageExtensions: {
       '@babel/parser': {
@@ -202,7 +205,7 @@ test('pnpm config get accepts a property path', () => {
   }
 })
 
-test('pnpm config get "" gives exactly the same result as pnpm config list', () => {
+skipIfPacquet('pnpm config get "" gives exactly the same result as pnpm config list', () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
@@ -235,7 +238,7 @@ test('pnpm config get "" gives exactly the same result as pnpm config list', () 
   }
 })
 
-test('pnpm config get shows settings from global config.yaml', () => {
+skipIfPacquet('pnpm config get shows settings from global config.yaml', () => {
   prepare()
 
   const XDG_CONFIG_HOME = path.resolve('.config')

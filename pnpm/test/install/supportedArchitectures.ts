@@ -1,13 +1,17 @@
 import fs from 'node:fs'
 
-import { describe, expect, test } from '@jest/globals'
+import { describe, expect } from '@jest/globals'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import { execPnpm, skipIfPacquet } from '../utils/index.js'
 
+// Linux-only because the Linux runner is the only host that materializes
+// every architecture in the test matrix. Also skipped on pacquet: it doesn't
+// support `--reporter=append-only` and the matrix exercises CLI args pacquet
+// doesn't accept.
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
 type CPU = 'arm64' | 'x64'
@@ -93,7 +97,7 @@ const TEST_CASES: Case[] = [
 ]
 
 describeOnLinuxOnly('install with supportedArchitectures from CLI options and manifest.pnpm', () => {
-  test.each(TEST_CASES)('%j on %j', async (cliOpts, workspaceConfig, installed, skipped) => {
+  skipIfPacquet.each(TEST_CASES)('%j on %j', async (cliOpts, workspaceConfig, installed, skipped) => {
     prepare({
       dependencies: {
         '@pnpm.e2e/support-different-architectures': '1.0.0',
@@ -119,7 +123,7 @@ describeOnLinuxOnly('install with supportedArchitectures from CLI options and ma
 })
 
 describeOnLinuxOnly('add with supportedArchitectures from CLI options and manifest.pnpm', () => {
-  test.each(TEST_CASES)('%j on %j', async (cliOpts, workspaceConfig, installed, skipped) => {
+  skipIfPacquet.each(TEST_CASES)('%j on %j', async (cliOpts, workspaceConfig, installed, skipped) => {
     prepareEmpty()
 
     writeYamlFileSync('pnpm-workspace.yaml', {

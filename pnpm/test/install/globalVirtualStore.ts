@@ -6,9 +6,12 @@ import { prepare } from '@pnpm/prepare'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('using a global virtual store', async () => {
+skipIfPacquet('using a global virtual store', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
@@ -31,7 +34,7 @@ test('using a global virtual store', async () => {
   expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
-test('approve-builds updates GVS symlinks and runs builds at correct hash directory', async () => {
+skipIfPacquet('approve-builds updates GVS symlinks and runs builds at correct hash directory', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',

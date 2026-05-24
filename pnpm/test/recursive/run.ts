@@ -1,11 +1,14 @@
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('pnpm recursive run finds bins from the root of the workspace', async () => {
+skipIfPacquet('pnpm recursive run finds bins from the root of the workspace', async () => {
   await using serverForBuild = await createTestIpcServer()
   await using serverForPostInstall = await createTestIpcServer()
   await using serverForTestBinPriority = await createTestIpcServer()

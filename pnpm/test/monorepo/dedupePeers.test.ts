@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import type { LockfileFile } from '@pnpm/lockfile.types'
@@ -10,9 +10,12 @@ import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {
+skipIfPacquet('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
@@ -52,7 +55,7 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   expect(depPaths).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
-test('partial update in a workspace should work with dedupe-peer-dependents is true', async () => {
+skipIfPacquet('partial update in a workspace should work with dedupe-peer-dependents is true', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/abc', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
@@ -98,7 +101,7 @@ test('partial update in a workspace should work with dedupe-peer-dependents is t
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8877
-test('partial update --latest in a workspace should not affect other packages when dedupe-peer-dependents is true', async () => {
+skipIfPacquet('partial update --latest in a workspace should not affect other packages when dedupe-peer-dependents is true', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
@@ -156,7 +159,7 @@ test('partial update --latest in a workspace should not affect other packages wh
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/6154
-test('peer dependents deduplication should not remove peer dependencies', async () => {
+skipIfPacquet('peer dependents deduplication should not remove peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })

@@ -1,13 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
-test('runtimeOnFail=download causes Node.js to be downloaded even when the manifest does not set onFail', async () => {
+skipIfPacquet('runtimeOnFail=download causes Node.js to be downloaded even when the manifest does not set onFail', async () => {
   const project = prepare({
     devEngines: {
       runtime: {
@@ -30,7 +33,7 @@ test('runtimeOnFail=download causes Node.js to be downloaded even when the manif
   })
 })
 
-test('runtimeOnFail=ignore prevents Node.js download even when manifest sets onFail=download', async () => {
+skipIfPacquet('runtimeOnFail=ignore prevents Node.js download even when manifest sets onFail=download', async () => {
   const project = prepare({
     devEngines: {
       runtime: {
@@ -48,7 +51,7 @@ test('runtimeOnFail=ignore prevents Node.js download even when manifest sets onF
   expect(lockfile.importers['.'].devDependencies).toBeUndefined()
 })
 
-test('--no-runtime keeps the runtime entry in the lockfile but skips installing the binary', async () => {
+skipIfPacquet('--no-runtime keeps the runtime entry in the lockfile but skips installing the binary', async () => {
   const project = prepare({
     devEngines: {
       runtime: {
@@ -76,7 +79,7 @@ test('--no-runtime keeps the runtime entry in the lockfile but skips installing 
   expectNoNodeBin()
 })
 
-test('--no-runtime works on a fresh checkout with no lockfile (non-frozen path)', async () => {
+skipIfPacquet('--no-runtime works on a fresh checkout with no lockfile (non-frozen path)', async () => {
   const project = prepare({
     devEngines: {
       runtime: {
@@ -96,7 +99,7 @@ test('--no-runtime works on a fresh checkout with no lockfile (non-frozen path)'
   expectNoNodeBin()
 })
 
-test('--no-runtime works with enableGlobalVirtualStore=true', async () => {
+skipIfPacquet('--no-runtime works with enableGlobalVirtualStore=true', async () => {
   const project = prepare({
     devEngines: {
       runtime: {

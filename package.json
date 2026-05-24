@@ -14,6 +14,7 @@
     "ci:test-all": "pn prepare-fixtures && pn test-pkgs-all",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
     "test-pkgs-all": "pn remove-temp-dir && pn --no-sort --workspace-concurrency=1 -r .test",
+    "test-pkgs-pnpm": "pn remove-temp-dir && pn --filter=pnpm --workspace-concurrency=1 -r .test",
     "test-branch": "pn pretest && pn lint && git remote set-branches --add origin main && git fetch origin main && pn test-pkgs-branch",
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",

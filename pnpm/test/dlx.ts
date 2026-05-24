@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { beforeAll, describe, expect, test } from '@jest/globals'
+import { beforeAll, describe, expect } from '@jest/globals'
 import { getConfig } from '@pnpm/config.reader'
 import { dlx } from '@pnpm/exec.commands'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -11,7 +11,11 @@ import type { BaseManifest } from '@pnpm/types'
 import PATH_NAME from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync } from './utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
 let registries: Record<string, string>
 
@@ -24,9 +28,8 @@ beforeAll(async () => {
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
-const skipOnWindows = process.platform === 'win32' ? test.skip : test
 
-test('dlx parses options between "dlx" and the command name', async () => {
+skipIfPacquet('dlx parses options between "dlx" and the command name', async () => {
   prepareEmpty()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -43,7 +46,7 @@ test('dlx parses options between "dlx" and the command name', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('silent dlx prints the output of the child process only', async () => {
+skipIfPacquet('silent dlx prints the output of the child process only', async () => {
   prepareEmpty()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -60,7 +63,7 @@ test('silent dlx prints the output of the child process only', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('dlx ignores patchedDependencies in pnpm-workspace.yaml', async () => {
+skipIfPacquet('dlx ignores patchedDependencies in pnpm-workspace.yaml', async () => {
   prepare()
   // Write a pnpm-workspace.yaml with a patchedDependencies that doesn't exist
   // dlx should ignore this and succeed
@@ -95,7 +98,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
   const SHX_0_3_3_PUBLISHED = new Date('2020-10-26T05:35:14.984Z').getTime()
   const MINUTES_MS = 60 * 1000
 
-  skipOnWindows('dlx fails when the requested version is younger than minimumReleaseAge', () => {
+  skipIfPacquet('dlx fails when the requested version is younger than minimumReleaseAge', () => {
     prepare()
     writeYamlFileSync('pnpm-workspace.yaml', {
       minimumReleaseAge: 60 * 24 * 10000, // ~27.4 years: rejects everything published recently
@@ -111,7 +114,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
     expect(result.stderr.toString()).toMatch(/was published.+minimumReleaseAge cutoff/)
   })
 
-  test('dlx succeeds when the requested version is older than minimumReleaseAge', () => {
+  skipIfPacquet('dlx succeeds when the requested version is older than minimumReleaseAge', () => {
     prepare()
     // Cutoff 30 days after 0.3.2 was published: 0.3.2 is "mature". Anything
     // newer (like 0.3.3 or 0.3.4) would not be, but the spec pins 0.3.2.
@@ -128,7 +131,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
     ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
   })
 
-  test('dlx picks the newest version within a range that satisfies minimumReleaseAge', () => {
+  skipIfPacquet('dlx picks the newest version within a range that satisfies minimumReleaseAge', () => {
     prepare()
     // Cutoff positioned between 0.3.2 (2018-07-11) and 0.3.3 (2020-10-26):
     // 0.3.2 is mature, 0.3.3 and 0.3.4 are not. Range `0.3.x` should resolve to 0.3.2.
@@ -159,7 +162,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
 })
 
 // pnpm create delegates to dlx, so the same inheritance applies.
-skipOnWindows('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml', () => {
+skipIfPacquet('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml', () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     minimumReleaseAge: 60 * 24 * 10000, // ~27.4 years: rejects everything published recently
@@ -176,7 +179,7 @@ skipOnWindows('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml',
 })
 
 describe('catalogs inherited from pnpm-workspace.yaml', () => {
-  test('dlx succeeds when in default catalog', () => {
+  skipIfPacquet('dlx succeeds when in default catalog', () => {
     prepare()
     writeYamlFileSync('pnpm-workspace.yaml', {
       catalog: {
@@ -189,7 +192,7 @@ describe('catalogs inherited from pnpm-workspace.yaml', () => {
     ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
   })
 
-  test('dlx fails when not in default catalog', () => {
+  skipIfPacquet('dlx fails when not in default catalog', () => {
     prepare()
     writeYamlFileSync('pnpm-workspace.yaml', {
       catalog: {},
@@ -203,7 +206,7 @@ describe('catalogs inherited from pnpm-workspace.yaml', () => {
     expect(result.stderr.toString()).toMatch(/No catalog entry 'shx' was found for catalog 'default'/)
   })
 
-  test('dlx succeeds when in named catalog', () => {
+  skipIfPacquet('dlx succeeds when in named catalog', () => {
     prepare()
     writeYamlFileSync('pnpm-workspace.yaml', {
       catalogs: {
@@ -218,7 +221,7 @@ describe('catalogs inherited from pnpm-workspace.yaml', () => {
     ], { expectSuccess: true, omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
   })
 
-  test('dlx fails when not in named catalog', () => {
+  skipIfPacquet('dlx fails when not in named catalog', () => {
     prepare()
     writeYamlFileSync('pnpm-workspace.yaml', {
       catalogs: {
@@ -235,7 +238,7 @@ describe('catalogs inherited from pnpm-workspace.yaml', () => {
   })
 })
 
-test('dlx should work with pnpm_config_save_dev env variable', async () => {
+skipIfPacquet('dlx should work with pnpm_config_save_dev env variable', async () => {
   prepareEmpty()
   execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
     env: {
@@ -246,9 +249,7 @@ test('dlx should work with pnpm_config_save_dev env variable', async () => {
   })
 })
 
-const testParallel = process.version.startsWith('v25.') ? test.skip : test
-
-testParallel('parallel dlx calls of the same package', async () => {
+skipIfPacquet('parallel dlx calls of the same package', async () => {
   prepareEmpty()
 
   // parallel dlx calls without cache
@@ -315,7 +316,7 @@ testParallel('parallel dlx calls of the same package', async () => {
   ).toBe(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))
 })
 
-test('dlx creates cache and store prune cleans cache', async () => {
+skipIfPacquet('dlx creates cache and store prune cleans cache', async () => {
   prepareEmpty()
 
   const commands = {
@@ -376,7 +377,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
   expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([])
 })
 
-test('dlx should ignore non-auth info from .npmrc in the current directory', async () => {
+skipIfPacquet('dlx should ignore non-auth info from .npmrc in the current directory', async () => {
   prepareEmpty()
   fs.writeFileSync('.npmrc', 'hoist-pattern=', 'utf8')
 
@@ -390,7 +391,7 @@ test('dlx should ignore non-auth info from .npmrc in the current directory', asy
   expect(modulesManifest?.hoistPattern).toStrictEqual(['*'])
 })
 
-test('dlx read registry from .npmrc in the current directory', async () => {
+skipIfPacquet('dlx read registry from .npmrc in the current directory', async () => {
   prepareEmpty()
 
   const data = await addUser({
@@ -419,7 +420,7 @@ test('dlx read registry from .npmrc in the current directory', async () => {
   expect(execResult.stdout.toString().trim()).toBe('hello from @pnpm.e2e/needs-auth')
 })
 
-test('dlx uses the node version specified by --package=node@runtime:<version>', async () => {
+skipIfPacquet('dlx uses the node version specified by --package=node@runtime:<version>', async () => {
   prepareEmpty()
 
   const pnpmHome = path.resolve('home')
@@ -457,7 +458,7 @@ test('dlx uses the node version specified by --package=node@runtime:<version>', 
   }
 })
 
-test('dlx without arguments prints help text and exits with 1', () => {
+skipIfPacquet('dlx without arguments prints help text and exits with 1', () => {
   prepareEmpty()
 
   const result = execPnpmSync(['dlx'])
@@ -477,7 +478,7 @@ describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
   type NotInstalled = string[]
   type Case = [CLIOption[], Installed, NotInstalled]
 
-  test.each([
+  skipIfPacquet.each([
     [['--cpu=arm64', '--os=win32'], ['@pnpm.e2e/only-win32-arm64'], [
       '@pnpm.e2e/only-darwin-arm64',
       '@pnpm.e2e/only-darwin-x64',

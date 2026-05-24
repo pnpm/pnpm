@@ -16,16 +16,15 @@ import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import { rimrafSync } from '@zkochan/rimraf'
 import crossSpawn from 'cross-spawn'
 import { dirIsCaseSensitive } from 'dir-is-case-sensitive'
-import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import {
   execPnpm,
   execPnpmSync,
+  skipIfPacquet,
 } from '../utils/index.js'
 
-const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []
@@ -33,7 +32,7 @@ afterAll(() => {
   for (const si of storeIndexes) si.close()
 })
 
-test('bin files are found by lifecycle scripts', () => {
+skipIfPacquet('bin files are found by lifecycle scripts', () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/hello-world-js-bin': '*',
@@ -49,7 +48,7 @@ test('bin files are found by lifecycle scripts', () => {
   expect(result.stdout.toString()).toContain('Hello world!')
 })
 
-skipOnWindows('install --lockfile-only', async () => {
+skipIfPacquet('install --lockfile-only', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'rimraf@2.5.1', '--lockfile-only'])
@@ -60,7 +59,7 @@ skipOnWindows('install --lockfile-only', async () => {
   expect(lockfile.packages).toHaveProperty(['rimraf@2.5.1'])
 })
 
-test('install --no-lockfile', async () => {
+skipIfPacquet('install --no-lockfile', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'is-positive', '--no-lockfile'])
@@ -70,7 +69,7 @@ test('install --no-lockfile', async () => {
   expect(project.readLockfile()).toBeFalsy()
 })
 
-test('write to stderr when --use-stderr is used', async () => {
+skipIfPacquet('write to stderr when --use-stderr is used', async () => {
   const project = prepare()
 
   const result = execPnpmSync(['add', 'is-positive', '--use-stderr'])
@@ -94,7 +93,7 @@ test('install with lockfile being false in pnpm-workspace.yaml', async () => {
   expect(project.readLockfile()).toBeFalsy()
 })
 
-test('install from any location via the --prefix flag', async () => {
+skipIfPacquet('install from any location via the --prefix flag', async () => {
   const project = prepare({
     dependencies: {
       rimraf: '2.6.2',
@@ -109,7 +108,7 @@ test('install from any location via the --prefix flag', async () => {
   project.isExecutable('.bin/rimraf')
 })
 
-test('install with external lockfile directory', async () => {
+skipIfPacquet('install with external lockfile directory', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'is-positive', '--lockfile-dir', path.resolve('..')])
@@ -121,7 +120,7 @@ test('install with external lockfile directory', async () => {
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project'])
 })
 
-test('install --save-exact', async () => {
+skipIfPacquet('install --save-exact', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'is-positive@3.1.0', '--save-exact', '--save-dev'])
@@ -133,7 +132,7 @@ test('install --save-exact', async () => {
   expect(pkg.devDependencies).toStrictEqual({ 'is-positive': '3.1.0' })
 })
 
-test('install to a project that uses package.yaml', async () => {
+skipIfPacquet('install to a project that uses package.yaml', async () => {
   const project = prepareEmpty()
 
   await writeProjectManifest(path.resolve('package.yaml'), { name: 'foo', version: '1.0.0' })
@@ -147,7 +146,7 @@ test('install to a project that uses package.yaml', async () => {
   expect(manifest?.devDependencies).toStrictEqual({ 'is-positive': '3.1.0' })
 })
 
-test('install save new dep with the specified spec', async () => {
+skipIfPacquet('install save new dep with the specified spec', async () => {
   const project = prepare()
 
   await execPnpm(['install', 'is-positive@~3.1.0'])
@@ -160,7 +159,7 @@ test('install save new dep with the specified spec', async () => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1685
-test("don't fail on case insensitive filesystems when package has 2 files with same name", async () => {
+skipIfPacquet("don't fail on case insensitive filesystems when package has 2 files with same name", async () => {
   const project = prepare()
 
   await execPnpm(['install', '@pnpm.e2e/with-same-file-in-different-cases'])
@@ -187,7 +186,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   }
 })
 
-test('top-level packages should find the plugins they use', async () => {
+skipIfPacquet('top-level packages should find the plugins they use', async () => {
   prepare({
     scripts: {
       test: 'pkg-that-uses-plugins',
@@ -201,7 +200,7 @@ test('top-level packages should find the plugins they use', async () => {
   expect(result.status).toBe(0)
 })
 
-test('not top-level packages should find the plugins they use', async () => {
+skipIfPacquet('not top-level packages should find the plugins they use', async () => {
   // standard depends on eslint and eslint plugins
   prepare({
     scripts: {
@@ -216,7 +215,7 @@ test('not top-level packages should find the plugins they use', async () => {
   expect(result.status).toBe(0)
 })
 
-test('run js bin file', async () => {
+skipIfPacquet('run js bin file', async () => {
   prepare({
     scripts: {
       test: 'hello-world-js-bin',
@@ -230,7 +229,7 @@ test('run js bin file', async () => {
   expect(result.status).toBe(0)
 })
 
-test('create a package.json if there is none', async () => {
+skipIfPacquet('create a package.json if there is none', async () => {
   prepareEmpty()
 
   await execPnpm(['install', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
@@ -242,7 +241,7 @@ test('create a package.json if there is none', async () => {
   })
 })
 
-test('`pnpm add` should fail if no package name was provided', () => {
+skipIfPacquet('`pnpm add` should fail if no package name was provided', () => {
   prepare()
 
   const { status, stdout } = execPnpmSync(['add'])
@@ -251,7 +250,7 @@ test('`pnpm add` should fail if no package name was provided', () => {
   expect(stdout.toString()).toContain('`pnpm add` requires the package name')
 })
 
-test('`pnpm -r add` should fail if no package name was provided', () => {
+skipIfPacquet('`pnpm -r add` should fail if no package name was provided', () => {
   preparePackages([
     {
       name: 'project',
@@ -268,7 +267,7 @@ test('`pnpm -r add` should fail if no package name was provided', () => {
   expect(stdout.toString()).toContain('`pnpm add` requires the package name')
 })
 
-test('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
+skipIfPacquet('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
   prepare({
     name: 'project',
     version: '1.0.0',
@@ -284,7 +283,7 @@ test('engine-strict=false: install should not fail if the used Node version does
   expect(stdout.toString()).toContain('Unsupported engine')
 })
 
-test('engine-strict=true: install should fail if the used Node version does not satisfy the Node version specified in engines', async () => {
+skipIfPacquet('engine-strict=true: install should fail if the used Node version does not satisfy the Node version specified in engines', async () => {
   prepare({
     name: 'project',
     version: '1.0.0',
@@ -300,7 +299,7 @@ test('engine-strict=true: install should fail if the used Node version does not 
   expect(stdout.toString()).toContain('Your Node version is incompatible with')
 })
 
-test('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace projects', async () => {
+skipIfPacquet('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace projects', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -334,7 +333,7 @@ test('recursive install should fail if the used pnpm version does not satisfy th
   expect(stdout.toString()).toContain('Your pnpm version is incompatible with')
 })
 
-test('engine-strict=true: recursive install should fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async () => {
+skipIfPacquet('engine-strict=true: recursive install should fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -368,7 +367,7 @@ test('engine-strict=true: recursive install should fail if the used Node version
   expect(stdout.toString()).toContain('Your Node version is incompatible with')
 })
 
-test('engine-strict=false: recursive install should not fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async () => {
+skipIfPacquet('engine-strict=false: recursive install should not fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -402,7 +401,7 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
   expect(stdout.toString()).toContain('Unsupported engine')
 })
 
-test('using a custom virtual-store-dir location', async () => {
+skipIfPacquet('using a custom virtual-store-dir location', async () => {
   prepare({
     dependencies: { rimraf: '2.5.1' },
   })
@@ -424,7 +423,7 @@ test('using a custom virtual-store-dir location', async () => {
 })
 
 // This is an integration test only because it is hard to mock is-ci
-test('installing in a CI environment', async () => {
+skipIfPacquet('installing in a CI environment', async () => {
   const project = prepare({
     dependencies: { rimraf: '2.5.1' },
   })
@@ -513,7 +512,7 @@ test('installation fails with a timeout error', async () => {
   ).rejects.toThrow()
 })
 
-test('installation fails when the stored package name and version do not match the meta of the installed package', async () => {
+skipIfPacquet('installation fails when the stored package name and version do not match the meta of the installed package', async () => {
   prepare()
   const storeDir = path.resolve('store')
   const settings = [`--config.store-dir=${storeDir}`]
@@ -538,7 +537,7 @@ test('installation fails when the stored package name and version do not match t
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8538
-test('do not fail to render peer dependencies warning, when cache was hit during peer resolution', () => {
+skipIfPacquet('do not fail to render peer dependencies warning, when cache was hit during peer resolution', () => {
   prepare({
     dependencies: {
       '@udecode/plate-ui-table': '18.15.0',
@@ -553,7 +552,7 @@ test('do not fail to render peer dependencies warning, when cache was hit during
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8720
-test('do not hang on circular peer dependencies', () => {
+skipIfPacquet('do not hang on circular peer dependencies', () => {
   const tempDir = f.prepare('workspace-with-circular-peers')
   process.chdir(tempDir)
 
@@ -564,7 +563,7 @@ test('do not hang on circular peer dependencies', () => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/7697
-test('install success even though the url\'s hash contains slash', async () => {
+skipIfPacquet('install success even though the url\'s hash contains slash', async () => {
   prepare()
   const settings = ['--fetch-retries=0']
   const result = execPnpmSync([
@@ -575,7 +574,7 @@ test('install success even though the url\'s hash contains slash', async () => {
   expect(result.status).toBe(0)
 })
 
-test('install fails when the trust evidence of a package is downgraded', async () => {
+skipIfPacquet('install fails when the trust evidence of a package is downgraded', async () => {
   const project = prepare()
   const result = execPnpmSync([
     'add',
@@ -586,7 +585,7 @@ test('install fails when the trust evidence of a package is downgraded', async (
   project.hasNot('@pnpm/e2e.test-provenance')
 })
 
-test('install does not fail when the trust evidence of a package is downgraded but trust-policy is turned off', async () => {
+skipIfPacquet('install does not fail when the trust evidence of a package is downgraded but trust-policy is turned off', async () => {
   const project = prepare()
   const result = execPnpmSync([
     'add',
@@ -597,7 +596,7 @@ test('install does not fail when the trust evidence of a package is downgraded b
   project.has('@pnpm/e2e.test-provenance')
 })
 
-test('install does not fail when the trust evidence of a package is downgraded but it is in trust-policy-exclude', async () => {
+skipIfPacquet('install does not fail when the trust evidence of a package is downgraded but it is in trust-policy-exclude', async () => {
   const project = prepare()
   const result = execPnpmSync([
     'add',
@@ -609,7 +608,7 @@ test('install does not fail when the trust evidence of a package is downgraded b
   project.has('@pnpm/e2e.test-provenance')
 })
 
-test('install does not fail when the trust evidence of a package is downgraded but the package name is in trust-policy-exclude', async () => {
+skipIfPacquet('install does not fail when the trust evidence of a package is downgraded but the package name is in trust-policy-exclude', async () => {
   const project = prepare()
   const result = execPnpmSync([
     'add',
@@ -621,7 +620,7 @@ test('install does not fail when the trust evidence of a package is downgraded b
   project.has('@pnpm/e2e.test-provenance')
 })
 
-test('install fails when trust evidence of an optional dependency is downgraded', async () => {
+skipIfPacquet('install fails when trust evidence of an optional dependency is downgraded', async () => {
   prepare()
   const result = execPnpmSync([
     'add',
@@ -632,7 +631,7 @@ test('install fails when trust evidence of an optional dependency is downgraded'
   expect(result.status).toBe(1)
 })
 
-test('install does not fail when the trust evidence of a package is downgraded but the trust-policy-ignore-after is set', async () => {
+skipIfPacquet('install does not fail when the trust evidence of a package is downgraded but the trust-policy-ignore-after is set', async () => {
   const project = prepare()
   const result = execPnpmSync([
     'add',
@@ -644,7 +643,7 @@ test('install does not fail when the trust evidence of a package is downgraded b
   project.has('@pnpm/e2e.test-provenance')
 })
 
-test('lockfile verifier rejects a trust-downgraded entry that bypassed resolution', () => {
+skipIfPacquet('lockfile verifier rejects a trust-downgraded entry that bypassed resolution', () => {
   // Step 1: install with trust policy off. The resolver picks up the
   // downgraded version without complaint and writes it to the lockfile.
   prepare()
@@ -669,7 +668,7 @@ test('lockfile verifier rejects a trust-downgraded entry that bypassed resolutio
   expect(output).toMatch(/@pnpm\/e2e\.test-provenance/)
 })
 
-test('lockfile verifier respects trust-policy-exclude on a downgraded lockfile entry', () => {
+skipIfPacquet('lockfile verifier respects trust-policy-exclude on a downgraded lockfile entry', () => {
   prepare()
   execPnpmSync(
     ['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'],

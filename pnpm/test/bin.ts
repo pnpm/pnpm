@@ -1,13 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 import PATH_NAME from 'path-name'
 
-import { execPnpmSync } from './utils/index.js'
+import {
+  execPnpmSync,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('pnpm bin', async () => {
+skipIfPacquet('pnpm bin', async () => {
   tempDir()
   fs.mkdirSync('node_modules')
 
@@ -17,7 +20,7 @@ test('pnpm bin', async () => {
   expect(result.stdout.toString().trim()).toBe(path.resolve('node_modules/.bin'))
 })
 
-test('pnpm bin -g', async () => {
+skipIfPacquet('pnpm bin -g', async () => {
   tempDir()
 
   const binDir = path.join(process.cwd(), 'bin')

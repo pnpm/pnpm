@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { describe, expect } from '@jest/globals'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
@@ -10,9 +10,14 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation } from './utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  pnpmBinLocation,
+  skipIfPacquet,
+} from './utils/index.js'
 
-test('patch from configuration dependency is applied', async () => {
+skipIfPacquet('patch from configuration dependency is applied', async () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
@@ -28,7 +33,7 @@ test('patch from configuration dependency is applied', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/foo/index.js')).toBeTruthy()
 })
 
-test('patch from configuration dependency is applied via updateConfig hook', async () => {
+skipIfPacquet('patch from configuration dependency is applied via updateConfig hook', async () => {
   const project = prepare()
   writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
@@ -45,7 +50,7 @@ test('patch from configuration dependency is applied via updateConfig hook', asy
   expect(lockfile.patchedDependencies['@pnpm.e2e/foo']).toEqual(expect.any(String))
 })
 
-test('catalog applied by configurational dependency hook', async () => {
+skipIfPacquet('catalog applied by configurational dependency hook', async () => {
   const project = prepare({
     dependencies: {
       '@pnpm.e2e/foo': 'catalog:',
@@ -78,7 +83,7 @@ test('catalog applied by configurational dependency hook', async () => {
   })
 })
 
-test('config deps are not installed before switching to a different pnpm version', async () => {
+skipIfPacquet('config deps are not installed before switching to a different pnpm version', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -102,7 +107,7 @@ test('config deps are not installed before switching to a different pnpm version
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeFalsy()
 })
 
-test('config deps are installed after switching to a pnpm version that supports them', async () => {
+skipIfPacquet('config deps are installed after switching to a pnpm version that supports them', async () => {
   prepare({
     packageManager: 'pnpm@10.32.0',
   })
@@ -123,7 +128,7 @@ test('config deps are installed after switching to a pnpm version that supports 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeTruthy()
 })
 
-test('package manager from the packageManager field is not saved into the lockfile', async () => {
+skipIfPacquet('package manager from the packageManager field is not saved into the lockfile', async () => {
   const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
   prepare({
     packageManager: `pnpm@${pnpmVersion}`,
@@ -154,7 +159,7 @@ test('package manager from the packageManager field is not saved into the lockfi
 // matching npm publish ("No matching version found for pnpm@<version>"), and
 // pass again once the version lands on npmjs.
 describe('release-brittle: may fail until current version is published to npm', () => {
-  test('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
+  skipIfPacquet('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
     const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
     prepare({
       devEngines: {
@@ -196,7 +201,7 @@ snapshots: {}
   })
 })
 
-test('installing a new configurational dependency', async () => {
+skipIfPacquet('installing a new configurational dependency', async () => {
   prepare()
 
   await execPnpm(['add', '@pnpm.e2e/foo@100.0.0', '--config'])
@@ -241,7 +246,7 @@ function writeFailingConfigDep () {
   })
 }
 
-test('pnpm config set succeeds even when configDependencies fail to install', async () => {
+skipIfPacquet('pnpm config set succeeds even when configDependencies fail to install', async () => {
   prepare()
   writeFailingConfigDep()
 
@@ -253,7 +258,7 @@ test('pnpm config set succeeds even when configDependencies fail to install', as
   expect(npmrc).toContain(`${authKey}=my-secret-token`)
 })
 
-test('pnpm config get succeeds even when configDependencies fail to install', async () => {
+skipIfPacquet('pnpm config get succeeds even when configDependencies fail to install', async () => {
   prepare()
   writeFailingConfigDep()
   const authKey = '//example.com/:_authToken'
@@ -263,7 +268,7 @@ test('pnpm config get succeeds even when configDependencies fail to install', as
   expect(result.stdout.toString()).toContain('my-secret-token')
 })
 
-test('pnpm set succeeds even when configDependencies fail to install', async () => {
+skipIfPacquet('pnpm set succeeds even when configDependencies fail to install', async () => {
   prepare()
   writeFailingConfigDep()
 
@@ -274,7 +279,7 @@ test('pnpm set succeeds even when configDependencies fail to install', async () 
   expect(npmrc).toContain(`${authKey}=my-secret-token`)
 })
 
-test('pnpm get succeeds even when configDependencies fail to install', async () => {
+skipIfPacquet('pnpm get succeeds even when configDependencies fail to install', async () => {
   prepare()
   writeFailingConfigDep()
   const authKey = '//example.com/:_authToken'

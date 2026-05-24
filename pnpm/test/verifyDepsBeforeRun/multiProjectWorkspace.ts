@@ -1,17 +1,22 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import {
+  execPnpm,
+  execPnpmSync,
+  pnpmBinLocation,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
-test('single dependency', async () => {
+skipIfPacquet('single dependency', async () => {
   const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_config_verify_deps_before_run, \'false\')"'
 
   const manifests: Record<string, ProjectManifest> = {
@@ -302,7 +307,7 @@ test('single dependency', async () => {
   await execPnpm([...CONFIG, '--recursive', 'run', 'checkEnv'])
 })
 
-test('multiple lockfiles', async () => {
+skipIfPacquet('multiple lockfiles', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',
@@ -568,7 +573,7 @@ test('multiple lockfiles', async () => {
   }
 })
 
-test('filtered install', async () => {
+skipIfPacquet('filtered install', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',
@@ -647,7 +652,7 @@ test('filtered install', async () => {
   }
 })
 
-test('no dependencies', async () => {
+skipIfPacquet('no dependencies', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',
@@ -714,7 +719,7 @@ test('no dependencies', async () => {
   }
 })
 
-test('nested `pnpm run` should not check for mutated manifest', async () => {
+skipIfPacquet('nested `pnpm run` should not check for mutated manifest', async () => {
   const manifests: Record<string, ProjectManifest> = {
     foo: {
       name: 'foo',
@@ -813,7 +818,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   }
 })
 
-test('should check for outdated catalogs', async () => {
+skipIfPacquet('should check for outdated catalogs', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',
@@ -918,7 +923,7 @@ test('should check for outdated catalogs', async () => {
   }
 })
 
-test('failed to install dependencies', async () => {
+skipIfPacquet('failed to install dependencies', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',

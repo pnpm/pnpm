@@ -1,13 +1,16 @@
 import fs from 'node:fs'
 
-import { expect, test } from '@jest/globals'
+import { expect } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import {
+  execPnpm,
+  skipIfPacquet,
+} from '../utils/index.js'
 
 // Covers https://github.com/pnpm/pnpm/issues/8959
-test('restores deleted modules dir of a workspace package', async () => {
+skipIfPacquet('restores deleted modules dir of a workspace package', async () => {
   preparePackages([
     {
       location: '.',
