@@ -2913,6 +2913,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-registry"
+version = "0.0.1"
+
+[[package]]
 name = "pori"
 version = "0.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,22 @@
+[package]
+name              = "pnpm-registry"
+description       = "pnpm-compatible npm registry server"
+version           = "0.0.1"
+authors           = ["pnpm contributors"]
+edition.workspace = true
+license.workspace = true
+homepage          = "https://pnpm.io"
+repository        = "https://github.com/pnpm/pnpm"
+keywords          = ["npm", "registry", "pnpm", "verdaccio"]
+categories        = ["development-tools", "web-programming::http-server"]
+readme            = "README.md"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "pnpm-registry"
+path = "src/main.rs"
+
+[lints]
+workspace = true
