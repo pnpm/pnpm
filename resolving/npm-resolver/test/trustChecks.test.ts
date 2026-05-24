@@ -5,7 +5,7 @@ import type { PackageInRegistry, PackageMetaWithTime } from '@pnpm/resolving.reg
 import { failIfTrustDowngraded, getTrustEvidence } from '../src/trustChecks.js'
 
 describe('getTrustEvidence', () => {
-  test('returns "trustedPublisher" when _npmUser.trustedPublisher exists', () => {
+  test('returns undefined when _npmUser.trustedPublisher exists without provenance', () => {
     const manifest: PackageInRegistry = {
       name: 'foo',
       version: '1.0.0',
@@ -22,10 +22,10 @@ describe('getTrustEvidence', () => {
         tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
       },
     }
-    expect(getTrustEvidence(manifest)).toBe('trustedPublisher')
+    expect(getTrustEvidence(manifest)).toBeUndefined()
   })
 
-  test('returns "trustedPublisher" even when attestations.provenance exists', () => {
+  test('returns "trustedPublisher" when attestations.provenance also exists', () => {
     const manifest: PackageInRegistry = {
       name: 'foo',
       version: '1.0.0',
@@ -285,6 +285,11 @@ describe('failIfTrustDowngraded', () => {
           dist: {
             shasum: 'def456',
             tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
           },
         },
         '3.0.0': {
@@ -339,6 +344,11 @@ describe('failIfTrustDowngraded', () => {
           dist: {
             shasum: 'def456',
             tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
           },
         },
         '3.0.0': {
@@ -388,6 +398,11 @@ describe('failIfTrustDowngraded', () => {
           dist: {
             shasum: 'def456',
             tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
           },
         },
         '3.0.0': {
@@ -404,6 +419,11 @@ describe('failIfTrustDowngraded', () => {
           dist: {
             shasum: 'ghi789',
             tarball: 'https://registry.example.com/foo/-/foo-3.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
           },
         },
       },
