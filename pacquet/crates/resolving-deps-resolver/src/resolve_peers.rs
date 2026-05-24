@@ -854,20 +854,14 @@ impl<'tree> Walker<'tree> {
             if parent_ids.iter().any(|ancestor_id| ancestor_id == &edge.pkg_id) {
                 continue;
             }
-            // Leaf check: a package is a leaf iff its
-            // `children_by_id` entry is empty AND it has no peer
-            // dependencies. Matches `pkg_is_leaf` in the eager
-            // walker.
-            let is_leaf = self
-                .tree
-                .children_by_id
-                .get(&edge.pkg_id)
-                .is_none_or(|edges| edges.is_empty())
-                && self
-                    .tree
-                    .packages
-                    .get(&edge.pkg_id)
-                    .is_some_and(|pkg| pkg.peer_dependencies.is_empty());
+            // Reuse the first walk's classification (persisted on
+            // `ResolvedPackage::is_leaf` by `pkg_is_leaf`). Defaults
+            // to non-leaf when the package isn't in `packages` — same
+            // shape as the eager walker's `manifest == None` arm,
+            // and `NodeId::next()` keeps occurrences distinct so a
+            // later visit can still observe per-call-site state.
+            let is_leaf =
+                self.tree.packages.get(&edge.pkg_id).is_some_and(|pkg| pkg.is_leaf);
             let child_node_id = if is_leaf { NodeId::leaf(&edge.pkg_id) } else { NodeId::next() };
             let child_parent_ids = {
                 let mut next_ids = (*parent_ids).clone();

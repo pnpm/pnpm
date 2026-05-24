@@ -143,6 +143,20 @@ pub struct ResolvedPackage {
     /// failure-tolerance gate) read this to decide whether a build
     /// failure is fatal or should be reported as a skipped optional.
     pub optional: bool,
+    /// `true` when the package's manifest has no `dependencies`,
+    /// `optionalDependencies`, `peerDependencies`, or
+    /// `peerDependenciesMeta`. Computed once on the first walk by
+    /// `pkg_is_leaf` and reused by the peer resolver's
+    /// `realize_children` so a lazy-realized child reuses the same
+    /// leaf/non-leaf classification the eager walker picked — keeping
+    /// `NodeId::leaf` vs `NodeId::next` consistent across both
+    /// realisation paths. Mirrors upstream's
+    /// [`ResolvedPackage.isLeaf`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencies.ts#L250)
+    /// — populated in
+    /// [`getResolvedPackage`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencies.ts#L1771)
+    /// and consumed by
+    /// [`buildTree`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencyTree.ts#L381).
+    pub is_leaf: bool,
 }
 
 /// One peer-dependency entry on a [`ResolvedPackage`]. Mirrors upstream's

@@ -483,6 +483,22 @@ where
     // because the first visit already populated
     // [`TreeCtx::children_by_id`] for this pkg, and revisits don't
     // discover new transitive packages.
+    // Leaves (no deps / optional deps / peers / peerDependenciesMeta)
+    // reuse the package id as their `NodeId`, collapsing every parent
+    // edge onto one tree node. Non-leaves still get a fresh per-
+    // occurrence id so the peer resolver can attach different peer
+    // suffixes per call site. Mirrors upstream's
+    // [`resolveDependencies.ts:1580`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580).
+    // Computed before the dedup insert so it can be persisted on
+    // [`ResolvedPackage::is_leaf`] for the lazy realisation path to
+    // reuse — matches upstream's
+    // [`getResolvedPackage`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencies.ts#L1771)
+    // which sets `isLeaf` once on `resolvedPkgsById[id]` and lets
+    // [`buildTree`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencyTree.ts#L381)
+    // read it back.
+    let is_leaf = pkg_is_leaf(&result);
+    let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
+
     let is_revisit;
     {
         let mut packages = lock_recoverable(&ctx.packages);
@@ -508,21 +524,13 @@ where
                         result: Arc::clone(&result),
                         peer_dependencies,
                         optional: current_is_optional,
+                        is_leaf,
                     },
                 );
                 is_revisit = false;
             }
         }
     }
-
-    // Leaves (no deps / optional deps / peers / peerDependenciesMeta)
-    // reuse the package id as their `NodeId`, collapsing every parent
-    // edge onto one tree node. Non-leaves still get a fresh per-
-    // occurrence id so the peer resolver can attach different peer
-    // suffixes per call site. Mirrors upstream's
-    // [`resolveDependencies.ts:1580`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580).
-    let is_leaf = pkg_is_leaf(&result);
-    let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
