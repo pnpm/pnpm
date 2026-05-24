@@ -42,7 +42,7 @@ fn pnpm_registry_binary() -> PathBuf {
 ///
 /// `--public-url` is pinned to `http://localhost:<port>` so the
 /// tarball URLs the registry rewrites match the URL pacquet's tests
-/// expect via [`port_to_url`](crate::port_to_url::port_to_url).
+/// expect via `port_to_url`.
 pub fn pnpm_registry_command(port: u16) -> Command {
     let bin = pnpm_registry_binary();
     assert!(
