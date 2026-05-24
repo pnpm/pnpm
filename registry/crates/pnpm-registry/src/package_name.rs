@@ -61,13 +61,13 @@ impl PackageName {
     }
 }
 
-fn is_safe_segment(s: &str) -> bool {
-    !s.is_empty()
-        && !s.starts_with('.')
-        && !s.contains('/')
-        && !s.contains('\\')
-        && !s.contains('\0')
-        && s != ".."
+fn is_safe_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && !segment.starts_with('.')
+        && !segment.contains('/')
+        && !segment.contains('\\')
+        && !segment.contains('\0')
+        && segment != ".."
 }
 
 #[cfg(test)]

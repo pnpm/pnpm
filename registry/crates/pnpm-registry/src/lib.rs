@@ -1,7 +1,7 @@
 //! pnpm-compatible npm registry server.
 //!
-//! Implements a tiny verdaccio-shaped proxy: a [`router`](server::router)
-//! exposes a packument endpoint and a tarball endpoint that fetch from
+//! Implements a tiny verdaccio-shaped proxy: a [`router`] exposes a
+//! packument endpoint and a tarball endpoint that fetch from
 //! a configurable upstream npm registry and cache the responses on
 //! disk.
 //!

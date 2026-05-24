@@ -71,7 +71,13 @@ pnpm-registry = { path = "registry/crates/pnpm-registry", version = "0.0.1" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
-axum = { version = "0.8.7", default-features = false, features = ["http1", "tokio", "json", "matched-path", "original-uri"] }
+axum = { version = "0.8.7", default-features = false, features = [
+  "http1",
+  "tokio",
+  "json",
+  "matched-path",
+  "original-uri",
+] }
 clap = { version = "4", features = ["derive", "string"] }
 command-extra = { version = "1.0.0" }
 base64 = { version = "0.22.1" }

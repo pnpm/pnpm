@@ -74,7 +74,7 @@ impl RegistryError {
     }
 }
 
-pub type Result<T, E = RegistryError> = std::result::Result<T, E>;
+pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;
 
 #[cfg(test)]
 mod tests {

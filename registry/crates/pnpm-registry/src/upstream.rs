@@ -21,9 +21,9 @@ pub struct Upstream {
 }
 
 #[derive(Debug)]
-pub enum FetchOutcome<T> {
+pub enum FetchOutcome<Payload> {
     /// Upstream returned content.
-    Ok(T),
+    Ok(Payload),
     /// Upstream returned 404. The caller should propagate this verbatim.
     NotFound,
 }

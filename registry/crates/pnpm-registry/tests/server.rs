@@ -178,7 +178,7 @@ async fn tarball_streaming_finalizes_cache_with_no_tmp_leftover() {
     let tarballs_dir = cache_dir.join("big").join("-");
     let entries: Vec<String> = std::fs::read_dir(&tarballs_dir)
         .unwrap()
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     assert_eq!(entries, vec!["big-1.0.0.tgz".to_string()]);
 
@@ -355,10 +355,11 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let cache_dir = tmp.path().to_path_buf();
     let app = router(config_for(&upstream.url(), cache_dir.clone()));
 
-    let (r1, r2) = tokio::join!(
-        app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap()),
-        app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap()),
-    );
+    let req1 =
+        app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap());
+    let req2 =
+        app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap());
+    let (r1, r2) = tokio::join!(req1, req2);
     let (r1, r2) = (r1.unwrap(), r2.unwrap());
     assert_eq!(r1.status(), StatusCode::OK);
     assert_eq!(r2.status(), StatusCode::OK);
@@ -372,7 +373,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let dir = cache_dir.join("foo").join("-");
     let entries: Vec<String> = std::fs::read_dir(&dir)
         .unwrap()
-        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     assert_eq!(entries, vec!["foo-1.0.0.tgz".to_string()]);
 
@@ -488,7 +489,7 @@ async fn upstream_stream_error_clears_cache() {
         assert!(
             entries.is_empty(),
             "expected no files after mid-stream error, found {} entries",
-            entries.len()
+            entries.len(),
         );
     }
 }
@@ -530,7 +531,7 @@ async fn client_disconnect_mid_stream_clears_cache() {
         assert!(
             entries.is_empty(),
             "expected no files after client disconnect, found {} entries",
-            entries.len()
+            entries.len(),
         );
     }
 }
