@@ -1379,6 +1379,9 @@ importers:
       get-port:
         specifier: 'catalog:'
         version: 7.2.0
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 3.0.0
       tree-kill:
         specifier: 'catalog:'
         version: 1.2.2
