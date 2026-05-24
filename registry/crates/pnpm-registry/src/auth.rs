@@ -162,17 +162,24 @@ impl Default for TokenStore {
 /// token store (for `Bearer`) or the user store (for `Basic`).
 /// Returns `None` for missing/unsupported credentials so the caller
 /// can decide whether anonymous is allowed.
+///
+/// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
+/// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`
+/// all parse the same.
 pub fn identify(
     header_value: Option<&str>,
     users: &UserStore,
     tokens: &TokenStore,
 ) -> Option<String> {
     let value = header_value?.trim();
-    if let Some(token) = value.strip_prefix("Bearer ").or_else(|| value.strip_prefix("bearer ")) {
-        return tokens.lookup(token.trim());
+    let mut parts = value.splitn(2, ' ');
+    let scheme = parts.next()?;
+    let credentials = parts.next()?.trim();
+    if scheme.eq_ignore_ascii_case("Bearer") {
+        return tokens.lookup(credentials);
     }
-    if let Some(encoded) = value.strip_prefix("Basic ").or_else(|| value.strip_prefix("basic ")) {
-        let decoded = BASE64.decode(encoded.trim()).ok()?;
+    if scheme.eq_ignore_ascii_case("Basic") {
+        let decoded = BASE64.decode(credentials).ok()?;
         let pair = std::str::from_utf8(&decoded).ok()?;
         let (user, password) = pair.split_once(':')?;
         return users.verify(user, password);
@@ -275,5 +282,33 @@ mod tests {
 
         // Garbage
         assert!(identify(Some("Bearer total-nonsense"), &users, &tokens).is_none());
+    }
+
+    /// RFC 7235 §2.1: "the scheme is case-insensitive". All of
+    /// `Bearer`, `BEARER`, and `bearer` (and the mixed-case forms
+    /// some clients emit) must resolve the same way.
+    #[test]
+    fn identify_parses_auth_scheme_case_insensitively() {
+        let users = UserStore::new();
+        users.add_or_login("alice", "secret").unwrap();
+        let tokens = TokenStore::new();
+        let token = tokens.issue("alice");
+
+        for scheme in ["Bearer", "bearer", "BEARER", "BeArEr"] {
+            let header = format!("{scheme} {token}");
+            assert_eq!(
+                identify(Some(&header), &users, &tokens).as_deref(),
+                Some("alice"),
+                "Bearer scheme {scheme:?} should be recognized",
+            );
+        }
+        for scheme in ["Basic", "basic", "BASIC", "bAsIc"] {
+            let header = format!("{scheme} YWxpY2U6c2VjcmV0");
+            assert_eq!(
+                identify(Some(&header), &users, &tokens).as_deref(),
+                Some("alice"),
+                "Basic scheme {scheme:?} should be recognized",
+            );
+        }
     }
 }
