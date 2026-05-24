@@ -148,6 +148,31 @@ impl Cache {
         Ok(TarballWrite { file, tmp_path, final_path })
     }
 
+    /// Remove the entire package directory. Returns `Ok(false)` if it
+    /// didn't exist (treat as a no-op success, matching what verdaccio
+    /// does on a duplicate DELETE).
+    pub async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+        let dir = self.package_dir(name);
+        match fs::remove_dir_all(&dir).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Remove a single tarball file. Returns `Ok(false)` when the file
+    /// is already gone; the pnpm unpublish flow always issues a DELETE
+    /// after the packument-update PUT, and a benign 404 here would
+    /// surface as a real error to the caller.
+    pub async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
+        let path = self.tarball_path(name, filename);
+        match fs::remove_file(&path).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     fn package_dir(&self, name: &PackageName) -> PathBuf {
         self.root.join(name.as_str())
     }

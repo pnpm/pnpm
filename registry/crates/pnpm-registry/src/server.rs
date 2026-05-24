@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
-use axum::extract::{DefaultBodyLimit, Path, State};
+use axum::extract::{DefaultBodyLimit, OriginalUri, Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{delete, get};
 use serde_json::{Value, json};
 use tower_http::trace::TraceLayer;
 
@@ -72,13 +72,18 @@ pub fn router(config: Config) -> Router {
     Router::new()
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
-        .route("/{first}/{second}/{third}", get(get_three_segments).put(put_three_segments))
+        .route(
+            "/{first}/{second}/{third}",
+            get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
+        )
         .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
         .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
         .route(
             "/{a}/{b}/{c}/{d}/{e}",
             get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
         )
+        // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
+        .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments))
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -170,8 +175,13 @@ async fn get_two_segments(
 async fn get_three_segments(
     State(state): State<AppState>,
     headers: HeaderMap,
+    OriginalUri(uri): OriginalUri,
     Path((first, second, third)): Path<(String, String, String)>,
 ) -> Response {
+    if first == "-" && second == "v1" && third == "search" {
+        let query = uri.query().unwrap_or("");
+        return serve_search(&state, query).await;
+    }
     if second == "-" {
         serve_tarball(&state, &headers, &first, &third).await
     } else if first.starts_with('@') {
@@ -248,8 +258,10 @@ async fn put_two_segments(
 }
 
 /// `PUT /-/user/org.couchdb.user:{name}` — adduser / login.
+/// `PUT /{pkg}/-rev/{rev}` — packument update (partial unpublish).
 async fn put_three_segments(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path((first, second, third)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
@@ -258,6 +270,29 @@ async fn put_three_segments(
         && let Some(name) = third.strip_prefix("org.couchdb.user:")
     {
         return add_user(&state, name, &body).await;
+    }
+    if second == "-rev" {
+        // `third` is the opaque revision token the client sent back.
+        // We don't track revisions, so it's only used for routing —
+        // the body is the full mutated packument.
+        let _ = third;
+        return update_packument(&state, &headers, &first, &body).await;
+    }
+    not_found()
+}
+
+/// `DELETE /{pkg}/-rev/{rev}` — remove the entire package
+/// (`pnpm unpublish --force`). For scoped packages the URL is
+/// `/@scope%2Fname/-rev/{rev}` and arrives as a single segment after
+/// axum's percent-decoding.
+async fn delete_three_segments(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((first, second, third)): Path<(String, String, String)>,
+) -> Response {
+    if second == "-rev" {
+        let _ = third;
+        return delete_package(&state, &headers, &first).await;
     }
     not_found()
 }
@@ -284,7 +319,10 @@ async fn delete_four_segments(
     not_found()
 }
 
-/// `DELETE /-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag.
+/// 5-segment DELETE:
+/// * `/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag.
+/// * `/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped tarball
+///   (one step of `pnpm unpublish <pkg>@<version>`).
 async fn delete_five_segments(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -292,6 +330,28 @@ async fn delete_five_segments(
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
         return remove_dist_tag(&state, &headers, &c, &e).await;
+    }
+    if b == "-" && d == "-rev" {
+        let _ = e; // revision token is unused
+        return delete_tarball(&state, &headers, &a, &c).await;
+    }
+    not_found()
+}
+
+/// `DELETE /{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
+/// tarball. The pnpm unpublish flow gets here when the tarball URL it
+/// reconstructs from the packument is the literal-slash scoped form
+/// (`http://host/@scope/name/-/name-1.0.0.tgz`), so the request lands
+/// here unencoded rather than as a 5-seg `@scope%2Fname` URL.
+async fn delete_six_segments(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
+) -> Response {
+    if a.starts_with('@') && c == "-" && e == "-rev" {
+        let _ = f; // revision token is unused
+        let full = format!("{a}/{b}");
+        return delete_tarball(&state, &headers, &full, &d).await;
     }
     not_found()
 }
@@ -541,6 +601,141 @@ async fn write_tarball_bytes(
     let mut tmp = tmp;
     tmp.file.write_all(bytes).await?;
     tmp.finalize().await
+}
+
+/// `GET /-/v1/search?text=...&size=...` — npm search v1 endpoint.
+///
+/// Local-only: scans the on-disk storage and matches package names
+/// as a case-insensitive substring on `text`. Matches verdaccio's
+/// default behavior. We deliberately do NOT proxy to upstream npm
+/// even in proxy mode — the tests rely on the local-search semantics
+/// (`releasing/commands/test/search.ts` asserts that a guaranteed-not
+/// -to-exist query returns "No packages found", which an upstream
+/// proxy can't deliver because npm's search is fuzzy and returns
+/// dozens of unrelated matches for almost anything).
+async fn serve_search(state: &AppState, query_string: &str) -> Response {
+    let Some(text) = crate::search::parse_query(query_string) else {
+        let body = json!({ "objects": [], "total": 0, "time": now_iso() });
+        let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(bytes))
+            .expect("static-shape response always builds");
+    };
+    let size = crate::search::parse_size(query_string, 20);
+    match crate::search::run_local_search(&state.inner.config.storage, &text, size).await {
+        Ok(body) => {
+            let bytes = serde_json::to_vec(&body).expect("search response serializes");
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(bytes))
+                .expect("static-shape response always builds")
+        }
+        Err(err) => error_response(&err),
+    }
+}
+
+/// `PUT /:pkg/-rev/:rev` — overwrite the on-disk packument with the
+/// client-supplied body. pnpm uses this in the partial-unpublish
+/// flow: it fetches the packument, removes the unpublished version
+/// from `versions` / `dist-tags`, then PUTs the result back. We
+/// trust the body verbatim — the same trust verdaccio extends — and
+/// strip any `_attachments` so we don't persist base64 payloads
+/// alongside the manifest.
+async fn update_packument(
+    state: &AppState,
+    headers: &HeaderMap,
+    raw_name: &str,
+    body: &[u8],
+) -> Response {
+    let name = match PackageName::parse(raw_name) {
+        Ok(n) => n,
+        Err(err) => return error_response(&err),
+    };
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
+        return error_response(&err);
+    }
+    let mut packument: Value = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
+    if let Some(obj) = packument.as_object_mut() {
+        obj.remove("_attachments");
+        obj.remove("_rev");
+        obj.remove("_revisions");
+    }
+    let bytes = match serde_json::to_vec_pretty(&packument) {
+        Ok(b) => b,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
+    if let Err(err) = state.inner.cache.write_packument(&name, &bytes).await {
+        return error_response(&err);
+    }
+    let body = json!({ "ok": true });
+    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
+    Response::builder()
+        .status(StatusCode::CREATED)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(bytes))
+        .expect("static-shape response always builds")
+}
+
+/// `DELETE /:pkg/-rev/:rev` — remove the entire package directory,
+/// packument and all tarballs. Used by `pnpm unpublish --force`.
+async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -> Response {
+    let name = match PackageName::parse(raw_name) {
+        Ok(n) => n,
+        Err(err) => return error_response(&err),
+    };
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
+        return error_response(&err);
+    }
+    if let Err(err) = state.inner.cache.remove_package(&name).await {
+        return error_response(&err);
+    }
+    let body = json!({ "ok": true });
+    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
+    Response::builder()
+        .status(StatusCode::CREATED)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(bytes))
+        .expect("static-shape response always builds")
+}
+
+/// `DELETE /:pkg/-/:filename/-rev/:rev` — remove a single tarball
+/// file from the package directory. The partial-unpublish flow calls
+/// this after PUT'ing the modified packument back. Accept the
+/// libnpmpublish-style scoped filename as well as the canonical one
+/// by going through `canonicalize_tarball_name` first.
+async fn delete_tarball(
+    state: &AppState,
+    headers: &HeaderMap,
+    raw_name: &str,
+    filename: &str,
+) -> Response {
+    let name = match PackageName::parse(raw_name) {
+        Ok(n) => n,
+        Err(err) => return error_response(&err),
+    };
+    let canonical = match name.canonicalize_tarball_name(filename) {
+        Ok(c) => c,
+        Err(err) => return error_response(&err),
+    };
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
+        return error_response(&err);
+    }
+    if let Err(err) = state.inner.cache.remove_tarball(&name, &canonical).await {
+        return error_response(&err);
+    }
+    let body = json!({ "ok": true });
+    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
+    Response::builder()
+        .status(StatusCode::CREATED)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(bytes))
+        .expect("static-shape response always builds")
 }
 
 /// `GET /-/package/:pkg/dist-tags` — return the packument's

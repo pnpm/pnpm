@@ -477,6 +477,194 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
     assert_eq!(served_bytes, bytes);
 }
 
+#[tokio::test]
+async fn search_finds_packages_by_substring_in_local_storage() {
+    let Some(storage) = registry_mock_storage() else {
+        return;
+    };
+    let app = router(static_config(storage));
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=is-positive&size=20").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    let objects = body["objects"].as_array().expect("objects is array");
+    assert!(!objects.is_empty(), "expected is-positive to match the registry-mock fixture");
+    let names: Vec<&str> =
+        objects.iter().map(|object| object["package"]["name"].as_str().unwrap()).collect();
+    assert!(names.iter().any(|n| n.contains("is-positive")), "got names: {names:?}");
+}
+
+#[tokio::test]
+async fn search_returns_empty_for_made_up_query() {
+    let Some(storage) = registry_mock_storage() else {
+        return;
+    };
+    let app = router(static_config(storage));
+    let response = app
+        .oneshot(
+            Request::get("/-/v1/search?text=zzz-does-not-exist-99999&size=20")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["objects"].as_array().unwrap().len(), 0);
+    assert_eq!(body["total"], 0);
+}
+
+#[tokio::test]
+async fn search_returns_empty_objects_in_static_mode() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=anything&size=20").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["objects"].as_array().unwrap().len(), 0);
+    assert_eq!(body["total"], 0);
+}
+
+#[tokio::test]
+async fn unpublish_partial_writes_modified_packument() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    // Publish two versions, then PUT a modified packument with the
+    // older one removed — simulating the partial-unpublish flow.
+    for version in ["1.0.0", "2.0.0"] {
+        let body = sample_publish_body("unpub-partial", version, version.as_bytes());
+        let request = Request::put("/unpub-partial")
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        app.clone().oneshot(request).await.unwrap();
+    }
+
+    let modified = json!({
+        "name": "unpub-partial",
+        "_rev": "ignored",
+        "dist-tags": { "latest": "2.0.0" },
+        "versions": {
+            "2.0.0": { "name": "unpub-partial", "version": "2.0.0", "dist": {
+                "tarball": "http://example.test/unpub-partial/-/unpub-partial-2.0.0.tgz"
+            }},
+        },
+    });
+    let request = Request::put("/unpub-partial/-rev/anything")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&modified).unwrap()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // GET packument back — should only contain 2.0.0.
+    let response = app
+        .clone()
+        .oneshot(Request::get("/unpub-partial").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let served = body_json(response.into_body()).await;
+    assert_eq!(served["versions"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["2.0.0"]);
+
+    // DELETE the 1.0.0 tarball next.
+    let request = Request::delete("/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    assert!(!storage.join("unpub-partial/unpub-partial-1.0.0.tgz").exists());
+    assert!(storage.join("unpub-partial/unpub-partial-2.0.0.tgz").exists());
+
+    // Second DELETE of the same tarball is a no-op — verdaccio
+    // returns 201 here too (idempotent). The pnpm unpublish flow
+    // tolerates 404 separately as a fallback, but we shouldn't even
+    // get there.
+    let request = Request::delete("/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn unpublish_force_removes_entire_package() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("unpub-force", "1.0.0", b"contents");
+    let request = Request::put("/unpub-force")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    app.clone().oneshot(request).await.unwrap();
+    assert!(storage.join("unpub-force/package.json").exists());
+
+    let request = Request::delete("/unpub-force/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    assert!(!storage.join("unpub-force").exists());
+
+    // Re-fetch returns 404 (static mode + no on-disk packument).
+    let response =
+        app.oneshot(Request::get("/unpub-force").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn unpublish_scoped_tarball_via_six_segment_route() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("@scope/unpub", "1.0.0", b"bytes");
+    let request = Request::put("/@scope/unpub")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    app.clone().oneshot(request).await.unwrap();
+    assert!(storage.join("@scope/unpub/unpub-1.0.0.tgz").exists());
+
+    // pnpm reconstructs the DELETE URL from the rewritten tarball URL
+    // in the packument, which uses literal `/` for the scope segment
+    // (not `%2F`). That lands on the 6-seg route.
+    let request = Request::delete("/@scope/unpub/-/unpub-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    assert!(!storage.join("@scope/unpub/unpub-1.0.0.tgz").exists());
+}
+
+#[tokio::test]
+async fn unpublish_requires_publish_auth() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let request = Request::delete("/some-pkg/-rev/anything").body(Body::empty()).unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
 fn sample_publish_body(name: &str, version: &str, tarball: &[u8]) -> Value {
     let basename = name.rsplit('/').next().unwrap_or(name);
     let filename = format!("{basename}-{version}.tgz");

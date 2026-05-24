@@ -14,6 +14,7 @@ mod error;
 mod package_name;
 mod policy;
 mod publish;
+mod search;
 mod server;
 mod streaming;
 mod upstream;
