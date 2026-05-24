@@ -33,7 +33,7 @@ registry protocol that pnpm (and npm, yarn, etc.) clients speak.
 
 Mirrors `pacquet/`:
 
-```
+```text
 registry/
   AGENTS.md
   crates/
