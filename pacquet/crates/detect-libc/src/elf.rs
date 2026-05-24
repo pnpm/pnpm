@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn classify_interpreter_musl() {
-        assert_eq!(classify_interpreter("/lib/ld-musl-x86_64.so.1"), Some(Implementation::Musl),);
+        assert_eq!(classify_interpreter("/lib/ld-musl-x86_64.so.1"), Some(Implementation::Musl));
     }
 
     #[test]
@@ -194,14 +194,14 @@ mod tests {
     fn glibc_pt_interp() {
         let interp = b"/lib64/ld-linux-x86-64.so.2\0";
         let elf = build_elf_with_interp(interp);
-        assert_eq!(elf_interpreter(&elf), Some("/lib64/ld-linux-x86-64.so.2"),);
+        assert_eq!(elf_interpreter(&elf), Some("/lib64/ld-linux-x86-64.so.2"));
     }
 
     #[test]
     fn musl_pt_interp() {
         let interp = b"/lib/ld-musl-x86_64.so.1\0";
         let elf = build_elf_with_interp(interp);
-        assert_eq!(elf_interpreter(&elf), Some("/lib/ld-musl-x86_64.so.1"),);
+        assert_eq!(elf_interpreter(&elf), Some("/lib/ld-musl-x86_64.so.1"));
     }
 
     #[test]

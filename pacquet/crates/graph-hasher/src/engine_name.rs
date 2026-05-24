@@ -139,7 +139,7 @@ pub fn host_arch() -> &'static str {
 ///
 /// Delegates to [`pacquet_detect_libc::detect()`] for the
 /// actual detection; see that function for the fallback chain. The
-/// result is cached after the first call via [`OnceLock`].
+/// result is cached after the first call via [`std::sync::OnceLock`].
 pub fn host_libc() -> &'static str {
     use std::sync::OnceLock;
 

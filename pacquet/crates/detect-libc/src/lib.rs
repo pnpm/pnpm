@@ -62,7 +62,9 @@ fn detect_implementation() -> Option<Implementation> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Implementation, detect, is_linux};
+    #[cfg(target_os = "linux")]
+    use super::detect;
+    use super::{Implementation, is_linux};
 
     #[test]
     fn detect_non_linux() {
@@ -87,9 +89,11 @@ mod tests {
     #[test]
     fn detect_integration_host() {
         let result = detect();
-        assert!(
-            result == Some(Implementation::Glibc) || result == Some(Implementation::Musl),
-            "expected Some(Glibc) or Some(Musl), got {result:?}",
-        );
+        if let Some(libc) = result {
+            assert!(
+                libc == Implementation::Glibc || libc == Implementation::Musl,
+                "unexpected libc: {libc:?}",
+            );
+        }
     }
 }

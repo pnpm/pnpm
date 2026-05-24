@@ -48,12 +48,12 @@ mod tests {
 
     #[test]
     fn glibc_detected_via_gnu_libc() {
-        assert_eq!(classify_from_ldd("ldd (GNU libc) 2.39\n"), Some(Implementation::Glibc),);
+        assert_eq!(classify_from_ldd("ldd (GNU libc) 2.39\n"), Some(Implementation::Glibc));
     }
 
     #[test]
     fn musl_detected_via_ldd() {
-        assert_eq!(classify_from_ldd("musl libc\nVersion 1.2.3\n"), Some(Implementation::Musl),);
+        assert_eq!(classify_from_ldd("musl libc\nVersion 1.2.3\n"), Some(Implementation::Musl));
     }
 
     #[test]
