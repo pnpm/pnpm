@@ -1920,6 +1920,148 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     drop(dir);
 }
 
+/// Under GVS, the `virtualStoreDir` value pacquet persists in
+/// `.modules.yaml` must equal the path upstream pnpm writes — i.e.
+/// `<storeDir>/v11/links` — not the project-local `node_modules/.pnpm`
+/// path pacquet keeps internally in [`Config::virtual_store_dir`]. If
+/// they diverge, the next `pnpm install` reads the manifest, recomputes
+/// `ctx.virtualStoreDir` from the GVS-on path, and trips upstream's
+/// [`checkCompatibility`](https://github.com/pnpm/pnpm/blob/f2a4d2caef/installing/deps-installer/src/install/checkCompatibility/index.ts#L37-L43)
+/// with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR` for every project,
+/// forcing the "modules directories will be reinstalled from scratch"
+/// prompt on every invocation. The same value is also emitted on the
+/// `pnpm:context` channel that `@pnpm/cli.default-reporter` parses, so
+/// the same parity rule applies there.
+#[tokio::test]
+async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    // GVS on — the whole point of the test.
+    config.enable_global_virtual_store = true;
+    config.lockfile = false;
+    config.store_dir = store_dir.clone().into();
+    config.modules_dir = modules_dir.clone();
+    // Keep `virtual_store_dir` at the project-local path. Pacquet's
+    // internal layout consumers still read this field; the parity
+    // requirement is only that the externally-observed value (the one
+    // pnpm sees in `.modules.yaml` / `pnpm:context`) routes through
+    // `global_virtual_store_dir` via `effective_virtual_store_dir`.
+    config.virtual_store_dir = virtual_store_dir.clone();
+    // Source the GVS root from `store_dir.links()` so the assertion
+    // below targets the same v11-suffixed path the
+    // [`From<PathBuf> for StoreDir`] impl produces in production. Hard-
+    // coding `store_dir.join("links")` here would drop the `v11`
+    // segment and turn the test into a tautology.
+    config.global_virtual_store_dir = config.store_dir.links();
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies: {}"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse minimal v9 lockfile");
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        resolved_packages: &Default::default(),
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("frozen-lockfile install under GVS should succeed");
+
+    // The path pnpm would have written. `StoreDir::from` appends the
+    // [`STORE_VERSION`] suffix to the configured root, so the live
+    // value is `<store_dir>/v11/links` even though the test handed
+    // `Config::store_dir` the un-suffixed root.
+    let expected_resolved = store_dir.join(STORE_VERSION).join("links");
+
+    // Ensure the GVS root exists on disk so `dunce::canonicalize` can
+    // resolve it. An empty-lockfile install doesn't link anything into
+    // `<store_dir>/v11/links/`, so the dir would otherwise be absent.
+    std::fs::create_dir_all(&expected_resolved).expect("create GVS links dir for canonicalize");
+    let expected_canonical =
+        dunce::canonicalize(&expected_resolved).expect("canonicalize GVS links dir");
+
+    // `.modules.yaml` is what `pnpm install` reads on the *next*
+    // invocation; this is the round-trip pnpm's `checkCompatibility`
+    // sees. `read_modules_manifest` normalises the stored relative
+    // path back to absolute against `modules_dir`, so a successful
+    // assertion proves both halves: pacquet wrote the GVS path, and
+    // the relative form on disk re-resolves to it. Canonicalize the
+    // result because `read_modules_manifest`'s
+    // `modules_dir.join(relative)` keeps `..` segments verbatim, while
+    // pnpm's `path.relative(modules.virtualStoreDir, opts.virtualStoreDir)`
+    // check at
+    // [`checkCompatibility/index.ts:37-43`](https://github.com/pnpm/pnpm/blob/f2a4d2caef/installing/deps-installer/src/install/checkCompatibility/index.ts#L37-L43)
+    // reduces them before comparing.
+    let read_back =
+        read_modules_manifest::<Host>(&modules_dir).expect("read .modules.yaml").expect("present");
+    assert_eq!(
+        dunce::canonicalize(&read_back.virtual_store_dir)
+            .expect("canonicalize read-back virtualStoreDir"),
+        expected_canonical,
+        "modules.yaml virtualStoreDir must round-trip to <storeDir>/{STORE_VERSION}/links under GVS",
+    );
+
+    // The `pnpm:context` event the default reporter prints in the
+    // install header. Same parity rule, different channel — pnpm
+    // emits `ctx.virtualStoreDir` (the GVS-mutated value); pacquet
+    // must too.
+    let captured = EVENTS.lock().unwrap();
+    let context_log = captured
+        .iter()
+        .find_map(|event| match event {
+            LogEvent::Context(log) => Some(log),
+            _ => None,
+        })
+        .expect("install emits exactly one pnpm:context event");
+    assert_eq!(
+        dunce::canonicalize(&context_log.virtual_store_dir)
+            .expect("canonicalize context virtualStoreDir"),
+        expected_canonical,
+        "pnpm:context virtualStoreDir must report the GVS path, matching pnpm's default reporter",
+    );
+
+    drop(dir);
+}
+
 /// GVS-off frozen-lockfile install. The dispatch path is the same,
 /// but `Install::run` skips the project-registry write entirely.
 /// Pins that turning off `enable_global_virtual_store` makes the

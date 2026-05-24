@@ -19,7 +19,7 @@ use smart_default::SmartDefault;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 pub use crate::defaults::{
@@ -950,6 +950,35 @@ impl Config {
             } else {
                 self.store_dir.links()
             };
+    }
+
+    /// Return the `virtualStoreDir` value pnpm exposes externally — the
+    /// path written into `.modules.yaml` and emitted in the `pnpm:context`
+    /// NDJSON event.
+    ///
+    /// Upstream pnpm mutates `virtualStoreDir` in place inside
+    /// [`extendInstallOptions.ts:419-422`](https://github.com/pnpm/pnpm/blob/f2a4d2caef/installing/deps-installer/src/install/extendInstallOptions.ts#L419-L422)
+    /// when `enableGlobalVirtualStore` is on and the user hasn't pinned
+    /// `virtualStoreDir`, so every consumer that reads `ctx.virtualStoreDir`
+    /// — including [`writeModulesManifest`](https://github.com/pnpm/pnpm/blob/f2a4d2caef/installing/modules-yaml/src/index.ts#L111-L138)
+    /// and the [`pnpm:context` debug log](https://github.com/pnpm/pnpm/blob/f2a4d2caef/installing/context/src/index.ts#L196-L201)
+    /// — sees the GVS-derived path.
+    ///
+    /// Pacquet deliberately keeps [`Self::virtual_store_dir`] at its
+    /// project-local value (see [`Self::apply_global_virtual_store_derivation`]
+    /// for the why), so consumers that need the externally-observable
+    /// value must route through this helper instead of reading the field
+    /// directly. Otherwise the `.modules.yaml` round-trip mismatches
+    /// pnpm's, and the next `pnpm install` trips
+    /// `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR` → forces a
+    /// "modules directories will be reinstalled from scratch" prompt
+    /// on every install.
+    pub fn effective_virtual_store_dir(&self) -> &Path {
+        if self.enable_global_virtual_store {
+            &self.global_virtual_store_dir
+        } else {
+            &self.virtual_store_dir
+        }
     }
 
     pub fn resolved_patched_dependencies(
