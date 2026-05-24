@@ -860,8 +860,7 @@ impl<'tree> Walker<'tree> {
             // shape as the eager walker's `manifest == None` arm,
             // and `NodeId::next()` keeps occurrences distinct so a
             // later visit can still observe per-call-site state.
-            let is_leaf =
-                self.tree.packages.get(&edge.pkg_id).is_some_and(|pkg| pkg.is_leaf);
+            let is_leaf = self.tree.packages.get(&edge.pkg_id).is_some_and(|pkg| pkg.is_leaf);
             let child_node_id = if is_leaf { NodeId::leaf(&edge.pkg_id) } else { NodeId::next() };
             let child_parent_ids = {
                 let mut next_ids = (*parent_ids).clone();
