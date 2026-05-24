@@ -76,7 +76,7 @@
     "stylelint-config-standard": "^36.0.0",
     "terser-webpack-plugin": "^5.3.10",
     "typescript": "^5.3.3",
-    "uuid": "^9.0.1",
+    "uuid": "^14.0.0",
     "webpack": "^5.90.1",
     "webpack-bundle-analyzer": "^4.10.1",
     "webpack-cli": "^5.1.4",
