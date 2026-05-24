@@ -1107,7 +1107,7 @@ mod peers {
             ),
         );
         // `manifestless` resolves without a manifest body. Without
-        // persistence, the lazy realizer would mis-classify this as a
+        // persistence, the lazy realizer would misclassify this as a
         // leaf (children_by_id entry is empty AND peer_dependencies
         // is empty) and collapse the revisit onto `NodeId::Leaf`.
         let manifestless = {
@@ -1155,7 +1155,7 @@ mod peers {
         // After lazy realization, every occurrence of `manifestless`
         // must use a Counter NodeId — the same shape the eager walker
         // assigned on first visit. A `Leaf` NodeId here would mean
-        // `realize_children` mis-classified the package and collapsed
+        // `realize_children` misclassified the package and collapsed
         // distinct occurrences, breaking per-call-site state for any
         // future visitor that descends through it.
         let manifestless_node_ids: Vec<&NodeId> = tree
