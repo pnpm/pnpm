@@ -375,13 +375,13 @@ pub async fn extend_tree(
 ///
 /// Each spec is dispatched through the resolver chain on its own
 /// [`tokio::spawn`] task; the result is discarded. The npm resolver's
-/// per-`(registry, name)` packument fetch semaphore (see
-/// [`pacquet_resolving_npm_resolver::shared_packument_fetch_locker`])
-/// coalesces this prefetch with the later real `resolve()` call from
-/// the tree walker so the recursion hits the in-memory packument
-/// cache and the per-version manifest cache instead of paying for a
-/// fresh network round-trip plus a fresh JSON parse + serde re-roundtrip
-/// per call site.
+/// per-`(registry, name)` packument fetch semaphore (the
+/// `shared_packument_fetch_locker` exposed by the `pacquet-resolving-
+/// npm-resolver` crate) coalesces this prefetch with the later real
+/// `resolve()` call from the tree walker so the recursion hits the
+/// in-memory packument cache and the per-version manifest cache
+/// instead of paying for a fresh network round-trip plus a fresh JSON
+/// parse + serde re-roundtrip per call site.
 ///
 /// Detached spawns matter because the tree walker resolves siblings via
 /// `try_join_all`: those futures cooperate on the current task, so a
