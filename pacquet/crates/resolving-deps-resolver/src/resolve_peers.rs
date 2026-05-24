@@ -16,12 +16,23 @@
 //! does **not** port yet:
 //!
 //! - **`peersCache`** — caches resolved peer combinations keyed by
-//!   `pkgIdWithPatchHash` so a repeat visit short-circuits the walk.
-//!   Pacquet always recomputes; correctness is unaffected.
+//!   `pkgIdWithPatchHash` so a repeat visit short-circuits the walk
+//!   when the current parent peer context matches one the cache has
+//!   already seen. Ported from upstream's
+//!   [`peersCache`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L342-L348)
+//!   below; matched via [`Walker::find_hit`]. The simplified port
+//!   omits upstream's `parentPackagesMatch` deep check (deferred to
+//!   pnpm/pnpm#11907) — pacquet accepts a cache hit when the cached
+//!   resolved-peer `NodeId`s map to packages with the same
+//!   `pkgIdWithPatchHash` in the current context, and rejects when
+//!   the cached missing-peer set intersects current parents.
 //! - **`purePkgs` fast path** — a pure package (no resolved / missing
-//!   peers) gets its depPath equal to its `pkgIdWithPatchHash` without
-//!   recursing. The general path produces the same answer, just one
-//!   walk later.
+//!   peers across its entire subtree) gets its `depPath` equal to its
+//!   `pkgIdWithPatchHash` without recursing. Ported from upstream's
+//!   [`purePkgs` early-return](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L398-L406).
+//!   The set is populated bottom-up: a node lands in `purePkgs` only
+//!   when both its own walked subtree and (transitively) every cached
+//!   subtree it relies on report no resolved or missing peers.
 //! - **`graph-cycles`-driven async deferment** — upstream's
 //!   `pathsByNodeIdPromises` lets a cyclic peer pick a `name@version`
 //!   peer-id once `analyzeGraph` confirms the cycle. Pacquet performs
@@ -104,6 +115,8 @@ pub fn resolve_peers(tree: &ResolvedTree, opts: ResolvePeersOptions) -> ResolveP
         node_missing_peers: HashMap::new(),
         in_progress: HashSet::new(),
         pending_peer_edges: Vec::new(),
+        pure_pkgs: HashSet::new(),
+        peers_cache: HashMap::new(),
     };
     walker.walk()
 }
@@ -170,6 +183,52 @@ struct Walker<'tree> {
     /// would walk the parent's `children` map and find no symlink edge
     /// for the peer, leaving the package without the peer in its slot.
     pending_peer_edges: Vec<PendingPeerEdge>,
+    /// Set of `pkgIdWithPatchHash` values whose full subtree resolved
+    /// with zero external peers and zero missing peers. A revisit of
+    /// any such package whose own `peerDependencies` is empty
+    /// short-circuits with `depPath = pkgIdWithPatchHash` — no
+    /// recursion, no peersCache lookup. Mirrors upstream's
+    /// [`purePkgs` early-return](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L398-L406).
+    /// Populated bottom-up: a node is added when [`is_pure`] is true
+    /// after its own walk completes.
+    pure_pkgs: HashSet<String>,
+    /// Per-`pkgIdWithPatchHash` cached results from earlier walks of
+    /// non-pure subtrees. Each cache item records the `depPath`, the
+    /// external `(peer_name → NodeId)` map, and the `(peer_name →
+    /// info)` missing set produced by one specific parent peer
+    /// context. [`Walker::find_hit`] iterates the bucket and accepts
+    /// the first item whose cached context is compatible with the
+    /// current call's `child_parent_refs`. Mirrors upstream's
+    /// [`peersCache`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L342-L348)
+    /// + [`findHit`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L660-L699).
+    ///
+    /// The matcher omits upstream's `parentPackagesMatch` deep check
+    /// (which compares the cached and current parent peer chains
+    /// via `parentPkgsOfNode`). Pacquet accepts a hit when the
+    /// cached and current resolved-peer `NodeId`s either are equal
+    /// or point to packages with the same `pkgIdWithPatchHash` in
+    /// the dependencies tree, and rejects when the cached missing
+    /// set intersects current parents. The deep check is tracked in
+    /// pnpm/pnpm#11907; until it lands, a context mismatch deep in
+    /// a peer chain may produce a false-positive hit. None of the
+    /// ported `mod peers` tests exercise that branch.
+    peers_cache: HashMap<String, Vec<PeersCacheItem>>,
+}
+
+/// One cached resolution of a non-pure subtree.
+///
+/// `dep_path` is the value [`Walker::resolve_node`] would otherwise
+/// recompute. `resolved_peers` is the external peer set (excluding
+/// peers satisfied by this node's own children) — [`Walker::find_hit`]
+/// uses it as the cache-match key against the current parent context.
+/// `missing_peers` is the set of unmet peer requirements the original
+/// walk surfaced — when a cache item carries a missing peer that the
+/// current parent context *does* provide, the contexts are
+/// incompatible and the item must be rejected.
+struct PeersCacheItem {
+    dep_path: DepPath,
+    resolved_peers: HashMap<String, NodeId>,
+    missing_peers: HashMap<String, MissingPeerInfo>,
 }
 
 /// One `parent → peer` edge whose peer target wasn't walked yet at the
@@ -280,16 +339,34 @@ impl<'tree> Walker<'tree> {
         parent_chain_names: &[String],
         depth: i32,
     ) -> NodeOutput {
-        if let Some(existing) = self.node_dep_paths.get(&node_id).cloned() {
-            return NodeOutput {
-                dep_path: existing,
-                external_resolved_peers: self
-                    .node_external_peers
-                    .get(&node_id)
-                    .cloned()
-                    .unwrap_or_default(),
-                missing_peers: self.node_missing_peers.get(&node_id).cloned().unwrap_or_default(),
-            };
+        // `purePkgs` fast-path. When the subtree below this
+        // `pkgIdWithPatchHash` resolved with zero external peers and
+        // zero missing peers on a previous walk, AND this package
+        // itself declares no `peerDependencies`, the `depPath` is the
+        // bare `pkgIdWithPatchHash` regardless of parent context.
+        // Skip recursion entirely. Mirrors upstream's
+        // [`purePkgs` short-circuit](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L398-L406).
+        //
+        // The pkg lookup happens before the existing in-progress
+        // gate because: a re-entry on this same `NodeId` while it's
+        // still on the call stack is a cycle (handled below); a
+        // re-entry on a `NodeId` that's done and pure is exactly what
+        // this fast-path should catch. The unconditional clone
+        // mirrors the post-`in_progress` clone the rest of the
+        // function already does — peer resolution is single-threaded
+        // and the clones are cheap.
+        if self.tree.dependencies_tree.contains_key(&node_id) {
+            let tree_node = &self.tree.dependencies_tree[&node_id];
+            let pkg = &self.tree.packages[&tree_node.resolved_package_id];
+            if self.pure_pkgs.contains(&pkg.id) && pkg.peer_dependencies.is_empty() {
+                let dep_path = DepPath::from(pkg.id.clone());
+                self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
+                return NodeOutput {
+                    dep_path,
+                    external_resolved_peers: HashMap::new(),
+                    missing_peers: HashMap::new(),
+                };
+            }
         }
 
         if self.in_progress.contains(&node_id) {
@@ -347,6 +424,43 @@ impl<'tree> Walker<'tree> {
 
         let mut child_chain_names: Vec<String> = parent_chain_names.to_vec();
         child_chain_names.push(pkg_name.clone());
+
+        // `peersCache` lookup. When an earlier walk of this same
+        // `pkgIdWithPatchHash` produced a result whose resolved-peer
+        // map and missing-peer set are compatible with the current
+        // parent peer context, reuse the cached `depPath` and external
+        // peer/missing maps without recursing. Mirrors upstream's
+        // [`findHit` call](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L441-L467).
+        //
+        // The cache lookup uses `child_parent_refs` (the augmented
+        // view) because a node's own children count as parents for
+        // its own descendants' peer resolution.
+        if let Some(cached) = self.find_hit(&child_parent_refs, &pkg.id) {
+            let dep_path = cached.dep_path.clone();
+            let resolved = cached.resolved_peers.clone();
+            let missing = cached.missing_peers.clone();
+            // Re-emit the missing-peer issues against the current
+            // parent chain so each occurrence of the package shows up
+            // in the diagnostic, mirroring upstream's behaviour at the
+            // cache-hit branch. Without this, the first walk's parent
+            // chain would be the only one ever reported.
+            for (peer_name, info) in &missing {
+                self.issues.missing.entry(peer_name.clone()).or_default().push(MissingPeer {
+                    wanted_range: info.range.clone(),
+                    optional: info.optional,
+                    parents: parents_from_chain(parent_chain_names, &pkg_name),
+                });
+            }
+            self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
+            self.node_external_peers.insert(node_id.clone(), resolved.clone());
+            self.node_missing_peers.insert(node_id.clone(), missing.clone());
+            self.in_progress.remove(&node_id);
+            return NodeOutput {
+                dep_path,
+                external_resolved_peers: resolved,
+                missing_peers: missing,
+            };
+        }
 
         // Recurse into children first (post-order). Collect each child's
         // depPath and the external peers / missing peers they propagate
@@ -480,6 +594,23 @@ impl<'tree> Walker<'tree> {
 
         let is_pure = all_resolved_peers.is_empty() && all_missing_peers.is_empty();
 
+        // Record this walk's outcome in the per-`pkgIdWithPatchHash`
+        // caches. Pure subtrees go in [`Self::pure_pkgs`] for the
+        // fast-path early return at the top of [`resolve_node`];
+        // non-pure subtrees push a [`PeersCacheItem`] so a future
+        // visit with a compatible parent context can short-circuit
+        // via [`Self::find_hit`]. Mirrors upstream's
+        // [post-walk cache-population block](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L507-L522).
+        if is_pure {
+            self.pure_pkgs.insert(pkg.id.clone());
+        } else {
+            self.peers_cache.entry(pkg.id.clone()).or_default().push(PeersCacheItem {
+                dep_path: dep_path.clone(),
+                resolved_peers: all_resolved_peers.clone(),
+                missing_peers: all_missing_peers.clone(),
+            });
+        }
+
         // Multiple visits with the same depPath collapse onto the same
         // graph entry. Upstream takes the entry with the smallest
         // `depth` when there's a conflict; pacquet ports the same
@@ -588,6 +719,63 @@ impl<'tree> Walker<'tree> {
         let pkg = &self.tree.packages[&tree_node.resolved_package_id];
         let (name, version) = pkg_name_version(&pkg.result);
         PeerId::Pair { name, version }
+    }
+
+    /// Look up [`Self::peers_cache`] for a cached resolution of
+    /// `pkg_id` whose parent peer context is compatible with the
+    /// current `parent_refs`. Mirrors upstream's
+    /// [`findHit`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L660-L699).
+    ///
+    /// A cache item matches when:
+    ///
+    /// - **Every resolved peer in the cache** has a counterpart in
+    ///   the current `parent_refs` map: same `NodeId`, or a `NodeId`
+    ///   that points at a package with the same `pkgIdWithPatchHash`
+    ///   in the dependencies tree. A `name` present in the cached
+    ///   `resolved_peers` but absent from `parent_refs` (or with
+    ///   no `node_id`) disqualifies the item.
+    /// - **No missing peer in the cache** is satisfied by the
+    ///   current `parent_refs`. If the cache recorded "peer `X` is
+    ///   missing" and now `parent_refs[X]` exists, the contexts
+    ///   diverge and the cached `depPath` is wrong for this walk.
+    ///
+    /// Returns a reference into the bucket so the caller can clone
+    /// the fields it needs (a separate borrow checker round trip).
+    /// **Simplified port:** upstream's `parentPackagesMatch` deep
+    /// check — confirming that the *peer's own ancestors* match
+    /// between the cached walk and the current one — is not yet
+    /// ported. See pnpm/pnpm#11907 and the doc comment on
+    /// [`Walker::peers_cache`] for the implications.
+    fn find_hit(&self, parent_refs: &ParentRefs, pkg_id: &str) -> Option<&PeersCacheItem> {
+        let cache_items = self.peers_cache.get(pkg_id)?;
+        cache_items.iter().find(|item| {
+            for (name, cached_node_id) in &item.resolved_peers {
+                let Some(current_ref) = parent_refs.get(name) else { return false };
+                let Some(current_node_id) = current_ref.node_id.as_ref() else { return false };
+                if current_node_id == cached_node_id {
+                    continue;
+                }
+                // Different `NodeId`s — check whether they at least
+                // point to packages with the same `pkgIdWithPatchHash`.
+                let cached_tree_node = match self.tree.dependencies_tree.get(cached_node_id) {
+                    Some(node) => node,
+                    None => return false,
+                };
+                let current_tree_node = match self.tree.dependencies_tree.get(current_node_id) {
+                    Some(node) => node,
+                    None => return false,
+                };
+                if cached_tree_node.resolved_package_id != current_tree_node.resolved_package_id {
+                    return false;
+                }
+            }
+            for missing_name in item.missing_peers.keys() {
+                if parent_refs.contains_key(missing_name) {
+                    return false;
+                }
+            }
+            true
+        })
     }
 }
 
