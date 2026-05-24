@@ -189,8 +189,8 @@ struct Walker<'tree> {
     /// short-circuits with `depPath = pkgIdWithPatchHash` — no
     /// recursion, no peersCache lookup. Mirrors upstream's
     /// [`purePkgs` early-return](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L398-L406).
-    /// Populated bottom-up: a node is added when [`is_pure`] is true
-    /// after its own walk completes.
+    /// Populated bottom-up: a node is added when its local `is_pure`
+    /// flag is true after its own walk completes.
     pure_pkgs: HashSet<String>,
     /// Per-`pkgIdWithPatchHash` cached results from earlier walks of
     /// non-pure subtrees. Each cache item records the `depPath`, the
