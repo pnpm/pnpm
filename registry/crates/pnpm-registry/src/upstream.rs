@@ -1,14 +1,21 @@
-use std::time::Duration;
+use std::sync::Arc;
 
+use pacquet_network::ThrottledClient;
 use reqwest::StatusCode;
 use serde_json::Value;
 
 use crate::error::{RegistryError, Result};
 use crate::package_name::PackageName;
 
+/// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
+/// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,
+/// pool/timeout tuning, concurrency semaphore, and per-registry TLS
+/// routing if it's ever wired in later) and adds the small bit of
+/// glue specific to a proxy: building the upstream URL, fishing the
+/// packument out of the response, and rewriting `dist.tarball`.
 #[derive(Debug, Clone)]
 pub struct Upstream {
-    client: reqwest::Client,
+    client: Arc<ThrottledClient>,
     base: String,
     public_url: String,
 }
@@ -22,13 +29,8 @@ pub enum FetchOutcome<T> {
 }
 
 impl Upstream {
-    pub fn new(base: String, public_url: String) -> Result<Self> {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .user_agent(concat!("pnpm-registry/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|source| RegistryError::Upstream { url: base.clone(), source })?;
-        Ok(Self { client, base, public_url })
+    pub fn new(base: String, public_url: String) -> Self {
+        Self { client: Arc::new(ThrottledClient::new_for_installs()), base, public_url }
     }
 
     /// Fetch a packument from the upstream and rewrite every
@@ -36,20 +38,10 @@ impl Upstream {
     /// The rewritten JSON is what gets cached and served.
     pub async fn fetch_packument(&self, name: &PackageName) -> Result<FetchOutcome<Vec<u8>>> {
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(FetchOutcome::NotFound);
-        }
-        let response = check_status(response, &url).await?;
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        let bytes = match self.fetch(&url).await? {
+            FetchOutcome::Ok(bytes) => bytes,
+            FetchOutcome::NotFound => return Ok(FetchOutcome::NotFound),
+        };
         let mut json: Value = serde_json::from_slice(&bytes)?;
         rewrite_tarball_urls(&mut json, &self.base, &self.public_url);
         Ok(FetchOutcome::Ok(serde_json::to_vec(&json)?))
@@ -60,21 +52,25 @@ impl Upstream {
         name: &PackageName,
         filename: &str,
     ) -> Result<FetchOutcome<Vec<u8>>> {
-        let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename,);
-        let response = self
-            .client
-            .get(&url)
+        let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
+        self.fetch(&url).await
+    }
+
+    async fn fetch(&self, url: &str) -> Result<FetchOutcome<Vec<u8>>> {
+        let client = self.client.acquire_for_url(url).await;
+        let response = client
+            .get(url)
             .send()
             .await
-            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+            .map_err(|source| RegistryError::Upstream { url: url.to_string(), source })?;
         if response.status() == StatusCode::NOT_FOUND {
             return Ok(FetchOutcome::NotFound);
         }
-        let response = check_status(response, &url).await?;
+        let response = check_status(response, url).await?;
         let bytes = response
             .bytes()
             .await
-            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+            .map_err(|source| RegistryError::Upstream { url: url.to_string(), source })?;
         Ok(FetchOutcome::Ok(bytes.to_vec()))
     }
 }

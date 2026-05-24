@@ -10,7 +10,7 @@ use tower_http::trace::TraceLayer;
 
 use crate::cache::Cache;
 use crate::config::Config;
-use crate::error::{RegistryError, Result};
+use crate::error::RegistryError;
 use crate::package_name::PackageName;
 use crate::upstream::{FetchOutcome, Upstream};
 
@@ -27,23 +27,23 @@ struct AppInner {
 
 /// Build the axum [`Router`] for the registry. Exposed for tests and
 /// for callers that want to drive the app without binding a TCP socket.
-pub fn router(config: Config) -> Result<Router> {
+pub fn router(config: Config) -> Router {
     let cache = Cache::new(config.cache_dir.clone());
-    let upstream = Upstream::new(config.upstream.clone(), config.public_url.clone())?;
+    let upstream = Upstream::new(config.upstream.clone(), config.public_url.clone());
     let state = AppState { inner: Arc::new(AppInner { cache, upstream, config }) };
-    Ok(Router::new()
+    Router::new()
         .route("/{name}", get(get_packument_unscoped))
         .route("/{scope}/{name}", get(get_packument_scoped))
         .route("/{name}/-/{filename}", get(get_tarball_unscoped))
         .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
         .layer(TraceLayer::new_for_http())
-        .with_state(state))
+        .with_state(state)
 }
 
 /// Bind to `config.listen` and serve forever.
-pub async fn serve(config: Config) -> Result<()> {
+pub async fn serve(config: Config) -> crate::error::Result<()> {
     let listen = config.listen;
-    let app = router(config)?;
+    let app = router(config);
     let listener = tokio::net::TcpListener::bind(listen).await?;
     tracing::info!(%listen, "pnpm-registry listening");
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
@@ -94,7 +94,7 @@ async fn get_tarball_scoped(
 async fn serve_packument(state: &AppState, raw_name: &str) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(StatusCode::BAD_REQUEST, &err),
+        Err(err) => return error_response(&err),
     };
 
     let ttl = state.inner.config.packument_ttl;
@@ -116,8 +116,8 @@ async fn serve_packument(state: &AppState, raw_name: &str) -> Response {
             tracing::warn!(?err, package = %name.as_str(), "upstream packument fetch failed");
             match state.inner.cache.read_packument_any_age(&name).await {
                 Ok(Some(bytes)) => packument_response(bytes),
-                Ok(None) => error_response(StatusCode::BAD_GATEWAY, &err),
-                Err(cache_err) => error_response(StatusCode::BAD_GATEWAY, &cache_err),
+                Ok(None) => error_response(&err),
+                Err(cache_err) => error_response(&cache_err),
             }
         }
     }
@@ -126,10 +126,10 @@ async fn serve_packument(state: &AppState, raw_name: &str) -> Response {
 async fn serve_tarball(state: &AppState, raw_name: &str, filename: &str) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
-        Err(err) => return error_response(StatusCode::BAD_REQUEST, &err),
+        Err(err) => return error_response(&err),
     };
     if let Err(err) = name.validate_tarball_name(filename) {
-        return error_response(StatusCode::BAD_REQUEST, &err);
+        return error_response(&err);
     }
 
     match state.inner.cache.read_tarball(&name, filename).await {
@@ -148,7 +148,7 @@ async fn serve_tarball(state: &AppState, raw_name: &str, filename: &str) -> Resp
             tarball_response(bytes)
         }
         Ok(FetchOutcome::NotFound) => not_found(),
-        Err(err) => error_response(StatusCode::BAD_GATEWAY, &err),
+        Err(err) => error_response(&err),
     }
 }
 
@@ -172,7 +172,8 @@ fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "Not Found").into_response()
 }
 
-fn error_response(status: StatusCode, err: &RegistryError) -> Response {
-    tracing::error!(%err, "request failed");
+fn error_response(err: &RegistryError) -> Response {
+    let status = err.status_code();
+    tracing::error!(%err, %status, "request failed");
     (status, err.to_string()).into_response()
 }

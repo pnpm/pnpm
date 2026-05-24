@@ -50,7 +50,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.public_url = "http://example.test".to_string();
-    let app = router(config).unwrap();
+    let app = router(config);
 
     let response =
         app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -82,7 +82,7 @@ async fn scoped_packument_is_served() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf())).unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response =
         app.oneshot(Request::get("/@types/node").body(Body::empty()).unwrap()).await.unwrap();
@@ -104,7 +104,7 @@ async fn tarball_is_proxied_and_cached() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf())).unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let first = app
         .clone()
@@ -136,7 +136,7 @@ async fn upstream_404_is_propagated() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf())).unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response =
         app.oneshot(Request::get("/missing").body(Body::empty()).unwrap()).await.unwrap();
@@ -144,10 +144,41 @@ async fn upstream_404_is_propagated() {
 }
 
 #[tokio::test]
+async fn upstream_5xx_maps_to_bad_gateway() {
+    let mut upstream = mockito::Server::new_async().await;
+    let _mock =
+        upstream.mock("GET", "/broken").with_status(500).with_body("kaboom").create_async().await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let response = app.oneshot(Request::get("/broken").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+}
+
+#[tokio::test]
+async fn unreachable_upstream_maps_to_service_unavailable() {
+    // Bind a TCP listener and immediately drop it so the port is
+    // (very likely) free; pointing the registry at a port nothing is
+    // listening on exercises the `is_connect()` branch of the status
+    // mapping without depending on DNS.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let dead_port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let dead_upstream = format!("http://127.0.0.1:{dead_port}");
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&dead_upstream, tmp.path().to_path_buf()));
+
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
 async fn tarball_filename_for_other_package_is_rejected() {
     let upstream = mockito::Server::new_async().await;
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf())).unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/foo/-/bar-1.0.0.tgz").body(Body::empty()).unwrap())

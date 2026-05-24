@@ -2982,6 +2982,7 @@ dependencies = [
  "futures-util",
  "miette 7.6.0",
  "mockito",
+ "pacquet-network",
  "reqwest",
  "serde",
  "serde_json",

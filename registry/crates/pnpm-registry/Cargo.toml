@@ -19,6 +19,7 @@ name = "pnpm-registry"
 path = "src/main.rs"
 
 [dependencies]
+pacquet-network    = { workspace = true }
 axum               = { workspace = true }
 clap               = { workspace = true }
 derive_more        = { workspace = true }
