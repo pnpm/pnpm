@@ -477,11 +477,18 @@ async fn publish_package(
     };
 
     // Validate attachment filenames against the package name so a
-    // crafted payload can't write `../../etc/passwd.tgz`.
-    for attachment in &attachments {
-        if let Err(err) = name.validate_tarball_name(&attachment.filename) {
-            return error_response(&err);
-        }
+    // crafted payload can't write `../../etc/passwd.tgz`. The
+    // canonical name is what we actually persist — for scoped
+    // libnpmpublish bodies the wire form is `@scope/name-version.tgz`
+    // but on disk it lives at `<root>/@scope/name/name-version.tgz`,
+    // matching what `serve_tarball` expects.
+    let mut canonical_attachments = Vec::with_capacity(attachments.len());
+    for attachment in attachments {
+        let canonical = match name.canonicalize_tarball_name(&attachment.filename) {
+            Ok(canonical) => canonical,
+            Err(err) => return error_response(&err),
+        };
+        canonical_attachments.push((canonical, attachment.bytes));
     }
 
     let existing_bytes = match state.inner.cache.read_packument_any_age(&name).await {
@@ -503,12 +510,12 @@ async fn publish_package(
     // we never wrote the tarball, the registry will 404 anyway.
     // Doing tarballs first avoids the symmetric race where the
     // packument advertises a tarball that isn't on disk yet.
-    for attachment in attachments {
-        let tmp = match state.inner.cache.open_tarball_tmp(&name, &attachment.filename).await {
+    for (filename, bytes) in canonical_attachments {
+        let tmp = match state.inner.cache.open_tarball_tmp(&name, &filename).await {
             Ok(t) => t,
             Err(err) => return error_response(&err),
         };
-        if let Err(err) = write_tarball_bytes(tmp, &attachment.bytes).await {
+        if let Err(err) = write_tarball_bytes(tmp, &bytes).await {
             return error_response(&err);
         }
     }

@@ -407,6 +407,76 @@ async fn publish_supports_scoped_packages() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
+/// `libnpmpublish` (the library `pnpm publish` / `npm publish` use under
+/// the hood) names the `_attachments` key by the full package name —
+/// for `@scope/name` that's `@scope/name-1.0.0.tgz`, with a literal `/`
+/// in the filename. The server has to accept that shape and normalize
+/// it to the canonical `<basename>-<version>.tgz` form on disk, otherwise
+/// `pnpm publish` against pnpm-registry fails with 400 for every scoped
+/// package — see `recursivePublish.ts` in `@pnpm/releasing.commands`.
+#[tokio::test]
+async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let bytes = b"libnpmpublish-form";
+    let pkg = "@pnpmtest/lib-pub-form";
+    let version = "1.0.0";
+    // _attachments key is the FULL scoped name + version, NOT the basename.
+    let scoped_filename = format!("{pkg}-{version}.tgz");
+    let body = json!({
+        "_id": pkg,
+        "name": pkg,
+        "dist-tags": { "latest": version },
+        "versions": {
+            version: {
+                "name": pkg,
+                "version": version,
+                "dist": {
+                    "tarball": format!("http://localhost:4873/{pkg}/-/lib-pub-form-{version}.tgz"),
+                    "shasum": "deadbeef",
+                    "integrity": "sha512-abcdef==",
+                },
+            },
+        },
+        "_attachments": {
+            scoped_filename: {
+                "content_type": "application/octet-stream",
+                "data": BASE64.encode(bytes),
+                "length": bytes.len(),
+            },
+        },
+    });
+    let request = Request::put(format!("/{pkg}"))
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // On disk: canonical `<basename>-<version>.tgz` path, NOT the
+    // scoped form. That's where serve_tarball looks.
+    let on_disk = storage.join("@pnpmtest/lib-pub-form/lib-pub-form-1.0.0.tgz");
+    assert!(on_disk.exists(), "tarball should be persisted at canonical path");
+    assert_eq!(std::fs::read(&on_disk).unwrap(), bytes);
+
+    // And it serves back via the spec URL form.
+    let served = app
+        .oneshot(
+            Request::get("/@pnpmtest/lib-pub-form/-/lib-pub-form-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(served.status(), StatusCode::OK);
+    let served_bytes = body_bytes(served.into_body()).await;
+    assert_eq!(served_bytes, bytes);
+}
+
 fn sample_publish_body(name: &str, version: &str, tarball: &[u8]) -> Value {
     let basename = name.rsplit('/').next().unwrap_or(name);
     let filename = format!("{basename}-{version}.tgz");
