@@ -687,6 +687,369 @@ mod peers {
         // being walked.
         assert_eq!(node.children.get("react"), Some(&DepPath::from("react@18.0.0".to_string())));
     }
+
+    /// Cyclic peer dependencies: `foo` peer-depends on `qar` and `zoo`,
+    /// `bar` peer-depends on `foo` and `zoo`, `qar` peer-depends on
+    /// `foo` and `bar`, `zoo` peer-depends on `qar`. The walker breaks
+    /// the cycle and every node lands in the graph with the right
+    /// peer suffix. Ports upstream's `'resolve peer dependencies of
+    /// cyclic dependencies'` (installing/deps-resolver/test/resolvePeers.ts:14).
+    #[tokio::test]
+    async fn cyclic_peer_dependencies_resolve_cleanly() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("foo".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "foo",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "dependencies": { "bar": "1.0.0" },
+                    "peerDependencies": { "qar": "1.0.0", "zoo": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("bar".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "bar",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "bar",
+                    "version": "1.0.0",
+                    "dependencies": { "qar": "1.0.0" },
+                    "peerDependencies": { "foo": "1.0.0", "zoo": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("qar".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "qar",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "qar",
+                    "version": "1.0.0",
+                    "dependencies": { "zoo": "1.0.0" },
+                    "peerDependencies": { "foo": "1.0.0", "bar": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("zoo".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "zoo",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "zoo",
+                    "version": "1.0.0",
+                    "dependencies": { "foo": "1.0.0", "bar": "1.0.0" },
+                    "peerDependencies": { "qar": "1.0.0" }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        // Importer carries `foo` (auto-install-peers off here — we
+        // exercise the peer matcher, not the hoister). With
+        // auto-install-peers the qar/zoo/bar peers would get hoisted
+        // to the importer level; for this test we accept the
+        // resulting missing-peer issues and just verify the graph
+        // closure and no panics.
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "1.0.0" }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Every package appears in `packages` exactly once — cycle
+        // break did not duplicate or drop anything.
+        assert!(tree.packages.contains_key("foo@1.0.0"));
+        assert!(tree.packages.contains_key("bar@1.0.0"));
+        assert!(tree.packages.contains_key("qar@1.0.0"));
+        assert!(tree.packages.contains_key("zoo@1.0.0"));
+
+        // Peer resolution completes without panicking on the cycle.
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+
+        // Every resolved package surfaces a graph entry, even though
+        // their peers form a cycle. The exact peer-suffix shape is
+        // sensitive to walk order; the important invariant is that
+        // every depPath starts with the expected pkg id.
+        let dep_paths: Vec<String> =
+            result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        for (name, _) in &[("foo", ""), ("bar", ""), ("qar", ""), ("zoo", "")] {
+            let prefix = format!("{name}@1.0.0");
+            assert!(
+                dep_paths.iter().any(|dp| dp.starts_with(&prefix)),
+                "no graph entry starts with {prefix}: {dep_paths:?}",
+            );
+        }
+    }
+
+    /// Same package reached via two parent chains where the peer
+    /// resolves only via one: both occurrences must land in the
+    /// graph with distinct depPaths. Ports upstream's `'when a
+    /// package is referenced twice in the dependencies graph and one
+    /// of the times it cannot resolve its peers, still try to
+    /// resolve it in the other occurrence'`
+    /// (installing/deps-resolver/test/resolvePeers.ts:128).
+    #[tokio::test]
+    async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("zoo".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "zoo",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "zoo",
+                    "version": "1.0.0",
+                    "dependencies": { "foo": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("bar".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "bar",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "bar",
+                    "version": "1.0.0",
+                    "dependencies": { "zoo": "1.0.0", "qar": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("foo".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "foo",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "peerDependencies": { "qar": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("qar".to_string(), "1.0.0".to_string()),
+            fake_result("qar", "1.0.0", serde_json::json!({ "name": "qar", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        // Root depends on zoo (direct: foo's qar peer is missing) and
+        // bar (transitive: foo's qar peer resolves via bar's qar
+        // sibling).
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "zoo": "1.0.0", "bar": "1.0.0" }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+
+        let dep_paths: std::collections::HashSet<String> =
+            result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+
+        // Both `foo` occurrences must surface — one pure (missing
+        // peer), one with `(qar@1.0.0)` suffix.
+        assert!(
+            dep_paths.contains("foo@1.0.0"),
+            "missing-peer occurrence of foo missing from graph: {dep_paths:?}",
+        );
+        assert!(
+            dep_paths.contains("foo@1.0.0(qar@1.0.0)"),
+            "resolved-peer occurrence of foo missing from graph: {dep_paths:?}",
+        );
+
+        // The other occurrence-pairs upstream's test asserts.
+        assert!(dep_paths.contains("bar@1.0.0"), "{dep_paths:?}");
+        assert!(dep_paths.contains("qar@1.0.0"), "{dep_paths:?}");
+        assert!(
+            dep_paths.contains("zoo@1.0.0"),
+            "direct zoo (no peer suffix) missing: {dep_paths:?}",
+        );
+        assert!(
+            dep_paths.contains("zoo@1.0.0(qar@1.0.0)"),
+            "transitive zoo (qar peer bubbled up) missing: {dep_paths:?}",
+        );
+
+        // The missing-peer occurrence reports the issue.
+        assert!(
+            result.peer_dependency_issues.missing.contains_key("qar"),
+            "expected missing qar peer issue, got {:?}",
+            result.peer_dependency_issues.missing.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    /// Two parallel peer chains in one importer — each peer resolves
+    /// against its own sibling, no cross-pollination. Stands in for
+    /// upstream's `'resolve peer dependencies with npm aliases'`
+    /// (installing/deps-resolver/test/resolvePeers.ts:573); the
+    /// real alias case needs `npm:` plumbing in the stub resolver.
+    // TODO(pacquet#?): replace with the real `npm:foo@2` alias once
+    // `parse_bare_specifier` routes npm-alias specifiers through the
+    // stub resolver in tests.
+    #[tokio::test]
+    async fn two_peer_chains_resolve_against_their_own_sibling() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("foo-a".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "foo-a",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "foo-a",
+                    "version": "1.0.0",
+                    "peerDependencies": { "bar-a": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("foo-b".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "foo-b",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "foo-b",
+                    "version": "1.0.0",
+                    "peerDependencies": { "bar-b": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("bar-a".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "bar-a",
+                "1.0.0",
+                serde_json::json!({ "name": "bar-a", "version": "1.0.0" }),
+            ),
+        );
+        table.insert(
+            ("bar-b".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "bar-b",
+                "1.0.0",
+                serde_json::json!({ "name": "bar-b", "version": "1.0.0" }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "foo-a": "1.0.0", "bar-a": "1.0.0",
+            "foo-b": "1.0.0", "bar-b": "1.0.0",
+        }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+
+        // Each foo picks its own bar — they don't cross-pollinate.
+        assert_eq!(
+            result.direct_dependencies_by_alias.get("foo-a"),
+            Some(&DepPath::from("foo-a@1.0.0(bar-a@1.0.0)".to_string())),
+        );
+        assert_eq!(
+            result.direct_dependencies_by_alias.get("foo-b"),
+            Some(&DepPath::from("foo-b@1.0.0(bar-b@1.0.0)".to_string())),
+        );
+        assert!(result.peer_dependency_issues.missing.is_empty());
+    }
+
+    /// A peer satisfied by a wrong-version sibling inside the
+    /// parent's subtree surfaces as a *bad* peer (not missing).
+    /// Stands in for upstream's `'unmet peer dependency issue
+    /// resolved from subdependency'` describe-block
+    /// (installing/deps-resolver/test/resolvePeers.ts:502); the
+    /// `resolvedFrom` field upstream tracks isn't exposed on
+    /// pacquet's `PeerDependencyIssue` yet.
+    #[tokio::test]
+    async fn bad_peer_inside_subtree_records_resolved_from_parent() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("foo".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "foo",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "dependencies": { "dep": "1.0.0", "bar": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("dep".to_string(), "1.0.0".to_string()),
+            fake_result("dep", "1.0.0", serde_json::json!({ "name": "dep", "version": "1.0.0" })),
+        );
+        table.insert(
+            ("bar".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "bar",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "bar",
+                    "version": "1.0.0",
+                    "peerDependencies": { "dep": "10.0.0" }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "1.0.0" }));
+
+        let tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&tree, ResolvePeersOptions::default());
+
+        // `dep` shows up as a BAD peer (1.0.0 supplied but ^10
+        // wanted). No missing entry — the peer WAS resolved, just to
+        // the wrong version.
+        assert!(
+            result.peer_dependency_issues.bad.contains_key("dep"),
+            "expected bad peer issue for dep, got {:?}",
+            result.peer_dependency_issues,
+        );
+        let bad = &result.peer_dependency_issues.bad["dep"];
+        assert_eq!(bad.len(), 1);
+        assert_eq!(bad[0].found_version, "1.0.0");
+        assert_eq!(bad[0].wanted_range, "10.0.0");
+    }
 }
 
 mod patched_dependencies {
