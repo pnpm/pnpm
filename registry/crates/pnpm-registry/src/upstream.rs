@@ -88,35 +88,62 @@ async fn check_status(response: reqwest::Response, url: &str) -> Result<reqwest:
     Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
 }
 
-/// Rewrite every `versions[v].dist.tarball` in `value` to a URL
-/// served by *this* registry instead of whatever URL the source put
-/// there. The new URL is `{public_url}/{pkg}/-/{basename}`, where
-/// `basename` is the last `/`-separated segment of the original
-/// tarball URL. This handles both npm's canonical
-/// `/{pkg}/-/{basename}` shape and verdaccio's
-/// `/{scope}/{name}/-/{scope}/{filename}` shape uniformly — we only
-/// look at the basename, never at the path prefix.
+/// Rewrite every `dist.tarball` in `value` to a URL served by *this*
+/// registry instead of whatever URL the source put there. The new
+/// URL is `{public_url}/{pkg}/-/{basename}`, where `basename` is the
+/// last `/`-separated segment of the original tarball URL. This
+/// handles both npm's canonical `/{pkg}/-/{basename}` shape and
+/// verdaccio's `/{scope}/{name}/-/{scope}/{filename}` shape uniformly
+/// — we only look at the basename, never at the path prefix.
+///
+/// Walks both packument shape (`{ "versions": { v: { dist: ... } } }`)
+/// and single-version manifest shape (`{ dist: ... }` at the top
+/// level) so a single helper covers both endpoints.
 pub fn rewrite_tarball_urls(value: &mut Value, pkg: &PackageName, public_url: &str) {
     let public_url = public_url.trim_end_matches('/');
-    let Some(versions) = value.get_mut("versions").and_then(Value::as_object_mut) else {
+    if let Some(versions) = value.get_mut("versions").and_then(Value::as_object_mut) {
+        for version in versions.values_mut() {
+            rewrite_dist_tarball(version, pkg, public_url);
+        }
+    }
+    rewrite_dist_tarball(value, pkg, public_url);
+}
+
+fn rewrite_dist_tarball(value: &mut Value, pkg: &PackageName, public_url: &str) {
+    let Some(dist) = value.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
-    for version in versions.values_mut() {
-        let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
-            continue;
-        };
-        let Some(tarball_value) = dist.get_mut("tarball") else { continue };
-        let Some(basename) = tarball_value.as_str().and_then(|url| url.rsplit('/').next()) else {
-            continue;
-        };
-        let new_url = format!("{public_url}/{}/-/{basename}", pkg.as_str());
-        *tarball_value = Value::String(new_url);
-    }
+    let Some(tarball_value) = dist.get_mut("tarball") else { return };
+    let Some(basename) = tarball_value.as_str().and_then(|url| url.rsplit('/').next()) else {
+        return;
+    };
+    *tarball_value = Value::String(format!("{public_url}/{}/-/{basename}", pkg.as_str()));
+}
+
+/// Look up the version manifest for `version_or_tag` inside a parsed
+/// packument: if the string matches a dist-tag it resolves through
+/// `dist-tags[tag]` first, otherwise it's taken as a literal version.
+/// Returns the version's manifest *with* the `dist.tarball` rewritten
+/// to point at this server.
+pub fn extract_version_manifest(
+    packument: &Value,
+    pkg: &PackageName,
+    version_or_tag: &str,
+    public_url: &str,
+) -> Option<Value> {
+    let resolved = packument
+        .get("dist-tags")
+        .and_then(|tags| tags.get(version_or_tag))
+        .and_then(Value::as_str)
+        .unwrap_or(version_or_tag);
+    let mut manifest = packument.get("versions")?.get(resolved)?.clone();
+    rewrite_tarball_urls(&mut manifest, pkg, public_url);
+    Some(manifest)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::rewrite_tarball_urls;
+    use super::{extract_version_manifest, rewrite_tarball_urls};
     use crate::package_name::PackageName;
     use serde_json::json;
 
@@ -170,5 +197,50 @@ mod tests {
         let name = PackageName::parse("foo").unwrap();
         rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:4873");
         assert_eq!(doc, json!({ "name": "foo" }));
+    }
+
+    #[test]
+    fn extracts_version_by_dist_tag() {
+        let doc = json!({
+            "name": "@foo/no-deps",
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": {
+                "1.0.0": {
+                    "name": "@foo/no-deps",
+                    "version": "1.0.0",
+                    "dist": {
+                        "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-1.0.0.tgz",
+                        "shasum": "abc"
+                    }
+                }
+            }
+        });
+        let name = PackageName::parse("@foo/no-deps").unwrap();
+        let manifest = extract_version_manifest(&doc, &name, "latest", "http://reg").unwrap();
+        assert_eq!(manifest["version"], "1.0.0");
+        assert_eq!(manifest["dist"]["tarball"], "http://reg/@foo/no-deps/-/no-deps-1.0.0.tgz");
+        assert_eq!(manifest["dist"]["shasum"], "abc");
+    }
+
+    #[test]
+    fn extracts_version_by_literal_version() {
+        let doc = json!({
+            "name": "foo",
+            "versions": { "2.0.0": { "version": "2.0.0", "dist": { "tarball": "x/foo-2.0.0.tgz" } } }
+        });
+        let name = PackageName::parse("foo").unwrap();
+        let manifest = extract_version_manifest(&doc, &name, "2.0.0", "http://reg").unwrap();
+        assert_eq!(manifest["version"], "2.0.0");
+        assert_eq!(manifest["dist"]["tarball"], "http://reg/foo/-/foo-2.0.0.tgz");
+    }
+
+    #[test]
+    fn extract_returns_none_for_unknown_version() {
+        let doc = json!({
+            "versions": { "1.0.0": { "dist": { "tarball": "x/foo-1.0.0.tgz" } } }
+        });
+        let name = PackageName::parse("foo").unwrap();
+        assert!(extract_version_manifest(&doc, &name, "9.9.9", "http://reg").is_none());
+        assert!(extract_version_manifest(&doc, &name, "latest", "http://reg").is_none());
     }
 }

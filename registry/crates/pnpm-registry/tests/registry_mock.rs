@@ -120,6 +120,56 @@ async fn static_mode_returns_404_for_unknown_package() {
 }
 
 #[tokio::test]
+async fn serves_version_manifest_by_dist_tag() {
+    let storage = registry_mock_storage();
+    let app = router(static_config(storage));
+
+    let response = app
+        .oneshot(Request::get("/@foo/no-deps/latest").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let manifest: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(manifest["name"], "@foo/no-deps");
+    assert_eq!(manifest["version"], "1.0.0");
+    assert_eq!(
+        manifest["dist"]["tarball"],
+        format!("{PUBLIC_URL}/@foo/no-deps/-/no-deps-1.0.0.tgz"),
+    );
+    // The response is the single-version manifest, not the whole
+    // packument — `versions` shouldn't be there.
+    assert!(manifest.get("versions").is_none());
+}
+
+#[tokio::test]
+async fn serves_version_manifest_by_literal_version() {
+    let storage = registry_mock_storage();
+    let app = router(static_config(storage));
+
+    let response = app
+        .oneshot(Request::get("/@foo/no-deps/1.0.0").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let manifest: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(manifest["version"], "1.0.0");
+}
+
+#[tokio::test]
+async fn version_manifest_returns_404_for_unknown_version() {
+    let storage = registry_mock_storage();
+    let app = router(static_config(storage));
+
+    let response = app
+        .oneshot(Request::get("/@foo/no-deps/99.0.0").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
 async fn static_mode_returns_404_for_unknown_tarball() {
     let app = router(static_config(registry_mock_storage()));
 
