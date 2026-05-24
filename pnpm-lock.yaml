@@ -6,8 +6,8 @@ importers:
   .:
     configDependencies:
       '@pnpm/pacquet':
-        specifier: 0.2.3
-        version: 0.2.3
+        specifier: 0.2.7
+        version: 0.2.7
     packageManagerDependencies:
       '@pnpm/exe':
         specifier: 11.2.2
@@ -18,33 +18,33 @@ importers:
 
 packages:
 
-  '@pacquet/darwin-arm64@0.2.3':
-    resolution: {integrity: sha512-+1QssynqGxI6adXmh39iFMmoVtxVGN14/H2D3KCL6g4Wd1CQyru9XIYahUtT44DIRgzAA3yqFCNXTfneiEAPIQ==}
+  '@pacquet/darwin-arm64@0.2.7':
+    resolution: {integrity: sha512-mCUHdviHix79JfyaVI+Ol9tY4eKwF1gX5qUQJ3QugrOPHBwJehkbuxuRZThw6Vc+Q+d8YS+ttY7tkcKU6XlM4Q==}
     cpu: [arm64]
     os: [darwin]
 
-  '@pacquet/darwin-x64@0.2.3':
-    resolution: {integrity: sha512-dPBLAyoscXYNzcIiRldeG52e9iLrqqSbXCtJx3DGV8GUpRVh+AoVmTtL9+25fQx7+b0C5+5Kel6tLVuztaz0zA==}
+  '@pacquet/darwin-x64@0.2.7':
+    resolution: {integrity: sha512-TnnXtOaQS+sTv01lJMS2YN2MqHoI6RGJizuCb+5lBtcDXvE3FvjuqAzAYu1+eU2Um8wATMKicb5coXazd6C+dA==}
     cpu: [x64]
     os: [darwin]
 
-  '@pacquet/linux-arm64@0.2.3':
-    resolution: {integrity: sha512-wfQJOh+Clbwp4f6BChhibdnaQVjr/DM7wQkJEGjcbo3KYS6kf/w/jc3orQyvx5Rb7gwUEF7Rw/kLJrK1MorYBA==}
+  '@pacquet/linux-arm64@0.2.7':
+    resolution: {integrity: sha512-5W1wJ9/7XrRgbJEj//1r2nk3aGqN2ecRegVrHa8rhe+A35BD5ZyGB5wXwn0aQ7BPVBlGoaQH6N7zEW6eg+kTjg==}
     cpu: [arm64]
     os: [linux]
 
-  '@pacquet/linux-x64@0.2.3':
-    resolution: {integrity: sha512-UUxHMXIHiDRANCGsctQe+P8sCED6NCjowjZwggIyeyoZE/O5hdyhm5H42hIBa3AUcdjWapl0ZT6Uq/DBj7M0fg==}
+  '@pacquet/linux-x64@0.2.7':
+    resolution: {integrity: sha512-0/dpQu9gdRGa00TJgfPWb9NR9O1c8FdkhuNkqyvzODGFyDa3xSSM5MkB55m5tb4NKGc2V5vXXdN09QRgKojLrQ==}
     cpu: [x64]
     os: [linux]
 
-  '@pacquet/win32-arm64@0.2.3':
-    resolution: {integrity: sha512-cjgHfHPDwRkbvzwk4rA3cJ10Uq/qztTI0UYs+lfk8Ax9zY8NnORRrp2M8XvQibZDpgdUT3J3a+tY66S7bwgorg==}
+  '@pacquet/win32-arm64@0.2.7':
+    resolution: {integrity: sha512-xkW7ePgHAZAhNKkhysuVaBGj+h/3nQpF2WbPtK2i5JmSjlQ5nPgG7j3yIzrr2AEHIJJ+QfOjxirGfEm4NqlpoA==}
     cpu: [arm64]
     os: [win32]
 
-  '@pacquet/win32-x64@0.2.3':
-    resolution: {integrity: sha512-U0DzrwKfeSt6GulCEVJdDPdH8WMpUw94RERMlCJVtUCOGBmCbQTAMsk02Frtq30dmIXZLpgkCY2vn94xOSqjGg==}
+  '@pacquet/win32-x64@0.2.7':
+    resolution: {integrity: sha512-oGHFpYeqpQcOwdjdRsPLVOPD+eq/xDu6qi28uhR2IQ0WamSwzyHwtQyRjNMdn0tQp2ndoRFofRO++ulAHWZ4bg==}
     cpu: [x64]
     os: [win32]
 
@@ -79,8 +79,8 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  '@pnpm/pacquet@0.2.3':
-    resolution: {integrity: sha512-tWvHDG9w0/eKcrAy68mH3YdqMJTVPCw8ZeIKowdRkV5IEg35LyNA4YWgp8zmpbDHBYrjZU+0Vv97uM1gqHFTIg==}
+  '@pnpm/pacquet@0.2.7':
+    resolution: {integrity: sha512-ugYlHJSmvGDode/EmHSuc3vIECZ+fk9F/P5U8SBkE+GiOKx9YDmsYhXl1ObW9dbevfXEOj0iAwxDTQNx7SjW5A==}
 
   '@pnpm/win-arm64@11.2.2':
     resolution: {integrity: sha512-eXzlXAnwRAI9Uff1U2pfTJxC78vL8aGxU/fsUt/RzWjS09xMQZ2qtAunKg869fAi6xfsquDbogkdTZA3163lIw==}
@@ -159,22 +159,22 @@ packages:
 
 snapshots:
 
-  '@pacquet/darwin-arm64@0.2.3':
+  '@pacquet/darwin-arm64@0.2.7':
     optional: true
 
-  '@pacquet/darwin-x64@0.2.3':
+  '@pacquet/darwin-x64@0.2.7':
     optional: true
 
-  '@pacquet/linux-arm64@0.2.3':
+  '@pacquet/linux-arm64@0.2.7':
     optional: true
 
-  '@pacquet/linux-x64@0.2.3':
+  '@pacquet/linux-x64@0.2.7':
     optional: true
 
-  '@pacquet/win32-arm64@0.2.3':
+  '@pacquet/win32-arm64@0.2.7':
     optional: true
 
-  '@pacquet/win32-x64@0.2.3':
+  '@pacquet/win32-x64@0.2.7':
     optional: true
 
   '@pnpm/exe@11.2.2':
@@ -205,14 +205,14 @@ snapshots:
   '@pnpm/macos-arm64@11.2.2':
     optional: true
 
-  '@pnpm/pacquet@0.2.3':
+  '@pnpm/pacquet@0.2.7':
     optionalDependencies:
-      '@pacquet/darwin-arm64': 0.2.3
-      '@pacquet/darwin-x64': 0.2.3
-      '@pacquet/linux-arm64': 0.2.3
-      '@pacquet/linux-x64': 0.2.3
-      '@pacquet/win32-arm64': 0.2.3
-      '@pacquet/win32-x64': 0.2.3
+      '@pacquet/darwin-arm64': 0.2.7
+      '@pacquet/darwin-x64': 0.2.7
+      '@pacquet/linux-arm64': 0.2.7
+      '@pacquet/linux-x64': 0.2.7
+      '@pacquet/win32-arm64': 0.2.7
+      '@pacquet/win32-x64': 0.2.7
 
   '@pnpm/win-arm64@11.2.2':
     optional: true
@@ -891,7 +891,7 @@ catalogs:
       version: 1.6.4
     semver:
       specifier: ^7.7.2
-      version: 7.8.0
+      version: 7.8.1
     semver-range-intersect:
       specifier: ^0.3.1
       version: 0.3.1
@@ -1190,7 +1190,7 @@ importers:
         version: 3.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -1679,7 +1679,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
@@ -1871,7 +1871,7 @@ importers:
         version: 5.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@pnpm/building.after-install':
         specifier: workspace:*
@@ -2368,7 +2368,7 @@ importers:
         version: 7.8.2
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       stacktracey:
         specifier: 'catalog:'
         version: 2.2.0
@@ -2609,7 +2609,7 @@ importers:
         version: 10.2.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2747,7 +2747,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2793,7 +2793,7 @@ importers:
         version: link:../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2988,7 +2988,7 @@ importers:
         version: link:../../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3106,7 +3106,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3221,7 +3221,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3647,7 +3647,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3693,7 +3693,7 @@ importers:
         version: link:../../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       semver-range-intersect:
         specifier: 'catalog:'
         version: 0.3.1
@@ -3788,7 +3788,7 @@ importers:
         version: 3.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3819,7 +3819,7 @@ importers:
         version: link:../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3835,7 +3835,7 @@ importers:
     dependencies:
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@pnpm/deps.peer-range':
         specifier: workspace:*
@@ -4024,7 +4024,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
@@ -4091,7 +4091,7 @@ importers:
         version: link:../../../worker
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@pnpm/engine.runtime.bun-resolver':
         specifier: workspace:*
@@ -4171,7 +4171,7 @@ importers:
         version: link:../../../worker
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@pnpm/engine.runtime.deno-resolver':
         specifier: workspace:*
@@ -4202,7 +4202,7 @@ importers:
         version: link:../../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
@@ -5148,7 +5148,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -5818,7 +5818,7 @@ importers:
         version: 5.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -6038,7 +6038,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       semver-range-intersect:
         specifier: 'catalog:'
         version: 0.3.1
@@ -6313,7 +6313,7 @@ importers:
         version: 2.1.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
@@ -6595,7 +6595,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       ssri:
         specifier: 'catalog:'
         version: 13.0.1
@@ -6797,7 +6797,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -6907,7 +6907,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -7148,7 +7148,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
@@ -7516,7 +7516,7 @@ importers:
         version: 0.3.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       terminal-link:
         specifier: 'catalog:'
         version: 5.0.0
@@ -7583,7 +7583,7 @@ importers:
         version: link:../types
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -7673,7 +7673,7 @@ importers:
         version: link:../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -7993,7 +7993,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       split-cmd:
         specifier: 'catalog:'
         version: 1.1.0
@@ -8164,7 +8164,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -8339,7 +8339,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       tar-stream:
         specifier: 'catalog:'
         version: 3.2.0
@@ -8585,7 +8585,7 @@ importers:
         version: '@pnpm/hosted-git-info@1.0.0'
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -8741,7 +8741,7 @@ importers:
         version: 7.0.1
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       semver-utils:
         specifier: 'catalog:'
         version: 1.1.4
@@ -8809,7 +8809,7 @@ importers:
         version: link:../types
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -8910,7 +8910,7 @@ importers:
         version: 7.0.1
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -9484,7 +9484,7 @@ importers:
         version: 7.3.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -9850,7 +9850,7 @@ importers:
     dependencies:
       semver:
         specifier: 'catalog:'
-        version: 7.8.0
+        version: 7.8.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -11797,8 +11797,8 @@ packages:
     resolution: {integrity: sha512-NwCl5Y0V6Di0NexvkTqdoVfmjTaQwoLM236r89KEojGmq/jMls8S+zb7yOwAPdXvbwfKDlP+lmXgAL4vKSQT+A==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
-  '@sigstore/core@3.2.0':
-    resolution: {integrity: sha512-kxHrDQ9YgfrWUSXU0cjsQGv8JykOFZQ9ErNKbFPWzk3Hgpwu8x2hHrQ9IdA8yl+j9RTLTC3sAF3Tdq1IQCP4oA==}
+  '@sigstore/core@3.2.1':
+    resolution: {integrity: sha512-qRsxPnCrbC/puegGxKuynfnxgLiHqWStrSjxkoB4YKqq3Z3s4cyZyj42ZdWFAEblNP65C+rBH8EuREHIXoi83g==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
   '@sigstore/protobuf-specs@0.5.1':
@@ -11813,8 +11813,8 @@ packages:
     resolution: {integrity: sha512-TCAzTy0xzdP79EnxSjq9KQ3eaR7+FmudLC6eRKknVKZbV7ZNlGLClAAQb/HMNJ5n2OBNk2GT1tEmU0xuPr+SLQ==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
-  '@sigstore/verify@3.1.0':
-    resolution: {integrity: sha512-mNe0Iigql08YupSOGv197YdHpPPr+EzDZmfCgMc7RPNaZTw5aLN01nBl6CHJOh3BGtnMIj83EeN4butBchc8Ag==}
+  '@sigstore/verify@3.1.1':
+    resolution: {integrity: sha512-qv7+G3J2cc6wwFj3yKvXOamzqhMwSk1ogPGmhpS8iXllcPrJaIIBA+4HbttlHVu1pqWTdmaCH/WE7UOC51kdoA==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
   '@simple-libs/child-process-utils@1.0.2':
@@ -12821,8 +12821,8 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  baseline-browser-mapping@2.10.31:
-    resolution: {integrity: sha512-MujYO3eP72uvmSE0i4wltsodRfIpZATP3jvzRNRGGxgzId7aVocVJJV3nf01qnzzKFGxQVC9bpWxl5cjxTr/7Q==}
+  baseline-browser-mapping@2.10.32:
+    resolution: {integrity: sha512-wbPvpyjJPC0zdfdKXxqEL3Ea+bOMD/87X4lftiJkkaBiuG6ALQy1SLmEd7BSmVCuwCQsBrCamgBoLyfFDD1EPg==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -13600,8 +13600,8 @@ packages:
     resolution: {integrity: sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==}
     engines: {node: '>= 0.4'}
 
-  es-object-atoms@1.1.1:
-    resolution: {integrity: sha512-FGgH2h8zKNim9ljj7dankFPcICIK9Cp5bm+c2gQSYePhpaG5+esrLODihIorn+Pe6FGJzWhXQotPv73jTaldXA==}
+  es-object-atoms@1.1.2:
+    resolution: {integrity: sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==}
     engines: {node: '>= 0.4'}
 
   es-set-tostringtag@2.1.0:
@@ -16660,11 +16660,6 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  semver@7.8.0:
-    resolution: {integrity: sha512-AcM7dV/5ul4EekoQ29Agm5vri8JNqRyj39o0qpX6vDF2GZrtutZl5RwgD1XnZjiTAfncsJhMI48QQH3sN87YNA==}
-    engines: {node: '>=10'}
-    hasBin: true
-
   semver@7.8.1:
     resolution: {integrity: sha512-rkVq3IXh+4FDGch+KwzX3aV9W3kO54GyEgpvBzSyctDA6Xtd7RJQV1xmXbeQp5v7+VzLOfVqiutSE6GICgPFvg==}
     engines: {node: '>=10'}
@@ -16754,8 +16749,8 @@ packages:
   signed-varint@2.0.1:
     resolution: {integrity: sha512-abgDPg1106vuZZOvw7cFwdCABddfJRz5akcCcchzTbhyhYnsG31y4AlZEgp315T7W3nQq5P4xeOm186ZiPVFzw==}
 
-  sigstore@4.1.0:
-    resolution: {integrity: sha512-/fUgUhYghuLzVT/gaJoeVehLCgZiUxPCPMcyVNY0lIf/cTCz58K/WTI7PefDarXxp9nUKpEwg1yyz3eSBMTtgA==}
+  sigstore@4.1.1:
+    resolution: {integrity: sha512-endqECJkfhozrXMK5ngu/UAA0xVcVEFdnHJCElGaExypjW+HK5i6zu3NteLoaX/iFbRUbC3+DjttQs0GARr+5w==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
   slash@2.0.0:
@@ -19037,7 +19032,7 @@ snapshots:
 
   '@npmcli/fs@5.0.0':
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.1
 
   '@npmcli/git@7.0.2':
     dependencies:
@@ -19047,7 +19042,7 @@ snapshots:
       lru-cache: 11.5.0
       npm-pick-manifest: 11.0.3
       proc-log: 6.1.0
-      semver: 7.8.0
+      semver: 7.8.1
       which: 6.0.1
 
   '@npmcli/package-json@7.0.5':
@@ -19057,7 +19052,7 @@ snapshots:
       hosted-git-info: 9.0.3
       json-parse-even-better-errors: 5.0.0
       proc-log: 6.1.0
-      semver: 7.8.0
+      semver: 7.8.1
       spdx-expression-parse: 4.0.0
 
   '@npmcli/promise-spawn@9.0.1':
@@ -19695,7 +19690,7 @@ snapshots:
   '@pnpm/npm-package-arg@2.0.0':
     dependencies:
       hosted-git-info: 4.1.0
-      semver: 7.8.0
+      semver: 7.8.1
       validate-npm-package-name: 4.0.0
 
   '@pnpm/npm-resolver@1005.2.3(@pnpm/logger@1001.0.1)':
@@ -20271,7 +20266,7 @@ snapshots:
     dependencies:
       '@sigstore/protobuf-specs': 0.5.1
 
-  '@sigstore/core@3.2.0': {}
+  '@sigstore/core@3.2.1': {}
 
   '@sigstore/protobuf-specs@0.5.1': {}
 
@@ -20279,7 +20274,7 @@ snapshots:
     dependencies:
       '@gar/promise-retry': 1.0.3
       '@sigstore/bundle': 4.0.0
-      '@sigstore/core': 3.2.0
+      '@sigstore/core': 3.2.1
       '@sigstore/protobuf-specs': 0.5.1
       make-fetch-happen: 15.0.5
       proc-log: 6.1.0
@@ -20293,10 +20288,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@sigstore/verify@3.1.0':
+  '@sigstore/verify@3.1.1':
     dependencies:
       '@sigstore/bundle': 4.0.0
-      '@sigstore/core': 3.2.0
+      '@sigstore/core': 3.2.1
       '@sigstore/protobuf-specs': 0.5.1
 
   '@simple-libs/child-process-utils@1.0.2':
@@ -21019,7 +21014,7 @@ snapshots:
       hpagent: 1.2.0
       micromatch: 4.0.8
       p-limit: 2.3.0
-      semver: 7.8.0
+      semver: 7.8.1
       strip-ansi: 6.0.1
       tar: 7.5.15
       tinylogic: 2.0.0
@@ -21470,7 +21465,7 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  baseline-browser-mapping@2.10.31: {}
+  baseline-browser-mapping@2.10.32: {}
 
   bcrypt-pbkdf@1.0.2:
     dependencies:
@@ -21548,7 +21543,7 @@ snapshots:
 
   browserslist@4.28.2:
     dependencies:
-      baseline-browser-mapping: 2.10.31
+      baseline-browser-mapping: 2.10.32
       caniuse-lite: 1.0.30001793
       electron-to-chromium: 1.5.361
       node-releases: 2.0.46
@@ -21576,7 +21571,7 @@ snapshots:
 
   builtins@5.1.0:
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.1
 
   bytes@3.1.2: {}
 
@@ -22299,7 +22294,7 @@ snapshots:
       data-view-byte-offset: 1.0.1
       es-define-property: 1.0.1
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       es-set-tostringtag: 2.1.0
       es-to-primitive: 1.3.0
       function.prototype.name: 1.1.8
@@ -22348,7 +22343,7 @@ snapshots:
 
   es-errors@1.3.0: {}
 
-  es-object-atoms@1.1.1:
+  es-object-atoms@1.1.2:
     dependencies:
       es-errors: 1.3.0
 
@@ -22981,7 +22976,7 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       es-define-property: 1.0.1
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       function-bind: 1.1.2
       get-proto: 1.0.1
       gopd: 1.2.0
@@ -22998,7 +22993,7 @@ snapshots:
   get-proto@1.0.1:
     dependencies:
       dunder-proto: 1.0.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   get-source@2.0.12:
     dependencies:
@@ -24198,7 +24193,7 @@ snapshots:
       lodash.isstring: 4.0.1
       lodash.once: 4.1.1
       ms: 2.1.3
-      semver: 7.8.0
+      semver: 7.7.4
 
   jsprim@2.0.2:
     dependencies:
@@ -24251,8 +24246,8 @@ snapshots:
       npm-package-arg: 13.0.2
       npm-registry-fetch: 19.1.1
       proc-log: 6.1.0
-      semver: 7.8.0
-      sigstore: 4.1.0
+      semver: 7.8.1
+      sigstore: 4.1.1
       ssri: 13.0.1
     transitivePeerDependencies:
       - supports-color
@@ -24880,7 +24875,7 @@ snapshots:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       nopt: 9.0.0
       proc-log: 6.1.0
-      semver: 7.8.0
+      semver: 7.8.1
       tar: 7.5.15
       tinyglobby: 0.2.16
       undici: 6.25.0
@@ -24910,7 +24905,7 @@ snapshots:
     dependencies:
       hosted-git-info: 2.8.9
       resolve: 1.22.12
-      semver: 7.8.0
+      semver: 7.8.1
       validate-npm-package-license: 3.0.4
 
   normalize-package-data@3.0.3:
@@ -24957,7 +24952,7 @@ snapshots:
 
   npm-install-checks@8.0.0:
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.1
 
   npm-normalize-package-bin@2.0.0: {}
 
@@ -24969,7 +24964,7 @@ snapshots:
     dependencies:
       hosted-git-info: 9.0.3
       proc-log: 6.1.0
-      semver: 7.8.0
+      semver: 7.8.1
       validate-npm-package-name: 7.0.2
 
   npm-package-arg@8.1.5:
@@ -24995,7 +24990,7 @@ snapshots:
       npm-install-checks: 8.0.0
       npm-normalize-package-bin: 5.0.0
       npm-package-arg: 13.0.2
-      semver: 7.8.0
+      semver: 7.8.1
 
   npm-registry-fetch@19.1.1:
     dependencies:
@@ -25049,7 +25044,7 @@ snapshots:
       call-bind: 1.0.9
       call-bound: 1.0.4
       define-properties: 1.2.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       has-symbols: 1.1.0
       object-keys: 1.1.1
 
@@ -25243,7 +25238,7 @@ snapshots:
 
   parse-npm-tarball-url@5.0.0:
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.1
 
   parseurl@1.3.3: {}
 
@@ -25672,7 +25667,7 @@ snapshots:
       define-properties: 1.2.1
       es-abstract: 1.24.2
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       get-intrinsic: 1.3.0
       get-proto: 1.0.1
       which-builtin-type: 1.2.1
@@ -25875,15 +25870,13 @@ snapshots:
   semver-range-intersect@0.3.1:
     dependencies:
       '@types/semver': 6.2.7
-      semver: 7.8.0
+      semver: 7.8.1
 
   semver-utils@1.1.4: {}
 
   semver@7.7.2: {}
 
   semver@7.7.4: {}
-
-  semver@7.8.0: {}
 
   semver@7.8.1: {}
 
@@ -25937,7 +25930,7 @@ snapshots:
     dependencies:
       dunder-proto: 1.0.1
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   setprototypeof@1.2.0: {}
 
@@ -26006,14 +25999,14 @@ snapshots:
     dependencies:
       varint: 5.0.0
 
-  sigstore@4.1.0:
+  sigstore@4.1.1:
     dependencies:
       '@sigstore/bundle': 4.0.0
-      '@sigstore/core': 3.2.0
+      '@sigstore/core': 3.2.1
       '@sigstore/protobuf-specs': 0.5.1
       '@sigstore/sign': 4.1.1
       '@sigstore/tuf': 4.0.2
-      '@sigstore/verify': 3.1.0
+      '@sigstore/verify': 3.1.1
     transitivePeerDependencies:
       - supports-color
 
@@ -26221,7 +26214,7 @@ snapshots:
       define-properties: 1.2.1
       es-abstract: 1.24.2
       es-errors: 1.3.0
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       get-intrinsic: 1.3.0
       gopd: 1.2.0
       has-symbols: 1.1.0
@@ -26237,7 +26230,7 @@ snapshots:
       define-data-property: 1.1.4
       define-properties: 1.2.1
       es-abstract: 1.24.2
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
       has-property-descriptors: 1.0.2
 
   string.prototype.trimend@1.0.9:
@@ -26245,13 +26238,13 @@ snapshots:
       call-bind: 1.0.9
       call-bound: 1.0.4
       define-properties: 1.2.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   string.prototype.trimstart@1.0.8:
     dependencies:
       call-bind: 1.0.9
       define-properties: 1.2.1
-      es-object-atoms: 1.1.1
+      es-object-atoms: 1.1.2
 
   string_decoder@1.1.1:
     dependencies:
@@ -26887,7 +26880,7 @@ snapshots:
 
   version-selector-type@3.0.0:
     dependencies:
-      semver: 7.8.0
+      semver: 7.8.1
 
   vfile-message@4.0.3:
     dependencies:
