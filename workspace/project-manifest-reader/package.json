@@ -41,6 +41,7 @@
     "fast-deep-equal": "catalog:",
     "is-windows": "catalog:",
     "json5": "catalog:",
+    "p-limit": "catalog:",
     "parse-json": "catalog:",
     "read-yaml-file": "catalog:",
     "strip-bom": "catalog:"
