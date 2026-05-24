@@ -9,9 +9,10 @@ use crate::{
     FetchingProgressMessage, GetHostName, Host, IgnoredScriptsLog, LifecycleLog, LifecycleMessage,
     LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel,
     PackageImportMethod, PackageImportMethodLog, PackageManifestLog, PackageManifestMessage,
-    ProgressLog, ProgressMessage, RemovedRoot, Reporter, RequestRetryError, RequestRetryLog,
-    RootLog, RootMessage, SilentReporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    PnpmLog, ProgressLog, ProgressMessage, RemovedRoot, Reporter, RequestRetryError,
+    RequestRetryLog, RootLog, RootMessage, SilentReporter, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
+    SummaryLog,
 };
 
 /// Context log serializes with the camelCase field names
@@ -91,6 +92,32 @@ fn summary_event_matches_pnpm_wire_shape() {
 
     assert_eq!(json["name"], "pnpm:summary");
     assert_eq!(json["level"], "debug");
+    assert_eq!(json["prefix"], "/some/project");
+}
+
+/// Generic-channel (`name: "pnpm"`) log carries the bare `pnpm`
+/// channel name — without a `:`-suffix — matching the shape pnpm's
+/// global logger writes. `@pnpm/cli.default-reporter` routes these
+/// records through the "other" stream branch; a typo on the channel
+/// name would silently fail to render.
+#[test]
+fn pnpm_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Lockfile is up to date, resolution step is skipped".to_string(),
+        prefix: "/some/project".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm");
+    assert_eq!(json["level"], "info");
+    assert_eq!(json["message"], "Lockfile is up to date, resolution step is skipped");
     assert_eq!(json["prefix"], "/some/project");
 }
 

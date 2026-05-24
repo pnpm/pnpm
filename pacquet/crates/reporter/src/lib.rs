@@ -187,6 +187,18 @@ pub enum LogEvent {
     /// Emit site: <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L134-L168>.
     #[serde(rename = "pnpm:lockfile-verification")]
     LockfileVerification(LockfileVerificationLog),
+
+    /// Generic global-logger message (`name: "pnpm"`). Mirrors
+    /// pnpm's [`globalLogger`](https://github.com/pnpm/pnpm/blob/a456dc78fb/packages/logger/src/index.ts)
+    /// `logger.info({ message, prefix })` emits — for example, the
+    /// "Lockfile is up to date, resolution step is skipped" line the
+    /// frozen-install short-circuit prints at
+    /// [`installing/deps-installer/src/install/index.ts:984`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L984).
+    /// `@pnpm/cli.default-reporter` routes these into the "other" log
+    /// stream at
+    /// [`cli/default-reporter/src/index.ts:222`](https://github.com/pnpm/pnpm/blob/a456dc78fb/cli/default-reporter/src/index.ts#L222).
+    #[serde(rename = "pnpm")]
+    Pnpm(PnpmLog),
 }
 
 /// `pnpm:context` payload.
@@ -703,6 +715,16 @@ pub enum LockfileVerificationMessage {
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
         lockfile_path: Option<String>,
     },
+}
+
+/// Generic-channel (`name: "pnpm"`) payload, used for `logger.info`-style
+/// emits with no dedicated channel. `prefix` carries the install root the
+/// message applies to, matching pnpm's wire shape.
+#[derive(Debug, Clone, Serialize)]
+pub struct PnpmLog {
+    pub level: LogLevel,
+    pub message: String,
+    pub prefix: String,
 }
 
 /// Severity level on the [bunyan]-shaped envelope.
