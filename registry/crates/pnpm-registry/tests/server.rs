@@ -5,6 +5,8 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
 use serde_json::{Value, json};
 use tempfile::TempDir;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 use tower::ServiceExt;
 
 use pnpm_registry::{Config, router};
@@ -227,4 +229,308 @@ async fn tarball_filename_for_other_package_is_rejected() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn scoped_tarball_is_proxied() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"scoped-tarball-bytes";
+    let mock = upstream
+        .mock("GET", "/@types/node/-/node-20.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let response = app
+        .oneshot(Request::get("/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn packument_is_refetched_after_ttl_expires() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({ "name": "foo", "versions": {} });
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(2)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.packument_ttl = Duration::from_millis(50);
+    let app = router(config);
+
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let _ = body_bytes(r1.into_body()).await;
+
+    // Wait past the TTL so the cached packument is stale.
+    tokio::time::sleep(Duration::from_millis(120)).await;
+
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+
+    // Mock asserts exactly 2 upstream calls were made.
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn stale_packument_is_served_when_upstream_fails() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({ "name": "foo", "dist-tags": { "latest": "1.0.0" }, "versions": {} });
+    let _mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+
+    // Round 1: warm the cache against a working upstream.
+    let r1 = router(config_for(&upstream.url(), cache_dir.clone()))
+        .oneshot(Request::get("/foo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let _ = body_bytes(r1.into_body()).await;
+
+    // Round 2: point at a dead port (so upstream errors) and set TTL
+    // to zero so the cache is considered stale. The handler should
+    // try upstream, fail, and fall back to the on-disk packument.
+    let mut dead_config = config_for("http://127.0.0.1:1", cache_dir.clone());
+    dead_config.packument_ttl = Duration::from_millis(0);
+    let r2 = router(dead_config)
+        .oneshot(Request::get("/foo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(r2.status(), StatusCode::OK, "stale cache should be served on upstream failure");
+    let body: Value = serde_json::from_slice(&body_bytes(r2.into_body()).await).unwrap();
+    assert_eq!(body["name"], "foo");
+    assert_eq!(body["dist-tags"]["latest"], "1.0.0");
+}
+
+#[tokio::test]
+async fn invalid_package_name_returns_bad_request() {
+    let upstream = mockito::Server::new_async().await;
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    // `.hidden` trips the dot-prefix rejection in `PackageName::parse`.
+    let response =
+        app.oneshot(Request::get("/.hidden").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = vec![0xCD; 128 * 1024];
+    let mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(&bytes)
+        // We deliberately don't single-flight, so the upstream is hit
+        // at least twice. Bound only the lower side; the exact count
+        // depends on scheduling.
+        .expect_at_least(2)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream.url(), cache_dir.clone()));
+
+    let (r1, r2) = tokio::join!(
+        app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap()),
+        app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap()),
+    );
+    let (r1, r2) = (r1.unwrap(), r2.unwrap());
+    assert_eq!(r1.status(), StatusCode::OK);
+    assert_eq!(r2.status(), StatusCode::OK);
+    assert_eq!(body_bytes(r1.into_body()).await, bytes);
+    assert_eq!(body_bytes(r2.into_body()).await, bytes);
+
+    // After both responses drain, both tee tasks have called
+    // `finalize` (rename is last-writer-wins on POSIX, and both
+    // wrote identical content). Exactly one file in the tarballs
+    // dir, no `.tmp.*` survivors thanks to the unique-tmp suffix.
+    let dir = cache_dir.join("foo").join("-");
+    let entries: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(entries, vec!["foo-1.0.0.tgz".to_string()]);
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn cache_tmp_open_failure_falls_back_to_uncached_stream() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"served-without-cache";
+    let _mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .create_async()
+        .await;
+
+    // Point `cache_dir` at a regular file so `create_dir_all` inside
+    // `open_tarball_tmp` fails. The handler should still stream the
+    // body to the client and skip the cache write.
+    let tmp = TempDir::new().unwrap();
+    let blocked = tmp.path().join("not-a-dir");
+    std::fs::write(&blocked, b"already a file").unwrap();
+
+    let app = router(config_for(&upstream.url(), blocked.clone()));
+
+    let response = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+
+    // The cache path under the not-a-dir should not exist.
+    let cache_path = blocked.join("foo").join("-").join("foo-1.0.0.tgz");
+    assert!(!cache_path.exists());
+}
+
+#[tokio::test]
+async fn malformed_upstream_json_maps_to_bad_gateway() {
+    let mut upstream = mockito::Server::new_async().await;
+    let _mock = upstream
+        .mock("GET", "/borked")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("<html>upstream CDN error page</html>")
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let response = app.oneshot(Request::get("/borked").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+}
+
+/// Spawn a TCP listener that speaks just enough HTTP/1.1 to answer a
+/// single GET with valid headers and a *truncated* body, then drops
+/// the connection. Mockito can't simulate mid-body disconnects, so a
+/// hand-rolled server is the cheapest way to exercise the `upstream
+/// stream errored mid-body` branch in `run_tee`.
+async fn spawn_truncated_upstream() -> SocketAddr {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 4096];
+                let _ = socket.read(&mut buf).await;
+                let _ = socket
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\n\
+                          Content-Length: 1048576\r\n\
+                          Content-Type: application/octet-stream\r\n\
+                          Connection: close\r\n\
+                          \r\n",
+                    )
+                    .await;
+                let _ = socket.write_all(&[0xAA; 100]).await;
+                // Drop socket without sending the remaining 1048476 bytes.
+            });
+        }
+    });
+    addr
+}
+
+#[tokio::test]
+async fn upstream_stream_error_clears_cache() {
+    let addr = spawn_truncated_upstream().await;
+    let upstream_url = format!("http://{addr}");
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream_url, cache_dir.clone()));
+
+    let response = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Body read should fail — upstream advertised 1 MiB and closed
+    // the socket after 100 bytes.
+    let result = to_bytes(response.into_body(), usize::MAX).await;
+    assert!(result.is_err(), "expected body to error mid-stream");
+
+    // Give the tee task a moment to observe the upstream error,
+    // remove the temp file, and finish.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let dir = cache_dir.join("foo").join("-");
+    if dir.exists() {
+        let entries: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
+        assert!(
+            entries.is_empty(),
+            "expected no files after mid-stream error, found {} entries",
+            entries.len()
+        );
+    }
+}
+
+#[tokio::test]
+async fn client_disconnect_mid_stream_clears_cache() {
+    let mut upstream = mockito::Server::new_async().await;
+    // 8 MiB is comfortably larger than the tee channel can buffer
+    // (16 chunks × ~64 KiB ≈ 1 MiB), so the tee task is guaranteed
+    // to be parked on `tx.send` when we drop the response below.
+    let bytes = vec![0xEE_u8; 8 * 1024 * 1024];
+    let _mock = upstream
+        .mock("GET", "/big/-/big-1.0.0.tgz")
+        .with_status(200)
+        .with_body(&bytes)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream.url(), cache_dir.clone()));
+
+    let response = app
+        .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Drop the response without reading the body. The mpsc receiver
+    // goes away, the tee task's next `tx.send` returns Err, and
+    // `write.abandon()` runs.
+    drop(response);
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    let dir = cache_dir.join("big").join("-");
+    if dir.exists() {
+        let entries: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
+        assert!(
+            entries.is_empty(),
+            "expected no files after client disconnect, found {} entries",
+            entries.len()
+        );
+    }
 }
