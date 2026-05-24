@@ -172,8 +172,8 @@ where
 
     loop {
         loop {
-            let snapshot = ctx.snapshot(direct.clone());
-            let peers_result = resolve_peers(&snapshot, ResolvePeersOptions::default());
+            let mut snapshot = ctx.snapshot(direct.clone());
+            let peers_result = resolve_peers(&mut snapshot, ResolvePeersOptions::default());
 
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &peers_result.peer_dependency_issues.missing,
@@ -253,8 +253,8 @@ where
         all_missing_optional_peers.clear();
     }
 
-    let resolved_tree = ctx.into_resolved_tree(direct);
-    let peers_result = resolve_peers(&resolved_tree, ResolvePeersOptions::default());
+    let mut resolved_tree = ctx.into_resolved_tree(direct);
+    let peers_result = resolve_peers(&mut resolved_tree, ResolvePeersOptions::default());
     Ok(ResolveImporterResult { resolved_tree, peers_result })
 }
 

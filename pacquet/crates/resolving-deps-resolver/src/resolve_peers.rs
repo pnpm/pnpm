@@ -53,7 +53,9 @@ use crate::{
         PeerDependencyIssue, PeerDependencyIssues,
     },
     node_id::NodeId,
-    resolved_tree::{PeerDep, ResolvedPackage, ResolvedTree},
+    resolved_tree::{
+        DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
+    },
 };
 use pacquet_resolving_resolver_base::ResolveResult;
 
@@ -104,7 +106,15 @@ pub struct ResolvePeersResult {
 }
 
 /// Resolve peer dependencies for `tree` and emit a depPath-keyed graph.
-pub fn resolve_peers(tree: &ResolvedTree, opts: ResolvePeersOptions) -> ResolvePeersResult {
+///
+/// Takes `tree` by `&mut` because lazy [`TreeChildren`] entries are
+/// realised in-place during the walk via [`Walker::realize_children`] —
+/// every revisit's `(alias → NodeId)` children map is allocated on
+/// first descent and the parent's `TreeChildren::Lazy` flips to
+/// `Realized` so a second visitor reuses the map without redoing the
+/// work. Pure subtrees that the resolver short-circuits via
+/// [`Walker::pure_pkgs`] never get realised.
+pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> ResolvePeersResult {
     let walker = Walker {
         tree,
         opts,
@@ -163,7 +173,7 @@ struct ParentRef {
 type ParentRefs = HashMap<String, ParentRef>;
 
 struct Walker<'tree> {
-    tree: &'tree ResolvedTree,
+    tree: &'tree mut ResolvedTree,
     opts: ResolvePeersOptions,
     graph: DependenciesGraph,
     issues: PeerDependencyIssues,
@@ -300,14 +310,15 @@ impl<'tree> Walker<'tree> {
         let importer_parents = self.build_importer_parents();
         let parent_chain_names: Vec<String> = Vec::new();
         let mut direct_by_alias = BTreeMap::new();
-        for direct in &self.tree.direct {
-            let output = self.resolve_node(
-                direct.node_id.clone(),
-                &importer_parents,
-                &parent_chain_names,
-                0,
-            );
-            direct_by_alias.insert(direct.alias.clone(), output.dep_path);
+        // Clone direct deps into an owned `Vec` so the recursion
+        // below can mutate `self.tree` (realising lazy children)
+        // without conflicting with this loop's borrow of
+        // `self.tree.direct`.
+        let direct: Vec<DirectDep> = self.tree.direct.clone();
+        for dep in &direct {
+            let output =
+                self.resolve_node(dep.node_id.clone(), &importer_parents, &parent_chain_names, 0);
+            direct_by_alias.insert(dep.alias.clone(), output.dep_path);
         }
         self.patch_pending_peer_edges();
         ResolvePeersResult {
@@ -431,6 +442,12 @@ impl<'tree> Walker<'tree> {
         }
         self.in_progress.insert(node_id.clone());
 
+        // Realize children for this node if they're still Lazy. The
+        // returned `children_map` is an owned clone; later iteration
+        // over it doesn't hold a borrow on `self.tree`, so the
+        // recursion below can mutate the tree (realising
+        // grandchildren) freely.
+        let children_map = self.realize_children(&node_id);
         let tree_node = self.tree.dependencies_tree[&node_id].clone();
         let pkg = self.tree.packages[&tree_node.resolved_package_id].clone();
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
@@ -445,7 +462,7 @@ impl<'tree> Walker<'tree> {
         // reject cache hits when shadowing differs.
         let mut child_parent_refs = parent_parent_refs.clone();
         let child_depth = depth + 1;
-        for (alias, child_node_id) in &tree_node.children {
+        for (alias, child_node_id) in &children_map {
             let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
@@ -481,7 +498,7 @@ impl<'tree> Walker<'tree> {
         // before recursing so a cycle re-entry on a child also has
         // access to its caller's parent context.
         let parent_dep_paths = self.parent_dep_paths_from_refs(&child_parent_refs);
-        for child_node_id in tree_node.children.values() {
+        for child_node_id in children_map.values() {
             self.parent_pkgs_of_node.insert(child_node_id.clone(), parent_dep_paths.clone());
         }
 
@@ -543,7 +560,7 @@ impl<'tree> Walker<'tree> {
         let mut external_from_children: HashMap<String, NodeId> = HashMap::new();
         let mut missing_from_children: HashMap<String, MissingPeerInfo> = HashMap::new();
         let mut child_dep_paths: BTreeMap<String, DepPath> = BTreeMap::new();
-        for (alias, child_node_id) in &tree_node.children {
+        for (alias, child_node_id) in &children_map {
             let child_output = self.resolve_node(
                 child_node_id.clone(),
                 &child_parent_refs,
@@ -552,7 +569,7 @@ impl<'tree> Walker<'tree> {
             );
             child_dep_paths.insert(alias.clone(), child_output.dep_path);
             for (peer_alias, peer_node_id) in child_output.external_resolved_peers {
-                if tree_node.children.values().any(|id| id == &peer_node_id) {
+                if children_map.values().any(|id| id == &peer_node_id) {
                     // Resolved against one of *this node's* children —
                     // not external from this node's perspective.
                     // Compare by NodeId (not alias) because `children`
@@ -717,7 +734,7 @@ impl<'tree> Walker<'tree> {
         // `external_from_children` filter above — `children` is keyed
         // by install alias while peers may be keyed by the resolved
         // package's real name.
-        let own_child_ids: HashSet<&NodeId> = tree_node.children.values().collect();
+        let own_child_ids: HashSet<&NodeId> = children_map.values().collect();
         let external_to_report: HashMap<String, NodeId> = all_resolved_peers
             .into_iter()
             .filter(|(_, peer_node_id)| !own_child_ids.contains(peer_node_id))
@@ -791,6 +808,90 @@ impl<'tree> Walker<'tree> {
         let pkg = &self.tree.packages[&tree_node.resolved_package_id];
         let (name, version) = pkg_name_version(&pkg.result);
         PeerId::Pair { name, version }
+    }
+
+    /// Realize the `(alias → NodeId)` children of `node_id` if it's
+    /// currently a [`TreeChildren::Lazy`] entry; return the realized
+    /// map (cloned for the caller). On a [`TreeChildren::Realized`]
+    /// entry, just clones and returns. Mirrors upstream's
+    /// [`buildTree` thunk-on-demand expansion](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencyTree.ts#L371-L401):
+    ///
+    /// 1. Walk [`ResolvedTree::children_by_id`] for this node's
+    ///    package id.
+    /// 2. Skip any child whose pkg id appears in `parent_ids` — that
+    ///    edge would form a cycle, matching upstream's
+    ///    [`parentIdsContainSequence`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencyTree.ts#L378)
+    ///    gate.
+    /// 3. For each surviving child, allocate a per-occurrence
+    ///    `NodeId` (leaves reuse the deterministic `NodeId::leaf`
+    ///    for the leaf-collapse the eager walker does too) and
+    ///    insert a fresh `dependencies_tree` entry with another
+    ///    `Lazy` children variant that carries `parent_ids +
+    ///    [self_pkg_id]` for cycle break on its own descendants.
+    /// 4. Flip this node's `children` field to `Realized` so a
+    ///    later visitor reuses the map.
+    fn realize_children(&mut self, node_id: &NodeId) -> BTreeMap<String, NodeId> {
+        // Snapshot the bits we need; we'll mutate `self.tree` below
+        // and can't hold a borrow on the entry across the mutation.
+        let (parent_ids, pkg_id, depth) = {
+            let node = &self.tree.dependencies_tree[node_id];
+            match &node.children {
+                TreeChildren::Realized(map) => return map.clone(),
+                TreeChildren::Lazy { parent_ids } => {
+                    (Arc::clone(parent_ids), node.resolved_package_id.clone(), node.depth)
+                }
+            }
+        };
+        let children_spec = match self.tree.children_by_id.get(&pkg_id) {
+            Some(spec) => Arc::clone(spec),
+            // No spec means the first walk never recorded children
+            // for this package id — defensive empty case.
+            None => Arc::new(Vec::new()),
+        };
+        let child_depth = depth + 1;
+        let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
+        for edge in children_spec.iter() {
+            if parent_ids.iter().any(|p| p == &edge.pkg_id) {
+                continue;
+            }
+            // Leaf check: a package is a leaf iff its
+            // `children_by_id` entry is empty AND it has no peer
+            // dependencies. Matches `pkg_is_leaf` in the eager
+            // walker.
+            let is_leaf = self.tree.children_by_id.get(&edge.pkg_id).is_none_or(|v| v.is_empty())
+                && self
+                    .tree
+                    .packages
+                    .get(&edge.pkg_id)
+                    .is_some_and(|p| p.peer_dependencies.is_empty());
+            let child_node_id = if is_leaf { NodeId::leaf(&edge.pkg_id) } else { NodeId::next() };
+            let child_parent_ids = {
+                let mut v = (*parent_ids).clone();
+                v.push(edge.pkg_id.clone());
+                Arc::new(v)
+            };
+            self.tree
+                .dependencies_tree
+                .entry(child_node_id.clone())
+                .and_modify(|n| {
+                    if n.depth > child_depth {
+                        n.depth = child_depth;
+                    }
+                })
+                .or_insert_with(|| DependenciesTreeNode {
+                    resolved_package_id: edge.pkg_id.clone(),
+                    children: TreeChildren::Lazy { parent_ids: child_parent_ids },
+                    depth: child_depth,
+                    installable: true,
+                });
+            realized.insert(edge.alias.clone(), child_node_id);
+        }
+        // Replace this node's `Lazy` with `Realized` so future
+        // visitors reuse the work.
+        if let Some(node) = self.tree.dependencies_tree.get_mut(node_id) {
+            node.children = TreeChildren::Realized(realized.clone());
+        }
+        realized
     }
 
     /// Build the `(peer_name → ParentPkgInfo)` snapshot that gets

@@ -234,6 +234,13 @@ pub struct TreeCtx {
     /// so a revisit's per-call CPU is two HashMap lookups and an
     /// `Arc::clone`.
     children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
+    /// Per-`pkgIdWithPatchHash` cache of `(alias, child_pkg_id,
+    /// optional)` produced by the first walk. Threaded out via
+    /// [`ResolvedTree::children_by_id`] so the peer-resolver's
+    /// `realize_children` can expand a [`TreeChildren::Lazy`] node
+    /// without re-running the resolver chain. See
+    /// [`crate::resolved_tree::ChildEdge`] for the field layout.
+    children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
 }
 
 impl TreeCtx {
@@ -250,6 +257,7 @@ impl TreeCtx {
             applied_patches: Mutex::new(HashSet::new()),
             resolved_by_wanted: Mutex::new(HashMap::new()),
             children_specs_by_id: Mutex::new(HashMap::new()),
+            children_by_id: Mutex::new(HashMap::new()),
         }
     }
 
@@ -293,6 +301,7 @@ impl TreeCtx {
                 .applied_patches
                 .into_inner()
                 .unwrap_or_else(|err| err.into_inner()),
+            children_by_id: self.children_by_id.into_inner().unwrap_or_else(|err| err.into_inner()),
         }
     }
 
@@ -308,6 +317,7 @@ impl TreeCtx {
             all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
             policy_violations: lock_recoverable(&self.policy_violations).clone(),
             applied_patches: lock_recoverable(&self.applied_patches).clone(),
+            children_by_id: lock_recoverable(&self.children_by_id).clone(),
         }
     }
 
@@ -466,12 +476,18 @@ where
     // flag so a single non-optional path flips it back to `false`.
     // Mirrors upstream's
     // [`resolvedPkgsById[...].optional = ... && currentIsOptional`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1630)
-    // arm.
+    // arm. The `is_revisit` flag flows into the children handling
+    // below: a revisit can produce a [`TreeChildren::Lazy`] node
+    // because the first visit already populated
+    // [`TreeCtx::children_by_id`] for this pkg, and revisits don't
+    // discover new transitive packages.
+    let is_revisit;
     {
         let mut packages = lock_recoverable(&ctx.packages);
         match packages.get_mut(&id) {
             Some(existing) => {
                 existing.optional = existing.optional && current_is_optional;
+                is_revisit = true;
             }
             None => {
                 let peer_dependencies = extract_peer_dependencies(&result);
@@ -492,6 +508,7 @@ where
                         optional: current_is_optional,
                     },
                 );
+                is_revisit = false;
             }
         }
     }
@@ -508,49 +525,87 @@ where
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
 
-    // Look up cached children specs first; only walk the manifest on
-    // a miss. The cache value is held by `Arc` so revisits clone the
-    // refcount instead of the inner `Vec<(String, String, bool)>`.
-    let child_specs = {
-        let cache = lock_recoverable(&ctx.children_specs_by_id);
-        cache.get(&id).map(Arc::clone)
-    };
-    let child_specs = match child_specs {
-        Some(specs) => specs,
-        None => {
-            let specs = Arc::new(extract_children(&result));
-            lock_recoverable(&ctx.children_specs_by_id)
-                .entry(id.clone())
-                .or_insert_with(|| Arc::clone(&specs));
-            specs
-        }
-    };
-    let child_results = child_specs
-        .iter()
-        .map(|(child_name, child_range, child_optional)| {
-            let child_wanted = WantedDependency {
-                alias: Some(child_name.clone()),
-                bare_specifier: Some(child_range.clone()),
-                optional: Some(*child_optional),
-                ..WantedDependency::default()
-            };
-            let next_ancestors = next_ancestors.clone();
-            async move {
-                resolve_node(
-                    ctx,
-                    resolver,
-                    child_wanted,
-                    &next_ancestors,
-                    depth + 1,
-                    current_is_optional,
-                )
-                .await
+    // **Revisit short-circuit (lazy children).** The first walk of
+    // this package populated `children_by_id[id]` with the resolved
+    // child pkg_ids — revisits skip the per-child recursion and
+    // emit a [`TreeChildren::Lazy`] entry instead. The peer-resolver's
+    // `realize_children` walks the cached `children_by_id` to
+    // allocate per-occurrence `NodeId`s on demand, applying the same
+    // `parent_ids` cycle-break upstream's `buildTree` does. Mirrors
+    // upstream's
+    // [`isNew` skip](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencies.ts#L1584):
+    // a second visit doesn't rebuild the subtree.
+    //
+    // First visits still walk eagerly so `children_by_id`,
+    // `packages`, `all_peer_dep_names`, and the per-pkg resolver
+    // caches get populated for every transitive package — without
+    // that pass, lazy revisits would have nothing to expand.
+    let children = if is_revisit {
+        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(next_ancestors.clone()) }
+    } else {
+        // Look up cached children specs first; only walk the manifest on
+        // a miss. The cache value is held by `Arc` so revisits clone the
+        // refcount instead of the inner `Vec<(String, String, bool)>`.
+        let child_specs = {
+            let cache = lock_recoverable(&ctx.children_specs_by_id);
+            cache.get(&id).map(Arc::clone)
+        };
+        let child_specs = match child_specs {
+            Some(specs) => specs,
+            None => {
+                let specs = Arc::new(extract_children(&result));
+                lock_recoverable(&ctx.children_specs_by_id)
+                    .entry(id.clone())
+                    .or_insert_with(|| Arc::clone(&specs));
+                specs
             }
-        })
-        .pipe(future::try_join_all)
-        .await?;
-    let children: BTreeMap<String, NodeId> =
-        child_results.into_iter().flatten().map(|dep| (dep.alias, dep.node_id)).collect();
+        };
+        let child_results = child_specs
+            .iter()
+            .map(|(child_name, child_range, child_optional)| {
+                let child_wanted = WantedDependency {
+                    alias: Some(child_name.clone()),
+                    bare_specifier: Some(child_range.clone()),
+                    optional: Some(*child_optional),
+                    ..WantedDependency::default()
+                };
+                let next_ancestors = next_ancestors.clone();
+                async move {
+                    resolve_node(
+                        ctx,
+                        resolver,
+                        child_wanted,
+                        &next_ancestors,
+                        depth + 1,
+                        current_is_optional,
+                    )
+                    .await
+                }
+            })
+            .pipe(future::try_join_all)
+            .await?;
+        // Build the realized `(alias → NodeId)` map for THIS
+        // occurrence and the per-pkg `children_by_id` entry future
+        // revisits will reuse. `children_by_id` records the resolved
+        // child pkg ids (not NodeIds) plus the `optional` flag so
+        // lazy realisation can thread `current_is_optional` correctly.
+        let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
+        let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
+        // Build a spec → optional map to look up each child's `optional` flag.
+        let optional_by_alias: HashMap<&str, bool> =
+            child_specs.iter().map(|(name, _, optional)| (name.as_str(), *optional)).collect();
+        for dep in child_results.into_iter().flatten() {
+            let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+            by_id.push(crate::resolved_tree::ChildEdge {
+                alias: dep.alias.clone(),
+                pkg_id: dep.id.clone(),
+                optional,
+            });
+            realized.insert(dep.alias, dep.node_id);
+        }
+        lock_recoverable(&ctx.children_by_id).entry(id.clone()).or_insert_with(|| Arc::new(by_id));
+        crate::resolved_tree::TreeChildren::Realized(realized)
+    };
 
     // Repeat-visit leaves collapse onto one tree node; keep the
     // shallowest depth seen so downstream consumers that read

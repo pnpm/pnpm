@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 
 use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
 
@@ -48,6 +49,33 @@ pub struct ResolvedTree {
     /// it to [`pacquet_patching::verify_patches`] for the
     /// `ERR_PNPM_UNUSED_PATCH` diagnostic.
     pub applied_patches: HashSet<String>,
+    /// Per-`pkgIdWithPatchHash` child list: `(install_alias,
+    /// resolved_child_pkg_id, optional)`. Populated by the first walk
+    /// of each package — every subsequent revisit reuses the same
+    /// entry. Mirrors upstream's
+    /// [`childrenByParentId`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencies.ts#L185-L186)
+    /// plus the
+    /// [`buildTree` child enumeration](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencyTree.ts#L371-L401)
+    /// — the peer-resolver's `realize_children` walks this to
+    /// allocate per-occurrence `NodeId`s for a
+    /// [`TreeChildren::Lazy`] node.
+    pub children_by_id: HashMap<String, Arc<Vec<ChildEdge>>>,
+}
+
+/// One entry on [`ResolvedTree::children_by_id`] — the resolved
+/// shape of a package's children list as recorded by the first walk.
+#[derive(Debug, Clone)]
+pub struct ChildEdge {
+    /// Install alias in `node_modules` (the manifest key under
+    /// `dependencies` / `optionalDependencies`).
+    pub alias: String,
+    /// Resolved `pkgIdWithPatchHash` the alias points at.
+    pub pkg_id: String,
+    /// `true` when the edge came from `optionalDependencies`. Used
+    /// to thread `current_is_optional` correctly through lazy
+    /// realisation so the [`ResolvedPackage::optional`] AND-fold
+    /// stays consistent with the eager-walk path.
+    pub optional: bool,
 }
 
 /// One edge in the resolved tree: the local install name (`alias`) and
@@ -134,19 +162,12 @@ pub struct PeerDep {
 
 /// One per-occurrence node in the dependencies tree. Mirrors upstream's
 /// [`DependenciesTreeNode`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L92-L103).
-///
-/// Children resolution is eager in pacquet — upstream supports a lazy
-/// `children: () => ChildrenMap` arm so cycles can be broken inside
-/// `buildTree`. Pacquet's port detects cycles by tracking the chain of
-/// `pkgIdWithPatchHash` ancestors directly inside
-/// [`fn@crate::resolve_dependency_tree`], so children are always materialised.
 #[derive(Debug, Clone)]
 pub struct DependenciesTreeNode {
     /// Key into [`ResolvedTree::packages`].
     pub resolved_package_id: String,
-    /// `alias → child NodeId` edges. `BTreeMap` keeps iteration order
-    /// stable so downstream peer-suffix construction is deterministic.
-    pub children: BTreeMap<String, NodeId>,
+    /// `alias → child NodeId` edges, possibly deferred.
+    pub children: TreeChildren,
     /// Distance from the root importer (root = 0). Upstream uses
     /// `depth = -1` to mark linked / pruned nodes; pacquet doesn't
     /// emit `-1` today because workspace-link resolution hasn't been
@@ -156,4 +177,56 @@ pub struct DependenciesTreeNode {
     /// for its host platform. Always `true` for the npm-shaped slice
     /// pacquet currently exposes.
     pub installable: bool,
+}
+
+/// Children edges of a [`DependenciesTreeNode`].
+///
+/// Mirrors upstream's [`children: (() => ChildrenMap) | ChildrenMap`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencies.ts#L92-L94)
+/// sum type. A node enters the tree as [`Self::Lazy`] when the
+/// dependency-tree walker doesn't need to materialise its children
+/// immediately (the common case for revisits, where the first walk
+/// already populated `ResolvedTree::children_by_id`); the
+/// peer-resolution stage flips it to [`Self::Realized`] on first
+/// descent. Pure subtrees that the peer resolver short-circuits via
+/// `purePkgs` never get realised at all.
+#[derive(Debug, Clone)]
+pub enum TreeChildren {
+    /// `alias → child NodeId` map, fully populated. `BTreeMap` keeps
+    /// iteration order stable so downstream peer-suffix construction
+    /// is deterministic.
+    Realized(BTreeMap<String, NodeId>),
+    /// Children are known by spec only. `parent_ids` is the chain of
+    /// `pkgIdWithPatchHash` ancestors this occurrence reached the
+    /// node through, threaded so the peer resolver's `buildTree`
+    /// equivalent can apply upstream's
+    /// [`parentIdsContainSequence` cycle-break](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencyTree.ts#L378)
+    /// per-occurrence. Without it, a revisit's subtree would
+    /// silently include cycle edges that the first walk correctly
+    /// rejected, or omit valid edges the first walk's ancestor
+    /// chain happened to exclude.
+    Lazy { parent_ids: Arc<Vec<String>> },
+}
+
+impl TreeChildren {
+    /// Empty realized children. Used for leaves so callers don't have
+    /// to construct an empty `BTreeMap` themselves.
+    pub fn empty() -> Self {
+        TreeChildren::Realized(BTreeMap::new())
+    }
+
+    /// Borrow the realized children map.
+    ///
+    /// Panics on the [`Self::Lazy`] arm — callers that may encounter
+    /// a lazy node must realize it first (peer-resolution does this
+    /// via `Walker::realize_children`). Consumers that genuinely
+    /// can't realize (e.g. the dependency-tree walker writing a
+    /// fresh map) should match on the enum directly.
+    pub fn realized(&self) -> &BTreeMap<String, NodeId> {
+        match self {
+            TreeChildren::Realized(map) => map,
+            TreeChildren::Lazy { .. } => panic!(
+                "TreeChildren::realized() called on a Lazy node; realize via the peer-resolver first",
+            ),
+        }
+    }
 }
