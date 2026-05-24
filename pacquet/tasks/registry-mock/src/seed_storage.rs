@@ -1,6 +1,5 @@
-//! Seed [`runtime_storage`](crate::runtime_storage) with the fixture
-//! packuments and tarballs that ship inside
-//! [`registry_mock_storage`](crate::registry_mock_storage).
+//! Seed [`runtime_storage`] with the fixture packuments and tarballs
+//! that ship inside [`registry_mock_storage`].
 //!
 //! Idempotent: a file that already exists at the destination is
 //! left alone. Tries `hard_link` first (zero disk overhead, instant);

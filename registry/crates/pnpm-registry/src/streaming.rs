@@ -97,12 +97,12 @@ async fn run_tee(
                 return;
             }
         };
-        if let Some(write) = cache_write.as_mut() {
-            if let Err(err) = write.file.write_all(&chunk).await {
-                tracing::warn!(%url, ?err, "cache temp-file write failed; continuing without cache");
-                if let Some(write) = cache_write.take() {
-                    write.abandon().await;
-                }
+        if let Some(write) = cache_write.as_mut()
+            && let Err(err) = write.file.write_all(&chunk).await
+        {
+            tracing::warn!(%url, ?err, "cache temp-file write failed; continuing without cache");
+            if let Some(write) = cache_write.take() {
+                write.abandon().await;
             }
         }
         if tx.send(Ok(chunk)).await.is_err() {
@@ -120,9 +120,9 @@ async fn run_tee(
             return;
         }
     }
-    if let Some(write) = cache_write {
-        if let Err(err) = write.finalize().await {
-            tracing::warn!(%url, ?err, "cache finalize failed");
-        }
+    if let Some(write) = cache_write
+        && let Err(err) = write.finalize().await
+    {
+        tracing::warn!(%url, ?err, "cache finalize failed");
     }
 }
