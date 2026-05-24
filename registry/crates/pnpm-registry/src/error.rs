@@ -32,6 +32,61 @@ pub enum RegistryError {
         filename: String,
     },
 
+    #[display("Access rule {value:?} is not recognized (expected $all or $authenticated)")]
+    #[from(skip)]
+    InvalidAccessRule {
+        #[error(not(source))]
+        value: String,
+    },
+
+    #[display("Package policy pattern {pattern:?} is invalid: {reason}")]
+    #[from(skip)]
+    InvalidPolicyPattern {
+        #[error(not(source))]
+        pattern: String,
+        reason: String,
+    },
+
+    /// Authentication is required for the requested resource but
+    /// the caller supplied no credentials (or invalid ones). Maps
+    /// to 401 to match npm/verdaccio.
+    #[display("Authentication required for {resource}")]
+    #[from(skip)]
+    Unauthenticated {
+        #[error(not(source))]
+        resource: String,
+    },
+
+    /// Credentials were supplied but the caller isn't allowed to
+    /// touch this resource. Maps to 403.
+    #[display("{user:?} is not allowed to {action} {resource}")]
+    #[from(skip)]
+    Forbidden {
+        #[error(not(source))]
+        user: String,
+        action: &'static str,
+        resource: String,
+    },
+
+    /// Tarball payload from a publish couldn't be decoded — bad
+    /// base64, length mismatch, or integrity mismatch.
+    #[display("Invalid attachment {filename:?}: {reason}")]
+    #[from(skip)]
+    InvalidAttachment {
+        #[error(not(source))]
+        filename: String,
+        reason: String,
+    },
+
+    /// Generic client-side error during a write operation —
+    /// missing/invalid JSON body field, etc. Maps to 400.
+    #[display("Bad request: {reason}")]
+    #[from(skip)]
+    BadRequest {
+        #[error(not(source))]
+        reason: String,
+    },
+
     #[display("I/O error: {_0}")]
     Io(std::io::Error),
 
@@ -66,9 +121,14 @@ impl RegistryError {
                 }
             }
             RegistryError::UpstreamStatus { .. } => StatusCode::BAD_GATEWAY,
-            RegistryError::InvalidPackageName { .. } | RegistryError::InvalidTarballName { .. } => {
-                StatusCode::BAD_REQUEST
-            }
+            RegistryError::InvalidPackageName { .. }
+            | RegistryError::InvalidTarballName { .. }
+            | RegistryError::InvalidAccessRule { .. }
+            | RegistryError::InvalidPolicyPattern { .. }
+            | RegistryError::InvalidAttachment { .. }
+            | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
+            RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
+            RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
             RegistryError::Io(_) | RegistryError::Json(_) => StatusCode::BAD_GATEWAY,
         }
     }
