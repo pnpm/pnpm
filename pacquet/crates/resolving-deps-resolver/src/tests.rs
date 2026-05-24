@@ -795,27 +795,13 @@ mod peers {
         }
     }
 
-    /// A package referenced twice in the tree where the peer can
-    /// resolve via one parent chain but not the other: both
-    /// occurrences must land in the graph — one with the resolved
-    /// peer suffix, one without. Ports upstream's `'when a package
-    /// is referenced twice in the dependencies graph and one of the
-    /// times it cannot resolve its peers, still try to resolve it in
-    /// the other occurrence'` (installing/deps-resolver/test/resolvePeers.ts:128).
-    ///
-    /// Shape:
-    /// - root → `zoo` (zoo has child `foo`; foo peers on `qar` — no qar in scope → missing)
-    /// - root → `bar` → `zoo` → `foo` (foo peers on `qar`; qar is at bar's level → resolves)
-    ///
-    /// Expected graph keys (any order):
-    /// - `zoo@1.0.0` (the direct-from-root occurrence is pure here —
-    ///   its only child `foo` has a missing peer that doesn't
-    ///   propagate a peer-suffix back up to zoo)
-    /// - `foo@1.0.0` (under root→zoo: missing peer qar)
-    /// - `bar@1.0.0`, `qar@1.0.0`
-    /// - `zoo@1.0.0(qar@1.0.0)` (under root→bar→zoo: foo's qar peer
-    ///   resolves against bar's qar sibling and bubbles through zoo)
-    /// - `foo@1.0.0(qar@1.0.0)` (under root→bar→zoo→foo: resolved)
+    /// Same package reached via two parent chains where the peer
+    /// resolves only via one: both occurrences must land in the
+    /// graph with distinct depPaths. Ports upstream's `'when a
+    /// package is referenced twice in the dependencies graph and one
+    /// of the times it cannot resolve its peers, still try to
+    /// resolve it in the other occurrence'`
+    /// (installing/deps-resolver/test/resolvePeers.ts:128).
     #[tokio::test]
     async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
         let mut table = HashMap::new();
@@ -913,23 +899,11 @@ mod peers {
         );
     }
 
-    /// Peer dependencies declared via npm aliases must resolve
-    /// against the aliased package by its **real** name. Ports
+    /// Two parallel peer chains in one importer — each peer resolves
+    /// against its own sibling, no cross-pollination. Stands in for
     /// upstream's `'resolve peer dependencies with npm aliases'`
-    /// (installing/deps-resolver/test/resolvePeers.ts:573).
-    ///
-    /// Importer declares two parallel pairs:
-    /// - regular: `foo@1` (peer bar@1), `bar@1`
-    /// - aliased: `foo-next: npm:foo@2` (peer bar@2), `bar-next: npm:bar@2`
-    ///
-    /// The two `foo` versions must each pick the right `bar` peer —
-    /// foo@1 against bar@1, foo@2 against bar@2.
-    ///
-    /// `npm:` aliasing isn't fully ported through the pacquet
-    /// `StubResolver` chain yet, so this test is stubbed against a
-    /// simpler shape: two distinct package names where each depends
-    /// on a distinct peer, exercising the same `parentPkgs` lookup
-    /// path the alias case relies on. The TODO captures the gap.
+    /// (installing/deps-resolver/test/resolvePeers.ts:573); the
+    /// real alias case needs `npm:` plumbing in the stub resolver.
     // TODO(pacquet#?): replace with the real `npm:foo@2` alias once
     // `parse_bare_specifier` routes npm-alias specifiers through the
     // stub resolver in tests.
@@ -1008,18 +982,13 @@ mod peers {
         assert!(result.peer_dependency_issues.missing.is_empty());
     }
 
-    /// When a peer requirement isn't satisfied at the importer level
-    /// but IS satisfied by a sibling within the parent's children,
-    /// the issue list records the "resolved from" parent. Ports
-    /// upstream's `'unmet peer dependency issue resolved from
-    /// subdependency'` describe-block (installing/deps-resolver/test/resolvePeers.ts:502).
-    ///
-    /// Shape: root → `foo` → { `dep@1`, `bar` (peers `dep@10`) }.
-    /// Importer has no `dep`, so `bar`'s peer requirement is unmet.
-    /// The picked `dep@1` (inside foo) violates `bar`'s `^10` range,
-    /// so this surfaces as a *bad* peer issue. The `resolvedFrom`
-    /// chain must point at `foo` (the parent that *did* supply `dep`,
-    /// just at the wrong version).
+    /// A peer satisfied by a wrong-version sibling inside the
+    /// parent's subtree surfaces as a *bad* peer (not missing).
+    /// Stands in for upstream's `'unmet peer dependency issue
+    /// resolved from subdependency'` describe-block
+    /// (installing/deps-resolver/test/resolvePeers.ts:502); the
+    /// `resolvedFrom` field upstream tracks isn't exposed on
+    /// pacquet's `PeerDependencyIssue` yet.
     #[tokio::test]
     async fn bad_peer_inside_subtree_records_resolved_from_parent() {
         let mut table = HashMap::new();
