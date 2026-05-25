@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 /// Mirrors Node's
 /// [`path.join`](https://nodejs.org/api/path.html#pathjoinpaths) /
 /// [`path.resolve`](https://nodejs.org/api/path.html#pathresolvepaths)
-/// normalisation rules. Rust's [`PathBuf::join`] alone does **not**
+/// normalisation rules. Rust's [`Path::join`] alone does **not**
 /// normalize — it appends segments verbatim — so callers that need
 /// pnpm-compatible round-tripping of stored paths (e.g.
 /// `node_modules/.modules.yaml`'s `virtualStoreDir` field, computed via

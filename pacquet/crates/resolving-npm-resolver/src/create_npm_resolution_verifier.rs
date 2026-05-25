@@ -549,7 +549,7 @@ impl NpmResolutionVerifier {
     ///    so the verifier prefers `name:full` when present and falls
     ///    back to the bare `name` key.
     /// 2. The on-disk + network cached fetcher
-    ///    ([`fetch_full_metadata_cached`] with `full_metadata: false`)
+    ///    ([`fetch_full_metadata_cached()`] with `full_metadata: false`)
     ///    when no shared entry is available.
     /// 3. A failure (decode / network / cache-write IO) caches
     ///    `None` so subsequent calls fall through to the next layer
