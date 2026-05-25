@@ -4883,6 +4883,15 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
+    // Single-project optimistic-repeat-install requires `pnpm-lock.yaml`
+    // on disk (matching pnpm's
+    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401>
+    // `throwLockfileNotFound`). Write a minimal v9 lockfile next to
+    // the manifest so the freshness gate passes — the fast path only
+    // checks existence, not contents.
+    std::fs::write(project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
+        .expect("seed pnpm-lock.yaml");
+
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
@@ -5137,4 +5146,292 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     // covers that emit), and downstream code asserts on its
     // presence; we only assert here that the *optimistic* log is
     // absent so the polarity of the gate is clear.
+}
+
+/// Regression: a single-project install where `node_modules` is
+/// still on disk (so the workspace-state file survives) but
+/// `pnpm-lock.yaml` is gone must NOT short-circuit. This is the
+/// `cache+node_modules` and `node_modules`-only benchmark scenario
+/// pnpm finishes in ~5 s and pacquet was silently completing in
+/// ~35 ms before the single-project lockfile gate landed. Mirrors
+/// pnpm's [`throwLockfileNotFound`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401)
+/// converting into `upToDate: false`. Companion to the workspace-
+/// mode tolerance proved by
+/// [`returns_up_to_date_in_workspace_mode_without_lockfile`](crate::optimistic_repeat_install::tests::returns_up_to_date_in_workspace_mode_without_lockfile).
+#[tokio::test]
+async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    std::fs::create_dir_all(&modules_dir).expect("create modules dir so the deps gate passes");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    // Deliberately do NOT write `pnpm-lock.yaml` — that's the
+    // scenario under test.
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      sibling:"
+        "        specifier: link:../sibling"
+        "        version: link:../sibling"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse lockfile");
+
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+
+    // Seed `.modules.yaml` and a fresh workspace state — same shape
+    // as the happy-path optimistic test above. The only difference
+    // is the missing `pnpm-lock.yaml`.
+    let seed_modules = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
+
+    let mut projects = std::collections::BTreeMap::new();
+    projects.insert(
+        project_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("project".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    let settings = crate::optimistic_repeat_install::current_settings(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        included,
+    );
+    workspace_state::update_workspace_state(
+        &project_root,
+        &pacquet_workspace_state::WorkspaceState {
+            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            projects,
+            pnpmfiles: Vec::new(),
+            filtered_install: false,
+            config_dependencies: None,
+            settings,
+        },
+    )
+    .expect("seed workspace state");
+
+    // We're not testing the full install pipeline here — without a
+    // lockfile on disk the fresh-resolve path would try to resolve
+    // `link:../sibling` against a directory that doesn't exist. We
+    // only need to prove the optimistic short-circuit did NOT fire,
+    // so swallow the install result.
+    let _ = Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: Some(&lockfile),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        resolved_packages: &Default::default(),
+    }
+    .run::<RecordingReporter>()
+    .await;
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        !captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log) if log.message == "Already up to date"
+        )),
+        "the optimistic 'Already up to date' log MUST NOT fire when \
+         `pnpm-lock.yaml` is missing in a single-project install; got events: {captured:#?}",
+    );
+}
+
+/// Round-trip the optimistic short-circuit end-to-end on a real
+/// single-project install (no `pnpm-workspace.yaml`):
+///
+/// 1. First [`Install::run`] resolves through the registry mock,
+///    writes `pnpm-lock.yaml` next to the manifest, lays out
+///    `node_modules`, and records `.pnpm-workspace-state-v1.json`.
+/// 2. A second [`Install::run`] against the same manifest must hit
+///    the optimistic fast path — emit `Already up to date` and skip
+///    every install-setup event (`pnpm:context`, `pnpm:stage`,
+///    `pnpm:lockfile-verification`).
+///
+/// Proves the single-project lockfile gate added in this commit
+/// doesn't break the warm-reinstall fast path it's intended to
+/// preserve. Companion to
+/// [`optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing`]
+/// (which covers the negative direction).
+#[tokio::test]
+async fn optimistic_repeat_install_round_trips_on_single_project_install() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    // First install: fresh-resolve path. Writes `pnpm-lock.yaml` next
+    // to the manifest (via `install_with_fresh_lockfile`) and the
+    // workspace state next to `node_modules` (via
+    // `Install::run`'s end-of-run `update_workspace_state` call).
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("first install must succeed");
+
+    // Sanity check the first install left both artifacts the
+    // optimistic check keys off on disk.
+    assert!(
+        project_root.join("pnpm-lock.yaml").exists(),
+        "first install must write pnpm-lock.yaml next to the manifest",
+    );
+    assert!(
+        load_workspace_state(&project_root).expect("read workspace state").is_some(),
+        "first install must record .pnpm-workspace-state-v1.json",
+    );
+
+    // Now run the second install against the same manifest. Capture
+    // events to prove the fast path fired.
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        // Don't pass the in-memory lockfile — the optimistic check
+        // doesn't need it, and we want to prove the fast path runs
+        // *before* the lockfile is even loaded. (Matching pnpm's
+        // dispatch ordering: `checkDepsStatus` runs before any
+        // lockfile parse.)
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("second install must succeed via the optimistic short-circuit");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log) if log.message == "Already up to date"
+        )),
+        "second install must emit `Already up to date`; got events: {captured:#?}",
+    );
+
+    // The fast path runs before any of the install setup, so none
+    // of these events should fire on the second install.
+    let install_emits = captured
+        .iter()
+        .filter(|event| {
+            matches!(
+                event,
+                LogEvent::Context(_) | LogEvent::Stage(_) | LogEvent::LockfileVerification(_),
+            )
+        })
+        .count();
+    assert_eq!(
+        install_emits, 0,
+        "the second install must not run any install-setup steps; got events: {captured:#?}",
+    );
+
+    drop((dir, mock_instance));
 }

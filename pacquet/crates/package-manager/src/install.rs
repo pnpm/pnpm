@@ -394,6 +394,7 @@ where
                 node_linker,
                 included,
                 &project_manifests,
+                workspace_manifest.is_some(),
             )
         {
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {

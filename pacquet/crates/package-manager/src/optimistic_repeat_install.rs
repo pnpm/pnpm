@@ -43,6 +43,7 @@ use std::{
 };
 
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
+use pacquet_lockfile::Lockfile;
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace_state::{
@@ -79,6 +80,16 @@ pub enum Decision {
 /// function rediscovering it) so the same walk seeds the regular
 /// install path on the fall-through.
 ///
+/// `is_workspace_install` is `true` when a `pnpm-workspace.yaml`
+/// drives the install — that selects pnpm's
+/// [`allProjects && workspaceDir` branch](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L187)
+/// which exits purely on the per-manifest mtime check. `false` (no
+/// workspace manifest) selects the
+/// [single-project branch](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L387-L462)
+/// which additionally requires `pnpm-lock.yaml` to exist on disk —
+/// pnpm throws `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` otherwise, which
+/// the outer `try` converts into `upToDate: false`.
+///
 /// Always returns `Decision::Skipped` when
 /// `config.optimistic_repeat_install` is `false`.
 pub fn check_optimistic_repeat_install(
@@ -87,6 +98,7 @@ pub fn check_optimistic_repeat_install(
     node_linker: NodeLinker,
     included: IncludedDependencies,
     project_manifests: &[(PathBuf, &PackageManifest)],
+    is_workspace_install: bool,
 ) -> Decision {
     if !config.optimistic_repeat_install {
         return Decision::Skipped { reason: "optimistic_repeat_install disabled" };
@@ -122,6 +134,20 @@ pub fn check_optimistic_repeat_install(
         return Decision::Skipped {
             reason: "project has dependencies but no node_modules directory",
         };
+    }
+
+    // Single-project installs require `pnpm-lock.yaml` on disk to
+    // even attempt the fast path. Upstream's single-project branch
+    // at <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401>
+    // throws `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when
+    // `wantedLockfileStats` is absent, which the outer `try`
+    // converts into `upToDate: false`. Workspace installs skip this
+    // gate — pnpm's workspace branch returns `upToDate: true` purely
+    // off the manifest-mtime check (its only lockfile probe,
+    // `findConflictedLockfileDir`, silently `continue`s on ENOENT at
+    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L593-L596>).
+    if !is_workspace_install && !workspace_root.join(Lockfile::FILE_NAME).exists() {
+        return Decision::Skipped { reason: "wanted lockfile missing" };
     }
 
     // The fast-path conclusion. Upstream walks every manifest and

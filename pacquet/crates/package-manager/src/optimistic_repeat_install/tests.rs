@@ -1,5 +1,6 @@
 use super::{Decision, check_optimistic_repeat_install, current_settings};
 use pacquet_config::Config;
+use pacquet_lockfile::Lockfile;
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace_state::{
@@ -10,6 +11,14 @@ use tempfile::tempdir;
 
 fn isolated_included() -> IncludedDependencies {
     IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
+}
+
+/// Write an empty `pnpm-lock.yaml` to satisfy the single-project
+/// branch's lockfile-existence gate. The fast path only checks
+/// existence, not contents.
+fn write_empty_lockfile(workspace_root: &std::path::Path) {
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write pnpm-lock.yaml");
 }
 
 fn write_state(
@@ -53,6 +62,13 @@ fn setup_fresh_install(
     fs::write(&manifest_path, manifest_body).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
+    // Seed `pnpm-lock.yaml` so the single-project branch's lockfile
+    // gate passes — most tests run in single-project mode (no
+    // `pnpm-workspace.yaml`) and would otherwise short-circuit on
+    // the missing-lockfile reason regardless of what they intend
+    // to exercise.
+    write_empty_lockfile(workspace_root);
+
     // Sleep long enough for the filesystem clock to advance past the
     // manifest's mtime before stamping the workspace state. Without
     // this, fast filesystems (APFS / tmpfs) leave both timestamps in
@@ -78,7 +94,8 @@ fn setup_fresh_install(
 }
 
 /// Happy path: state is fresh, manifest hasn't been touched since
-/// the validation, modules dir exists. The fast path fires.
+/// the validation, modules dir exists, `pnpm-lock.yaml` exists.
+/// The fast path fires.
 #[test]
 fn returns_up_to_date_when_state_and_manifests_agree() {
     let (dir, config, manifest) =
@@ -90,6 +107,7 @@ fn returns_up_to_date_when_state_and_manifests_agree() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(dir.path().to_path_buf(), &manifest)],
+        false,
     );
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -117,6 +135,7 @@ fn returns_skipped_when_config_disabled() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("disabled")));
 }
@@ -141,6 +160,7 @@ fn returns_skipped_when_no_state_file() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
+        false,
     );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("no workspace state")),
@@ -166,6 +186,7 @@ fn returns_skipped_when_manifest_is_newer_than_validation() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(dir.path().to_path_buf(), &refreshed_manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("newer")));
 }
@@ -184,6 +205,7 @@ fn returns_skipped_when_node_linker_drifts() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(dir.path().to_path_buf(), &manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -218,6 +240,7 @@ fn returns_skipped_when_workspace_project_set_changes() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(dir.path().to_path_buf(), &manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("project list")));
 }
@@ -267,6 +290,7 @@ fn returns_skipped_when_overrides_drift() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -309,6 +333,7 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -354,6 +379,7 @@ fn returns_skipped_when_patched_dependencies_drift() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -395,6 +421,7 @@ fn returns_skipped_when_allow_builds_drift() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -447,6 +474,7 @@ fn returns_skipped_when_unported_pnpm_settings_present() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
+        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -499,6 +527,69 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         pacquet_config::NodeLinker::Isolated,
         isolated_included(),
         &[(dir.path().to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)],
+        true,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
+}
+
+/// Regression: a single-project install with `node_modules` present
+/// but no `pnpm-lock.yaml` on disk must NOT short-circuit. Mirrors
+/// pnpm's [single-project branch](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401)
+/// throwing `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND`, which the outer
+/// `try`/`catch` converts into `upToDate: false`. Without this gate,
+/// pacquet's fast path fires whenever the workspace-state file and
+/// manifests agree — independent of whether the lockfile exists —
+/// which silently turns `pnpm.io`'s `cache+node_modules` and
+/// `node_modules`-only benchmark scenarios into a 35 ms no-op.
+#[test]
+fn returns_skipped_when_lockfile_missing_in_single_project_mode() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+
+    // `setup_fresh_install` seeds `pnpm-lock.yaml` for happy-path
+    // tests; delete it here so this test exercises the missing-
+    // lockfile branch.
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove seeded lockfile");
+
+    let decision = check_optimistic_repeat_install(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(dir.path().to_path_buf(), &manifest)],
+        false,
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("wanted lockfile")),
+        "expected Skipped(wanted lockfile missing), got {decision:?}",
+    );
+}
+
+/// Workspace installs do NOT require `pnpm-lock.yaml` on disk for
+/// the fast path — pnpm's
+/// [workspace branch](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L268-L271)
+/// returns `upToDate: true` purely off the per-manifest mtime check
+/// without any wanted-lockfile probe (its merge-conflict scan,
+/// `findConflictedLockfileDir`, silently `continue`s on ENOENT at
+/// <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L593-L596>).
+/// Pacquet must match that polarity so a workspace install state
+/// file written by either tool round-trips through the other.
+#[test]
+fn returns_up_to_date_in_workspace_mode_without_lockfile() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+
+    // Same seeded state as the happy path, but the lockfile gets
+    // wiped first — the workspace branch shouldn't care.
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove seeded lockfile");
+
+    let decision = check_optimistic_repeat_install(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(dir.path().to_path_buf(), &manifest)],
+        true,
+    );
+    assert_eq!(decision, Decision::UpToDate);
 }
