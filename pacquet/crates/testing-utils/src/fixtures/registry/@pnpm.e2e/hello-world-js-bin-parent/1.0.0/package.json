@@ -1,0 +1,1 @@
+{"name":"@pnpm.e2e/hello-world-js-bin-parent","version":"1.0.0","dependencies":{"@pnpm.e2e/hello-world-js-bin":"1.0.0"},"bin":{"hello-world-js-bin-parent":"index.js"}}

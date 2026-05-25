@@ -191,8 +191,9 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 - Snapshot tests use `insta`. When an intentional change alters a snapshot,
   review the diff carefully, then accept with `cargo insta review`. Never
   accept snapshot changes blindly.
-- Some tests require the mocked registry. Start it with
-  `just registry-mock launch` if a test needs it.
+- Tests that need the mocked registry start an in-process registry through
+  `pacquet-testing-utils`; `cargo test` / `cargo nextest run` should not
+  require a separate `just registry-mock launch` step.
 - When porting behavior from pnpm, port the relevant pnpm tests too (as Rust
   tests) whenever they translate. Matching test coverage is the easiest way
   to prove behavioral parity.

@@ -1,0 +1,1 @@
+{"name":"@pnpm.e2e/hello-world-js-bin","version":"1.0.0","bin":{"hello-world-js-bin":"index.js"}}

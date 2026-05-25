@@ -899,6 +899,7 @@ version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
+ "crc32fast",
  "miniz_oxide",
  "zlib-rs",
 ]
@@ -2576,7 +2577,6 @@ dependencies = [
  "pacquet-patching",
  "pacquet-real-hoist",
  "pacquet-registry",
- "pacquet-registry-mock",
  "pacquet-reporter",
  "pacquet-resolving-default-resolver",
  "pacquet-resolving-deps-resolver",
@@ -2904,11 +2904,17 @@ name = "pacquet-testing-utils"
 version = "0.0.0"
 dependencies = [
  "assert_cmd",
+ "axum",
+ "base64 0.22.1",
  "command-extra",
+ "flate2",
  "junction",
- "pacquet-registry-mock",
+ "serde_json",
+ "sha2",
+ "tar",
  "tempfile",
  "text-block-macros",
+ "tokio",
  "walkdir",
 ]
 

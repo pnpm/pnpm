@@ -1,0 +1,5 @@
+const fs = require('fs')
+fs.writeFileSync('cmd1', '#!/usr/bin/env node\n')
+fs.writeFileSync('cmd2', '#!/usr/bin/env node\n')
+fs.chmodSync('cmd1', 0o755)
+fs.chmodSync('cmd2', 0o755)

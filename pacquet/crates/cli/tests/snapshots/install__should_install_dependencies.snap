@@ -1,6 +1,5 @@
 ---
 source: pacquet/crates/cli/tests/install.rs
-assertion_line: 49
 expression: "(workspace_folders, store_files)"
 ---
 (
@@ -28,11 +27,10 @@ expression: "(workspace_folders, store_files)"
         "node_modules/@pnpm.e2e/hello-world-js-bin-parent",
     ],
     [
-        "v11/files/02/f9d952341eade675d0a8f5da14d4277fded62f937242292c2cf5f1bb0eda101b5f803098d64e2a138f4bfe4cdf326cfaf8f6b4015476ab86d25df03ddec731-exec",
-        "v11/files/2f/b86ecd88e34f18360bf865231219f7898cf713f63ad6d099f72b821f47cded6b92ece8d468775219a2950c50451d3f3e2f3920d15b4a3c372098f2daff864b",
-        "v11/files/65/d9491d753c9cff7b6d93461c83b8542a36db429a4cba4c712f841ae657f0d82b36d94081816d5a92ce761146c64b036ea1d89d53890c86b115d457bb98fa6b",
-        "v11/files/bf/0c878f2a4f2ec6f231bb2d414547efb15eb22a673815cba36acfd89633cd4c8affcbdc9378e90ad4d8fc654de921d1f67444be94e6a2f81bda9330be60be93-exec",
-        "v11/files/fe/06f6dff7c043b7ea30547ff55a8fd06fecc30fe143e3acf09cdd30def35d660f8cafa74ff28287748f661bbd767987eed52b440c77942eb0fb9aa6f44cfb37",
+        "v11/files/06/838841ce051996b20844617ce5fdee4a57e9de8e909a7c0852664aa14127d343368cc74154704b483da85b98ca8f4fc59b8f223e7afc9e99c9601a826d4b68",
+        "v11/files/6a/44d985707ef841f4102735ed89de559abed57a1a95f56eb8b874b4fc1b991b123f0a4338d70ec73eb694a3a3e8cc144e45de8ecfd12580d8153da6c13ad3e0-exec",
+        "v11/files/91/068af288e69c1d2673721fd7ee7eaa7b1d60eaec85dd8ae79d2fb8aa95d3960c6b371b6b650d776b3637965c8d77c83b7a686733e05c8536ee56eed47dfeb8",
+        "v11/files/ff/0f57bdccac27e7dfc515fe0c51845dfc7177b19468f6e8e43a15d44ce775990ed686fcabfc00bd85ce6a10b78c627e1086f40258881add317742c6b137132e-exec",
         "v11/index.db",
     ],
 )

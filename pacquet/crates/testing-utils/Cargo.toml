@@ -11,11 +11,16 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-registry-mock = { workspace = true }
-
+axum              = { workspace = true }
+base64            = { workspace = true }
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
+flate2            = { workspace = true }
+serde_json        = { workspace = true }
+sha2              = { workspace = true }
+tar               = { workspace = true }
 tempfile          = { workspace = true }
+tokio             = { workspace = true }
 walkdir           = { workspace = true }
 text-block-macros = { workspace = true }
 
