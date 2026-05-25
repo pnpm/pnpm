@@ -2698,7 +2698,7 @@ mod normalize_bundled_manifest_tests {
             },
         }))
         .expect("non-empty pick");
-        assert_eq!(result.get("optionalDependencies"), Some(&json!({ "sharp": "^0.34.0" })),);
+        assert_eq!(result.get("optionalDependencies"), Some(&json!({ "sharp": "^0.34.0" })));
         assert_eq!(
             result.get("peerDependenciesMeta"),
             Some(&json!({

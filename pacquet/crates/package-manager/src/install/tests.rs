@@ -895,25 +895,10 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     drop((dir, mock_instance));
 }
 
-/// `@pnpm.e2e/abc-optional-peers@1.0.0` declares `peer-a`, `peer-b`,
-/// and `peer-c` as `peerDependencies` and marks `peer-b` / `peer-c`
-/// optional via `peerDependenciesMeta`. With the default
-/// `autoInstallPeers: true`, pacquet auto-installs only the required
-/// peer (`peer-a`): the two optional peers stay missing because nothing
-/// in the tree contributes a preferred version for them.
-///
-/// Ported from upstream's "warning is not reported when cannot resolve
-/// optional peer dependency" at
-/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/installing/deps-installer/test/install/peerDependencies.ts#L1181-L1255).
-/// Pacquet's slice asserts the install-side outcome (which slots
-/// materialize in the virtual store) instead of the upstream
-/// peer-dependency-issues reporter payload.
-///
-/// Regression for pnpm/pnpm#11934: before that PR, `PackageVersion`
-/// did not declare `peerDependenciesMeta`, so the resolver-side
-/// manifest dropped it; every optional peer became "required" and the
-/// `autoInstallPeers` fallback in `hoist_peers` cascaded `peer-b` and
-/// `peer-c` into the install.
+/// Regression for pnpm/pnpm#11934: `peerDependenciesMeta` must be
+/// preserved end-to-end so optional peers are not auto-installed.
+/// Ported from upstream's
+/// [`peerDependencies.ts:1181-1255`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/installing/deps-installer/test/install/peerDependencies.ts#L1181-L1255).
 #[tokio::test]
 async fn auto_install_peers_does_not_cascade_optional_peers() {
     let mock_instance = AutoMockInstance::load_or_init();
@@ -966,19 +951,12 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect();
 
-    // The required peer (auto-installed) lands in the virtual store.
     assert!(
         virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
         "required peer `peer-a` must be auto-installed under \
          `autoInstallPeers: true`; virtual-store slots: {virtual_store_slots:?}",
     );
 
-    // The two optional peers must NOT reach the virtual store.
-    // peerDependenciesMeta declaring them optional is precisely what
-    // gates this. Before pnpm/pnpm#11934, the `peerDependenciesMeta`
-    // field was dropped during PackageVersion deserialization and the
-    // resolver treated every optional peer as required, cascading them
-    // (plus their transitives) into the install.
     for optional_peer in ["peer-b", "peer-c"] {
         let slot_prefix = format!("@pnpm.e2e+{optional_peer}@");
         let cascaded: Vec<&String> =
@@ -990,9 +968,6 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         );
     }
 
-    // The package itself made it through — the peer-suffixed slot exists
-    // because abc-optional-peers' peerDependencies entry for peer-a was
-    // resolved against the auto-installed peer.
     assert!(
         virtual_store_slots
             .iter()
