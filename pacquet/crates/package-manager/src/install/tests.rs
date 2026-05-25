@@ -18,7 +18,7 @@ use pacquet_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
 use pipe_trait::Pipe;
-use std::{path::PathBuf, sync::Mutex};
+use std::sync::Mutex;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -2127,33 +2127,29 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
     drop(dir);
 }
 
-/// Workspace install under GVS registers each importer separately.
-/// Mirrors upstream's per-project
-/// [`registerProject`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/projectRegistry.ts)
-/// call site, which fires once per workspace package — a workspace
-/// with `.` (root) and `packages/web` therefore ends up with two
-/// entries in `<store_dir>/projects/`, each resolving back to its
-/// own root dir. `pacquet store prune` (tracked separately) needs
-/// every reachable importer in the registry to keep the
-/// `<store_dir>/links/...` slots they share alive.
+/// Workspace install under GVS registers the workspace root once,
+/// regardless of how many importers the workspace declares. Mirrors
+/// upstream's
+/// [`registerProject(opts.storeDir, opts.lockfileDir)`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/installing/context/src/index.ts#L128)
+/// call site in `getContext`, which fires exactly once per install
+/// against the workspace root — store prune walks
+/// `<workspace>/node_modules/.pnpm/` to find every installed package,
+/// so one registry entry per workspace is enough.
 #[tokio::test]
-async fn frozen_lockfile_under_gvs_registers_each_workspace_importer() {
+async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
     let workspace_root = dir.path().join("workspace");
     let modules_dir = workspace_root.join("node_modules");
     let virtual_store_dir = modules_dir.join(".pacquet");
 
-    // Workspace layout: root + one sub-importer. Both directories
-    // have to exist on disk because `register_project` canonicalises
-    // the target before writing the symlink.
+    // Workspace layout: root + one sub-importer. The sub-importer's
+    // directory exists on disk because the lockfile reader needs it,
+    // but registration only resolves the workspace root.
     let web_dir = workspace_root.join("packages/web");
     std::fs::create_dir_all(&web_dir).expect("create packages/web");
     let manifest_path = workspace_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    // The sub-importer needs a `package.json` too — the freshness check
-    // satisfies on the root only today, but the per-importer registry
-    // write still resolves the target on disk.
     std::fs::write(web_dir.join("package.json"), "{}").expect("write packages/web/package.json");
 
     let mut config = Config::new();
@@ -2166,8 +2162,8 @@ async fn frozen_lockfile_under_gvs_registers_each_workspace_importer() {
     let config = config.leak();
 
     // Two importers: `.` and `packages/web`. Empty dep graph so the
-    // install reaches the per-importer registry-write loop without
-    // doing any actual fetch/link work.
+    // install reaches the registry-write call without doing any actual
+    // fetch/link work.
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
@@ -2202,28 +2198,26 @@ async fn frozen_lockfile_under_gvs_registers_each_workspace_importer() {
     .await
     .expect("workspace frozen-lockfile install under GVS should succeed");
 
-    // Exactly two registry entries — one per importer. Resolve the
-    // symlink targets and confirm both project roots are present.
+    // Exactly one registry entry resolving back to the workspace
+    // root, matching pnpm's once-per-install `registerProject(storeDir,
+    // lockfileDir)` shape.
     let projects_dir = store_dir.join("v11/projects");
     assert!(
         projects_dir.is_dir(),
         "GVS-on workspace install must create <store_dir>/v11/projects/",
     );
-    let mut targets: Vec<PathBuf> = std::fs::read_dir(&projects_dir)
-        .unwrap()
-        .map(|entry| {
-            // Canonicalize the entry path so the kernel follows the
-            // (relative) symlink — see the sibling test for context.
-            dunce::canonicalize(entry.unwrap().path()).expect("canonicalize registry entry")
-        })
-        .collect();
-    targets.sort();
-    let mut expected = [
+    let entries: Vec<_> =
+        std::fs::read_dir(&projects_dir).unwrap().collect::<Result<_, _>>().unwrap();
+    assert_eq!(
+        entries.len(),
+        1,
+        "workspace install registers the workspace root once, not once per importer",
+    );
+    assert_eq!(
+        dunce::canonicalize(entries[0].path()).expect("canonicalize registry entry"),
         dunce::canonicalize(&workspace_root).expect("canonicalize workspace root"),
-        dunce::canonicalize(&web_dir).expect("canonicalize packages/web"),
-    ];
-    expected.sort();
-    assert_eq!(targets, expected, "every importer must have a registry entry");
+        "registry symlink must resolve back to the workspace root",
+    );
 
     drop(dir);
 }

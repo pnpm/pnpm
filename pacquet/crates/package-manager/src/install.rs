@@ -357,6 +357,35 @@ where
         // paths threaded into log events.
         let prefix = workspace_root.to_string_lossy().into_owned();
 
+        // Register the project against the shared store for prune
+        // tracking, once per install at the workspace root. Mirrors
+        // upstream's call into `@pnpm/store.controller`'s
+        // [`registerProject`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/store/controller/src/storeController/projectRegistry.ts)
+        // from `getContext` at
+        // <https://github.com/pnpm/pnpm/blob/d8a79a9c30/installing/context/src/index.ts#L128>:
+        // pnpm registers `opts.lockfileDir` (the workspace root) once,
+        // not per importer — store prune walks the workspace's
+        // `node_modules/.pnpm/` to find every installed package, so one
+        // registry entry per workspace is enough.
+        //
+        // Gated on `enable_global_virtual_store` because pacquet wires
+        // the prune-by-registry path only under GVS for now; pnpm
+        // registers unconditionally, so once the non-GVS prune path
+        // lands the gate should be dropped. Best-effort: a registry
+        // write failure shouldn't fail the install. Surface as
+        // `tracing::warn!` so the failure is diagnosable but the
+        // install carries on.
+        if config.enable_global_virtual_store
+            && let Err(error) =
+                pacquet_store_dir::register_project(&config.store_dir, &workspace_root)
+        {
+            tracing::warn!(
+                target: "pacquet::install",
+                ?error,
+                "Failed to register workspace root in the store project registry; install continues",
+            );
+        }
+
         // `pnpm:package-manifest initial` carries the on-disk
         // `package.json` body. Mirrors pnpm's per-project emit at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/context/src/index.ts#L133>:
@@ -614,45 +643,6 @@ where
             .await
             .map_err(InstallError::FrozenLockfile)?;
 
-            // Register every importer against the shared store now
-            // that the install has materialized their `node_modules/`.
-            // Mirrors upstream's call into `@pnpm/store.controller`'s
-            // [`registerProject`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/projectRegistry.ts),
-            // which runs once per importer — a workspace ends up with
-            // one symlink in `<store_dir>/projects/` per package, so
-            // `pacquet store prune` (tracked separately) can find
-            // every reachable consumer of `<store_dir>/links/...`.
-            //
-            // Best-effort: a registry write failure shouldn't fail
-            // the install. Surface as `tracing::warn!` so the failure
-            // is diagnosable but the install carries on. Validation
-            // of importer keys is done by
-            // [`crate::SymlinkDirectDependencies::run`] before we get
-            // here, so by this point every key is known-safe.
-            //
-            // The matching call for the fresh-resolve path lives
-            // after the `InstallWithFreshLockfile` branch below, where
-            // the root project is the only importer (workspaces in
-            // that path are pending pnpm/pacquet#431).
-            if config.enable_global_virtual_store {
-                for importer_id in importers.keys() {
-                    let project_dir = crate::symlink_direct_dependencies::importer_root_dir(
-                        &workspace_root,
-                        importer_id,
-                    );
-                    if let Err(error) =
-                        pacquet_store_dir::register_project(&config.store_dir, &project_dir)
-                    {
-                        tracing::warn!(
-                            target: "pacquet::install",
-                            ?error,
-                            importer_id = %importer_id,
-                            "Failed to register importer in the global-virtual-store registry; install continues",
-                        );
-                    }
-                }
-            }
-
             (
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
@@ -753,37 +743,6 @@ where
             .run::<Reporter>()
             .await
             .map_err(InstallError::WithFreshLockfile)?;
-
-            // Mirror the frozen-lockfile branch: when GVS is on,
-            // register every importer that the fresh resolve walked
-            // against the shared store so `pacquet store prune` can
-            // find each consumer of `<store_dir>/links/...`. For a
-            // single-project install this loops once over the root;
-            // for a workspace install it covers every project. Best-
-            // effort: warn on failure, don't fail the install.
-            if config.enable_global_virtual_store {
-                let importer_ids: Vec<String> = fresh_result
-                    .wanted_lockfile
-                    .as_ref()
-                    .map(|lockfile| lockfile.importers.keys().cloned().collect())
-                    .unwrap_or_else(|| vec![Lockfile::ROOT_IMPORTER_KEY.to_string()]);
-                for importer_id in importer_ids {
-                    let project_dir = crate::symlink_direct_dependencies::importer_root_dir(
-                        &workspace_root,
-                        &importer_id,
-                    );
-                    if let Err(error) =
-                        pacquet_store_dir::register_project(&config.store_dir, &project_dir)
-                    {
-                        tracing::warn!(
-                            target: "pacquet::install",
-                            ?error,
-                            importer_id = %importer_id,
-                            "Failed to register importer in the global-virtual-store registry; install continues",
-                        );
-                    }
-                }
-            }
 
             (
                 fresh_result.hoisted_dependencies,
