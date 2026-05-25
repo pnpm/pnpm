@@ -279,8 +279,8 @@ fn fixture_files(package_dir: &FsPath) -> Vec<walkdir::DirEntry> {
     entries
 }
 
-fn append_file<W: Write>(
-    tar: &mut tar::Builder<W>,
+fn append_file<Writer: Write>(
+    tar: &mut tar::Builder<Writer>,
     root: &FsPath,
     source: &FsPath,
     path_in_archive: &FsPath,
@@ -345,7 +345,10 @@ mod tests {
     #[test]
     fn tarball_path_rejects_mismatched_filename_prefix() {
         assert!(
-            matches!(RequestPath::parse("@scope/pkg/-/other-1.0.0.tgz"), RequestPath::Unknown,)
+            matches!(
+                RequestPath::parse("@scope/pkg/-/other-1.0.0.tgz"),
+                RequestPath::Unknown,
+            ),
         );
     }
 }
