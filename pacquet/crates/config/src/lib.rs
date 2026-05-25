@@ -723,6 +723,32 @@ pub struct Config {
     /// Yaml accepts `true` / `false` / `"warn-only"`.
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
 
+    /// `enablePrePostScripts` from `pnpm-workspace.yaml`. When `true`,
+    /// `pnpm run <script>` also runs `pre<script>` / `post<script>` if
+    /// they exist (and the main script doesn't already reference them).
+    /// Default `false`, matching upstream's
+    /// [`Config.enablePrePostScripts`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).
+    pub enable_pre_post_scripts: bool,
+
+    /// `scriptShell` from `pnpm-workspace.yaml`. Overrides the shell
+    /// used to spawn lifecycle and user scripts (default `sh -c` on
+    /// POSIX, `cmd /d /s /c` on Windows). Mirrors upstream's
+    /// [`Config.scriptShell`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).
+    pub script_shell: Option<PathBuf>,
+
+    /// Additional directories prepended to `PATH` when running scripts,
+    /// after each `node_modules/.bin`. pnpm derives these from the
+    /// Node.js install dir and `pnpmHomeDir`; pacquet leaves it empty
+    /// by default until that derivation is ported. Surfaced as a field
+    /// so `run` / `exec` thread it uniformly.
+    pub extra_bin_paths: Vec<PathBuf>,
+
+    /// `nodeOptions` — value injected as `NODE_OPTIONS` into the
+    /// environment of spawned scripts. Mirrors upstream's
+    /// [`Config.nodeOptions`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).
+    /// `None` leaves the inherited `NODE_OPTIONS` untouched.
+    pub node_options: Option<String>,
+
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
     /// pnpm runs lifecycle scripts under a TMPDIR isolated to
     /// `node_modules/.tmp` and (in upstream) drops uid/gid to a

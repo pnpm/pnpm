@@ -35,6 +35,7 @@ home        = { workspace = true }
 miette      = { workspace = true }
 pipe-trait  = { workspace = true }
 rayon       = { workspace = true }
+serde_json  = { workspace = true }
 tokio       = { workspace = true }
 
 [dev-dependencies]
@@ -45,7 +46,6 @@ assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
 insta             = { workspace = true }
 pretty_assertions = { workspace = true }
-serde_json        = { workspace = true }
 tempfile          = { workspace = true }
 walkdir           = { workspace = true }
 

@@ -201,6 +201,19 @@ pub struct WorkspaceSettings {
     /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
     pub scripts_prepend_node_path: Option<ScriptsPrependNodePath>,
 
+    /// `enablePrePostScripts` from `pnpm-workspace.yaml`. Default
+    /// `false` (applied in [`Config`]).
+    pub enable_pre_post_scripts: Option<bool>,
+
+    /// `scriptShell` from `pnpm-workspace.yaml`. Resolved against the
+    /// workspace dir is *not* applied here — pnpm treats it as a
+    /// command name or absolute path, used verbatim.
+    pub script_shell: Option<String>,
+
+    /// `nodeOptions` from `pnpm-workspace.yaml`. Injected as
+    /// `NODE_OPTIONS` when running scripts.
+    pub node_options: Option<String>,
+
     /// `unsafePerm` from `pnpm-workspace.yaml`. Forced to `true` on
     /// Windows in `apply_to` (matches upstream's
     /// `process.platform === 'win32'` override).
@@ -564,6 +577,15 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;
+        }
+        if let Some(v) = self.enable_pre_post_scripts {
+            config.enable_pre_post_scripts = v;
+        }
+        if let Some(v) = self.script_shell {
+            config.script_shell = Some(PathBuf::from(v));
+        }
+        if let Some(v) = self.node_options {
+            config.node_options = Some(v);
         }
         if let Some(v) = self.unsafe_perm {
             config.unsafe_perm = v;

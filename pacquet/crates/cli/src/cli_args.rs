@@ -1,4 +1,5 @@
 pub mod add;
+pub mod exec;
 pub mod install;
 pub mod run;
 pub mod store;
@@ -7,6 +8,7 @@ pub mod supported_architectures;
 use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use exec::ExecArgs;
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host};
@@ -64,6 +66,8 @@ pub enum CliCommand {
     Test,
     /// Runs a defined package script.
     Run(RunArgs),
+    /// Execute a shell command in the context of a project.
+    Exec(ExecArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Managing the package store.
@@ -161,7 +165,8 @@ impl CliArgs {
                         .wrap_err(format!("executing command: \"{0}\"", script))?;
                 }
             }
-            CliCommand::Run(args) => args.run(manifest_path())?,
+            CliCommand::Run(args) => args.run(&dir, config()?)?,
+            CliCommand::Exec(args) => args.run(&dir, config()?)?,
             CliCommand::Start => {
                 // Runs an arbitrary command specified in the package's start property of its scripts
                 // object. If no start property is specified on the scripts object, it will attempt to
