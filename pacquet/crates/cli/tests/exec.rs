@@ -1,6 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
+#[cfg(unix)]
 use std::fs;
 
 #[cfg(unix)]
@@ -83,8 +84,11 @@ fn exec_errors_when_command_not_found() {
 
 /// `--shell-mode` / `-c` runs the command through the platform shell
 /// rather than resolving it as a binary.
-#[cfg(unix)]
+///
+/// Compiles everywhere but is ignored on Windows: the assertion relies on
+/// the POSIX `touch` command, which `cmd.exe` does not provide.
 #[test]
+#[cfg_attr(target_os = "windows", ignore = "relies on the POSIX `touch` command")]
 fn exec_shell_mode_runs_shell_command() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let marker_path = workspace.join("shell-marker.txt");
@@ -102,8 +106,15 @@ fn exec_shell_mode_runs_shell_command() {
 
 /// The child's non-zero exit code is propagated as pacquet's own exit
 /// code, mirroring pnpm's `{ exitCode }` return.
-#[cfg(unix)]
+///
+/// Compiles everywhere but is ignored on Windows: shell-mode runs through
+/// `cmd.exe` there, and pacquet does not yet honor the verbatim-argument
+/// handling that exit-code propagation through `cmd /c` would require.
 #[test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "shell-mode exit-code propagation through cmd.exe is not wired up yet"
+)]
 fn exec_propagates_nonzero_exit_code() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
