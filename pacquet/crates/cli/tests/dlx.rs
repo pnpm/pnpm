@@ -4,7 +4,10 @@ use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 /// `pacquet dlx <pkg>` installs the package into the dlx cache and runs
 /// its single binary. Uses the mocked registry's
 /// `@pnpm.e2e/hello-world-js-bin`, whose bin prints to stdout.
-#[cfg(unix)]
+#[cfg_attr(
+    not(unix),
+    ignore = "dlx e2e relies on POSIX symlinks and bin shims; needs the mocked registry"
+)]
 #[test]
 fn dlx_installs_and_runs_a_package_bin() {
     let CommandTempCwd { pacquet, root, npmrc_info, .. } =

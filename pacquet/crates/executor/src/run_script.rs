@@ -181,7 +181,7 @@ fn quote_arg(arg: &str) -> String {
     out.push('\'');
     for ch in arg.chars() {
         if ch == '\'' {
-            out.push_str("'\\''");
+            out.push_str(r"'\''");
         } else {
             out.push(ch);
         }

@@ -118,6 +118,13 @@ impl DlxArgs {
         fs::create_dir_all(&dlx_command_cache_dir)
             .into_diagnostic()
             .wrap_err("creating the dlx cache directory")?;
+        // Canonicalize so the prepare dir carries no `..` segments. A
+        // relative `cacheDir` (e.g. `../pnpm-cache`) would otherwise leave
+        // the install's lexical workspace-root walk passing *through* the
+        // caller's project dir and mistaking it for the dlx workspace.
+        let dlx_command_cache_dir = dunce::canonicalize(&dlx_command_cache_dir)
+            .into_diagnostic()
+            .wrap_err("canonicalizing the dlx cache directory")?;
         let cache_link = dlx_command_cache_dir.join("pkg");
 
         let cached_dir = match valid_cache_dir(&cache_link, config.dlx_cache_max_age) {
@@ -194,6 +201,10 @@ async fn install_into<Reporter: self::Reporter + 'static>(
     cfg.modules_dir = prepare_dir.join("node_modules");
     cfg.virtual_store_dir = prepare_dir.join("node_modules").join(".pnpm");
     cfg.enable_global_virtual_store = false;
+    // The throwaway install is a standalone project, not part of the
+    // caller's workspace — drop any workspace association picked up from
+    // the caller's `pnpm-workspace.yaml`.
+    cfg.workspace_dir = None;
     // Allow the requested packages (and their aliases) to run build
     // scripts during the install, mirroring pnpm's dlx `allowBuilds`.
     for name in aliases.iter().chain(allow_build.iter()) {

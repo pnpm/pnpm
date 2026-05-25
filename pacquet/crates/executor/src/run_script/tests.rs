@@ -1,5 +1,3 @@
-#![cfg(unix)]
-
 use super::{RunScript, run_script};
 use crate::extend_path::ScriptsPrependNodePath;
 use std::{collections::HashMap, fs, path::PathBuf};
@@ -13,6 +11,7 @@ fn empty_env() -> HashMap<String, String> {
 /// and the `npm_*` env stamped — the very setup the pre-rewrite
 /// `pacquet run` (`sh -c <script>` with the bare inherited env) lacked.
 #[test]
+#[cfg_attr(not(unix), ignore = "spawns a POSIX shell")]
 fn foreground_script_sees_bin_path_and_npm_env() {
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
@@ -64,6 +63,7 @@ fn foreground_script_sees_bin_path_and_npm_env() {
 /// The child's non-zero exit code is surfaced (not an error), so the CLI
 /// can exit the process with the failing script's code like pnpm does.
 #[test]
+#[cfg_attr(not(unix), ignore = "spawns a POSIX shell")]
 fn foreground_script_returns_child_exit_code() {
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
@@ -95,6 +95,7 @@ fn foreground_script_returns_child_exit_code() {
 /// CLI args are appended to the script body and shell-quoted, so an
 /// argument with spaces stays a single token.
 #[test]
+#[cfg_attr(not(unix), ignore = "spawns a POSIX shell")]
 fn foreground_script_appends_quoted_args() {
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
@@ -136,6 +137,7 @@ fn foreground_script_appends_quoted_args() {
 }
 
 #[test]
+#[cfg_attr(not(unix), ignore = "asserts POSIX shell-quoting; quote_arg differs on Windows")]
 fn quote_arg_matches_shlex_rules() {
     assert_eq!(super::quote_arg("safe-token_1.2"), "safe-token_1.2");
     assert_eq!(super::quote_arg(""), "''");

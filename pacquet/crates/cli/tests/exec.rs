@@ -1,8 +1,10 @@
-use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::fs;
+
+#[cfg(unix)]
+use assert_cmd::prelude::*;
 
 /// `pacquet exec <bin>` resolves the command against the project's
 /// `node_modules/.bin` (prepended to PATH by `makeEnv`) and runs it in
