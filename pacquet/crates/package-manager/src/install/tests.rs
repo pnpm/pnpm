@@ -1032,11 +1032,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
     let manifest_path = dir.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/abc-optional-peers-meta-only",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/abc-optional-peers-meta-only", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 

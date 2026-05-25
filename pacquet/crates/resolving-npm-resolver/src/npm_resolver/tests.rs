@@ -391,11 +391,17 @@ async fn resolved_manifest_carries_optional_dependencies_and_peer_dependencies_m
         .and_then(serde_json::Value::as_object)
         .expect("peerDependenciesMeta present");
     assert_eq!(
-        peer_meta.get("@vercel/kv").and_then(|v| v.get("optional")).and_then(serde_json::Value::as_bool),
+        peer_meta
+            .get("@vercel/kv")
+            .and_then(|v| v.get("optional"))
+            .and_then(serde_json::Value::as_bool),
         Some(true),
     );
     assert_eq!(
-        peer_meta.get("ioredis").and_then(|v| v.get("optional")).and_then(serde_json::Value::as_bool),
+        peer_meta
+            .get("ioredis")
+            .and_then(|v| v.get("optional"))
+            .and_then(serde_json::Value::as_bool),
         Some(true),
     );
 }
