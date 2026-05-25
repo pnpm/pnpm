@@ -155,12 +155,20 @@ async function purgeModulesDirsOfImporters (
         hint: 'If you are running pnpm in CI, set the CI environment variable to "true", or set "confirmModulesPurge" to "false".',
       })
     }
-    const confirmed = await confirm({
-      message: importers.length === 1
-        ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
-        : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
-      default: true,
-    })
+    let confirmed: boolean
+    try {
+      confirmed = await confirm({
+        message: importers.length === 1
+          ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
+          : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
+        default: true,
+      })
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'ExitPromptError') {
+        throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+      }
+      throw err
+    }
     if (!confirmed) {
       throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
     }

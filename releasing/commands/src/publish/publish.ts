@@ -188,9 +188,18 @@ export async function publish (
       )
     }
     if (!branches.includes(currentBranch)) {
-      const isConfirmed = await confirm({
-        message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". Do you want to continue?`,
-      })
+      let isConfirmed: boolean
+      try {
+        isConfirmed = await confirm({
+          message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". Do you want to continue?`,
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          isConfirmed = false
+        } else {
+          throw err
+        }
+      }
 
       if (!isConfirmed) {
         throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('|')}'.`, {
