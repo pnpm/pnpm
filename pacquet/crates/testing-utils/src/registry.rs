@@ -136,7 +136,8 @@ impl FixtureRegistry {
         }
         assert!(!packages.is_empty(), "no registry package fixtures found under {root:?}");
         for package in packages.values_mut() {
-            package.latest = latest_version(package.versions.keys()).expect("package has at least one version");
+            package.latest =
+                latest_version(package.versions.keys()).expect("package has at least one version");
         }
         Self { packages }
     }
@@ -340,20 +341,14 @@ mod tests {
     #[test]
     fn tarball_path_rejects_mismatched_filename_prefix() {
         assert!(
-            matches!(
-                RequestPath::parse("@scope/pkg/-/other-1.0.0.tgz"),
-                RequestPath::Unknown,
-            ),
+            matches!(RequestPath::parse("@scope/pkg/-/other-1.0.0.tgz"), RequestPath::Unknown,),
         );
     }
 
     #[test]
     fn latest_version_uses_semver_prerelease_order() {
-        let versions = [
-            "1.0.0-beta.2".to_string(),
-            "1.0.0-beta.10".to_string(),
-            "1.0.0".to_string(),
-        ];
+        let versions =
+            ["1.0.0-beta.2".to_string(), "1.0.0-beta.10".to_string(), "1.0.0".to_string()];
         assert_eq!(latest_version(versions.iter()), Some("1.0.0".to_string()));
     }
 }
