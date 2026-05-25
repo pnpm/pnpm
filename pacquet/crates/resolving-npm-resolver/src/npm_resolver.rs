@@ -249,7 +249,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 return Ok(None);
             }
             Err(err) => {
-                // Registry fetch errored (404, network failure, …).
+                // Registry fetch errored (404, network failure, ...).
                 // Mirrors upstream's
                 // [`try { pickPackage } catch`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L506-L524)
                 // — swallow the error if the workspace can satisfy
