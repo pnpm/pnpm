@@ -937,7 +937,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     assert!(!snapshots[&prod_only_key].optional, "prod-only is a direct prod dep of packages/a");
     assert!(
         snapshots[&opt_only_key].optional,
-        "opt-only is only reachable via packages/b's optional"
+        "opt-only is only reachable via packages/b's optional",
     );
     assert!(
         !snapshots[&shared_key].optional,
