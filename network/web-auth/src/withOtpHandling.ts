@@ -7,7 +7,7 @@ import type { PromptBrowserOpenReadlineInterface } from './promptBrowserOpen.js'
 import { promptBrowserOpen } from './promptBrowserOpen.js'
 
 export interface OtpEnquirer {
-  input: (options: { message: string }) => Promise<string>
+  input: (options: { message: string }) => Promise<string | undefined>
 }
 
 interface OtpDate {

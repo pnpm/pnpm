@@ -5,7 +5,10 @@ import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
-jest.unstable_mockModule('@inquirer/prompts', () => ({ checkbox: jest.fn() }))
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
+  return { ...actual, checkbox: jest.fn() }
+})
 
 const { checkbox } = await import('@inquirer/prompts')
 const { update, install } = await import('@pnpm/installing.commands')

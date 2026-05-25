@@ -241,7 +241,16 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
     `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n` +
     sorted.map((v) => `  ${v.name}@${v.version}`).join('\n') + '\n' +
     'Add to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?'
-  const confirmed = await confirm({ message, default: false })
+  let confirmed: boolean
+  try {
+    confirmed = await confirm({ message, default: false })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ExitPromptError') {
+      confirmed = false
+    } else {
+      throw err
+    }
+  }
   if (!confirmed) {
     throw new PnpmError(
       'MINIMUM_RELEASE_AGE_DENIED',

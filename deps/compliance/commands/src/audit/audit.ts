@@ -470,10 +470,10 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
 
   const flatChoices: Array<Separator | { name: string; value: string; disabled?: boolean | string }> = []
   for (const group of choiceGroups) {
-    flatChoices.push(new Separator(` ${group.message}`))
+    flatChoices.push(new Separator(chalk.bold(`── ${group.message} ──`)))
     for (const choice of group.choices) {
       if (choice.disabled) {
-        flatChoices.push(new Separator(choice.name))
+        flatChoices.push(new Separator(`  ${choice.message ?? choice.name}`))
       } else {
         flatChoices.push({
           name: choice.message,
@@ -483,14 +483,16 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
     }
   }
 
+  const message = 'Choose which vulnerabilities to fix ' +
+    `(Press ${chalk.cyan('<space>')} to select, ` +
+    `${chalk.cyan('<a>')} to toggle all, ` +
+    `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start fixing. Ctrl-c to cancel.`
   let selectedKeys: string[]
   try {
     selectedKeys = await checkbox({
       choices: flatChoices,
-      message: 'Choose which vulnerabilities to fix ' +
-        `(Press ${chalk.cyan('<space>')} to select, ` +
-        `${chalk.cyan('<a>')} to toggle all, ` +
-        `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start fixing. Ctrl-c to cancel.`,
+      pageSize: interactivePromptPageSize(),
+      message,
       required: true,
       validate: (values) => {
         if (values.length === 0) {
@@ -501,7 +503,7 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
       theme: {
         icon: { checked: '●', unchecked: '○', cursor: '❯' },
         style: {
-          highlight: chalk.bgBlack.whiteBright,
+          highlight: (text: string) => text,
         },
       },
     })
@@ -521,4 +523,9 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
       )
   )
   return { ...auditReport, advisories: selectedAdvisories }
+}
+
+function interactivePromptPageSize (): number {
+  const availableRows = process.stdout.rows
+  return availableRows == null ? 7 : Math.max(7, availableRows - 6)
 }

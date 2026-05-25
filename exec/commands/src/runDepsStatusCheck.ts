@@ -43,10 +43,11 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
 Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?`,
           default: true,
         })
-      } catch {
-      // User cancelled the prompt (e.g. Ctrl+C) — exit immediately
-      // so the caller doesn't proceed to run the script.
-        process.exit(1)
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          process.exit(1)
+        }
+        throw err
       }
       if (confirmed) {
         install()

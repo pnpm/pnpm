@@ -162,7 +162,7 @@ describe('withOtpHandling', () => {
 
     it('re-throws the original OTP error when enquirer returns undefined', async () => {
       const context = createOtpMockContext({
-        enquirer: { input: async () => undefined as unknown as string },
+        enquirer: { input: async () => undefined },
       })
       await expect(withOtpHandling({
         context,

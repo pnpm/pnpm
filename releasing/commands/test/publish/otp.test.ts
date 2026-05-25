@@ -144,7 +144,7 @@ describe('publishWithOtpHandling', () => {
         publish: async () => {
           throw Object.assign(new Error('otp'), { code: 'EOTP' })
         },
-        enquirer: { input: async () => undefined as unknown as string },
+        enquirer: { input: async () => undefined },
       })
       await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
         .rejects.toMatchObject({ code: 'EOTP' })

@@ -9,7 +9,10 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import chalk from 'chalk'
 import { readYamlFileSync } from 'read-yaml-file'
 
-jest.unstable_mockModule('@inquirer/prompts', () => ({ checkbox: jest.fn(), Separator: jest.requireActual('@inquirer/prompts').Separator }))
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
+  return { ...actual, checkbox: jest.fn() }
+})
 const { checkbox, Separator } = await import('@inquirer/prompts')
 const { add, install, update } = await import('@pnpm/installing.commands')
 
@@ -96,8 +99,8 @@ test('interactively update', async () => {
   const flatChoices = callArgs.choices
 
   expect(flatChoices).toStrictEqual([
-    new Separator(' dependencies'),
-    new Separator('Package                                                    Current   Target            URL '),
+    new Separator(chalk.bold('── dependencies ──')),
+    new Separator('  Package                                                    Current   Target            URL '),
     {
       name: `is-negative                                                  1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')}                 `,
       value: 'is-negative',
@@ -114,8 +117,10 @@ test('interactively update', async () => {
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
+      pageSize: process.stdout.rows == null ? 7 : Math.max(7, process.stdout.rows - 6),
     })
   )
+  expect(callArgs.theme.style.highlight('focused row')).toBe('focused row')
 
   {
     const lockfile = project.readLockfile()
@@ -127,7 +132,7 @@ test('interactively update', async () => {
 
   // Update to latest versions
   mockCheckbox.mockClear()
-  mockCheckbox.mockResolvedValue(['is-negative', 'is-positive', 'micromatch'])
+  mockCheckbox.mockResolvedValue(['is-negative'])
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -143,8 +148,8 @@ test('interactively update', async () => {
   const flatChoices2 = callArgs2.choices
 
   expect(flatChoices2).toStrictEqual([
-    new Separator(' dependencies'),
-    new Separator('Package                                                    Current   Target            URL '),
+    new Separator(chalk.bold('── dependencies ──')),
+    new Separator('  Package                                                    Current   Target            URL '),
     {
       name: `is-negative                                                  1.0.1 ❯ ${chalk.redBright.bold('2.1.0')}                 `,
       value: 'is-negative',
@@ -289,8 +294,8 @@ test('interactively update should ignore dependencies from the ignoreDependencie
 
   expect(flatChoices3).toStrictEqual(
     [
-      new Separator(' dependencies'),
-      new Separator('Package                                                    Current   Target            URL '),
+      new Separator(chalk.bold('── dependencies ──')),
+      new Separator('  Package                                                    Current   Target            URL '),
       {
         name: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
         value: 'micromatch',

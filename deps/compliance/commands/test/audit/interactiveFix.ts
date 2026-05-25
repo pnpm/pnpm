@@ -9,7 +9,10 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
-jest.unstable_mockModule('@inquirer/prompts', () => ({ checkbox: jest.fn(), Separator: jest.requireActual('@inquirer/prompts').Separator }))
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
+  return { ...actual, checkbox: jest.fn() }
+})
 const { checkbox, Separator } = await import('@inquirer/prompts')
 const { audit } = await import('@pnpm/deps.compliance.commands')
 
@@ -84,15 +87,17 @@ test('audit --fix -i prompt is called with correct structure', async () => {
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)` +
         '\n\nEnter to start fixing. Ctrl-c to cancel.',
+      pageSize: process.stdout.rows == null ? 7 : Math.max(7, process.stdout.rows - 6),
     })
   )
 
   const callArgs = mockCheckbox.mock.calls[0][0]
+  expect(callArgs.theme?.style?.highlight?.('focused row')).toBe('focused row')
   const choices = callArgs.choices as Array<{ type?: string; name?: string; value?: string }>
 
   const separatorNames = choices
     .filter((c) => c instanceof Separator || c.type === 'separator')
-    .map((c) => String(c))
+    .map((c) => c instanceof Separator ? c.separator : String(c))
 
   expect(separatorNames.some((s: string) => s.includes('critical'))).toBe(true)
   expect(separatorNames.some((s: string) => s.includes('high'))).toBe(true)
@@ -146,7 +151,7 @@ test('audit --fix -i with auditLevel filters before showing prompt', async () =>
   const choices = callArgs.choices as Array<Record<string, unknown>>
   const separatorNames = choices
     .filter((c) => c instanceof Separator || c.type === 'separator')
-    .map((c) => String(c))
+    .map((c) => c instanceof Separator ? c.separator : String(c))
   expect(separatorNames.filter((s: string) => s.includes('critical') || s.includes('high') || s.includes('moderate') || s.includes('low'))).toHaveLength(1)
   expect(separatorNames.some((s: string) => s.includes('critical'))).toBe(true)
 })
