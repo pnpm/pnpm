@@ -7832,6 +7832,9 @@ importers:
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../pkg-manifest/reader
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../pkg-manifest/utils
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../__utils__/prepare

@@ -11,7 +11,13 @@ jest.unstable_mockModule('execa', () => ({
   })),
 }))
 
-const { getSystemNodeVersionNonCached, engineName } = await import('../lib/index.js')
+const {
+  getSystemNodeVersionNonCached,
+  getSystemDenoVersionNonCached,
+  getSystemBunVersionNonCached,
+  getSystemRuntimeVersion,
+  engineName,
+} = await import('../lib/index.js')
 const execa = await import('execa')
 
 test('getSystemNodeVersion() executed from an executable pnpm CLI', () => {
@@ -34,6 +40,42 @@ test('getSystemNodeVersion() returns undefined if execa.sync throws an error', (
   isSea = true
   expect(getSystemNodeVersionNonCached()).toBeUndefined()
   expect(execa.sync).toHaveBeenCalledWith('node', ['--version'])
+})
+
+test('getSystemDenoVersion() parses the first line of `deno --version`', () => {
+  jest.mocked(execa.sync).mockReturnValueOnce({
+    stdout: 'deno 1.40.0 (release, aarch64-apple-darwin)\nv8 12.1.285.27\ntypescript 5.3.3',
+  } as ReturnType<typeof execa.sync>)
+  expect(getSystemDenoVersionNonCached()).toBe('v1.40.0')
+  expect(execa.sync).toHaveBeenCalledWith('deno', ['--version'])
+})
+
+test('getSystemDenoVersion() returns undefined when deno is missing or output is unexpected', () => {
+  jest.mocked(execa.sync).mockImplementationOnce(() => {
+    throw new Error('not found: deno')
+  })
+  expect(getSystemDenoVersionNonCached()).toBeUndefined()
+
+  jest.mocked(execa.sync).mockReturnValueOnce({ stdout: 'unexpected output' } as ReturnType<typeof execa.sync>)
+  expect(getSystemDenoVersionNonCached()).toBeUndefined()
+})
+
+test('getSystemBunVersion() parses the bare version printed by `bun --version`', () => {
+  jest.mocked(execa.sync).mockReturnValueOnce({ stdout: '1.1.0\n' } as ReturnType<typeof execa.sync>)
+  expect(getSystemBunVersionNonCached()).toBe('v1.1.0')
+  expect(execa.sync).toHaveBeenCalledWith('bun', ['--version'])
+})
+
+test('getSystemBunVersion() returns undefined when bun is missing', () => {
+  jest.mocked(execa.sync).mockImplementationOnce(() => {
+    throw new Error('not found: bun')
+  })
+  expect(getSystemBunVersionNonCached()).toBeUndefined()
+})
+
+test('getSystemRuntimeVersion() dispatches to the per-runtime helpers', () => {
+  isSea = false
+  expect(getSystemRuntimeVersion('node')).toBe(process.version)
 })
 
 test('engineName() honours an explicit nodeVersion over the host probe', () => {

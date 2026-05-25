@@ -300,6 +300,82 @@ test('devEngines.runtime with onFail=error should fail when Node.js version rang
   expect(stderr.toString()).toContain('This project requires a Node.js runtime but does not specify a version range')
 })
 
+test('devEngines.runtime with onFail=error should fail on invalid Deno version range', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'deno',
+        version: 'invalid range',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires an invalid Deno version range: invalid range')
+})
+
+test('devEngines.runtime with onFail=error should fail on invalid Bun version range', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'bun',
+        version: 'invalid range',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires an invalid Bun version range: invalid range')
+})
+
+test('devEngines.runtime array entries are checked beyond the first one', async () => {
+  prepare({
+    devEngines: {
+      runtime: [
+        {
+          name: 'node',
+          version: '*',
+          onFail: 'error',
+        },
+        {
+          name: 'deno',
+          version: 'invalid range',
+          onFail: 'error',
+        },
+      ],
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires an invalid Deno version range: invalid range')
+})
+
+test('devEngines.runtime with onFail=ignore should not check Deno version', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'deno',
+        version: 'invalid range',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+  const output = stdout.toString() + stderr.toString()
+
+  expect(status).toBe(0)
+  expect(output).not.toContain('invalid Deno version range')
+})
+
 test('devEngines.runtime with onFail=error should not block version output', async () => {
   prepare({
     devEngines: {

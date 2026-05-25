@@ -12,9 +12,10 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
-import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-node-version'
+import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-node-version'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
+import { isRuntimeAlias, type RuntimeName } from '@pnpm/pkg-manifest.utils'
 import type { EngineDependency } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -128,8 +129,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         }
       }
       if (cmd != null && !cliOptions.global) {
-        const runtime = getWantedRuntime(context)
-        if (runtime != null) {
+        for (const runtime of getWantedRuntimes(context)) {
           checkRuntime(runtime)
         }
       }
@@ -453,43 +453,66 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
   }
 }
 
-function getWantedRuntime (context: ConfigContext): EngineDependency | undefined {
+const RUNTIME_DISPLAY_NAMES: Record<RuntimeName, string> = {
+  node: 'Node.js',
+  deno: 'Deno',
+  bun: 'Bun',
+}
+
+function getWantedRuntimes (context: ConfigContext): EngineDependency[] {
   const manifest = context.rootProjectManifest
-  if (manifest == null) return undefined
+  if (manifest == null) return []
+  const result: EngineDependency[] = []
+  const seen = new Set<RuntimeName>()
   for (const enginesFieldName of ['devEngines', 'engines'] as const) {
     const enginesRuntime = manifest[enginesFieldName]?.runtime
     if (enginesRuntime == null) continue
     const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
-    const nodeRuntime = runtimes.find(({ name }) => name === 'node')
-    if (nodeRuntime != null) return nodeRuntime
+    for (const runtime of runtimes) {
+      if (!runtime.name || !isRuntimeAlias(runtime.name) || seen.has(runtime.name)) continue
+      // devEngines takes precedence: once a runtime is captured from devEngines.runtime,
+      // an entry for the same runtime in engines.runtime is ignored.
+      seen.add(runtime.name)
+      result.push(runtime)
+    }
   }
-  return undefined
+  return result
 }
 
 function checkRuntime (runtime: EngineDependency): void {
   if (runtime.onFail == null || runtime.onFail === 'ignore' || runtime.onFail === 'download') return
-  if (runtime.name !== 'node') return
-  const wantedNodeRange = runtime.version
-  if (!wantedNodeRange || !semver.validRange(wantedNodeRange)) {
-    const msg = wantedNodeRange
-      ? `This project requires an invalid Node.js version range: ${wantedNodeRange}`
-      : 'This project requires a Node.js runtime but does not specify a version range'
-    if (runtime.onFail === 'error') {
-      throw new PnpmError('BAD_NODE_VERSION', msg, { hint: getRuntimeOnFailHint() })
-    }
-    globalWarn(msg)
+  if (!runtime.name || !isRuntimeAlias(runtime.name)) return
+  const runtimeName: RuntimeName = runtime.name
+  const displayName = RUNTIME_DISPLAY_NAMES[runtimeName]
+  const wantedRange = runtime.version
+  if (!wantedRange || !semver.validRange(wantedRange)) {
+    const msg = wantedRange
+      ? `This project requires an invalid ${displayName} version range: ${wantedRange}`
+      : `This project requires a ${displayName} runtime but does not specify a version range`
+    failRuntimeCheck(runtime.onFail, msg)
     return
   }
-  const currentNodeVersion = getSystemNodeVersion() ?? process.version
-  if (semver.satisfies(currentNodeVersion, wantedNodeRange, { includePrerelease: true })) return
-
-  const msg = `This project requires Node.js ${wantedNodeRange}. Your current Node.js is ${currentNodeVersion}`
-  if (runtime.onFail === 'error') {
-    throw new PnpmError('BAD_NODE_VERSION', msg, {
-      hint: getRuntimeOnFailHint(),
-    })
+  const currentVersion = getSystemRuntimeVersion(runtimeName)
+  if (currentVersion == null) {
+    failRuntimeCheck(
+      runtime.onFail,
+      `This project requires ${displayName} ${wantedRange}, but ${displayName} was not found on the system`
+    )
+    return
   }
-  globalWarn(msg)
+  if (semver.satisfies(currentVersion, wantedRange, { includePrerelease: true })) return
+
+  failRuntimeCheck(
+    runtime.onFail,
+    `This project requires ${displayName} ${wantedRange}. Your current ${displayName} is ${currentVersion}`
+  )
+}
+
+function failRuntimeCheck (onFail: 'error' | 'warn', message: string): void {
+  if (onFail === 'error') {
+    throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: getRuntimeOnFailHint() })
+  }
+  globalWarn(message)
 }
 
 function getRuntimeOnFailHint (): string {

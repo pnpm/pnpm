@@ -115,6 +115,7 @@
     "@pnpm/patching.commands": "workspace:*",
     "@pnpm/pkg-manifest.commands": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/registry-access.commands": "workspace:*",
