@@ -2904,16 +2904,10 @@ name = "pacquet-testing-utils"
 version = "0.0.0"
 dependencies = [
  "assert_cmd",
- "axum",
- "base64 0.22.1",
- "bytes",
  "command-extra",
- "flate2",
  "junction",
- "node-semver",
- "serde_json",
- "sha2",
- "tar",
+ "pnpm-registry",
+ "pnpm-registry-fixtures",
  "tempfile",
  "text-block-macros",
  "tokio",
@@ -3090,6 +3084,19 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wax",
+]
+
+[[package]]
+name = "pnpm-registry-fixtures"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "flate2",
+ "node-semver",
+ "serde_json",
+ "sha2",
+ "tar",
+ "walkdir",
 ]
 
 [[package]]

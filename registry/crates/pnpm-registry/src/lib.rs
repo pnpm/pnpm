@@ -26,4 +26,4 @@ pub use config::{
 };
 pub use error::{RegistryError, Result};
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};
-pub use server::{router, router_with_auth, serve};
+pub use server::{router, router_with_auth, serve, serve_listener};

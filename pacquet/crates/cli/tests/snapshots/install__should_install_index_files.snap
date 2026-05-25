@@ -2,7 +2,7 @@
 source: pacquet/crates/cli/tests/install.rs
 expression: index_file_contents
 ---
-"sha512-C+H4TpXECJzGsAp+ljFKSDbJwcTvrTCiVusu4Pr5h1JQDB+fd+fau7LB8wE9bweyzyVsiuQ8h+q4leXm91ueDg==\t@pnpm.e2e/hello-world-js-bin@1.0.0":
+"sha512-pP5Y4PBmqzPLhY9Lp2qu80Skz9ajN+Q8ExLwwGGca+3YK4WsBMsO4/96qHVvxA52ckrI24mNCime7Nu799nTpg==\t@pnpm.e2e/hello-world-js-bin@1.0.0":
   index.js:
     digest: 6a44d985707ef841f4102735ed89de559abed57a1a95f56eb8b874b4fc1b991b123f0a4338d70ec73eb694a3a3e8cc144e45de8ecfd12580d8153da6c13ad3e0
     mode: 493
@@ -11,7 +11,7 @@ expression: index_file_contents
     digest: 06838841ce051996b20844617ce5fdee4a57e9de8e909a7c0852664aa14127d343368cc74154704b483da85b98ca8f4fc59b8f223e7afc9e99c9601a826d4b68
     mode: 420
     size: 98
-"sha512-MjLg8kiAqkPrrlZOtdDhA1CAb07mYQSEdGKqGEPDlXjcRdfLSbpC7zBij20K4sdHEGY0IwOALJHOrl70bepjtw==\t@pnpm.e2e/hello-world-js-bin-parent@1.0.0":
+"sha512-r05eczaJfwuaQ8Ij2gpsRUGaV8Mw4Knog2TCRYCGi2P4sw0kIWRnZI8AoadpvK2mFwUU58p5m5FTQimaGO01sQ==\t@pnpm.e2e/hello-world-js-bin-parent@1.0.0":
   index.js:
     digest: ff0f57bdccac27e7dfc515fe0c51845dfc7177b19468f6e8e43a15d44ce775990ed686fcabfc00bd85ce6a10b78c627e1086f40258881add317742c6b137132e
     mode: 493

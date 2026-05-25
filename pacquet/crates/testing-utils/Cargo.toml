@@ -11,20 +11,14 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-axum              = { workspace = true }
-base64            = { workspace = true }
-bytes             = { workspace = true }
-assert_cmd        = { workspace = true }
-command-extra     = { workspace = true }
-flate2            = { workspace = true }
-node-semver       = { workspace = true }
-serde_json        = { workspace = true }
-sha2              = { workspace = true }
-tar               = { workspace = true }
-tempfile          = { workspace = true }
-tokio             = { workspace = true }
-walkdir           = { workspace = true }
-text-block-macros = { workspace = true }
+assert_cmd             = { workspace = true }
+command-extra          = { workspace = true }
+pnpm-registry          = { workspace = true }
+tempfile               = { workspace = true }
+tokio                  = { workspace = true }
+walkdir                = { workspace = true }
+text-block-macros      = { workspace = true }
+pnpm-registry-fixtures = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
