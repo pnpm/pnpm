@@ -200,35 +200,29 @@ pub fn ensure_file(
 
 /// Borrow the process-local write mutex for `file_path`.
 ///
-/// Striped: hashes the path into one of `NUM_CAS_LOCK_STRIPES` static
-/// mutexes. Mirrors the per-path serialization the previous
-/// `DashMap<PathBuf, Arc<Mutex<()>>>` shape gave but without the per-call
-/// `PathBuf::to_path_buf` allocation, the `DashMap` shard write lock, or
-/// the `Arc<Mutex<()>>` slot allocation — each install pays one path
-/// hash + one uncontended mutex acquire per CAFS file written
-/// (~170k on the alotta-files fixture) instead.
-///
-/// **Correctness with striping.** The original map was per-*path*: a
-/// concurrent writer and verifier of the same path always met on the
-/// same mutex. Striping by hash relaxes that to "writers of paths
-/// hashing into the same stripe wait on each other" — which is a
-/// superset of the original blocking relation, so every safety
-/// invariant the per-path lock provided still holds. The extra
-/// false-sharing between unrelated paths is bounded: with 256 stripes
-/// and ~10 rayon workers, collision probability per pair is ~4 %, and
-/// the body the lock guards (`O_CREAT|O_EXCL` open + `write_all` of a
-/// single tar entry) is microseconds long. Pnpm's own
+/// The hot path costs one path hash + one uncontended mutex acquire
+/// per CAFS file written (~170k on the alotta-files fixture), with no
+/// allocations: the path is hashed into one of `NUM_CAS_LOCK_STRIPES`
+/// statically-allocated mutexes. Pnpm's own
 /// [`writeFile`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts)
-/// uses a refcount `Map<string, number>` for the same coordination —
-/// striping is the Rust analogue with the same upper bound on
-/// blocking.
+/// uses a refcount `Map<string, number>` for the equivalent
+/// coordination — this is the Rust analogue.
+///
+/// **Coordination contract.** Callers handing in the same `&Path`
+/// always receive the same `Mutex<()>`. The hasher is initialised
+/// once per process (`OnceLock<RandomState>`) so the path-to-stripe
+/// mapping stays stable for the lifetime of the process; writers
+/// (`ensure_file`) and verifiers (`check_pkg_files_integrity`) of the
+/// same path are guaranteed to meet on the same lock and serialise.
+/// Stripe-hash collisions between unrelated paths block each other
+/// too — that false-sharing is bounded by `NUM_CAS_LOCK_STRIPES` and
+/// the guarded section (a single `O_CREAT|O_EXCL` open + `write_all`)
+/// is microseconds long.
 ///
 /// Made `pub` so verifiers (`check_pkg_files_integrity`) can acquire
 /// the same lock before stat-then-maybe-`rimraf`'ing a CAS path —
 /// otherwise the verifier can `unlink` a file while a writer's
-/// `write_all` is still running. The verifier and writer pass the
-/// same `&Path` and the hasher is process-deterministic, so both land
-/// on the same stripe.
+/// `write_all` is still running.
 pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
     use std::collections::hash_map::RandomState;
     static BUILDER: std::sync::OnceLock<RandomState> = std::sync::OnceLock::new();
