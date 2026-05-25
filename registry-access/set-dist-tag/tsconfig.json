@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../network/fetch"
+      "path": "../../core/error"
     },
     {
-      "path": "../../registry-access/set-dist-tag"
+      "path": "../../network/fetch"
     }
   ]
 }

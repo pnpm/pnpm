@@ -39,6 +39,7 @@
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
+    "@pnpm/registry-access.set-dist-tag": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",

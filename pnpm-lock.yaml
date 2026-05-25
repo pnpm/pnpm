@@ -8159,6 +8159,9 @@ importers:
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
+      '@pnpm/registry-access.set-dist-tag':
+        specifier: workspace:*
+        version: link:../set-dist-tag
       '@pnpm/resolving.registry.types':
         specifier: workspace:*
         version: link:../../resolving/registry/types
@@ -8208,6 +8211,22 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
+
+  registry-access/set-dist-tag:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
+    devDependencies:
+      '@pnpm/registry-access.set-dist-tag':
+        specifier: workspace:*
+        version: 'link:'
 
   releasing/commands:
     dependencies:
@@ -9402,9 +9421,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/registry-access.commands':
+      '@pnpm/registry-access.set-dist-tag':
         specifier: workspace:*
-        version: link:../../registry-access/commands
+        version: link:../../registry-access/set-dist-tag
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))

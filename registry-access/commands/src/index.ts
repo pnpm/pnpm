@@ -11,4 +11,3 @@ import * as unpublish from './unpublish.js'
 import * as whoami from './whoami.js'
 
 export { deprecate, distTag, owner, ping, search, star, stars, undeprecate, unpublish, unstar, whoami }
-export { setDistTag, type SetDistTagOptions } from './setDistTag.js'

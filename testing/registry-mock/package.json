@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@pnpm/network.fetch": "workspace:*",
-    "@pnpm/registry-access.commands": "workspace:*",
+    "@pnpm/registry-access.set-dist-tag": "workspace:*",
     "@pnpm/registry-mock": "catalog:"
   },
   "engines": {

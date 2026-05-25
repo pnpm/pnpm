@@ -8,8 +8,9 @@ import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
+import { setDistTag } from '@pnpm/registry-access.set-dist-tag'
+
 import { parsePackageSpec, rcOptionsTypes } from './common.js'
-import { setDistTag } from './setDistTag.js'
 
 export { rcOptionsTypes }
 
