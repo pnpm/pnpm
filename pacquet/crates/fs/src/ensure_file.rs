@@ -245,6 +245,11 @@ pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
 /// file install that's ~660 writes per stripe, all on different paths
 /// — uncontended pairings dominate.
 const NUM_CAS_LOCK_STRIPES: usize = 256;
+const _: () = assert!(
+    NUM_CAS_LOCK_STRIPES.is_power_of_two(),
+    "cas_write_lock uses `& (NUM_CAS_LOCK_STRIPES - 1)` as the stripe selector, which only \
+     distributes uniformly when the count is a power of two",
+);
 
 static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
     [const { Mutex::new(()) }; NUM_CAS_LOCK_STRIPES];
