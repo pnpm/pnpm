@@ -92,7 +92,7 @@ test('audit --fix -i prompt is called with correct structure', async () => {
   )
 
   const callArgs = mockCheckbox.mock.calls[0][0]
-  expect(callArgs.theme?.style?.highlight?.('focused row')).toBe('focused row')
+  expect((callArgs.theme?.style?.highlight as (str: string) => string)?.('focused row')).toBe('focused row')
   const choices = callArgs.choices as Array<{ type?: string; name?: string; value?: string }>
 
   const separatorNames = choices
