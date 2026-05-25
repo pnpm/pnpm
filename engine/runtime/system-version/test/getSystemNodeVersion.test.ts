@@ -76,6 +76,18 @@ test('getSystemBunVersion() returns undefined when bun is missing', () => {
 test('getSystemRuntimeVersion() dispatches to the per-runtime helpers', () => {
   isSea = false
   expect(getSystemRuntimeVersion('node')).toBe(process.version)
+
+  jest.mocked(execa.sync).mockReturnValueOnce({
+    stdout: 'deno 9.9.9 (release)',
+  } as ReturnType<typeof execa.sync>)
+  expect(getSystemRuntimeVersion('deno')).toBe('v9.9.9')
+  expect(execa.sync).toHaveBeenLastCalledWith('deno', ['--version'])
+
+  jest.mocked(execa.sync).mockReturnValueOnce({
+    stdout: '9.9.9\n',
+  } as ReturnType<typeof execa.sync>)
+  expect(getSystemRuntimeVersion('bun')).toBe('v9.9.9')
+  expect(execa.sync).toHaveBeenLastCalledWith('bun', ['--version'])
 })
 
 test('engineName() honours an explicit nodeVersion over the host probe', () => {
