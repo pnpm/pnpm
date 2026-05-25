@@ -27,7 +27,7 @@ pub use crate::defaults::{
     default_virtual_store_dir_max_length, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
-    default_cache_dir, default_child_concurrency, default_config_dir,
+    default_cache_dir, default_child_concurrency, default_config_dir, default_dlx_cache_max_age,
     default_enable_global_virtual_store, default_fetch_retries, default_fetch_retry_factor,
     default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_hoist_pattern,
     default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
@@ -748,6 +748,13 @@ pub struct Config {
     /// [`Config.nodeOptions`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).
     /// `None` leaves the inherited `NODE_OPTIONS` untouched.
     pub node_options: Option<String>,
+
+    /// `dlxCacheMaxAge` — the time in minutes after which a cached
+    /// `pnpm dlx` install is considered stale and reinstalled. Default
+    /// `1440` (24 hours), matching upstream's
+    /// [`Config.dlxCacheMaxAge`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).
+    #[default(_code = "default_dlx_cache_max_age()")]
+    pub dlx_cache_max_age: u64,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
     /// pnpm runs lifecycle scripts under a TMPDIR isolated to

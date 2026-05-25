@@ -214,6 +214,10 @@ pub struct WorkspaceSettings {
     /// `NODE_OPTIONS` when running scripts.
     pub node_options: Option<String>,
 
+    /// `dlxCacheMaxAge` from `pnpm-workspace.yaml`. Minutes before a
+    /// cached `pnpm dlx` install is reinstalled. Default `1440`.
+    pub dlx_cache_max_age: Option<u64>,
+
     /// `unsafePerm` from `pnpm-workspace.yaml`. Forced to `true` on
     /// Windows in `apply_to` (matches upstream's
     /// `process.platform === 'win32'` override).
@@ -586,6 +590,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.node_options {
             config.node_options = Some(v);
+        }
+        if let Some(v) = self.dlx_cache_max_age {
+            config.dlx_cache_max_age = v;
         }
         if let Some(v) = self.unsafe_perm {
             config.unsafe_perm = v;

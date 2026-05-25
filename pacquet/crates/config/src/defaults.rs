@@ -230,6 +230,12 @@ pub fn default_modules_cache_max_age() -> u64 {
     10080
 }
 
+/// Default `dlxCacheMaxAge` (minutes) matching pnpm's fallback of
+/// 1440 (24 hours).
+pub fn default_dlx_cache_max_age() -> u64 {
+    1440
+}
+
 /// Default `virtualStoreDirMaxLength` matching pnpm's fallback at
 /// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L101-L103>.
 ///

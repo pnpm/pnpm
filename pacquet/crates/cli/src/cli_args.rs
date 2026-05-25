@@ -1,4 +1,5 @@
 pub mod add;
+pub mod dlx;
 pub mod exec;
 pub mod install;
 pub mod run;
@@ -8,6 +9,7 @@ pub mod supported_architectures;
 use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use dlx::DlxArgs;
 use exec::ExecArgs;
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
@@ -68,6 +70,8 @@ pub enum CliCommand {
     Run(RunArgs),
     /// Execute a shell command in the context of a project.
     Exec(ExecArgs),
+    /// Run a package in a temporary environment.
+    Dlx(DlxArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Managing the package store.
@@ -167,6 +171,10 @@ impl CliArgs {
             }
             CliCommand::Run(args) => args.run(&dir, config()?)?,
             CliCommand::Exec(args) => args.run(&dir, config()?)?,
+            CliCommand::Dlx(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(&dir, config()?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(&dir, config()?).await?,
+            },
             CliCommand::Start => {
                 // Runs an arbitrary command specified in the package's start property of its scripts
                 // object. If no start property is specified on the scripts object, it will attempt to
