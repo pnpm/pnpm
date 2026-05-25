@@ -13,6 +13,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use pacquet_deps_path::remove_suffix;
 use pacquet_lockfile::{
     ComVer, ImporterDepVersion, Lockfile, LockfileSettings, LockfileVersion, PackageKey,
     PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
@@ -233,7 +234,17 @@ fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<St
 fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDepVersion {
     let dep_path_str = node.dep_path.as_str();
 
-    if let Some(target) = dep_path_str.strip_prefix("link:") {
+    if dep_path_str.starts_with("link:") {
+        // Pnpm's `resolvePeersOfNode` short-circuits link nodes (depth
+        // === -1) so their depPath never gains a peer-graph suffix —
+        // the importer entry is just `link:<rel-path>`. Pacquet's
+        // resolver doesn't yet model the `depth === -1` arm, so a
+        // workspace-link node with peer-carrying manifest still picks
+        // up a trailing `(<peers>)` segment here. Strip it via the
+        // balanced-paren scan so the emitted importer value matches
+        // pnpm byte-for-byte.
+        let bare = remove_suffix(dep_path_str);
+        let target = bare.strip_prefix("link:").expect("dep_path_str starts with link:");
         return ImporterDepVersion::Link(target.to_string());
     }
 
@@ -281,6 +292,17 @@ fn build_packages_and_snapshots(
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
 
     for node in graph.values() {
+        // Pnpm leaves workspace-link nodes out of `lockfile.packages`
+        // entirely — `resolvePeersOfNode` returns early on `depth === -1`,
+        // so the link node never enters `dependenciesGraph` and the
+        // splitter that emits `packages:` / `snapshots:` never sees it.
+        // Pacquet's resolver doesn't yet skip link nodes, but the v9
+        // lockfile must still not carry them: a `link:` dep_path with
+        // a parenthesised peer suffix would otherwise mis-parse as a
+        // `PackageKey` and pollute both maps with a malformed key.
+        if node.dep_path.as_str().starts_with("link:") {
+            continue;
+        }
         let Ok(snapshot_key) = node.dep_path.as_str().parse::<PackageKey>() else { continue };
         let metadata_key = snapshot_key.without_peer();
 
