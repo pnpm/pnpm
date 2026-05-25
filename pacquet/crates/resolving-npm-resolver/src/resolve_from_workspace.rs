@@ -166,7 +166,7 @@ pub fn try_resolve_from_workspace(
     Ok(Some(result))
 }
 
-fn try_resolve_from_workspace_packages(
+pub(crate) fn try_resolve_from_workspace_packages(
     workspace_packages: &WorkspacePackages,
     spec: &RegistryPackageSpec,
     wanted_dependency: &WantedDependency,
@@ -211,7 +211,7 @@ fn try_resolve_from_workspace_packages(
 
 /// Mirror upstream's
 /// [`pickMatchingLocalVersionOrNull`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L890-L906).
-fn pick_matching_local_version_or_null(
+pub(crate) fn pick_matching_local_version_or_null(
     versions: &WorkspacePackagesByVersion,
     spec: &RegistryPackageSpec,
 ) -> Option<String> {
@@ -238,7 +238,7 @@ fn pick_matching_local_version_or_null(
 /// doesn't carry the pinned-version / save-workspace-protocol config
 /// through to the resolver yet, so the field stays `None` until those
 /// land.
-fn resolve_from_local_package(
+pub(crate) fn resolve_from_local_package(
     local_package: &WorkspacePackage,
     wanted_dependency: &WantedDependency,
     hard_link_local_packages: bool,

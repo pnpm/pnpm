@@ -47,6 +47,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         auto_install_peers_from_highest_match: false,
         hoist_workspace_packages: true,
         hoisting_limits: Default::default(),
+        link_workspace_packages: Default::default(),
         external_dependencies: Default::default(),
         dedupe_peer_dependents: false,
         strict_peer_dependencies: false,

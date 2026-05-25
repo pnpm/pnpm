@@ -11,7 +11,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
-use pacquet_config::{Config, NodeLinker};
+use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
@@ -561,6 +561,16 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     lockfile_dir: lockfile_dir.to_path_buf(),
                     workspace_packages: workspace_packages.clone(),
                     block_exotic_subdeps: config.block_exotic_subdeps,
+                    // Pacquet's deps-resolver doesn't thread per-call
+                    // depth into the resolver yet, so the
+                    // `linkWorkspacePackages: true` (direct-only) and
+                    // `"deep"` arms both collapse onto a flag that
+                    // applies at every depth. Matches pnpm's behavior
+                    // for `"deep"`; the (rare) `true`-only case may
+                    // resolve a transitive registry dep through the
+                    // workspace when the names collide.
+                    always_try_workspace_packages: config.link_workspace_packages
+                        != LinkWorkspacePackages::Off,
                     ..ResolveOptions::default()
                 },
                 catalogs: catalogs.clone(),

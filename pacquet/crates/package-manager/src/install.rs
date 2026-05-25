@@ -11,7 +11,7 @@ use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, NodeLinker};
+use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
 use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
 };
@@ -1171,6 +1171,18 @@ fn map_workspace_state_node_linker(linker: &NodeLinker) -> WorkspaceStateNodeLin
     }
 }
 
+/// Encode [`LinkWorkspacePackages`] into the JSON shape pnpm writes
+/// to `.pnpm-workspace-state-v1.json`. Tri-state on the wire
+/// (`true | false | "deep"`) so a future read by pnpm sees the same
+/// value pacquet ran with.
+fn link_workspace_packages_to_json(value: LinkWorkspacePackages) -> serde_json::Value {
+    match value {
+        LinkWorkspacePackages::Off => serde_json::Value::Bool(false),
+        LinkWorkspacePackages::DirectOnly => serde_json::Value::Bool(true),
+        LinkWorkspacePackages::Deep => serde_json::Value::String("deep".to_string()),
+    }
+}
+
 /// Read a string field off a project manifest, returning `None` when
 /// the field is missing or not a JSON string. Pnpm tolerates either
 /// shape — `name`/`version` are advisory metadata in this context, so
@@ -1333,6 +1345,9 @@ fn build_workspace_state(
             hoist_pattern: config.hoist_pattern.clone(),
             hoist_workspace_packages: Some(config.hoist_workspace_packages),
             ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+            link_workspace_packages: Some(link_workspace_packages_to_json(
+                config.link_workspace_packages,
+            )),
             node_linker: Some(map_workspace_state_node_linker(&node_linker)),
             optional: Some(included.optional_dependencies),
             overrides: config.overrides.as_ref().map(|map| {
