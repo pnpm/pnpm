@@ -43,6 +43,7 @@ pacquet-exportable-manifest               = { path = "pacquet/crates/exportable-
 pacquet-directory-fetcher                 = { path = "pacquet/crates/directory-fetcher" }
 pacquet-git-fetcher                       = { path = "pacquet/crates/git-fetcher" }
 pacquet-deps-path                         = { path = "pacquet/crates/deps-path" }
+pacquet-detect-libc                       = { path = "pacquet/crates/detect-libc" }
 pacquet-diagnostics                       = { path = "pacquet/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pacquet/crates/graph-hasher" }
 pacquet-store-dir                         = { path = "pacquet/crates/store-dir" }

@@ -2174,6 +2174,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-detect-libc"
+version = "0.0.1"
+dependencies = [
+ "pretty_assertions",
+]
+
+[[package]]
 name = "pacquet-diagnostics"
 version = "0.0.1"
 dependencies = [
@@ -2321,6 +2328,7 @@ name = "pacquet-graph-hasher"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "pacquet-detect-libc",
  "pretty_assertions",
  "serde_json",
  "sha2",
