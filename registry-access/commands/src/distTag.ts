@@ -4,11 +4,10 @@ import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
+import { setDistTag } from '@pnpm/registry-access.client'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
-
-import { setDistTag } from '@pnpm/registry-access.client'
 
 import { parsePackageSpec, rcOptionsTypes } from './common.js'
 
