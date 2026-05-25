@@ -53,7 +53,8 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
     if storage.join(COMPLETE_FILE).exists() {
         return;
     }
-    fs::create_dir_all(generated).expect("create generated registry fixture dir");
+    fs::create_dir_all(storage.parent().expect("registry fixture storage has parent"))
+        .expect("create generated registry fixture storage dir");
     let temp = generated.join(format!(
         "storage.tmp.{}.{}",
         std::process::id(),
