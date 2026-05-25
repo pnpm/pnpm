@@ -484,7 +484,18 @@ fn compute_corrected_optional(
     for input in importer_inputs.values() {
         let alias_to_group = manifest_alias_to_group(input.manifest);
         for (alias, dep_path) in &input.direct_dependencies_by_alias {
-            let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);
+            // Skip aliases the manifest doesn't declare — auto-installed
+            // peers hoisted into `direct_dependencies_by_alias` when
+            // `autoInstallPeers: true` is on never make it into the
+            // importer's lockfile entry (see [`build_importer`]), so
+            // upstream's [`pruneSharedLockfile`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/lockfile/pruner/src/index.ts#L27-L29)
+            // doesn't seed from them either. Seeding them here would
+            // force their snapshots' `optional` flag to `false` purely
+            // by virtue of being pulled in to satisfy an optional
+            // parent's peer.
+            let Some(group) = alias_to_group.get(alias).copied() else {
+                continue;
+            };
             match group {
                 DependencyGroup::Dev => dev_seeds.push(dep_path),
                 DependencyGroup::Optional => optional_seeds.push(dep_path),

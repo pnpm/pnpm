@@ -118,11 +118,18 @@ fn fresh_resolve_walks_every_workspace_importer() {
         "pnpm-lock.yaml missing importers entry for packages/b:\n{lockfile}",
     );
     // hello-world-js-bin-parent is a direct dep of packages/a, so it
-    // should appear in that importer's specifiers — not just in the
-    // packages: section.
+    // should appear in that importer's section — not just in
+    // `packages:` where any transitive could also surface the name.
+    // Slice the lockfile to packages/a's importer block and check
+    // there.
+    let a_importer_section = lockfile
+        .split("  packages/a:\n")
+        .nth(1)
+        .and_then(|tail| tail.split("\n  packages/").next())
+        .expect("pnpm-lock.yaml missing packages/a importer section");
     assert!(
-        lockfile.contains("hello-world-js-bin-parent"),
-        "pnpm-lock.yaml missing hello-world-js-bin-parent:\n{lockfile}",
+        a_importer_section.contains("hello-world-js-bin-parent"),
+        "pnpm-lock.yaml packages/a importer missing hello-world-js-bin-parent:\n{lockfile}",
     );
 
     drop((root, mock_instance));

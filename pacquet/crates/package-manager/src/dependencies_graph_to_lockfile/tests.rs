@@ -942,6 +942,80 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     );
 }
 
+/// Auto-installed peers (hoisted into `direct_dependencies_by_alias`
+/// by the resolver when `autoInstallPeers: true` is on) must NOT seed
+/// the pruner BFS — they aren't in the manifest, so
+/// [`build_importer`](super::build_importer) excludes them from the
+/// importer's lockfile entry, and upstream's
+/// [`pruneSharedLockfile`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/lockfile/pruner/src/index.ts#L27-L29)
+/// seeds only from what was written to the importer entries.
+///
+/// Scenario: importer declares `parent` in `optionalDependencies`;
+/// the resolver auto-installs `parent`'s peer `peer-x` and hoists it
+/// to the importer's `direct_dependencies_by_alias`. With the
+/// undeclared-alias skip, the BFS only seeds `parent` (optional), so
+/// `peer-x` ends up `optional: true` — matching pnpm. Without the
+/// skip, `peer-x` would have been treated as a Prod-defaulted
+/// importer-level dep and forced to `optional: false`.
+#[test]
+fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "optionalDependencies": { "parent": "^1.0.0" },
+    }));
+
+    let peer_x = make_node_with_optional(
+        "peer-x",
+        "1.0.0",
+        json!({ "name": "peer-x", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+        true,
+    );
+
+    let mut parent_children = BTreeMap::new();
+    parent_children.insert("peer-x".to_string(), DepPath::from("peer-x@1.0.0".to_string()));
+    let parent = make_node_with_optional(
+        "parent",
+        "1.0.0",
+        json!({
+            "name": "parent",
+            "version": "1.0.0",
+            "dependencies": { "peer-x": "^1.0.0" },
+        }),
+        parent_children,
+        BTreeMap::new(),
+        HashSet::new(),
+        true,
+    );
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(parent.dep_path.clone(), parent);
+    graph.insert(peer_x.dep_path.clone(), peer_x);
+
+    // The resolver hoisted `peer-x` to the importer level even though
+    // the manifest doesn't declare it — this is exactly what
+    // `auto_install_peers` does.
+    let mut direct = BTreeMap::new();
+    direct.insert("parent".to_string(), DepPath::from("parent@1.0.0".to_string()));
+    direct.insert("peer-x".to_string(), DepPath::from("peer-x@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let parent_key: PackageKey = "parent@1.0.0".parse().unwrap();
+    let peer_x_key: PackageKey = "peer-x@1.0.0".parse().unwrap();
+    assert!(snapshots[&parent_key].optional, "parent is the importer's optional direct dep");
+    assert!(
+        snapshots[&peer_x_key].optional,
+        "auto-installed peer reachable only via parent's optional path stays optional",
+    );
+}
+
 /// Multi-importer with a `workspace:` link between two siblings.
 /// Ported from the spirit of upstream pnpm's
 /// [`headless install is used when package linked to another package in the workspace`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/installing/deps-installer/test/install/multipleImporters.ts#L540)
