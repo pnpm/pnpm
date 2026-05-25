@@ -40,14 +40,21 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
   if (!params.length) {
     const allPatches = Object.keys(patchedDependencies)
     if (allPatches.length) {
-      patchesToRemove = await checkbox({
-        choices: allPatches.map((name) => ({ name, value: name })),
-        message: 'Select the patch to be removed',
-        required: true,
-        validate: (values) => {
-          return values.length === 0 ? 'Select at least one option.' : true
-        },
-      })
+      try {
+        patchesToRemove = await checkbox({
+          choices: allPatches.map((name) => ({ name, value: name })),
+          message: 'Select the patch to be removed',
+          required: true,
+          validate: (values) => {
+            return values.length === 0 ? 'Select at least one option.' : true
+          },
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          throw new PnpmError('PATCH_REMOVE_CANCELED', 'Canceled')
+        }
+        throw err
+      }
     }
   }
 

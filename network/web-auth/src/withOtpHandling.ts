@@ -103,9 +103,17 @@ export async function withOtpHandling<T> ({
         pollPromise,
       })
     } else {
-      const otpValue = await enquirer.input({
-        message: 'This operation requires a one-time password.\nEnter OTP:',
-      })
+      let otpValue: string | undefined
+      try {
+        otpValue = await enquirer.input({
+          message: 'This operation requires a one-time password.\nEnter OTP:',
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          throw error
+        }
+        throw err
+      }
 
       otp = otpValue || undefined
     }
