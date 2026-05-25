@@ -329,8 +329,8 @@ async function runAgeCheck (
  * attestation endpoint is cheaper than the packument: presence of
  * provenance on the current version is not sufficient to clear a
  * downgrade. A package could have shipped earlier versions under a
- * `trustedPublisher` (the higher-rank evidence) and then dropped
- * back to plain provenance for the version we're verifying —
+ * `trustedPublisher` with provenance (the higher-rank evidence) and
+ * then dropped back to plain provenance for the version we're verifying —
  * `failIfTrustDowngraded` correctly flags that, and a "has any
  * attestation → pass" shortcut would silently miss it.
  */

@@ -50,7 +50,7 @@ test('createNpmResolutionVerifier() returns undefined when no policy is active',
 })
 
 test('createNpmResolutionVerifier() flags a trustedPublisher → provenance downgrade', async () => {
-  // 0.0.1 was published by a trustedPublisher → rank 2.
+  // 0.0.1 was published by a trustedPublisher with provenance → rank 2.
   // 0.0.2 is provenance-only (rank 1, weaker) → downgrade vs 0.0.1.
   // This is exactly the case the resolver-time trustChecks unit tests
   // cover, but routed through the lockfile verifier. The verifier must
@@ -62,7 +62,11 @@ test('createNpmResolutionVerifier() flags a trustedPublisher → provenance down
       '0.0.1': {
         name: 'demo',
         version: '0.0.1',
-        dist: { tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.1.tgz', shasum: 'aa' },
+        dist: {
+          tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.1.tgz',
+          shasum: 'aa',
+          attestations: { provenance: { predicateType: 'https://example.org/p' } },
+        },
         _npmUser: { trustedPublisher: { id: 'gha', oidcConfigId: 'cfg' } },
       },
       '0.0.2': {
@@ -71,7 +75,7 @@ test('createNpmResolutionVerifier() flags a trustedPublisher → provenance down
         dist: {
           tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.2.tgz',
           shasum: 'bb',
-          attestations: { provenance: { url: 'https://example.org/p' } },
+          attestations: { provenance: { predicateType: 'https://example.org/p' } },
         },
       },
     },
@@ -109,7 +113,7 @@ test('createNpmResolutionVerifier() passes a same-evidence-level version', async
         dist: {
           tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.1.tgz',
           shasum: 'aa',
-          attestations: { provenance: { url: 'https://example.org/p1' } },
+          attestations: { provenance: { predicateType: 'https://example.org/p1' } },
         },
       },
       '0.0.2': {
@@ -118,7 +122,7 @@ test('createNpmResolutionVerifier() passes a same-evidence-level version', async
         dist: {
           tarball: 'https://registry.npmjs.org/demo/-/demo-0.0.2.tgz',
           shasum: 'bb',
-          attestations: { provenance: { url: 'https://example.org/p2' } },
+          attestations: { provenance: { predicateType: 'https://example.org/p2' } },
         },
       },
     },

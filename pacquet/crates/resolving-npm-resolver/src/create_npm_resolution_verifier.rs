@@ -412,9 +412,9 @@ impl NpmResolutionVerifier {
     ///
     /// No attestation fast-path: presence of provenance on the current
     /// version is not sufficient to clear a downgrade. The package may
-    /// have shipped earlier versions under a `trustedPublisher` (the
-    /// higher-rank evidence) and then dropped to plain provenance —
-    /// `fail_if_trust_downgraded` correctly flags that.
+    /// have shipped earlier versions under a `trustedPublisher` with
+    /// provenance (the higher-rank evidence) and then dropped to plain
+    /// provenance — `fail_if_trust_downgraded` correctly flags that.
     async fn run_trust_check(
         &self,
         registry: &str,

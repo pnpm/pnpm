@@ -13,14 +13,17 @@ enum Evidence {
 
 /// Build a JSON object for a single version with the trust-evidence
 /// shape the verifier reads (`_npmUser.trustedPublisher` or
-/// `dist.attestations.provenance`).
+/// `dist.attestations.provenance`). A `TrustedPublisher` fixture
+/// includes both fields: per `get_trust_evidence`, the publisher
+/// flag only outranks plain provenance when the version also ships a
+/// provenance attestation.
 fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Value {
     let mut dist = serde_json::json!({
         "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
         "shasum": "0000000000000000000000000000000000000000",
         "tarball": format!("https://registry/{name}-{version}.tgz")
     });
-    if matches!(evidence, Evidence::Provenance) {
+    if matches!(evidence, Evidence::Provenance | Evidence::TrustedPublisher) {
         dist["attestations"] = serde_json::json!({
             "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
         });
@@ -317,4 +320,61 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("missing-time on a prior version must not mask the 1.0.0 baseline");
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}
+
+mod get_trust_evidence {
+    use pacquet_registry::PackageVersion;
+
+    use super::{Evidence, version_json};
+    use crate::trust_checks::{TrustEvidence, get_trust_evidence};
+
+    fn parse(version: serde_json::Value) -> PackageVersion {
+        serde_json::from_value(version).expect("deserialize fixture PackageVersion")
+    }
+
+    /// `_npmUser.trustedPublisher` without `dist.attestations.provenance`
+    /// is ignored — the publisher flag alone is metadata a staged
+    /// publish could mint, so it cannot stand in for the attestation.
+    #[test]
+    fn trusted_publisher_without_provenance_is_none() {
+        let mut version = version_json("acme", "1.0.0", Evidence::None);
+        version["_npmUser"] = serde_json::json!({
+            "trustedPublisher": { "id": "github", "oidcConfigId": "release" }
+        });
+        assert!(get_trust_evidence(&parse(version)).is_none());
+    }
+
+    /// `_npmUser.trustedPublisher` *with* provenance ranks as
+    /// `TrustedPublisher` (the strongest evidence).
+    #[test]
+    fn trusted_publisher_with_provenance_ranks_strongest() {
+        let version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
+        assert!(matches!(
+            get_trust_evidence(&parse(version)),
+            Some(TrustEvidence::TrustedPublisher)
+        ));
+    }
+
+    /// `dist.attestations.provenance` alone ranks as `Provenance`.
+    #[test]
+    fn provenance_alone_ranks_as_provenance() {
+        let version = version_json("acme", "1.0.0", Evidence::Provenance);
+        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::Provenance)));
+    }
+
+    /// Neither field present → `None`.
+    #[test]
+    fn no_evidence_returns_none() {
+        let version = version_json("acme", "1.0.0", Evidence::None);
+        assert!(get_trust_evidence(&parse(version)).is_none());
+    }
+
+    /// An `_npmUser` record without a `trustedPublisher` field is
+    /// ignored.
+    #[test]
+    fn npm_user_without_trusted_publisher_is_none() {
+        let mut version = version_json("acme", "1.0.0", Evidence::None);
+        version["_npmUser"] = serde_json::json!({ "name": "alice", "email": "alice@example.com" });
+        assert!(get_trust_evidence(&parse(version)).is_none());
+    }
 }

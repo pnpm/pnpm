@@ -8,10 +8,10 @@
 //! For each it asks [`get_trust_evidence`] which "rank" of evidence
 //! the version exposes:
 //!
-//! - `trustedPublisher` (rank 2) — `_npmUser.trustedPublisher` is
-//!   present.
+//! - `trustedPublisher` (rank 2) — `_npmUser.trustedPublisher` and
+//!   `dist.attestations.provenance` are both present.
 //! - `provenance` (rank 1) — `dist.attestations.provenance` is
-//!   present (and no trusted-publisher record).
+//!   present without a trusted-publisher record.
 //! - `None` (rank 0 / no evidence).
 //!
 //! The strongest rank seen across the prior history is the
@@ -36,9 +36,11 @@ use pacquet_registry::{Package, PackageVersion};
 pub enum TrustEvidence {
     /// `dist.attestations.provenance` is set.
     Provenance,
-    /// `_npmUser.trustedPublisher` is set (overrides provenance —
-    /// it's a stronger signal that a known upstream pipeline
-    /// published the version).
+    /// `_npmUser.trustedPublisher` and `dist.attestations.provenance`
+    /// are both set. Without the attestation the publisher flag is
+    /// just metadata a future staged-publish flow could mint, so it
+    /// only counts as the stronger signal when the version also
+    /// shipped a provenance attestation.
     TrustedPublisher,
 }
 
@@ -243,14 +245,20 @@ fn detect_strongest_trust_evidence_before(
     best
 }
 
-/// `_npmUser.trustedPublisher` outranks `dist.attestations.provenance`;
-/// absence of both yields `None`. Mirrors pnpm's
-/// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/trustChecks.ts#L119-L127).
+/// `_npmUser.trustedPublisher` outranks `dist.attestations.provenance`
+/// only when the version also carries a provenance attestation;
+/// otherwise the publisher flag is ignored and the version falls back
+/// to the provenance rank or `None`. Mirrors pnpm's
+/// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/fea5fd41da/resolving/npm-resolver/src/trustChecks.ts#L119-L127).
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
-    if version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some() {
+    let has_provenance =
+        version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some();
+    let has_trusted_publisher =
+        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some();
+    if has_trusted_publisher && has_provenance {
         return Some(TrustEvidence::TrustedPublisher);
     }
-    if version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some() {
+    if has_provenance {
         return Some(TrustEvidence::Provenance);
     }
     None
