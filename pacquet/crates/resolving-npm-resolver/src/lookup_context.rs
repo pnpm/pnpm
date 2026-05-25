@@ -49,7 +49,7 @@ pub(crate) struct AbbreviatedMetaProjection {
 /// Slot map of singleflight cells. Outer mutex guards lookup/insert;
 /// each cell is shared so concurrent verifier tasks that race on the
 /// same key wait on a single in-flight init.
-pub(crate) type SingleflightMap<T> = Mutex<HashMap<String, Arc<OnceCell<T>>>>;
+pub(crate) type SingleflightMap<Value> = Mutex<HashMap<String, Arc<OnceCell<Value>>>>;
 
 /// Per-install dedup of the lookups the verifier issues. Mirrors
 /// upstream's
