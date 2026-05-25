@@ -15,11 +15,12 @@
 //!    overwrite-via-rename heals the store.
 //!
 //! Pacquet's [`cas_write_lock`](pacquet_fs::ensure_file) is
-//! process-local (a `OnceLock<DashMap<PathBuf, Arc<Mutex<()>>>>`),
-//! just like upstream's `locker: Map<string, number>`. The
-//! cross-process safety contract therefore lives entirely in the
-//! kernel-level `O_CREAT | O_EXCL` + atomic-rename primitives. The
-//! existing intra-process 32-thread test in `ensure_file::tests`
+//! process-local (a static array of [`std::sync::Mutex<()>`] stripes
+//! keyed by hashed path), just like upstream's
+//! `locker: Map<string, number>`. The cross-process safety contract
+//! therefore lives entirely in the kernel-level `O_CREAT | O_EXCL` +
+//! atomic-rename primitives. The existing intra-process 32-thread
+//! test in `ensure_file::tests`
 //! ([`concurrent_writers_of_same_path_do_not_swap_the_inode`])
 //! exercises the lock; this suite exercises the unprotected
 //! filesystem-only path.

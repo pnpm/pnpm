@@ -1,12 +1,12 @@
-use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
     fs::{self, File, OpenOptions},
+    hash::{BuildHasher, Hasher},
     io::{self, Write},
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex, OnceLock,
+        Mutex,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
@@ -200,27 +200,53 @@ pub fn ensure_file(
 
 /// Borrow the process-local write mutex for `file_path`.
 ///
-/// Returning `Arc<Mutex<()>>` (rather than a `Ref` into the map) so
-/// the caller `.lock()`s after the shard guard from `entry()` is
-/// released — otherwise a recursive lookup on the same shard could
-/// deadlock. The map is never pruned: entries are one per unique
-/// CAS path the install wrote, bounded by the working set.
+/// The hot path costs one path hash + one uncontended mutex acquire
+/// per CAFS file written (~170k on the alotta-files fixture), with no
+/// allocations: the path is hashed into one of `NUM_CAS_LOCK_STRIPES`
+/// statically-allocated mutexes. Pnpm's own
+/// [`writeFile`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts)
+/// uses a refcount `Map<string, number>` for the equivalent
+/// coordination — this is the Rust analogue.
+///
+/// **Coordination contract.** Callers handing in the same `&Path`
+/// always receive the same `Mutex<()>`. The hasher is initialised
+/// once per process (`OnceLock<RandomState>`) so the path-to-stripe
+/// mapping stays stable for the lifetime of the process; writers
+/// (`ensure_file`) and verifiers (`check_pkg_files_integrity`) of the
+/// same path are guaranteed to meet on the same lock and serialise.
+/// Stripe-hash collisions between unrelated paths block each other
+/// too — that false-sharing is bounded by `NUM_CAS_LOCK_STRIPES` and
+/// the guarded section (a single `O_CREAT|O_EXCL` open + `write_all`)
+/// is microseconds long.
 ///
 /// Made `pub` so verifiers (`check_pkg_files_integrity`) can acquire
-/// the same lock before stat-then-maybe-`rimraf`'ing a CAS path.
-/// Without that, a verifier can `unlink` a file while a writer's
-/// `write_all` is still running — leaving the writer's `cas_paths`
-/// pointing at a now-orphaned inode whose dirent is gone, which
-/// surfaces later as ENOENT inside `link_file`. The lock is the
-/// only primitive that already coordinates per-blob writers, so it
-/// is the right gate to extend to readers that delete.
-pub fn cas_write_lock(file_path: &Path) -> Arc<Mutex<()>> {
-    static LOCKS: OnceLock<DashMap<PathBuf, Arc<Mutex<()>>>> = OnceLock::new();
-    let locks = LOCKS.get_or_init(DashMap::new);
-    Arc::clone(
-        locks.entry(file_path.to_path_buf()).or_insert_with(|| Arc::new(Mutex::new(()))).value(),
-    )
+/// the same lock before stat-then-maybe-`rimraf`'ing a CAS path —
+/// otherwise the verifier can `unlink` a file while a writer's
+/// `write_all` is still running.
+pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
+    use std::collections::hash_map::RandomState;
+    static BUILDER: std::sync::OnceLock<RandomState> = std::sync::OnceLock::new();
+    let builder = BUILDER.get_or_init(RandomState::new);
+    let mut hasher = builder.build_hasher();
+    std::hash::Hash::hash(file_path, &mut hasher);
+    let stripe = (hasher.finish() as usize) & (NUM_CAS_LOCK_STRIPES - 1);
+    &CAS_LOCK_STRIPES[stripe]
 }
+
+/// Number of static mutex stripes used by [`cas_write_lock`]. Power of
+/// two so the modulo collapses to a mask. 256 picked so each stripe
+/// sees on average `total_files / 256` writes per install; for a 170k-
+/// file install that's ~660 writes per stripe, all on different paths
+/// — uncontended pairings dominate.
+const NUM_CAS_LOCK_STRIPES: usize = 256;
+const _: () = assert!(
+    NUM_CAS_LOCK_STRIPES.is_power_of_two(),
+    "cas_write_lock uses `& (NUM_CAS_LOCK_STRIPES - 1)` as the stripe selector, which only \
+     distributes uniformly when the count is a power of two",
+);
+
+static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
+    [const { Mutex::new(()) }; NUM_CAS_LOCK_STRIPES];
 
 /// Re-read an already-present CAS file and byte-compare with `content`.
 /// If they match we're done; if not, recover the torn blob by writing a

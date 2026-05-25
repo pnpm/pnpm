@@ -137,6 +137,35 @@ pub fn link_file<Reporter: self::Reporter>(
         return Ok(());
     }
 
+    import_into_fresh_target::<Reporter>(logged, method, source_file, target_link)
+}
+
+/// Same as [`link_file`] but without the pre-flight `fs::metadata`
+/// stat. Caller guarantees `target_link` is fresh (does not currently
+/// exist) — the import syscall is invoked directly.
+///
+/// On the alotta-files fixture this saves ~170k `stat` syscalls per
+/// clean install. The pre-flight stat in [`link_file`] only matters
+/// to preserve the no-op-on-existing-target contract for the
+/// `Copy` / downgraded `Auto`→`Copy` / `CloneOrCopy`→`Copy` paths,
+/// where `fs::copy` would otherwise silently overwrite. When the
+/// caller knows the target is fresh — as is the case for
+/// `crate::import_indexed_dir::populate_dir`, which only ever
+/// runs against a directory it just created — that protection is
+/// unneeded.
+///
+/// EEXIST from the import syscall is still treated as a no-op:
+/// concurrent installs (or a sibling rayon worker writing the same
+/// CAFS path) can occasionally race past the freshness guarantee,
+/// and the kernel's atomic-create error is the right way to detect
+/// the contention. The content is content-addressed so the existing
+/// dirent is equivalent.
+pub fn import_into_fresh_target<Reporter: self::Reporter>(
+    logged: &AtomicU8,
+    method: PackageImportMethod,
+    source_file: &Path,
+    target_link: &Path,
+) -> Result<(), LinkFileError> {
     // Hardlinking a file from the store into `node_modules` means any
     // package that edits its own files at runtime (postinstall scripts
     // are the usual offender) ends up mutating the shared store copy.
@@ -146,15 +175,9 @@ pub fn link_file<Reporter: self::Reporter>(
     match try_import::<Reporter>(method, logged, source_file, target_link) {
         Ok(()) => Ok(()),
         // Mirrors pnpm's `linkOrCopy`: on EEXIST, return without
-        // touching disk. The pre-flight `fs::metadata` short-circuit
-        // above covers the live-target case for the `Copy` /
-        // `Auto`→copy path (where the import syscall would silently
-        // overwrite rather than surface EEXIST); when execution
-        // reaches here the import syscall *did* surface EEXIST,
-        // which can only happen if a concurrent writer raced ahead
-        // between the stat and the syscall. No additional stat is
-        // needed — the dirent exists, the contents are
-        // content-addressed, so the no-op contract holds.
+        // touching disk. A concurrent writer beat us to the target;
+        // contents are content-addressed so leaving theirs in place
+        // is equivalent.
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(LinkFileError::Import {
             from: source_file.to_path_buf(),
