@@ -54,7 +54,7 @@
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "chalk": "catalog:",
-    "enquirer": "catalog:",
+    "@inquirer/prompts": "catalog:",
     "escape-string-regexp": "catalog:",
     "is-windows": "catalog:",
     "make-empty-dir": "catalog:",

@@ -79,6 +79,7 @@ catalog:
   '@commitlint/prompt-cli': ^20.5.3
   '@cyclonedx/cyclonedx-library': 10.0.0
   '@eslint/js': ^10.0.1
+  '@inquirer/prompts': ^8.4.3
   '@jest/globals': 30.3.0
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
@@ -182,7 +183,6 @@ catalog:
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
   encode-registry: ^3.0.1
-  enquirer: ^2.4.1
   esbuild: ^0.27.7
   escape-string-regexp: ^5.0.0
   eslint: ^10.4.0

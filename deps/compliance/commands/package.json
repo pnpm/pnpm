@@ -61,7 +61,7 @@
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
-    "enquirer": "catalog:",
+    "@inquirer/prompts": "catalog:",
     "memoize": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",

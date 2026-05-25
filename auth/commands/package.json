@@ -38,7 +38,7 @@
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.web-auth": "workspace:*",
     "@pnpm/registry-access.client": "workspace:*",
-    "enquirer": "catalog:",
+    "@inquirer/prompts": "catalog:",
     "normalize-registry-url": "catalog:",
     "read-ini-file": "catalog:",
     "render-help": "catalog:",

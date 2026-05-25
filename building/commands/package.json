@@ -48,7 +48,7 @@
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "chalk": "catalog:",
-    "enquirer": "catalog:",
+    "@inquirer/prompts": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"

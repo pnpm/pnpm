@@ -7,17 +7,7 @@ import type { PromptBrowserOpenReadlineInterface } from './promptBrowserOpen.js'
 import { promptBrowserOpen } from './promptBrowserOpen.js'
 
 export interface OtpEnquirer {
-  prompt: (options: OtpPromptOptions) => Promise<OtpPromptResponse | undefined>
-}
-
-export interface OtpPromptOptions {
-  message: string
-  name: 'otp'
-  type: 'input'
-}
-
-export interface OtpPromptResponse {
-  otp?: string
+  input: (options: { message: string }) => Promise<string>
 }
 
 interface OtpDate {
@@ -113,14 +103,11 @@ export async function withOtpHandling<T> ({
         pollPromise,
       })
     } else {
-      const enquirerResponse = await enquirer.prompt({
+      const otpValue = await enquirer.input({
         message: 'This operation requires a one-time password.\nEnter OTP:',
-        name: 'otp',
-        type: 'input',
       })
 
-      // Use || (not ??) so that empty-string input is treated as "no OTP provided"
-      otp = enquirerResponse?.otp || undefined
+      otp = otpValue || undefined
     }
 
     if (otp != null) {

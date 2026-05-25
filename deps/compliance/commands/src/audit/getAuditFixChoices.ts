@@ -28,6 +28,7 @@ const COLUMN_HEADER = ['Package', 'Vulnerable', 'Patched', 'Advisories']
 export interface AuditChoiceRow {
   name: string
   value: string
+  message: string
   disabled?: boolean
 }
 
@@ -89,6 +90,7 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
       if (i === 0) {
         return {
           name: rendered[i],
+          message: rendered[i],
           value: '',
           disabled: true,
           hint: '',
