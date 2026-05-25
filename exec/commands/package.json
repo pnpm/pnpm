@@ -62,7 +62,7 @@
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",
-    "enquirer": "catalog:",
+    "@inquirer/prompts": "catalog:",
     "execa": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",

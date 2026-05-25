@@ -68,7 +68,7 @@
     "chalk": "catalog:",
     "ci-info": "catalog:",
     "detect-libc": "catalog:",
-    "enquirer": "catalog:",
+    "@inquirer/prompts": "catalog:",
     "execa": "catalog:",
     "libnpmpublish": "catalog:",
     "normalize-path": "catalog:",
