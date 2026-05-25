@@ -864,11 +864,22 @@ fn ignored_scripts_event_carries_returned_names() {
 /// a file (`generated.txt`) that the original tarball didn't, so
 /// the WRITE-path diff produces a non-empty `added` entry under
 /// the snapshot's cache key.
+///
+/// Returns the package directory path and the actual file mode of
+/// `index.js`. The mode is read from disk because `fs::write()`
+/// assigns permissions according to the process umask (typically
+/// 0022 → 0o644, but 0002 → 0o664 when pam_umask's `usergroups`
+/// logic matches UID to group name, the default on Debian for
+/// non-root users). Callers that pre-seed store rows should use
+/// this returned mode so `calculate_diff()` doesn't flag a
+/// mode-only mismatch on unchanged files.
 #[cfg(unix)]
 fn create_postinstall_modifies_source_fixture(
     virtual_store_dir: &Path,
     key: &PackageKey,
-) -> PathBuf {
+) -> (PathBuf, u32) {
+    use std::os::unix::fs::PermissionsExt;
+
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
     let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
@@ -888,7 +899,10 @@ fn create_postinstall_modifies_source_fixture(
         "scripts": { "postinstall": "echo touched > generated.txt" },
     });
     fs::write(pkg_dir.join("package.json"), manifest.to_string()).expect("write manifest");
-    pkg_dir
+    let actual_mode =
+        std::fs::metadata(pkg_dir.join("index.js")).expect("stat index.js").permissions().mode()
+            & 0o777;
+    (pkg_dir, actual_mode)
 }
 
 /// Mirrors upstream's `'a postinstall script does not modify the
@@ -947,8 +961,8 @@ async fn write_path_populates_side_effects_row() {
     let virtual_store_dir = tempdir().expect("create vstore dir");
     let modules_dir = tempdir().expect("create modules dir");
     let lockfile_dir = tempdir().expect("create lockfile dir");
-
-    create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let (_pkg_dir, actual_mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
 
     // Pre-seed the base PackageFilesIndex row that the WRITE
     // path will mutate. The base captures only `index.js`; the
@@ -967,7 +981,7 @@ async fn write_path_populates_side_effects_row() {
             // `module.exports = 'hi'\n`, the diff for `index.js`
             // stays empty (= no spurious entry in `added`).
             digest: sha512_hex(b"module.exports = 'hi'\n"),
-            mode: 0o644,
+            mode: actual_mode,
             size: b"module.exports = 'hi'\n".len() as u64,
             checked_at: None,
         },
@@ -1098,7 +1112,8 @@ async fn write_path_disabled_skips_upload() {
     let modules_dir = tempdir().expect("create modules dir");
     let lockfile_dir = tempdir().expect("create lockfile dir");
 
-    create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let (_pkg_dir, _actual_mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
 
     let files_index_file = store_index_key(integrity_str, &pkg_key.without_peer().to_string());
     let base_row = PackageFilesIndex {
@@ -1390,8 +1405,8 @@ async fn write_path_cache_key_includes_patch_hash() {
     let virtual_store_dir = tempdir().expect("create vstore dir");
     let modules_dir = tempdir().expect("create modules dir");
     let lockfile_dir = tempdir().expect("create lockfile dir");
-
-    create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let (_pkg_dir, actual_mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
 
     let files_index_file = store_index_key(integrity_str, &pkg_key.without_peer().to_string());
     let mut base_files = HashMap::new();
@@ -1399,7 +1414,7 @@ async fn write_path_cache_key_includes_patch_hash() {
         "index.js".to_string(),
         CafsFileInfo {
             digest: sha512_hex(b"module.exports = 'hi'\n"),
-            mode: 0o644,
+            mode: actual_mode,
             size: b"module.exports = 'hi'\n".len() as u64,
             checked_at: None,
         },
