@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { confirm } from '@inquirer/prompts'
 import { PnpmError } from '@pnpm/error'
 import type {
   IncludedDependencies,
@@ -13,7 +14,6 @@ import {
   type Registries,
 } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
-import enquirer from 'enquirer'
 import { pathAbsolute } from 'path-absolute'
 import { equals } from 'ramda'
 
@@ -155,15 +155,13 @@ async function purgeModulesDirsOfImporters (
         hint: 'If you are running pnpm in CI, set the CI environment variable to "true", or set "confirmModulesPurge" to "false".',
       })
     }
-    const confirmed = await enquirer.prompt<{ question: boolean }>({
-      type: 'confirm',
-      name: 'question',
+    const confirmed = await confirm({
       message: importers.length === 1
         ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
         : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
-      initial: true,
+      default: true,
     })
-    if (!confirmed.question) {
+    if (!confirmed) {
       throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
     }
   }

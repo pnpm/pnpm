@@ -181,7 +181,7 @@ catalog:
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
   encode-registry: ^3.0.1
-  enquirer: ^2.4.1
+  '@inquirer/prompts': ^8.4.3
   esbuild: ^0.27.4
   escape-string-regexp: ^5.0.0
   eslint: ^10.0.3
