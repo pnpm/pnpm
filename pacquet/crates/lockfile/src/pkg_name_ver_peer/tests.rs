@@ -67,6 +67,52 @@ fn without_peer_strips_peer_suffix() {
     assert_eq!(bare.to_string(), "react-dom@17.0.2");
 }
 
+/// Mirrors pnpm's `removeSuffix` test in
+/// [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L151-L153):
+/// the patch-hash segment and the peer-graph segment both get stripped.
+/// Pacquet's [`PkgVerPeer`] doesn't model the patch-hash slot separately
+/// — it lumps the whole parenthesised tail into `peer`, so `without_peer`
+/// returns the same bare `name@version` shape `removeSuffix` does. The
+/// `packages:` map key that pnpm would normally key by the
+/// `pkgIdWithPatchHash` (patch-hash retained) instead loses the patch
+/// segment here; that's tracked as a separate parity gap outside this
+/// test's scope.
+#[test]
+fn without_peer_strips_patch_hash_alongside_peer_suffix() {
+    let key: PkgNameVerPeer = "foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)"
+        .parse()
+        .expect("parse patch-hash plus peer-variant key");
+    let bare = key.without_peer();
+    assert_eq!(bare.to_string(), "foo@1.0.0");
+}
+
+/// Mirrors the scoped-name leg of pnpm's `getPkgIdWithPatchHash` test in
+/// [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L140-L143).
+/// Scoped names carry a leading `@<scope>/`, and `PkgNameSuffix::FromStr`
+/// must keep that intact while still splitting the suffix at the first
+/// post-scope `@`.
+#[test]
+fn without_peer_strips_peer_from_scoped_name() {
+    let key: PkgNameVerPeer = "@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)"
+        .parse()
+        .expect("parse scoped patch-hash + peer-variant key");
+    let bare = key.without_peer();
+    assert_eq!(bare.to_string(), "@foo/bar@1.0.0");
+}
+
+/// Mirrors the nested-peer leg of pnpm's `tryGetPackageId` test in
+/// [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L112):
+/// a transitive peer that itself carries a `(…)` segment is one balanced
+/// suffix and must strip as a unit.
+#[test]
+fn without_peer_strips_peer_with_nested_parens() {
+    let key: PkgNameVerPeer = "foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))"
+        .parse()
+        .expect("parse nested-peer key");
+    let bare = key.without_peer();
+    assert_eq!(bare.to_string(), "foo@1.0.0");
+}
+
 /// A runtime depPath like `node@runtime:22.0.0(some@peer)` strips down to
 /// `node@runtime:22.0.0`, not `node@22.0.0`. Pacquet preserves the
 /// `runtime:` scheme prefix because the metadata-map key has to match the
