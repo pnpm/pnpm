@@ -328,6 +328,84 @@ async fn jsr_specifier_without_selector_uses_default_tag() {
     assert_eq!(result.resolved_via, "jsr-registry");
 }
 
+/// `optionalDependencies` and `peerDependenciesMeta` round-trip from the
+/// registry's per-version manifest into [`ResolveResult::manifest`]
+/// (a [`serde_json::Value`]). Downstream
+/// `extract_children` reads the optional-dep edges and
+/// `extract_peer_dependencies` reads the per-peer `optional` flag;
+/// dropping either field silently treats optional peers as required
+/// (so `autoInstallPeers` cascades them in) and skips
+/// `optionalDependencies` entirely. See pnpm/pnpm#11934.
+#[tokio::test]
+async fn resolved_manifest_carries_optional_dependencies_and_peer_dependencies_meta() {
+    const BODY: &str = r#"{
+        "name": "consumer",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "consumer",
+                "version": "1.0.0",
+                "peerDependencies": {
+                    "@vercel/kv": "^1 || ^2 || ^3",
+                    "ioredis": "^5.4.2"
+                },
+                "peerDependenciesMeta": {
+                    "@vercel/kv": { "optional": true },
+                    "ioredis": { "optional": true }
+                },
+                "optionalDependencies": {
+                    "sharp": "^0.34.0"
+                },
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/consumer-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/consumer").with_status(200).with_body(BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted = WantedDependency {
+        alias: Some("consumer".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let manifest = result.manifest.as_ref().expect("npm resolver populates manifest");
+
+    let optional = manifest
+        .get("optionalDependencies")
+        .and_then(serde_json::Value::as_object)
+        .expect("optionalDependencies present");
+    assert_eq!(optional.get("sharp").and_then(serde_json::Value::as_str), Some("^0.34.0"));
+
+    let peer_meta = manifest
+        .get("peerDependenciesMeta")
+        .and_then(serde_json::Value::as_object)
+        .expect("peerDependenciesMeta present");
+    assert_eq!(
+        peer_meta
+            .get("@vercel/kv")
+            .and_then(|v| v.get("optional"))
+            .and_then(serde_json::Value::as_bool),
+        Some(true),
+    );
+    assert_eq!(
+        peer_meta
+            .get("ioredis")
+            .and_then(|v| v.get("optional"))
+            .and_then(serde_json::Value::as_bool),
+        Some(true),
+    );
+}
+
 #[tokio::test]
 async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
     let server = mockito::Server::new_async().await;

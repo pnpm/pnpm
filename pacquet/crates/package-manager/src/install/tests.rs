@@ -895,6 +895,180 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     drop((dir, mock_instance));
 }
 
+/// Regression for pnpm/pnpm#11934: `peerDependenciesMeta` must be
+/// preserved end-to-end so optional peers are not auto-installed.
+/// Ported from upstream's
+/// [`peerDependencies.ts:1181-1255`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/installing/deps-installer/test/install/peerDependencies.ts#L1181-L1255).
+#[tokio::test]
+async fn auto_install_peers_does_not_cascade_optional_peers() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install with optional peers should succeed");
+
+    let virtual_store_slots: Vec<String> = std::fs::read_dir(&virtual_store_dir)
+        .expect("read virtual store dir")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+
+    assert!(
+        virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
+        "required peer `peer-a` must be auto-installed under \
+         `autoInstallPeers: true`; virtual-store slots: {virtual_store_slots:?}",
+    );
+
+    for optional_peer in ["peer-b", "peer-c"] {
+        let slot_prefix = format!("@pnpm.e2e+{optional_peer}@");
+        let cascaded: Vec<&String> =
+            virtual_store_slots.iter().filter(|name| name.starts_with(&slot_prefix)).collect();
+        assert!(
+            cascaded.is_empty(),
+            "optional peer `{optional_peer}` must NOT reach the virtual store; \
+             found {cascaded:?}",
+        );
+    }
+
+    assert!(
+        virtual_store_slots
+            .iter()
+            .any(|name| name.starts_with("@pnpm.e2e+abc-optional-peers@1.0.0")),
+        "abc-optional-peers must reach the virtual store; \
+         virtual-store slots: {virtual_store_slots:?}",
+    );
+    assert!(
+        is_symlink_or_junction(&project_root.join("node_modules/@pnpm.e2e/abc-optional-peers"))
+            .unwrap(),
+        "abc-optional-peers must be symlinked at the importer level",
+    );
+
+    drop((dir, mock_instance));
+}
+
+/// Companion to [`auto_install_peers_does_not_cascade_optional_peers`]:
+/// `@pnpm.e2e/abc-optional-peers-meta-only@1.0.0` declares `peer-b` and
+/// `peer-c` **only** through `peerDependenciesMeta`, with no matching
+/// `peerDependencies` entry. Upstream and pacquet treat such entries
+/// as optional peers with implicit range `*`; the install must still
+/// keep them out of the tree when no other consumer requests them.
+///
+/// Ported from upstream's "warning is not reported when cannot resolve
+/// optional peer dependency (specified by meta field only)" at
+/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/installing/deps-installer/test/install/peerDependencies.ts#L1257-L1323).
+#[tokio::test]
+async fn auto_install_peers_skips_meta_only_optional_peers() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/abc-optional-peers-meta-only", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install with meta-only optional peers should succeed");
+
+    let virtual_store_slots: Vec<String> = std::fs::read_dir(&virtual_store_dir)
+        .expect("read virtual store dir")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+
+    // peer-a is declared in `peerDependencies` so it stays required and
+    // gets auto-installed; peer-b and peer-c are declared *only* in
+    // `peerDependenciesMeta` with `optional: true` and stay out of the
+    // tree.
+    assert!(
+        virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
+        "required peer `peer-a` must be auto-installed; \
+         virtual-store slots: {virtual_store_slots:?}",
+    );
+    for optional_peer in ["peer-b", "peer-c"] {
+        let slot_prefix = format!("@pnpm.e2e+{optional_peer}@");
+        let cascaded: Vec<&String> =
+            virtual_store_slots.iter().filter(|name| name.starts_with(&slot_prefix)).collect();
+        assert!(
+            cascaded.is_empty(),
+            "meta-only optional peer `{optional_peer}` must NOT reach the virtual store; \
+             found {cascaded:?}",
+        );
+    }
+
+    drop((dir, mock_instance));
+}
+
 /// A v9 lockfile fixture pinned to a placeholder package whose
 /// integrity is bogus on purpose. Pacquet enforces tarball integrity
 /// on the install path, so any test that lets the install reach the

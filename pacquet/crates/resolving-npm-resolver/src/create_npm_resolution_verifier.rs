@@ -899,6 +899,8 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
         dependencies: None,
         dev_dependencies: None,
         peer_dependencies: None,
+        optional_dependencies: None,
+        peer_dependencies_meta: None,
         npm_user,
         deprecated: None,
     }
