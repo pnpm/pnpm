@@ -935,7 +935,10 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     let opt_only_key: PackageKey = "opt-only@1.0.0".parse().unwrap();
     let shared_key: PackageKey = "shared@1.0.0".parse().unwrap();
     assert!(!snapshots[&prod_only_key].optional, "prod-only is a direct prod dep of packages/a");
-    assert!(snapshots[&opt_only_key].optional, "opt-only is only reachable via packages/b's optional");
+    assert!(
+        snapshots[&opt_only_key].optional,
+        "opt-only is only reachable via packages/b's optional"
+    );
     assert!(
         !snapshots[&shared_key].optional,
         "shared is reachable via packages/a → prod-only → shared (all non-optional)",

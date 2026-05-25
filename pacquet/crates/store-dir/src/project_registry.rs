@@ -370,10 +370,8 @@ fn is_enoent_or_einval(error: &io::Error) -> bool {
 /// unnormalized path would treat `<workspace>/../pacquet-store` as
 /// inside `<workspace>` even though resolving `..` puts it outside.
 fn path_contains(outer: &Path, inner: &Path) -> bool {
-    let outer_canonical =
-        dunce::canonicalize(outer).unwrap_or_else(|_| lexical_normalize(outer));
-    let inner_canonical =
-        dunce::canonicalize(inner).unwrap_or_else(|_| lexical_normalize(inner));
+    let outer_canonical = dunce::canonicalize(outer).unwrap_or_else(|_| lexical_normalize(outer));
+    let inner_canonical = dunce::canonicalize(inner).unwrap_or_else(|_| lexical_normalize(inner));
     inner_canonical.starts_with(&outer_canonical)
 }
 
