@@ -737,3 +737,29 @@ Rust port notes:
 - The abbreviated-modified shortcut and the on-disk `local_meta` layer are stubbed in Phase 4 / Phase 5 (no `fetchAbbreviatedMetadataCached` port yet). Upstream tests that depend on those layers stay unchecked until the abbreviated-cache fetcher lands.
 - The cache cross-stack contract is content-divergent on hash format only — pacquet writes sha256-**hex** where pnpm writes sha256-**base64** (object-hash's default). Each stack reads its own records out of the shared JSONL; cross-stack hits aren't expected and aren't tested.
 - The end-to-end CLI test uses a 100-year `minimumReleaseAge` to sidestep the mocked registry's real-world `time` field. A finer-grained fixture with controlled `time` values lives in the unit tests (`fetch_full_metadata_cached::tests`, `create_npm_resolution_verifier::tests`).
+
+## `optimisticRepeatInstall` + `checkDepsStatus` Pre-Install Shortcut
+
+Tracks pnpm/pnpm#11940. Pacquet's port (`pacquet-package-manager::optimistic_repeat_install`) covers the mtime-vs-`lastValidatedTimestamp` branch of upstream's `checkDepsStatus`. Ported tests live in `optimistic_repeat_install::tests` and the install-level `optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh` end-to-end.
+
+### Ported
+
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:55` `returns upToDate: false when overrides have changed` — `optimistic_repeat_install::tests::returns_skipped_when_overrides_drift`.
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:115` `returns upToDate: false when ignoredOptionalDependencies have changed` — `optimistic_repeat_install::tests::returns_skipped_when_ignored_optional_dependencies_drift`.
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:145` `returns upToDate: false when patchedDependencies have changed` — `optimistic_repeat_install::tests::returns_skipped_when_patched_dependencies_drift`.
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:205` `returns upToDate: false when allowBuilds have changed` — `optimistic_repeat_install::tests::returns_skipped_when_allow_builds_drift`.
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:85` `returns upToDate: false when packageExtensions have changed` and `:175` `returns upToDate: false when peersSuffixMaxLength has changed` — bundled as `optimistic_repeat_install::tests::returns_skipped_when_unported_pnpm_settings_present`. Pacquet doesn't yet read either yaml field into `Config`, but the field-by-field `PartialEq` on `WorkspaceStateSettings` still catches a previous install (or pnpm-written state) that recorded a value. Split into per-field tests once the yaml is read.
+
+### Not yet ported
+
+- [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:234` `skips the allowBuilds change detection when allowBuilds is in ignoredWorkspaceStateSettings` — `ignoredWorkspaceStateSettings` is a per-call ignore list (`opts.ignoredWorkspaceStateSettings`) that pacquet's `check_optimistic_repeat_install` does not accept yet. Add the field when porting the second consumer of `checkDepsStatus` (`verifyDepsBeforeRun`).
+- [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:270` `returns upToDate: false when a pnpmfile was modified` — pacquet doesn't run pnpmfiles and writes `pnpmfiles: []` unconditionally. Port alongside the pnpmfile pipeline.
+- [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:328` `returns upToDate: false when a patch was modified and manifests were not modified` — needs `patchesOrHooksAreModified` (stats `patches/<name>.patch` files against `lastValidatedTimestamp`). Falls outside the MVP scope of the mtime-only branch.
+- [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:405` `returns upToDate: false when the wanted lockfile has merge conflict markers` and `:438` `returns upToDate: false when a project lockfile has merge conflict markers and sharedWorkspaceLockfile is false` — needs `findConflictedLockfileDir` (scans lockfile bytes for `<<<<<<<` markers). Outside MVP scope.
+
+Each unported entry above gates the optimistic short-circuit on a code path pacquet does not yet have. The fall-through is safe — when the optimistic check returns `Skipped`, the install runs the regular pipeline, which still has its own freshness guards. None of the unported branches can silently mask drift; they only become relevant once pacquet *enables* the feature in question.
+
+### Rust port notes
+
+- Settings drift comparison is field-by-field on `WorkspaceStateSettings::PartialEq` rather than the upstream `Object.entries` walk. Equivalent in behavior: any field present in the cached state but `None` in today's `current_settings` (or vice versa) trips the check.
+- The settings construction is shared between the writer (`build_workspace_state` in `install.rs`) and the reader (`current_settings` in `optimistic_repeat_install.rs`) so adding a tracked field on one side automatically updates the other.

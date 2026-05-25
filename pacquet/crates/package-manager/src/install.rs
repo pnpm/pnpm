@@ -3,7 +3,8 @@ use std::{collections::BTreeMap, path::Path, sync::Arc, sync::atomic::AtomicU8, 
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, ResolvedPackages,
-    build_resolution_verifiers,
+    build_resolution_verifiers, check_optimistic_repeat_install,
+    optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -11,7 +12,7 @@ use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
+use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
 };
@@ -31,8 +32,7 @@ use pacquet_reporter::{
 use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_state::{
-    NodeLinker as WorkspaceStateNodeLinker, ProjectEntry, UpdateWorkspaceStateError,
-    WorkspaceState, WorkspaceStateSettings, now_millis, update_workspace_state,
+    ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
 };
 
 /// This subroutine does everything `pacquet install` is supposed to do.
@@ -356,6 +356,54 @@ where
         // the rest of the install path uses the same pattern for
         // paths threaded into log events.
         let prefix = workspace_root.to_string_lossy().into_owned();
+
+        // Walk every workspace project's `package.json` once. The
+        // resulting `Vec` feeds both the up-to-date short-circuit
+        // below and the fresh-install path's `workspace:`-spec lookup
+        // / per-importer manifest list further down. `None` when no
+        // `pnpm-workspace.yaml` exists in or above `workspace_root` —
+        // single-project installs only have the root manifest, which
+        // the short-circuit and the install paths both reach via
+        // `manifest` directly.
+        let workspace_projects =
+            load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
+                .map_err(InstallError::FindWorkspaceProjects)?;
+
+        // Optimistic repeat-install short-circuit. When nothing has
+        // changed since the previous successful install (settings,
+        // workspace structure, manifest mtimes), skip the entire
+        // install pipeline and emit pnpm's "Already up to date" log.
+        // Mirrors upstream's
+        // [`installDeps`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/commands/src/installDeps.ts#L179-L194)
+        // dispatch — the fast path runs before any of the install
+        // setup (no lockfile reads, no verifier fan-out, no
+        // `getContext`).
+        //
+        // Disabled when `--frozen-lockfile` is requested: an explicit
+        // headless install should always go through the dispatch so a
+        // `NoLockfile` or `OutdatedLockfile` error still fires when
+        // the lockfile is missing or stale. Mirrors upstream's
+        // `installDeps` not calling `checkDepsStatus` when CI mode is
+        // forcing the frozen path.
+        let project_manifests =
+            build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
+        if !frozen_lockfile
+            && let OptimisticRepeatInstallDecision::UpToDate = check_optimistic_repeat_install(
+                &workspace_root,
+                config,
+                node_linker,
+                included,
+                &project_manifests,
+            )
+        {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message: "Already up to date".to_string(),
+                prefix: prefix.clone(),
+            }));
+            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+            return Ok(());
+        }
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Mirrors
@@ -706,9 +754,11 @@ where
             // silently skipping to a registry lookup, matching pnpm's
             // posture at
             // <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830>.
-            let workspace_projects =
-                load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
-                    .map_err(InstallError::FindWorkspaceProjects)?;
+            //
+            // Reuses the `workspace_projects` walk done at the top of
+            // `Install::run` for the optimistic-repeat-install check
+            // so we don't pay the workspace scan twice on a
+            // fresh-install fall-through.
             let workspace_packages = build_workspace_packages_map(workspace_projects.as_deref());
             // Build the per-importer manifest list. The root importer
             // (`"."`) always reuses the in-memory `Install.manifest`
@@ -1160,29 +1210,6 @@ fn build_modules_manifest(
     }
 }
 
-/// Translate pacquet's `Config::node_linker` into the on-disk variant
-/// shared with the workspace-state writer. Same three-way set as
-/// [`map_node_linker`] but targeting [`WorkspaceStateNodeLinker`].
-fn map_workspace_state_node_linker(linker: &NodeLinker) -> WorkspaceStateNodeLinker {
-    match linker {
-        NodeLinker::Isolated => WorkspaceStateNodeLinker::Isolated,
-        NodeLinker::Hoisted => WorkspaceStateNodeLinker::Hoisted,
-        NodeLinker::Pnp => WorkspaceStateNodeLinker::Pnp,
-    }
-}
-
-/// Encode [`LinkWorkspacePackages`] into the JSON shape pnpm writes
-/// to `.pnpm-workspace-state-v1.json`. Tri-state on the wire
-/// (`true | false | "deep"`) so a future read by pnpm sees the same
-/// value pacquet ran with.
-fn link_workspace_packages_to_json(value: LinkWorkspacePackages) -> serde_json::Value {
-    match value {
-        LinkWorkspacePackages::Off => serde_json::Value::Bool(false),
-        LinkWorkspacePackages::DirectOnly => serde_json::Value::Bool(true),
-        LinkWorkspacePackages::Deep => serde_json::Value::String("deep".to_string()),
-    }
-}
-
 /// Read a string field off a project manifest, returning `None` when
 /// the field is missing or not a JSON string. Pnpm tolerates either
 /// shape — `name`/`version` are advisory metadata in this context, so
@@ -1210,6 +1237,32 @@ fn load_workspace_projects(
     let Some(manifest) = workspace_manifest else { return Ok(None) };
     let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
     pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
+}
+
+/// Assemble the `(root_dir, manifest)` list every importer the
+/// install would walk. Always includes the root manifest; adds each
+/// sibling project from `workspace_projects` when present. The root
+/// importer always reuses the in-memory `Install.manifest` — `pacquet
+/// add` mutates that value before calling install, so re-reading from
+/// disk would walk the pre-add shape.
+///
+/// `workspace_projects.is_none()` covers single-project installs (no
+/// `pnpm-workspace.yaml`) — the only manifest is the root one.
+fn build_project_manifests_list<'a>(
+    workspace_root: &std::path::Path,
+    root_manifest: &'a PackageManifest,
+    workspace_projects: Option<&'a [pacquet_workspace::Project]>,
+) -> Vec<(std::path::PathBuf, &'a PackageManifest)> {
+    let mut list = vec![(workspace_root.to_path_buf(), root_manifest)];
+    if let Some(projects) = workspace_projects {
+        for project in projects {
+            if project.root_dir == *workspace_root {
+                continue;
+            }
+            list.push((project.root_dir.clone(), &project.manifest));
+        }
+    }
+    list
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm
@@ -1321,10 +1374,6 @@ fn build_workspace_state(
         .flatten()
         .unwrap_or_else(|| manifest_dir.to_path_buf());
 
-    let allow_builds = (!config.allow_builds.is_empty()).then(|| {
-        config.allow_builds.iter().map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v))).collect()
-    });
-
     WorkspaceState {
         last_validated_timestamp: now_millis(),
         projects: build_projects_map(&workspace_root, manifest, lockfile),
@@ -1337,29 +1386,13 @@ fn build_workspace_state(
         // skip the cache.
         filtered_install: false,
         config_dependencies: None,
-        settings: WorkspaceStateSettings {
-            allow_builds,
-            auto_install_peers: Some(config.auto_install_peers),
-            dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
-            dev: Some(included.dev_dependencies),
-            hoist_pattern: config.hoist_pattern.clone(),
-            hoist_workspace_packages: Some(config.hoist_workspace_packages),
-            ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
-            link_workspace_packages: Some(link_workspace_packages_to_json(
-                config.link_workspace_packages,
-            )),
-            node_linker: Some(map_workspace_state_node_linker(&node_linker)),
-            optional: Some(included.optional_dependencies),
-            overrides: config.overrides.as_ref().map(|map| {
-                map.iter()
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect::<BTreeMap<_, _>>()
-            }),
-            patched_dependencies: config.patched_dependencies.clone(),
-            production: Some(included.dependencies),
-            public_hoist_pattern: config.public_hoist_pattern.clone(),
-            ..Default::default()
-        },
+        // Settings construction is shared with
+        // `optimistic_repeat_install::current_settings` so the
+        // freshness check sees the same byte shape this writer
+        // produces. Keeping the construction in one place guarantees
+        // adding a field on one side doesn't silently flip the other
+        // into "drift" on the next install.
+        settings: crate::optimistic_repeat_install::current_settings(config, node_linker, included),
     }
 }
 
