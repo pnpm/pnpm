@@ -2910,6 +2910,7 @@ dependencies = [
  "command-extra",
  "flate2",
  "junction",
+ "node-semver",
  "serde_json",
  "sha2",
  "tar",

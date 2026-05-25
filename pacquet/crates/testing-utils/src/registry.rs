@@ -9,6 +9,7 @@ use axum::{
 use base64::{Engine, engine::general_purpose};
 use bytes::Bytes;
 use flate2::{Compression, write::GzEncoder};
+use node_semver::Version;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha512};
 use std::{
@@ -135,12 +136,7 @@ impl FixtureRegistry {
         }
         assert!(!packages.is_empty(), "no registry package fixtures found under {root:?}");
         for package in packages.values_mut() {
-            package.latest = package
-                .versions
-                .keys()
-                .max_by(|left, right| compare_versions(left, right))
-                .expect("package has at least one version")
-                .clone();
+            package.latest = latest_version(package.versions.keys()).expect("package has at least one version");
         }
         Self { packages }
     }
@@ -319,17 +315,16 @@ fn tarball_name(name: &str) -> String {
     name.rsplit('/').next().unwrap_or(name).to_string()
 }
 
-fn compare_versions(left: &String, right: &String) -> std::cmp::Ordering {
-    parse_version(left).cmp(&parse_version(right)).then_with(|| left.cmp(right))
-}
-
-fn parse_version(version: &str) -> Vec<u64> {
-    version.split('.').map(|part| part.parse().unwrap_or(0)).collect()
+fn latest_version<'a>(versions: impl Iterator<Item = &'a String>) -> Option<String> {
+    versions
+        .filter_map(|raw| Version::parse(raw).ok().map(|version| (version, raw.clone())))
+        .max_by(|(left, _), (right, _)| left.cmp(right))
+        .map(|(_, raw)| raw)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::RequestPath;
+    use super::{RequestPath, latest_version};
 
     #[test]
     fn tarball_path_parses_prerelease_version() {
@@ -350,5 +345,15 @@ mod tests {
                 RequestPath::Unknown,
             ),
         );
+    }
+
+    #[test]
+    fn latest_version_uses_semver_prerelease_order() {
+        let versions = [
+            "1.0.0-beta.2".to_string(),
+            "1.0.0-beta.10".to_string(),
+            "1.0.0".to_string(),
+        ];
+        assert_eq!(latest_version(versions.iter()), Some("1.0.0".to_string()));
     }
 }

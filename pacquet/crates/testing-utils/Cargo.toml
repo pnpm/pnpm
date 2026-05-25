@@ -17,6 +17,7 @@ bytes             = { workspace = true }
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
 flate2            = { workspace = true }
+node-semver       = { workspace = true }
 serde_json        = { workspace = true }
 sha2              = { workspace = true }
 tar               = { workspace = true }
