@@ -1364,6 +1364,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 6.0.0(encoding@0.1.13)
+      '@pnpm/testing.registry-mock':
+        specifier: workspace:*
+        version: link:../../testing/registry-mock
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1604,6 +1607,9 @@ importers:
       '@pnpm/network.web-auth':
         specifier: workspace:*
         version: link:../../network/web-auth
+      '@pnpm/registry-access.add-user':
+        specifier: workspace:*
+        version: link:../../registry-access/add-user
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -8136,6 +8142,12 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  registry-access/add-user:
+    devDependencies:
+      '@pnpm/registry-access.add-user':
+        specifier: workspace:*
+        version: 'link:'
+
   registry-access/commands:
     dependencies:
       '@pnpm/cli.utils':
@@ -9421,12 +9433,15 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/registry-access.add-user':
+        specifier: workspace:*
+        version: link:../../registry-access/add-user
       '@pnpm/registry-access.set-dist-tag':
         specifier: workspace:*
         version: link:../../registry-access/set-dist-tag
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 6.0.0(encoding@0.1.13)(verdaccio@6.3.2(encoding@0.1.13)(typanion@3.14.0))
+        version: 6.0.0(encoding@0.1.13)
     devDependencies:
       '@pnpm/testing.registry-mock':
         specifier: workspace:*

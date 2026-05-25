@@ -1,4 +1,5 @@
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { addUser as setUser, type AddUserResult } from '@pnpm/registry-access.add-user'
 import { setDistTag } from '@pnpm/registry-access.set-dist-tag'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
@@ -24,5 +25,21 @@ export async function addDistTag (opts: AddDistTagOptions): Promise<void> {
     registryUrl: REGISTRY_URL,
     authHeader: AUTH_HEADER,
     fetchFromRegistry,
+  })
+}
+
+export interface AddUserOptions {
+  username: string
+  password: string
+  email: string
+}
+
+export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
+  return setUser({
+    username: opts.username,
+    password: opts.password,
+    email: opts.email,
+    registryUrl: REGISTRY_URL,
+    fetch: fetchFromRegistry,
   })
 }

@@ -24,7 +24,8 @@ export default async () => {
   // `locations.storage()` reads when `getIntegrity` (also from
   // registry-mock) is called from tests. We just don't launch
   // verdaccio against it — we launch pnpm-registry instead.
-  const { prepare, addUser, REGISTRY_MOCK_CREDENTIALS } = await import('@pnpm/registry-mock')
+  const { prepare, REGISTRY_MOCK_CREDENTIALS } = await import('@pnpm/registry-mock')
+  const { addUser } = await import('@pnpm/testing.registry-mock')
   prepare()
 
   const storage = readStoragePath(process.env.PNPM_REGISTRY_MOCK_PORT)

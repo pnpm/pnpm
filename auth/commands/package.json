@@ -37,6 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/network.web-auth": "workspace:*",
+    "@pnpm/registry-access.add-user": "workspace:*",
     "enquirer": "catalog:",
     "normalize-registry-url": "catalog:",
     "read-ini-file": "catalog:",
