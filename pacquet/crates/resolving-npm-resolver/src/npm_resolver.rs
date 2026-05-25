@@ -31,6 +31,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
+use node_semver::Version;
 use pacquet_config::version_policy::PackageVersionPolicy;
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pacquet_network::{AuthHeaders, ThrottledClient};
@@ -38,6 +39,7 @@ use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolutionPolicyViolation, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    WorkspacePackages,
 };
 
 use crate::{
@@ -45,7 +47,11 @@ use crate::{
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
-    resolve_from_workspace::{ResolveFromWorkspaceOptions, try_resolve_from_workspace},
+    resolve_from_workspace::{
+        ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,
+        resolve_from_local_package, try_resolve_from_workspace,
+        try_resolve_from_workspace_packages,
+    },
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
@@ -215,10 +221,65 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         };
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let picked = match self.pick_from_registry(&registry, &spec, opts, optional).await? {
-            Some(picked) => picked,
-            None => return Ok(None),
+        // `link-workspace-packages` gate. Mirrors upstream's
+        // [`opts.alwaysTryWorkspacePackages !== false`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L435)
+        // collapse: when the install caller has flipped the flag off,
+        // the registry pick is the only path and the workspace map is
+        // ignored entirely.
+        let workspace_packages_active = opts
+            .always_try_workspace_packages
+            .then_some(opts.workspace_packages.as_ref())
+            .flatten();
+
+        let pick_result = self.pick_from_registry(&registry, &spec, opts, optional).await;
+        let picked = match pick_result {
+            Ok(Some(picked)) => picked,
+            Ok(None) => {
+                // Registry returned a packument but no version
+                // satisfies the spec. Mirrors upstream's
+                // [`pickedPackage == null` branch](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L527-L545)
+                // — fall back to the workspace before reporting "no
+                // matching version".
+                if let Some(workspace_packages) = workspace_packages_active
+                    && let Some(result) =
+                        try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
+                {
+                    return Ok(Some(result));
+                }
+                return Ok(None);
+            }
+            Err(err) => {
+                // Registry fetch errored (404, network failure, …).
+                // Mirrors upstream's
+                // [`try { pickPackage } catch`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L506-L524)
+                // — swallow the error if the workspace can satisfy
+                // the request; otherwise surface the original.
+                if let Some(workspace_packages) = workspace_packages_active
+                    && let Some(result) =
+                        try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
+                {
+                    return Ok(Some(result));
+                }
+                return Err(err);
+            }
         };
+
+        // Registry pick succeeded — prefer the workspace copy when it
+        // matches (or is newer, or `preferWorkspacePackages` is on).
+        // Mirrors upstream's
+        // [registry-pick + workspace shadow](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L550-L582).
+        if let Some(workspace_packages) = workspace_packages_active
+            && let Some(mut result) = try_workspace_shadow(
+                workspace_packages,
+                &spec,
+                &picked.version,
+                wanted_dependency,
+                opts,
+            )
+        {
+            result.latest = picked.meta.dist_tag("latest").map(str::to_string);
+            return Ok(Some(result));
+        }
 
         let result = build_resolve_result(BuildResolveResult {
             meta: &picked.meta,
@@ -364,6 +425,83 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(LatestInfo { latest_manifest: None }));
         }
         Ok(Some(LatestInfo { latest_manifest: result.manifest }))
+    }
+}
+
+/// Registry pick was unavailable (no matching version or fetch
+/// error); try the workspace as a fallback. Mirrors upstream's
+/// `tryResolveFromWorkspacePackages` invocations at
+/// [`index.ts#L505-L523`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L505-L523)
+/// and [`index.ts#L528-L543`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L528-L543).
+/// Workspace errors (missing name, no matching version) are swallowed
+/// — the caller re-raises the original registry error.
+fn try_workspace_fallback(
+    workspace_packages: &WorkspacePackages,
+    spec: &RegistryPackageSpec,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<ResolveResult> {
+    let ws_opts = workspace_fallback_options(opts);
+    try_resolve_from_workspace_packages(workspace_packages, spec, wanted_dependency, &ws_opts).ok()
+}
+
+/// Registry pick succeeded; check whether a workspace package
+/// shadows it. Mirrors upstream's
+/// [registry-pick + workspace shadow](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L550-L582):
+/// exact `name@version` match wins; otherwise a higher workspace
+/// version wins; otherwise `preferWorkspacePackages` wins.
+fn try_workspace_shadow(
+    workspace_packages: &WorkspacePackages,
+    spec: &RegistryPackageSpec,
+    picked: &PackageVersion,
+    wanted_dependency: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<ResolveResult> {
+    let matching_name = workspace_packages.get(picked.name.as_str())?;
+    let hard_link = opts.inject_workspace_packages || wanted_dependency.injected.unwrap_or(false);
+    let project_dir = opts.project_dir.as_path();
+    let lockfile_dir = opts.lockfile_dir.as_path();
+
+    let picked_version_string = picked.version.to_string();
+    if let Some(matched) = matching_name.get(&picked_version_string) {
+        return Some(resolve_from_local_package(
+            matched,
+            wanted_dependency,
+            hard_link,
+            project_dir,
+            lockfile_dir,
+        ));
+    }
+
+    let local_version = pick_matching_local_version_or_null(matching_name, spec)?;
+    let local_parsed = Version::parse(&local_version).ok()?;
+    let prefer = opts.prefer_workspace_packages || local_parsed > picked.version;
+    if !prefer {
+        return None;
+    }
+    let local_package = matching_name.get(&local_version)?;
+    Some(resolve_from_local_package(
+        local_package,
+        wanted_dependency,
+        hard_link,
+        project_dir,
+        lockfile_dir,
+    ))
+}
+
+/// Build the [`ResolveFromWorkspaceOptions`] bag the workspace
+/// fallback helper expects. `registry` and `default_tag` are unused on
+/// the fallback path (the spec has already been parsed against the
+/// registry) so dummy values are passed through.
+fn workspace_fallback_options<'a>(opts: &'a ResolveOptions) -> ResolveFromWorkspaceOptions<'a> {
+    const UNUSED: &str = "";
+    ResolveFromWorkspaceOptions {
+        project_dir: opts.project_dir.as_path(),
+        lockfile_dir: opts.lockfile_dir.as_path(),
+        registry: UNUSED,
+        default_tag: UNUSED,
+        workspace_packages: opts.workspace_packages.as_ref(),
+        inject_workspace_packages: opts.inject_workspace_packages,
     }
 }
 

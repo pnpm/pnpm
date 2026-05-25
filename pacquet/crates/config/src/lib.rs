@@ -133,6 +133,86 @@ impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
     }
 }
 
+/// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state: a
+/// bare-semver dependency on a workspace package may resolve to the
+/// local copy, or to a registry copy with the same name, or be
+/// matched only when the user explicitly opts in with a `workspace:`
+/// prefix.
+///
+/// Mirrors pnpm's `linkWorkspacePackages: boolean | 'deep'` at
+/// [`Config.linkWorkspacePackages`](https://github.com/pnpm/pnpm/blob/5353fcbf01/config/reader/src/Config.ts#L189).
+/// Default is [`LinkWorkspacePackages::Off`], matching pnpm's
+/// [`'link-workspace-packages': false`](https://github.com/pnpm/pnpm/blob/5353fcbf01/config/reader/src/index.ts#L174)
+/// fallback.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum LinkWorkspacePackages {
+    /// `false`. Workspace packages are matched only when the user
+    /// writes a `workspace:`-prefixed range. A bare-semver range
+    /// always goes to the registry.
+    #[default]
+    Off,
+    /// `true`. Direct dependencies match workspace packages by name
+    /// and version, like a `workspace:` range would; transitive
+    /// dependencies still go to the registry.
+    DirectOnly,
+    /// `"deep"`. Both direct and transitive dependencies match
+    /// workspace packages.
+    Deep,
+}
+
+impl LinkWorkspacePackages {
+    /// Whether the npm resolver should consult the workspace map
+    /// when resolving a bare-semver wanted dependency. Mirrors pnpm's
+    /// [`linkWorkspacePackagesDepth >= currentDepth`](https://github.com/pnpm/pnpm/blob/5353fcbf01/installing/deps-resolver/src/resolveDependencies.ts#L1339)
+    /// gate, collapsed onto pacquet's current shape where the deps
+    /// resolver passes the same `ResolveOptions` to every depth — the
+    /// [`Self::DirectOnly`] arm only fires at the importer level
+    /// (`current_depth == 0`); pacquet's caller decides which arm
+    /// to expose by passing in the current depth.
+    pub fn enabled_at_depth(self, current_depth: u32) -> bool {
+        match self {
+            LinkWorkspacePackages::Off => false,
+            LinkWorkspacePackages::DirectOnly => current_depth == 0,
+            LinkWorkspacePackages::Deep => true,
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, Visitor};
+        use std::fmt;
+
+        struct V;
+        impl<'de> Visitor<'de> for V {
+            type Value = LinkWorkspacePackages;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(r#"a boolean or the string "deep""#)
+            }
+            fn visit_bool<DeError: de::Error>(self, value: bool) -> Result<Self::Value, DeError> {
+                Ok(if value {
+                    LinkWorkspacePackages::DirectOnly
+                } else {
+                    LinkWorkspacePackages::Off
+                })
+            }
+            fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
+                match value {
+                    "deep" => Ok(LinkWorkspacePackages::Deep),
+                    other => Err(DeError::invalid_value(
+                        de::Unexpected::Str(other),
+                        &r#"true, false, or "deep""#,
+                    )),
+                }
+            }
+        }
+        deserializer.deserialize_any(V)
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PackageImportMethod {
@@ -470,6 +550,14 @@ pub struct Config {
     /// [`hoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10).
     /// No effect under `nodeLinker: isolated`.
     pub hoisting_limits: BTreeMap<String, BTreeSet<String>>,
+
+    /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Controls
+    /// whether the npm resolver consults the workspace map when
+    /// resolving bare-semver wanted dependencies. See
+    /// [`LinkWorkspacePackages`] for the tri-state semantics.
+    /// Default `false`, matching pnpm's
+    /// [`'link-workspace-packages': false`](https://github.com/pnpm/pnpm/blob/5353fcbf01/config/reader/src/index.ts#L174).
+    pub link_workspace_packages: LinkWorkspacePackages,
 
     /// Name slots reserved at the root for an external linker
     /// (the Bit CLI is the only known consumer upstream). Any

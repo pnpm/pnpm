@@ -1,5 +1,7 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
-use crate::{Config, NodeLinker, ScriptsPrependNodePath, TrustPolicy, api::EnvVar};
+use crate::{
+    Config, LinkWorkspacePackages, NodeLinker, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+};
 use pacquet_store_dir::StoreDir;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -369,6 +371,40 @@ fn parses_scripts_prepend_node_path_warn_only_from_yaml() {
 #[test]
 fn rejects_invalid_scripts_prepend_node_path() {
     let yaml = "scriptsPrependNodePath: nonsense\n";
+    serde_saphyr::from_str::<WorkspaceSettings>(yaml).expect_err("must reject");
+}
+
+/// `linkWorkspacePackages` accepts `true | false | "deep"`. Mirrors
+/// upstream's [`Config.linkWorkspacePackages`](https://github.com/pnpm/pnpm/blob/5353fcbf01/config/reader/src/Config.ts#L189)
+/// shape.
+#[test]
+fn parses_link_workspace_packages_true_from_yaml() {
+    let yaml = "linkWorkspacePackages: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.link_workspace_packages, Some(LinkWorkspacePackages::DirectOnly));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.link_workspace_packages, LinkWorkspacePackages::DirectOnly);
+}
+
+#[test]
+fn parses_link_workspace_packages_false_from_yaml() {
+    let yaml = "linkWorkspacePackages: false\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.link_workspace_packages, Some(LinkWorkspacePackages::Off));
+}
+
+#[test]
+fn parses_link_workspace_packages_deep_from_yaml() {
+    let yaml = "linkWorkspacePackages: deep\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.link_workspace_packages, Some(LinkWorkspacePackages::Deep));
+}
+
+#[test]
+fn rejects_invalid_link_workspace_packages() {
+    let yaml = "linkWorkspacePackages: shallow\n";
     serde_saphyr::from_str::<WorkspaceSettings>(yaml).expect_err("must reject");
 }
 
