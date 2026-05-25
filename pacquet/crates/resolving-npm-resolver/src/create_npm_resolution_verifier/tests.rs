@@ -807,3 +807,42 @@ async fn min_age_shortcut_falls_through_when_version_not_listed() {
     };
     assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
 }
+
+/// Concurrent verifications of the same `(registry, name, version)`
+/// share one in-flight fetch — the lookup-context caches store
+/// `Arc<OnceCell<…>>`, so 16 racing callers issue at most one
+/// abbreviated GET. Without the singleflight property the verifier
+/// regressed to N fetches per fan-out batch, which mockito's
+/// `.expect(1)` catches.
+#[tokio::test]
+async fn concurrent_verifications_share_one_fetch() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    // The abbreviated-modified shortcut answers the gate without
+    // touching the attestation or full-meta layers, so a single
+    // `.expect(1)` exhaustively pins the per-fan-out fetch count for
+    // the lookup chain.
+    let abbreviated_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(
+            abbreviated_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24); // 1 day
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts).expect("verifier");
+    let name: PkgName = "acme".parse().expect("parse");
+    let resolution = registry_resolution();
+    let results = futures_util::future::join_all(
+        (0..16).map(|_| verifier.verify(&resolution, ctx(&name, "1.0.0"))),
+    )
+    .await;
+    for result in results {
+        assert_eq!(result, ResolutionVerification::Ok);
+    }
+    abbreviated_mock.assert_async().await;
+}
