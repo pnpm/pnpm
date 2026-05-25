@@ -5290,3 +5290,148 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
          `pnpm-lock.yaml` is missing in a single-project install; got events: {captured:#?}",
     );
 }
+
+/// Round-trip the optimistic short-circuit end-to-end on a real
+/// single-project install (no `pnpm-workspace.yaml`):
+///
+/// 1. First [`Install::run`] resolves through the registry mock,
+///    writes `pnpm-lock.yaml` next to the manifest, lays out
+///    `node_modules`, and records `.pnpm-workspace-state-v1.json`.
+/// 2. A second [`Install::run`] against the same manifest must hit
+///    the optimistic fast path — emit `Already up to date` and skip
+///    every install-setup event (`pnpm:context`, `pnpm:stage`,
+///    `pnpm:lockfile-verification`).
+///
+/// Proves the single-project lockfile gate added in this commit
+/// doesn't break the warm-reinstall fast path it's intended to
+/// preserve. Companion to
+/// [`optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing`]
+/// (which covers the negative direction).
+#[tokio::test]
+async fn optimistic_repeat_install_round_trips_on_single_project_install() {
+    let mock_instance = AutoMockInstance::load_or_init();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    // First install: fresh-resolve path. Writes `pnpm-lock.yaml` next
+    // to the manifest (via `install_with_fresh_lockfile`) and the
+    // workspace state next to `node_modules` (via
+    // `Install::run`'s end-of-run `update_workspace_state` call).
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("first install must succeed");
+
+    // Sanity check the first install left both artifacts the
+    // optimistic check keys off on disk.
+    assert!(
+        project_root.join("pnpm-lock.yaml").exists(),
+        "first install must write pnpm-lock.yaml next to the manifest",
+    );
+    assert!(
+        load_workspace_state(&project_root)
+            .expect("read workspace state")
+            .is_some(),
+        "first install must record .pnpm-workspace-state-v1.json",
+    );
+
+    // Now run the second install against the same manifest. Capture
+    // events to prove the fast path fired.
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        // Don't pass the in-memory lockfile — the optimistic check
+        // doesn't need it, and we want to prove the fast path runs
+        // *before* the lockfile is even loaded. (Matching pnpm's
+        // dispatch ordering: `checkDepsStatus` runs before any
+        // lockfile parse.)
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        resolved_packages: &Default::default(),
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("second install must succeed via the optimistic short-circuit");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log) if log.message == "Already up to date"
+        )),
+        "second install must emit `Already up to date`; got events: {captured:#?}",
+    );
+
+    // The fast path runs before any of the install setup, so none
+    // of these events should fire on the second install.
+    let install_emits = captured
+        .iter()
+        .filter(|event| {
+            matches!(
+                event,
+                LogEvent::Context(_) | LogEvent::Stage(_) | LogEvent::LockfileVerification(_),
+            )
+        })
+        .count();
+    assert_eq!(
+        install_emits, 0,
+        "the second install must not run any install-setup steps; got events: {captured:#?}",
+    );
+
+    drop((dir, mock_instance));
+}
