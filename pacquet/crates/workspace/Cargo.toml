@@ -16,6 +16,7 @@ pacquet-package-manifest = { workspace = true }
 
 derive_more  = { workspace = true }
 miette       = { workspace = true }
+pathdiff     = { workspace = true }
 serde        = { workspace = true }
 serde-saphyr = { workspace = true }
 wax          = { workspace = true }

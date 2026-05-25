@@ -1,10 +1,10 @@
 use crate::{
     AllowBuildPolicy, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    GraphToLockfileOptions, HoistedDependencies, InstallPackageFromRegistryError,
-    LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchContext, PrefetchingResolver,
-    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
-    VersionPolicyError, VirtualStoreLayout, dependencies_graph_to_lockfile,
-    store_init::init_store_dir_best_effort,
+    GraphToLockfileOptions, HoistedDependencies, ImporterLockfileInput,
+    InstallPackageFromRegistryError, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
+    PrefetchContext, PrefetchingResolver, SkippedSnapshots, SymlinkDirectDependencies,
+    SymlinkDirectDependenciesError, VersionPolicyError, VirtualStoreLayout,
+    dependencies_graph_to_lockfile, store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
 use derive_more::{Display, Error};
@@ -91,7 +91,14 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// stored `ThrottledClient` outlives any per-call borrow.
     pub http_client_arc: Arc<ThrottledClient>,
     pub config: &'static Config,
-    pub manifest: &'a PackageManifest,
+    /// One entry per importer to resolve, keyed by the lockfile
+    /// importer id (`"."` for the workspace root, POSIX-relative path
+    /// for sibling projects — see
+    /// [`pacquet_workspace::importer_id_from_root_dir`]). Mirrors
+    /// upstream's `importers: ImporterToResolve[]` shape on
+    /// `resolveDependencies`. For a non-workspace install this carries
+    /// a single `"."` entry pointing at the only project.
+    pub importer_manifests: BTreeMap<String, &'a PackageManifest>,
     pub dependency_groups: DependencyGroupList,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
@@ -254,7 +261,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             http_client,
             http_client_arc,
             config,
-            manifest,
+            importer_manifests,
             dependency_groups,
             // The recursive `install_subtree` path used this `DashMap`
             // as a per-snapshot watch-channel dedup gate so duplicate
@@ -487,27 +494,23 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .transpose()
             .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
-        // Seed `allPreferredVersions` from the importer manifest +
+        // Seed `allPreferredVersions` from every importer's manifest +
         // the wanted lockfile's snapshots (when an existing one is
         // present and is being rewritten). Mirrors upstream's
         // `getPreferredVersionsFromLockfileAndManifests` shape: the
-        // manifest contributes direct-dep specifiers, the lockfile
+        // manifests contribute direct-dep specifiers, the lockfile
         // contributes concrete `(name, version)` pins that bump the
         // weight of an already-matching direct-dep entry. Without the
         // lockfile-side seed, every install on a stale lockfile would
         // resolve unrelated entries from scratch and lose their
         // recorded pins; see <https://pnpm.io/settings#preferfrozenlockfile>.
+        let manifests_for_preferred: Vec<&PackageManifest> =
+            importer_manifests.values().copied().collect();
         let all_preferred_versions =
             pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
                 wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
-                &[manifest],
+                manifests_for_preferred.as_slice(),
             );
-
-        // Thread the manifest's directory and the lockfile root into
-        // the resolver's `ResolveOptions` so `workspace:` and `link:`
-        // resolutions can compute the right relative paths.
-        let project_dir =
-            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
 
         // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
         // per install. The resolver consults the grouped record at
@@ -520,39 +523,88 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
             .map(Arc::new);
 
-        let importer_opts = ResolveImporterOptions {
-            auto_install_peers: config.auto_install_peers,
-            auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
-            resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
-            all_preferred_versions,
-            patched_dependencies,
-            base_opts: ResolveOptions {
-                default_tag: Some("latest".to_string()),
-                published_by,
-                published_by_exclude,
-                project_dir,
-                lockfile_dir: lockfile_dir.to_path_buf(),
-                workspace_packages,
-                block_exotic_subdeps: config.block_exotic_subdeps,
-                ..ResolveOptions::default()
-            },
-            catalogs,
-        };
-
+        // Loop per workspace project. Each importer gets its own
+        // resolve_importer call with its own `project_dir` so
+        // `workspace:` / `link:` resolutions compute paths relative
+        // to the consuming project; the shared `meta_cache`,
+        // `fetch_locker`, and `picked_manifest_cache` keep the
+        // packument and version-pick work amortized across importers.
+        // Mirrors upstream's
+        // [`resolveRootDependencies`](https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-resolver/src/resolveDependencies.ts#L327-L437)
+        // iteration: one shared resolution context, per-importer
+        // direct-deps slices.
         let phase_start = std::time::Instant::now();
-        let importer_result = resolve_importer(
-            &*resolver,
-            manifest,
-            dependency_groups.iter().copied(),
-            importer_opts,
-        )
-        .await
-        .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
+        let mut merged_graph: pacquet_resolving_deps_resolver::DependenciesGraph =
+            std::collections::HashMap::new();
+        let mut direct_by_importer: BTreeMap<
+            String,
+            BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>,
+        > = BTreeMap::new();
+        let mut total_nodes = 0usize;
+        for (importer_id, importer_manifest) in &importer_manifests {
+            let project_dir = importer_manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf();
+            let importer_opts = ResolveImporterOptions {
+                auto_install_peers: config.auto_install_peers,
+                auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
+                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+                all_preferred_versions: all_preferred_versions.clone(),
+                patched_dependencies: patched_dependencies.clone(),
+                base_opts: ResolveOptions {
+                    default_tag: Some("latest".to_string()),
+                    published_by,
+                    published_by_exclude: published_by_exclude.clone(),
+                    project_dir,
+                    lockfile_dir: lockfile_dir.to_path_buf(),
+                    workspace_packages: workspace_packages.clone(),
+                    block_exotic_subdeps: config.block_exotic_subdeps,
+                    ..ResolveOptions::default()
+                },
+                catalogs: catalogs.clone(),
+            };
+            let importer_result = resolve_importer(
+                &*resolver,
+                importer_manifest,
+                dependency_groups.iter().copied(),
+                importer_opts,
+            )
+            .await
+            .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
+            total_nodes += importer_result.peers_result.graph.len();
+            // Merge this importer's per-id graph into the shared
+            // graph; identical depPaths collapse onto the existing
+            // entry. Two importers depending on the same package
+            // version produce equivalent nodes by construction of the
+            // (deterministic) resolver, so a first-writer-wins merge
+            // is safe.
+            for (key, node) in importer_result.peers_result.graph {
+                merged_graph.entry(key).or_insert(node);
+            }
+            direct_by_importer.insert(
+                importer_id.clone(),
+                importer_result.peers_result.direct_dependencies_by_alias,
+            );
+            if !importer_result.peers_result.peer_dependency_issues.missing.is_empty()
+                || !importer_result.peers_result.peer_dependency_issues.bad.is_empty()
+            {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    importer_id = %importer_id,
+                    missing = importer_result.peers_result.peer_dependency_issues.missing.len(),
+                    bad = importer_result.peers_result.peer_dependency_issues.bad.len(),
+                    "Peer dependency issues detected (issue renderer not ported yet)",
+                );
+            }
+        }
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "resolve_importer",
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
-            nodes = importer_result.peers_result.graph.len(),
+            importers = importer_manifests.len(),
+            nodes = total_nodes,
             "phase complete",
         );
 
@@ -591,7 +643,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // serialize on `Arc<Mutex<StoreIndex>>` for warm packages
         // that weren't reached by the resolve-time prefetch (e.g.
         // resolutions without a structured `name@version`).
-        let cache_keys: Vec<String> = collect_prefetch_cache_keys(&importer_result.peers_result);
+        let cache_keys: Vec<String> = collect_prefetch_cache_keys_from_graph(&merged_graph);
         let cache_keys_len = cache_keys.len();
         let phase_start = std::time::Instant::now();
         let prefetch = pacquet_tarball::prefetch_cas_paths(
@@ -622,23 +674,6 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             manifest_hits = prefetched_manifests.len(),
             "phase complete",
         );
-
-        // Peer-resolution result (collected by `resolve_importer` after
-        // the hoist loop converged). Peer issues collected here are not
-        // fatal — they are reported (TODO: wire into the reporter once
-        // the issue renderer is ported) and the install proceeds with
-        // whichever candidate was reachable.
-        let peers_result = &importer_result.peers_result;
-        if !peers_result.peer_dependency_issues.missing.is_empty()
-            || !peers_result.peer_dependency_issues.bad.is_empty()
-        {
-            tracing::warn!(
-                target: "pacquet::install",
-                missing = peers_result.peer_dependency_issues.missing.len(),
-                bad = peers_result.peer_dependency_issues.bad.len(),
-                "Peer dependency issues detected (issue renderer not ported yet)",
-            );
-        }
 
         // Build the install-scoped virtual-store layout. When
         // `enable_global_virtual_store` is on, this precomputes each
@@ -674,7 +709,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // [`Self::wanted_lockfile`], which is the *previous* run's
         // lockfile threaded in for preferred-versions seeding.
         let phase_start = std::time::Instant::now();
-        let built_lockfile = build_fresh_lockfile(config, manifest, &importer_result);
+        let built_lockfile =
+            build_fresh_lockfile(config, &importer_manifests, &merged_graph, &direct_by_importer);
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_fresh_lockfile",
@@ -813,16 +849,30 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         .run::<Reporter>()
         .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
 
-        // Link bins. Direct dependencies first (root project's
+        // Link bins. Direct dependencies first (each importer's
         // `node_modules/.bin`) and then per-slot children inside the
         // virtual store. Mirrors the same two-call shape as
         // `install_frozen_lockfile.rs`. We re-walk `<modules_dir>` instead
         // of replaying the manifest because the `dependency_groups`
         // iterator was already consumed above; pnpm's own
         // `linkBins(modulesDir, binsDir)` overload uses the same
-        // strategy.
-        link_bins::<Host>(&config.modules_dir, &config.modules_dir.join(".bin"))
-            .map_err(InstallWithFreshLockfileError::LinkBins)?;
+        // strategy. One pass per importer so sibling workspace projects
+        // get their own `.bin/` populated, mirroring upstream's
+        // per-importer `linkBinsOfImporter` at
+        // <https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-installer/src/install/link.ts>.
+        let modules_basename = config
+            .modules_dir
+            .file_name()
+            .map(std::ffi::OsStr::to_os_string)
+            .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
+        for importer_id in importer_manifests.keys() {
+            let project_dir =
+                crate::symlink_direct_dependencies::importer_root_dir(symlink_root, importer_id);
+            let modules_dir = project_dir.join(&modules_basename);
+            let bins_dir = modules_dir.join(".bin");
+            link_bins::<Host>(&modules_dir, &bins_dir)
+                .map_err(InstallWithFreshLockfileError::LinkBins)?;
+        }
 
         // Drive the lockfile-driven `LinkVirtualStoreBins` path. The
         // bin linker iterates `snapshots:` (no per-slot `read_dir`)
@@ -901,11 +951,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
     }
 }
 
-/// Walk the resolver-produced graph and emit the
-/// `{integrity}\t{pkg_id}` cache keys
-/// [`pacquet_tarball::prefetch_cas_paths`] uses for its batched
-/// `SELECT ... WHERE key IN (...)` against the store index. Mirrors
-/// the equivalent collection loop in
+/// Walk the merged resolver graph and emit the `{integrity}\t{pkg_id}`
+/// cache keys [`pacquet_tarball::prefetch_cas_paths`] uses for its
+/// batched `SELECT ... WHERE key IN (...)` against the store index.
+/// Mirrors the equivalent collection loop in
 /// [`crate::CreateVirtualStore::run`] for the frozen-lockfile path —
 /// same key shape, same dedup, so the fresh-lockfile path's warm
 /// batch hits the same rows pnpm or pacquet wrote on the prior
@@ -917,11 +966,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 /// shape (`pkg_id`-only) and route through the cold path. Today's
 /// `install_subtree` only handles tarball+integrity anyway, so the
 /// skipped entries can't be served from the prefetch either way.
-fn collect_prefetch_cache_keys(
-    peers_result: &pacquet_resolving_deps_resolver::ResolvePeersResult,
+fn collect_prefetch_cache_keys_from_graph(
+    graph: &pacquet_resolving_deps_resolver::DependenciesGraph,
 ) -> Vec<String> {
-    let mut keys: Vec<String> = peers_result
-        .graph
+    let mut keys: Vec<String> = graph
         .values()
         .filter_map(|node| {
             let pacquet_lockfile::LockfileResolution::Tarball(tarball) =
@@ -944,7 +992,7 @@ fn collect_prefetch_cache_keys(
 }
 
 /// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the
-/// resolver's output.
+/// merged resolver graph + per-importer direct-deps maps.
 ///
 /// Mirrors upstream's
 /// [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts)
@@ -953,18 +1001,28 @@ fn collect_prefetch_cache_keys(
 /// fan-out, with [`dependencies_graph_to_lockfile()`] doing the wire-shape lifting.
 fn build_fresh_lockfile(
     config: &Config,
-    manifest: &PackageManifest,
-    importer_result: &pacquet_resolving_deps_resolver::ResolveImporterResult,
+    importer_manifests: &BTreeMap<String, &PackageManifest>,
+    graph: &pacquet_resolving_deps_resolver::DependenciesGraph,
+    direct_by_importer: &BTreeMap<
+        String,
+        BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>,
+    >,
 ) -> Lockfile {
+    let mut importers = BTreeMap::new();
+    for (id, manifest) in importer_manifests {
+        let direct = direct_by_importer.get(id).cloned().unwrap_or_default();
+        importers.insert(
+            id.clone(),
+            ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
+        );
+    }
     dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        manifest,
-        resolved: importer_result,
+        importers,
+        graph,
         auto_install_peers: config.auto_install_peers,
         // `excludeLinksFromLockfile` isn't ported to pacquet's `Config`
-        // yet (pnpm/pacquet#431 brings workspace support, which is
-        // when the knob starts mattering). Default to `false` —
-        // matches upstream's default and round-trips cleanly through
-        // `@pnpm/lockfile.settings-checker`.
+        // yet. Default to `false` — matches upstream's default and
+        // round-trips cleanly through `@pnpm/lockfile.settings-checker`.
         exclude_links_from_lockfile: false,
         overrides: config
             .overrides

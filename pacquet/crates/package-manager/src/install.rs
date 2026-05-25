@@ -357,6 +357,54 @@ where
         // paths threaded into log events.
         let prefix = workspace_root.to_string_lossy().into_owned();
 
+        // Register the project against the shared store for prune
+        // tracking, once per install at the workspace root. Mirrors
+        // upstream's call into `@pnpm/store.controller`'s
+        // [`registerProject`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/store/controller/src/storeController/projectRegistry.ts)
+        // from `getContext` at
+        // <https://github.com/pnpm/pnpm/blob/d8a79a9c30/installing/context/src/index.ts#L128>:
+        // pnpm registers `opts.lockfileDir` (the workspace root) once,
+        // not per importer — store prune walks the workspace's
+        // `node_modules/.pnpm/` to find every installed package, so one
+        // registry entry per workspace is enough.
+        //
+        // Gated on `enable_global_virtual_store` because pacquet wires
+        // the prune-by-registry path only under GVS for now; pnpm
+        // registers unconditionally, so once the non-GVS prune path
+        // lands the gate should be dropped. Best-effort: a registry
+        // write failure shouldn't fail the install. Surface as
+        // `tracing::warn!` so the failure is diagnosable but the
+        // install carries on.
+        if config.enable_global_virtual_store {
+            // Create the store root before calling `register_project` so
+            // its `path_contains` guard can canonicalize the path
+            // instead of falling through to a literal comparison that
+            // wrongly matches against `<workspace>/../pacquet-store/v11`-
+            // shaped relative store paths (resolved-on-disk: outside the
+            // workspace; lexical: starts with the workspace prefix).
+            // Mirrors pnpm's
+            // [`fs.mkdir(opts.storeDir, { recursive: true })`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/installing/context/src/index.ts#L125)
+            // call site right before `registerProject`.
+            if let Err(error) =
+                std::fs::create_dir_all(pacquet_store_dir::StoreDir::root(&config.store_dir))
+            {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "Failed to ensure store root exists before project registry write; install continues",
+                );
+            }
+            if let Err(error) =
+                pacquet_store_dir::register_project(&config.store_dir, &workspace_root)
+            {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "Failed to register workspace root in the store project registry; install continues",
+                );
+            }
+        }
+
         // `pnpm:package-manifest initial` carries the on-disk
         // `package.json` body. Mirrors pnpm's per-project emit at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/context/src/index.ts#L133>:
@@ -614,45 +662,6 @@ where
             .await
             .map_err(InstallError::FrozenLockfile)?;
 
-            // Register every importer against the shared store now
-            // that the install has materialized their `node_modules/`.
-            // Mirrors upstream's call into `@pnpm/store.controller`'s
-            // [`registerProject`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/projectRegistry.ts),
-            // which runs once per importer — a workspace ends up with
-            // one symlink in `<store_dir>/projects/` per package, so
-            // `pacquet store prune` (tracked separately) can find
-            // every reachable consumer of `<store_dir>/links/...`.
-            //
-            // Best-effort: a registry write failure shouldn't fail
-            // the install. Surface as `tracing::warn!` so the failure
-            // is diagnosable but the install carries on. Validation
-            // of importer keys is done by
-            // [`crate::SymlinkDirectDependencies::run`] before we get
-            // here, so by this point every key is known-safe.
-            //
-            // The matching call for the fresh-resolve path lives
-            // after the `InstallWithFreshLockfile` branch below, where
-            // the root project is the only importer (workspaces in
-            // that path are pending pnpm/pacquet#431).
-            if config.enable_global_virtual_store {
-                for importer_id in importers.keys() {
-                    let project_dir = crate::symlink_direct_dependencies::importer_root_dir(
-                        &workspace_root,
-                        importer_id,
-                    );
-                    if let Err(error) =
-                        pacquet_store_dir::register_project(&config.store_dir, &project_dir)
-                    {
-                        tracing::warn!(
-                            target: "pacquet::install",
-                            ?error,
-                            importer_id = %importer_id,
-                            "Failed to register importer in the global-virtual-store registry; install continues",
-                        );
-                    }
-                }
-            }
-
             (
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
@@ -687,23 +696,51 @@ where
             // The fresh-lockfile path has no installability check
             // (no `packages:` metadata to evaluate constraints
             // against), so its skip set is empty by construction.
-            // Build the workspace-sibling lookup the npm resolver
-            // consults for `workspace:` specs. `None` when the install
-            // isn't inside a `pnpm-workspace.yaml` workspace (no
-            // workspace root was found), so the resolver errors out
-            // on any `workspace:` spec rather than silently skipping
-            // to a registry lookup. Mirrors upstream's posture at
+            // Walk every workspace project once: the returned `Vec`
+            // feeds both the `workspace:`-spec lookup the npm resolver
+            // consults *and* the per-importer manifest list the
+            // resolver iterates over. `None` workspace projects when
+            // the install isn't inside a `pnpm-workspace.yaml`
+            // workspace (no workspace root was found) — the resolver
+            // then errors out on any `workspace:` spec rather than
+            // silently skipping to a registry lookup, matching pnpm's
+            // posture at
             // <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830>.
-            let workspace_packages =
-                build_workspace_packages_map(&workspace_root, workspace_manifest.as_ref())
+            let workspace_projects =
+                load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
                     .map_err(InstallError::FindWorkspaceProjects)?;
+            let workspace_packages = build_workspace_packages_map(workspace_projects.as_deref());
+            // Build the per-importer manifest list. The root importer
+            // (`"."`) always reuses the in-memory `Install.manifest`
+            // — `pacquet add` mutates that value before calling install,
+            // so re-reading from disk would walk the pre-add shape and
+            // miss the freshly-added dep. Sibling importers come from
+            // the `find_workspace_projects` walk, which read them off
+            // disk for `workspace_packages` already.
+            let importer_manifests: BTreeMap<String, &PackageManifest> = {
+                let mut map = BTreeMap::new();
+                map.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), manifest);
+                if let Some(projects) = workspace_projects.as_deref() {
+                    for project in projects {
+                        let id = pacquet_workspace::importer_id_from_root_dir(
+                            &workspace_root,
+                            &project.root_dir,
+                        );
+                        if id == Lockfile::ROOT_IMPORTER_KEY {
+                            continue;
+                        }
+                        map.insert(id, &project.manifest);
+                    }
+                }
+                map
+            };
             let fresh_result = InstallWithFreshLockfile {
                 tarball_mem_cache,
                 resolved_packages,
                 http_client,
                 http_client_arc: Arc::clone(&http_client_arc),
                 config,
-                manifest,
+                importer_manifests,
                 dependency_groups,
                 logged_methods: &logged_methods,
                 requester: &prefix,
@@ -725,26 +762,6 @@ where
             .run::<Reporter>()
             .await
             .map_err(InstallError::WithFreshLockfile)?;
-
-            // Mirror the frozen-lockfile branch: when GVS is on,
-            // register the project against the shared store so
-            // `pacquet store prune` can find this consumer of
-            // `<store_dir>/links/...`. Pacquet's fresh-resolve path
-            // has one importer today (workspaces tracked at
-            // pnpm/pacquet#431), so the workspace root is the only
-            // path to register. Best-effort: warn on failure, don't
-            // fail the install.
-            if config.enable_global_virtual_store
-                && let Err(error) =
-                    pacquet_store_dir::register_project(&config.store_dir, &workspace_root)
-            {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    ?error,
-                    project_dir = ?workspace_root,
-                    "Failed to register project in the global-virtual-store registry; install continues",
-                );
-            }
 
             (
                 fresh_result.hoisted_dependencies,
@@ -1162,11 +1179,31 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
     manifest.value().get(key).and_then(|v| v.as_str()).map(ToString::to_string)
 }
 
+/// Walk every workspace project's `package.json`. Returns `Ok(None)`
+/// when no `pnpm-workspace.yaml` exists in (or above) `workspace_root`
+/// — the install isn't a workspace install, so the caller should use
+/// the top-level `Install.manifest` as its only importer and pass
+/// `None` for the `workspace:`-spec lookup.
+///
+/// One walk feeds both [`build_workspace_packages_map`] (the npm
+/// resolver's `workspace:` lookup) and the per-importer manifest list
+/// the fresh-resolve path iterates over, so the manifests are read
+/// from disk exactly once. Mirrors upstream's
+/// [`findWorkspacePackages`](https://github.com/pnpm/pnpm/blob/3422cecfd3/workspace/find-packages/src/index.ts).
+fn load_workspace_projects(
+    workspace_root: &std::path::Path,
+    workspace_manifest: Option<&pacquet_workspace::WorkspaceManifest>,
+) -> Result<Option<Vec<pacquet_workspace::Project>>, pacquet_workspace::FindWorkspaceProjectsError>
+{
+    let Some(manifest) = workspace_manifest else { return Ok(None) };
+    let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
+    pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
+}
+
 /// Build the `name → version → WorkspacePackage` lookup the npm
-/// resolver consults for `workspace:` specs. Returns `Ok(None)` when
-/// no `pnpm-workspace.yaml` exists in (or above) `workspace_root` —
-/// the install isn't a workspace install, so any `workspace:` spec
-/// the manifest happens to carry should surface
+/// resolver consults for `workspace:` specs. Returns `None` when
+/// `projects` is `None` (no workspace) so any `workspace:` spec the
+/// manifest happens to carry surfaces
 /// [`pacquet_resolving_npm_resolver::ResolveFromWorkspaceError::WorkspacePackagesNotLoaded`].
 ///
 /// Mirrors the slice pnpm's
@@ -1177,18 +1214,9 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
 /// skipped; upstream's manifest reader emits a separate warning that
 /// pacquet doesn't carry through here.
 fn build_workspace_packages_map(
-    workspace_root: &std::path::Path,
-    workspace_manifest: Option<&pacquet_workspace::WorkspaceManifest>,
-) -> Result<
-    Option<pacquet_resolving_resolver_base::WorkspacePackages>,
-    pacquet_workspace::FindWorkspaceProjectsError,
-> {
-    // No `pnpm-workspace.yaml` → no workspace install. Skip the project
-    // walk entirely.
-    let Some(manifest) = workspace_manifest else { return Ok(None) };
-    let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
-    let projects = pacquet_workspace::find_workspace_projects(workspace_root, &opts)?;
-
+    projects: Option<&[pacquet_workspace::Project]>,
+) -> Option<pacquet_resolving_resolver_base::WorkspacePackages> {
+    let projects = projects?;
     let mut map: pacquet_resolving_resolver_base::WorkspacePackages =
         std::collections::BTreeMap::new();
     for project in projects {
@@ -1198,12 +1226,12 @@ fn build_workspace_packages_map(
         map.entry(name).or_default().insert(
             version,
             pacquet_resolving_resolver_base::WorkspacePackage {
-                root_dir: project.root_dir,
+                root_dir: project.root_dir.clone(),
                 manifest: project.manifest.value().clone(),
             },
         );
     }
-    Ok(Some(map))
+    Some(map)
 }
 
 /// Build the `projects` map for [`WorkspaceState`]. Mirrors upstream's

@@ -363,12 +363,48 @@ fn is_enoent_or_einval(error: &io::Error) -> bool {
 /// Both paths are compared by their canonical (resolved) form so
 /// symlinks don't fool the check. When either path can't be
 /// canonicalized (typically the store dir hasn't been created yet),
-/// fall back to a lexical comparison so the guard stays defensive
-/// against the legacy "store inside the project" case.
+/// fall back to a *lexical* normalization that collapses `.` and `..`
+/// segments — matching upstream's `path.relative`-backed
+/// [`is-subdir`](https://github.com/whitecolor/is-subdir/blob/main/index.js)
+/// check, which is purely lexical. A raw `starts_with` on the
+/// unnormalized path would treat `<workspace>/../pacquet-store` as
+/// inside `<workspace>` even though resolving `..` puts it outside.
 fn path_contains(outer: &Path, inner: &Path) -> bool {
-    let outer_canonical = dunce::canonicalize(outer).unwrap_or_else(|_| outer.to_path_buf());
-    let inner_canonical = dunce::canonicalize(inner).unwrap_or_else(|_| inner.to_path_buf());
+    let outer_canonical = dunce::canonicalize(outer).unwrap_or_else(|_| lexical_normalize(outer));
+    let inner_canonical = dunce::canonicalize(inner).unwrap_or_else(|_| lexical_normalize(inner));
     inner_canonical.starts_with(&outer_canonical)
+}
+
+/// Lexically resolve `.` and `..` components without touching the
+/// filesystem. Used as a fallback inside [`path_contains`] when
+/// `canonicalize` fails because the path doesn't exist yet.
+///
+/// Semantics:
+/// - `foo/../bar` → `bar` (pop a real segment).
+/// - `/..` → `/` (POSIX rule: root has no parent).
+/// - `../foo` → `../foo` (preserve leading `..` in relative paths).
+/// - `foo/./bar` → `foo/bar` (drop `.`).
+fn lexical_normalize(path: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => match out.components().next_back() {
+                // Normal segment — collapse it with the `..`.
+                Some(Component::Normal(_)) => {
+                    out.pop();
+                }
+                // At an absolute root — drop the `..` (`/..` is `/`).
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                // Empty path or leading `..` chain — preserve the `..`
+                // so relative paths like `../foo` round-trip.
+                _ => out.push(".."),
+            },
+            Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
 }
 
 /// Best-effort canonicalization for a symlink target: if the target is
@@ -388,10 +424,58 @@ fn canonicalize_or_join(link_path: &Path, target: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{create_short_hash, get_registered_projects, register_project};
+    use super::{create_short_hash, get_registered_projects, path_contains, register_project};
     use crate::StoreDir;
     use std::fs;
+    use std::path::Path;
     use tempfile::tempdir;
+
+    /// `path_contains` must resolve `..` segments lexically when the
+    /// paths don't exist on disk yet. A raw `starts_with` on
+    /// `<workspace>/../pacquet-store/v11` against `<workspace>` would
+    /// wrongly say the store lives inside the workspace, since the
+    /// string-prefix check ignores that `..` walks back up. The fresh-
+    /// install dispatch calls [`register_project`] before the store
+    /// dir is created, so canonicalize fails and the lexical fallback
+    /// is the only thing keeping the guard correct.
+    #[test]
+    fn path_contains_resolves_parent_components_when_paths_do_not_exist() {
+        let outer = Path::new("/tmp/nonexistent-workspace");
+        let inner_sibling = Path::new("/tmp/nonexistent-workspace/../sibling/v11");
+        assert!(
+            !path_contains(outer, inner_sibling),
+            "`<workspace>/../sibling/v11` lexically resolves to `/tmp/sibling/v11` — outside the workspace",
+        );
+
+        let inner_child = Path::new("/tmp/nonexistent-workspace/child/v11");
+        assert!(
+            path_contains(outer, inner_child),
+            "`<workspace>/child/v11` is genuinely inside the workspace",
+        );
+    }
+
+    /// [`lexical_normalize`] preserves leading `..` segments in
+    /// relative paths but drops `..` immediately after an absolute
+    /// root — matching Go's `path.Clean` and POSIX's "root has no
+    /// parent" rule.
+    #[test]
+    fn lexical_normalize_handles_parent_dir_corner_cases() {
+        use super::lexical_normalize;
+        use std::path::PathBuf;
+
+        // Real segment + `..` collapses.
+        assert_eq!(lexical_normalize(Path::new("foo/../bar")), PathBuf::from("bar"));
+        // `.` is dropped.
+        assert_eq!(lexical_normalize(Path::new("foo/./bar")), PathBuf::from("foo/bar"));
+        // `/..` is `/` — root has no parent.
+        assert_eq!(lexical_normalize(Path::new("/../foo")), PathBuf::from("/foo"));
+        // Leading `..` in a relative path is preserved.
+        assert_eq!(lexical_normalize(Path::new("../foo")), PathBuf::from("../foo"));
+        // Multiple leading `..`s stack.
+        assert_eq!(lexical_normalize(Path::new("../../foo")), PathBuf::from("../../foo"));
+        // Interior `..` after an absolute root collapses normally.
+        assert_eq!(lexical_normalize(Path::new("/a/b/../c")), PathBuf::from("/a/c"));
+    }
 
     /// `create_short_hash` is sha256-hex truncated to 32 chars.
     /// Matches upstream's

@@ -2845,6 +2845,7 @@ dependencies = [
  "miette 7.6.0",
  "pacquet-catalogs-types",
  "pacquet-package-manifest",
+ "pathdiff",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
