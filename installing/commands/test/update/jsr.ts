@@ -3,7 +3,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { install, update } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 

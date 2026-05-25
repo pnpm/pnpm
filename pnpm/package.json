@@ -127,6 +127,7 @@
     "@pnpm/tabtab": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/worker": "workspace:*",

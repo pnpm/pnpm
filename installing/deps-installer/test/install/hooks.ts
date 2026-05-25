@@ -6,7 +6,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 
 import { testDefaults } from '../utils/index.js'
 

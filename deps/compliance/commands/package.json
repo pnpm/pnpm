@@ -80,6 +80,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",

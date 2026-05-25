@@ -9,6 +9,7 @@ import { renderHelp } from 'render-help'
 import semver from 'semver'
 
 import { parsePackageSpec, rcOptionsTypes } from './common.js'
+import { setDistTag } from './setDistTag.js'
 
 export { rcOptionsTypes }
 
@@ -141,20 +142,15 @@ async function distTagAdd (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const distTagUrl = getDistTagUrl(packageName, registryUrl, tag)
-  const response = await fetchFromRegistry(distTagUrl, {
-    authHeaderValue: authHeader,
-    method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      ...(otp ? { 'npm-otp': otp } : {}),
-    },
-    body: JSON.stringify(version),
+  await setDistTag({
+    packageName,
+    version,
+    distTag: tag,
+    registryUrl,
+    authHeader,
+    fetchFromRegistry,
+    otp,
   })
-
-  if (!response.ok) {
-    await throwRegistryError(response, `set dist-tag "${tag}" on`)
-  }
 
   return `+${tag}: ${packageName}@${version}`
 }

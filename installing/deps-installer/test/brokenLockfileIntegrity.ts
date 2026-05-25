@@ -6,7 +6,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { TarballResolution } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { clone } from 'ramda'
