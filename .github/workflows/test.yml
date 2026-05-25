@@ -84,13 +84,11 @@ jobs:
       env:
         REF_NAME: ${{ github.ref_name }}
       run: |
-        # TEMPORARY: run only @pnpm/registry-access.commands on the
-        # pnpm-registry-auth branch so we can debug the search test
-        # failure with fast turnaround. Revert before merging.
-        if [[ "$REF_NAME" == "pnpm-registry-auth" ]]; then
-          echo "script=ci:test-registry-access-only" >> "$GITHUB_OUTPUT"
-          echo "scope=registry-access only (DEBUG)" >> "$GITHUB_OUTPUT"
-        elif [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* ]]; then
+        # TEMPORARY: force full test scope on pnpm-registry-auth so we
+        # can validate the verdaccio → pnpm-registry migration runs all
+        # tests, not just the packages whose source files changed. Revert
+        # this branch from the condition before merging.
+        if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* || "$REF_NAME" == "pnpm-registry-auth" ]]; then
           echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
           echo "scope=all" >> "$GITHUB_OUTPUT"
         else

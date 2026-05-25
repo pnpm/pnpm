@@ -16,7 +16,6 @@
     "test-pkgs-all": "pn remove-temp-dir && pn --no-sort --workspace-concurrency=1 -r .test",
     "test-branch": "pn pretest && pn lint && git remote set-branches --add origin main && git fetch origin main && pn test-pkgs-branch",
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
-    "ci:test-registry-access-only": "pn prepare-fixtures && pn remove-temp-dir && pn --filter=@pnpm/registry-access.commands --if-present .test",
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",
     "compile-only": "tsgo --build workspace/workspace-manifest-reader workspace/projects-reader && pnx node@runtime:26.0.0 __utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
     "compile": "pn compile-only && pn update-manifests",

@@ -664,6 +664,15 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
             Ok(body) => body,
             Err(err) => return error_response(&err),
         };
+
+    // Augment with an upstream packument lookup for the exact query
+    // name. Without this, freshly-prepared registry-mock storage
+    // (which ships only scoped packages) returns nothing for queries
+    // like `is-positive` until something else proxies that package
+    // first. Verdaccio's search does an equivalent merge with
+    // upstream results.
+    augment_search_with_upstream(state, &text, &mut body).await;
+
     if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
         objects.retain(|entry| {
             let Some(name) =
@@ -685,6 +694,51 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+/// Inject an exact-name upstream match into a local-search result.
+///
+/// Verdaccio's search proxies to its uplinks; npm's `/-/v1/search`
+/// is too fuzzy to mirror directly (a guaranteed-not-to-exist query
+/// returns 1.7M results), so instead we treat the query as a literal
+/// package name. If it parses as one, isn't already in the local
+/// results, and the upstream returns a real packument for it, we
+/// prepend the resulting entry. The fetch also caches the packument
+/// on disk, so subsequent searches find it without another upstream
+/// hit.
+async fn augment_search_with_upstream(state: &AppState, query: &str, body: &mut Value) {
+    if state.inner.upstream.is_none() {
+        return;
+    }
+    let Ok(name) = PackageName::parse(query) else {
+        return;
+    };
+    let already_present = body.get("objects").and_then(Value::as_array).is_some_and(|objects| {
+        objects.iter().any(|object| {
+            object.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
+                == Some(name.as_str())
+        })
+    });
+    if already_present {
+        return;
+    }
+    // `load_packument_bytes` fetches from upstream and writes the
+    // result into the cache, so the next search picks it up locally
+    // without another network round trip.
+    let PackumentLoad::Ok(bytes) = load_packument_bytes(state, &name).await else {
+        return;
+    };
+    let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else {
+        return;
+    };
+    let Some(entry) = crate::search::build_search_entry(name.as_str(), &packument) else {
+        return;
+    };
+    if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
+        objects.insert(0, entry);
+        let new_total = objects.len();
+        body["total"] = json!(new_total);
+    }
 }
 
 /// `PUT /:pkg/-rev/:rev` — overwrite the on-disk packument with the
