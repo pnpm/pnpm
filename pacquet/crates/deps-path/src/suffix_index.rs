@@ -182,7 +182,7 @@ mod tests {
     fn scoped_name_with_patch_hash_and_peer_keeps_only_patch_hash() {
         let dep_path = "@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)";
         assert_eq!(remove_suffix(dep_path), "@foo/bar@1.0.0");
-        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0(patch_hash=zzzz)",);
+        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0(patch_hash=zzzz)");
     }
 
     /// Mirrors `tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))')`.

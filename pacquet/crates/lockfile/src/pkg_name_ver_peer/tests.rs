@@ -193,7 +193,7 @@ fn without_peer_handles_workspace_link_with_peer_suffix() {
         rendered.starts_with("link:../../../dev/sharedUiComponents("),
         "name half of the key must survive verbatim; got {rendered:?}",
     );
-    assert!(!rendered.contains(")("), "peer suffix must be stripped; got {rendered:?}",);
+    assert!(!rendered.contains(")("), "peer suffix must be stripped; got {rendered:?}");
 }
 
 /// The user-reported macOS errno-63 case: a vitest snapshot key whose
