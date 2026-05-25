@@ -626,7 +626,7 @@ impl<'a> CreateVirtualStore<'a> {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
             for (snapshot_key, _snapshot, cas_paths) in &warm {
                 // Mirrors upstream's `getPkgIdWithPatchHash` — strip
-                // the peer-graph suffix but keep `(patch_hash=…)` so
+                // the peer-graph suffix but keep `(patch_hash=...)` so
                 // patched packages share one CAS-paths entry across
                 // their peer variants.
                 let pkg_id = PkgIdWithPatchHash::from(
@@ -842,7 +842,7 @@ impl<'a> CreateVirtualStore<'a> {
             map.reserve(cold_cas_paths.len());
             for (snapshot_key, paths) in cold_cas_paths {
                 // Mirrors upstream's `getPkgIdWithPatchHash` — strip
-                // the peer-graph suffix but keep `(patch_hash=…)` so
+                // the peer-graph suffix but keep `(patch_hash=...)` so
                 // patched packages share one CAS-paths entry across
                 // their peer variants.
                 let pkg_id = PkgIdWithPatchHash::from(

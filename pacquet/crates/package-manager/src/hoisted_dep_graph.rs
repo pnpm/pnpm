@@ -698,7 +698,7 @@ fn walk_deps(
             alias: Some(dep.0.name.clone()),
             dep_path: DepPath::from(reference.clone()),
             // `pkgIdWithPatchHash` strips peer-graph hashes but
-            // keeps `(patch_hash=…)`. Mirrors upstream's
+            // keeps `(patch_hash=...)`. Mirrors upstream's
             // [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
             pkg_id_with_patch_hash: PkgIdWithPatchHash::from(
                 get_pkg_id_with_patch_hash(&pkg_key.to_string()).to_string(),
