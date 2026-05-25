@@ -55,8 +55,7 @@
     "lcov-result-merger": "catalog:",
     "rimraf": "catalog:",
     "shx": "catalog:",
-    "typescript": "catalog:",
-    "verdaccio": "catalog:"
+    "typescript": "catalog:"
   },
   "packageManager": "pnpm@11.3.0",
   "devEngines": {

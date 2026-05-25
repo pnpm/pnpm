@@ -311,7 +311,6 @@ catalog:
   undici: ^7.2.0
   unified: ^11.0.5
   validate-npm-package-name: 7.0.2
-  verdaccio: 6.3.2
   version-selector-type: ^3.0.0
   vfile: ^6.0.0
   which: npm:@pnpm/which@^3.0.1
@@ -449,9 +448,14 @@ packageExtensions:
   '@babel/parser':
     peerDependencies:
       '@babel/types': '*'
-  '@verdaccio/auth':
-    peerDependencies:
-      express: '*'
+  # pnpm's test harness launches `pnpm-registry` (the in-tree Rust
+  # crate) instead of verdaccio, so `@pnpm/registry-mock`'s verdaccio
+  # peer is dead weight here. Mark it optional to keep pnpm from
+  # auto-installing verdaccio + its tree across the workspace.
+  '@pnpm/registry-mock':
+    peerDependenciesMeta:
+      verdaccio:
+        optional: true
   jest-circus:
     dependencies:
       slash: '3'
