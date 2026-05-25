@@ -921,7 +921,7 @@ async fn registry_error_propagates_when_workspace_has_no_matching_version() {
         .resolve(&wanted, &opts)
         .await
         .expect_err("workspace can't satisfy 2.0.0; original 404 error must surface");
-    assert!(err.to_string().contains("404"), "expected the 404 to propagate, got: {}", err,);
+    assert!(err.to_string().contains("404"), "expected the 404 to propagate, got: {}", err);
 }
 
 /// Ports pnpm's
