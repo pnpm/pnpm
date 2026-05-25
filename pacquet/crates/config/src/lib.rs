@@ -408,6 +408,24 @@ pub struct Config {
     #[default = true]
     pub prefer_frozen_lockfile: bool,
 
+    /// When `true`, `pacquet install` performs a workspace-state
+    /// freshness check before any of the install setup runs and
+    /// returns immediately ("Already up to date") if nothing has
+    /// changed since the previous install.
+    ///
+    /// Mirrors pnpm's `optimisticRepeatInstall` setting and the
+    /// [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts)
+    /// dispatch in [`installDeps`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/commands/src/installDeps.ts#L179-L194).
+    /// The fast path keys off `.pnpm-workspace-state-v1.json`'s
+    /// `lastValidatedTimestamp` vs each project's `package.json`
+    /// mtime, so it never reads the lockfile or the verifier cache
+    /// when no manifest has been touched.
+    ///
+    /// Defaults to `true` to match upstream
+    /// ([`config/reader/src/index.ts:169`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/config/reader/src/index.ts#L169)).
+    #[default = true]
+    pub optimistic_repeat_install: bool,
+
     /// When `true`, runtime dependencies (`node@runtime:`,
     /// `deno@runtime:`, `bun@runtime:`) are skipped at install
     /// time — their archives aren't fetched, their slots aren't

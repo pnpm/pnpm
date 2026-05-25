@@ -37,6 +37,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         virtual_store_dir_max_length: pacquet_config::default_virtual_store_dir_max_length(),
         lockfile: false,
         prefer_frozen_lockfile: false,
+        optimistic_repeat_install: false,
         skip_runtimes: false,
         offline: false,
         prefer_offline: false,
