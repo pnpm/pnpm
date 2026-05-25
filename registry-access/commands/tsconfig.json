@@ -46,7 +46,7 @@
       "path": "../../testing/mock-agent"
     },
     {
-      "path": "../set-dist-tag"
+      "path": "../client"
     }
   ]
 }

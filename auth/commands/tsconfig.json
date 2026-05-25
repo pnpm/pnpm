@@ -28,7 +28,7 @@
       "path": "../../network/web-auth"
     },
     {
-      "path": "../../registry-access/add-user"
+      "path": "../../registry-access/client"
     }
   ]
 }

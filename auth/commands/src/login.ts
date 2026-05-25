@@ -15,7 +15,7 @@ import {
   type WebAuthFetchOptions,
   withOtpHandling,
 } from '@pnpm/network.web-auth'
-import { addUser, AddUserHttpError, AddUserNoTokenError } from '@pnpm/registry-access.add-user'
+import { addUser, AddUserHttpError, AddUserNoTokenError } from '@pnpm/registry-access.client'
 import enquirer from 'enquirer'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'

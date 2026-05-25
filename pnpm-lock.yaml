@@ -1607,9 +1607,9 @@ importers:
       '@pnpm/network.web-auth':
         specifier: workspace:*
         version: link:../../network/web-auth
-      '@pnpm/registry-access.add-user':
+      '@pnpm/registry-access.client':
         specifier: workspace:*
-        version: link:../../registry-access/add-user
+        version: link:../../registry-access/client
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -8142,9 +8142,19 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  registry-access/add-user:
+  registry-access/client:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
     devDependencies:
-      '@pnpm/registry-access.add-user':
+      '@pnpm/registry-access.client':
         specifier: workspace:*
         version: 'link:'
 
@@ -8171,9 +8181,9 @@ importers:
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
-      '@pnpm/registry-access.set-dist-tag':
+      '@pnpm/registry-access.client':
         specifier: workspace:*
-        version: link:../set-dist-tag
+        version: link:../client
       '@pnpm/resolving.registry.types':
         specifier: workspace:*
         version: link:../../resolving/registry/types
@@ -8223,22 +8233,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
-
-  registry-access/set-dist-tag:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../core/error
-      '@pnpm/network.fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
-      '@pnpm/npm-package-arg':
-        specifier: 'catalog:'
-        version: 2.0.0
-    devDependencies:
-      '@pnpm/registry-access.set-dist-tag':
-        specifier: workspace:*
-        version: 'link:'
 
   releasing/commands:
     dependencies:
@@ -9433,12 +9427,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/registry-access.add-user':
+      '@pnpm/registry-access.client':
         specifier: workspace:*
-        version: link:../../registry-access/add-user
-      '@pnpm/registry-access.set-dist-tag':
-        specifier: workspace:*
-        version: link:../../registry-access/set-dist-tag
+        version: link:../../registry-access/client
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 6.0.0(encoding@0.1.13)

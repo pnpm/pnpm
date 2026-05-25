@@ -1,6 +1,5 @@
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import { addUser as setUser, type AddUserResult } from '@pnpm/registry-access.add-user'
-import { setDistTag } from '@pnpm/registry-access.set-dist-tag'
+import { addUser as setUser, type AddUserResult, setDistTag } from '@pnpm/registry-access.client'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/`

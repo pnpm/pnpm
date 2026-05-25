@@ -13,10 +13,7 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../registry-access/add-user"
-    },
-    {
-      "path": "../../registry-access/set-dist-tag"
+      "path": "../../registry-access/client"
     }
   ]
 }
