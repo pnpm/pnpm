@@ -59,20 +59,17 @@ export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?
   return projects
 }
 
-const uselessNonRootManifestFields: Array<keyof ProjectManifest> = ['resolutions']
+const uselessNonRootManifestFields = {
+  resolutions: 'Use the "overrides" field in pnpm-workspace.yaml at the root of the workspace instead.',
+} satisfies Partial<Record<keyof ProjectManifest, string>>
 
 function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
-  const warn = printNonRootFieldWarning.bind(null, rootDir)
-  for (const field of uselessNonRootManifestFields) {
+  for (const [field, suggestion] of Object.entries(uselessNonRootManifestFields)) {
     if (field in manifest) {
-      warn(field)
+      logger.warn({
+        message: `The field "${field}" was found in ${rootDir}/package.json. This will not take effect. ${suggestion}`,
+        prefix: rootDir,
+      })
     }
   }
-}
-
-function printNonRootFieldWarning (prefix: string, propertyPath: string): void {
-  logger.warn({
-    message: `The field "${propertyPath}" was found in ${prefix}/package.json. This will not take effect. You should configure "${propertyPath}" at the root of the workspace instead.`,
-    prefix,
-  })
 }
