@@ -5320,7 +5320,9 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     std::fs::create_dir_all(&project_root).expect("create project root");
     let manifest_path = project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    manifest.add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
@@ -5363,9 +5365,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         "first install must write pnpm-lock.yaml next to the manifest",
     );
     assert!(
-        load_workspace_state(&project_root)
-            .expect("read workspace state")
-            .is_some(),
+        load_workspace_state(&project_root).expect("read workspace state").is_some(),
         "first install must record .pnpm-workspace-state-v1.json",
     );
 
