@@ -100,7 +100,7 @@ impl RequestPath {
         if let Some((name, filename)) = path.split_once("/-/") {
             let filename_without_extension = filename.strip_suffix(".tgz").unwrap_or(filename);
             let Some(version) = filename_without_extension
-                .strip_prefix(&tarball_name(&name))
+                .strip_prefix(&tarball_name(name))
                 .and_then(|rest| rest.strip_prefix('-'))
                 .map(str::to_string)
             else {
@@ -115,29 +115,6 @@ impl RequestPath {
             return Self::Latest(name.to_string());
         }
         Self::Packument(path)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::RequestPath;
-
-    #[test]
-    fn tarball_path_parses_prerelease_version() {
-        match RequestPath::parse("@scope/pkg/-/pkg-1.0.0-beta.1.tgz") {
-            RequestPath::Tarball { name, version } => {
-                assert_eq!(name, "@scope/pkg");
-                assert_eq!(version, "1.0.0-beta.1");
-            }
-            _ => panic!("expected tarball path"),
-        }
-    }
-
-    #[test]
-    fn tarball_path_rejects_mismatched_filename_prefix() {
-        assert!(
-            matches!(RequestPath::parse("@scope/pkg/-/other-1.0.0.tgz"), RequestPath::Unknown,)
-        );
     }
 }
 
@@ -348,4 +325,27 @@ fn compare_versions(left: &String, right: &String) -> std::cmp::Ordering {
 
 fn parse_version(version: &str) -> Vec<u64> {
     version.split('.').map(|part| part.parse().unwrap_or(0)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RequestPath;
+
+    #[test]
+    fn tarball_path_parses_prerelease_version() {
+        match RequestPath::parse("@scope/pkg/-/pkg-1.0.0-beta.1.tgz") {
+            RequestPath::Tarball { name, version } => {
+                assert_eq!(name, "@scope/pkg");
+                assert_eq!(version, "1.0.0-beta.1");
+            }
+            _ => panic!("expected tarball path"),
+        }
+    }
+
+    #[test]
+    fn tarball_path_rejects_mismatched_filename_prefix() {
+        assert!(
+            matches!(RequestPath::parse("@scope/pkg/-/other-1.0.0.tgz"), RequestPath::Unknown,)
+        );
+    }
 }
