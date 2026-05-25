@@ -1364,6 +1364,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 6.0.0(encoding@0.1.13)
+      '@pnpm/testing.registry-mock':
+        specifier: workspace:*
+        version: link:../../testing/registry-mock
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1604,6 +1607,9 @@ importers:
       '@pnpm/network.web-auth':
         specifier: workspace:*
         version: link:../../network/web-auth
+      '@pnpm/registry-access.client':
+        specifier: workspace:*
+        version: link:../../registry-access/client
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -3132,6 +3138,9 @@ importers:
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: link:../../../testing/mock-agent
+      '@pnpm/testing.registry-mock':
+        specifier: workspace:*
+        version: link:../../../testing/registry-mock
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../../workspace/projects-filter
@@ -3524,6 +3533,9 @@ importers:
       '@pnpm/testing.command-defaults':
         specifier: workspace:*
         version: link:../../../testing/command-defaults
+      '@pnpm/testing.registry-mock':
+        specifier: workspace:*
+        version: link:../../../testing/registry-mock
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../../workspace/projects-filter
@@ -5474,6 +5486,9 @@ importers:
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: link:../../testing/mock-agent
+      '@pnpm/testing.registry-mock':
+        specifier: workspace:*
+        version: link:../../testing/registry-mock
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -5865,6 +5880,9 @@ importers:
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
         version: link:../../testing/mock-agent
+      '@pnpm/testing.registry-mock':
+        specifier: workspace:*
+        version: link:../../testing/registry-mock
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
@@ -7847,6 +7865,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../__utils__/test-ipc-server
+      '@pnpm/testing.registry-mock':
+        specifier: workspace:*
+        version: link:../testing/registry-mock
       '@pnpm/types':
         specifier: workspace:*
         version: link:../core/types
@@ -8121,6 +8142,22 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  registry-access/client:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/npm-package-arg':
+        specifier: 'catalog:'
+        version: 2.0.0
+    devDependencies:
+      '@pnpm/registry-access.client':
+        specifier: workspace:*
+        version: 'link:'
+
   registry-access/commands:
     dependencies:
       '@pnpm/cli.utils':
@@ -8144,6 +8181,9 @@ importers:
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
+      '@pnpm/registry-access.client':
+        specifier: workspace:*
+        version: link:../client
       '@pnpm/resolving.registry.types':
         specifier: workspace:*
         version: link:../../resolving/registry/types
@@ -9379,6 +9419,22 @@ importers:
         version: 7.25.0
     devDependencies:
       '@pnpm/testing.mock-agent':
+        specifier: workspace:*
+        version: 'link:'
+
+  testing/registry-mock:
+    dependencies:
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/registry-access.client':
+        specifier: workspace:*
+        version: link:../../registry-access/client
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 6.0.0(encoding@0.1.13)
+    devDependencies:
+      '@pnpm/testing.registry-mock':
         specifier: workspace:*
         version: 'link:'
 
@@ -25957,7 +26013,7 @@ snapshots:
 
   wide-align@1.1.5:
     dependencies:
-      string-width: 1.0.2
+      string-width: 4.2.3
     optional: true
 
   widest-line@3.1.0:

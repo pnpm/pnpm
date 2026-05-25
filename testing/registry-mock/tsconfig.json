@@ -10,22 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../cli/utils"
-    },
-    {
-      "path": "../../config/reader"
-    },
-    {
-      "path": "../../core/error"
-    },
-    {
-      "path": "../../core/logger"
-    },
-    {
       "path": "../../network/fetch"
-    },
-    {
-      "path": "../../network/web-auth"
     },
     {
       "path": "../../registry-access/client"

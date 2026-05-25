@@ -109,6 +109,7 @@
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/normalize-path": "catalog:",

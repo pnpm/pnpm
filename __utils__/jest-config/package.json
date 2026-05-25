@@ -8,6 +8,7 @@
     "@babel/core": "catalog:",
     "@babel/plugin-transform-explicit-resource-management": "catalog:",
     "@pnpm/registry-mock": "catalog:",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "amaro": "catalog:",
     "get-port": "catalog:",

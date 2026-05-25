@@ -2,7 +2,8 @@ import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDistTag, getIntegrity } from '@pnpm/registry-mock'
+import { getIntegrity } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 
 import { testDefaults } from '../utils/index.js'
 

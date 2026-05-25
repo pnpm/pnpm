@@ -363,10 +363,10 @@ describe('login', () => {
             return createMockResponse({
               ok: false,
               status: 401,
-              json: {
+              text: JSON.stringify({
                 authUrl: 'https://example.org/auth/web',
                 doneUrl: 'https://example.org/auth/web/done',
-              },
+              }),
               headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
             })
           }
