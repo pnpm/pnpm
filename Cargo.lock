@@ -2978,6 +2978,7 @@ name = "pnpm-registry"
 version = "0.0.1"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "clap",
  "derive_more",
  "futures-util",
@@ -2988,12 +2989,14 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "tower",
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "wax",
 ]
 
 [[package]]

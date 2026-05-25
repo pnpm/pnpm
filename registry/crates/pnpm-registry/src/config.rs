@@ -2,6 +2,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::policy::PackagePolicies;
+
 /// Runtime configuration for the pnpm registry server.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -29,6 +31,12 @@ pub struct Config {
     /// How long a cached packument is considered fresh before it is
     /// re-fetched from the upstream. Ignored in static mode.
     pub packument_ttl: Duration,
+    /// Per-package access and publish rules. Defaults to
+    /// [`PackagePolicies::registry_mock_defaults`] so a vanilla
+    /// `Config::proxy` / `Config::static_serve` enforces the same
+    /// `@private/*` and `@pnpm.e2e/needs-auth` policies that
+    /// `@pnpm/registry-mock` did under verdaccio.
+    pub policies: PackagePolicies,
 }
 
 impl Config {
@@ -41,6 +49,7 @@ impl Config {
             public_url,
             storage,
             packument_ttl: Duration::from_secs(5 * 60),
+            policies: PackagePolicies::registry_mock_defaults(),
         }
     }
 
@@ -54,6 +63,7 @@ impl Config {
             public_url,
             storage,
             packument_ttl: Duration::from_secs(5 * 60),
+            policies: PackagePolicies::registry_mock_defaults(),
         }
     }
 }

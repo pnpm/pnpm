@@ -69,6 +69,15 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
+    # pnpm-registry is the Rust HTTP server the test harness spawns
+    # in place of verdaccio (see __utils__/jest-config/with-registry/globalSetup.js).
+    # Built per-platform here because the binary is native code and the
+    # ubuntu and windows test jobs each need their own.
+    - name: Install Rust toolchain
+      uses: ./.github/actions/rustup
+    - name: Build pnpm-registry
+      shell: bash
+      run: cargo build --release -p pnpm-registry --locked
     - name: Determine test scope
       id: test-scope
       shell: bash

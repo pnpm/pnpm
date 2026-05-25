@@ -11,6 +11,7 @@
     "@pnpm/worker": "workspace:*",
     "amaro": "catalog:",
     "get-port": "catalog:",
+    "read-yaml-file": "catalog:",
     "tree-kill": "catalog:"
   },
   "devDependencies": {
