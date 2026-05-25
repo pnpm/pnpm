@@ -7,6 +7,7 @@ use axum::{
     routing::get,
 };
 use base64::{Engine, engine::general_purpose};
+use bytes::Bytes;
 use flate2::{Compression, write::GzEncoder};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha512};
@@ -97,19 +98,46 @@ impl RequestPath {
     fn parse(path: &str) -> Self {
         let path = path.replace("%2f", "/").replace("%2F", "/");
         if let Some((name, filename)) = path.split_once("/-/") {
-            let Some(version) = filename
-                .strip_suffix(".tgz")
-                .and_then(|stem| stem.rsplit_once('-'))
-                .map(|(_, version)| version.to_string())
+            let filename_without_extension = filename.strip_suffix(".tgz").unwrap_or(filename);
+            let Some(version) = filename_without_extension
+                .strip_prefix(&tarball_name(&name))
+                .and_then(|rest| rest.strip_prefix('-'))
+                .map(str::to_string)
             else {
                 return Self::Unknown;
             };
+            if version.is_empty() {
+                return Self::Unknown;
+            }
             return Self::Tarball { name: name.to_string(), version };
         }
         if let Some(name) = path.strip_suffix("/latest") {
             return Self::Latest(name.to_string());
         }
         Self::Packument(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RequestPath;
+
+    #[test]
+    fn tarball_path_parses_prerelease_version() {
+        match RequestPath::parse("@scope/pkg/-/pkg-1.0.0-beta.1.tgz") {
+            RequestPath::Tarball { name, version } => {
+                assert_eq!(name, "@scope/pkg");
+                assert_eq!(version, "1.0.0-beta.1");
+            }
+            _ => panic!("expected tarball path"),
+        }
+    }
+
+    #[test]
+    fn tarball_path_rejects_mismatched_filename_prefix() {
+        assert!(
+            matches!(RequestPath::parse("@scope/pkg/-/other-1.0.0.tgz"), RequestPath::Unknown,)
+        );
     }
 }
 
@@ -211,7 +239,7 @@ struct PackageVersion {
     name: String,
     version: String,
     packument_manifest: Value,
-    tarball: Vec<u8>,
+    tarball: Bytes,
 }
 
 impl PackageVersion {
@@ -252,20 +280,26 @@ fn fixture_manifests(root: &FsPath) -> Vec<PathBuf> {
         .collect()
 }
 
-fn build_tarball(root: &FsPath, package_dir: &FsPath) -> Vec<u8> {
+fn build_tarball(root: &FsPath, package_dir: &FsPath) -> Bytes {
     let gzip = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(gzip);
-    for entry in WalkDir::new(package_dir) {
-        let entry = entry.expect("walk fixture package");
-        if !entry.file_type().is_file() {
-            continue;
-        }
+    for entry in fixture_files(package_dir) {
         let relative = entry.path().strip_prefix(package_dir).expect("fixture entry under package");
         let path_in_archive = FsPath::new("package").join(relative);
         append_file(&mut tar, root, entry.path(), &path_in_archive);
     }
     let gzip = tar.into_inner().expect("finish tar archive");
-    gzip.finish().expect("finish gzip archive")
+    Bytes::from(gzip.finish().expect("finish gzip archive"))
+}
+
+fn fixture_files(package_dir: &FsPath) -> Vec<walkdir::DirEntry> {
+    let mut entries: Vec<_> = WalkDir::new(package_dir)
+        .into_iter()
+        .map(|entry| entry.expect("walk fixture package"))
+        .filter(|entry| entry.file_type().is_file())
+        .collect();
+    entries.sort_by(|left, right| left.path().cmp(right.path()));
+    entries
 }
 
 fn append_file<W: Write>(

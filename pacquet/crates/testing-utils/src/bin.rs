@@ -44,7 +44,7 @@ pub struct AddMockedRegistry {
     pub store_dir: PathBuf,
     /// Absolute path to the cache directory as defined by the `.npmrc` file.
     pub cache_dir: PathBuf,
-    /// Anchor to a mocked registry instance. The server will be stop when [dropped](Drop).
+    /// Handle to the process-scoped mocked registry used by this test.
     pub mock_instance: TestRegistry,
 }
 

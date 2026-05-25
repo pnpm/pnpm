@@ -2906,6 +2906,7 @@ dependencies = [
  "assert_cmd",
  "axum",
  "base64 0.22.1",
+ "bytes",
  "command-extra",
  "flate2",
  "junction",
