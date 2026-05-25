@@ -24,7 +24,7 @@ fn foreground_script_sees_bin_path_and_npm_env() {
     fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
 
     let script = format!(
-        "printf 'event=%s\\nname=%s\\nver=%s\\npath=%s\\n' \"$npm_lifecycle_event\" \"$npm_package_name\" \"$npm_package_version\" \"$PATH\" > {}",
+        r#"printf 'event=%s\nname=%s\nver=%s\npath=%s\n' "$npm_lifecycle_event" "$npm_package_name" "$npm_package_version" "$PATH" > {}"#,
         dump.display(),
     );
     let extra_env = empty_env();
@@ -142,5 +142,5 @@ fn quote_arg_matches_shlex_rules() {
     assert_eq!(super::quote_arg("safe-token_1.2"), "safe-token_1.2");
     assert_eq!(super::quote_arg(""), "''");
     assert_eq!(super::quote_arg("a b"), "'a b'");
-    assert_eq!(super::quote_arg("it's"), "'it'\\''s'");
+    assert_eq!(super::quote_arg("it's"), r"'it'\''s'");
 }
