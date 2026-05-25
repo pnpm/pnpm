@@ -34,6 +34,50 @@ fn parse() {
     case("@algolia/autocomplete-core@1.9.3", name_peer_ver("@algolia/autocomplete-core", "1.9.3"));
 }
 
+/// Mirrors the `tar-pkg@file:../tar-pkg-1.0.0.tgz` leg of pnpm's
+/// `parse()` test in
+/// [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L61-L66):
+/// the version slot is a `file:` URL rather than a semver. Pacquet's
+/// `PkgVerPeer` carries the file body under [`VersionPart::File`] and
+/// the round-trip preserves the raw string byte-for-byte.
+#[test]
+fn parse_local_tarball_file_protocol() {
+    let key: PkgNameVerPeer =
+        "tar-pkg@file:../tar-pkg-1.0.0.tgz".parse().expect("parse file: tarball key");
+    assert_eq!(key.to_string(), "tar-pkg@file:../tar-pkg-1.0.0.tgz");
+}
+
+/// Mirrors the `foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)`
+/// leg of pnpm's `parse()` test in
+/// [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L68-L73).
+/// Pacquet's `PkgVerPeer` doesn't model the patch-hash slot
+/// separately; it lumps the entire `(patch_hash=…)(<peers>)` tail into
+/// the `peer` field, so the round-trip preserves the raw key.
+#[test]
+fn parse_patch_hash_and_peer_suffix_round_trip() {
+    let raw = "foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)";
+    let key: PkgNameVerPeer = raw.parse().expect("parse patch-hash + peer-variant key");
+    assert_eq!(key.to_string(), raw);
+}
+
+/// Mirrors the scope-with-parens leg of pnpm's `parse()` test in
+/// [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L54-L59).
+/// Pnpm permits arbitrary characters in a package scope, including
+/// `(...)` — the `@scope/bare@version(peers)` split happens on the
+/// `/` between scope and bare, then on the first `@` after that,
+/// neither of which is confused by parens inside the scope.
+#[test]
+fn parse_scope_with_parens_round_trip() {
+    let raw = "@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)";
+    let key: PkgNameVerPeer = raw.parse().expect("parse scope-with-parens key");
+    assert_eq!(key.to_string(), raw);
+    assert_eq!(
+        key.without_peer().to_string(),
+        "@(-.-)/foo@1.0.0",
+        "without_peer must preserve the parens inside the scope",
+    );
+}
+
 #[test]
 fn to_virtual_store_name() {
     fn case(input: &'static str, expected: &'static str) {

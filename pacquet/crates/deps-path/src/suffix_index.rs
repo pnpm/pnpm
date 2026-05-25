@@ -132,4 +132,83 @@ mod tests {
         let got = index_of_dep_path_suffix(dep_path);
         assert_eq!(got.peers_index, Some("foo@1.0.0".len()));
     }
+
+    /// Mirrors the `getPkgIdWithPatchHash('node@runtime:24.11.1')` leg of
+    /// pnpm's [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L119):
+    /// a runtime depPath has no parenthesised suffix, so both helpers
+    /// return the path verbatim.
+    #[test]
+    fn runtime_dep_path_has_no_suffix() {
+        let dep_path = "node@runtime:24.11.1";
+        let got = index_of_dep_path_suffix(dep_path);
+        assert_eq!(got, DepPathSuffixIndex { peers_index: None, patch_hash_index: None });
+        assert_eq!(remove_suffix(dep_path), "node@runtime:24.11.1");
+        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "node@runtime:24.11.1");
+    }
+
+    /// Mirrors the scoped-name leg of pnpm's `getPkgIdWithPatchHash`:
+    /// `@foo/bar@1.0.0` round-trips verbatim through both helpers.
+    /// See [`deps/path/test/index.ts:134`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L134).
+    #[test]
+    fn scoped_name_without_suffix_round_trips() {
+        let dep_path = "@foo/bar@1.0.0";
+        assert_eq!(remove_suffix(dep_path), "@foo/bar@1.0.0");
+        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0");
+    }
+
+    /// Mirrors `getPkgIdWithPatchHash('@foo/bar@1.0.0(patch_hash=yyyy)')`.
+    /// See [`deps/path/test/index.ts:137`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L137).
+    #[test]
+    fn scoped_name_with_patch_hash_keeps_patch_hash() {
+        let dep_path = "@foo/bar@1.0.0(patch_hash=yyyy)";
+        assert_eq!(remove_suffix(dep_path), "@foo/bar@1.0.0");
+        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0(patch_hash=yyyy)");
+    }
+
+    /// Mirrors `getPkgIdWithPatchHash('@foo/bar@1.0.0(@types/node@18.0.0)')`.
+    /// See [`deps/path/test/index.ts:140`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L140).
+    #[test]
+    fn scoped_name_with_peer_strips_to_bare() {
+        let dep_path = "@foo/bar@1.0.0(@types/node@18.0.0)";
+        assert_eq!(remove_suffix(dep_path), "@foo/bar@1.0.0");
+        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0");
+    }
+
+    /// Mirrors `getPkgIdWithPatchHash('@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)')`.
+    /// `remove_suffix` strips both, while `get_pkg_id_with_patch_hash`
+    /// keeps the patch-hash segment.
+    /// See [`deps/path/test/index.ts:143`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L143).
+    #[test]
+    fn scoped_name_with_patch_hash_and_peer_keeps_only_patch_hash() {
+        let dep_path = "@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)";
+        assert_eq!(remove_suffix(dep_path), "@foo/bar@1.0.0");
+        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0(patch_hash=zzzz)",);
+    }
+
+    /// Mirrors `tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))')`.
+    /// A nested peer-on-peer segment stays balanced; the outer `(`
+    /// is the start of the (single) peer-graph segment.
+    /// See [`deps/path/test/index.ts:112`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L112).
+    #[test]
+    fn leading_slash_legacy_with_nested_peer_strips_to_bare() {
+        // Pacquet doesn't parse the leading-slash legacy shape via
+        // `PkgNameVerPeer`, but the lower-level depPath helpers do
+        // operate on the raw string — keep the contract pinned.
+        let dep_path = "/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))";
+        assert_eq!(remove_suffix(dep_path), "/foo@1.0.0");
+        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "/foo@1.0.0");
+    }
+
+    /// Mirrors `tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')`.
+    /// The `(-.-)` parens belong to the scope name, not a peer suffix —
+    /// the balanced-paren scan from the right correctly recognises the
+    /// trailing `(@types/babel__core@7.1.14)` as the single peer
+    /// segment and leaves the scope intact.
+    /// See [`deps/path/test/index.ts:113`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L113).
+    #[test]
+    fn scope_with_parens_does_not_confuse_suffix_scan() {
+        let dep_path = "/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)";
+        assert_eq!(remove_suffix(dep_path), "/@(-.-)/foo@1.0.0");
+        assert_eq!(get_pkg_id_with_patch_hash(dep_path), "/@(-.-)/foo@1.0.0");
+    }
 }
