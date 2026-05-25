@@ -30,6 +30,7 @@ use pacquet_resolving_resolver_base::{
 };
 use pipe_trait::Pipe;
 use serde_json::Value as JsonValue;
+use tokio::sync::OnceCell;
 
 use crate::{
     FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustViolation,
@@ -453,15 +454,13 @@ impl NpmResolutionVerifier {
         version: &str,
     ) -> Result<Option<String>, String> {
         let key = version_key(registry, &name.to_string(), version);
-        {
-            let cache = self.lookup_context.published_at.lock().await;
-            if let Some(value) = cache.get(&key) {
-                return Ok(value.clone());
-            }
-        }
-        let value = self.resolve_published_at(registry, name, version).await?;
-        let mut cache = self.lookup_context.published_at.lock().await;
-        Ok(cache.entry(key).or_insert(value).clone())
+        let cell = {
+            let mut cache = self.lookup_context.published_at.lock().await;
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+        };
+        cell.get_or_init(|| async { self.resolve_published_at(registry, name, version).await })
+            .await
+            .clone()
     }
 
     /// Layered publish-timestamp lookup. Ports upstream's
@@ -563,29 +562,29 @@ impl NpmResolutionVerifier {
         name: &PkgName,
     ) -> Result<Option<crate::lookup_context::AbbreviatedMetaProjection>, String> {
         let key = package_key(registry, &name.to_string());
-        {
-            let cache = self.lookup_context.abbreviated_meta.lock().await;
-            if let Some(entry) = cache.get(&key) {
-                return Ok(entry.clone());
-            }
-        }
-        let projected = if let Some(shared) = self.read_shared_meta(name) {
-            Some(project_abbreviated_meta(&shared))
-        } else {
-            let opts = FetchFullMetadataCachedOptions {
-                registry,
-                http_client: &self.http_client,
-                auth_headers: &self.auth_headers,
-                cache_dir: self.cache_dir.as_deref(),
-                full_metadata: false,
-            };
-            match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                Ok(meta) => Some(project_abbreviated_meta(&meta)),
-                Err(_) => None,
-            }
+        let cell = {
+            let mut cache = self.lookup_context.abbreviated_meta.lock().await;
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
         };
-        let mut cache = self.lookup_context.abbreviated_meta.lock().await;
-        Ok(cache.entry(key).or_insert(projected).clone())
+        let value = cell
+            .get_or_init(|| async {
+                if let Some(shared) = self.read_shared_meta(name) {
+                    return Some(project_abbreviated_meta(&shared));
+                }
+                let opts = FetchFullMetadataCachedOptions {
+                    registry,
+                    http_client: &self.http_client,
+                    auth_headers: &self.auth_headers,
+                    cache_dir: self.cache_dir.as_deref(),
+                    full_metadata: false,
+                };
+                match fetch_full_metadata_cached(&name.to_string(), &opts).await {
+                    Ok(meta) => Some(project_abbreviated_meta(&meta)),
+                    Err(_) => None,
+                }
+            })
+            .await;
+        Ok(value.clone())
     }
 
     /// Try the resolver's shared [`PackageMetaCache`] for a packument
@@ -618,20 +617,18 @@ impl NpmResolutionVerifier {
     ) -> Option<Arc<PublishedAtTimeMap>> {
         let cache_dir = self.cache_dir.as_deref()?;
         let key = package_key(registry, &name.to_string());
-        {
-            let cache = self.lookup_context.local_meta.lock().await;
-            if let Some(entry) = cache.get(&key) {
-                return entry.clone();
-            }
-        }
-        let mirror_path = crate::mirror::get_pkg_mirror_path(
-            cache_dir,
-            crate::mirror::FULL_META_DIR,
-            registry,
-            &name.to_string(),
-        )
-        .ok();
-        let time_map =
+        let cell = {
+            let mut cache = self.lookup_context.local_meta.lock().await;
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+        };
+        cell.get_or_init(|| async {
+            let mirror_path = crate::mirror::get_pkg_mirror_path(
+                cache_dir,
+                crate::mirror::FULL_META_DIR,
+                registry,
+                &name.to_string(),
+            )
+            .ok();
             crate::mirror::load_meta_async(mirror_path.as_deref()).await.and_then(|pkg| {
                 pkg.time.as_ref().map(|raw| {
                     raw.iter()
@@ -641,9 +638,10 @@ impl NpmResolutionVerifier {
                         .collect::<PublishedAtTimeMap>()
                         .pipe(Arc::new)
                 })
-            });
-        let mut cache = self.lookup_context.local_meta.lock().await;
-        cache.entry(key).or_insert(time_map).clone()
+            })
+        })
+        .await
+        .clone()
     }
 
     async fn fetch_attestation_time(
@@ -668,26 +666,24 @@ impl NpmResolutionVerifier {
         name: &PkgName,
     ) -> Result<Option<Arc<PublishedAtTimeMap>>, String> {
         let key = package_key(registry, &name.to_string());
-        {
-            let cache = self.lookup_context.full_meta.lock().await;
-            if let Some(entry) = cache.get(&key) {
-                return Ok(entry.clone());
-            }
-        }
-        let pkg = match self.fetch_full_meta(registry, name).await {
-            Ok(pkg) => pkg,
-            Err(reason) => return Err(reason),
+        let cell = {
+            let mut cache = self.lookup_context.full_meta.lock().await;
+            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
         };
-        let time_map = pkg.time.as_ref().map(|raw| {
-            raw.iter()
-                .filter_map(|(version, value)| {
-                    value.as_str().map(|ts| (version.clone(), ts.to_string()))
-                })
-                .collect::<PublishedAtTimeMap>()
-                .pipe(Arc::new)
-        });
-        let mut cache = self.lookup_context.full_meta.lock().await;
-        Ok(cache.entry(key).or_insert(time_map).clone())
+        cell.get_or_init(|| async {
+            let pkg = self.fetch_full_meta(registry, name).await?;
+            let time_map = pkg.time.as_ref().map(|raw| {
+                raw.iter()
+                    .filter_map(|(version, value)| {
+                        value.as_str().map(|ts| (version.clone(), ts.to_string()))
+                    })
+                    .collect::<PublishedAtTimeMap>()
+                    .pipe(Arc::new)
+            });
+            Ok(time_map)
+        })
+        .await
+        .clone()
     }
 
     async fn fetch_full_meta_for_trust(
@@ -696,23 +692,23 @@ impl NpmResolutionVerifier {
         name: &PkgName,
     ) -> Result<Arc<Package>, String> {
         let key = package_key(registry, &name.to_string());
-        {
-            let cache = self.lookup_context.full_meta_for_trust.lock().await;
-            if let Some(entry) = cache.get(&key) {
-                return entry.clone();
+        let cell = {
+            let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
+            Arc::clone(cache.entry(key.clone()).or_insert_with(|| Arc::new(OnceCell::new())))
+        };
+        cell.get_or_init(|| async {
+            // Fast path: if the resolver already pulled the full packument
+            // during the same install (`{registry}\x00{name}:full` key in
+            // the shared metaCache, populated when `pickPackage` upgrades
+            // for `minimumReleaseAge`), reuse it. Abbreviated entries are
+            // rejected here — `fail_if_trust_downgraded` needs per-version
+            // `time` and per-version trust evidence, both of which only
+            // the full form carries.
+            let shared =
+                self.meta_cache.as_ref().and_then(|cache| cache.get(&format!("{key}:full")));
+            if let Some(meta) = shared {
+                return Ok(Arc::new(project_trust_meta(meta.as_ref())));
             }
-        }
-        // Fast path: if the resolver already pulled the full packument
-        // during the same install (`{registry}\x00{name}:full` key in
-        // the shared metaCache, populated when `pickPackage` upgrades
-        // for `minimumReleaseAge`), reuse it. Abbreviated entries are
-        // rejected here — `fail_if_trust_downgraded` needs per-version
-        // `time` and per-version trust evidence, both of which only
-        // the full form carries.
-        let shared = self.meta_cache.as_ref().and_then(|cache| cache.get(&format!("{key}:full")));
-        let result = if let Some(meta) = shared {
-            Ok(Arc::new(project_trust_meta(meta.as_ref())))
-        } else {
             // Project the packument to just the fields `fail_if_trust_downgraded`
             // reads before stashing in the cache. The full document — dependency
             // graphs, dist-tags, scripts, READMEs for every version — would
@@ -725,9 +721,9 @@ impl NpmResolutionVerifier {
                 .await
                 .map(|meta| project_trust_meta(&meta))
                 .map(Arc::new)
-        };
-        let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
-        cache.entry(key).or_insert(result).clone()
+        })
+        .await
+        .clone()
     }
 
     async fn fetch_full_meta(&self, registry: &str, name: &PkgName) -> Result<Package, String> {

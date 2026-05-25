@@ -7,10 +7,13 @@
 //! install should pay the disk/network costs at most once per
 //! `(registry, name)` pair (for package-scoped lookups) or once per
 //! `(registry, name, version)` triple (for the final published-at
-//! answer). The maps live behind `tokio::sync::Mutex` so the
-//! buffer-unordered fan-out the lockfile-verification runner uses
-//! can share one context across concurrent tasks without contending
-//! on the publishing record itself.
+//! answer). The outer `tokio::sync::Mutex` guards the slot map; each
+//! slot is an [`Arc<tokio::sync::OnceCell<T>>`] so two verifier tasks
+//! that race for the same key share one in-flight fetch — the second
+//! caller awaits the same init future instead of starting a duplicate.
+//! Mirrors upstream's `Map<string, Promise<T>>` singleflight pattern;
+//! the outer mutex is dropped before the await so unrelated keys stay
+//! unblocked.
 //!
 use std::{
     collections::{HashMap, HashSet},
@@ -18,7 +21,7 @@ use std::{
 };
 
 use pacquet_registry::Package;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 /// Per-version time map keyed by version string. The verifier only
 /// reads the publish timestamp for a specific version, so storing
@@ -43,6 +46,11 @@ pub(crate) struct AbbreviatedMetaProjection {
     pub version_names: Option<HashSet<String>>,
 }
 
+/// Slot map of singleflight cells. Outer mutex guards lookup/insert;
+/// each cell is shared so concurrent verifier tasks that race on the
+/// same key wait on a single in-flight init.
+pub(crate) type SingleflightMap<T> = Mutex<HashMap<String, Arc<OnceCell<T>>>>;
+
 /// Per-install dedup of the lookups the verifier issues. Mirrors
 /// upstream's
 /// [`PublishedAtLookupContext`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L387-L433).
@@ -54,11 +62,11 @@ pub(crate) struct AbbreviatedMetaProjection {
 /// keys remain identical across stacks.
 #[derive(Debug, Default)]
 pub(crate) struct PublishedAtLookupContext {
-    pub published_at: Mutex<HashMap<String, Option<String>>>,
-    pub full_meta: Mutex<HashMap<String, Option<Arc<PublishedAtTimeMap>>>>,
-    pub full_meta_for_trust: Mutex<HashMap<String, Result<Arc<Package>, String>>>,
-    pub abbreviated_meta: Mutex<HashMap<String, Option<AbbreviatedMetaProjection>>>,
-    pub local_meta: Mutex<HashMap<String, Option<Arc<PublishedAtTimeMap>>>>,
+    pub published_at: SingleflightMap<Result<Option<String>, String>>,
+    pub full_meta: SingleflightMap<Result<Option<Arc<PublishedAtTimeMap>>, String>>,
+    pub full_meta_for_trust: SingleflightMap<Result<Arc<Package>, String>>,
+    pub abbreviated_meta: SingleflightMap<Option<AbbreviatedMetaProjection>>,
+    pub local_meta: SingleflightMap<Option<Arc<PublishedAtTimeMap>>>,
 }
 
 impl PublishedAtLookupContext {
