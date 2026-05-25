@@ -1,5 +1,5 @@
 import { checkbox, Separator } from '@inquirer/prompts'
-import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli.utils'
+import { docsUrl, interactivePromptPageSize, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
@@ -525,7 +525,4 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
   return { ...auditReport, advisories: selectedAdvisories }
 }
 
-function interactivePromptPageSize (): number {
-  const availableRows = process.stdout.rows
-  return availableRows == null ? 7 : Math.max(7, availableRows - 6)
-}
+

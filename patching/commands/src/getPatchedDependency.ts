@@ -30,17 +30,26 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
 
   dep.alias = dep.alias ?? rawDependency
   if (preferredVersions.length > 1) {
-    const version = await select({
-      message: 'Choose which version to patch',
-      choices: preferredVersions.map(preferred => ({
-        name: preferred.version,
-        value: preferred.gitTarballUrl ?? preferred.version,
-        description: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
-      })),
-    })
-    const applyToAll = await confirm({
-      message: 'Apply this patch to all versions?',
-    })
+    let version: string
+    let applyToAll: boolean
+    try {
+      version = await select({
+        message: 'Choose which version to patch',
+        choices: preferredVersions.map(preferred => ({
+          name: preferred.version,
+          value: preferred.gitTarballUrl ?? preferred.version,
+          description: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
+        })),
+      })
+      applyToAll = await confirm({
+        message: 'Apply this patch to all versions?',
+      })
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'ExitPromptError') {
+        throw new PnpmError('PATCH_CANCELED', 'Canceled')
+      }
+      throw err
+    }
     return {
       ...dep,
       applyToAll,

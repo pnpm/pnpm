@@ -3,6 +3,7 @@ import type { CommandHandler, CommandHandlerMap, CompletionFunc } from '@pnpm/cl
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
+  interactivePromptPageSize,
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli.utils'
@@ -275,11 +276,6 @@ async function interactiveUpdate (
   }
 
   return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
-}
-
-function interactivePromptPageSize (): number {
-  const availableRows = process.stdout.rows
-  return availableRows == null ? 7 : Math.max(7, availableRows - 6)
 }
 
 async function update (

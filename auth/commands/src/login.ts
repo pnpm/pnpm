@@ -280,9 +280,19 @@ async function classicLogin ({
 }: ClassicLoginParams): Promise<string> {
   const { enquirer, fetch, globalInfo, globalWarn } = context
 
-  const username = await enquirer.input({ message: 'Username:' })
-  const password = await enquirer.password({ message: 'Password:' })
-  const email = await enquirer.input({ message: 'Email (this IS public):' })
+  let username: string
+  let password: string
+  let email: string
+  try {
+    username = await enquirer.input({ message: 'Username:' })
+    password = await enquirer.password({ message: 'Password:' })
+    email = await enquirer.input({ message: 'Email (this IS public):' })
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'ExitPromptError') {
+      throw new PnpmError('LOGIN_CANCELED', 'Login canceled')
+    }
+    throw err
+  }
 
   if (!username || !password || !email) {
     throw new LoginMissingCredentialsError()
