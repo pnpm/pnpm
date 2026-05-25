@@ -27,6 +27,8 @@ fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> Pack
         dependencies: None,
         dev_dependencies: None,
         peer_dependencies: None,
+        optional_dependencies: None,
+        peer_dependencies_meta: None,
         npm_user: None,
         deprecated: deprecated.map(str::to_string),
     }

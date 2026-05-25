@@ -30,6 +30,14 @@ pub struct PackageVersion {
         skip_serializing_if = "Option::is_none"
     )]
     pub peer_dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_dependency_map",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub optional_dependencies: Option<HashMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
 
     /// npm registry's per-version publisher metadata. When
     /// `trusted_publisher` is present alongside
@@ -172,6 +180,16 @@ where
     deserializer.deserialize_any(DeprecatedVisitor)
 }
 
+/// `peerDependenciesMeta[name]` shape from the npm registry. Only the
+/// `optional` flag is consumed by the resolver; other fields the
+/// registry may serve are ignored.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerDependencyMeta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub optional: Option<bool>,
+}
+
 /// `_npmUser` field on a per-version manifest. The verifier reads
 /// `trusted_publisher` to assign the higher of the two trust ranks
 /// (`trustedPublisher` > `provenance` > none). `name` / `email` are
@@ -310,5 +328,54 @@ mod tests {
         .expect("server should accept the request once the bearer header is attached");
         assert_eq!(pkg_version.name, "acme");
         mock.assert_async().await;
+    }
+
+    /// The abbreviated registry response (`application/vnd.npm.install-v1+json`)
+    /// carries `optionalDependencies` and `peerDependenciesMeta` for any
+    /// package that publishes them. Both must round-trip through
+    /// [`PackageVersion`] so the resolver's `extract_children` reads the
+    /// optional-dep edges and `extract_peer_dependencies` reads the
+    /// per-peer `optional` flag. Dropping either field silently treats
+    /// optional peers as required (auto-installed via
+    /// `autoInstallPeers`) and skips `optionalDependencies` entirely.
+    #[test]
+    fn deserializes_optional_dependencies_and_peer_dependencies_meta() {
+        let body = r#"{
+            "name": "unstorage",
+            "version": "1.17.5",
+            "dist": {
+                "integrity": "sha512-AAAA",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry.test/unstorage-1.17.5.tgz"
+            },
+            "peerDependencies": {
+                "@vercel/kv": "^1 || ^2 || ^3",
+                "ioredis": "^5.4.2"
+            },
+            "peerDependenciesMeta": {
+                "@vercel/kv": { "optional": true },
+                "ioredis": { "optional": true }
+            },
+            "optionalDependencies": {
+                "sharp": "^0.34.0"
+            }
+        }"#;
+
+        let pkg: PackageVersion =
+            serde_json::from_str(body).expect("deserialize PackageVersion fixture");
+
+        let optional = pkg.optional_dependencies.as_ref().expect("optionalDependencies present");
+        assert_eq!(optional.get("sharp").map(String::as_str), Some("^0.34.0"));
+
+        let peer_meta = pkg.peer_dependencies_meta.as_ref().expect("peerDependenciesMeta present");
+        assert_eq!(peer_meta["@vercel/kv"].optional, Some(true));
+        assert_eq!(peer_meta["ioredis"].optional, Some(true));
+
+        // The JSON shape `serde_json::to_value(pkg)` produces feeds
+        // `extract_children` / `extract_peer_dependencies` downstream;
+        // both consume the camelCase keys verbatim.
+        let value = serde_json::to_value(&pkg).expect("serialize PackageVersion");
+        assert!(value.get("optionalDependencies").is_some_and(|v| v.is_object()));
+        assert!(value.get("peerDependenciesMeta").is_some_and(|v| v.is_object()));
     }
 }
