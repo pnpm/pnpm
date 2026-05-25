@@ -16,7 +16,7 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../engine/runtime/system-node-version"
+      "path": "../../engine/runtime/system-version"
     },
     {
       "path": "../../lockfile/types"

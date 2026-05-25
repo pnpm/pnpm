@@ -1,8 +1,7 @@
 import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli.meta'
+import type { RuntimeName } from '@pnpm/types'
 import * as execa from 'execa'
 import mem from 'memoize'
-
-export type RuntimeName = 'node' | 'deno' | 'bun'
 
 export function getSystemNodeVersionNonCached (): string | undefined {
   if (detectIfCurrentPkgIsExecutable()) {

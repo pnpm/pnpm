@@ -12,11 +12,10 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
-import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-node-version'
+import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
-import { isRuntimeAlias, type RuntimeName } from '@pnpm/pkg-manifest.utils'
-import type { EngineDependency } from '@pnpm/types'
+import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -459,6 +458,8 @@ const RUNTIME_DISPLAY_NAMES: Record<RuntimeName, string> = {
   bun: 'Bun',
 }
 
+// devEngines.runtime takes precedence over engines.runtime per the iteration
+// order below: the first entry seen for a given runtime wins.
 function getWantedRuntimes (context: ConfigContext): EngineDependency[] {
   const manifest = context.rootProjectManifest
   if (manifest == null) return []
@@ -470,8 +471,6 @@ function getWantedRuntimes (context: ConfigContext): EngineDependency[] {
     const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
     for (const runtime of runtimes) {
       if (!runtime.name || !isRuntimeAlias(runtime.name) || seen.has(runtime.name)) continue
-      // devEngines takes precedence: once a runtime is captured from devEngines.runtime,
-      // an entry for the same runtime in engines.runtime is ignored.
       seen.add(runtime.name)
       result.push(runtime)
     }
@@ -510,11 +509,9 @@ function checkRuntime (runtime: EngineDependency): void {
 
 function failRuntimeCheck (onFail: 'error' | 'warn', message: string): void {
   if (onFail === 'error') {
-    throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: getRuntimeOnFailHint() })
+    throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
   }
   globalWarn(message)
 }
 
-function getRuntimeOnFailHint (): string {
-  return 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'
-}
+const RUNTIME_ON_FAIL_HINT = 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'

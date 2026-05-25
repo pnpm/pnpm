@@ -99,7 +99,7 @@
       "path": "../engine/runtime/commands"
     },
     {
-      "path": "../engine/runtime/system-node-version"
+      "path": "../engine/runtime/system-version"
     },
     {
       "path": "../exec/commands"
@@ -133,9 +133,6 @@
     },
     {
       "path": "../pkg-manifest/reader"
-    },
-    {
-      "path": "../pkg-manifest/utils"
     },
     {
       "path": "../registry-access/commands"
