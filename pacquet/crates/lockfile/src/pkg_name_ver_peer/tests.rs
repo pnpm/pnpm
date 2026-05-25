@@ -59,6 +59,53 @@ fn to_virtual_store_name() {
     );
 }
 
+#[test]
+fn without_peer_strips_peer_suffix() {
+    let key: PkgNameVerPeer =
+        "react-dom@17.0.2(react@17.0.2)".parse().expect("parse react-dom peer-variant key");
+    let bare = key.without_peer();
+    assert_eq!(bare.to_string(), "react-dom@17.0.2");
+}
+
+/// A runtime depPath like `node@runtime:22.0.0(some@peer)` strips down to
+/// `node@runtime:22.0.0`, not `node@22.0.0`. Pacquet preserves the
+/// `runtime:` scheme prefix because the metadata-map key has to match the
+/// `packages:` entry pnpm writes, which carries the same prefix.
+#[test]
+fn without_peer_preserves_runtime_prefix() {
+    let key: PkgNameVerPeer =
+        "node@runtime:22.0.0(react@17.0.2)".parse().expect("parse runtime peer-variant key");
+    let bare = key.without_peer();
+    assert_eq!(bare.to_string(), "node@runtime:22.0.0");
+}
+
+/// Regression for [#11939](https://github.com/pnpm/pnpm/issues/11939):
+/// the suffix slot of a snapshot key isn't guaranteed to round-trip
+/// through `PkgVerPeer`'s display-then-parse path. The babylon fixture
+/// exercises this with workspace `link:` deps under
+/// `linkWorkspacePackages: true`, where the resolver builds a depPath of
+/// the shape `link:<rel-path>(<peers>)`. `PkgNameSuffix::FromStr` splits
+/// on the first `@`, leaving the `(` as part of the package name and a
+/// suffix whose `version()` form retains an unbalanced `)`. `without_peer`
+/// must not panic on such inputs — peer stripping is a structural
+/// operation, not a re-parse.
+#[test]
+fn without_peer_handles_workspace_link_with_peer_suffix() {
+    let key: PkgNameVerPeer = "link:../../../dev/sharedUiComponents(\
+        @fluentui/react-components@9.73.8)\
+        (react-dom@18.3.1)\
+        (react@18.3.1)"
+        .parse()
+        .expect("parse workspace link with peer suffix");
+    let bare = key.without_peer();
+    let rendered = bare.to_string();
+    assert!(
+        rendered.starts_with("link:../../../dev/sharedUiComponents("),
+        "name half of the key must survive verbatim; got {rendered:?}",
+    );
+    assert!(!rendered.contains(")("), "peer suffix must be stripped; got {rendered:?}",);
+}
+
 /// The user-reported macOS errno-63 case: a vitest snapshot key whose
 /// escaped filename blows past 120 bytes. The shortening must produce a
 /// name that fits inside `max_length` so `fs::create_dir_all` doesn't
