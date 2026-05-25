@@ -668,7 +668,7 @@ where
             }));
             update_workspace_state(
                 &workspace_root,
-                &build_workspace_state(config, node_linker, included, manifest, lockfile),
+                &build_workspace_state(config, node_linker, included, &project_manifests),
             )
             .map_err(InstallError::WriteWorkspaceState)?;
             Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
@@ -910,7 +910,7 @@ where
         // committed install.
         update_workspace_state(
             &workspace_root,
-            &build_workspace_state(config, node_linker, included, manifest, lockfile),
+            &build_workspace_state(config, node_linker, included, &project_manifests),
         )
         .map_err(InstallError::WriteWorkspaceState)?;
 
@@ -1313,44 +1313,18 @@ fn build_workspace_packages_map(
 /// re-run install in that case (the project count won't match), so a
 /// best-effort entry beats failing the install over a transient read.
 fn build_projects_map(
-    workspace_root: &std::path::Path,
-    manifest: &PackageManifest,
-    lockfile: Option<&Lockfile>,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> BTreeMap<String, ProjectEntry> {
-    let mut projects: BTreeMap<String, ProjectEntry> = BTreeMap::new();
-    let root_entry = ProjectEntry {
-        name: manifest_string_field(manifest, "name"),
-        version: manifest_string_field(manifest, "version"),
-    };
-    let importer_ids: Vec<String> = match lockfile {
-        Some(lf) => lf.importers.keys().cloned().collect(),
-        None => vec![Lockfile::ROOT_IMPORTER_KEY.to_string()],
-    };
-    for importer_id in importer_ids {
-        let project_dir =
-            crate::symlink_direct_dependencies::importer_root_dir(workspace_root, &importer_id);
-        let entry = if importer_id == Lockfile::ROOT_IMPORTER_KEY {
-            root_entry.clone()
-        } else {
-            match PackageManifest::from_path(project_dir.join("package.json")) {
-                Ok(sub_manifest) => ProjectEntry {
-                    name: manifest_string_field(&sub_manifest, "name"),
-                    version: manifest_string_field(&sub_manifest, "version"),
-                },
-                Err(error) => {
-                    tracing::warn!(
-                        target: "pacquet::install",
-                        ?error,
-                        importer_id = %importer_id,
-                        "Failed to read sub-importer manifest while recording workspace state",
-                    );
-                    ProjectEntry::default()
-                }
-            }
-        };
-        projects.insert(project_dir.to_string_lossy().into_owned(), entry);
-    }
-    projects
+    project_manifests
+        .iter()
+        .map(|(project_dir, manifest)| {
+            let entry = ProjectEntry {
+                name: manifest_string_field(manifest, "name"),
+                version: manifest_string_field(manifest, "version"),
+            };
+            (project_dir.to_string_lossy().into_owned(), entry)
+        })
+        .collect()
 }
 
 /// Assemble the [`WorkspaceState`] payload for [`update_workspace_state`].
@@ -1366,18 +1340,11 @@ fn build_workspace_state(
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
-    manifest: &PackageManifest,
-    lockfile: Option<&Lockfile>,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> WorkspaceState {
-    let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-    let workspace_root = pacquet_workspace::find_workspace_dir(manifest_dir)
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| manifest_dir.to_path_buf());
-
     WorkspaceState {
         last_validated_timestamp: now_millis(),
-        projects: build_projects_map(&workspace_root, manifest, lockfile),
+        projects: build_projects_map(project_manifests),
         // Pacquet doesn't run pnpmfiles yet; record the empty list so
         // pnpm's `patchesOrHooksAreModified` doesn't trip on a missing
         // field.
