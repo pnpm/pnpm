@@ -714,3 +714,244 @@ async fn workspace_higher_version_shadows_registry_pick() {
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace shadow");
     assert_eq!(result.resolved_via, "workspace");
 }
+
+/// Build a workspace map where each version sits in its own
+/// `root_dir`. The convenience helper [`build_workspace_packages`]
+/// reuses one dir; tests that exercise multi-version pick (like the
+/// "latest installed" port below) need per-version dirs so the
+/// resolved `link:` path proves the right version was picked.
+fn build_workspace_packages_at(name: &str, entries: &[(&str, &str)]) -> WorkspacePackages {
+    let mut by_version: WorkspacePackagesByVersion = BTreeMap::new();
+    for (version, dir) in entries {
+        by_version.insert(
+            (*version).to_string(),
+            WorkspacePackage {
+                root_dir: PathBuf::from(*dir),
+                manifest: json!({ "name": name, "version": version }),
+            },
+        );
+    }
+    let mut packages: WorkspacePackages = BTreeMap::new();
+    packages.insert(name.to_string(), by_version);
+    packages
+}
+
+/// Ports pnpm's
+/// [`resolve injected dependency from local directory when it matches the latest version of the package`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1167-L1206)
+/// — workspace-shadow branch where `injected: true` flips the
+/// resolution to a hard-link `file:` shape instead of `link:`.
+#[tokio::test]
+async fn injected_workspace_match_emits_file_resolution() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.0.0",
+            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        injected: Some(true),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace shadow");
+    assert_eq!(result.resolved_via, "workspace");
+    // `lockfile_dir` is `/repo`; `acme` lives at `/repo/packages/acme`,
+    // so the injected `file:` path renders as `packages/acme`.
+    assert_eq!(result.id.as_str(), "file:packages/acme");
+    match &result.resolution {
+        LockfileResolution::Directory(dir) => assert_eq!(dir.directory, "packages/acme"),
+        other => panic!("expected directory resolution, got {other:?}"),
+    }
+}
+
+/// Ports pnpm's
+/// [`resolve from local directory when package is not found in the registry and latest installed`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1494-L1544)
+/// — 404 fallback path picks the highest version from a multi-version
+/// workspace.
+#[tokio::test]
+async fn workspace_fallback_picks_highest_version_for_latest_tag() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages_at(
+        "acme",
+        &[
+            ("1.0.0", "/repo/packages/acme-1.0.0"),
+            ("1.1.0", "/repo/packages/acme-1.1.0"),
+            ("2.0.0", "/repo/packages/acme-2.0.0"),
+        ],
+    );
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("latest".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme-2.0.0");
+}
+
+/// Ports pnpm's
+/// [`resolve from local directory when package is not found in the registry and local prerelease available`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1546-L1582)
+/// — 404 fallback path against a workspace whose only version is a
+/// prerelease, picked via the `*` `includePrerelease` branch in
+/// `resolve_workspace_range`.
+#[tokio::test]
+async fn workspace_fallback_picks_local_prerelease_for_latest_tag() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["3.0.0-alpha.1.2.3"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("latest".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+}
+
+/// Ports pnpm's
+/// [`resolve from local directory when package is not found in the registry and specific version is requested`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1584-L1634)
+/// — 404 fallback path with a pinned version-spec lookup against the
+/// workspace.
+#[tokio::test]
+async fn workspace_fallback_resolves_specific_version_request() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages_at(
+        "acme",
+        &[
+            ("1.0.0", "/repo/packages/acme-1.0.0"),
+            ("1.1.0", "/repo/packages/acme-1.1.0"),
+            ("2.0.0", "/repo/packages/acme-2.0.0"),
+        ],
+    );
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.1.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme-1.1.0");
+}
+
+/// Ports pnpm's
+/// [`resolve from local directory when the requested version is not found in the registry but is available locally`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1636-L1672)
+/// — the `Ok(None)` fallback path (registry serves a packument but no
+/// version matches), separate from the 404 `Err` path the other
+/// fallback tests exercise.
+#[tokio::test]
+async fn workspace_fallback_kicks_in_when_registry_lacks_requested_version() {
+    let mut server = mockito::Server::new_async().await;
+    // Registry returns a packument but the picker won't find 100.0.0
+    // in it. That collapses to `Ok(None)` inside the resolver — the
+    // separate branch from the 404 `Err` cases above.
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.0.0",
+            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["100.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("100.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+}
+
+/// Ports pnpm's
+/// [`throws when workspace package version does not match and package is not found in the registry`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2092-L2121)
+/// — 404 + no satisfying workspace version must propagate the
+/// original registry error, not silently succeed.
+#[tokio::test]
+async fn registry_error_propagates_when_workspace_has_no_matching_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .expect_err("workspace can't satisfy 2.0.0; original 404 error must surface");
+    assert!(err.to_string().contains("404"), "expected the 404 to propagate, got: {}", err,);
+}
+
+/// Ports pnpm's
+/// [`resolve from registry when workspace package version does not match the requested version`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2154-L2183)
+/// — when the registry pick succeeds and the workspace carries the
+/// same package but a different version, the registry copy wins.
+#[tokio::test]
+async fn registry_pick_wins_when_workspace_version_does_not_match() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "3.1.0",
+            "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("3.1.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    assert_eq!(result.resolved_via, "npm-registry");
+    assert_eq!(result.id.as_str(), "acme@3.1.0");
+}
