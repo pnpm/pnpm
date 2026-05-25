@@ -380,10 +380,10 @@ fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
         [only] => Ok(only.name.clone()),
         many => {
             let scopeless_name = scopeless(&pkg_name);
-            if let Some(default) = many.iter().find(|b| b.name == scopeless_name) {
+            if let Some(default) = many.iter().find(|bin| bin.name == scopeless_name) {
                 return Ok(default.name.clone());
             }
-            let names = many.iter().map(|b| b.name.as_str()).collect::<Vec<_>>().join(", ");
+            let names = many.iter().map(|bin| bin.name.as_str()).collect::<Vec<_>>().join(", ");
             Err(DlxError::MultipleBins { package: pkg_name, bins: names })
         }
     }

@@ -45,7 +45,7 @@ fn print_commands_groups_lifecycle_and_other() {
     assert!(output.contains("Lifecycle scripts:"), "lifecycle header present:\n{output}");
     assert!(output.contains("  test\n    jest"), "test under lifecycle:\n{output}");
     assert!(
-        output.contains("Commands available via \"pnpm run\":"),
+        output.contains(r#"Commands available via "pnpm run":"#),
         "other header present:\n{output}",
     );
     assert!(output.contains("  build\n    tsc"), "build under other:\n{output}");

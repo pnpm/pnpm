@@ -226,19 +226,20 @@ fn throw_or_filter_hidden_scripts(
     if specified.is_empty() {
         return Ok(specified);
     }
-    let has_hidden = specified.iter().any(|s| s.starts_with('.'));
+    let has_hidden = specified.iter().any(|script| script.starts_with('.'));
     if !has_hidden {
         return Ok(specified);
     }
     if script_name.starts_with('.') {
         return Err(RunError::HiddenScript { script_name: script_name.to_string() });
     }
-    let visible: Vec<String> = specified.iter().filter(|s| !s.starts_with('.')).cloned().collect();
+    let visible: Vec<String> =
+        specified.iter().filter(|script| !script.starts_with('.')).cloned().collect();
     if !visible.is_empty() {
         return Ok(visible);
     }
     let hidden: Vec<&str> =
-        specified.iter().filter(|s| s.starts_with('.')).map(String::as_str).collect();
+        specified.iter().filter(|script| script.starts_with('.')).map(String::as_str).collect();
     Err(RunError::AllHidden { scripts: hidden.join(", ") })
 }
 

@@ -66,7 +66,7 @@ impl ExecArgs {
         let manifest = PackageManifest::from_path(dir.join("package.json")).ok();
         let package_name = manifest
             .as_ref()
-            .and_then(|m| m.value().get("name"))
+            .and_then(|manifest| manifest.value().get("name"))
             .and_then(|v| v.as_str())
             .map(str::to_string);
 
@@ -160,7 +160,8 @@ fn prepend_dirs_to_path(dirs: &[PathBuf], env: &HashMap<String, String>) -> (Str
         |(k, _)| k.clone(),
     );
 
-    let mut entries: Vec<OsString> = dirs.iter().map(|d| d.as_os_str().to_os_string()).collect();
+    let mut entries: Vec<OsString> =
+        dirs.iter().map(|dir| dir.as_os_str().to_os_string()).collect();
     if let Some((_, value)) = existing
         && !value.is_empty()
     {
@@ -168,10 +169,15 @@ fn prepend_dirs_to_path(dirs: &[PathBuf], env: &HashMap<String, String>) -> (Str
             entries.push(part.into_os_string());
         }
     }
-    let joined =
-        env::join_paths(&entries).map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|_| {
+    let joined = env::join_paths(&entries)
+        .map(|joined| joined.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| {
             let sep = if cfg!(windows) { ";" } else { ":" };
-            entries.iter().map(|e| e.to_string_lossy().into_owned()).collect::<Vec<_>>().join(sep)
+            entries
+                .iter()
+                .map(|entry| entry.to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join(sep)
         });
     (key, joined)
 }
