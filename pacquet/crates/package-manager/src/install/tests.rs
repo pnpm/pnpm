@@ -4993,7 +4993,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         .filter(|event| {
             matches!(
                 event,
-                LogEvent::Context(_) | LogEvent::Stage(_) | LogEvent::LockfileVerification(_)
+                LogEvent::Context(_) | LogEvent::Stage(_) | LogEvent::LockfileVerification(_),
             )
         })
         .count();
@@ -5007,7 +5007,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
 /// a headless install must always fail loudly on a missing or stale
 /// lockfile (matching pnpm's `installDeps` not calling
 /// `checkDepsStatus` in that mode). The install proceeds through the
-/// regular dispatch and the existing `frozen_install_short_circuits…`
+/// regular dispatch and the existing `frozen_install_short_circuits...`
 /// no-op path still fires.
 #[tokio::test]
 async fn frozen_lockfile_disables_optimistic_short_circuit() {
@@ -5133,7 +5133,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         "the optimistic 'Already up to date' log MUST NOT fire under --frozen-lockfile; got events: {captured:#?}",
     );
     // The existing no-op short-circuit still does fire on the frozen
-    // path (the previous `frozen_install_short_circuits…` test
+    // path (the previous `frozen_install_short_circuits...` test
     // covers that emit), and downstream code asserts on its
     // presence; we only assert here that the *optimistic* log is
     // absent so the polarity of the gate is clear.

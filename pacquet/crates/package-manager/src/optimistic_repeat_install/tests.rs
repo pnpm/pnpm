@@ -1,4 +1,4 @@
-use super::{Decision, check_optimistic_repeat_install};
+use super::{Decision, check_optimistic_repeat_install, current_settings};
 use pacquet_config::Config;
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::PackageManifest;
@@ -10,51 +10,6 @@ use tempfile::tempdir;
 
 fn isolated_included() -> IncludedDependencies {
     IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
-}
-
-/// Build the [`WorkspaceStateSettings`] today's install would write,
-/// so the cached state matches by default and the freshness check
-/// reaches the mtime branch.
-fn current_settings(
-    config: &Config,
-    node_linker: pacquet_config::NodeLinker,
-    included: IncludedDependencies,
-) -> WorkspaceStateSettings {
-    use pacquet_config::LinkWorkspacePackages;
-    use pacquet_workspace_state::NodeLinker as WSNodeLinker;
-    let allow_builds = (!config.allow_builds.is_empty()).then(|| {
-        config.allow_builds.iter().map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v))).collect()
-    });
-    let lwp = match config.link_workspace_packages {
-        LinkWorkspacePackages::Off => serde_json::Value::Bool(false),
-        LinkWorkspacePackages::DirectOnly => serde_json::Value::Bool(true),
-        LinkWorkspacePackages::Deep => serde_json::Value::String("deep".to_string()),
-    };
-    let node_linker = match node_linker {
-        pacquet_config::NodeLinker::Isolated => WSNodeLinker::Isolated,
-        pacquet_config::NodeLinker::Hoisted => WSNodeLinker::Hoisted,
-        pacquet_config::NodeLinker::Pnp => WSNodeLinker::Pnp,
-    };
-    WorkspaceStateSettings {
-        allow_builds,
-        auto_install_peers: Some(config.auto_install_peers),
-        dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
-        dev: Some(included.dev_dependencies),
-        hoist_pattern: config.hoist_pattern.clone(),
-        hoist_workspace_packages: Some(config.hoist_workspace_packages),
-        ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
-        link_workspace_packages: Some(lwp),
-        node_linker: Some(node_linker),
-        optional: Some(included.optional_dependencies),
-        overrides: config
-            .overrides
-            .as_ref()
-            .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
-        patched_dependencies: config.patched_dependencies.clone(),
-        production: Some(included.dependencies),
-        public_hoist_pattern: config.public_hoist_pattern.clone(),
-        ..Default::default()
-    }
 }
 
 fn write_state(
@@ -92,7 +47,7 @@ fn setup_fresh_install(
         format!(r#"{{"name":"{project_name}","version":"{project_version}"}}"#)
     } else {
         format!(
-            r#"{{"name":"{project_name}","version":"{project_version}",{manifest_extra_json}}}"#
+            r#"{{"name":"{project_name}","version":"{project_version}",{manifest_extra_json}}}"#,
         )
     };
     fs::write(&manifest_path, manifest_body).unwrap();
@@ -188,7 +143,7 @@ fn returns_skipped_when_no_state_file() {
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(
-        matches!(decision, Decision::Skipped { reason } if reason.contains("no workspace state"))
+        matches!(decision, Decision::Skipped { reason } if reason.contains("no workspace state")),
     );
 }
 
