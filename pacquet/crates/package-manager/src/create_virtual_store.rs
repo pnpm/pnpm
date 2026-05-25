@@ -6,6 +6,7 @@ use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker};
+use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgNameVerPeer,
     SnapshotEntry, select_platform_variant,
@@ -624,7 +625,13 @@ impl<'a> CreateVirtualStore<'a> {
         let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = is_hoisted.then(|| {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
             for (snapshot_key, _snapshot, cas_paths) in &warm {
-                let pkg_id = PkgIdWithPatchHash::from(snapshot_key.to_string());
+                // Mirrors upstream's `getPkgIdWithPatchHash` — strip
+                // the peer-graph suffix but keep `(patch_hash=…)` so
+                // patched packages share one CAS-paths entry across
+                // their peer variants.
+                let pkg_id = PkgIdWithPatchHash::from(
+                    get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+                );
                 map.entry(pkg_id).or_insert_with(|| (***cas_paths).clone());
             }
             map
@@ -834,7 +841,13 @@ impl<'a> CreateVirtualStore<'a> {
         if let Some(map) = cas_paths_by_pkg_id.as_mut() {
             map.reserve(cold_cas_paths.len());
             for (snapshot_key, paths) in cold_cas_paths {
-                let pkg_id = PkgIdWithPatchHash::from(snapshot_key.to_string());
+                // Mirrors upstream's `getPkgIdWithPatchHash` — strip
+                // the peer-graph suffix but keep `(patch_hash=…)` so
+                // patched packages share one CAS-paths entry across
+                // their peer variants.
+                let pkg_id = PkgIdWithPatchHash::from(
+                    get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+                );
                 map.entry(pkg_id).or_insert(paths);
             }
         }

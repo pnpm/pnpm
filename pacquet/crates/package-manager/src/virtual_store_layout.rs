@@ -22,6 +22,7 @@
 
 use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major};
 use pacquet_config::Config;
+use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_graph_hasher::{
     DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
     format_global_virtual_store_path,
@@ -313,7 +314,14 @@ fn lockfile_to_dep_graph(
         .map(|(snapshot_key, snapshot)| {
             let children = collect_children(snapshot);
             let metadata_key = snapshot_key.without_peer();
-            let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(metadata_key.to_string());
+            // `pkgIdWithPatchHash` strips only the peer-graph suffix,
+            // not the `(patch_hash=…)` segment. Mirrors upstream's
+            // [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
+            // The metadata-map key (peer- and patch-hash-stripped) is
+            // still derived via `without_peer` for the `packages:` lookup.
+            let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
+                get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+            );
             let resolution =
                 packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
             let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
@@ -738,5 +746,50 @@ mod tests {
         let slot_22 = layout.slot_dir(&pins_22);
         let slot_20 = layout.slot_dir(&pins_20);
         assert_ne!(slot_22, slot_20, "cross-pinning builders must land on distinct GVS slots");
+    }
+
+    /// `lockfile_to_dep_graph` builds each node's `pkg_id_with_patch_hash`
+    /// via upstream's `getPkgIdWithPatchHash` semantics — strip the
+    /// peer-graph suffix but **keep** the `(patch_hash=…)` segment. Two
+    /// patched snapshots with different peer suffixes therefore land on
+    /// one `pkg_id_with_patch_hash`, mirroring pnpm's side-effects-cache
+    /// keying. See
+    /// [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
+    #[test]
+    fn full_pkg_id_keeps_patch_hash_when_present() {
+        let patched_key: PackageKey =
+            "foo@1.0.0(patch_hash=abc)(react@18.0.0)".parse().expect("parse patched key");
+        let metadata_key = patched_key.without_peer();
+        let mut packages = HashMap::new();
+        packages.insert(
+            metadata_key,
+            PackageMetadata {
+                resolution: LockfileResolution::Registry(RegistryResolution {
+                    integrity: "sha512-PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP"
+                        .parse()
+                        .expect("parse integrity"),
+                }),
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            },
+        );
+        let mut snapshots = HashMap::new();
+        snapshots.insert(patched_key.clone(), SnapshotEntry::default());
+
+        let graph = super::lockfile_to_dep_graph(&snapshots, Some(&packages));
+        let node = graph.get(&patched_key).expect("patched snapshot node");
+        assert!(
+            node.full_pkg_id.starts_with("foo@1.0.0(patch_hash=abc):"),
+            "full_pkg_id must keep the patch-hash segment; got {:?}",
+            node.full_pkg_id,
+        );
     }
 }

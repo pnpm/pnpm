@@ -34,6 +34,7 @@
 use derive_more::{Display, Error, From};
 use indexmap::IndexSet;
 use miette::Diagnostic;
+use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_lockfile::{
     Lockfile, LockfileResolution, PackageKey, ParsePkgNameVerPeerError, PkgIdWithPatchHash,
 };
@@ -696,7 +697,12 @@ fn walk_deps(
         let node = DependenciesGraphNode {
             alias: Some(dep.0.name.clone()),
             dep_path: DepPath::from(reference.clone()),
-            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(pkg_key.to_string()),
+            // `pkgIdWithPatchHash` strips peer-graph hashes but
+            // keeps `(patch_hash=…)`. Mirrors upstream's
+            // [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
+            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(
+                get_pkg_id_with_patch_hash(&pkg_key.to_string()).to_string(),
+            ),
             dir: dir.clone(),
             modules: modules.to_path_buf(),
             children: BTreeMap::new(),
