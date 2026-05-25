@@ -15,13 +15,17 @@
 mod create_peer_dep_graph_hash;
 mod dep_path;
 mod dep_path_to_filename;
+mod is_runtime_dep_path;
 mod peer_id;
 mod suffix_index;
+mod try_get_package_id;
 
 pub use create_peer_dep_graph_hash::create_peer_dep_graph_hash;
 pub use dep_path::DepPath;
 pub use dep_path_to_filename::dep_path_to_filename;
+pub use is_runtime_dep_path::is_runtime_dep_path;
 pub use peer_id::PeerId;
 pub use suffix_index::{
     DepPathSuffixIndex, get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix,
 };
+pub use try_get_package_id::try_get_package_id;

@@ -137,7 +137,6 @@ fn build_importer(input: &ImporterLockfileInput<'_>, graph: &DependenciesGraph) 
     let alias_to_group = manifest_alias_to_group(manifest);
 
     for (alias, dep_path) in direct {
-        let Some(node) = graph.get(dep_path) else { continue };
         let Ok(name_for_key) = PkgName::parse(alias.as_str()) else { continue };
         // Skip aliases the manifest doesn't declare. The resolver's
         // `direct_dependencies_by_alias` includes auto-installed peers
@@ -150,7 +149,17 @@ fn build_importer(input: &ImporterLockfileInput<'_>, graph: &DependenciesGraph) 
         // through `satisfies_package_manifest` and force every later
         // install onto the fresh-resolve path.
         let Some(specifier) = read_manifest_specifier(manifest, alias) else { continue };
-        let version = importer_dep_version(alias, node);
+        // Workspace-link nodes don't enter the graph (the resolver
+        // short-circuits them at `depth = -1`); resolve the importer
+        // version directly from the `link:` depPath instead. Non-link
+        // direct deps must be present in the graph — a missing entry
+        // means the resolver dropped the edge, so skip.
+        let version = if let Some(target) = dep_path.as_str().strip_prefix("link:") {
+            ImporterDepVersion::Link(target.to_string())
+        } else {
+            let Some(node) = graph.get(dep_path) else { continue };
+            importer_dep_version(alias, node)
+        };
         let spec = ResolvedDependencySpec { specifier: specifier.clone(), version };
         specifiers.insert(alias.clone(), specifier);
         let group = alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod);

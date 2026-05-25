@@ -53,12 +53,7 @@ impl PkgNameVerPeer {
     /// `packages:` entry `node@runtime:22.0.0` rather than the
     /// non-existent `node@22.0.0`.
     pub fn without_peer(&self) -> PkgNameVerPeer {
-        let prefix = self.suffix.prefix();
-        let bare_input = format!("{}{}", prefix, self.suffix.version());
-        let bare = bare_input
-            .parse::<PkgVerPeer>()
-            .expect("a prefix + the displayed version is always a valid PkgVerPeer");
-        PkgNameVerPeer::new(self.name.clone(), bare)
+        PkgNameVerPeer::new(self.name.clone(), self.suffix.without_peer())
     }
 }
 
