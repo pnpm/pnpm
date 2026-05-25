@@ -84,7 +84,7 @@ jobs:
       env:
         REF_NAME: ${{ github.ref_name }}
       run: |
-        if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/*]]; then
+        if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* ]]; then
           echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
           echo "scope=all" >> "$GITHUB_OUTPUT"
         else
