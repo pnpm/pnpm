@@ -36,6 +36,7 @@ miette      = { workspace = true }
 pipe-trait  = { workspace = true }
 rayon       = { workspace = true }
 tokio       = { workspace = true }
+which       = { workspace = true }
 
 [dev-dependencies]
 pacquet-store-dir     = { workspace = true }

@@ -1,0 +1,119 @@
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pacquet_testing_utils::bin::CommandTempCwd;
+use std::fs;
+
+#[cfg(unix)]
+fn write_executable(path: &std::path::Path, body: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::write(path, body).expect("write executable");
+    let mut perms = fs::metadata(path).expect("stat executable").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).expect("chmod executable");
+}
+
+/// `pacquet exec <command>` resolves the command against the project's
+/// `node_modules/.bin` directory and runs it. Mirrors pnpm's exec, which
+/// prepends `./node_modules/.bin` to PATH before spawning.
+#[cfg(unix)]
+#[test]
+fn exec_runs_binary_from_node_modules_bin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let marker_path = workspace.join("marker.txt");
+    write_executable(
+        &bin_dir.join("say-hi"),
+        &format!("#!/bin/sh\ntouch \"{}\"\n", marker_path.display()),
+    );
+
+    pacquet.with_arg("exec").with_arg("say-hi").assert().success();
+    assert!(marker_path.exists(), "the binary in node_modules/.bin should have run");
+
+    drop(root);
+}
+
+/// Arguments after the command name flow through to the spawned binary.
+#[cfg(unix)]
+#[test]
+fn exec_passes_arguments_to_the_command() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let marker_path = workspace.join("args.txt");
+    write_executable(
+        &bin_dir.join("write-arg"),
+        &format!("#!/bin/sh\nprintf %s \"$1\" > \"{}\"\n", marker_path.display()),
+    );
+
+    pacquet.with_arg("exec").with_arg("write-arg").with_arg("hello-world").assert().success();
+    let written = fs::read_to_string(&marker_path).expect("read marker");
+    assert_eq!(written, "hello-world");
+
+    drop(root);
+}
+
+/// `pacquet exec` with no command is an error, mirroring pnpm's
+/// `ERR_PNPM_EXEC_MISSING_COMMAND`.
+#[test]
+fn exec_errors_when_no_command_given() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet.with_arg("exec").output().expect("spawn pacquet exec");
+    assert!(!output.status.success(), "exec with no command must fail");
+
+    drop(root);
+}
+
+/// A command that cannot be resolved against PATH surfaces as a failure,
+/// mirroring pnpm's "Command not found" error.
+#[test]
+fn exec_errors_when_command_not_found() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_arg("exec")
+        .with_arg("definitely-not-a-real-binary-xyzzy")
+        .output()
+        .expect("spawn pacquet exec");
+    assert!(!output.status.success(), "a missing command must fail");
+
+    drop(root);
+}
+
+/// `--shell-mode` / `-c` runs the command through the platform shell
+/// rather than resolving it as a binary.
+#[cfg(unix)]
+#[test]
+fn exec_shell_mode_runs_shell_command() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker_path = workspace.join("shell-marker.txt");
+
+    pacquet
+        .with_arg("exec")
+        .with_arg("-c")
+        .with_arg(format!("touch \"{}\"", marker_path.display()))
+        .assert()
+        .success();
+    assert!(marker_path.exists(), "shell-mode command should have run");
+
+    drop(root);
+}
+
+/// The child's non-zero exit code is propagated as pacquet's own exit
+/// code, mirroring pnpm's `{ exitCode }` return.
+#[cfg(unix)]
+#[test]
+fn exec_propagates_nonzero_exit_code() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_arg("exec")
+        .with_arg("-c")
+        .with_arg("exit 3")
+        .output()
+        .expect("spawn pacquet exec");
+    assert_eq!(output.status.code(), Some(3), "the child's exit code must propagate");
+
+    drop(root);
+}
