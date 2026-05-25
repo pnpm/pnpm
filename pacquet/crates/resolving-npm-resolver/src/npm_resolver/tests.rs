@@ -474,10 +474,6 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
     );
 }
 
-/// Packument body used by the `linkWorkspacePackages` ports. Same
-/// `acme` shape as [`PACKAGE_BODY`] but trimmed to a single version
-/// so each test can mock the registry's reply against a specific
-/// version-vs-workspace relationship.
 fn single_version_body(version: &str, integrity: &str) -> String {
     format!(
         r#"{{
@@ -526,11 +522,9 @@ fn workspace_resolve_options(packages: WorkspacePackages) -> ResolveOptions {
     }
 }
 
-/// Ports pnpm's
-/// [`resolve from local directory when package is not found in the registry`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1442-L1491)
-/// — the case that drives #11929 (babylon's `@dev/build-tools` is not
-/// on the public npm registry; bare-semver must still find it
-/// locally).
+/// Ports pnpm's [`index.ts#L1442-L1491`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1442-L1491);
+/// this is the case behind #11929 (babylon's `@dev/build-tools`
+/// isn't on npm, so bare-semver must resolve via the workspace).
 #[tokio::test]
 async fn falls_back_to_workspace_when_registry_returns_404() {
     let mut server = mockito::Server::new_async().await;
@@ -555,10 +549,7 @@ async fn falls_back_to_workspace_when_registry_returns_404() {
     }
 }
 
-/// Ports pnpm's
-/// [`resolve from local directory when it matches the latest version of the package`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1129-L1166)
-/// — the bare-semver branch where registry pick and workspace agree
-/// on the exact `name@version`.
+/// Ports pnpm's [`index.ts#L1129-L1166`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1129-L1166).
 #[tokio::test]
 async fn workspace_shadows_registry_when_name_and_version_match() {
     let mut server = mockito::Server::new_async().await;
@@ -590,9 +581,7 @@ async fn workspace_shadows_registry_when_name_and_version_match() {
     assert_eq!(result.latest.as_deref(), Some("1.0.0"));
 }
 
-/// Ports pnpm's
-/// [`do not resolve from local directory when alwaysTryWorkspacePackages is false`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1208-L1245)
-/// — gating the workspace lookup with the per-call flag.
+/// Ports pnpm's [`index.ts#L1208-L1245`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1208-L1245).
 #[tokio::test]
 async fn always_try_workspace_packages_false_skips_workspace_match() {
     let mut server = mockito::Server::new_async().await;
@@ -622,10 +611,7 @@ async fn always_try_workspace_packages_false_skips_workspace_match() {
     assert_eq!(result.id.as_str(), "acme@1.0.0");
 }
 
-/// Ports pnpm's
-/// [`use version from the registry if it is newer than the local one`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1315-L1357)
-/// — `preferWorkspacePackages` defaults to false, so a higher
-/// registry version wins.
+/// Ports pnpm's [`index.ts#L1315-L1357`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1315-L1357).
 #[tokio::test]
 async fn registry_version_higher_than_workspace_keeps_registry_pick() {
     let mut server = mockito::Server::new_async().await;
@@ -654,8 +640,7 @@ async fn registry_version_higher_than_workspace_keeps_registry_pick() {
     assert_eq!(result.id.as_str(), "acme@1.1.0");
 }
 
-/// Ports pnpm's
-/// [`preferWorkspacePackages: use version from the workspace even if there is newer version in the registry`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1358-L1398).
+/// Ports pnpm's [`index.ts#L1358-L1398`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1358-L1398).
 #[tokio::test]
 async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
     let mut server = mockito::Server::new_async().await;
@@ -685,9 +670,7 @@ async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
     assert_eq!(result.id.as_str(), "link:../acme");
 }
 
-/// Ports pnpm's
-/// [`use local version if it is newer than the latest in the registry`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1399-L1441)
-/// — the workspace shadow's `semver.gt` arm.
+/// Ports pnpm's [`index.ts#L1399-L1441`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1399-L1441).
 #[tokio::test]
 async fn workspace_higher_version_shadows_registry_pick() {
     let mut server = mockito::Server::new_async().await;
@@ -715,11 +698,8 @@ async fn workspace_higher_version_shadows_registry_pick() {
     assert_eq!(result.resolved_via, "workspace");
 }
 
-/// Build a workspace map where each version sits in its own
-/// `root_dir`. The convenience helper [`build_workspace_packages`]
-/// reuses one dir; tests that exercise multi-version pick (like the
-/// "latest installed" port below) need per-version dirs so the
-/// resolved `link:` path proves the right version was picked.
+/// Per-version `root_dir`s so the resolved `link:` path identifies
+/// which workspace entry the resolver picked.
 fn build_workspace_packages_at(name: &str, entries: &[(&str, &str)]) -> WorkspacePackages {
     let mut by_version: WorkspacePackagesByVersion = BTreeMap::new();
     for (version, dir) in entries {
@@ -736,10 +716,7 @@ fn build_workspace_packages_at(name: &str, entries: &[(&str, &str)]) -> Workspac
     packages
 }
 
-/// Ports pnpm's
-/// [`resolve injected dependency from local directory when it matches the latest version of the package`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1167-L1206)
-/// — workspace-shadow branch where `injected: true` flips the
-/// resolution to a hard-link `file:` shape instead of `link:`.
+/// Ports pnpm's [`index.ts#L1167-L1206`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1167-L1206).
 #[tokio::test]
 async fn injected_workspace_match_emits_file_resolution() {
     let mut server = mockito::Server::new_async().await;
@@ -766,8 +743,6 @@ async fn injected_workspace_match_emits_file_resolution() {
     };
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace shadow");
     assert_eq!(result.resolved_via, "workspace");
-    // `lockfile_dir` is `/repo`; `acme` lives at `/repo/packages/acme`,
-    // so the injected `file:` path renders as `packages/acme`.
     assert_eq!(result.id.as_str(), "file:packages/acme");
     match &result.resolution {
         LockfileResolution::Directory(dir) => assert_eq!(dir.directory, "packages/acme"),
@@ -775,10 +750,7 @@ async fn injected_workspace_match_emits_file_resolution() {
     }
 }
 
-/// Ports pnpm's
-/// [`resolve from local directory when package is not found in the registry and latest installed`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1494-L1544)
-/// — 404 fallback path picks the highest version from a multi-version
-/// workspace.
+/// Ports pnpm's [`index.ts#L1494-L1544`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1494-L1544).
 #[tokio::test]
 async fn workspace_fallback_picks_highest_version_for_latest_tag() {
     let mut server = mockito::Server::new_async().await;
@@ -806,11 +778,8 @@ async fn workspace_fallback_picks_highest_version_for_latest_tag() {
     assert_eq!(result.id.as_str(), "link:../acme-2.0.0");
 }
 
-/// Ports pnpm's
-/// [`resolve from local directory when package is not found in the registry and local prerelease available`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1546-L1582)
-/// — 404 fallback path against a workspace whose only version is a
-/// prerelease, picked via the `*` `includePrerelease` branch in
-/// `resolve_workspace_range`.
+/// Ports pnpm's [`index.ts#L1546-L1582`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1546-L1582);
+/// exercises the `includePrerelease` arm of `resolve_workspace_range`.
 #[tokio::test]
 async fn workspace_fallback_picks_local_prerelease_for_latest_tag() {
     let mut server = mockito::Server::new_async().await;
@@ -831,10 +800,7 @@ async fn workspace_fallback_picks_local_prerelease_for_latest_tag() {
     assert_eq!(result.id.as_str(), "link:../acme");
 }
 
-/// Ports pnpm's
-/// [`resolve from local directory when package is not found in the registry and specific version is requested`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1584-L1634)
-/// — 404 fallback path with a pinned version-spec lookup against the
-/// workspace.
+/// Ports pnpm's [`index.ts#L1584-L1634`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1584-L1634).
 #[tokio::test]
 async fn workspace_fallback_resolves_specific_version_request() {
     let mut server = mockito::Server::new_async().await;
@@ -862,17 +828,12 @@ async fn workspace_fallback_resolves_specific_version_request() {
     assert_eq!(result.id.as_str(), "link:../acme-1.1.0");
 }
 
-/// Ports pnpm's
-/// [`resolve from local directory when the requested version is not found in the registry but is available locally`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1636-L1672)
-/// — the `Ok(None)` fallback path (registry serves a packument but no
-/// version matches), separate from the 404 `Err` path the other
-/// fallback tests exercise.
+/// Ports pnpm's [`index.ts#L1636-L1672`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1636-L1672);
+/// covers the `Ok(None)` fallback arm (200 + no matching version),
+/// distinct from the `Err` 404 arm.
 #[tokio::test]
 async fn workspace_fallback_kicks_in_when_registry_lacks_requested_version() {
     let mut server = mockito::Server::new_async().await;
-    // Registry returns a packument but the picker won't find 100.0.0
-    // in it. That collapses to `Ok(None)` inside the resolver — the
-    // separate branch from the 404 `Err` cases above.
     let _mock = server
         .mock("GET", "/acme")
         .with_status(200)
@@ -898,10 +859,7 @@ async fn workspace_fallback_kicks_in_when_registry_lacks_requested_version() {
     assert_eq!(result.id.as_str(), "link:../acme");
 }
 
-/// Ports pnpm's
-/// [`throws when workspace package version does not match and package is not found in the registry`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2092-L2121)
-/// — 404 + no satisfying workspace version must propagate the
-/// original registry error, not silently succeed.
+/// Ports pnpm's [`index.ts#L2092-L2121`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2092-L2121).
 #[tokio::test]
 async fn registry_error_propagates_when_workspace_has_no_matching_version() {
     let mut server = mockito::Server::new_async().await;
@@ -924,10 +882,7 @@ async fn registry_error_propagates_when_workspace_has_no_matching_version() {
     assert!(err.to_string().contains("404"), "expected the 404 to propagate, got: {}", err);
 }
 
-/// Ports pnpm's
-/// [`resolve from registry when workspace package version does not match the requested version`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2154-L2183)
-/// — when the registry pick succeeds and the workspace carries the
-/// same package but a different version, the registry copy wins.
+/// Ports pnpm's [`index.ts#L2154-L2183`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2154-L2183).
 #[tokio::test]
 async fn registry_pick_wins_when_workspace_version_does_not_match() {
     let mut server = mockito::Server::new_async().await;
