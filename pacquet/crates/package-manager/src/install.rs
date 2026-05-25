@@ -375,15 +375,34 @@ where
         // write failure shouldn't fail the install. Surface as
         // `tracing::warn!` so the failure is diagnosable but the
         // install carries on.
-        if config.enable_global_virtual_store
-            && let Err(error) =
+        if config.enable_global_virtual_store {
+            // Create the store root before calling `register_project` so
+            // its `path_contains` guard can canonicalize the path
+            // instead of falling through to a literal comparison that
+            // wrongly matches against `<workspace>/../pacquet-store/v11`-
+            // shaped relative store paths (resolved-on-disk: outside the
+            // workspace; lexical: starts with the workspace prefix).
+            // Mirrors pnpm's
+            // [`fs.mkdir(opts.storeDir, { recursive: true })`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/installing/context/src/index.ts#L125)
+            // call site right before `registerProject`.
+            if let Err(error) =
+                std::fs::create_dir_all(pacquet_store_dir::StoreDir::root(&config.store_dir))
+            {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "Failed to ensure store root exists before project registry write; install continues",
+                );
+            }
+            if let Err(error) =
                 pacquet_store_dir::register_project(&config.store_dir, &workspace_root)
-        {
-            tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "Failed to register workspace root in the store project registry; install continues",
-            );
+            {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "Failed to register workspace root in the store project registry; install continues",
+                );
+            }
         }
 
         // `pnpm:package-manifest initial` carries the on-disk
