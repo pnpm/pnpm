@@ -4,6 +4,7 @@ import path from 'node:path'
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
+import { summaryLogger } from '@pnpm/core-loggers'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
@@ -66,6 +67,7 @@ export async function handleGlobalUpdate (
   for (const pkg of packagesToUpdate) {
     await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) // eslint-disable-line no-await-in-loop
   }
+  summaryLogger.debug({ prefix: globalDir })
   return undefined
 }
 
@@ -111,6 +113,7 @@ async function updateGlobalPackageGroup (
     include,
     includeDirect: include,
     allowBuilds,
+    omitSummaryLog: true,
   }, depSpecs)
 
   await promptApproveGlobalBuilds({
