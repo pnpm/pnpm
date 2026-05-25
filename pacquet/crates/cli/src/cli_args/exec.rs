@@ -34,7 +34,7 @@ pub enum ExecError {
     #[diagnostic(code(ERR_PNPM_EXEC_MISSING_COMMAND))]
     MissingCommand,
 
-    #[display("Command \"{command}\" not found")]
+    #[display(r#"Command "{command}" not found"#)]
     #[diagnostic(code(ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL))]
     CommandNotFound { command: String },
 

@@ -29,20 +29,20 @@ pub struct RunArgs {
 #[non_exhaustive]
 pub enum RunError {
     #[display("Missing script: {script_name}")]
-    #[diagnostic(code(ERR_PNPM_NO_SCRIPT), help("Command \"{script_name}\" not found."))]
+    #[diagnostic(code(ERR_PNPM_NO_SCRIPT), help(r#"Command "{script_name}" not found."#))]
     NoScript { script_name: String },
 
-    #[display("Script \"{script_name}\" is hidden and cannot be run directly")]
+    #[display(r#"Script "{script_name}" is hidden and cannot be run directly"#)]
     #[diagnostic(
         code(ERR_PNPM_HIDDEN_SCRIPT),
-        help("Scripts starting with \".\" are hidden and can only be called from other scripts.")
+        help(r#"Scripts starting with "." are hidden and can only be called from other scripts."#)
     )]
     HiddenScript { script_name: String },
 
     #[display("All matched scripts are hidden and cannot be run directly: {scripts}")]
     #[diagnostic(
         code(ERR_PNPM_HIDDEN_SCRIPT),
-        help("Scripts starting with \".\" are hidden and can only be called from other scripts.")
+        help(r#"Scripts starting with "." are hidden and can only be called from other scripts."#)
     )]
     AllHidden { scripts: String },
 }
@@ -315,7 +315,8 @@ fn print_project_commands(manifest: &Value) -> String {
         if !output.is_empty() {
             output.push_str("\n\n");
         }
-        output.push_str("Commands available via \"pnpm run\":\n");
+        output.push_str(r#"Commands available via "pnpm run":"#);
+        output.push('\n');
         output.push_str(&render_commands(&other));
     }
     output

@@ -52,12 +52,12 @@ pub enum DlxError {
     NoCommand,
 
     #[display(
-        "dlx does not yet support the non-registry specifier \"{spec}\" (git / tarball / file)"
+        r#"dlx does not yet support the non-registry specifier "{spec}" (git / tarball / file)"#
     )]
     #[diagnostic(code(pacquet_cli::dlx_unsupported_spec))]
     UnsupportedSpec { spec: String },
 
-    #[display("dlx was unable to find the installed dependency in \"dependencies\"")]
+    #[display(r#"dlx was unable to find the installed dependency in "dependencies""#)]
     #[diagnostic(code(ERR_PNPM_DLX_NO_DEP))]
     NoDependency,
 
