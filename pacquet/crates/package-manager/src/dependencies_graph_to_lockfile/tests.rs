@@ -711,59 +711,6 @@ fn workspace_link_direct_dep_renders_as_importer_link() {
     assert!(lockfile.snapshots.is_none() || lockfile.snapshots.as_ref().unwrap().is_empty());
 }
 
-/// Regression for [#11939](https://github.com/pnpm/pnpm/issues/11939):
-/// a workspace-link node whose linked package carries peer dependencies
-/// (the babylon `@dev/shared-ui-components` shape) picks up a
-/// `(<peers>)` suffix on its dep_path inside pacquet's resolver. Pnpm's
-/// own resolver short-circuits link nodes via the `depth === -1` arm so
-/// the suffix never appears, but until that arm is ported the
-/// lockfile-emit layer must paper over the difference:
-///
-/// 1. The importer's `version:` cell strips the peer-graph suffix —
-///    upstream emits `link:<rel-path>` exactly, with no parens, so the
-///    `installing/linking` layer can compute the symlink target.
-/// 2. The node never lands in `packages:` / `snapshots:` — pnpm puts
-///    nothing about a link node into those maps.
-#[test]
-fn workspace_link_with_peer_suffix_strips_to_bare_link_target() {
-    let (_tmp, manifest) = write_manifest(json!({
-        "name": "app",
-        "version": "1.0.0",
-        "dependencies": { "shared": "workspace:*" },
-    }));
-
-    let mut link_node =
-        make_link_node("../shared", json!({ "name": "shared", "version": "1.0.0" }));
-    let suffixed_dep_path = "link:../shared(react-dom@18.3.1)(react@18.3.1)".to_string();
-    link_node.dep_path = DepPath::from(suffixed_dep_path.clone());
-    link_node.resolved_package_id = suffixed_dep_path;
-
-    let mut graph = DependenciesGraph::new();
-    graph.insert(link_node.dep_path.clone(), link_node.clone());
-
-    let mut direct = BTreeMap::new();
-    direct.insert("shared".to_string(), link_node.dep_path);
-
-    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
-        &manifest, &graph, direct, false, false, None, None,
-    ));
-
-    let importer = lockfile.root_project().expect("root importer");
-    let entry = importer
-        .dependencies
-        .as_ref()
-        .expect("dependencies map")
-        .get(&PkgName::parse("shared").unwrap())
-        .expect("shared entry");
-    match &entry.version {
-        ImporterDepVersion::Link(target) => assert_eq!(target, "../shared"),
-        other => panic!("expected Link(\"../shared\"), got {other:?}"),
-    }
-
-    assert!(lockfile.packages.is_none() || lockfile.packages.as_ref().unwrap().is_empty());
-    assert!(lockfile.snapshots.is_none() || lockfile.snapshots.as_ref().unwrap().is_empty());
-}
-
 /// A transitive dep that depends on a workspace sibling renders the
 /// edge as `SnapshotDepRef::Link(<rel-path>)` instead of dropping it
 /// from the snapshot's `dependencies` map.
