@@ -17,11 +17,6 @@
 //! dedup of every network/disk call lives in
 //! [`PublishedAtLookupContext`] so verifying many pinned versions of
 //! the same package costs at most one fetch per layer.
-//!
-//! Phase 4 stubs the abbreviated-shortcut and on-disk-mirror layers
-//! (no cached fetcher / no mirror yet); Phase 5 ports
-//! `fetchFullMetadataCached.ts` and swaps the full-meta calls behind
-//! that wrapper without changing this module's call sites.
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
@@ -469,24 +464,186 @@ impl NpmResolutionVerifier {
         Ok(cache.entry(key).or_insert(value).clone())
     }
 
-    /// Phase 4 walks two of the four upstream layers: the attestation
-    /// endpoint, then the full packument. The abbreviated-`modified`
-    /// shortcut and the on-disk-mirror read land in Phase 5 alongside
-    /// the cached fetchers (`fetchAbbreviatedMetadataCached` /
-    /// `loadMeta`) they depend on. Mirrors upstream's
-    /// [`resolvePublishedAt`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L471-L491)
-    /// with the first two `if` blocks skipped.
+    /// Layered publish-timestamp lookup. Ports upstream's
+    /// [`resolvePublishedAt`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L471-L491):
+    ///
+    /// 1. **Abbreviated-`modified` shortcut.** Abbreviated metadata is
+    ///    a small per-name document the resolver typically already
+    ///    holds. Its package-level `modified` is an upper bound on
+    ///    every version's publish time — if it's older than the
+    ///    cutoff *and* the pinned version is still listed in
+    ///    `versions`, the gate is satisfied without per-version
+    ///    timestamps. Costs at most one abbreviated GET per name on
+    ///    cold cache; the full-meta fallback below is hundreds of KB
+    ///    bigger per package.
+    /// 2. **On-disk full-meta mirror.** If a previous verification
+    ///    populated `<cache_dir>/v11/metadata-full/.../<name>.jsonl`,
+    ///    take the per-version timestamp from there with no network.
+    /// 3. **Npm attestation endpoint.** Small payload, just this
+    ///    version's Sigstore-anchored timestamp. Wins on cold cache
+    ///    when the package was published with provenance.
+    /// 4. **Full metadata fetch.** Last resort.
     async fn resolve_published_at(
         &self,
         registry: &str,
         name: &PkgName,
         version: &str,
     ) -> Result<Option<String>, String> {
+        if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await?
+        {
+            return Ok(Some(value));
+        }
+        if let Some(map) = self.read_local_meta_time(registry, name).await
+            && let Some(value) = map.get(version)
+        {
+            return Ok(Some(value.clone()));
+        }
         if let Some(value) = self.fetch_attestation_time(registry, name, version).await? {
             return Ok(Some(value));
         }
         let full_meta_time = self.fetch_full_meta_time(registry, name).await?;
         Ok(full_meta_time.and_then(|map| map.get(version).cloned()))
+    }
+
+    /// Returns the package's `modified` timestamp *iff* it proves the
+    /// gate would pass — i.e. it's strictly older than the policy
+    /// cutoff *and* the pinned version is still listed in the
+    /// package's current versions map.
+    ///
+    /// The version check is the fail-closed contract: an unpublished
+    /// or never-published pin must not slip through on a stale
+    /// package-level `modified` timestamp.
+    ///
+    /// Mirrors upstream's
+    /// [`tryAbbreviatedModifiedShortcut`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L606-L624).
+    async fn try_abbreviated_modified_shortcut(
+        &self,
+        registry: &str,
+        name: &PkgName,
+        version: &str,
+    ) -> Result<Option<String>, String> {
+        let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
+        let Some(meta) = self.fetch_abbreviated_meta(registry, name).await? else {
+            return Ok(None);
+        };
+        let Some(modified) = meta.modified else { return Ok(None) };
+        let Ok(parsed) = DateTime::parse_from_rfc3339(&modified) else { return Ok(None) };
+        if parsed.with_timezone(&Utc) >= cutoff {
+            return Ok(None);
+        }
+        if !meta.version_names.as_ref().is_some_and(|set| set.contains(version)) {
+            return Ok(None);
+        }
+        Ok(Some(modified))
+    }
+
+    /// Per-`(registry, name)` abbreviated-meta lookup. The result is
+    /// projected down to `(modified, versionNames)` and cached so
+    /// repeat verifications of the same package within an install
+    /// cost at most one disk/network round-trip.
+    ///
+    /// Three fetch layers:
+    /// 1. The shared [`PackageMetaCache`] populated by the resolver
+    ///    during its own `pick_package` pass. Either form (full or
+    ///    abbreviated) carries the two fields the projection needs,
+    ///    so the verifier prefers `name:full` when present and falls
+    ///    back to the bare `name` key.
+    /// 2. The on-disk + network cached fetcher
+    ///    ([`fetch_full_metadata_cached`] with `full_metadata: false`)
+    ///    when no shared entry is available.
+    /// 3. A failure (decode / network / cache-write IO) caches
+    ///    `None` so subsequent calls fall through to the next layer
+    ///    of [`Self::resolve_published_at`] without retrying.
+    ///
+    /// Mirrors upstream's
+    /// [`fetchAbbreviatedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L626-L653).
+    async fn fetch_abbreviated_meta(
+        &self,
+        registry: &str,
+        name: &PkgName,
+    ) -> Result<Option<crate::lookup_context::AbbreviatedMetaProjection>, String> {
+        let key = package_key(registry, &name.to_string());
+        {
+            let cache = self.lookup_context.abbreviated_meta.lock().await;
+            if let Some(entry) = cache.get(&key) {
+                return Ok(entry.clone());
+            }
+        }
+        let projected = if let Some(shared) = self.read_shared_meta(name) {
+            Some(project_abbreviated_meta(&shared))
+        } else {
+            let opts = FetchFullMetadataCachedOptions {
+                registry,
+                http_client: &self.http_client,
+                auth_headers: &self.auth_headers,
+                cache_dir: self.cache_dir.as_deref(),
+                full_metadata: false,
+            };
+            match fetch_full_metadata_cached(&name.to_string(), &opts).await {
+                Ok(meta) => Some(project_abbreviated_meta(&meta)),
+                Err(_) => None,
+            }
+        };
+        let mut cache = self.lookup_context.abbreviated_meta.lock().await;
+        Ok(cache.entry(key).or_insert(projected).clone())
+    }
+
+    /// Try the resolver's shared [`PackageMetaCache`] for a packument
+    /// the abbreviated projection can derive from. Prefer the
+    /// `name:full` entry: it's a strict superset of the abbreviated
+    /// shape, so a hit there subsumes the bare `name` entry.
+    /// Mirrors upstream's
+    /// [`readSharedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L655-L668).
+    fn read_shared_meta(&self, name: &PkgName) -> Option<Arc<Package>> {
+        let cache = self.meta_cache.as_ref()?;
+        let name_str = name.to_string();
+        cache
+            .get(&format!("{name_str}:full"))
+            .or_else(|| cache.get(&name_str))
+            .filter(|meta| meta.name == name_str)
+    }
+
+    /// Per-`(registry, name)` on-disk mirror read of the full
+    /// packument's per-version `time` map. Returns `None` when no
+    /// mirror exists yet, no `cache_dir` was supplied, or the mirror
+    /// has no `time` payload — the caller then falls through to the
+    /// next layer of [`Self::resolve_published_at`].
+    ///
+    /// Mirrors upstream's
+    /// [`readLocalMetaTime`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L714-L727).
+    async fn read_local_meta_time(
+        &self,
+        registry: &str,
+        name: &PkgName,
+    ) -> Option<Arc<PublishedAtTimeMap>> {
+        let cache_dir = self.cache_dir.as_deref()?;
+        let key = package_key(registry, &name.to_string());
+        {
+            let cache = self.lookup_context.local_meta.lock().await;
+            if let Some(entry) = cache.get(&key) {
+                return entry.clone();
+            }
+        }
+        let mirror_path = crate::mirror::get_pkg_mirror_path(
+            cache_dir,
+            crate::mirror::FULL_META_DIR,
+            registry,
+            &name.to_string(),
+        )
+        .ok();
+        let time_map =
+            crate::mirror::load_meta_async(mirror_path.as_deref()).await.and_then(|pkg| {
+                pkg.time.as_ref().map(|raw| {
+                    raw.iter()
+                        .filter_map(|(version, value)| {
+                            value.as_str().map(|ts| (version.clone(), ts.to_string()))
+                        })
+                        .collect::<PublishedAtTimeMap>()
+                        .pipe(Arc::new)
+                })
+            });
+        let mut cache = self.lookup_context.local_meta.lock().await;
+        cache.entry(key).or_insert(time_map).clone()
     }
 
     async fn fetch_attestation_time(
@@ -748,6 +905,20 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
         peer_dependencies: None,
         npm_user,
         deprecated: None,
+    }
+}
+
+/// Pull the `(modified, versionNames)` projection the abbreviated
+/// shortcut needs out of a packument document. Works against either
+/// the abbreviated or the full form — both carry `modified` and a
+/// `versions` map.
+///
+/// Mirrors upstream's
+/// [`projectAbbreviatedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L702-L707).
+fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::AbbreviatedMetaProjection {
+    crate::lookup_context::AbbreviatedMetaProjection {
+        modified: meta.modified.clone(),
+        version_names: Some(meta.versions.keys().cloned().collect()),
     }
 }
 
