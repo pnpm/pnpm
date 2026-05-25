@@ -2103,6 +2103,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "pacquet-fs",
  "pipe-trait",
  "rayon",
  "serde_json",
@@ -2436,6 +2437,7 @@ dependencies = [
  "httpdate",
  "indexmap",
  "pacquet-diagnostics",
+ "pacquet-fs",
  "pacquet-testing-utils",
  "pathdiff",
  "pipe-trait",

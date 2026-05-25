@@ -11,6 +11,7 @@
 use derive_more::{Display, Error, From, Into};
 use indexmap::IndexSet;
 use pacquet_diagnostics::miette::{self, Diagnostic};
+use pacquet_fs::lexical_normalize;
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -444,7 +445,16 @@ fn resolve_virtual_store_dir(manifest: &mut Modules, modules_dir: &Path) {
     let resolved = match (manifest.virtual_store_dir.is_empty(), stored_path.is_absolute()) {
         (true, _) => modules_dir.join(".pnpm"),
         (false, true) => stored_path.to_path_buf(),
-        (false, false) => modules_dir.join(stored_path),
+        // Lexically normalize so the joined path collapses `..`
+        // segments. Node's `path.join` does this; Rust's
+        // [`PathBuf::join`] does not. Without normalization a stored
+        // relative path like `../../Users/.../store/v11/links` joined
+        // with `<workspace>/node_modules` round-trips as
+        // `<workspace>/node_modules/../../Users/...`, which never byte-
+        // matches the config's `effective_virtual_store_dir()` — and
+        // [`crate::Install`]'s no-op short-circuit relies on that
+        // equality to skip materialization on a clean install.
+        (false, false) => lexical_normalize(&modules_dir.join(stored_path)),
     };
     manifest.virtual_store_dir = resolved.to_string_lossy().into_owned();
 }

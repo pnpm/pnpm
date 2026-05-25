@@ -37,6 +37,34 @@ fn read_preserves_absolute_virtual_store_dir() {
     assert_eq!(Path::new(&manifest.virtual_store_dir), custom_store);
 }
 
+/// A non-descendant `virtualStoreDir` (the default macOS / Linux
+/// setup, where the global store sits outside the project) must
+/// survive a write→read round-trip with its absolute form intact.
+///
+/// This is what [`crate::Install`]'s no-op short-circuit relies on:
+/// the recovered absolute path is compared byte-for-byte against
+/// `Config::effective_virtual_store_dir`, and an unnormalized join
+/// (`<modules_dir>/../../...`) never matches the normalized config
+/// side — so the short-circuit silently misses every install whose
+/// store lives outside the project.
+#[cfg(not(windows))]
+#[test]
+fn round_trip_recovers_normalized_absolute_for_non_descendant_store() {
+    let temp_dir = tempfile::tempdir().expect("create temporary directory");
+    let modules_dir = temp_dir.path().join("project").join("node_modules");
+    let absolute_store = temp_dir.path().join(".pnpm-store");
+    let manifest = manifest_from_json(json!({
+        "layoutVersion": 5,
+        "virtualStoreDir": &absolute_store,
+    }));
+
+    write_modules_manifest::<Host>(&modules_dir, manifest).expect("write manifest");
+    let actual = read_modules_manifest::<Host>(&modules_dir)
+        .expect("read manifest")
+        .expect("manifest exists");
+    assert_eq!(Path::new(&actual.virtual_store_dir), absolute_store);
+}
+
 /// On non-Windows, `write_modules_manifest` rewrites a non-descendant
 /// `virtualStoreDir` (sibling, parent, etc.) to a relative path with
 /// `..` segments — matching upstream's `path.relative()` output at

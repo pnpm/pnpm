@@ -640,3 +640,170 @@ fn can_trust_past_check_rejects_changed_ignore_after() {
     cached.insert("trustPolicyIgnoreAfter".to_string(), serde_json::Value::Null);
     assert!(!verifier.can_trust_past_check(&cached));
 }
+
+/// Wire-shape **abbreviated** packument with a package-level
+/// `modified` timestamp and a `versions` map listing the candidate
+/// version. The abbreviated form omits per-version `time`; the
+/// shortcut layer reads only the `modified` and the `versions` key
+/// set, so this is the minimal fixture the shortcut needs.
+fn abbreviated_packument_json(name: &str, version: &str, modified: &str) -> serde_json::Value {
+    serde_json::json!({
+        "name": name,
+        "modified": modified,
+        "dist-tags": { "latest": version },
+        "versions": {
+            version: {
+                "name": name,
+                "version": version,
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("https://registry/{name}-{version}.tgz"),
+                }
+            }
+        }
+    })
+}
+
+/// Abbreviated-modified shortcut: when the package-level `modified`
+/// timestamp is older than the cutoff and the pinned version is
+/// still listed, the shortcut passes the gate without falling
+/// through to the attestation or full-meta layers. Mirrors
+/// upstream's
+/// [`tryAbbreviatedModifiedShortcut`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L606-L624)
+/// happy path.
+#[tokio::test]
+async fn min_age_pass_via_abbreviated_modified_shortcut() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _abbreviated_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(
+            abbreviated_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24); // 1 day
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts).expect("verifier");
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+/// The shortcut is upper-bounded by `modified`: a package whose
+/// `modified` is within the cutoff window may still have older
+/// versions, so the shortcut must yield and let the full chain
+/// answer. This test pins the fall-through by mocking BOTH the
+/// abbreviated GET (returning a recent `modified`) and the full
+/// GET (returning an older per-version `time`); the verifier must
+/// pass via the full path even though the abbreviated one couldn't
+/// decide.
+#[tokio::test]
+async fn min_age_shortcut_falls_through_when_modified_within_cutoff() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _abbreviated_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(
+            // `modified` is well within the 1-day cutoff (the policy's `now`),
+            // so the shortcut cannot decide.
+            abbreviated_packument_json("acme", "1.0.0", "2025-11-30T23:30:00.000Z").to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let _attestation_mock = server
+        .mock("GET", "/-/npm/v1/attestations/acme@1.0.0")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(min_age_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24); // 1 day
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts).expect("verifier");
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
+        .await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+/// The shortcut treats `modified` as an upper bound only for
+/// versions the registry currently lists. An unpublished or
+/// never-published pin must NOT slip through on a stale
+/// package-level timestamp — the verifier falls through to the
+/// per-version layers, which surface the unchecked entry. Mirrors
+/// upstream's
+/// [`if (!meta?.versionNames?.has(version)) return undefined`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L622)
+/// guard.
+#[tokio::test]
+async fn min_age_shortcut_falls_through_when_version_not_listed() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _abbreviated_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        // `modified` is old enough, but the abbreviated packument
+        // only lists `1.0.0` — the verifier is checking `2.0.0`.
+        .with_body(
+            abbreviated_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let _attestation_mock = server
+        .mock("GET", "/-/npm/v1/attestations/acme@2.0.0")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+    let _full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        // Full meta also lacks 2.0.0; the verifier falls through to
+        // the missing-time-field branch (`ignore_missing_time_field`
+        // is false by default, so this yields
+        // `MINIMUM_RELEASE_AGE_VIOLATION`).
+        .with_body(min_age_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.minimum_release_age = Some(60 * 24);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    let verifier = create_npm_resolution_verifier(opts).expect("verifier");
+    let result = verifier
+        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "2.0.0"))
+        .await;
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
+}

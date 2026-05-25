@@ -12,13 +12,10 @@
 //! can share one context across concurrent tasks without contending
 //! on the publishing record itself.
 //!
-//! Phase 4 only carries the caches the layered lookup actually
-//! consults — the on-disk `local_meta` mirror and the abbreviated
-//! `modified` shortcut land in Phase 5 alongside the cached
-//! fetchers they depend on. Adding them here ahead of their callers
-//! would trip the workspace's `--deny warnings` lint on dead fields.
-
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use pacquet_registry::Package;
 use tokio::sync::Mutex;
@@ -29,6 +26,22 @@ use tokio::sync::Mutex;
 /// payload (`created`, `modified`, the reserved `unpublished` key)
 /// is irrelevant to the policy.
 pub(crate) type PublishedAtTimeMap = HashMap<String, String>;
+
+/// Two fields the abbreviated-modified shortcut needs from the
+/// packument: the package-level last-modified timestamp and the set
+/// of version names the registry currently lists. Projected off the
+/// abbreviated packument so the verifier can keep the rest of the
+/// document GC-able after the lookup — the full document runs to
+/// hundreds of KB per package and OOMs CI runners on multi-thousand
+/// entry installs (see [`#11860`](https://github.com/pnpm/pnpm/issues/11860)).
+///
+/// Mirrors upstream's
+/// [`AbbreviatedMetaProjection`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L709-L712).
+#[derive(Debug, Default, Clone)]
+pub(crate) struct AbbreviatedMetaProjection {
+    pub modified: Option<String>,
+    pub version_names: Option<HashSet<String>>,
+}
 
 /// Per-install dedup of the lookups the verifier issues. Mirrors
 /// upstream's
@@ -44,6 +57,8 @@ pub(crate) struct PublishedAtLookupContext {
     pub published_at: Mutex<HashMap<String, Option<String>>>,
     pub full_meta: Mutex<HashMap<String, Option<Arc<PublishedAtTimeMap>>>>,
     pub full_meta_for_trust: Mutex<HashMap<String, Result<Arc<Package>, String>>>,
+    pub abbreviated_meta: Mutex<HashMap<String, Option<AbbreviatedMetaProjection>>>,
+    pub local_meta: Mutex<HashMap<String, Option<Arc<PublishedAtTimeMap>>>>,
 }
 
 impl PublishedAtLookupContext {

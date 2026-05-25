@@ -16,7 +16,7 @@ use crate::StoreDir;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_crypto_hash::create_short_hash;
-use pacquet_fs::{read_symlink_dir, remove_symlink_dir, symlink_dir};
+use pacquet_fs::{lexical_normalize, read_symlink_dir, remove_symlink_dir, symlink_dir};
 use std::{
     fs,
     io::{self, ErrorKind},
@@ -375,38 +375,6 @@ fn path_contains(outer: &Path, inner: &Path) -> bool {
     inner_canonical.starts_with(&outer_canonical)
 }
 
-/// Lexically resolve `.` and `..` components without touching the
-/// filesystem. Used as a fallback inside [`path_contains`] when
-/// `canonicalize` fails because the path doesn't exist yet.
-///
-/// Semantics:
-/// - `foo/../bar` → `bar` (pop a real segment).
-/// - `/..` → `/` (POSIX rule: root has no parent).
-/// - `../foo` → `../foo` (preserve leading `..` in relative paths).
-/// - `foo/./bar` → `foo/bar` (drop `.`).
-fn lexical_normalize(path: &Path) -> PathBuf {
-    use std::path::Component;
-    let mut out = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::ParentDir => match out.components().next_back() {
-                // Normal segment — collapse it with the `..`.
-                Some(Component::Normal(_)) => {
-                    out.pop();
-                }
-                // At an absolute root — drop the `..` (`/..` is `/`).
-                Some(Component::RootDir | Component::Prefix(_)) => {}
-                // Empty path or leading `..` chain — preserve the `..`
-                // so relative paths like `../foo` round-trip.
-                _ => out.push(".."),
-            },
-            Component::CurDir => {}
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
-}
-
 /// Best-effort canonicalization for a symlink target: if the target is
 /// absolute and canonicalizable, return its canonical form; otherwise
 /// resolve it relative to the link's parent dir and try again; on any
@@ -452,29 +420,6 @@ mod tests {
             path_contains(outer, inner_child),
             "`<workspace>/child/v11` is genuinely inside the workspace",
         );
-    }
-
-    /// [`lexical_normalize`] preserves leading `..` segments in
-    /// relative paths but drops `..` immediately after an absolute
-    /// root — matching Go's `path.Clean` and POSIX's "root has no
-    /// parent" rule.
-    #[test]
-    fn lexical_normalize_handles_parent_dir_corner_cases() {
-        use super::lexical_normalize;
-        use std::path::PathBuf;
-
-        // Real segment + `..` collapses.
-        assert_eq!(lexical_normalize(Path::new("foo/../bar")), PathBuf::from("bar"));
-        // `.` is dropped.
-        assert_eq!(lexical_normalize(Path::new("foo/./bar")), PathBuf::from("foo/bar"));
-        // `/..` is `/` — root has no parent.
-        assert_eq!(lexical_normalize(Path::new("/../foo")), PathBuf::from("/foo"));
-        // Leading `..` in a relative path is preserved.
-        assert_eq!(lexical_normalize(Path::new("../foo")), PathBuf::from("../foo"));
-        // Multiple leading `..`s stack.
-        assert_eq!(lexical_normalize(Path::new("../../foo")), PathBuf::from("../../foo"));
-        // Interior `..` after an absolute root collapses normally.
-        assert_eq!(lexical_normalize(Path::new("/a/b/../c")), PathBuf::from("/a/c"));
     }
 
     /// `create_short_hash` is sha256-hex truncated to 32 chars.
