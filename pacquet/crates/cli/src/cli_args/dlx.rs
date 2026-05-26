@@ -192,6 +192,14 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
 
     config.modules_dir = prepare_dir.join("node_modules");
     config.virtual_store_dir = prepare_dir.join("node_modules").join(".pacquet");
+    // Keep the cache self-contained: a per-prepare-dir virtual store
+    // (not the global one) so the cache directory can be symlinked and
+    // reused on its own. Mirrors pnpm's dlx anchoring at dlx.ts:180-184.
+    config.enable_global_virtual_store = false;
+    // The throwaway install is a standalone project, not part of the
+    // caller's workspace. Drop any workspace association inherited from
+    // the caller's `pnpm-workspace.yaml`.
+    config.workspace_dir = None;
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
