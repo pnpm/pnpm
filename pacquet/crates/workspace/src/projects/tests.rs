@@ -138,7 +138,7 @@ fn negation_pattern_excludes_matching_projects() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert!(
         !names.contains(&"foo".to_string()),
@@ -169,7 +169,7 @@ fn negation_pattern_with_leading_slash_is_noop() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert!(
         names.contains(&"foo".to_string()),
