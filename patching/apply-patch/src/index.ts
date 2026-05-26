@@ -70,18 +70,20 @@ function assertPatchPathsStayInside (opts: ApplyPatchToDirOpts): void {
         path.isAbsolute(candidate) ||
         candidate.split(/[/\\]/).includes('..')
       ) {
-        throw patchPathEscapesError(opts, candidate)
+        throw new PatchPathEscapesError(opts, candidate)
       }
       const resolved = path.resolve(root, candidate)
       if (resolved !== root && !resolved.startsWith(rootWithSep)) {
-        throw patchPathEscapesError(opts, candidate)
+        throw new PatchPathEscapesError(opts, candidate)
       }
     }
   }
 }
 
-function patchPathEscapesError (opts: ApplyPatchToDirOpts, badPath: string): PnpmError {
-  return new PnpmError('PATCH_FAILED',
-    `Could not apply patch ${opts.patchFilePath} to ${opts.patchedDir}: ` +
-    `patch path escapes target dir: ${badPath}`)
+export class PatchPathEscapesError extends PnpmError {
+  constructor (opts: ApplyPatchToDirOpts, badPath: string) {
+    super('PATCH_FAILED',
+      `Could not apply patch ${opts.patchFilePath} to ${opts.patchedDir}: ` +
+      `patch path escapes target dir: ${badPath}`)
+  }
 }
