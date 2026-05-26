@@ -150,6 +150,37 @@ fn workspace_concurrency_parses_negative() {
     assert_eq!(parsed.args.workspace_concurrency, Some(-1));
 }
 
+/// No `--workspace-concurrency` flag → the already-resolved config
+/// value passes through untouched.
+#[test]
+fn resolve_workspace_concurrency_keeps_config_value_when_flag_absent() {
+    let args = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses").args;
+    assert_eq!(args.resolve_workspace_concurrency(7), 7);
+}
+
+/// A positive `--workspace-concurrency` replaces the config value
+/// verbatim (it does not fall through to `config_value`).
+#[test]
+fn resolve_workspace_concurrency_positive_flag_overrides_config() {
+    let args = InstallArgsHarness::try_parse_from(["pacquet-test", "--workspace-concurrency", "3"])
+        .expect("parses")
+        .args;
+    assert_eq!(args.resolve_workspace_concurrency(7), 3);
+}
+
+/// A non-positive `--workspace-concurrency` resolves to
+/// `max(1, parallelism - |value|)` via `getWorkspaceConcurrency`,
+/// independent of the config value. Pinned exactly against the host's
+/// reported parallelism.
+#[test]
+fn resolve_workspace_concurrency_negative_flag_resolves_to_offset() {
+    let args = InstallArgsHarness::try_parse_from(["pacquet-test", "--workspace-concurrency=-1"])
+        .expect("parses")
+        .args;
+    let expected = pacquet_config::available_parallelism().saturating_sub(1).max(1);
+    assert_eq!(args.resolve_workspace_concurrency(7), expected);
+}
+
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
 /// canonical `pacquet_config::NodeLinker` enum. Tied to the
 /// `ValueEnum` derive's kebab-case rename — if a future variant

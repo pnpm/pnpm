@@ -279,6 +279,23 @@ impl InstallArgs {
 
         Ok(())
     }
+
+    /// Effective `workspaceConcurrency` for this invocation: the
+    /// `--workspace-concurrency` flag when passed (resolved through
+    /// [`pacquet_config::resolve_child_concurrency`], so a non-positive
+    /// value means `parallelism - |value|`, floored at 1), otherwise
+    /// the already-resolved `config_value` from
+    /// `.npmrc` / `pnpm-workspace.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`.
+    ///
+    /// Mirrors upstream's final `workspaceConcurrency =
+    /// getWorkspaceConcurrency(...)` pass at
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L641>.
+    pub(crate) fn resolve_workspace_concurrency(&self, config_value: u32) -> u32 {
+        match self.workspace_concurrency {
+            Some(value) => pacquet_config::resolve_child_concurrency(Some(value)),
+            None => config_value,
+        }
+    }
 }
 
 #[cfg(test)]

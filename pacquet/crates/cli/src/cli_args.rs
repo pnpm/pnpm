@@ -159,15 +159,8 @@ impl CliArgs {
                 let cfg = config()?;
                 cfg.offline = cfg.offline || args.offline;
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
-                // `--workspace-concurrency`, when passed, overrides the
-                // config-resolved value for this invocation. Resolved
-                // through the same `getWorkspaceConcurrency` port the
-                // yaml / env path uses so a negative CLI value means
-                // `parallelism - |value|`.
-                if let Some(value) = args.workspace_concurrency {
-                    cfg.workspace_concurrency =
-                        pacquet_config::resolve_child_concurrency(Some(value));
-                }
+                cfg.workspace_concurrency =
+                    args.resolve_workspace_concurrency(cfg.workspace_concurrency);
                 let require_lockfile = args.frozen_lockfile;
                 let state = State::init(manifest_path(), cfg, require_lockfile)
                     .wrap_err("initialize the state")?;
