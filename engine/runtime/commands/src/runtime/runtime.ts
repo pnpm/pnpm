@@ -108,7 +108,12 @@ function runtimeSet (opts: RuntimeCommandOptions, params: string[]): void {
   const args = ['add', `${runtimeName}@runtime:${versionSpec ?? ''}`]
   // Default to `devEngines.runtime`; the manifest writer maps a
   // `devDependencies.<runtime>: runtime:<version>` entry to it.
-  args.push(opts.saveProd ? '--save-prod' : '--save-dev')
+  // `saveDev` wins over `saveProd` to match `getSaveType` precedence.
+  if (opts.saveDev || !opts.saveProd) {
+    args.push('--save-dev')
+  } else {
+    args.push('--save-prod')
+  }
   if (opts.global) {
     args.push('--global')
     if (opts.bin) args.push('--global-bin-dir', opts.bin)

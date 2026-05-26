@@ -72,6 +72,22 @@ test('runtime set with --save-dev keeps the runtime under devEngines (matches th
   )
 })
 
+test('runtime set with both --save-dev and --save-prod prefers --save-dev (matches getSaveType precedence)', async () => {
+  await runtime.handler({
+    bin: '/usr/local/bin',
+    dir: '/tmp/project',
+    global: false,
+    pnpmHomeDir: '/tmp/pnpm-home',
+    saveDev: true,
+    saveProd: true,
+  }, ['set', 'node', '22'])
+
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['add', 'node@runtime:22', '--save-dev', '--ignore-workspace-root-check'],
+    { cwd: '/tmp/project' }
+  )
+})
+
 test('runtime set without version spec', async () => {
   await runtime.handler({
     bin: '/usr/local/bin',
