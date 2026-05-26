@@ -1,7 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import path from 'node:path'
 import { scheduler } from 'node:timers/promises'
 import { promisify } from 'node:util'
 
@@ -88,50 +86,35 @@ function readStoragePath (port) {
 }
 
 /**
- * Locate the `pnpm-registry` binary that this monorepo's cargo
- * workspace built. Same lookup order as pacquet's
- * `pnpm_registry_binary()` in
- * `pacquet/tasks/registry-mock/src/pnpm_registry_command.rs`:
+ * Locate the `pnpm-registry` binary. Lookup order:
  *
- * 1. `PNPM_REGISTRY_BIN` env var override (useful in CI or when
- *    pointing at a binary not in `target/`).
- * 2. `$CARGO_TARGET_DIR/release/pnpm-registry` — preferred for
- *    speed (debug builds are 20%+ slower on registry fan-out).
- * 3. `$CARGO_TARGET_DIR/debug/pnpm-registry` — local-dev fallback.
+ * 1. `PNPM_REGISTRY_BIN` env var override (escape hatch for local
+ *    Rust work — point it at `target/release/pnpm-registry` to test
+ *    in-progress changes to the registry crate).
+ * 2. The platform binary that `pnpm install` pulled in as an
+ *    optionalDependency of `@pnpm/pnpr` — i.e.
+ *    `@pnpm/pnpr.<platform>-<arch>/pnpr[.exe]`. The resolution goes
+ *    through the `@pnpm/pnpr` wrapper's path because the platform
+ *    sub-package lives in the wrapper's own `node_modules`, not
+ *    anywhere on the parent chain of this file.
  */
 function resolvePnpmRegistryBin () {
   if (process.env.PNPM_REGISTRY_BIN) {
     return process.env.PNPM_REGISTRY_BIN
   }
-  const exe = `pnpm-registry${process.platform === 'win32' ? '.exe' : ''}`
-  const targetDir = process.env.CARGO_TARGET_DIR ?? path.join(repoRoot(), 'target')
-  const release = path.join(targetDir, 'release', exe)
-  if (existsSync(release)) return release
-  const debug = path.join(targetDir, 'debug', exe)
-  if (existsSync(debug)) return debug
-  throw new Error(
-    `pnpm-registry binary not found at ${release} or ${debug}. ` +
-    'Build it once with `cargo build --release -p pnpm-registry` ' +
-    '(or `cargo build -p pnpm-registry`) before running tests, ' +
-    'or set PNPM_REGISTRY_BIN to its absolute path.'
-  )
-}
-
-/**
- * Walk up from this file until we hit the directory that owns the
- * cargo workspace's `Cargo.toml`. We can't hard-code a relative
- * path because this file moves around as tests are restructured;
- * walking up is robust to that.
- */
-function repoRoot () {
-  let dir = path.resolve(import.meta.dirname)
-  for (let i = 0; i < 10; i++) {
-    if (existsSync(path.join(dir, 'Cargo.toml'))) return dir
-    const parent = path.dirname(dir)
-    if (parent === dir) break
-    dir = parent
+  const ext = process.platform === 'win32' ? '.exe' : ''
+  const platformPkg = `@pnpm/pnpr.${process.platform}-${process.arch}`
+  try {
+    const wrapperRequire = createRequire(require.resolve('@pnpm/pnpr/bin/pnpr'))
+    return wrapperRequire.resolve(`${platformPkg}/pnpr${ext}`)
+  } catch {
+    throw new Error(
+      `pnpm-registry binary not found. The test suite expects ${platformPkg} ` +
+      'to be installed (it ships as an optionalDependency of @pnpm/pnpr — ' +
+      'run `pnpm install` at the repo root to pull it in), or set ' +
+      'PNPM_REGISTRY_BIN to an absolute path to a locally-built binary.'
+    )
   }
-  throw new Error('failed to locate cargo workspace root (no Cargo.toml in any parent)')
 }
 
 const UNUSUAL_REGISTRY_STARTUP_THRESHOLD = 15 // seconds
