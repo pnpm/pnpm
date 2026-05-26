@@ -201,6 +201,23 @@ pub struct WorkspaceSettings {
     /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
     pub scripts_prepend_node_path: Option<ScriptsPrependNodePath>,
 
+    /// `enablePrePostScripts` from `pnpm-workspace.yaml`. See
+    /// [`Config::enable_pre_post_scripts`].
+    pub enable_pre_post_scripts: Option<bool>,
+
+    /// `scriptShell` from `pnpm-workspace.yaml`. See
+    /// [`Config::script_shell`].
+    pub script_shell: Option<String>,
+
+    /// `nodeOptions` from `pnpm-workspace.yaml`. See
+    /// [`Config::node_options`].
+    pub node_options: Option<String>,
+
+    /// `extraBinPaths` from `pnpm-workspace.yaml`. Path-valued; relative
+    /// entries are resolved against the workspace dir. See
+    /// [`Config::extra_bin_paths`].
+    pub extra_bin_paths: Option<Vec<String>>,
+
     /// `unsafePerm` from `pnpm-workspace.yaml`. Forced to `true` on
     /// Windows in `apply_to` (matches upstream's
     /// `process.platform === 'win32'` override).
@@ -273,6 +290,10 @@ pub struct WorkspaceSettings {
     /// the lockfile-verified JSONL cache + packument mirror used
     /// by the verifier.
     pub cache_dir: Option<String>,
+
+    /// `dlxCacheMaxAge` from `pnpm-workspace.yaml`. Minutes; see
+    /// [`Config::dlx_cache_max_age`].
+    pub dlx_cache_max_age: Option<u64>,
 
     /// `minimumReleaseAge` from `pnpm-workspace.yaml`. Milliseconds;
     /// see [`Config::minimum_release_age`].
@@ -494,6 +515,7 @@ impl WorkspaceSettings {
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             enable_global_virtual_store,
             git_shallow_hosts,
+            enable_pre_post_scripts, dlx_cache_max_age,
         }
 
         // `hoist_pattern` and `public_hoist_pattern` carry the
@@ -564,6 +586,15 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;
+        }
+        if let Some(v) = self.script_shell {
+            config.script_shell = Some(v);
+        }
+        if let Some(v) = self.node_options {
+            config.node_options = Some(v);
+        }
+        if let Some(v) = self.extra_bin_paths {
+            config.extra_bin_paths = v.iter().map(|path| resolve(base_dir, path)).collect();
         }
         if let Some(v) = self.unsafe_perm {
             config.unsafe_perm = v;

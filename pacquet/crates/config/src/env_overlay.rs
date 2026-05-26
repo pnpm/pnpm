@@ -156,6 +156,10 @@ impl WorkspaceSettings {
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
+        json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
+        string_field!(script_shell, "SCRIPT_SHELL");
+        string_field!(node_options, "NODE_OPTIONS");
+        json_field!(extra_bin_paths, "EXTRA_BIN_PATHS");
         json_field!(unsafe_perm, "UNSAFE_PERM");
         json_field!(child_concurrency, "CHILD_CONCURRENCY");
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");
@@ -163,6 +167,7 @@ impl WorkspaceSettings {
         json_field!(ignored_optional_dependencies, "IGNORED_OPTIONAL_DEPENDENCIES");
         json_field!(overrides, "OVERRIDES");
         string_field!(cache_dir, "CACHE_DIR");
+        json_field!(dlx_cache_max_age, "DLX_CACHE_MAX_AGE");
         json_field!(minimum_release_age, "MINIMUM_RELEASE_AGE");
         json_field!(minimum_release_age_exclude, "MINIMUM_RELEASE_AGE_EXCLUDE");
         json_field!(
