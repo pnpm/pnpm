@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn hidden_filter_passes_visible_scripts() {
         let scripts = vec!["build".to_string()];
-        assert_eq!(throw_or_filter_hidden_scripts(scripts.clone(), "build").unwrap(), scripts,);
+        assert_eq!(throw_or_filter_hidden_scripts(scripts.clone(), "build").unwrap(), scripts);
     }
 
     #[test]
