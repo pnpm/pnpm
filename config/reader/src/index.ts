@@ -40,7 +40,7 @@ import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
 import { getDefaultCreds, getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
-import { loadNpmrcConfig } from './loadNpmrcFiles.js'
+import { loadNpmrcConfig, type NpmrcConfigResult } from './loadNpmrcFiles.js'
 import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
 import {
@@ -322,9 +322,15 @@ export async function getConfig (opts: {
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
   const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
+  const bindDefaultCreds = defaultCreds != null && !workspaceRegistryRebindsUserCreds(npmrcResult)
   pnpmConfig.configByUri = {
     ...networkConfigs.configByUri,
-    ...defaultCreds ? { '': { creds: defaultCreds } } : {},
+    ...bindDefaultCreds ? { '': { creds: defaultCreds } } : {},
+  }
+  if (defaultCreds != null && !bindDefaultCreds) {
+    warnings.push('Ignoring unscoped authentication credentials from the user-level npm config: ' +
+      'the workspace .npmrc overrides the default registry, so applying those credentials to it would leak them. ' +
+      'To send credentials to this registry, scope them to its URL (e.g. "//registry.example.com/:_authToken=...").')
   }
   // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
   // not project-level, to prevent project .npmrc from executing arbitrary commands.
@@ -712,6 +718,43 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+// npm rc keys that carry an unscoped/default credential value. Their presence
+// in the merged config (without a registry-URL prefix) means the resulting
+// `Authorization` header will be sent to whatever the default registry happens
+// to be, regardless of which file set that registry.
+const UNSCOPED_CRED_KEYS = ['_authToken', '_auth', 'username', '_password', 'tokenHelper'] as const
+
+// When the workspace `.npmrc` changes the effective `registry=` value but the
+// unscoped credential value came from a user-level source (`~/.npmrc` or
+// `auth.ini`), binding the two would send a user-trusted token to a
+// workspace-selected registry — a credential disclosure across a trust
+// boundary. Detect that exact case so the caller can drop the binding.
+function workspaceRegistryRebindsUserCreds (npmrc: NpmrcConfigResult): boolean {
+  const registryFromWorkspace = npmrc.workspaceNpmrc.registry as string | undefined
+  if (registryFromWorkspace == null) return false
+  if (npmrc.mergedConfig.registry !== registryFromWorkspace) return false
+  const registryWithoutWorkspace = (
+    npmrc.pnpmAuthConfig.registry ??
+    npmrc.userConfig.registry ??
+    npmDefaults.registry
+  ) as string
+  // No actual change in registry: workspace re-declared the same value the
+  // user-level config (or the built-in default) would have set. Binding is safe.
+  if (normalizeRegistryUrl(registryFromWorkspace) === normalizeRegistryUrl(registryWithoutWorkspace)) {
+    return false
+  }
+  for (const key of UNSCOPED_CRED_KEYS) {
+    const winningValue = npmrc.mergedConfig[key]
+    if (winningValue == null) continue
+    // Workspace itself supplied this credential — committer's choice, not a
+    // rebind. Same logic if a later layer (CLI) overrode the user value.
+    if (npmrc.workspaceNpmrc[key] === winningValue) continue
+    const fromUser = npmrc.userConfig[key] === winningValue || npmrc.pnpmAuthConfig[key] === winningValue
+    if (fromUser) return true
+  }
+  return false
 }
 
 // Look up a `pnpm_config_<key>` env var, accepting both lowercase and

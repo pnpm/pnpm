@@ -19,6 +19,8 @@ export interface NpmrcConfigResult {
   workspaceNpmrc: Record<string, unknown>
   /** User ~/.npmrc data (for token helpers) */
   userConfig: Record<string, unknown>
+  /** ~/.config/pnpm/auth.ini data (dedicated user auth file) */
+  pnpmAuthConfig: Record<string, unknown>
   /** Resolved local prefix (CWD or nearest dir with package.json) */
   localPrefix: string
   /** Warnings generated during loading */
@@ -116,6 +118,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     rawConfig,
     workspaceNpmrc,
     userConfig,
+    pnpmAuthConfig,
     localPrefix,
     warnings,
   }
