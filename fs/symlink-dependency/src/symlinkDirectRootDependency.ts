@@ -1,5 +1,4 @@
 import { promises as fs } from 'node:fs'
-import path from 'node:path'
 import util from 'node:util'
 
 import {
@@ -9,7 +8,7 @@ import {
 import type { DependenciesField } from '@pnpm/types'
 import { symlinkDir } from 'symlink-dir'
 
-import { assertAliasStaysInDir } from './assertAliasStaysInDir.js'
+import { safeJoinModulesDir } from './safeJoinModulesDir.js'
 
 const DEP_TYPE_BY_DEPS_FIELD_NAME = {
   dependencies: 'prod',
@@ -47,8 +46,7 @@ export async function symlinkDirectRootDependency (
     }
   }
 
-  assertAliasStaysInDir(destModulesDirReal, importAs)
-  const dest = path.join(destModulesDirReal, importAs)
+  const dest = safeJoinModulesDir(destModulesDirReal, importAs)
   const { reused } = await symlinkDir(dependencyLocation, dest)
   if (reused) return // if the link was already present, don't log
   rootLogger.debug({
