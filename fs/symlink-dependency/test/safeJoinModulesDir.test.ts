@@ -5,29 +5,31 @@ import { expect, test } from '@jest/globals'
 import { symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { tempDir } from '@pnpm/prepare'
 
-test('symlinkDependency refuses an alias that escapes node_modules', async () => {
+const escapeAliases = ['@x/../../../etc', '../sibling', '', '.']
+
+test.each(escapeAliases)('symlinkDependency refuses alias %p', async (alias) => {
   const tmp = tempDir(false)
   const destModulesDir = path.join(tmp, 'node_modules')
   fs.mkdirSync(destModulesDir)
   await expect(
-    symlinkDependency(path.join(tmp, 'dep'), destModulesDir, '@x/../../../etc')
+    symlinkDependency(path.join(tmp, 'dep'), destModulesDir, alias)
   ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
 })
 
-test('symlinkDependencySync refuses an alias that escapes node_modules', () => {
+test.each(escapeAliases)('symlinkDependencySync refuses alias %p', (alias) => {
   const tmp = tempDir(false)
   const destModulesDir = path.join(tmp, 'node_modules')
   fs.mkdirSync(destModulesDir)
   expect(() => {
-    symlinkDependencySync(path.join(tmp, 'dep'), destModulesDir, '../sibling')
+    symlinkDependencySync(path.join(tmp, 'dep'), destModulesDir, alias)
   }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
 })
 
-test('symlinkDirectRootDependency refuses an alias that escapes node_modules', async () => {
+test.each(escapeAliases)('symlinkDirectRootDependency refuses alias %p', async (alias) => {
   const tmp = tempDir(false)
   const destModulesDir = path.join(tmp, 'node_modules')
   fs.mkdirSync(destModulesDir)
-  await expect(symlinkDirectRootDependency(path.join(tmp, 'dep'), destModulesDir, '../sibling', {
+  await expect(symlinkDirectRootDependency(path.join(tmp, 'dep'), destModulesDir, alias, {
     linkedPackage: { name: 'dep', version: '1.0.0' },
     prefix: '',
   })).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
