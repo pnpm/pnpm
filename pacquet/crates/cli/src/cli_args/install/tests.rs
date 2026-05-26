@@ -122,6 +122,34 @@ fn ignore_manifest_check_flag_parses() {
     assert!(parsed.args.ignore_manifest_check, "flag present → true");
 }
 
+/// `--workspace-concurrency` is absent by default, so the override
+/// is `None` and the config-resolved value stays in effect.
+#[test]
+fn workspace_concurrency_default_is_none() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert_eq!(parsed.args.workspace_concurrency, None, "flag absent → None");
+}
+
+/// A positive `--workspace-concurrency` parses to its value verbatim.
+#[test]
+fn workspace_concurrency_parses_positive() {
+    let parsed =
+        InstallArgsHarness::try_parse_from(["pacquet-test", "--workspace-concurrency", "3"])
+            .expect("parses --workspace-concurrency 3");
+    assert_eq!(parsed.args.workspace_concurrency, Some(3));
+}
+
+/// A negative `--workspace-concurrency` parses to the signed value;
+/// the `parallelism - |value|` interpretation happens later at the
+/// CLI dispatch via `resolve_child_concurrency`. Mirrors pnpm
+/// accepting `--workspace-concurrency=-1`.
+#[test]
+fn workspace_concurrency_parses_negative() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--workspace-concurrency=-1"])
+        .expect("parses --workspace-concurrency=-1");
+    assert_eq!(parsed.args.workspace_concurrency, Some(-1));
+}
+
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
 /// canonical `pacquet_config::NodeLinker` enum. Tied to the
 /// `ValueEnum` derive's kebab-case rename — if a future variant

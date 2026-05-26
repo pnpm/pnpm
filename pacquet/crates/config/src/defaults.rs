@@ -275,6 +275,20 @@ pub fn default_child_concurrency_with_parallelism(parallelism: u32) -> u32 {
     parallelism.min(4)
 }
 
+/// Default `workspaceConcurrency` matching upstream's
+/// [`getDefaultWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L21-L23),
+/// the default for `workspace-concurrency` at
+/// [`config/reader/src/index.ts:208`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L208).
+///
+/// Identical in value to [`default_child_concurrency`] — both pnpm
+/// settings default through the same upstream `getDefaultWorkspaceConcurrency`
+/// — but exposed under its own name so the
+/// [`crate::Config::workspace_concurrency`] field default reads at its
+/// own call site.
+pub fn default_workspace_concurrency() -> u32 {
+    default_child_concurrency()
+}
+
 /// Available CPU parallelism, mirroring upstream's
 /// [`getAvailableParallelism`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L5-L13).
 /// Floors at 1.

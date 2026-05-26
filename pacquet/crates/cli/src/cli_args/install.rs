@@ -173,6 +173,21 @@ pub struct InstallArgs {
     /// Added for [pnpm/pnpm#11860](https://github.com/pnpm/pnpm/issues/11860).
     #[clap(long = "trust-lockfile")]
     pub trust_lockfile: bool,
+
+    /// Maximum number of workspace projects to process in parallel.
+    /// Mirrors pnpm's `--workspace-concurrency`. Overrides the
+    /// `workspaceConcurrency` value resolved from `.npmrc` /
+    /// `pnpm-workspace.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY` for
+    /// this invocation. A non-positive value is read as
+    /// `parallelism - |value|` (floored at 1), matching upstream's
+    /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
+    /// `None` (flag absent) leaves the config-resolved value in place.
+    ///
+    /// Applied to [`pacquet_config::Config::workspace_concurrency`] at
+    /// the CLI dispatch in [`crate::cli_args::CliArgs::run`]; see that
+    /// field for why it has no consumption point on `install` yet.
+    #[clap(long = "workspace-concurrency")]
+    pub workspace_concurrency: Option<i32>,
 }
 
 impl InstallArgs {
@@ -191,6 +206,10 @@ impl InstallArgs {
             offline: _,
             prefer_offline: _,
             trust_lockfile,
+            // Applied to `config.workspace_concurrency` at the CLI
+            // dispatch (`CliArgs::run`) while `Config` is still
+            // mutable, the same way `offline` / `prefer_offline` are.
+            workspace_concurrency: _,
         } = self;
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`

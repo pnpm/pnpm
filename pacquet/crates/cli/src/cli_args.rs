@@ -31,6 +31,15 @@ pub struct CliArgs {
     #[clap(short = 'C', long, default_value = ".")]
     pub dir: PathBuf,
 
+    /// Run the command for every project in the workspace instead of
+    /// only the project in `--dir`. Mirrors pnpm's global `-r` /
+    /// `--recursive` flag and sets
+    /// [`pacquet_config::Config::recursive`]. pacquet's `install`
+    /// already spans the whole workspace, so the flag is a surface
+    /// no-op there today; see the field docs.
+    #[clap(short = 'r', long, global = true)]
+    pub recursive: bool,
+
     /// Reporter output format.
     #[clap(long, value_enum, default_value_t = ReporterType::Silent, global = true)]
     pub reporter: ReporterType,
@@ -78,7 +87,7 @@ impl CliArgs {
     /// `Config` is loaded, mirroring pnpm 11's
     /// "CLI > yaml > .npmrc > defaults" precedence.
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
-        let CliArgs { command, dir, reporter } = self;
+        let CliArgs { command, dir, recursive, reporter } = self;
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
         // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
@@ -107,6 +116,11 @@ impl CliArgs {
                 .current::<Host>(&dir)
                 .map(|mut cfg| {
                     config_overrides.apply(&mut cfg);
+                    // `--recursive` / `-r` is CLI-only upstream (not a
+                    // `.npmrc` / yaml key), so it is set here from the
+                    // global flag rather than through the yaml / env
+                    // overlay. Mirrors pnpm's `Config.recursive`.
+                    cfg.recursive = recursive;
                     Config::leak(cfg)
                 })
                 .map_err(miette::Report::new)
@@ -145,6 +159,15 @@ impl CliArgs {
                 let cfg = config()?;
                 cfg.offline = cfg.offline || args.offline;
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
+                // `--workspace-concurrency`, when passed, overrides the
+                // config-resolved value for this invocation. Resolved
+                // through the same `getWorkspaceConcurrency` port the
+                // yaml / env path uses so a negative CLI value means
+                // `parallelism - |value|`.
+                if let Some(value) = args.workspace_concurrency {
+                    cfg.workspace_concurrency =
+                        pacquet_config::resolve_child_concurrency(Some(value));
+                }
                 let require_lockfile = args.frozen_lockfile;
                 let state = State::init(manifest_path(), cfg, require_lockfile)
                     .wrap_err("initialize the state")?;
@@ -178,3 +201,6 @@ impl CliArgs {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -475,6 +475,55 @@ fn parses_negative_child_concurrency_from_yaml_and_resolves() {
     assert!(config.child_concurrency <= parallelism, "must not exceed available parallelism");
 }
 
+/// A positive `workspaceConcurrency` is taken verbatim — same
+/// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34)
+/// resolution as `childConcurrency`.
+#[test]
+fn parses_positive_workspace_concurrency_from_yaml_and_applies() {
+    let yaml = "workspaceConcurrency: 8\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.workspace_concurrency, Some(8));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.workspace_concurrency, 8);
+}
+
+/// A non-positive `workspaceConcurrency` is interpreted as
+/// `max(1, parallelism - |value|)`. The exact result depends on the
+/// host's reported parallelism, so bound-check it like the
+/// `childConcurrency` sibling does.
+#[test]
+fn parses_negative_workspace_concurrency_from_yaml_and_resolves() {
+    let yaml = "workspaceConcurrency: -1\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.workspace_concurrency, Some(-1));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let parallelism = crate::available_parallelism();
+    assert!(config.workspace_concurrency >= 1, "must floor at 1");
+    assert!(config.workspace_concurrency <= parallelism, "must not exceed available parallelism");
+}
+
+/// `workspaceConcurrency` and `childConcurrency` are independent
+/// settings: setting one must not move the other off its default.
+/// Mirrors upstream, where they are separate config keys
+/// ([`config/reader/src/index.ts:208`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L208)
+/// vs the `childConcurrency` build path).
+#[test]
+fn workspace_and_child_concurrency_are_independent() {
+    let yaml = "workspaceConcurrency: 7\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.child_concurrency, None);
+
+    let mut config = Config::new();
+    let child_default = config.child_concurrency;
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.workspace_concurrency, 7);
+    assert_eq!(config.child_concurrency, child_default, "childConcurrency stays at its default");
+}
+
 #[test]
 fn apply_leaves_unset_fields_alone() {
     let yaml = "storeDir: /s\n";

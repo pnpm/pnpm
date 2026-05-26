@@ -1,7 +1,7 @@
 use super::{
-    default_cache_dir, default_child_concurrency_with_parallelism, default_config_dir,
-    default_store_dir, default_unsafe_perm, is_unsafe_perm_posix, resolve_child_concurrency,
-    resolve_child_concurrency_with_parallelism,
+    default_cache_dir, default_child_concurrency, default_child_concurrency_with_parallelism,
+    default_config_dir, default_store_dir, default_unsafe_perm, default_workspace_concurrency,
+    is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pacquet_store_dir::{STORE_VERSION, StoreDir};
@@ -275,6 +275,15 @@ fn default_child_concurrency_with_parallelism_above_four() {
 #[test]
 fn default_child_concurrency_with_parallelism_at_four() {
     assert_eq!(default_child_concurrency_with_parallelism(4), 4);
+}
+
+/// `workspaceConcurrency` and `childConcurrency` default through the
+/// same upstream `getDefaultWorkspaceConcurrency`, so the two pacquet
+/// defaults must agree. This pins that parity so a future change to
+/// one default that forgets the other fails here.
+#[test]
+fn default_workspace_concurrency_matches_default_child_concurrency() {
+    assert_eq!(default_workspace_concurrency(), default_child_concurrency());
 }
 
 /// Port of upstream
