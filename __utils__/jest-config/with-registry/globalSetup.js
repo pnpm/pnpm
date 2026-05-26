@@ -34,6 +34,7 @@ export default async () => {
     [
       '--listen', `127.0.0.1:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
       '--storage', storage,
+      '--upstream', process.env.PNPM_REGISTRY_MOCK_UPLINK ?? 'https://registry.npmjs.org',
       '--public-url', `http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
       // Match registry-mock's verdaccio config: a one-year TTL so
       // the fixture packuments (mtime: whenever the npm tarball was
