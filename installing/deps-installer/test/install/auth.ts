@@ -71,27 +71,6 @@ test('installing a package that need authentication, using password', async () =
   project.has('@pnpm.e2e/needs-auth')
 })
 
-test('a package that need authentication, legacy way', async () => {
-  const project = prepareEmpty()
-
-  await addUser({
-    email: 'foo@bar.com',
-    password: 'bar',
-    username: 'foo',
-  })
-
-  const configByUri: Record<string, RegistryConfig> = {
-    '': { creds: { basicAuth: { username: 'foo', password: 'bar' } } },
-  }
-  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    configByUri,
-  }, {
-    configByUri,
-  }))
-
-  project.has('@pnpm.e2e/needs-auth')
-})
-
 test('a scoped package that need authentication specific to scope', async () => {
   const project = prepareEmpty()
 
