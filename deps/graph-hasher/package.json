@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
-    "@pnpm/engine.runtime.system-node-version": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",

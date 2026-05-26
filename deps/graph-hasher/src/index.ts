@@ -1,6 +1,6 @@
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
-import { engineName } from '@pnpm/engine.runtime.system-node-version'
+import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { resolvePlatformSelector, selectPlatformVariant } from '@pnpm/resolving.resolver-base'

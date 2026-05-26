@@ -1,4 +1,5 @@
 import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli.meta'
+import type { RuntimeName } from '@pnpm/types'
 import * as execa from 'execa'
 import mem from 'memoize'
 
@@ -14,7 +15,38 @@ export function getSystemNodeVersionNonCached (): string | undefined {
   return process.version
 }
 
+export function getSystemDenoVersionNonCached (): string | undefined {
+  try {
+    // `deno --version` prints e.g. "deno 1.40.0 (release, ...)\nv8 ..."
+    const output = execa.sync('deno', ['--version']).stdout?.toString() ?? ''
+    const match = /^deno\s+(\d+\.\d+\.\d\S*)/m.exec(output)
+    return match?.[1] ? `v${match[1]}` : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function getSystemBunVersionNonCached (): string | undefined {
+  try {
+    // `bun --version` prints just the bare version, e.g. "1.1.0".
+    const output = execa.sync('bun', ['--version']).stdout?.toString().trim() ?? ''
+    return /^\d+\.\d+\.\d+/.test(output) ? `v${output}` : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const getSystemNodeVersion = mem(getSystemNodeVersionNonCached)
+export const getSystemDenoVersion = mem(getSystemDenoVersionNonCached)
+export const getSystemBunVersion = mem(getSystemBunVersionNonCached)
+
+export function getSystemRuntimeVersion (name: RuntimeName): string | undefined {
+  switch (name) {
+    case 'node': return getSystemNodeVersion()
+    case 'deno': return getSystemDenoVersion()
+    case 'bun': return getSystemBunVersion()
+  }
+}
 
 /**
  * The `<platform>;<arch>;node<major>` string used as the side-effects

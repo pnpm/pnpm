@@ -99,6 +99,9 @@
       "path": "../engine/runtime/commands"
     },
     {
+      "path": "../engine/runtime/system-version"
+    },
+    {
       "path": "../exec/commands"
     },
     {

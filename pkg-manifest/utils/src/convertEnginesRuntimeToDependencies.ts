@@ -1,17 +1,10 @@
 import { globalWarn } from '@pnpm/logger'
-import type {
-  DependenciesField,
-  EngineDependency,
-  ProjectManifest,
+import {
+  type DependenciesField,
+  type EngineDependency,
+  type ProjectManifest,
+  RUNTIME_NAMES,
 } from '@pnpm/types'
-
-export const RUNTIME_NAMES = ['node', 'deno', 'bun'] as const
-
-export type RuntimeName = typeof RUNTIME_NAMES[number]
-
-export function isRuntimeAlias (alias: string): alias is RuntimeName {
-  return (RUNTIME_NAMES as readonly string[]).includes(alias)
-}
 
 export function convertEnginesRuntimeToDependencies (
   manifest: ProjectManifest,
