@@ -32,9 +32,9 @@ struct Args {
     public_url: Option<String>,
 
     /// Seconds before a cached packument is considered stale and
-    /// refetched.
-    #[arg(long, default_value_t = 300)]
-    packument_ttl_secs: u64,
+    /// refetched. When omitted, the loaded config's value wins.
+    #[arg(long)]
+    packument_ttl_secs: Option<u64>,
 }
 
 #[tokio::main]
@@ -58,7 +58,9 @@ async fn main() -> miette::Result<()> {
     if let Some(storage) = args.storage {
         config.storage = storage;
     }
-    config.packument_ttl = Duration::from_secs(args.packument_ttl_secs);
+    if let Some(ttl_secs) = args.packument_ttl_secs {
+        config.packument_ttl = Duration::from_secs(ttl_secs);
+    }
 
     serve(config).await.map_err(|err| miette::miette!("{err}"))
 }
