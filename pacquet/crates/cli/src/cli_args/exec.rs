@@ -83,10 +83,10 @@ impl ExecArgs {
             return Err(ExecError::MissingCommand.into());
         }
 
-        // pnpm prepends `./node_modules/.bin` (resolved against the
-        // project dir) — see exec.ts:225-228. `extraBinPaths` is not
-        // wired into pacquet's Config yet, so only the project's own bin
-        // dir is prepended.
+        // pnpm prepends `./node_modules/.bin`, resolved against the
+        // project directory. See exec.ts:225-228. pacquet does not wire
+        // `extraBinPaths` into its Config yet, so only the project's own
+        // bin directory is prepended.
         let bin_dir = dir.join("node_modules").join(".bin");
         let path = prepend_dirs_to_path(&[bin_dir])?;
 
