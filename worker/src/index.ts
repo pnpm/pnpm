@@ -145,6 +145,7 @@ If you trust the new content (for example, the package was legitimately republis
 
   - Run "pnpm store prune" and retry, in case only the local metadata cache is out of date.
   - Run "pnpm install --fix-lockfile" to refresh the locked integrity from the registry.
+  - Run "pnpm install --force" or "pnpm update" if you also want to refresh resolutions for other packages.
 
 If you did not expect this package to change, treat this as a potential supply-chain issue and do not re-run with the flags above until you have verified the new content.`,
       }
