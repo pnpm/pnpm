@@ -71,6 +71,7 @@ fn default_opts<'a>(registry: &'a str) -> PickPackageOptions<'a> {
         include_latest_tag: false,
         dry_run: false,
         optional: false,
+        update_checksums: false,
     }
 }
 

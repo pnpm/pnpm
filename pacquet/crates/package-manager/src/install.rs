@@ -816,6 +816,7 @@ where
                 catalogs,
                 lockfile_dir: &workspace_root,
                 workspace_packages,
+                update_checksums,
                 meta_cache: Arc::clone(&meta_cache),
                 // States 3 and 4 of the dispatch share this branch.
                 // State 3 (lockfile present but stale or

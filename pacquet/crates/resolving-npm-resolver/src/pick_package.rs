@@ -279,6 +279,12 @@ pub struct PickPackageOptions<'a> {
     /// either knob set to `true` makes the pick request full
     /// metadata.
     pub optional: bool,
+    /// `true` skips the cache fast paths and always goes to the
+    /// registry (with conditional headers). Mirrors pnpm's
+    /// `--update-checksums` flag — the refresh must not be subverted
+    /// by a stale local cache that already has the wanted version
+    /// pinned.
+    pub update_checksums: bool,
 }
 
 /// Outcome of a successful [`pick_package`] call. Mirrors
@@ -416,7 +422,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     };
 
     // 1. In-memory cache.
-    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+    if !opts.update_checksums
+        && let Some(cached) = ctx.meta_cache.get(&cache_key)
+    {
         return handle_cache_hit(
             ctx,
             spec,
@@ -458,7 +466,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // this re-check, every duplicate caller would still fall
     // through to the disk + network path even though they were
     // waiting precisely for the winner's fetch to complete.
-    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+    if !opts.update_checksums
+        && let Some(cached) = ctx.meta_cache.get(&cache_key)
+    {
         return handle_cache_hit(
             ctx,
             spec,
@@ -519,7 +529,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 3. Version-spec fast path.
-    if !opts.include_latest_tag && matches!(spec.spec_type, RegistryPackageSpecType::Version) {
+    if !opts.include_latest_tag
+        && !opts.update_checksums
+        && matches!(spec.spec_type, RegistryPackageSpecType::Version)
+    {
         if meta_cached_in_store.is_none() {
             meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }
