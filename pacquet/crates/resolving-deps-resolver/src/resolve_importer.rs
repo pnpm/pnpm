@@ -155,13 +155,19 @@ where
     // direct dep with the right `wanted.optional` flag for the
     // `ResolvedPackage.optional` propagation.
     let optional_names = importer_optional_dependency_names(manifest);
-    let initial_wanted: Vec<(String, String, bool)> = manifest
-        .dependencies(groups)
-        .map(|(name, range)| {
-            let optional = optional_names.contains(name);
-            (name.to_string(), range.to_string(), optional)
-        })
-        .collect();
+    let mut initial_wanted: Vec<(String, String, bool)> = Vec::new();
+    for (name, range) in manifest.dependencies(groups) {
+        if !crate::is_valid_dependency_alias(name) {
+            return Err(ResolveImporterError::Resolve(
+                ResolveDependencyTreeError::InvalidDependencyName {
+                    parent: "The current package".to_string(),
+                    alias: name.to_string(),
+                },
+            ));
+        }
+        let optional = optional_names.contains(name);
+        initial_wanted.push((name.to_string(), range.to_string(), optional));
+    }
     let initial_wanted = resolve_catalog_specifiers(initial_wanted, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);

@@ -56,6 +56,7 @@ mod resolve_dependency_tree;
 mod resolve_importer;
 mod resolve_peers;
 mod resolved_tree;
+mod validate_dependency_alias;
 
 pub use dependencies_graph::{
     DependenciesGraph, DependenciesGraphNode, MissingPeer, PeerDependencyIssue,
@@ -78,6 +79,7 @@ pub use resolved_tree::{
     ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
     ResolvedTree, TreeChildren,
 };
+pub use validate_dependency_alias::is_valid_dependency_alias;
 
 #[cfg(test)]
 mod tests;

@@ -6,6 +6,8 @@ import type {
   ProjectManifest,
 } from '@pnpm/types'
 
+import { assertValidDependencyAliases } from './validateDependencyAlias.js'
+
 export interface WantedDependency {
   alias: string
   bareSpecifier: string // package reference
@@ -23,6 +25,10 @@ export function getWantedDependencies (
     includeDirect?: IncludedDependencies
   }
 ): WantedDependency[] {
+  assertValidDependencyAliases(pkg.dependencies, 'The current package')
+  assertValidDependencyAliases(pkg.devDependencies, 'The current package')
+  assertValidDependencyAliases(pkg.optionalDependencies, 'The current package')
+  assertValidDependencyAliases(pkg.peerDependencies, 'The current package')
   let depsToInstall = filterDependenciesByType(pkg,
     opts?.includeDirect ?? {
       dependencies: true,

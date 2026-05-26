@@ -9,6 +9,8 @@ import {
 import type { DependenciesField } from '@pnpm/types'
 import { symlinkDir } from 'symlink-dir'
 
+import { assertAliasStaysInDir } from './assertAliasStaysInDir.js'
+
 const DEP_TYPE_BY_DEPS_FIELD_NAME = {
   dependencies: 'prod',
   devDependencies: 'dev',
@@ -45,6 +47,7 @@ export async function symlinkDirectRootDependency (
     }
   }
 
+  assertAliasStaysInDir(destModulesDirReal, importAs)
   const dest = path.join(destModulesDirReal, importAs)
   const { reused } = await symlinkDir(dependencyLocation, dest)
   if (reused) return // if the link was already present, don't log
