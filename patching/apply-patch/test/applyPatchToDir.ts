@@ -126,3 +126,22 @@ describe('applyPatchToDir() with allowFailure', () => {
     }).toThrow('Patch file not found')
   })
 })
+
+describe('applyPatchToDir() path traversal', () => {
+  it.each([false, true])('should reject paths that escape the patched directory (allowFailure=%s)', (allowFailure) => {
+    const patchFilePath = f.find('path-traversal.patch')
+    const patchedDir = tempDir()
+    const sentinel = path.join('/tmp', 'pnpm-patch-traversal-pwned')
+    try {
+      fs.unlinkSync(sentinel)
+    } catch {}
+    expect(() => {
+      applyPatchToDir({
+        allowFailure,
+        patchFilePath,
+        patchedDir,
+      })
+    }).toThrow(/patch path escapes target dir/)
+    expect(fs.existsSync(sentinel)).toBe(false)
+  })
+})
