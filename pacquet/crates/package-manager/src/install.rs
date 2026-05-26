@@ -1300,18 +1300,16 @@ fn build_workspace_packages_map(
     Some(map)
 }
 
-/// Build the `projects` map for [`WorkspaceState`]. Mirrors upstream's
+/// Build the `projects` map for [`WorkspaceState`] from the
+/// in-memory `(root_dir, manifest)` list the caller already
+/// assembled. Mirrors upstream's
 /// `Object.fromEntries(opts.allProjects.map(...))` at
 /// <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/createWorkspaceState.ts>.
 ///
-/// For workspace installs (frozen-lockfile with sub-importers), pacquet
-/// reads each sub-importer's `package.json` to capture `name` / `version`
-/// the same way pnpm's `find_workspace_projects` does. The root
-/// importer (`.`) reuses the already-loaded `manifest` — re-reading it
-/// would double the I/O for no behavior change. A missing or unreadable
-/// sub-manifest is logged and skipped: pnpm would already correctly
-/// re-run install in that case (the project count won't match), so a
-/// best-effort entry beats failing the install over a transient read.
+/// Pure in-memory: no file I/O, no read-failure warnings, no lockfile
+/// or importer traversal. Every project — root and siblings alike —
+/// reuses the [`PackageManifest`] reference already loaded for the
+/// install dispatch.
 fn build_projects_map(
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> BTreeMap<String, ProjectEntry> {
