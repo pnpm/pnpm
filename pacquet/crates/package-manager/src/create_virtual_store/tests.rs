@@ -255,16 +255,10 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     );
 }
 
-/// A `Tarball` resolution that lacks `integrity` is what a tampered
-/// lockfile (one whose `integrity:` line was stripped) looks like on
-/// the read side. `snapshot_cache_key` must reject it upfront with
-/// the `MissingTarballIntegrity` variant so the orchestrator
-/// short-circuits before the warm rayon batch runs — without this
-/// guard a malformed lockfile would do up to ~6 s of warm-batch
-/// linking before the canonical install-side check fires (see the
-/// rationale on `snapshot_cache_key`). Mirrors the upstream guard
-/// landed alongside pnpm/pnpm#11966 at
-/// `lockfile/utils/src/pkgSnapshotToResolution.ts`.
+/// Failing closed at the cache-key site (rather than only at the
+/// install-side guard) is the whole point of the check duplication —
+/// otherwise a malformed lockfile burns the warm rayon batch before
+/// the install path fires the same error.
 #[test]
 fn snapshot_cache_key_rejects_tarball_without_integrity() {
     let pkg = key("foo", "1.0.0");
