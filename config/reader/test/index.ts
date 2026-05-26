@@ -1033,6 +1033,32 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
+
+  test('pins inline client cert/key to the file\'s registry, never the workspace registry', async () => {
+    const inlineCert = '-----BEGIN CERTIFICATE-----\\ncertbody\\n-----END CERTIFICATE-----'
+    const inlineKey = '-----BEGIN PRIVATE KEY-----\\nkeybody\\n-----END PRIVATE KEY-----'
+    fs.writeFileSync(
+      userconfig,
+      `registry=https://trusted.example.com/\ncert=${inlineCert}\nkey=${inlineKey}\n`,
+      'utf8'
+    )
+    fs.writeFileSync('.npmrc', 'registry=https://attacker.example.com/\n', 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: { userconfig },
+      env: { ...env, XDG_CONFIG_HOME: configHome },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    // `\n` escapes are expanded to real newlines by getNetworkConfigs.
+    expect(config.configByUri['//trusted.example.com/']?.tls).toMatchObject({
+      cert: inlineCert.replace(/\\n/g, '\n'),
+      key: inlineKey.replace(/\\n/g, '\n'),
+    })
+    expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
+  })
+
 })
 
 describe('unscoped credential deprecation warning', () => {
@@ -1072,7 +1098,7 @@ describe('unscoped credential deprecation warning', () => {
       workspaceDir: process.cwd(),
     })
 
-    expect(warnings.find(w => w.includes('Unscoped authentication credentials'))).toBeDefined()
+    expect(warnings.find(w => w.includes('Unscoped per-registry settings'))).toBeDefined()
     expect(warnings.find(w => w.includes('_authToken'))).toBeDefined()
     expect(warnings.find(w => w.includes(userconfig))).toBeDefined()
   })
@@ -1089,7 +1115,7 @@ describe('unscoped credential deprecation warning', () => {
       workspaceDir: process.cwd(),
     })
 
-    const warning = warnings.find(w => w.includes('Unscoped authentication credentials'))
+    const warning = warnings.find(w => w.includes('Unscoped per-registry settings'))
     expect(warning).toBeDefined()
     expect(warning).toContain('_auth')
     expect(warning).toContain('username')
@@ -1106,7 +1132,7 @@ describe('unscoped credential deprecation warning', () => {
       workspaceDir: process.cwd(),
     })
 
-    const warning = warnings.find(w => w.includes('Unscoped authentication credentials'))
+    const warning = warnings.find(w => w.includes('Unscoped per-registry settings'))
     expect(warning).toBeDefined()
     expect(warning).toContain(path.resolve('.npmrc'))
   })
@@ -1125,7 +1151,7 @@ describe('unscoped credential deprecation warning', () => {
       workspaceDir: process.cwd(),
     })
 
-    expect(warnings.find(w => w.includes('Unscoped authentication credentials'))).toBeUndefined()
+    expect(warnings.find(w => w.includes('Unscoped per-registry settings'))).toBeUndefined()
   })
 })
 

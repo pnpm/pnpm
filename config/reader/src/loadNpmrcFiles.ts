@@ -129,14 +129,33 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   }
 }
 
-// Auth keys that, when written without a `//host/` prefix, would bind to
-// whatever default registry the merged config settles on. We rewrite each
-// such key into its URL-scoped form at load time, pinning it to the
-// registry value declared in the same source. npm rejects these unscoped
-// keys outright since npm@9 (ERR_INVALID_AUTH); pnpm keeps them working
-// for now but warns so users move to the URL-scoped form themselves before
-// a future major drops support.
-const UNSCOPED_CRED_KEYS = ['_authToken', '_auth', 'username', '_password', 'tokenHelper'] as const
+// Per-registry rc keys that, when written without a `//host/` prefix, fall
+// through to whatever default registry the merged config settles on. We
+// rewrite each such key to its URL-scoped form at load time, pinning it to
+// the `registry=` value declared in the same source. A later layer can
+// still override the merged registry, but it cannot pull along a credential
+// or client certificate authored for a different host.
+//
+// Two groups:
+// * auth keys — `_authToken` etc. Pinned to prevent credential leaks. npm
+//   rejects these unscoped since npm@9 (ERR_INVALID_AUTH); pnpm keeps them
+//   working but warns so users migrate before a future major drops support.
+// * client certificate keys — `cert`/`key` (inline PEM). Pinned to prevent
+//   a client certificate (and the identity it carries) being presented to
+//   the wrong host. The `certfile`/`keyfile` variants are not rescoped:
+//   `certfile` isn't read unscoped by pnpm at all, and supporting `keyfile`
+//   alone would be asymmetric — users wanting the path form can write the
+//   URL-scoped key directly (`//host/:certfile=...`, `//host/:keyfile=...`).
+//
+// `ca`/`cafile` are intentionally left unscoped-by-default: they're trust
+// anchors, not credentials, and corporate MITM-proxy setups rely on them
+// applying globally to every HTTPS request. The default registry override
+// can't weaponize an unscoped CA (the attacker would need a cert signed
+// by it), so the same pinning isn't warranted.
+const UNSCOPED_RESCOPABLE_KEYS = [
+  '_authToken', '_auth', 'username', '_password', 'tokenHelper',
+  'cert', 'key',
+] as const
 
 function readAndFilterNpmrc (
   filePath: string,
@@ -177,14 +196,15 @@ function readAndFilterNpmrc (
   return rescopeUnscopedCreds(result, filePath, warnings)
 }
 
-// Rewrite any unscoped credential keys in `source` to their URL-scoped
-// equivalents (`//host[:port]/path/:_authToken=...`) using `source.registry`
-// — or the builtin default registry if the source doesn't declare its own.
-// This pins each layer's credential to the registry that layer named (or
-// the implicit npmjs default), so a later layer overriding `registry=`
-// cannot rebind the credential to its own registry. A URL-scoped key for
-// the same registry already present in `source` wins; we never overwrite
-// an explicit scoped value.
+// Rewrite any unscoped per-registry keys in `source` to their URL-scoped
+// equivalents (`//host[:port]/path/:<key>=...`) using `source.registry` —
+// or the builtin default registry if the source doesn't declare its own.
+// This pins each layer's credential, client certificate, or CA setting to
+// the registry that layer named (or the implicit npmjs default), so a
+// later layer overriding `registry=` cannot pull a setting authored for
+// one host along to a different host. A URL-scoped key for the same
+// registry already present in `source` wins; we never overwrite an
+// explicit scoped value.
 //
 // Each rewrite triggers a deprecation warning so users migrate to writing
 // the URL-scoped form directly. npm has rejected unscoped credentials
@@ -197,7 +217,7 @@ function rescopeUnscopedCreds (
   const rescoped: string[] = []
   const fallbackRegistry = (typeof source.registry === 'string' ? source.registry : null) ?? npmDefaults.registry
   const nerfedRegistry = nerfDart(normalizeRegistryUrl(fallbackRegistry))
-  for (const key of UNSCOPED_CRED_KEYS) {
+  for (const key of UNSCOPED_RESCOPABLE_KEYS) {
     if (!(key in source)) continue
     const scopedKey = `${nerfedRegistry}:${key}`
     if (!(scopedKey in source)) {
@@ -207,8 +227,8 @@ function rescopeUnscopedCreds (
     rescoped.push(key)
   }
   if (rescoped.length > 0) {
-    warnings.push(`Unscoped authentication credentials (${rescoped.join(', ')}) in "${sourceLabel}" are deprecated. ` +
-      `pnpm pinned them to "${nerfedRegistry}" for this run, but a future release will stop supporting unscoped credentials. ` +
+    warnings.push(`Unscoped per-registry settings (${rescoped.join(', ')}) in "${sourceLabel}" are deprecated. ` +
+      `pnpm pinned them to "${nerfedRegistry}" for this run, but a future release will stop supporting unscoped per-registry settings. ` +
       `Write them as "${nerfedRegistry}:${rescoped[0]}=..." instead.`)
   }
   return source
