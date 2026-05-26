@@ -81,7 +81,7 @@ export function validateWorkspaceManifest (manifest: unknown): asserts manifest 
 }
 
 function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
-  if (!manifest.packages) {
+  if (manifest.packages == null) {
     return
   }
 
