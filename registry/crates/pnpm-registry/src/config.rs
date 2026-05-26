@@ -205,16 +205,18 @@ impl Config {
     }
 
     /// Find the uplink for `package_name` by walking [`Self::packages`]
-    /// in declared order and returning the first matching pattern's
-    /// `proxy` -> [`Self::uplinks`] entry. The returned tuple's first
-    /// element is the uplink *name* (the key in [`Self::uplinks`]);
-    /// callers that have pre-built per-uplink state can use it as an
-    /// index.
+    /// in declared order: the first pattern that matches is the rule
+    /// that applies. If that rule has no `proxy:`, the package is
+    /// storage-only and this returns `None` — matching verdaccio's
+    /// first-match-wins semantics. The returned tuple's first element
+    /// is the uplink *name* (the key in [`Self::uplinks`]); callers
+    /// that have pre-built per-uplink state can use it as an index.
     pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
-        let proxy_name = self.packages.iter().find_map(|(pattern, access)| {
-            let proxy = access.proxy.as_deref()?;
-            pattern_matches(pattern, package_name).then_some(proxy)
-        })?;
+        let access = self
+            .packages
+            .iter()
+            .find_map(|(pattern, access)| pattern_matches(pattern, package_name).then_some(access))?;
+        let proxy_name = access.proxy.as_deref()?;
         self.uplinks.get_key_value(proxy_name).map(|(k, v)| (k.as_str(), v))
     }
 }
@@ -405,8 +407,9 @@ packages:
 
     #[test]
     fn from_yaml_str_package_without_proxy_does_not_resolve_an_uplink() {
-        // A pattern entry that has no `proxy:` shouldn't surface an
-        // uplink. The walker should keep searching for a later rule.
+        // Verdaccio first-match-wins: a pattern entry that matches but
+        // has no `proxy:` is storage-only — resolution stops there and
+        // returns None instead of falling through to a later catch-all.
         let yaml = "\
 storage: ./s
 uplinks:
@@ -418,9 +421,9 @@ packages:
     proxy: npmjs
 ";
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-        // `@private/foo` matches the first rule but it has no proxy,
-        // so the walker falls through to `**` -> `npmjs`.
-        assert_eq!(config.resolve_uplink("@private/foo").unwrap().0, "npmjs");
+        assert!(config.resolve_uplink("@private/foo").is_none());
+        // Unrelated names still fall through to `**` -> `npmjs`.
+        assert_eq!(config.resolve_uplink("lodash").unwrap().0, "npmjs");
     }
 
     #[test]
