@@ -1,6 +1,7 @@
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_config::Config;
 use pacquet_executor::select_shell;
 use pacquet_package_manifest::PackageManifest;
 use std::{
@@ -68,7 +69,7 @@ impl ExecArgs {
     /// On a non-zero child exit code this terminates the process with the
     /// same code via [`std::process::exit`], matching pnpm's exec, which
     /// returns `{ exitCode }` and lets the CLI exit with it.
-    pub fn run(self, dir: &Path) -> miette::Result<()> {
+    pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
         let ExecArgs { mut command, shell_mode } = self;
 
         // For backward compatibility, mirroring `if (params[0] === '--')
@@ -83,12 +84,13 @@ impl ExecArgs {
             return Err(ExecError::MissingCommand.into());
         }
 
-        // pnpm prepends `./node_modules/.bin`, resolved against the
-        // project directory. See exec.ts:225-228. pacquet does not wire
-        // `extraBinPaths` into its Config yet, so only the project's own
-        // bin directory is prepended.
-        let bin_dir = dir.join("node_modules").join(".bin");
-        let path = prepend_dirs_to_path(&[bin_dir])?;
+        // pnpm prepends `./node_modules/.bin` (resolved against the
+        // project directory) and then the `extraBinPaths`. See
+        // exec.ts:225-228.
+        let mut prepend = Vec::with_capacity(1 + config.extra_bin_paths.len());
+        prepend.push(dir.join("node_modules").join(".bin"));
+        prepend.extend(config.extra_bin_paths.iter().cloned());
+        let path = prepend_dirs_to_path(&prepend)?;
 
         let mut cmd = if shell_mode {
             // execa's `shell: true` joins the command and its arguments
@@ -125,6 +127,11 @@ impl ExecArgs {
         cmd.env("npm_config_user_agent", "pnpm");
         if let Some(name) = read_package_name(dir) {
             cmd.env("PNPM_PACKAGE_NAME", name);
+        }
+        // pnpm forwards `nodeOptions` as `NODE_OPTIONS` to the child.
+        // See exec.ts:246.
+        if let Some(node_options) = &config.node_options {
+            cmd.env("NODE_OPTIONS", node_options);
         }
 
         let status = cmd

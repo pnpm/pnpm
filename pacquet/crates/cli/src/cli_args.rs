@@ -165,8 +165,10 @@ impl CliArgs {
                         .wrap_err(format!("executing command: \"{0}\"", script))?;
                 }
             }
-            CliCommand::Run(args) => args.run(manifest_path())?,
-            CliCommand::Exec(args) => args.run(&dir)?,
+            CliCommand::Run(args) => {
+                args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?
+            }
+            CliCommand::Exec(args) => args.run(&dir, config()?)?,
             CliCommand::Start => {
                 // Runs an arbitrary command specified in the package's start property of its scripts
                 // object. If no start property is specified on the scripts object, it will attempt to
