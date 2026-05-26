@@ -338,15 +338,19 @@ test('.npmrc does not load pnpm settings', async () => {
     },
   })
 
-  // rc options appear as usual
+  // rc options appear as usual. Unscoped credentials (`username`,
+  // `_authToken`) are rescoped to the file's registry at load — the .npmrc
+  // here doesn't set its own `registry=`, so they pin to the npmjs default.
   expect(config.authConfig).toMatchObject({
     '//my-org.registry.example.com:username': 'some-employee',
     '//my-org.registry.example.com:_authToken': 'some-employee-token',
     '@my-org:registry': 'https://my-org.registry.example.com',
     '@jsr:registry': 'https://not-actually-jsr.example.com',
-    username: 'example-user-name',
-    _authToken: 'example-auth-token',
+    '//registry.npmjs.org/:username': 'example-user-name',
+    '//registry.npmjs.org/:_authToken': 'example-auth-token',
   })
+  expect(config.authConfig.username).toBeUndefined()
+  expect(config.authConfig._authToken).toBeUndefined()
 
   // workspace-specific settings are omitted
   expect(config.authConfig['dlx-cache-max-age']).toBeUndefined()

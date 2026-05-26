@@ -215,9 +215,29 @@ function rescopeUnscopedCreds (
   sourceLabel: string,
   warnings: string[]
 ): Record<string, unknown> {
+  // Bail early if there's nothing to rescope. This skips the nerfDart call
+  // when a source like the builtin pnpmrc has only a `registry=` line —
+  // rescoping there would do nothing anyway.
+  if (!UNSCOPED_RESCOPABLE_KEYS.some(key => key in source)) {
+    return source
+  }
+  const rawRegistry = typeof source.registry === 'string' && source.registry !== '' ? source.registry : null
+  const fallbackRegistry = rawRegistry ?? npmDefaults.registry
+  let nerfedRegistry: string
+  try {
+    nerfedRegistry = nerfDart(normalizeRegistryUrl(fallbackRegistry))
+  } catch {
+    // `registry=` resolved to something `URL` can't parse — often an
+    // unresolved `${VAR}` placeholder that left the string empty. Drop the
+    // unscoped keys (a bare token is unsafe to bind anywhere) and warn.
+    const dropped = UNSCOPED_RESCOPABLE_KEYS.filter(key => key in source)
+    for (const key of dropped) delete source[key]
+    warnings.push(`Unscoped per-registry settings (${dropped.join(', ')}) in "${sourceLabel}" were ignored: ` +
+      `the source's "registry" value (${JSON.stringify(source.registry)}) is not a parseable URL, so pnpm cannot pin them anywhere safe. ` +
+      'Write them URL-scoped (e.g. "//registry.example.com/:_authToken=...") to send them to a specific registry.')
+    return source
+  }
   const rescoped: string[] = []
-  const fallbackRegistry = (typeof source.registry === 'string' ? source.registry : null) ?? npmDefaults.registry
-  const nerfedRegistry = nerfDart(normalizeRegistryUrl(fallbackRegistry))
   for (const key of UNSCOPED_RESCOPABLE_KEYS) {
     if (!(key in source)) continue
     const scopedKey = `${nerfedRegistry}:${key}`
