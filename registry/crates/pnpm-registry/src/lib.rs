@@ -19,7 +19,7 @@ mod server;
 mod streaming;
 mod upstream;
 
-pub use config::Config;
+pub use config::{Config, DEFAULT_CONFIG_YAML, PackageAccess, UplinkConfig};
 pub use error::{RegistryError, Result};
 pub use policy::{AccessRule, PackagePolicies, PackagePolicy};
 pub use server::{router, serve};

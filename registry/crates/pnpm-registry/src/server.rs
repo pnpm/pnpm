@@ -6,6 +6,7 @@ use axum::extract::{DefaultBodyLimit, OriginalUri, Path, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get};
+use indexmap::IndexMap;
 use serde_json::{Value, json};
 use tower_http::trace::TraceLayer;
 
@@ -43,7 +44,10 @@ struct AppState {
 
 struct AppInner {
     cache: Cache,
-    upstream: Option<Upstream>,
+    /// One [`Upstream`] per declared uplink, keyed by the same name
+    /// used in [`Config::uplinks`]. Built once at router construction
+    /// time so each request avoids re-allocating a `ThrottledClient`.
+    upstreams: IndexMap<String, Upstream>,
     config: Config,
     users: UserStore,
     tokens: TokenStore,
@@ -59,11 +63,15 @@ struct AppInner {
 /// the `@` prefix and the literal-`-` segment.
 pub fn router(config: Config) -> Router {
     let cache = Cache::new(config.storage.clone());
-    let upstream = config.upstream.as_ref().map(|base| Upstream::new(base.clone()));
+    let upstreams: IndexMap<String, Upstream> = config
+        .uplinks
+        .iter()
+        .map(|(name, uplink)| (name.clone(), Upstream::new(uplink.url.clone())))
+        .collect();
     let state = AppState {
         inner: Arc::new(AppInner {
             cache,
-            upstream,
+            upstreams,
             config,
             users: UserStore::new(),
             tokens: TokenStore::new(),
@@ -439,7 +447,7 @@ async fn serve_tarball(
         }
     }
 
-    let Some(upstream) = state.inner.upstream.as_ref() else {
+    let Some(upstream) = resolve_upstream(state, &name) else {
         return not_found();
     };
 
@@ -707,7 +715,7 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
 /// on disk, so subsequent searches find it without another upstream
 /// hit.
 async fn augment_search_with_upstream(state: &AppState, query: &str, body: &mut Value) {
-    if state.inner.upstream.is_none() {
+    if state.inner.upstreams.is_empty() {
         return;
     }
     let Ok(name) = PackageName::parse(query) else {
@@ -1055,6 +1063,16 @@ fn wants_abbreviated(headers: &HeaderMap) -> bool {
         .is_some_and(|accept| accept.contains(ABBREVIATED_CONTENT_TYPE))
 }
 
+/// Resolve which prebuilt [`Upstream`] should serve `package`, by
+/// walking the verdaccio-style `packages` rules in declared order and
+/// looking up the resolved uplink name in [`AppInner::upstreams`].
+/// Returns `None` when no rule with a `proxy:` field matches the
+/// package, leaving the request to fall through to a not-found.
+fn resolve_upstream<'a>(state: &'a AppState, package: &PackageName) -> Option<&'a Upstream> {
+    let (uplink_name, _) = state.inner.config.resolve_uplink(package.as_str())?;
+    state.inner.upstreams.get(uplink_name)
+}
+
 /// Result of loading the packument for a package — either bytes (raw,
 /// from cache or upstream), a definite not-found, or a real error.
 enum PackumentLoad {
@@ -1067,7 +1085,7 @@ enum PackumentLoad {
 /// the cache when configured. The same logic backs both the packument
 /// and the version-manifest endpoints.
 async fn load_packument_bytes(state: &AppState, name: &PackageName) -> PackumentLoad {
-    let Some(upstream) = state.inner.upstream.as_ref() else {
+    let Some(upstream) = resolve_upstream(state, name) else {
         return match state.inner.cache.read_packument_any_age(name).await {
             Ok(Some(bytes)) => PackumentLoad::Ok(bytes),
             Ok(None) => PackumentLoad::NotFound,
