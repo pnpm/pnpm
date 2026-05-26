@@ -1,14 +1,16 @@
 use crate::{State, cli_args::add::add_package};
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pacquet_config::Config;
 use pacquet_crypto_hash::create_short_hash;
+use pacquet_fs::force_symlink_dir;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
 use serde_json::{Value, json};
 use std::{
+    collections::BTreeMap,
     ffi::OsString,
     fs,
     path::{Path, PathBuf},
@@ -40,6 +42,11 @@ pub struct DlxArgs {
     /// repeated. When omitted, the command name is the package.
     #[clap(long = "package")]
     pub package: Vec<String>,
+
+    /// Package names allowed to run lifecycle (build) scripts during
+    /// the dlx install. May be repeated.
+    #[clap(long = "allow-build")]
+    pub allow_build: Vec<String>,
 
     /// Run the command inside of a shell. Uses `/bin/sh` on UNIX and
     /// `cmd.exe` on Windows.
@@ -111,7 +118,7 @@ impl DlxArgs {
         dir: &Path,
         config: &'static mut Config,
     ) -> miette::Result<()> {
-        let DlxArgs { command, package, shell_mode } = self;
+        let DlxArgs { command, package, allow_build, shell_mode } = self;
         let Some((bin_command, args)) = command.split_first() else {
             return Err(DlxError::MissingCommand.into());
         };
@@ -127,7 +134,8 @@ impl DlxArgs {
         // cache directory.
         let cache_dir = config.cache_dir.clone();
         let max_age = config.dlx_cache_max_age;
-        let cache_key = create_cache_key(&pkgs, &config.registry);
+        let registries = build_registries_map(config);
+        let cache_key = create_cache_key(&pkgs, &registries, &allow_build);
         let extra_bin_paths = config.extra_bin_paths.clone();
 
         let dlx_command_cache_dir = cache_dir.join("dlx").join(&cache_key);
@@ -135,6 +143,13 @@ impl DlxArgs {
             dir: dlx_command_cache_dir.display().to_string(),
             source,
         })?;
+        // Canonicalize so the prepare dir carries no `..` segments. A
+        // relative `cacheDir` (e.g. `../pnpm-cache`) would otherwise
+        // let the install's workspace-root walk pass through the
+        // caller's project dir and mistake it for the dlx workspace.
+        let dlx_command_cache_dir = dunce::canonicalize(&dlx_command_cache_dir)
+            .into_diagnostic()
+            .wrap_err("canonicalizing the dlx cache directory")?;
         let cache_link = dlx_command_cache_dir.join("pkg");
 
         let cached_dir = match get_valid_cache_dir(&cache_link, max_age, SystemTime::now()) {
@@ -142,11 +157,11 @@ impl DlxArgs {
             None => {
                 let prepare_dir =
                     get_prepare_dir(&dlx_command_cache_dir, SystemTime::now(), std::process::id());
-                install_into_cache::<Reporter>(&prepare_dir, &pkgs, config).await?;
-                symlink_overwrite(&prepare_dir, &cache_link).map_err(|source| DlxError::Cache {
-                    dir: cache_link.display().to_string(),
-                    source,
-                })?;
+                install_into_cache::<Reporter>(&prepare_dir, &pkgs, &allow_build, config).await?;
+                // Best-effort: a parallel dlx process may have raced
+                // us to the link. Either link is equally fresh, so
+                // ignore the failure and run from our own prepare dir.
+                let _ = force_symlink_dir(&prepare_dir, &cache_link);
                 prepare_dir
             }
         };
@@ -166,6 +181,7 @@ impl DlxArgs {
 async fn install_into_cache<Reporter: self::Reporter + 'static>(
     prepare_dir: &Path,
     pkgs: &[String],
+    allow_build: &[String],
     config: &'static mut Config,
 ) -> miette::Result<()> {
     fs::create_dir_all(prepare_dir)
@@ -179,6 +195,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
+    // Allow requested packages to run build scripts during the install,
+    // mirroring pnpm's dlx `allowBuilds` handling.
+    for name in allow_build {
+        config.allow_builds.insert(name.clone(), true);
+    }
     let config: &Config = config;
 
     for pkg in pkgs {
@@ -241,19 +262,41 @@ fn run_bin(
     Ok(())
 }
 
+/// Build the `{ "default": registry, <alias>: url, … }` map pnpm feeds
+/// into the cache key. Mirrors `registries_map` in dlx.ts.
+fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
+    let mut map = BTreeMap::new();
+    map.insert("default".to_string(), config.registry.clone());
+    for (name, url) in &config.named_registries {
+        map.insert(name.clone(), url.clone());
+    }
+    map
+}
+
 /// Build the dlx cache key. Ports the input composition of pnpm's
 /// `createCacheKey`
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts#L384-L410>):
-/// the sorted package specs and sorted registries are hashed together.
-/// pacquet keys on the raw specs (not resolved ids) and uses
-/// [`create_short_hash`] rather than pnpm's full-length hex digest; the
-/// dlx caches are not shared between the two implementations, so the key
-/// format is not a cross-tool contract.
-fn create_cache_key(pkgs: &[String], registry: &str) -> String {
+/// the sorted package specs, sorted registries, and optional
+/// `allow_build` list are hashed together. pacquet keys on the raw specs
+/// (not resolved ids) and uses [`create_short_hash`] rather than pnpm's
+/// full-length hex digest; the dlx caches are not shared between the two
+/// implementations, so the key format is not a cross-tool contract.
+fn create_cache_key(
+    pkgs: &[String],
+    registries: &BTreeMap<String, String>,
+    allow_build: &[String],
+) -> String {
     let mut sorted: Vec<&str> = pkgs.iter().map(String::as_str).collect();
     sorted.sort_unstable();
-    let args = json!([sorted, [["default", registry]]]);
-    create_short_hash(&args.to_string())
+    let registry_pairs: Vec<(&str, &str)> =
+        registries.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    let mut args = vec![json!(sorted), json!(registry_pairs)];
+    if !allow_build.is_empty() {
+        let mut sorted_allow: Vec<&str> = allow_build.iter().map(String::as_str).collect();
+        sorted_allow.sort_unstable();
+        args.push(json!({ "allowBuild": sorted_allow }));
+    }
+    create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
 }
 
 /// Return the cache target behind `cache_link` when it is a symlink whose
@@ -360,22 +403,6 @@ fn prepend_dirs_to_path(dirs: &[PathBuf]) -> OsString {
         out.push(current);
     }
     out
-}
-
-/// Create a directory symlink at `link` pointing to `target`, replacing
-/// any existing link. Mirrors pnpm's `symlinkDir(..., { overwrite: true })`.
-fn symlink_overwrite(target: &Path, link: &Path) -> std::io::Result<()> {
-    if fs::symlink_metadata(link).is_ok() {
-        fs::remove_file(link).or_else(|_| fs::remove_dir_all(link))?;
-    }
-    #[cfg(unix)]
-    {
-        std::os::unix::fs::symlink(target, link)
-    }
-    #[cfg(windows)]
-    {
-        std::os::windows::fs::symlink_dir(target, link)
-    }
 }
 
 #[cfg(test)]

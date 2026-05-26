@@ -5,7 +5,7 @@ use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use serde_json::Value;
-use std::{collections::HashMap, env, path::Path};
+use std::{collections::HashMap, env, path::{Path, PathBuf}};
 
 #[derive(Debug, Args)]
 pub struct RunArgs {
@@ -44,6 +44,13 @@ pub enum RunError {
         help(r#"Scripts starting with "." are hidden and can only be called from other scripts."#)
     )]
     HiddenScript { script: String },
+
+    #[display("All matched scripts are hidden and cannot be run directly: {scripts}")]
+    #[diagnostic(
+        code(ERR_PNPM_HIDDEN_SCRIPT),
+        help(r#"Scripts starting with "." are hidden and can only be called from other scripts."#)
+    )]
+    AllHidden { scripts: String },
 }
 
 impl RunArgs {
@@ -59,11 +66,11 @@ impl RunArgs {
             PackageManifest::from_path(dir.join("package.json")).map_err(RunError::Manifest)?;
 
         let Some(script_name) = command else {
-            println!("{}", render_project_commands(&manifest));
+            println!("{}", render_project_commands(manifest.value()));
             return Ok(());
         };
 
-        let mut specified = specified_scripts(&manifest, &script_name);
+        let mut specified = specified_scripts(manifest.value(), &script_name);
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
@@ -88,7 +95,15 @@ impl RunArgs {
             extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
         }
 
-        let ctx = RunContext { manifest: &manifest, dir, config, extra_env: &extra_env, silent };
+        let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+        let ctx = RunContext {
+            manifest: &manifest,
+            dir,
+            init_cwd: &init_cwd,
+            config,
+            extra_env: &extra_env,
+            silent,
+        };
         for name in &specified {
             run_one_script(&ctx, name, &args)?;
         }
@@ -102,6 +117,7 @@ impl RunArgs {
 struct RunContext<'a> {
     manifest: &'a PackageManifest,
     dir: &'a Path,
+    init_cwd: &'a Path,
     config: &'a Config,
     extra_env: &'a HashMap<String, String>,
     silent: bool,
@@ -169,7 +185,7 @@ fn run_stage(
         script,
         args,
         pkg_root: ctx.dir,
-        init_cwd: ctx.dir,
+        init_cwd: ctx.init_cwd,
         extra_bin_paths: &ctx.config.extra_bin_paths,
         script_shell: ctx.config.script_shell.as_deref().map(Path::new),
         scripts_prepend_node_path: exec_scripts_prepend_node_path(
@@ -177,14 +193,16 @@ fn run_stage(
         ),
         node_execpath: None,
         npm_execpath: None,
-        user_agent: None,
+        user_agent: Some("pnpm"),
         extra_env: ctx.extra_env,
         silent: ctx.silent,
     })
     .map_err(miette::Report::new)?;
 
     if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
+        let code = status.code().unwrap_or(1);
+        eprintln!(" ELIFECYCLE  Command failed with exit code {code}.");
+        std::process::exit(code);
     }
     Ok(())
 }
@@ -204,9 +222,8 @@ fn exec_scripts_prepend_node_path(
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/runRecursive.ts#L222-L237>)
 /// plus the `start` fallback from run.ts:437-439. The `/regexp/` selector
 /// is not ported because pacquet has no regex dependency.
-fn specified_scripts(manifest: &PackageManifest, name: &str) -> Vec<String> {
+fn specified_scripts(manifest: &Value, name: &str) -> Vec<String> {
     let has_script = manifest
-        .value()
         .get("scripts")
         .and_then(Value::as_object)
         .and_then(|scripts| scripts.get(name))
@@ -236,11 +253,13 @@ fn throw_or_filter_hidden_scripts(
         return Err(RunError::HiddenScript { script: name.to_string() });
     }
     let visible: Vec<String> =
-        specified.into_iter().filter(|script| !script.starts_with('.')).collect();
-    if visible.is_empty() {
-        return Err(RunError::HiddenScript { script: name.to_string() });
+        specified.iter().filter(|script| !script.starts_with('.')).cloned().collect();
+    if !visible.is_empty() {
+        return Ok(visible);
     }
-    Ok(visible)
+    let hidden_names =
+        specified.iter().filter(|s| s.starts_with('.')).map(String::as_str).collect::<Vec<_>>();
+    Err(RunError::AllHidden { scripts: hidden_names.join(", ") })
 }
 
 /// Render the script listing printed when `pnpm run` is called without a
@@ -248,8 +267,8 @@ fn throw_or_filter_hidden_scripts(
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L348-L387>).
 /// The workspace-root section is omitted because pacquet's run has no
 /// workspace context yet.
-fn render_project_commands(manifest: &PackageManifest) -> String {
-    let scripts = manifest.value().get("scripts").and_then(Value::as_object);
+fn render_project_commands(manifest: &Value) -> String {
+    let scripts = manifest.get("scripts").and_then(Value::as_object);
     let mut lifecycle = Vec::new();
     let mut other = Vec::new();
 
@@ -298,7 +317,7 @@ fn render_commands(commands: &[(&str, &str)]) -> String {
 /// The lifecycle script names pnpm groups separately in the run listing.
 /// Mirrors `ALL_LIFECYCLE_SCRIPTS`
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L314-L346>).
-const ALL_LIFECYCLE_SCRIPTS: [&str; 31] = [
+const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
     "prepublish",
     "prepare",
     "prepublishOnly",
@@ -331,3 +350,74 @@ const ALL_LIFECYCLE_SCRIPTS: [&str; 31] = [
     "shrinkwrap",
     "postshrinkwrap",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::{RunError, render_project_commands, specified_scripts, throw_or_filter_hidden_scripts};
+    use serde_json::json;
+
+    #[test]
+    fn specified_scripts_exact_match() {
+        let manifest = json!({ "scripts": { "build": "tsc", "test": "jest" } });
+        assert_eq!(specified_scripts(&manifest, "build"), vec!["build".to_string()]);
+        assert_eq!(specified_scripts(&manifest, "test"), vec!["test".to_string()]);
+    }
+
+    #[test]
+    fn specified_scripts_start_fallback() {
+        let manifest = json!({ "scripts": { "build": "tsc" } });
+        assert_eq!(specified_scripts(&manifest, "start"), vec!["start".to_string()]);
+    }
+
+    #[test]
+    fn specified_scripts_missing_is_empty() {
+        let manifest = json!({ "scripts": { "build": "tsc" } });
+        assert!(specified_scripts(&manifest, "nonexistent").is_empty());
+    }
+
+    #[test]
+    fn hidden_filter_passes_visible_scripts() {
+        let scripts = vec!["build".to_string()];
+        assert_eq!(
+            throw_or_filter_hidden_scripts(scripts.clone(), "build").unwrap(),
+            scripts,
+        );
+    }
+
+    #[test]
+    fn hidden_filter_rejects_exact_hidden_request() {
+        let scripts = vec![".secret".to_string()];
+        let err = throw_or_filter_hidden_scripts(scripts, ".secret").unwrap_err();
+        assert!(matches!(err, RunError::HiddenScript { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn hidden_filter_all_hidden_yields_all_hidden_error() {
+        let scripts = vec![".a".to_string(), ".b".to_string()];
+        let err = throw_or_filter_hidden_scripts(scripts, "any").unwrap_err();
+        assert!(matches!(err, RunError::AllHidden { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn print_commands_groups_lifecycle_and_other() {
+        let manifest = json!({
+            "scripts": { "test": "jest", "build": "tsc", ".hidden": "secret" },
+        });
+        let output = render_project_commands(&manifest);
+        assert!(output.contains("Lifecycle scripts:"), "lifecycle header:\n{output}");
+        assert!(output.contains("  test\n    jest"), "test under lifecycle:\n{output}");
+        assert!(
+            output.contains(r#"Commands available via "pnpm run":"#),
+            "other header:\n{output}",
+        );
+        assert!(output.contains("  build\n    tsc"), "build under other:\n{output}");
+        assert!(!output.contains("hidden"), "hidden scripts are omitted:\n{output}");
+    }
+
+    #[test]
+    fn print_commands_empty_when_no_scripts() {
+        let manifest = json!({ "name": "x" });
+        let output = render_project_commands(&manifest);
+        assert_eq!(output, "There are no scripts specified.");
+    }
+}

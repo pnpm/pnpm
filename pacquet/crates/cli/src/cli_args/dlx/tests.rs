@@ -2,28 +2,61 @@ use super::{
     DlxError, create_cache_key, get_bin_name, get_prepare_dir, get_valid_cache_dir, scopeless,
 };
 use std::{
+    collections::BTreeMap,
     fs,
     time::{Duration, SystemTime},
 };
 use tempfile::tempdir;
 
+fn regs(default: &str) -> BTreeMap<String, String> {
+    let mut map = BTreeMap::new();
+    map.insert("default".to_string(), default.to_string());
+    map
+}
+
 #[test]
 fn create_cache_key_is_order_independent_and_deterministic() {
     let registry = "https://registry.npmjs.org/";
-    let key_forward = create_cache_key(&["a".to_string(), "b".to_string()], registry);
-    let key_reversed = create_cache_key(&["b".to_string(), "a".to_string()], registry);
+    let key_forward = create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[]);
+    let key_reversed = create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[]);
     assert_eq!(key_forward, key_reversed, "the key must not depend on spec order");
 
-    let key_versioned = create_cache_key(&["a@1".to_string()], registry);
+    let key_versioned = create_cache_key(&["a@1".to_string()], &regs(registry), &[]);
     assert_ne!(key_forward, key_versioned, "different specs must produce different keys");
 }
 
 #[test]
 fn create_cache_key_depends_on_registry() {
     let pkgs = ["cowsay".to_string()];
-    let key_default = create_cache_key(&pkgs, "https://registry.npmjs.org/");
-    let key_custom = create_cache_key(&pkgs, "https://example.test/");
+    let key_default = create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[]);
+    let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[]);
     assert_ne!(key_default, key_custom, "a different registry must produce a different key");
+}
+
+#[test]
+fn create_cache_key_changes_with_allow_build() {
+    let pkgs = ["cowsay".to_string()];
+    let registry = "https://registry.npmjs.org/";
+    let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[]);
+    let key_with_allow = create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()]);
+    assert_ne!(key_no_allow, key_with_allow, "allow_build must change the key");
+}
+
+#[test]
+fn create_cache_key_allow_build_is_order_independent() {
+    let pkgs = ["cowsay".to_string()];
+    let registry = "https://registry.npmjs.org/";
+    let key_forward = create_cache_key(
+        &pkgs,
+        &regs(registry),
+        &["a".to_string(), "b".to_string()],
+    );
+    let key_reversed = create_cache_key(
+        &pkgs,
+        &regs(registry),
+        &["b".to_string(), "a".to_string()],
+    );
+    assert_eq!(key_forward, key_reversed, "allow_build order must not affect the key");
 }
 
 #[test]
