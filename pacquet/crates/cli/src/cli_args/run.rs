@@ -5,7 +5,11 @@ use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use serde_json::Value;
-use std::{collections::HashMap, env, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    env,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Args)]
 pub struct RunArgs {
@@ -353,7 +357,9 @@ const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::{RunError, render_project_commands, specified_scripts, throw_or_filter_hidden_scripts};
+    use super::{
+        RunError, render_project_commands, specified_scripts, throw_or_filter_hidden_scripts,
+    };
     use serde_json::json;
 
     #[test]
@@ -378,10 +384,7 @@ mod tests {
     #[test]
     fn hidden_filter_passes_visible_scripts() {
         let scripts = vec!["build".to_string()];
-        assert_eq!(
-            throw_or_filter_hidden_scripts(scripts.clone(), "build").unwrap(),
-            scripts,
-        );
+        assert_eq!(throw_or_filter_hidden_scripts(scripts.clone(), "build").unwrap(), scripts,);
     }
 
     #[test]

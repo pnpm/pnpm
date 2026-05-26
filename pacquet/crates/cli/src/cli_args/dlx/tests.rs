@@ -46,16 +46,9 @@ fn create_cache_key_changes_with_allow_build() {
 fn create_cache_key_allow_build_is_order_independent() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let key_forward = create_cache_key(
-        &pkgs,
-        &regs(registry),
-        &["a".to_string(), "b".to_string()],
-    );
-    let key_reversed = create_cache_key(
-        &pkgs,
-        &regs(registry),
-        &["b".to_string(), "a".to_string()],
-    );
+    let key_forward = create_cache_key(&pkgs, &regs(registry), &["a".to_string(), "b".to_string()]);
+    let key_reversed =
+        create_cache_key(&pkgs, &regs(registry), &["b".to_string(), "a".to_string()]);
     assert_eq!(key_forward, key_reversed, "allow_build order must not affect the key");
 }
 
