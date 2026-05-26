@@ -101,6 +101,16 @@ declare module '@pnpm/patch-package/dist/applyPatches.js' {
   export function applyPatch (opts: any): boolean
 }
 
+declare module '@pnpm/patch-package/dist/patch/parse.js' {
+  export interface PatchFilePart {
+    type: 'file deletion' | 'file creation' | 'patch' | 'mode change' | 'rename'
+    path?: string
+    fromPath?: string
+    toPath?: string
+  }
+  export function parsePatchFile (file: string): PatchFilePart[]
+}
+
 declare module 'ramda/src/map' {
   function map <K extends string | number | symbol, V, U> (fn: (x: V) => U, obj: Record<K, V>): Record<K, U>
   export = map
