@@ -115,12 +115,6 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_TARBALL_INTEGRITY',
 ])
 
-function integrityRecoveryMessage (isIntegrityError: boolean): string {
-  return isIntegrityError
-    ? 'Refreshing the locked integrity from the registry as requested by --update-checksums. Resolution step will be performed.'
-    : 'The lockfile is broken! Resolution step will be performed to fix it.'
-}
-
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
 interface InstallMutationOptions {
@@ -1064,19 +1058,13 @@ Note that in CI environments, this setting is enabled by default.`,
         (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
         (isIntegrityError && !opts.updateChecksums)
       ) throw error
-      if (isIntegrityError) {
-        // `needsFullResolution` alone re-queries metadata; setting
-        // `project.update` would also drop preferredVersions, which
-        // is broader than --update-checksums asks for.
-        needsFullResolution = true
-      }
       // A broken lockfile may be caused by a badly resolved Git conflict
       logger.warn({
         error,
         message: error.message,
         prefix: ctx.lockfileDir,
       })
-      logger.error(new PnpmError(error.code, integrityRecoveryMessage(isIntegrityError)))
+      logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
       return { needsFullResolution }
     }
   }
