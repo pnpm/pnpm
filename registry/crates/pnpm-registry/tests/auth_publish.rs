@@ -436,7 +436,7 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(
         body_text.contains("EINTEGRITY"),
-        "error body should carry EINTEGRITY code: {body_text}"
+        "error body should carry EINTEGRITY code: {body_text}",
     );
 
     // Neither the packument nor the tarball should have been written.
@@ -472,7 +472,7 @@ async fn publish_rejects_shasum_mismatch() {
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(
         body_text.contains("EINTEGRITY"),
-        "shasum mismatch must surface EINTEGRITY: {body_text}"
+        "shasum mismatch must surface EINTEGRITY: {body_text}",
     );
     assert!(!storage.join("shasum-pkg/package.json").exists());
 }
