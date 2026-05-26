@@ -145,20 +145,22 @@ fn run_one_script(ctx: &RunContext<'_>, name: &str, args: &[String]) -> miette::
             .map(str::to_string)
     };
 
-    // `pnpm run start` with no `start` script falls back to
-    // `node server.js`, but only when `server.js` exists; otherwise pnpm
-    // raises NO_SCRIPT_OR_SERVER. pnpm probes `server.js` relative to the
-    // process cwd (`existsSync('server.js')`, runLifecycleHook.ts:79), not
-    // the project dir, so the check uses `init_cwd`.
+    // `pnpm run start` falls back to `node server.js` when there is no
+    // `start` script — pnpm's guard is `!m.scripts.start`
+    // (runLifecycleHook.ts:78), so an *empty* `start` is falsy and also
+    // falls back, not just a missing one. The fallback requires
+    // `server.js` to exist (probed against the process cwd via
+    // `existsSync('server.js')`, runLifecycleHook.ts:79, hence
+    // `init_cwd`), otherwise NO_SCRIPT_OR_SERVER.
     let main = match get_script(name) {
-        Some(script) => script,
-        None if name == "start" => {
+        Some(script) if !(name == "start" && script.is_empty()) => script,
+        _ if name == "start" => {
             if !ctx.init_cwd.join("server.js").exists() {
                 return Err(RunError::NoScriptOrServer.into());
             }
             "node server.js".to_string()
         }
-        None => return Ok(()),
+        _ => return Ok(()),
     };
 
     if ctx.config.enable_pre_post_scripts {
@@ -229,16 +231,18 @@ fn run_stage(
     .map_err(miette::Report::new)?;
 
     if !status.success() {
-        let code = status.code().unwrap_or(1);
-        // pnpm's reportLifecycleError special-cases the `test` stage
-        // (reportError.ts:371-378): "Test failed. See above for more
-        // details." rather than the exit-code line.
+        // Mirror pnpm's reportLifecycleError (reportError.ts:371-378):
+        // the `test` stage gets a fixed message; a numeric exit code is
+        // reported verbatim; a signal-terminated child (no code) is
+        // "Command failed." with no number.
         if stage == "test" {
             eprintln!("[ELIFECYCLE] Test failed. See above for more details.");
-        } else {
+        } else if let Some(code) = status.code() {
             eprintln!("[ELIFECYCLE] Command failed with exit code {code}.");
+        } else {
+            eprintln!("[ELIFECYCLE] Command failed.");
         }
-        std::process::exit(code);
+        std::process::exit(status.code().unwrap_or(1));
     }
     Ok(())
 }

@@ -117,9 +117,11 @@ pub enum DlxError {
 }
 
 impl DlxArgs {
-    /// Execute the subcommand. `dir` is the directory the spawned binary
-    /// runs in (the process working directory); the package itself is
-    /// installed into a cache directory under `config.cache_dir`.
+    /// Execute the subcommand. The package is installed into a cache
+    /// directory under `config.cache_dir`, and the resolved bin runs in
+    /// the process working directory (matching pnpm's `cwd: process.cwd()`
+    /// at dlx.ts:231). `dir` is only the fallback when the process cwd
+    /// can't be read.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         dir: &Path,
@@ -186,7 +188,10 @@ impl DlxArgs {
         let bin_name =
             if package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
 
-        run_bin(&bin_name, args, dir, bins_dir, &extra_bin_paths, shell_mode)
+        // pnpm runs the dlx bin in the process working directory
+        // (`cwd: process.cwd()`, dlx.ts:231), independent of `--dir`.
+        let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+        run_bin(&bin_name, args, &run_cwd, bins_dir, &extra_bin_paths, shell_mode)
     }
 }
 

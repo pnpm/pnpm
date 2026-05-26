@@ -129,6 +129,33 @@ fn run_start_without_script_or_server_errors() {
     drop(root);
 }
 
+/// An empty `start` script (`"start": ""`) is falsy in pnpm
+/// (`!m.scripts.start`), so it falls back to the `node server.js` path
+/// like a missing one — and with no `server.js` it must raise
+/// NO_SCRIPT_OR_SERVER rather than silently exit 0.
+#[test]
+fn run_empty_start_script_hits_server_js_guard() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "start": "" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet.with_arg("run").with_arg("start").output().expect("spawn pacquet run");
+    assert!(!output.status.success(), "empty start without server.js must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_NO_SCRIPT_OR_SERVER")
+            || stderr.contains("Missing script start or file server.js"),
+        "should surface NO_SCRIPT_OR_SERVER:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 /// With `--if-present`, the same missing script becomes a no-op
 /// and pacquet exits cleanly. Required for orchestration tools
 /// that probe optional scripts without wanting to fail the
