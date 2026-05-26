@@ -1,0 +1,139 @@
+use super::{
+    DlxError, create_cache_key, get_bin_name, get_prepare_dir, get_valid_cache_dir, scopeless,
+};
+use std::{
+    fs,
+    time::{Duration, SystemTime},
+};
+use tempfile::tempdir;
+
+#[test]
+fn create_cache_key_is_order_independent_and_deterministic() {
+    let registry = "https://registry.npmjs.org/";
+    let key_ab = create_cache_key(&["a".to_string(), "b".to_string()], registry);
+    let key_ba = create_cache_key(&["b".to_string(), "a".to_string()], registry);
+    assert_eq!(key_ab, key_ba, "the key must not depend on spec order");
+
+    let key_versioned = create_cache_key(&["a@1".to_string()], registry);
+    assert_ne!(key_ab, key_versioned, "different specs must produce different keys");
+}
+
+#[test]
+fn create_cache_key_depends_on_registry() {
+    let pkgs = ["cowsay".to_string()];
+    let key_default = create_cache_key(&pkgs, "https://registry.npmjs.org/");
+    let key_custom = create_cache_key(&pkgs, "https://example.test/");
+    assert_ne!(key_default, key_custom, "a different registry must produce a different key");
+}
+
+#[test]
+fn get_prepare_dir_encodes_time_and_pid_in_hex() {
+    let base = std::path::Path::new("/cache/dlx/key");
+    let now = SystemTime::UNIX_EPOCH + Duration::from_millis(0x1a2b);
+    let dir = get_prepare_dir(base, now, 0xff);
+    assert_eq!(dir, base.join("1a2b-ff"));
+}
+
+#[test]
+fn scopeless_strips_scope() {
+    assert_eq!(scopeless("cowsay"), "cowsay");
+    assert_eq!(scopeless("@scope/pkg"), "pkg");
+    assert_eq!(scopeless("@scope"), "@scope");
+}
+
+#[test]
+fn get_valid_cache_dir_is_none_for_missing_or_plain_dir() {
+    let dir = tempdir().expect("temp dir");
+    let missing = dir.path().join("pkg");
+    assert!(get_valid_cache_dir(&missing, 1440, SystemTime::now()).is_none());
+
+    let plain = dir.path().join("plain");
+    fs::create_dir(&plain).expect("create plain dir");
+    assert!(
+        get_valid_cache_dir(&plain, 1440, SystemTime::now()).is_none(),
+        "a non-symlink must not be treated as a valid cache",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn get_valid_cache_dir_honors_max_age() {
+    let dir = tempdir().expect("temp dir");
+    let target = dir.path().join("prepared");
+    fs::create_dir(&target).expect("create target");
+    let link = dir.path().join("pkg");
+    std::os::unix::fs::symlink(&target, &link).expect("symlink");
+
+    let mtime = fs::symlink_metadata(&link).expect("lstat").modified().expect("mtime");
+
+    // Just under the window: still valid.
+    let within = mtime + Duration::from_secs(1440 * 60 - 1);
+    assert_eq!(
+        get_valid_cache_dir(&link, 1440, within).as_deref(),
+        Some(fs::canonicalize(&target).expect("canonicalize").as_path()),
+    );
+
+    // Past the window: expired.
+    let past = mtime + Duration::from_secs(1440 * 60 + 60);
+    assert!(get_valid_cache_dir(&link, 1440, past).is_none(), "an expired link must be rejected");
+}
+
+fn write_pkg(dir: &std::path::Path, name: &str, manifest: serde_json::Value) {
+    let pkg_dir = dir.join("node_modules").join(name);
+    fs::create_dir_all(&pkg_dir).expect("create pkg dir");
+    fs::write(pkg_dir.join("package.json"), manifest.to_string()).expect("write pkg manifest");
+}
+
+fn cached_dir_with(dep: &str, manifest: serde_json::Value) -> tempfile::TempDir {
+    let dir = tempdir().expect("temp dir");
+    fs::write(
+        dir.path().join("package.json"),
+        serde_json::json!({ "dependencies": { dep: "1.0.0" } }).to_string(),
+    )
+    .expect("write root manifest");
+    write_pkg(dir.path(), dep, manifest);
+    dir
+}
+
+#[test]
+fn get_bin_name_returns_single_bin() {
+    let dir = cached_dir_with(
+        "cowsay",
+        serde_json::json!({ "name": "cowsay", "version": "1.0.0", "bin": { "cowsay": "cli.js" } }),
+    );
+    assert_eq!(get_bin_name(dir.path()).expect("bin name"), "cowsay");
+}
+
+#[test]
+fn get_bin_name_picks_the_scopeless_match_among_many() {
+    let dir = cached_dir_with(
+        "@scope/tool",
+        serde_json::json!({
+            "name": "@scope/tool",
+            "version": "1.0.0",
+            "bin": { "tool": "tool.js", "other": "other.js" },
+        }),
+    );
+    assert_eq!(get_bin_name(dir.path()).expect("bin name"), "tool");
+}
+
+#[test]
+fn get_bin_name_errors_when_no_dependency() {
+    let dir = tempdir().expect("temp dir");
+    fs::write(dir.path().join("package.json"), serde_json::json!({}).to_string())
+        .expect("write manifest");
+    assert!(matches!(get_bin_name(dir.path()), Err(DlxError::NoDep)));
+}
+
+#[test]
+fn get_bin_name_errors_on_ambiguous_bins() {
+    let dir = cached_dir_with(
+        "multi",
+        serde_json::json!({
+            "name": "multi",
+            "version": "1.0.0",
+            "bin": { "one": "one.js", "two": "two.js" },
+        }),
+    );
+    assert!(matches!(get_bin_name(dir.path()), Err(DlxError::MultipleBins { .. })));
+}

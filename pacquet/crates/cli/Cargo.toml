@@ -15,6 +15,8 @@ name = "pacquet"
 path = "src/bin/main.rs"
 
 [dependencies]
+pacquet-cmd-shim               = { workspace = true }
+pacquet-crypto-hash            = { workspace = true }
 pacquet-executor               = { workspace = true }
 pacquet-fs                     = { workspace = true }
 pacquet-lockfile               = { workspace = true }
