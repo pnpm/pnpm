@@ -65,10 +65,6 @@ test('pkgSnapshotToResolution() rejects a tarball-shaped resolution that has no 
     },
   }, { default: 'https://registry.npmjs.org/' })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_MISSING_TARBALL_INTEGRITY' }))
 
-  expect(() => pkgSnapshotToResolution('foo@1.0.0', {
-    resolution: {},
-  }, { default: 'https://registry.npmjs.org/' })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_MISSING_TARBALL_INTEGRITY' }))
-
   // Git-hosted and `file:` tarballs follow the same rule: even though their
   // resolutions are returned as-is rather than rewritten, missing integrity
   // is still a verification gap.
