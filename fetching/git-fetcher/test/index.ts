@@ -247,12 +247,12 @@ test('reject a partial commit before invoking git', async () => {
 
 test('reject a commit value that looks like a git option', async () => {
   const storeDir = temporaryDirectory()
-  const fetch = createGitFetcher({ gitShallowHosts: ['githost'], storeIndex: createStoreIndex(storeDir) }).git
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
   await expect(
     fetch(createCafsStore(storeDir),
       {
         commit: '--upload-pack=touch /tmp/pwned',
-        repo: 'file:///tmp/githost',
+        repo: 'file:///tmp/repo.git',
         type: 'git',
       }, {
         filesIndexFile: path.join(storeDir, 'index.json'),
