@@ -115,10 +115,6 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_TARBALL_INTEGRITY',
 ])
 
-function integrityRefreshOptedIn (opts: { updateChecksums?: boolean }): boolean {
-  return Boolean(opts.updateChecksums)
-}
-
 function integrityRecoveryMessage (isIntegrityError: boolean): string {
   return isIntegrityError
     ? 'Refreshing the locked integrity from the registry as requested by --update-checksums. Resolution step will be performed.'
@@ -1066,7 +1062,7 @@ Note that in CI environments, this setting is enabled by default.`,
           !isIntegrityError
         ) ||
         (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
-        (isIntegrityError && !integrityRefreshOptedIn(opts))
+        (isIntegrityError && !opts.updateChecksums)
       ) throw error
       if (isIntegrityError) {
         // `needsFullResolution` alone re-queries metadata; setting
@@ -2004,7 +2000,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (
       !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
       (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
-      !integrityRefreshOptedIn(opts)
+      !opts.updateChecksums
     ) throw error
     opts.needsFullResolution = true
     logger.warn({
