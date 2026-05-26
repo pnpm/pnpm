@@ -159,7 +159,6 @@ impl WorkspaceSettings {
         json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         string_field!(script_shell, "SCRIPT_SHELL");
         string_field!(node_options, "NODE_OPTIONS");
-        json_field!(extra_bin_paths, "EXTRA_BIN_PATHS");
         json_field!(unsafe_perm, "UNSAFE_PERM");
         json_field!(child_concurrency, "CHILD_CONCURRENCY");
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");

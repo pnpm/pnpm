@@ -147,11 +147,13 @@ fn run_one_script(ctx: &RunContext<'_>, name: &str, args: &[String]) -> miette::
 
     // `pnpm run start` with no `start` script falls back to
     // `node server.js`, but only when `server.js` exists; otherwise pnpm
-    // raises NO_SCRIPT_OR_SERVER. Mirrors runLifecycleHook.ts:77-82.
+    // raises NO_SCRIPT_OR_SERVER. pnpm probes `server.js` relative to the
+    // process cwd (`existsSync('server.js')`, runLifecycleHook.ts:79), not
+    // the project dir, so the check uses `init_cwd`.
     let main = match get_script(name) {
         Some(script) => script,
         None if name == "start" => {
-            if !ctx.dir.join("server.js").exists() {
+            if !ctx.init_cwd.join("server.js").exists() {
                 return Err(RunError::NoScriptOrServer.into());
             }
             "node server.js".to_string()
@@ -189,10 +191,13 @@ fn run_stage(
     script: &str,
     args: &[String],
 ) -> miette::Result<()> {
-    // The `npx only-allow pnpm` guard script is a no-op under pnpm, so
-    // any lifecycle stage (pre/main/post) whose body is exactly that
-    // string is skipped. Mirrors runLifecycleHook.ts:100.
-    if script == "npx only-allow pnpm" {
+    // The `npx only-allow pnpm` guard script is a no-op under pnpm, so a
+    // lifecycle stage whose final command is exactly that string is
+    // skipped. pnpm appends args *before* this check
+    // (runLifecycleHook.ts:91-100), so a stage invoked with args (which
+    // lengthen the command past the literal) is never skipped; pre/post
+    // stages always pass `args = &[]`.
+    if args.is_empty() && script == "npx only-allow pnpm" {
         return Ok(());
     }
 
@@ -218,7 +223,7 @@ fn run_stage(
 
     if !status.success() {
         let code = status.code().unwrap_or(1);
-        eprintln!(" ELIFECYCLE  Command failed with exit code {code}.");
+        eprintln!("[ELIFECYCLE] Command failed with exit code {code}.");
         std::process::exit(code);
     }
     Ok(())

@@ -218,11 +218,6 @@ pub struct WorkspaceSettings {
     /// [`Config::node_options`].
     pub node_options: Option<String>,
 
-    /// `extraBinPaths` from `pnpm-workspace.yaml`. Path-valued; relative
-    /// entries are resolved against the workspace dir. See
-    /// [`Config::extra_bin_paths`].
-    pub extra_bin_paths: Option<Vec<String>>,
-
     /// `unsafePerm` from `pnpm-workspace.yaml`. Forced to `true` on
     /// Windows in `apply_to` (matches upstream's
     /// `process.platform === 'win32'` override).
@@ -598,9 +593,6 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.node_options {
             config.node_options = Some(v);
-        }
-        if let Some(v) = self.extra_bin_paths {
-            config.extra_bin_paths = v.iter().map(|path| resolve(base_dir, path)).collect();
         }
         if let Some(v) = self.unsafe_perm {
             config.unsafe_perm = v;
