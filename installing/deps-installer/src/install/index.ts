@@ -116,16 +116,26 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 ])
 
 // Recovering from a tarball-integrity or store-content mismatch means
-// trusting the registry over the locked integrity — which is exactly what an
-// attacker who controls the registry or a proxy would need pnpm to do. We
-// only take that path when the caller explicitly asked for lockfile repair
-// (--fix-lockfile, --force) or for a resolution refresh on this project
-// (`pnpm update`, which sets `update: true` on the mutation).
+// trusting the registry over the locked integrity — which is exactly what
+// an attacker who controls the registry or a proxy would need pnpm to do.
+// We only take that path when the caller explicitly opts in:
+//
+//   - `--update-checksums`: the narrow opt-in. Says "refresh the locked
+//     integrity values from what the registry currently serves." Mirrors
+//     yarn's `--update-checksums`.
+//   - `--force`: the broad escape hatch. Already documented as a
+//     full-refresh option, so we accept it here too.
+//   - `pnpm update`, which sets `update: true` on the mutation, because
+//     the user is explicitly asking for new resolutions.
+//
+// `--fix-lockfile` deliberately does NOT bypass this check: its
+// documented purpose is filling in *missing* lockfile entries, not
+// overwriting an existing-but-mismatched integrity.
 function lockfileRepairOptedIn (
-  opts: { fixLockfile?: boolean, force?: boolean },
+  opts: { updateChecksums?: boolean, force?: boolean },
   projects: ReadonlyArray<unknown>
 ): boolean {
-  return Boolean(opts.fixLockfile || opts.force || projects.some((p) => (p as InstallMutationOptions).update))
+  return Boolean(opts.updateChecksums || opts.force || projects.some((p) => (p as InstallMutationOptions).update))
 }
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
@@ -604,6 +614,7 @@ export async function mutateModules (
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
+      opts.updateChecksums ||
       !upToDateLockfileMajorVersion ||
       opts.forceFullResolution ||
       forceResolutionFromHook

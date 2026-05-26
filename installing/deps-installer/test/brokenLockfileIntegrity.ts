@@ -14,7 +14,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from './utils/index.js'
 
-test('installation fails by default if the lockfile contains a wrong checksum, but --fix-lockfile recovers', async () => {
+test('installation fails by default if the lockfile contains a wrong checksum, but --update-checksums recovers', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
@@ -48,7 +48,7 @@ test('installation fails by default if the lockfile contains a wrong checksum, b
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ fixLockfile: true }, { retry: { retries: 0 } }))
+  }, testDefaults({ updateChecksums: true }, { retry: { retries: 0 } }))
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
 
@@ -101,7 +101,7 @@ test('installation fails by default if the lockfile contains the wrong checksum 
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ fixLockfile: true }, { retry: { retries: 0 } }))
+  }, testDefaults({ updateChecksums: true }, { retry: { retries: 0 } }))
 
   {
     const lockfile = project.readLockfile()

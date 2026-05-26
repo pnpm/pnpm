@@ -83,6 +83,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
   'fix-lockfile': Boolean,
+  'update-checksums': Boolean,
   'resolution-only': Boolean,
   recursive: Boolean,
   // `--no-save` lets `pnpm install` skip writing to package.json /
@@ -166,6 +167,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Fix broken lockfile entries automatically',
             name: '--fix-lockfile',
+          },
+          {
+            description: 'Refresh integrity checksums recorded in the lockfile from the registry. Use after a legitimate republish or when the local metadata cache is known to be stale; do not use to silence an unexpected integrity error, which may indicate a tampered package or a compromised registry mirror.',
+            name: '--update-checksums',
           },
           {
             description: 'Merge lockfiles were generated on git branch',
@@ -361,6 +366,7 @@ export type InstallCommandOptions = Pick<Config,
     remain?: string[]
   }
   fixLockfile?: boolean
+  updateChecksums?: boolean
   frozenLockfileIfExists?: boolean
   useBetaCli?: boolean
   pruneDirectDependencies?: boolean

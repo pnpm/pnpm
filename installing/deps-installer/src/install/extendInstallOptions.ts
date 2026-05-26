@@ -51,6 +51,15 @@ export interface StrictInstallOptions {
   lockfileOnly: boolean
   forceFullResolution: boolean
   fixLockfile: boolean
+  /**
+   * When true, refresh the integrity checksums recorded in the lockfile
+   * from the registry. Required to recover from a tarball-integrity
+   * mismatch against the lockfile, because pnpm refuses by default to
+   * overwrite a locked integrity with whatever the registry currently
+   * serves — that would defeat the lockfile's protection if a registry
+   * mirror or proxy is serving tampered bytes.
+   */
+  updateChecksums: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
   ignorePackageManifest: boolean
