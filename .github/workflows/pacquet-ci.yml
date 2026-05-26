@@ -265,7 +265,13 @@ jobs:
       - name: Install cargo-dylint and dylint-link
         uses: ./.github/actions/binstall
         with:
-          packages: cargo-dylint dylint-link
+          # Pin to 6.0.0 until trailofbits/dylint cuts a 6.0.2. The
+          # 6.0.1 binstall artifacts (published 2026-05-26 17:51 UTC)
+          # fail at driver bootstrap with `failed to read
+          # /home/runner/work/dylint/dylint/driver/Cargo.toml`, the
+          # path baked in by dylint's own CI checkout. Downstream
+          # runners don't have that workspace so the step aborts.
+          packages: cargo-dylint@6.0.0 dylint-link@6.0.0
 
       - name: Run dylint
         # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing
