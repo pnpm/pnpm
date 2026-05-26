@@ -272,7 +272,7 @@ impl HyperfineOptions {
             hyperfine_command.arg("--show-output");
         }
         if ignore_failure {
-            hyperfine_command.arg("--ignore-failures");
+            hyperfine_command.arg("--ignore-failure");
         }
     }
 }
