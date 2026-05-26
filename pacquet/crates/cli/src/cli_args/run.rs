@@ -134,6 +134,14 @@ struct RunContext<'a> {
 /// Run a single named script together with its `pre`/`post` companions
 /// when `enablePrePostScripts` is set. Ports `runScript`
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L395-L423>).
+///
+/// Deliberate deviation: for `run start` with no `start` script but a
+/// `prestart`/`poststart` and `enablePrePostScripts`, pnpm dereferences
+/// the undefined `scripts.start` in its `!scripts[name].includes(...)`
+/// guard and throws a `TypeError`; pacquet runs the hooks around the
+/// `node server.js` fallback instead. Replicating the upstream crash
+/// would be wrong, so the `pre`/`post` substring guard runs against the
+/// resolved `main` command here.
 fn run_one_script(ctx: &RunContext<'_>, name: &str, args: &[String]) -> miette::Result<()> {
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
