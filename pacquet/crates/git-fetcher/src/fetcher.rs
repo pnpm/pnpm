@@ -106,6 +106,12 @@ impl<'a> GitFetcher<'a> {
     }
 
     fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
+        if !is_valid_commit_hash(self.commit) {
+            return Err(GitFetcherError::InvalidCommit {
+                commit: self.commit.to_string(),
+                repo: self.repo.to_string(),
+            });
+        }
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
 
@@ -224,6 +230,13 @@ fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError 
     // `Prepare { repo, source }` variant once we have observed real
     // chains in the install reporter.
     GitFetcherError::Prepare(err)
+}
+
+/// True iff `commit` is exactly a 40-character hexadecimal git SHA.
+/// Rejects everything else (short SHAs, ref names, option-shaped
+/// strings like `--upload-pack=…`) before the value reaches `git`.
+fn is_valid_commit_hash(commit: &str) -> bool {
+    commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// True iff `repo` parses to a host that pacquet should clone via the
