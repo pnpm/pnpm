@@ -89,6 +89,17 @@ pub enum GitFetcherError {
     #[diagnostic(code(GIT_CHECKOUT_FAILED))]
     CheckoutMismatch { expected: String, received: String },
 
+    /// `resolution.commit` is not a 40-character hexadecimal SHA. A
+    /// commit value beginning with `-` would otherwise be parsed by
+    /// `git fetch` / `git checkout` as an option (e.g. `--upload-pack`),
+    /// allowing a malicious lockfile to execute arbitrary commands on
+    /// SSH or local-file transports.
+    #[display(
+        "Invalid git commit hash {commit:?} for repository {repo:?}. Expected a 40-character hexadecimal SHA."
+    )]
+    #[diagnostic(code(INVALID_GIT_COMMIT))]
+    InvalidCommit { commit: String, repo: String },
+
     #[display("I/O error during git fetch: {_0}")]
     #[diagnostic(code(pacquet_git_fetcher::io))]
     Io(#[error(source)] std::io::Error),
