@@ -174,6 +174,18 @@ pub struct InstallArgs {
     #[clap(long = "trust-lockfile")]
     pub trust_lockfile: bool,
 
+    /// Refresh the integrity checksums recorded in `pnpm-lock.yaml`
+    /// from what the registry currently serves. The one opt-in for
+    /// recovering from a tarball-integrity mismatch against the
+    /// lockfile — pacquet otherwise refuses to silently overwrite a
+    /// locked integrity (a compromised registry mirror or proxy must
+    /// not be able to substitute attacker-controlled content for a
+    /// locked version). Mirrors pnpm's `--update-checksums` and
+    /// yarn's flag of the same name. Implies skipping the frozen-
+    /// lockfile fast path; conflicts with `--frozen-lockfile`.
+    #[clap(long = "update-checksums")]
+    pub update_checksums: bool,
+
     /// Maximum number of workspace projects to process in parallel.
     /// Mirrors pnpm's `--workspace-concurrency`. Overrides the
     /// `workspaceConcurrency` value resolved from `pnpm-workspace.yaml` /
@@ -206,6 +218,7 @@ impl InstallArgs {
             offline: _,
             prefer_offline: _,
             trust_lockfile,
+            update_checksums,
             workspace_concurrency: _,
         } = self;
 
@@ -269,6 +282,7 @@ impl InstallArgs {
             ignore_manifest_check,
             skip_runtimes,
             trust_lockfile,
+            update_checksums,
             resolved_packages,
             supported_architectures,
             node_linker,

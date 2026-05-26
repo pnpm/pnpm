@@ -107,6 +107,17 @@ where
     /// override merge happens in the caller and lands here as a
     /// fully-resolved value.
     pub trust_lockfile: bool,
+    /// Refresh the integrity checksums recorded in `pnpm-lock.yaml`
+    /// from what the registry currently serves. The one opt-in for
+    /// recovering from a tarball-integrity mismatch against the
+    /// lockfile — pacquet otherwise refuses to silently overwrite a
+    /// locked integrity (a compromised registry mirror or proxy must
+    /// not be able to substitute attacker-controlled content for a
+    /// locked version). Mirrors upstream pnpm's `--update-checksums`
+    /// flag and yarn's flag of the same name. When `true`, the
+    /// frozen-lockfile fast path is skipped so the fresh-resolve
+    /// path re-queries metadata and writes the updated integrity.
+    pub update_checksums: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
     /// with the CLI per-axis overrides (`--cpu` / `--os` / `--libc`).
@@ -223,6 +234,19 @@ pub enum InstallError {
     #[diagnostic(code(pacquet_package_manager::no_importer))]
     NoImporter { importer_id: String },
 
+    /// `--frozen-lockfile` and `--update-checksums` were requested
+    /// together. The combination is contradictory: frozen mode
+    /// refuses to write the lockfile, but `--update-checksums`
+    /// exists to rewrite locked integrity values. Mirrors upstream
+    /// pnpm's `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE`
+    /// thrown from the same combination at
+    /// <https://github.com/pnpm/pnpm/blob/cfb23f8578/installing/deps-installer/src/install/index.ts#L944-L953>.
+    #[display(
+        "Cannot use --frozen-lockfile together with --update-checksums: frozen installs never rewrite pnpm-lock.yaml, but --update-checksums exists to do exactly that."
+    )]
+    #[diagnostic(code(pacquet_package_manager::frozen_lockfile_with_outdated_lockfile))]
+    FrozenLockfileWithUpdateChecksums,
+
     #[diagnostic(transparent)]
     FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
 
@@ -298,6 +322,7 @@ where
             ignore_manifest_check,
             skip_runtimes,
             trust_lockfile,
+            update_checksums,
             supported_architectures,
             node_linker,
         } = self;
@@ -593,10 +618,24 @@ where
         // the rebuild path (which throws `MISSING_HOISTED_LOCATIONS` when
         // this field is gone).
 
+        // `--update-checksums` exists to rewrite the locked integrity
+        // values from what the registry currently serves — a
+        // contradiction with `--frozen-lockfile`, which refuses to
+        // touch `pnpm-lock.yaml` at all. Surface the conflict early
+        // with a code that maps to upstream's
+        // `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE`.
+        if update_checksums && frozen_lockfile {
+            return Err(InstallError::FrozenLockfileWithUpdateChecksums);
+        }
+
         // Compute the dispatch decision once. `take_frozen_path` is true
         // for both state 1 (--frozen-lockfile) and state 2 (auto-frozen
         // via prefer-frozen-lockfile). The freshness check fires for both
         // — fatal for state 1, fall-through for state 2.
+        // `--update-checksums` short-circuits to the fresh-resolve path
+        // unconditionally: the user is asking pacquet to re-query the
+        // registry and overwrite locked integrity values, which the
+        // frozen path is designed to refuse.
         let take_frozen_path = if frozen_lockfile {
             let Some(lockfile) = lockfile else {
                 return Err(InstallError::NoLockfile);
@@ -609,6 +648,8 @@ where
             check_lockfile_freshness(lockfile, manifest, config, &catalogs, ignore_manifest_check)
                 .map_err(InstallError::from)?;
             true
+        } else if update_checksums {
+            false
         } else if let Some(lockfile) = lockfile {
             // Auto-frozen via `preferFrozenLockfile`. Skip when the
             // user opted out (`--no-prefer-frozen-lockfile` /
