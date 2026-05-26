@@ -70,6 +70,7 @@
     "safe-promise-defer": "catalog:",
     "semver": "catalog:",
     "semver-range-intersect": "catalog:",
+    "validate-npm-package-name": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
@@ -81,7 +82,8 @@
     "@pnpm/logger": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:"
+    "@types/semver": "catalog:",
+    "@types/validate-npm-package-name": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

@@ -1,20 +1,15 @@
 import { PnpmError } from '@pnpm/error'
+import validateNpmPackageName from 'validate-npm-package-name'
 
-// Aliases are joined with `node_modules` paths during install. An alias
-// containing `..`, an embedded slash beyond a single scope separator, a
-// backslash, or a null byte can escape the intended directory and let
-// transitive registry metadata write symlinks at attacker-chosen paths.
-// Allowed shapes are exactly `name` and `@scope/name`.
+// An alias is the directory name pnpm creates inside `node_modules`, so
+// it must be a valid npm package name. Anything else (path-traversal
+// shapes such as `@x/../../../../../.git/hooks`, control characters,
+// names that collide with pnpm's own `node_modules` layout such as
+// `.bin` / `.pnpm` / `node_modules`) is rejected. Matches the
+// `validForOldPackages` check `parseWantedDependency` applies to
+// CLI-given names.
 export function isValidDependencyAlias (alias: string): boolean {
-  if (typeof alias !== 'string' || alias.length === 0) return false
-  if (alias.includes('\0') || alias.includes('\\')) return false
-  const segments = alias.split('/')
-  if (segments.length > 2) return false
-  for (const segment of segments) {
-    if (segment === '' || segment === '.' || segment === '..') return false
-  }
-  if (segments.length === 2 && !segments[0].startsWith('@')) return false
-  return true
+  return typeof alias === 'string' && validateNpmPackageName(alias).validForOldPackages
 }
 
 export function assertValidDependencyAliases (
@@ -28,7 +23,7 @@ export function assertValidDependencyAliases (
         'INVALID_DEPENDENCY_NAME',
         `${parentPkgDescription} contains a dependency with an invalid name: ${JSON.stringify(alias)}`,
         {
-          hint: 'Dependency names must be a single package name or "@scope/name" — they cannot contain path-separator segments such as "..".',
+          hint: 'A dependency name must be a valid npm package name — a single `name` or `@scope/name` consisting of URL-friendly characters, with no leading `.` or `_`, and not equal to reserved names such as `node_modules`.',
         }
       )
     }

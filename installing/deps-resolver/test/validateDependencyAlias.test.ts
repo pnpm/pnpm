@@ -11,6 +11,7 @@ test.each([
   ['a_b'],
   ['a-b'],
   ['x'],
+  ['underscore'],
 ])('accepts %p', (alias) => {
   expect(isValidDependencyAlias(alias)).toBe(true)
 })
@@ -29,6 +30,14 @@ test.each([
   ['foo\0bar', 'null byte'],
   ['scope/name', 'two segments without @'],
   ['./foo', 'current dir prefix'],
+  ['.bin', 'leading dot (collides with pnpm .bin)'],
+  ['.pnpm', 'leading dot (collides with pnpm .pnpm)'],
+  ['_foo', 'leading underscore'],
+  ['node_modules', 'reserved name'],
+  ['favicon.ico', 'reserved name'],
+  ['  foo  ', 'leading/trailing whitespace'],
+  ['foo bar', 'embedded whitespace'],
+  ['foo?bar', 'non-url-friendly character'],
 ])('rejects %s (%s)', (alias) => {
   expect(isValidDependencyAlias(alias)).toBe(false)
 })

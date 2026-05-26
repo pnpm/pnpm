@@ -1,30 +1,19 @@
-//! Reject dependency aliases that, joined with a `node_modules` path,
-//! would escape the intended directory. Mirrors pnpm's
-//! [`isValidDependencyAlias`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts):
-//! only `name` and `@scope/name` shapes are accepted, and any
-//! `..`-segment, embedded backslash, or null byte is rejected.
+//! Reject dependency aliases that aren't valid npm package names —
+//! anything else, joined with a `node_modules` path, can either escape
+//! the intended directory (`@x/../../../../../.git/hooks`) or collide
+//! with pnpm's own layout (`.bin`, `.pnpm`, `node_modules`). Mirrors
+//! pnpm's
+//! [`isValidDependencyAlias`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts),
+//! which routes through the same `validate-npm-package-name`
+//! `validForOldPackages` check that `parse_wanted_dependency` applies
+//! to CLI-given names.
 
-/// `true` when `alias` is safe to join onto a `node_modules` path.
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+
+/// `true` when `alias` is a valid npm package name that pnpm can safely
+/// use as a `node_modules/<alias>` directory.
 pub fn is_valid_dependency_alias(alias: &str) -> bool {
-    if alias.is_empty() {
-        return false;
-    }
-    if alias.contains('\0') || alias.contains('\\') {
-        return false;
-    }
-    let segments: Vec<&str> = alias.split('/').collect();
-    if segments.len() > 2 {
-        return false;
-    }
-    for segment in &segments {
-        if segment.is_empty() || *segment == "." || *segment == ".." {
-            return false;
-        }
-    }
-    if segments.len() == 2 && !segments[0].starts_with('@') {
-        return false;
-    }
-    true
+    is_valid_old_npm_package_name(alias)
 }
 
 #[cfg(test)]
@@ -33,7 +22,9 @@ mod tests {
 
     #[test]
     fn accepts_valid_aliases() {
-        for alias in ["foo", "Foo", "@scope/name", "@s/x", "lodash.merge", "a_b", "a-b"] {
+        for alias in
+            ["foo", "Foo", "@scope/name", "@s/x", "lodash.merge", "a_b", "a-b", "underscore"]
+        {
             assert!(is_valid_dependency_alias(alias), "expected valid: {alias:?}");
         }
     }
@@ -54,6 +45,14 @@ mod tests {
             "foo\0bar",
             "scope/name",
             "./foo",
+            ".bin",
+            ".pnpm",
+            "_foo",
+            "node_modules",
+            "favicon.ico",
+            "  foo  ",
+            "foo bar",
+            "foo?bar",
         ] {
             assert!(!is_valid_dependency_alias(alias), "expected invalid: {alias:?}");
         }

@@ -11,12 +11,13 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-resolver       = { workspace = true }
-pacquet-catalogs-types          = { workspace = true }
-pacquet-deps-path               = { workspace = true }
-pacquet-package-manifest        = { workspace = true }
-pacquet-patching                = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
+pacquet-catalogs-resolver                 = { workspace = true }
+pacquet-catalogs-types                    = { workspace = true }
+pacquet-deps-path                         = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
+pacquet-patching                          = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-resolving-resolver-base           = { workspace = true }
 
 async-recursion = { workspace = true }
 derive_more     = { workspace = true }
