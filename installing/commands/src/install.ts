@@ -169,7 +169,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--fix-lockfile',
           },
           {
-            description: 'Refresh integrity checksums recorded in the lockfile from the registry. Use after a legitimate republish or when the local metadata cache is known to be stale; do not use to silence an unexpected integrity error, which may indicate a tampered package or a compromised registry mirror.',
+            description: 'Refresh integrity checksums recorded in the lockfile from the registry',
             name: '--update-checksums',
           },
           {

@@ -139,16 +139,14 @@ export class TarballIntegrityError extends PnpmError {
       `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
       {
         attempts: opts.attempts,
-        hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity, because that would defeat the purpose of the lockfile if the registry or a network proxy is serving tampered content.
+        hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity — that would defeat the lockfile's protection if a registry or proxy is serving tampered content.
 
-If you trust the new content (for example, the package was legitimately republished, or your local metadata cache is stale):
+If you trust the new content (legitimate republish, or stale local metadata cache):
 
-  - Run "pnpm store prune" and retry, in case only the local metadata cache is out of date.
+  - Run "pnpm store prune" and retry, in case only the metadata cache is out of date.
   - Run "pnpm install --update-checksums" to refresh the locked integrity from the registry.
 
-"--update-checksums" is the only flag that opts into overwriting a locked integrity. "--force" and "pnpm update" deliberately do not, because routine refresh commands should not silently erase the lockfile's protection.
-
-If you did not expect this package to change, treat this as a potential supply-chain issue and do not re-run with "--update-checksums" until you have verified the new content.`,
+If you did not expect this package to change, treat it as a potential supply-chain issue and verify the new content before re-running with --update-checksums.`,
       }
     )
     this.found = opts.found

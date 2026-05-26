@@ -115,21 +115,7 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_TARBALL_INTEGRITY',
 ])
 
-// Recovering from a tarball-integrity or store-content mismatch means
-// trusting the registry over the locked integrity — which is exactly what
-// an attacker who controls the registry or a proxy would need pnpm to do.
-// `--update-checksums` is the one and only opt-in: it explicitly says
-// "refresh the locked integrity values from what the registry currently
-// serves." Mirrors yarn's `--update-checksums`.
-//
-// `--force` and `pnpm update` are deliberately NOT accepted as bypasses.
-// They are routine refresh operations; users reach for them without
-// thinking about supply-chain risk, and silently overwriting a locked
-// integrity in those flows would erase the protection a committed
-// lockfile is supposed to provide. `--fix-lockfile` is also excluded
-// because its documented job is filling in *missing* lockfile entries,
-// not overwriting an existing-but-mismatched integrity.
-function lockfileRepairOptedIn (opts: { updateChecksums?: boolean }): boolean {
+function integrityRefreshOptedIn (opts: { updateChecksums?: boolean }): boolean {
   return Boolean(opts.updateChecksums)
 }
 
@@ -1080,14 +1066,13 @@ Note that in CI environments, this setting is enabled by default.`,
           !isIntegrityError
         ) ||
         (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
-        (isIntegrityError && !lockfileRepairOptedIn(opts))
+        (isIntegrityError && !integrityRefreshOptedIn(opts))
       ) throw error
       if (isIntegrityError) {
+        // `needsFullResolution` alone re-queries metadata; setting
+        // `project.update` would also drop preferredVersions, which
+        // is broader than --update-checksums asks for.
         needsFullResolution = true
-        // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-        for (const project of projects) {
-          (project as InstallMutationOptions).update = true
-        }
       }
       // A broken lockfile may be caused by a badly resolved Git conflict
       logger.warn({
@@ -2019,13 +2004,9 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (
       !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
       (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
-      !lockfileRepairOptedIn(opts)
+      !integrityRefreshOptedIn(opts)
     ) throw error
     opts.needsFullResolution = true
-    // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-    for (const project of projects) {
-      (project as InstallMutationOptions).update = true
-    }
     logger.warn({
       error,
       message: error.message,

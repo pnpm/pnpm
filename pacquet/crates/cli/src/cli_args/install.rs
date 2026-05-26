@@ -175,14 +175,8 @@ pub struct InstallArgs {
     pub trust_lockfile: bool,
 
     /// Refresh the integrity checksums recorded in `pnpm-lock.yaml`
-    /// from what the registry currently serves. The one opt-in for
-    /// recovering from a tarball-integrity mismatch against the
-    /// lockfile — pacquet otherwise refuses to silently overwrite a
-    /// locked integrity (a compromised registry mirror or proxy must
-    /// not be able to substitute attacker-controlled content for a
-    /// locked version). Mirrors pnpm's `--update-checksums` and
-    /// yarn's flag of the same name. Implies skipping the frozen-
-    /// lockfile fast path; conflicts with `--frozen-lockfile`.
+    /// from the registry. Mirrors pnpm's `--update-checksums`. Skips
+    /// the frozen-lockfile fast path; conflicts with `--frozen-lockfile`.
     #[clap(long = "update-checksums")]
     pub update_checksums: bool,
 
