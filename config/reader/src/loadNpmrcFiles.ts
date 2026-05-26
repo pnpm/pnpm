@@ -3,9 +3,12 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { envReplaceLossy } from '@pnpm/config.env-replace'
+import { nerfDart } from '@pnpm/config.nerf-dart'
+import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFileSync } from 'read-ini-file'
 
 import { isNpmrcReadableKey } from './localConfig.js'
+import { npmDefaults } from './npmDefaults.js'
 
 export interface NpmrcConfigResult {
   /**
@@ -19,8 +22,6 @@ export interface NpmrcConfigResult {
   workspaceNpmrc: Record<string, unknown>
   /** User ~/.npmrc data (for token helpers) */
   userConfig: Record<string, unknown>
-  /** ~/.config/pnpm/auth.ini data (dedicated user auth file) */
-  pnpmAuthConfig: Record<string, unknown>
   /** Resolved local prefix (CWD or nearest dir with package.json) */
   localPrefix: string
   /** Warnings generated during loading */
@@ -71,6 +72,11 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     env
   )
 
+  // Apply the same per-source rescope to CLI options so an unscoped
+  // `--_authToken` follows the same trust rule as one written into an .npmrc.
+  // We clone first to avoid mutating the caller's cliOptions object.
+  const cliOptions = rescopeUnscopedCreds({ ...opts.cliOptions }, '<command line>', warnings)
+
   // Read pnpm builtin rc + inline defaults
   const pnpmBuiltinConfig: Record<string, unknown> = {
     ...readAndFilterNpmrc(
@@ -85,7 +91,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // Handle cafile: expand to ca certs.
   // Priority: CLI > workspace > auth.ini > user > defaults
   loadCAFile([
-    opts.cliOptions,
+    cliOptions,
     workspaceNpmrc,
     pnpmAuthConfig,
     userConfig,
@@ -95,7 +101,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // Merge all sources (lowest to highest priority):
   // builtin < defaults < user < auth.ini < workspace < CLI
   const mergedConfig: Record<string, unknown> = {}
-  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, opts.cliOptions]) {
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, cliOptions]) {
     for (const [key, value] of Object.entries(source)) {
       if (isNpmrcReadableKey(key)) {
         mergedConfig[key] = value
@@ -110,7 +116,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     ...userConfig,
     ...pnpmAuthConfig,
     ...workspaceNpmrc,
-    ...opts.cliOptions,
+    ...cliOptions,
   }
 
   return {
@@ -118,17 +124,19 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     rawConfig,
     workspaceNpmrc,
     userConfig,
-    pnpmAuthConfig,
     localPrefix,
     warnings,
   }
 }
 
-// Auth keys that bind to whatever default registry the merged config settles
-// on. npm rejects these outright since npm@9 (ERR_INVALID_AUTH); pnpm keeps
-// them working for now but warns so users move to the URL-scoped form before
+// Auth keys that, when written without a `//host/` prefix, would bind to
+// whatever default registry the merged config settles on. We rewrite each
+// such key into its URL-scoped form at load time, pinning it to the
+// registry value declared in the same source. npm rejects these unscoped
+// keys outright since npm@9 (ERR_INVALID_AUTH); pnpm keeps them working
+// for now but warns so users move to the URL-scoped form themselves before
 // a future major drops support.
-const UNSCOPED_CRED_KEYS_FOR_WARNING = new Set(['_authToken', '_auth', 'username', '_password', 'tokenHelper'])
+const UNSCOPED_CRED_KEYS = ['_authToken', '_auth', 'username', '_password', 'tokenHelper'] as const
 
 function readAndFilterNpmrc (
   filePath: string,
@@ -148,7 +156,6 @@ function readAndFilterNpmrc (
 
   const npmrcDir = path.dirname(filePath)
   const result: Record<string, unknown> = {}
-  const unscopedCredKeys: string[] = []
   for (const [rawKey, rawValue] of Object.entries(raw)) {
     // Apply ${VAR} substitution to both keys and values
     const key = substituteEnv(rawKey, env, warnings)
@@ -165,17 +172,46 @@ function readAndFilterNpmrc (
         value = path.resolve(npmrcDir, value)
       }
       result[key] = value
-      if (UNSCOPED_CRED_KEYS_FOR_WARNING.has(key)) {
-        unscopedCredKeys.push(key)
-      }
     }
   }
-  if (unscopedCredKeys.length > 0) {
-    warnings.push(`Unscoped authentication credentials (${unscopedCredKeys.join(', ')}) in "${filePath}" are deprecated. ` +
-      'Scope them to a registry URL instead (e.g. "//registry.example.com/:_authToken=..."). ' +
-      'Unscoped credentials are sent to whatever default registry the merged config settles on, which can leak them across trust boundaries.')
+  return rescopeUnscopedCreds(result, filePath, warnings)
+}
+
+// Rewrite any unscoped credential keys in `source` to their URL-scoped
+// equivalents (`//host[:port]/path/:_authToken=...`) using `source.registry`
+// — or the builtin default registry if the source doesn't declare its own.
+// This pins each layer's credential to the registry that layer named (or
+// the implicit npmjs default), so a later layer overriding `registry=`
+// cannot rebind the credential to its own registry. A URL-scoped key for
+// the same registry already present in `source` wins; we never overwrite
+// an explicit scoped value.
+//
+// Each rewrite triggers a deprecation warning so users migrate to writing
+// the URL-scoped form directly. npm has rejected unscoped credentials
+// outright since `npm@9` (`ERR_INVALID_AUTH`).
+function rescopeUnscopedCreds (
+  source: Record<string, unknown>,
+  sourceLabel: string,
+  warnings: string[]
+): Record<string, unknown> {
+  const rescoped: string[] = []
+  const fallbackRegistry = (typeof source.registry === 'string' ? source.registry : null) ?? npmDefaults.registry
+  const nerfedRegistry = nerfDart(normalizeRegistryUrl(fallbackRegistry))
+  for (const key of UNSCOPED_CRED_KEYS) {
+    if (!(key in source)) continue
+    const scopedKey = `${nerfedRegistry}:${key}`
+    if (!(scopedKey in source)) {
+      source[scopedKey] = source[key]
+    }
+    delete source[key]
+    rescoped.push(key)
   }
-  return result
+  if (rescoped.length > 0) {
+    warnings.push(`Unscoped authentication credentials (${rescoped.join(', ')}) in "${sourceLabel}" are deprecated. ` +
+      `pnpm pinned them to "${nerfedRegistry}" for this run, but a future release will stop supporting unscoped credentials. ` +
+      `Write them as "${nerfedRegistry}:${rescoped[0]}=..." instead.`)
+  }
+  return source
 }
 
 // Use the lossy variant so unresolved `${VAR}` placeholders become '' (each

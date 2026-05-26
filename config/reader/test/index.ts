@@ -854,12 +854,12 @@ describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
   })
 })
 
-describe('unscoped user-level credentials vs workspace-overridden registry', () => {
-  // Regression suite for the credential disclosure: a workspace `.npmrc` that
-  // overrides `registry=` must not cause unscoped auth values from `~/.npmrc`
-  // (or `~/.config/pnpm/auth.ini`) to be sent to the workspace-selected
-  // registry. The unscoped default credential is dropped from `configByUri`
-  // in that case.
+describe('unscoped credentials are pinned to the registry declared in their source file', () => {
+  // Each .npmrc / auth.ini gets its unscoped credential keys rewritten to
+  // URL-scoped form using the same source's `registry=` value (or the npmjs
+  // default if it has none). A later layer overriding `registry=` therefore
+  // cannot rebind the credential to its own registry — the credential is
+  // already pinned to the URL its author intended.
   let originalXdg: string | undefined
   let configHome: string
   let userconfig: string
@@ -882,22 +882,26 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
     }
   })
 
-  test('drops user-level _authToken when workspace overrides the default registry', async () => {
+  test('pins user-level _authToken to that file\'s registry, never the workspace registry', async () => {
     fs.writeFileSync(userconfig, 'registry=https://trusted.example.com/\n_authToken=user-secret\n', 'utf8')
     fs.writeFileSync('.npmrc', 'registry=https://attacker.example.com/\n', 'utf8')
 
-    const { config, warnings } = await getConfig({
+    const { config } = await getConfig({
       cliOptions: { userconfig },
       env: { ...env, XDG_CONFIG_HOME: configHome },
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
     })
 
-    expect(config.configByUri).toEqual({})
-    expect(warnings.join('\n')).toMatch(/Ignoring unscoped authentication credentials/)
+    expect(config.configByUri).toMatchObject({
+      '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
+    })
+    expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
+    expect(config.configByUri['']).toBeUndefined()
   })
 
-  test('drops user-level _auth (basic) when workspace overrides the default registry', async () => {
+  test('pins user-level _auth (basic) the same way', async () => {
+    // cspell:disable-next-line
     fs.writeFileSync(userconfig, 'registry=https://trusted.example.com/\n_auth=dXNlcjpwYXNz\n', 'utf8')
     fs.writeFileSync('.npmrc', 'registry=https://attacker.example.com/\n', 'utf8')
 
@@ -908,10 +912,14 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
       workspaceDir: process.cwd(),
     })
 
-    expect(config.configByUri).toEqual({})
+    expect(config.configByUri).toMatchObject({
+      '//trusted.example.com/': { creds: { basicAuth: { username: 'user', password: 'pass' } } },
+    })
+    expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
 
-  test('drops user-level username/_password when workspace overrides the default registry', async () => {
+  test('pins user-level username/_password the same way', async () => {
+    // cspell:disable-next-line
     fs.writeFileSync(userconfig, 'registry=https://trusted.example.com/\nusername=alice\n_password=cGFzcw==\n', 'utf8')
     fs.writeFileSync('.npmrc', 'registry=https://attacker.example.com/\n', 'utf8')
 
@@ -922,10 +930,17 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
       workspaceDir: process.cwd(),
     })
 
-    expect(config.configByUri).toEqual({})
+    expect(config.configByUri).toMatchObject({
+      '//trusted.example.com/': { creds: { basicAuth: { username: 'alice', password: 'pass' } } },
+    })
+    expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
 
-  test('drops credentials from auth.ini when workspace overrides the default registry', async () => {
+  test('auth.ini with no registry of its own falls back to the npmjs default', async () => {
+    // The split-file case: ~/.npmrc declares a registry but no creds; auth.ini
+    // declares an unscoped credential with no registry. Each file rescopes in
+    // isolation, so the credential pins to the builtin npmjs default — NOT to
+    // whatever the workspace later overrides the merged registry to.
     fs.writeFileSync(userconfig, 'registry=https://trusted.example.com/\n', 'utf8')
     fs.writeFileSync(
       path.join(configHome, 'pnpm', 'auth.ini'),
@@ -941,10 +956,15 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
       workspaceDir: process.cwd(),
     })
 
-    expect(config.configByUri).toEqual({})
+    expect(config.configByUri).toMatchObject({
+      '//registry.npmjs.org/': { creds: { authToken: 'user-secret' } },
+    })
+    expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
+    expect(config.configByUri['//trusted.example.com/']).toBeUndefined()
+    expect(config.configByUri['']).toBeUndefined()
   })
 
-  test('keeps unscoped credentials when no workspace .npmrc overrides the registry', async () => {
+  test('user-level credentials work when no workspace .npmrc exists', async () => {
     fs.writeFileSync(userconfig, 'registry=https://trusted.example.com/\n_authToken=user-secret\n', 'utf8')
 
     const { config } = await getConfig({
@@ -955,27 +975,11 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
     })
 
     expect(config.configByUri).toMatchObject({
-      '': { creds: { authToken: 'user-secret' } },
+      '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
     })
   })
 
-  test('keeps unscoped credentials when workspace .npmrc re-declares the same registry', async () => {
-    fs.writeFileSync(userconfig, 'registry=https://shared.example.com/\n_authToken=user-secret\n', 'utf8')
-    fs.writeFileSync('.npmrc', 'registry=https://shared.example.com/\n', 'utf8')
-
-    const { config } = await getConfig({
-      cliOptions: { userconfig },
-      env: { ...env, XDG_CONFIG_HOME: configHome },
-      packageManager: { name: 'pnpm', version: '1.0.0' },
-      workspaceDir: process.cwd(),
-    })
-
-    expect(config.configByUri).toMatchObject({
-      '': { creds: { authToken: 'user-secret' } },
-    })
-  })
-
-  test('keeps workspace-supplied unscoped credentials (committer chose this)', async () => {
+  test('workspace-supplied unscoped credentials pin to the workspace registry', async () => {
     fs.writeFileSync(userconfig, '', 'utf8')
     fs.writeFileSync('.npmrc', 'registry=https://workspace.example.com/\n_authToken=workspace-token\n', 'utf8')
 
@@ -987,11 +991,12 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
     })
 
     expect(config.configByUri).toMatchObject({
-      '': { creds: { authToken: 'workspace-token' } },
+      '//workspace.example.com/': { creds: { authToken: 'workspace-token' } },
     })
+    expect(config.configByUri['']).toBeUndefined()
   })
 
-  test('keeps URL-scoped credentials regardless of registry override', async () => {
+  test('explicit URL-scoped credentials pass through unchanged', async () => {
     fs.writeFileSync(
       userconfig,
       'registry=https://trusted.example.com/\n//trusted.example.com/:_authToken=user-secret\n',
@@ -1012,6 +1017,25 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
     expect(config.configByUri['']).toBeUndefined()
     // URL-scoped tokens should NOT trigger the deprecation warning.
     expect(warnings.join('\n')).not.toMatch(/deprecated/i)
+  })
+
+  test('CLI --registry override does not pull an unscoped user-level token along', async () => {
+    // Same trust boundary as the workspace case: an unscoped token is ambient
+    // and shouldn't follow whatever registry the CLI happens to point at.
+    fs.writeFileSync(userconfig, '_authToken=user-secret\n', 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: { userconfig, registry: 'https://attacker.example.com/' },
+      env: { ...env, XDG_CONFIG_HOME: configHome },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    // The token rescoped to the npmjs default when the user file was read.
+    expect(config.configByUri).toMatchObject({
+      '//registry.npmjs.org/': { creds: { authToken: 'user-secret' } },
+    })
+    expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
 })
 
