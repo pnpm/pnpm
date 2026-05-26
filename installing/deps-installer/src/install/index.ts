@@ -1423,6 +1423,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
       forceFullResolution,
+      updateChecksums: opts.updateChecksums,
       ignoreScripts: opts.ignoreScripts,
       hooks: {
         readPackage: opts.readPackageHook,

@@ -386,6 +386,7 @@ export type ResolveFromNpmOptions = {
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   update?: false | 'compatible' | 'latest'
+  updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
@@ -501,6 +502,7 @@ async function resolveNpm (
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
       includeLatestTag: opts.update === 'latest',
+      updateChecksums: opts.updateChecksums,
       optional: wantedDependency.optional,
     })
   } catch (err: any) { // eslint-disable-line
@@ -736,6 +738,7 @@ async function pickFromSimpleRegistry (
     preferredVersionSelectors: opts.preferredVersions?.[spec.name],
     registry,
     includeLatestTag: opts.update === 'latest',
+    updateChecksums: opts.updateChecksums,
     optional: wantedDependency.optional,
   })
   if (pickedPackage == null) {
