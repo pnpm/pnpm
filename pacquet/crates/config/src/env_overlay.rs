@@ -158,6 +158,7 @@ impl WorkspaceSettings {
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
         json_field!(unsafe_perm, "UNSAFE_PERM");
         json_field!(child_concurrency, "CHILD_CONCURRENCY");
+        json_field!(workspace_concurrency, "WORKSPACE_CONCURRENCY");
         json_field!(git_shallow_hosts, "GIT_SHALLOW_HOSTS");
         json_field!(supported_architectures, "SUPPORTED_ARCHITECTURES");
         json_field!(ignored_optional_dependencies, "IGNORED_OPTIONAL_DEPENDENCIES");
@@ -251,6 +252,37 @@ mod tests {
         assert_eq!(
             parse_json_or_string::<ScriptsPrependNodePath>("warn-only"),
             Some(ScriptsPrependNodePath::WarnOnly),
+        );
+    }
+
+    /// `PNPM_CONFIG_WORKSPACE_CONCURRENCY` parses as a JSON number
+    /// into the signed `workspace_concurrency` slot — including the
+    /// negative-offset form that upstream's `getWorkspaceConcurrency`
+    /// reads as `parallelism - |value|`. The uppercase env name is
+    /// honoured (the lowercase `pnpm_config_*` form is covered by the
+    /// shared [`read_env`] helper).
+    #[test]
+    fn workspace_concurrency_env_var_parses_signed_number() {
+        struct EnvPositive;
+        impl EnvVar for EnvPositive {
+            fn var(name: &str) -> Option<String> {
+                (name == "PNPM_CONFIG_WORKSPACE_CONCURRENCY").then(|| "6".to_owned())
+            }
+        }
+        assert_eq!(
+            WorkspaceSettings::from_pnpm_config_env::<EnvPositive>().workspace_concurrency,
+            Some(6),
+        );
+
+        struct EnvNegative;
+        impl EnvVar for EnvNegative {
+            fn var(name: &str) -> Option<String> {
+                (name == "PNPM_CONFIG_WORKSPACE_CONCURRENCY").then(|| "-2".to_owned())
+            }
+        }
+        assert_eq!(
+            WorkspaceSettings::from_pnpm_config_env::<EnvNegative>().workspace_concurrency,
+            Some(-2),
         );
     }
 

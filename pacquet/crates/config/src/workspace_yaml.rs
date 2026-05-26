@@ -217,6 +217,17 @@ pub struct WorkspaceSettings {
     /// `parallelism - |value|`) round-trip cleanly.
     pub child_concurrency: Option<i32>,
 
+    /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
+    /// `config.yaml`. Resolved through
+    /// [`crate::resolve_child_concurrency`] in `apply_to`, the same
+    /// way `childConcurrency` is — both upstream settings run through
+    /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
+    /// Signed `i32` so negative values (interpreted as
+    /// `parallelism - |value|`) round-trip cleanly. A genuine
+    /// config-file key (so it is kept, not cleared, in
+    /// [`Self::clear_workspace_only_fields`]).
+    pub workspace_concurrency: Option<i32>,
+
     /// `gitShallowHosts` from `pnpm-workspace.yaml`. Overrides
     /// [`Config::git_shallow_hosts`] wholesale when set (mirrors
     /// pnpm's settings precedence, where `pnpm-workspace.yaml`
@@ -587,6 +598,13 @@ impl WorkspaceSettings {
         // negative) goes through the upstream resolver.
         if let Some(v) = self.child_concurrency {
             config.child_concurrency = resolve_child_concurrency(Some(v));
+        }
+        // `workspaceConcurrency` resolves through the same upstream
+        // `getWorkspaceConcurrency` as `childConcurrency`; `None`
+        // keeps the smart-default, `Some(n)` (including negative)
+        // goes through the resolver.
+        if let Some(v) = self.workspace_concurrency {
+            config.workspace_concurrency = resolve_child_concurrency(Some(v));
         }
         if let Some(v) = self.supported_architectures {
             config.supported_architectures = Some(v);

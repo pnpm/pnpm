@@ -173,6 +173,21 @@ pub struct InstallArgs {
     /// Added for [pnpm/pnpm#11860](https://github.com/pnpm/pnpm/issues/11860).
     #[clap(long = "trust-lockfile")]
     pub trust_lockfile: bool,
+
+    /// Maximum number of workspace projects to process in parallel.
+    /// Mirrors pnpm's `--workspace-concurrency`. Overrides the
+    /// `workspaceConcurrency` value resolved from `pnpm-workspace.yaml` /
+    /// global `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY` for
+    /// this invocation. A non-positive value is read as
+    /// `parallelism - |value|` (floored at 1), matching upstream's
+    /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
+    /// `None` (flag absent) leaves the config-resolved value in place.
+    ///
+    /// Applied to [`pacquet_config::Config::workspace_concurrency`] at
+    /// the CLI dispatch in [`crate::cli_args::CliArgs::run`]; see that
+    /// field for why it has no consumption point on `install` yet.
+    #[clap(long = "workspace-concurrency")]
+    pub workspace_concurrency: Option<i32>,
 }
 
 impl InstallArgs {
@@ -191,6 +206,7 @@ impl InstallArgs {
             offline: _,
             prefer_offline: _,
             trust_lockfile,
+            workspace_concurrency: _,
         } = self;
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
@@ -262,6 +278,23 @@ impl InstallArgs {
         .wrap_err("installing dependencies")?;
 
         Ok(())
+    }
+
+    /// Effective `workspaceConcurrency` for this invocation: the
+    /// `--workspace-concurrency` flag when passed (resolved through
+    /// [`pacquet_config::resolve_child_concurrency`], so a non-positive
+    /// value means `parallelism - |value|`, floored at 1), otherwise
+    /// the already-resolved `config_value` from `pnpm-workspace.yaml` /
+    /// global `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`.
+    ///
+    /// Mirrors upstream's final `workspaceConcurrency =
+    /// getWorkspaceConcurrency(...)` pass at
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L641>.
+    pub(crate) fn resolve_workspace_concurrency(&self, config_value: u32) -> u32 {
+        match self.workspace_concurrency {
+            Some(value) => pacquet_config::resolve_child_concurrency(Some(value)),
+            None => config_value,
+        }
     }
 }
 

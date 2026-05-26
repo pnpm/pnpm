@@ -24,7 +24,8 @@ use std::{
 
 pub use crate::defaults::{
     available_parallelism, default_git_shallow_hosts, default_unsafe_perm,
-    default_virtual_store_dir_max_length, is_unsafe_perm_posix, resolve_child_concurrency,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
+    resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
@@ -775,6 +776,45 @@ pub struct Config {
     /// [`runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L124).
     #[default(_code = "default_child_concurrency()")]
     pub child_concurrency: u32,
+
+    /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
+    /// `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`, overridable
+    /// per-invocation by the `--workspace-concurrency` CLI flag. The
+    /// maximum number of workspace projects pnpm processes in parallel
+    /// during a recursive operation. Resolved through
+    /// [`resolve_child_concurrency`] (upstream's
+    /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34))
+    /// so a non-positive yaml/CLI value is read as
+    /// `parallelism - |value|` (floored at 1).
+    ///
+    /// Default: `min(4, availableParallelism())`, matching upstream's
+    /// [`getDefaultWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L21-L23)
+    /// default at
+    /// [`config/reader/src/index.ts:208`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L208).
+    ///
+    /// Parsed and stored for parity with pnpm's config surface.
+    /// pacquet's frozen-lockfile install materializes the whole
+    /// workspace in a single shared pass rather than one project at a
+    /// time, so there is no per-project parallel loop for this limit
+    /// to throttle yet — the same "read now, consume as the
+    /// architecture lands" posture as [`Self::prefer_offline`].
+    #[default(_code = "default_workspace_concurrency()")]
+    pub workspace_concurrency: u32,
+
+    /// `--recursive` / `-r`. When set, a command operates on every
+    /// project in the workspace rather than only the project in the
+    /// current directory. Mirrors pnpm's CLI-only
+    /// [`recursive`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts#L130)
+    /// boolean: it is not a `.npmrc` / `pnpm-workspace.yaml` key, so
+    /// the yaml / env overlay never populates it — the CLI layer sets
+    /// it from the flag.
+    ///
+    /// pacquet's install already spans the whole workspace (it reads
+    /// every importer from the shared lockfile), so the flag is a
+    /// surface no-op on `install` today. Stored for parity and for
+    /// future commands where recursive vs. single-project selection
+    /// diverges.
+    pub recursive: bool,
 
     /// Git host names where pacquet should clone via `git init` +
     /// `git remote add` + `git fetch --depth 1 origin <commit>` instead
