@@ -74,7 +74,7 @@ function preservingGitHosted<T extends { tarball?: string, integrity: string }> 
 // Inlined to avoid pulling @pnpm/fetching.pick-fetcher into the lockfile-utils
 // dep graph. Used as a fallback when callers haven't pre-set the
 // `gitHosted` field on TarballResolution.
-function isGitHostedTarballUrl (url: string): boolean {
+export function isGitHostedTarballUrl (url: string): boolean {
   return (
     url.startsWith('https://codeload.github.com/') ||
     url.startsWith('https://bitbucket.org/') ||
