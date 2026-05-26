@@ -1,6 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
+
 #[cfg(unix)]
 use std::fs;
 
@@ -61,7 +62,13 @@ fn exec_errors_when_no_command_given() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
     let output = pacquet.with_arg("exec").output().expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success(), "exec with no command must fail");
+    assert!(
+        stderr.contains("requires a command to run"),
+        "the failure must be the missing-command diagnostic, not an incidental crash",
+    );
 
     drop(root);
 }
@@ -77,7 +84,13 @@ fn exec_errors_when_command_not_found() {
         .with_arg("definitely-not-a-real-binary-xyzzy")
         .output()
         .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success(), "a missing command must fail");
+    assert!(
+        stderr.contains("definitely-not-a-real-binary-xyzzy") && stderr.contains("not found"),
+        "the failure must name the missing command, not be an incidental crash",
+    );
 
     drop(root);
 }
