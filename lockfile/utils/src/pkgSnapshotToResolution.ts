@@ -1,6 +1,7 @@
 import url from 'node:url'
 
 import * as dp from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import type { Registries } from '@pnpm/types'
@@ -13,10 +14,24 @@ export function pkgSnapshotToResolution (
   pkgSnapshot: PackageSnapshot,
   registries: Registries
 ): Resolution {
+  const resolution = pkgSnapshot.resolution as TarballResolution
+  // Tarball-shaped resolutions (no `type` field) must carry `integrity`.
+  // Without it the worker has nothing to verify the downloaded bytes
+  // against and would mint a fresh integrity from whatever the URL
+  // returned, so an attacker who can both alter the lockfile and serve
+  // content at the referenced URL would otherwise have a tampered package
+  // installed without detection. Pacquet enforces the same invariant via
+  // `pacquet_package_manager::missing_tarball_integrity`.
+  if (resolution.type == null && resolution.integrity == null) {
+    throw new PnpmError('MISSING_TARBALL_INTEGRITY',
+      `Cannot install package "${depPath}": its lockfile entry has no "integrity" field, so pnpm cannot verify the downloaded tarball.`,
+      { hint: 'The lockfile may be corrupted or have been tampered with. Restore it from a trusted source, or delete it and re-run installation without --frozen-lockfile to regenerate.' }
+    )
+  }
   if (
-    Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
-    (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||
-    (pkgSnapshot.resolution as TarballResolution).gitHosted === true
+    Boolean(resolution.type) ||
+    resolution.tarball?.startsWith('file:') ||
+    resolution.gitHosted === true
   ) {
     return pkgSnapshot.resolution as Resolution
   }
