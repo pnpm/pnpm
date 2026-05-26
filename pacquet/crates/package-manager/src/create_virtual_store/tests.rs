@@ -1,5 +1,6 @@
 use super::{
-    emit_warm_snapshot_progress, integrity_equal, snapshot_cache_key, snapshot_deps_equal,
+    CreateVirtualStoreError, InstallPackageBySnapshotError, emit_warm_snapshot_progress,
+    integrity_equal, snapshot_cache_key, snapshot_deps_equal,
 };
 use pacquet_lockfile::{
     GitResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
@@ -252,4 +253,53 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
         Some(format!("{pkg}\tbuilt")),
         "git-hosted tarball resolutions must route through gitHostedStoreIndexKey",
     );
+}
+
+/// A `Tarball` resolution that lacks `integrity` is what a tampered
+/// lockfile (one whose `integrity:` line was stripped) looks like on
+/// the read side. `snapshot_cache_key` must reject it upfront with
+/// the `MissingTarballIntegrity` variant so the orchestrator
+/// short-circuits before the warm rayon batch runs — without this
+/// guard a malformed lockfile would do up to ~6 s of warm-batch
+/// linking before the canonical install-side check fires (see the
+/// rationale on `snapshot_cache_key`). Mirrors the upstream guard
+/// landed alongside pnpm/pnpm#11966 at
+/// `lockfile/utils/src/pkgSnapshotToResolution.ts`.
+#[test]
+fn snapshot_cache_key_rejects_tarball_without_integrity() {
+    let pkg = key("foo", "1.0.0");
+    let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
+
+    let err =
+        snapshot_cache_key(&pkg, &packages).expect_err("missing integrity must reject upfront");
+    assert!(
+        matches!(
+            &err,
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::MissingTarballIntegrity { package_key },
+            ) if package_key == &pkg.to_string(),
+        ),
+        "expected MissingTarballIntegrity for `{pkg}`, got {err:?}",
+    );
+}
+
+fn tarball_metadata_without_integrity() -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
+            integrity: None,
+            git_hosted: None,
+            path: None,
+        }),
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
 }
