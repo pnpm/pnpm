@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use clap::Parser;
@@ -10,33 +10,29 @@ use pnpm_registry::{Config, serve};
 #[derive(Debug, Parser)]
 #[command(name = "pnpm-registry", version, about = "pnpm-compatible npm registry server")]
 struct Args {
+    /// Path to a verdaccio-shaped YAML config (storage, uplinks,
+    /// packages). When omitted, the bundled default config is used.
+    #[arg(short = 'c', long)]
+    config: Option<PathBuf>,
+
     /// Address to bind to.
     #[arg(long, default_value = "127.0.0.1:4873")]
     listen: SocketAddr,
 
-    /// Upstream npm registry to proxy and cache from. Ignored when
-    /// `--static` is set.
-    #[arg(long, default_value = "https://registry.npmjs.org")]
-    upstream: String,
-
-    /// Storage directory (verdaccio-shaped). In proxy mode this
-    /// doubles as the cache; in static mode it's the source of truth.
-    #[arg(long, default_value = "./storage")]
-    storage: PathBuf,
-
-    /// Serve `--storage` verbatim with no upstream — useful for
-    /// running against a pre-populated verdaccio store (e.g.
-    /// `@pnpm/registry-mock`'s `registry/storage-cache`).
-    #[arg(long = "static")]
-    static_serve: bool,
+    /// Override the storage path from the loaded config (bundled or
+    /// `-c`). Useful for tests and benchmarks that want their own
+    /// cache directory without writing a custom YAML.
+    #[arg(long)]
+    storage: Option<PathBuf>,
 
     /// URL clients should use to reach this server. Used when
-    /// rewriting `dist.tarball` URLs in served packuments.
+    /// rewriting `dist.tarball` URLs in served packuments. Defaults
+    /// to `http://<listen>`.
     #[arg(long)]
     public_url: Option<String>,
 
     /// Seconds before a cached packument is considered stale and
-    /// refetched. Ignored in static mode.
+    /// refetched.
     #[arg(long, default_value_t = 300)]
     packument_ttl_secs: u64,
 }
@@ -50,15 +46,13 @@ async fn main() -> miette::Result<()> {
         .init();
 
     let args = Args::parse();
-    let mut config = if args.static_serve {
-        Config::static_serve(args.listen, args.storage)
-    } else {
-        let mut config = Config::proxy(args.listen, args.storage);
-        config.upstream = Some(args.upstream);
-        config
+    let mut config = match args.config.as_deref() {
+        Some(path) => Config::from_yaml(path, args.listen, args.public_url.clone())
+            .map_err(|err| miette::miette!("load {}: {err}", path.display()))?,
+        None => Config::from_default_yaml(Path::new("."), args.listen, args.public_url.clone()),
     };
-    if let Some(url) = args.public_url {
-        config.public_url = url;
+    if let Some(storage) = args.storage {
+        config.storage = storage;
     }
     config.packument_ttl = Duration::from_secs(args.packument_ttl_secs);
 

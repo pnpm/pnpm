@@ -25,9 +25,11 @@ base64             = { workspace = true }
 clap               = { workspace = true }
 derive_more        = { workspace = true }
 futures-util       = { workspace = true }
+indexmap           = { workspace = true }
 miette             = { workspace = true }
 reqwest            = { workspace = true }
 serde              = { workspace = true }
+serde-saphyr       = { workspace = true }
 serde_json         = { workspace = true }
 sha2               = { workspace = true }
 tokio              = { workspace = true }

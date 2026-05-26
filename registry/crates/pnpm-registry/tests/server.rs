@@ -14,7 +14,11 @@ use pnpm_registry::{Config, router};
 fn config_for(upstream: &str, storage: std::path::PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.upstream = Some(upstream.to_string());
+    config
+        .uplinks
+        .get_mut("npmjs")
+        .expect("default `npmjs` uplink")
+        .url = upstream.to_string();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_secs(60);
     config

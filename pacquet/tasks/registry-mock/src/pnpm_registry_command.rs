@@ -83,10 +83,12 @@ pub fn pnpm_registry_command(port: u16) -> Command {
         eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
     }
     let mut cmd = Command::new(bin);
+    // `pnpm-registry` defaults to its bundled verdaccio-shaped config
+    // (npmjs uplink + `**` proxy rule), which matches what the mock
+    // needs — no `-c` override required. We only pin the runtime
+    // bits the bundled config can't know about.
     cmd.arg("--storage")
         .arg(runtime_storage())
-        .arg("--upstream")
-        .arg("https://registry.npmjs.org")
         .arg("--packument-ttl-secs")
         .arg("31536000")
         .arg("--listen")
