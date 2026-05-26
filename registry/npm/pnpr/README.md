@@ -1,9 +1,9 @@
 # @pnpm/pnpr
 
-A pnpm-compatible npm registry server, written in Rust. Plays a similar
-role to [verdaccio](https://verdaccio.org/) — runs locally, proxies
-public packages from a configured upstream, and lets you publish
-private ones.
+A pnpm-compatible npm registry server, written in Rust. Speaks the npm
+registry protocol, so any npm-compatible client (pnpm, npm, yarn) can
+talk to it. Proxies packages from a configured upstream like
+npmjs.org and serves them with its own auth and access controls.
 
 Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under
 [`registry/`](https://github.com/pnpm/pnpm/tree/main/registry).
