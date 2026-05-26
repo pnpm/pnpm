@@ -3,16 +3,16 @@ const { platform, arch, env } = process;
 
 const PLATFORMS = {
   win32: {
-    x64: "@pnpm/registry.win32-x64/pnpm-registry.exe",
-    arm64: "@pnpm/registry.win32-arm64/pnpm-registry.exe",
+    x64: "@pnpm/pnpr.win32-x64/pnpr.exe",
+    arm64: "@pnpm/pnpr.win32-arm64/pnpr.exe",
   },
   darwin: {
-    x64: "@pnpm/registry.darwin-x64/pnpm-registry",
-    arm64: "@pnpm/registry.darwin-arm64/pnpm-registry",
+    x64: "@pnpm/pnpr.darwin-x64/pnpr",
+    arm64: "@pnpm/pnpr.darwin-arm64/pnpr",
   },
   linux: {
-    x64: "@pnpm/registry.linux-x64/pnpm-registry",
-    arm64: "@pnpm/registry.linux-arm64/pnpm-registry",
+    x64: "@pnpm/pnpr.linux-x64/pnpr",
+    arm64: "@pnpm/pnpr.linux-arm64/pnpr",
   },
 };
 
@@ -35,7 +35,7 @@ if (binPath) {
   process.exitCode = result.status;
 } else {
   console.error(
-    "The pnpm-registry package doesn't ship with prebuilt binaries for your platform yet. " +
+    "The @pnpm/pnpr package doesn't ship with prebuilt binaries for your platform yet. " +
     "You can create an issue at https://github.com/pnpm/pnpm/issues for support."
   );
   process.exitCode = 1;

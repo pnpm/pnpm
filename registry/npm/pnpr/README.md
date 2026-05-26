@@ -1,4 +1,4 @@
-# pnpm-registry
+# @pnpm/pnpr
 
 A pnpm-compatible npm registry server, written in Rust.
 
@@ -7,14 +7,14 @@ Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under [`registry/`](h
 ## Install
 
 ```sh
-pnpm add -g pnpm-registry
+pnpm add -g @pnpm/pnpr
 ```
 
 The wrapper resolves to the native binary published under
-`@pnpm/registry.<platform>-<arch>` (e.g. `@pnpm/registry.linux-x64`).
+`@pnpm/pnpr.<platform>-<arch>` (e.g. `@pnpm/pnpr.linux-x64`).
 
 ## Usage
 
 ```sh
-pnpm-registry --help
+pnpr --help
 ```

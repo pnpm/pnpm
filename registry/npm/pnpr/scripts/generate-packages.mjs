@@ -5,12 +5,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 
-const BIN_NAME = "pnpm-registry";
+const BIN_NAME = "pnpr";
 // Per-platform binary packages live under the `@pnpm` scope with a
-// `registry.` name prefix, e.g. `@pnpm/registry.linux-x64`. The main
-// wrapper package is unscoped (`pnpm-registry`).
+// `pnpr.` name prefix, e.g. `@pnpm/pnpr.linux-x64`. The main wrapper
+// package is `@pnpm/pnpr`.
 const NATIVE_SCOPE = "@pnpm";
-const NATIVE_NAME_PREFIX = "registry";
+const NATIVE_NAME_PREFIX = "pnpr";
 const REGISTRY_NPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(REGISTRY_NPM_ROOT, "..");
 const REPO_ROOT = resolve(PACKAGES_ROOT, "../..");
