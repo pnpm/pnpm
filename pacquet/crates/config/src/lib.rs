@@ -777,11 +777,11 @@ pub struct Config {
     #[default(_code = "default_child_concurrency()")]
     pub child_concurrency: u32,
 
-    /// `workspaceConcurrency` from `.npmrc` / `pnpm-workspace.yaml` /
-    /// `PNPM_CONFIG_WORKSPACE_CONCURRENCY`, overridable per-invocation
-    /// by the `--workspace-concurrency` CLI flag. The maximum number
-    /// of workspace projects pnpm processes in parallel during a
-    /// recursive operation. Resolved through
+    /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
+    /// `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`, overridable
+    /// per-invocation by the `--workspace-concurrency` CLI flag. The
+    /// maximum number of workspace projects pnpm processes in parallel
+    /// during a recursive operation. Resolved through
     /// [`resolve_child_concurrency`] (upstream's
     /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34))
     /// so a non-positive yaml/CLI value is read as

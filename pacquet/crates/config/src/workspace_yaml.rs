@@ -217,8 +217,8 @@ pub struct WorkspaceSettings {
     /// `parallelism - |value|`) round-trip cleanly.
     pub child_concurrency: Option<i32>,
 
-    /// `workspaceConcurrency` from `pnpm-workspace.yaml` /
-    /// `.npmrc` / global `config.yaml`. Resolved through
+    /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
+    /// `config.yaml`. Resolved through
     /// [`crate::resolve_child_concurrency`] in `apply_to`, the same
     /// way `childConcurrency` is — both upstream settings run through
     /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).

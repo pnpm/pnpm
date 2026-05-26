@@ -176,8 +176,8 @@ pub struct InstallArgs {
 
     /// Maximum number of workspace projects to process in parallel.
     /// Mirrors pnpm's `--workspace-concurrency`. Overrides the
-    /// `workspaceConcurrency` value resolved from `.npmrc` /
-    /// `pnpm-workspace.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY` for
+    /// `workspaceConcurrency` value resolved from `pnpm-workspace.yaml` /
+    /// global `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY` for
     /// this invocation. A non-positive value is read as
     /// `parallelism - |value|` (floored at 1), matching upstream's
     /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
@@ -284,8 +284,8 @@ impl InstallArgs {
     /// `--workspace-concurrency` flag when passed (resolved through
     /// [`pacquet_config::resolve_child_concurrency`], so a non-positive
     /// value means `parallelism - |value|`, floored at 1), otherwise
-    /// the already-resolved `config_value` from
-    /// `.npmrc` / `pnpm-workspace.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`.
+    /// the already-resolved `config_value` from `pnpm-workspace.yaml` /
+    /// global `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`.
     ///
     /// Mirrors upstream's final `workspaceConcurrency =
     /// getWorkspaceConcurrency(...)` pass at
