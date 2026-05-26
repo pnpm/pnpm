@@ -19,7 +19,7 @@ mod server;
 mod streaming;
 mod upstream;
 
-pub use auth::{AuthState, TokenStore, UserStore};
+pub use auth::{AuthState, TokenStore, UserStore, identify};
 pub use config::{
     AuthConfig, Config, DEFAULT_CONFIG_YAML, HtpasswdConfig, MaxUsers, PackageAccess, TokensConfig,
     UplinkConfig,

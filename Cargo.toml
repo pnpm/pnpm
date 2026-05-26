@@ -96,6 +96,7 @@ insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.14.0" }
 futures-util = { version = "0.3.32" }
 gethostname = { version = "1" }
+getrandom = { version = "0.3.4" }
 miette = { version = "7.6.0", features = ["fancy"] }
 num_cpus = { version = "1.17.0" }
 os_display = { version = "0.1.4" }

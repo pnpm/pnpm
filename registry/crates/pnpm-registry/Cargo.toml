@@ -26,6 +26,7 @@ bcrypt             = { workspace = true }
 clap               = { workspace = true }
 derive_more        = { workspace = true }
 futures-util       = { workspace = true }
+getrandom          = { workspace = true }
 indexmap           = { workspace = true }
 miette             = { workspace = true }
 reqwest            = { workspace = true }

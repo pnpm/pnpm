@@ -3042,6 +3042,7 @@ dependencies = [
  "clap",
  "derive_more",
  "futures-util",
+ "getrandom 0.3.4",
  "indexmap",
  "miette 7.6.0",
  "mockito",

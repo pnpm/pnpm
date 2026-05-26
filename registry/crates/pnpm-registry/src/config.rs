@@ -64,7 +64,7 @@ pub struct Config {
 
 /// Auth-related runtime configuration. Built from the YAML
 /// `auth:` block plus runtime defaults.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct AuthConfig {
     pub htpasswd: HtpasswdConfig,
     pub tokens: TokensConfig,
@@ -72,7 +72,7 @@ pub struct AuthConfig {
 
 /// Where the htpasswd users file lives and how many users may sign
 /// up before registration is refused.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct HtpasswdConfig {
     /// Absolute path to the htpasswd file. `None` keeps user state
     /// in memory (back-compat with `@pnpm/registry-mock`).
@@ -83,17 +83,20 @@ pub struct HtpasswdConfig {
 
 /// Where the token database lives. SQLite-backed when `file` is
 /// set; an in-memory map otherwise.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TokensConfig {
     pub file: Option<PathBuf>,
 }
 
 /// Three-state cap on `auth.htpasswd.max_users`:
 ///
-/// * absent (or `+inf`) → unlimited
+/// * absent → unlimited (verdaccio's `+infinity` default; the YAML
+///   `+inf` token is a float literal and won't parse into the
+///   `i64` field, so the only way to ask for "no cap" is to omit
+///   the key)
 /// * `-1` → registration disabled
 /// * non-negative `n` → at most `n` users
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum MaxUsers {
     #[default]
     Unlimited,

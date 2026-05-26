@@ -541,21 +541,14 @@ fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Re
 // ---------------------------------------------------------------
 
 /// Build a freshly-randomized secret for [`TokenStore::issue`].
-/// Derived from system time + pid + an ASLR-derived address; good
-/// enough to make token values unguessable across two restarts of
-/// the same binary on the same machine.
+/// Pulls 32 bytes from the OS CSPRNG (`getrandom` → `/dev/urandom`
+/// on Linux, `BCryptGenRandom` on Windows, `getentropy` on macOS).
+/// We refuse to start the server if the OS RNG is unavailable
+/// rather than fall back to weaker entropy — token unguessability
+/// is the whole reason this exists.
 fn fresh_secret() -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or(0);
-    hasher.update(nanos.to_le_bytes());
-    hasher.update(std::process::id().to_le_bytes());
-    let addr = &nanos as *const u128 as usize;
-    hasher.update(addr.to_le_bytes());
     let mut secret = [0u8; 32];
-    secret.copy_from_slice(&hasher.finalize());
+    getrandom::fill(&mut secret).expect("OS CSPRNG must be available");
     secret
 }
 
