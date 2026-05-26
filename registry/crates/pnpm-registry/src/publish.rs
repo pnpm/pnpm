@@ -8,10 +8,12 @@
 //! isolated keeps these helpers easy to unit-test.
 
 use std::collections::BTreeMap;
+use std::fmt::Write;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde_json::{Map, Value};
+use ssri::{Algorithm, Integrity, IntegrityOpts};
 
 use crate::error::RegistryError;
 
@@ -73,6 +75,82 @@ pub fn extract_attachments(body: &mut Value) -> Result<Vec<Attachment>, Registry
         out.push(Attachment { filename: filename.clone(), bytes });
     }
     Ok(out)
+}
+
+/// Verify that the bytes uploaded for a publish attachment match the
+/// `dist.integrity` (required) and `dist.shasum` (optional, legacy)
+/// digests the packument declares.
+///
+/// `dist.integrity` is required. npm always emits it; a body that
+/// arrives without it is either tampered with or produced by a buggy
+/// client, and accepting it would store a tarball whose hash the
+/// registry can never claim to have verified. Rejecting the publish
+/// up-front prevents the silent-corruption class of bug where a
+/// downstream `pnpm install` only discovers the mismatch much later
+/// — after the bad bytes have already replicated to other caches.
+///
+/// Both mismatches surface as a 400 with an `EINTEGRITY:` prefix so
+/// pnpm / npm clients can recognize the failure mode.
+pub fn verify_attachment(
+    filename: &str,
+    bytes: &[u8],
+    dist: Option<&Value>,
+) -> Result<(), RegistryError> {
+    let invalid = |reason: String| RegistryError::InvalidAttachment {
+        filename: filename.to_string(),
+        reason,
+    };
+    let dist = dist.ok_or_else(|| {
+        invalid(
+            "EINTEGRITY: packument has no matching versions[v].dist entry for this attachment"
+                .to_string(),
+        )
+    })?;
+
+    let declared_integrity = dist
+        .get("integrity")
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid("EINTEGRITY: dist.integrity is required".to_string()))?;
+    let parsed: Integrity = declared_integrity
+        .parse()
+        .map_err(|err| invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
+    parsed.check(bytes).map_err(|err| invalid(format!("EINTEGRITY: integrity mismatch: {err}")))?;
+
+    if let Some(declared_shasum) = dist.get("shasum").and_then(Value::as_str) {
+        let computed = compute_shasum_hex(bytes);
+        if !computed.eq_ignore_ascii_case(declared_shasum) {
+            return Err(invalid(format!(
+                "EINTEGRITY: shasum mismatch: declared {declared_shasum:?}, computed {computed:?}",
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// Compute the SHA-1 of `bytes` as a 40-character lowercase hex
+/// string — the shape npm's legacy `dist.shasum` field uses.
+///
+/// We piggyback on `ssri` (already a workspace dep for the streaming
+/// `integrity` check) so we don't pull in a second SHA-1 crate. ssri
+/// returns the digest base64-encoded inside an [`Integrity`]; we
+/// decode and re-encode as hex for the shasum comparison.
+fn compute_shasum_hex(bytes: &[u8]) -> String {
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
+    opts.input(bytes);
+    let integrity = opts.result();
+    let digest_base64 = integrity
+        .hashes
+        .first()
+        .expect("ssri produces a Sha1 hash entry when requested")
+        .digest
+        .as_str();
+    let digest_bytes = BASE64.decode(digest_base64).expect("ssri produces valid base64 digests");
+    let mut hex = String::with_capacity(digest_bytes.len() * 2);
+    for byte in &digest_bytes {
+        write!(hex, "{byte:02x}").expect("writing to String never fails");
+    }
+    hex
 }
 
 /// Merge an incoming publish manifest into the existing on-disk
@@ -198,8 +276,55 @@ pub fn now_iso() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_attachments, merge_manifest, now_iso};
+    use super::{extract_attachments, merge_manifest, now_iso, verify_attachment};
     use serde_json::{Value, json};
+    use ssri::{Algorithm, IntegrityOpts};
+
+    fn sri_sha512(bytes: &[u8]) -> String {
+        let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+        opts.input(bytes);
+        opts.result().to_string()
+    }
+
+    #[test]
+    fn verify_accepts_matching_integrity() {
+        let bytes = b"hello-world";
+        let dist = json!({ "integrity": sri_sha512(bytes) });
+        verify_attachment("foo-1.0.0.tgz", bytes, Some(&dist)).unwrap();
+    }
+
+    #[test]
+    fn verify_rejects_integrity_mismatch() {
+        let dist = json!({ "integrity": sri_sha512(b"other-bytes") });
+        let err = verify_attachment("foo-1.0.0.tgz", b"actual-bytes", Some(&dist)).unwrap_err();
+        assert!(err.to_string().contains("EINTEGRITY"), "got: {err}");
+    }
+
+    #[test]
+    fn verify_rejects_missing_integrity() {
+        let dist = json!({ "tarball": "http://example.com/foo-1.0.0.tgz" });
+        let err = verify_attachment("foo-1.0.0.tgz", b"bytes", Some(&dist)).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("EINTEGRITY") && msg.contains("integrity"), "got: {msg}");
+    }
+
+    #[test]
+    fn verify_rejects_missing_dist_entry() {
+        let err = verify_attachment("foo-1.0.0.tgz", b"bytes", None).unwrap_err();
+        assert!(err.to_string().contains("EINTEGRITY"), "got: {err}");
+    }
+
+    #[test]
+    fn verify_rejects_shasum_mismatch() {
+        let bytes = b"shasum-bytes";
+        let dist = json!({
+            "integrity": sri_sha512(bytes),
+            "shasum": "ffffffffffffffffffffffffffffffffffffffff",
+        });
+        let err = verify_attachment("foo-1.0.0.tgz", bytes, Some(&dist)).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("shasum") && msg.contains("EINTEGRITY"), "got: {msg}");
+    }
 
     #[test]
     fn extracts_and_strips_attachments() {

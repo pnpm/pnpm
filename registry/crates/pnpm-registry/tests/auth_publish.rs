@@ -412,6 +412,97 @@ async fn publish_rejects_tarball_that_doesnt_match_package() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
+#[tokio::test]
+async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let bytes = b"actual-bytes";
+    let mut body = sample_publish_body("bad-pkg", "1.0.0", bytes);
+    // Swap the integrity for one computed over different bytes — the
+    // body keeps the original bytes, so the server's recomputed hash
+    // won't match.
+    body["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"different-bytes"));
+
+    let request = Request::put("/bad-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(
+        body_text.contains("EINTEGRITY"),
+        "error body should carry EINTEGRITY code: {body_text}"
+    );
+
+    // Neither the packument nor the tarball should have been written.
+    assert!(
+        !storage.join("bad-pkg/package.json").exists(),
+        "packument must not be written when integrity check fails",
+    );
+    assert!(
+        !storage.join("bad-pkg/bad-pkg-1.0.0.tgz").exists(),
+        "tarball must not be written when integrity check fails",
+    );
+}
+
+#[tokio::test]
+async fn publish_rejects_shasum_mismatch() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let bytes = b"shasum-test-bytes";
+    let mut body = sample_publish_body("shasum-pkg", "1.0.0", bytes);
+    // Keep integrity valid but corrupt the legacy shasum.
+    body["versions"]["1.0.0"]["dist"]["shasum"] = json!("0000000000000000000000000000000000000000");
+
+    let request = Request::put("/shasum-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(
+        body_text.contains("EINTEGRITY"),
+        "shasum mismatch must surface EINTEGRITY: {body_text}"
+    );
+    assert!(!storage.join("shasum-pkg/package.json").exists());
+}
+
+#[tokio::test]
+async fn publish_rejects_missing_integrity_field() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let bytes = b"no-integrity-bytes";
+    let mut body = sample_publish_body("no-int-pkg", "1.0.0", bytes);
+    body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap().remove("integrity");
+
+    let request = Request::put("/no-int-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(
+        body_text.contains("EINTEGRITY") && body_text.contains("integrity"),
+        "missing integrity must surface a clear EINTEGRITY message: {body_text}",
+    );
+    assert!(!storage.join("no-int-pkg/package.json").exists());
+}
+
 /// `anonymous-npm-registry-client`'s `distTags.add` URL-encodes the
 /// `/` in scoped names: `@scope/pkg` → `@scope%2Fpkg` in the URL.
 /// axum's `Path` extractor percent-decodes path segments, so the
@@ -514,8 +605,8 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
                 "version": version,
                 "dist": {
                     "tarball": format!("http://localhost:4873/{pkg}/-/lib-pub-form-{version}.tgz"),
-                    "shasum": "deadbeef",
-                    "integrity": "sha512-abcdef==",
+                    "shasum": sha1_hex(bytes),
+                    "integrity": sri_sha512(bytes),
                 },
             },
         },
@@ -903,8 +994,8 @@ fn sample_publish_body(name: &str, version: &str, tarball: &[u8]) -> Value {
                 "version": version,
                 "dist": {
                     "tarball": format!("http://localhost:4873/{name}/-/{filename}"),
-                    "shasum": "deadbeef",
-                    "integrity": "sha512-abcdef=="
+                    "shasum": sha1_hex(tarball),
+                    "integrity": sri_sha512(tarball),
                 }
             }
         },
@@ -915,5 +1006,28 @@ fn sample_publish_body(name: &str, version: &str, tarball: &[u8]) -> Value {
                 "length": tarball.len()
             }
         }
+    })
+}
+
+/// Compute the SRI `sha512-...` string the way npm clients send it
+/// in `dist.integrity`.
+fn sri_sha512(bytes: &[u8]) -> String {
+    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    opts.input(bytes);
+    opts.result().to_string()
+}
+
+/// Compute the 40-char hex SHA-1 the way npm clients send it in the
+/// legacy `dist.shasum` field.
+fn sha1_hex(bytes: &[u8]) -> String {
+    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
+    opts.input(bytes);
+    let integrity = opts.result();
+    let digest_base64 = &integrity.hashes[0].digest;
+    let digest_bytes = BASE64.decode(digest_base64).unwrap();
+    digest_bytes.iter().fold(String::with_capacity(40), |mut acc, byte| {
+        use std::fmt::Write;
+        write!(acc, "{byte:02x}").unwrap();
+        acc
     })
 }

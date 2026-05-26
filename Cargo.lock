@@ -3003,6 +3003,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "sha2",
+ "ssri",
  "tempfile",
  "tokio",
  "tower",

@@ -16,7 +16,7 @@ use crate::config::Config;
 use crate::error::RegistryError;
 use crate::package_name::PackageName;
 use crate::policy::{AccessRule, PackagePolicies};
-use crate::publish::{extract_attachments, merge_manifest, now_iso};
+use crate::publish::{extract_attachments, merge_manifest, now_iso, verify_attachment};
 use crate::streaming;
 use crate::upstream::{
     FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
@@ -566,12 +566,25 @@ async fn publish_package(
     // libnpmpublish bodies the wire form is `@scope/name-version.tgz`
     // but on disk it lives at `<root>/@scope/name/name-version.tgz`,
     // matching what `serve_tarball` expects.
+    //
+    // Verify the tarball bytes against the integrity (and legacy
+    // shasum) declared in `versions[v].dist` *before* writing to
+    // disk. A mismatch — or a missing integrity field — short-
+    // circuits the publish with a 400, so a bad upload never lands
+    // in the cache and can't replicate to downstream consumers.
     let mut canonical_attachments = Vec::with_capacity(attachments.len());
     for attachment in attachments {
-        let canonical = match name.canonicalize_tarball_name(&attachment.filename) {
-            Ok(canonical) => canonical,
+        let (canonical, version) = match name.parse_tarball_name(&attachment.filename) {
+            Ok(parsed) => parsed,
             Err(err) => return error_response(&err),
         };
+        let dist = incoming
+            .get("versions")
+            .and_then(|versions| versions.get(&version))
+            .and_then(|manifest| manifest.get("dist"));
+        if let Err(err) = verify_attachment(&attachment.filename, &attachment.bytes, dist) {
+            return error_response(&err);
+        }
         canonical_attachments.push((canonical, attachment.bytes));
     }
 
