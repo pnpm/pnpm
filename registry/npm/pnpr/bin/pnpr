@@ -32,7 +32,17 @@ if (binPath) {
     throw result.error;
   }
 
-  process.exitCode = result.status;
+  // result.status is null when the child was killed by a signal; falling
+  // through to `exitCode = null` would make the wrapper appear to exit 0
+  // and mask the signal. Re-raise the signal so the parent terminates
+  // the same way; fall back to a non-zero exit if that's not possible.
+  if (typeof result.status === "number") {
+    process.exitCode = result.status;
+  } else if (result.signal) {
+    process.kill(process.pid, result.signal);
+  } else {
+    process.exitCode = 1;
+  }
 } else {
   console.error(
     "The @pnpm/pnpr package doesn't ship with prebuilt binaries for your platform yet. " +
