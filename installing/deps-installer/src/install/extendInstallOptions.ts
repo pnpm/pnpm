@@ -303,6 +303,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
+    updateChecksums: false,
     nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
     overrides: {},
