@@ -206,9 +206,6 @@ impl InstallArgs {
             offline: _,
             prefer_offline: _,
             trust_lockfile,
-            // Applied to `config.workspace_concurrency` at the CLI
-            // dispatch (`CliArgs::run`) while `Config` is still
-            // mutable, the same way `offline` / `prefer_offline` are.
             workspace_concurrency: _,
         } = self;
 
