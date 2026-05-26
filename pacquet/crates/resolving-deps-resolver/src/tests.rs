@@ -317,6 +317,52 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
     }
 }
 
+/// A transitive dependency whose alias contains `..` segments would
+/// escape the `node_modules` directory when joined onto a modules
+/// path. The walker rejects it before any further resolution work.
+/// Mirrors the pnpm-side fix in
+/// `installing/deps-resolver/src/validateDependencyAlias.ts`.
+#[tokio::test]
+async fn transitive_dep_with_traversal_alias_is_rejected() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("normal".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "normal",
+            "1.0.0",
+            serde_json::json!({
+                "name": "normal",
+                "version": "1.0.0",
+                "dependencies": { "@x/../../../../../.git/hooks": "1.0.0" },
+            }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "normal": "1.0.0" }));
+
+    let err = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+        },
+    )
+    .await
+    .expect_err("traversal alias must error");
+    match err {
+        ResolveDependencyTreeError::InvalidDependencyName { parent, alias } => {
+            assert_eq!(alias, "@x/../../../../../.git/hooks");
+            assert!(
+                parent.contains("normal"),
+                "parent must name the offending package, got {parent:?}",
+            );
+        }
+        other => panic!("expected InvalidDependencyName, got {other:?}"),
+    }
+}
+
 mod block_exotic_subdeps {
     use std::collections::HashMap;
     use std::sync::Mutex;

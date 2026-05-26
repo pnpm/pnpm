@@ -102,6 +102,20 @@ pub enum ResolveDependencyTreeError {
         specifier: String,
         resolved_via: String,
     },
+
+    /// A dependency alias contained a path-separator segment that would
+    /// escape the intended `node_modules` directory when joined onto a
+    /// modules path. Mirrors pnpm's
+    /// [`INVALID_DEPENDENCY_NAME`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts).
+    #[display(
+        "{parent} contains a dependency with an invalid name: {alias:?}. Dependency names must be a single package name or \"@scope/name\" — they cannot contain path-separator segments such as \"..\"."
+    )]
+    #[diagnostic(code(INVALID_DEPENDENCY_NAME))]
+    InvalidDependencyName {
+        #[error(not(source))]
+        parent: String,
+        alias: String,
+    },
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
@@ -143,13 +157,17 @@ where
 {
     let ctx = TreeCtx::new(opts.base_opts).with_patched_dependencies(opts.patched_dependencies);
     let optional_names = importer_optional_dependency_names(manifest);
-    let wanted: Vec<(String, String, bool)> = manifest
-        .dependencies(dependency_groups)
-        .map(|(name, range)| {
-            let optional = optional_names.contains(name);
-            (name.to_string(), range.to_string(), optional)
-        })
-        .collect();
+    let mut wanted: Vec<(String, String, bool)> = Vec::new();
+    for (name, range) in manifest.dependencies(dependency_groups) {
+        if !crate::is_valid_dependency_alias(name) {
+            return Err(ResolveDependencyTreeError::InvalidDependencyName {
+                parent: "The current package".to_string(),
+                alias: name.to_string(),
+            });
+        }
+        let optional = optional_names.contains(name);
+        wanted.push((name.to_string(), range.to_string(), optional));
+    }
     let direct = extend_tree(&ctx, resolver, wanted).await?;
     Ok(ctx.into_resolved_tree(direct))
 }
@@ -580,7 +598,7 @@ where
         let child_specs = match child_specs {
             Some(specs) => specs,
             None => {
-                let specs = Arc::new(extract_children(&result));
+                let specs = Arc::new(extract_children(&result)?);
                 lock_recoverable(&ctx.children_specs_by_id)
                     .entry(id.clone())
                     .or_insert_with(|| Arc::clone(&specs));
@@ -770,20 +788,44 @@ fn render_specifier(wanted: &WantedDependency) -> String {
 /// `optionalDependencies`. The walker propagates this through
 /// `current_is_optional` so [`ResolvedPackage::optional`] reflects
 /// whether every path to the node went through an optional edge.
-fn extract_children(result: &pacquet_resolving_resolver_base::ResolveResult) -> Vec<ChildSpec> {
-    let Some(manifest) = result.manifest.as_ref() else { return Vec::new() };
+fn extract_children(
+    result: &pacquet_resolving_resolver_base::ResolveResult,
+) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+    let Some(manifest) = result.manifest.as_ref() else { return Ok(Vec::new()) };
+    let parent = render_parent(result);
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", false, &mut out);
-    collect_deps(manifest, "optionalDependencies", true, &mut out);
-    out
+    collect_deps(manifest, "dependencies", false, &parent, &mut out)?;
+    collect_deps(manifest, "optionalDependencies", true, &parent, &mut out)?;
+    Ok(out)
 }
 
-fn collect_deps(manifest: &Value, key: &str, optional: bool, out: &mut Vec<ChildSpec>) {
-    let Some(map) = manifest.get(key).and_then(Value::as_object) else { return };
+fn collect_deps(
+    manifest: &Value,
+    key: &str,
+    optional: bool,
+    parent: &str,
+    out: &mut Vec<ChildSpec>,
+) -> Result<(), ResolveDependencyTreeError> {
+    let Some(map) = manifest.get(key).and_then(Value::as_object) else { return Ok(()) };
     for (name, range) in map {
         if let Some(range_str) = range.as_str() {
+            if !crate::is_valid_dependency_alias(name) {
+                return Err(ResolveDependencyTreeError::InvalidDependencyName {
+                    parent: parent.to_string(),
+                    alias: name.clone(),
+                });
+            }
             out.push((name.clone(), range_str.to_string(), optional));
         }
+    }
+    Ok(())
+}
+
+fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> String {
+    if let Some(name_ver) = result.name_ver.as_ref() {
+        format!("Package \"{}@{}\"", name_ver.name, name_ver.suffix)
+    } else {
+        format!("Package \"{}\"", result.id)
     }
 }
 

@@ -1,6 +1,8 @@
 import type { Dependencies, DependenciesMeta, DependencyManifest } from '@pnpm/types'
 import { pickBy } from 'ramda'
 
+import { assertValidDependencyAliases } from './validateDependencyAlias.js'
+
 export interface WantedDependency {
   alias: string
   bareSpecifier: string // package reference
@@ -10,9 +12,17 @@ export interface WantedDependency {
   saveCatalogName?: string
 }
 
-type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>
+type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'> & {
+  name?: string
+  version?: string
+}
 
 export function getNonDevWantedDependencies (pkg: GetNonDevWantedDependenciesManifest): WantedDependency[] {
+  const pkgDescription = pkg.name != null
+    ? `Package "${pkg.name}${pkg.version != null ? `@${pkg.version}` : ''}"`
+    : 'Package'
+  assertValidDependencyAliases(pkg.dependencies, pkgDescription)
+  assertValidDependencyAliases(pkg.optionalDependencies, pkgDescription)
   let bd = pkg.bundledDependencies ?? pkg.bundleDependencies
   if (bd === true) {
     bd = pkg.dependencies != null ? Object.keys(pkg.dependencies) : []
