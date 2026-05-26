@@ -8,6 +8,7 @@ use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
+use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -163,7 +164,16 @@ impl DlxArgs {
             None => {
                 let prepare_dir =
                     get_prepare_dir(&dlx_command_cache_dir, SystemTime::now(), std::process::id());
-                install_into_cache::<Reporter>(&prepare_dir, &pkgs, &allow_build, config).await?;
+                if let Err(error) =
+                    install_into_cache::<Reporter>(&prepare_dir, &pkgs, &allow_build, config).await
+                {
+                    // Don't leave a half-installed prepare dir behind to
+                    // accumulate across failed runs. Mirrors pnpm's
+                    // `fs.rm(cachedDir, { recursive: true, force: true })`
+                    // on install failure (dlx.ts). Best-effort cleanup.
+                    let _ = fs::remove_dir_all(&prepare_dir);
+                    return Err(error);
+                }
                 // Best-effort: a parallel dlx process may have raced
                 // us to the link. Either link is equally fresh, so
                 // ignore the failure and run from our own prepare dir.
@@ -210,8 +220,22 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
-    // Allow requested packages to run build scripts during the install,
-    // mirroring pnpm's dlx `allowBuilds` handling.
+    // Build a *fresh* allow-list for the throwaway install — the dlx
+    // packages themselves plus the CLI `--allow-build` entries — rather
+    // than inheriting the caller project's `allow_builds` /
+    // `dangerously_allow_all_builds`. Mirrors pnpm's
+    // `allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...allowBuild])`
+    // (dlx.ts:168). Inheriting the caller's policy would run build
+    // scripts the dlx invocation never opted into, and would also leave
+    // the cache key (which hashes only pkgs + CLI allow_build) unable to
+    // distinguish two callers with different policies.
+    config.dangerously_allow_all_builds = false;
+    config.allow_builds.clear();
+    for spec in pkgs {
+        if let Some(alias) = parse_wanted_dependency(spec).alias {
+            config.allow_builds.insert(alias, true);
+        }
+    }
     for name in allow_build {
         config.allow_builds.insert(name.clone(), true);
     }
@@ -359,8 +383,14 @@ fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
         [] => Err(DlxError::NoBin { package: pkg_name }),
         [bin] => Ok(bin.name.clone()),
         bins => {
-            let scopeless = scopeless(&pkg_name);
-            if let Some(bin) = bins.iter().find(|bin| bin.name == scopeless) {
+            // The default bin is the one named after the installed
+            // package's own `name` field (scopeless), not the dependency
+            // alias it was installed under. Mirrors `scopeless(manifest.name)`
+            // at dlx.ts:286 — they differ for aliased specs such as
+            // `foo@npm:@scope/realtool`.
+            let manifest_name = manifest.get("name").and_then(Value::as_str).unwrap_or(&pkg_name);
+            let scopeless_name = scopeless(manifest_name);
+            if let Some(bin) = bins.iter().find(|bin| bin.name == scopeless_name) {
                 return Ok(bin.name.clone());
             }
             let names = bins.iter().map(|bin| bin.name.as_str()).collect::<Vec<_>>().join(", ");

@@ -27,6 +27,7 @@ pacquet-package-manager        = { workspace = true }
 pacquet-package-is-installable = { workspace = true }
 pacquet-registry               = { workspace = true }
 pacquet-reporter               = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
 pacquet-tarball                = { workspace = true }
 pacquet-diagnostics            = { workspace = true }
 

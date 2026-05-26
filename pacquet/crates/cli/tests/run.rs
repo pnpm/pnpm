@@ -228,6 +228,32 @@ fn run_propagates_failing_script_exit_code() {
     drop(root);
 }
 
+/// A failing `test` script prints pnpm's stage-specific lifecycle error
+/// (`Test failed. See above for more details.`) rather than the generic
+/// exit-code line, matching reportLifecycleError's `test` special case.
+#[cfg_attr(target_os = "windows", ignore = "uses a POSIX shell `exit` builtin")]
+#[test]
+fn run_failing_test_script_prints_test_failed_message() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "test": "exit 1" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet.with_arg("run").with_arg("test").output().expect("spawn pacquet run");
+    assert_eq!(output.status.code(), Some(1), "the script's exit code must propagate");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Test failed. See above for more details."),
+        "test-stage failure should print pnpm's test message:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 /// A script that invokes a locally-installed binary resolves it through
 /// `node_modules/.bin`, which `pnpm run` prepends to `PATH`.
 #[cfg(unix)]

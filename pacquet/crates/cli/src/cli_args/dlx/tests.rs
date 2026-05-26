@@ -144,6 +144,22 @@ fn get_bin_name_picks_the_scopeless_match_among_many() {
 }
 
 #[test]
+fn get_bin_name_uses_installed_manifest_name_not_alias() {
+    // The dependency key (`alias`) differs from the installed package's
+    // own `name`. The default bin among many is selected by the manifest
+    // name (`scopeless("@scope/realtool")` == "realtool"), not the alias.
+    let dir = cached_dir_with(
+        "alias",
+        serde_json::json!({
+            "name": "@scope/realtool",
+            "version": "1.0.0",
+            "bin": { "realtool": "r.js", "other": "o.js" },
+        }),
+    );
+    assert_eq!(get_bin_name(dir.path()).expect("bin name"), "realtool");
+}
+
+#[test]
 fn get_bin_name_errors_when_no_dependency() {
     let dir = tempdir().expect("temp dir");
     fs::write(dir.path().join("package.json"), serde_json::json!({}).to_string())

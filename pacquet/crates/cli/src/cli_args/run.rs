@@ -200,6 +200,13 @@ fn run_stage(
     if args.is_empty() && script == "npx only-allow pnpm" {
         return Ok(());
     }
+    // An empty script body is a no-op under pnpm, which skips any stage
+    // whose (post-arg) command is falsy (runLifecycleHook.ts:100). pnpm
+    // also gates pre/post on the body being truthy (run.ts:403,411), so
+    // an empty `pre<name>`/`post<name>` never runs.
+    if script.is_empty() {
+        return Ok(());
+    }
 
     let status = run_script(RunScript {
         manifest: ctx.manifest.value(),
@@ -223,7 +230,14 @@ fn run_stage(
 
     if !status.success() {
         let code = status.code().unwrap_or(1);
-        eprintln!("[ELIFECYCLE] Command failed with exit code {code}.");
+        // pnpm's reportLifecycleError special-cases the `test` stage
+        // (reportError.ts:371-378): "Test failed. See above for more
+        // details." rather than the exit-code line.
+        if stage == "test" {
+            eprintln!("[ELIFECYCLE] Test failed. See above for more details.");
+        } else {
+            eprintln!("[ELIFECYCLE] Command failed with exit code {code}.");
+        }
         std::process::exit(code);
     }
     Ok(())
