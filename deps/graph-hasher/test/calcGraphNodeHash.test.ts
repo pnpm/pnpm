@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { calcGraphNodeHash, type DepsGraph, type DepsStateCache, type PkgMeta } from '@pnpm/deps.graph-hasher'
-import { engineName } from '@pnpm/engine.runtime.system-node-version'
+import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
 // Track the same script-runner-Node value the production code uses

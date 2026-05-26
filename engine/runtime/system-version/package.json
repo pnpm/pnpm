@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/engine.runtime.system-node-version",
-  "version": "1100.1.1",
-  "description": "Detects the current system node version",
+  "name": "@pnpm/engine.runtime.system-version",
+  "version": "1100.0.0-0",
+  "description": "Detects the current system version of supported runtimes (Node.js, Deno, Bun)",
   "keywords": [
     "pnpm",
     "pnpm11",
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/engine/runtime/system-node-version",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/engine/runtime/system-node-version#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/engine/runtime/system-version",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/engine/runtime/system-version#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -33,12 +33,13 @@
   },
   "dependencies": {
     "@pnpm/cli.meta": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "execa": "catalog:",
     "memoize": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/engine.runtime.system-node-version": "workspace:*"
+    "@pnpm/engine.runtime.system-version": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

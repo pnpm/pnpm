@@ -25,7 +25,7 @@
       "path": "../../core/types"
     },
     {
-      "path": "../../engine/runtime/system-node-version"
+      "path": "../../engine/runtime/system-version"
     }
   ]
 }

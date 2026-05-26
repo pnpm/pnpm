@@ -399,6 +399,21 @@ impl<'tree> Walker<'tree> {
         if self.tree.dependencies_tree.contains_key(&node_id) {
             let tree_node_depth = self.tree.dependencies_tree[&node_id].depth;
             let pkg_id = self.tree.dependencies_tree[&node_id].resolved_package_id.clone();
+            // Workspace-link short-circuit: mirrors upstream's
+            // [`if (node.depth === -1) return ...`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/deps-resolver/src/resolvePeers.ts#L396)
+            // in `resolvePeersOfNode`. The linked package's depPath is
+            // its `link:<rel-path>` id verbatim — no peer-graph suffix,
+            // no graph entry. Peer matching for the linked package is
+            // the linked importer's responsibility, not the parent's.
+            if tree_node_depth == -1 {
+                let dep_path = DepPath::from(pkg_id);
+                self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
+                return NodeOutput {
+                    dep_path,
+                    external_resolved_peers: HashMap::new(),
+                    missing_peers: HashMap::new(),
+                };
+            }
             let pkg_peer_dependencies_empty =
                 self.tree.packages[&pkg_id].peer_dependencies.is_empty();
             if self.pure_pkgs.contains(&pkg_id) && pkg_peer_dependencies_empty {

@@ -77,7 +77,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/engine.runtime.system-node-version": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",

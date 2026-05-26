@@ -255,6 +255,21 @@ fn parse_non_semver_with_peer_suffix() {
     assert_eq!(parsed.to_string(), "https://example.com/foo.tgz(peer@1.0.0)");
 }
 
+/// Parity check for pnpm's `parse()` test, patch-hash + peer leg
+/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L68-L73)).
+/// `PkgVerPeer` folds patch-hash into the `peer` field; only the raw
+/// string is what byte-level consumers (lockfile YAML, snapshot keys)
+/// compare against.
+#[test]
+fn parse_patch_hash_then_peer_suffix_round_trip() {
+    let raw = "1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)";
+    let parsed: PkgVerPeer = raw.parse().expect("parse patch-hash + peer");
+    assert_eq!(parsed.version_semver(), Some(&"1.0.0".parse::<Version>().unwrap()));
+    assert_eq!(parsed.peer(), "(patch_hash=0000)(@types/babel__core@7.1.14)");
+    assert_eq!(parsed.to_string(), raw);
+    assert_eq!(parsed.without_peer().to_string(), "1.0.0");
+}
+
 #[test]
 fn serde_round_trip_non_semver() {
     let url = "https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/0848bc83347720c322c5087f3bd0d6cd086ffa4b";

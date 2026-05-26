@@ -850,6 +850,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
     const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
     const nodeRuntime = runtimes.find((r) => r.name === 'node')
     if (nodeRuntime?.version == null) continue
+    if (!semver.validRange(nodeRuntime.version)) continue
     const minVersion = semver.minVersion(nodeRuntime.version)
     if (minVersion != null) {
       return minVersion.version

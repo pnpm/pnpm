@@ -133,6 +133,20 @@ impl PkgVerPeer {
         let PkgVerPeer { prefix: _, version, peer } = self;
         (version, peer)
     }
+
+    /// Return a copy with the peer-dependency suffix cleared.
+    ///
+    /// The result preserves the original `prefix` and `version` slots
+    /// byte-for-byte, so no parse-and-render round-trip runs. Callers
+    /// that need the metadata-map key for a peer-variant snapshot key
+    /// should reach for this instead of stringifying and re-parsing —
+    /// some legitimately-resolved snapshot keys carry a `version` slot
+    /// (e.g. a workspace `link:<rel-path>(peer@x)` shape under
+    /// `linkWorkspacePackages: true`) whose `Display` form would not
+    /// re-parse as a [`PkgVerPeer`].
+    pub fn without_peer(&self) -> PkgVerPeer {
+        PkgVerPeer { prefix: self.prefix, version: self.version.clone(), peer: String::new() }
+    }
 }
 
 /// Error when parsing [`PkgVerPeer`] from a string.

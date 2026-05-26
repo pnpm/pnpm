@@ -496,7 +496,17 @@ where
     // which sets `isLeaf` once on `resolvedPkgsById[id]` and lets
     // [`buildTree`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencyTree.ts#L381)
     // read it back.
-    let is_leaf = pkg_is_leaf(&result);
+    // Workspace-link nodes follow upstream's
+    // [`isLinkedDependency` arm](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/deps-resolver/src/resolveDependencies.ts#L926-L937):
+    // children are empty (the linked project resolves its own deps as
+    // a separate importer), `depth = -1` flags the node for the
+    // peer-resolution short-circuit, and the [`ResolvedPackage`] carries
+    // no peer dependencies (peer matching is the linked importer's
+    // responsibility, not the parent's). The node id is collapsed to a
+    // leaf so every reference to the same workspace path shares one
+    // [`NodeId`], matching upstream's `createNodeIdForLinkedLocalPkg`.
+    let is_link = id.starts_with("link:");
+    let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
     let is_revisit;
@@ -508,7 +518,8 @@ where
                 is_revisit = true;
             }
             None => {
-                let peer_dependencies = extract_peer_dependencies(&result);
+                let peer_dependencies =
+                    if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
                 // Collect peer names for the peer-resolution stage's
                 // `parentPkgs` filter (only peers count as parents).
                 {
@@ -550,7 +561,13 @@ where
     // `packages`, `all_peer_dep_names`, and the per-pkg resolver
     // caches get populated for every transitive package — without
     // that pass, lazy revisits would have nothing to expand.
-    let children = if is_revisit {
+    let children = if is_link {
+        // Linked nodes don't walk their manifest's deps — see the
+        // `is_link` comment block above. Empty `Realized` map matches
+        // upstream's `children: {}` for the `isLinkedDependency`
+        // branch.
+        crate::resolved_tree::TreeChildren::Realized(BTreeMap::new())
+    } else if is_revisit {
         crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(next_ancestors.clone()) }
     } else {
         // Look up cached children specs first; only walk the manifest on
@@ -624,17 +641,21 @@ where
     // [`Math.min(...)` arm](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1636-L1637).
     // Per-occurrence counter ids are unique by construction, so the
     // `and_modify` arm is dead for non-leaves.
+    // Linked nodes carry `depth = -1` so the peer-resolution pass
+    // short-circuits them in `resolve_node`. Mirrors upstream's
+    // `depth: -1` on the `isLinkedDependency` arm.
+    let node_depth = if is_link { -1 } else { depth };
     lock_recoverable(&ctx.dependencies_tree)
         .entry(node_id.clone())
         .and_modify(|node| {
-            if node.depth > depth {
-                node.depth = depth;
+            if node.depth > node_depth {
+                node.depth = node_depth;
             }
         })
         .or_insert_with(|| DependenciesTreeNode {
             resolved_package_id: id.clone(),
             children,
-            depth,
+            depth: node_depth,
             installable: true,
         });
 
