@@ -124,6 +124,12 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   }
 }
 
+// Auth keys that bind to whatever default registry the merged config settles
+// on. npm rejects these outright since npm@9 (ERR_INVALID_AUTH); pnpm keeps
+// them working for now but warns so users move to the URL-scoped form before
+// a future major drops support.
+const UNSCOPED_CRED_KEYS_FOR_WARNING = new Set(['_authToken', '_auth', 'username', '_password', 'tokenHelper'])
+
 function readAndFilterNpmrc (
   filePath: string,
   warnings: string[],
@@ -142,6 +148,7 @@ function readAndFilterNpmrc (
 
   const npmrcDir = path.dirname(filePath)
   const result: Record<string, unknown> = {}
+  const unscopedCredKeys: string[] = []
   for (const [rawKey, rawValue] of Object.entries(raw)) {
     // Apply ${VAR} substitution to both keys and values
     const key = substituteEnv(rawKey, env, warnings)
@@ -158,7 +165,15 @@ function readAndFilterNpmrc (
         value = path.resolve(npmrcDir, value)
       }
       result[key] = value
+      if (UNSCOPED_CRED_KEYS_FOR_WARNING.has(key)) {
+        unscopedCredKeys.push(key)
+      }
     }
+  }
+  if (unscopedCredKeys.length > 0) {
+    warnings.push(`Unscoped authentication credentials (${unscopedCredKeys.join(', ')}) in "${filePath}" are deprecated. ` +
+      'Scope them to a registry URL instead (e.g. "//registry.example.com/:_authToken=..."). ' +
+      'Unscoped credentials are sent to whatever default registry the merged config settles on, which can leak them across trust boundaries.')
   }
   return result
 }

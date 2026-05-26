@@ -855,11 +855,11 @@ describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
 })
 
 describe('unscoped user-level credentials vs workspace-overridden registry', () => {
-  // Regression suite for the credential disclosure reported by JUNYI LIU:
-  // a workspace `.npmrc` that overrides `registry=` must not cause unscoped
-  // auth values from `~/.npmrc` (or `~/.config/pnpm/auth.ini`) to be sent to
-  // the workspace-selected registry. The unscoped default credential is
-  // dropped from `configByUri` in that case.
+  // Regression suite for the credential disclosure: a workspace `.npmrc` that
+  // overrides `registry=` must not cause unscoped auth values from `~/.npmrc`
+  // (or `~/.config/pnpm/auth.ini`) to be sent to the workspace-selected
+  // registry. The unscoped default credential is dropped from `configByUri`
+  // in that case.
   let originalXdg: string | undefined
   let configHome: string
   let userconfig: string
@@ -999,7 +999,7 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
     )
     fs.writeFileSync('.npmrc', 'registry=https://attacker.example.com/\n', 'utf8')
 
-    const { config } = await getConfig({
+    const { config, warnings } = await getConfig({
       cliOptions: { userconfig },
       env: { ...env, XDG_CONFIG_HOME: configHome },
       packageManager: { name: 'pnpm', version: '1.0.0' },
@@ -1010,6 +1010,102 @@ describe('unscoped user-level credentials vs workspace-overridden registry', () 
       '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
     })
     expect(config.configByUri['']).toBeUndefined()
+    // URL-scoped tokens should NOT trigger the deprecation warning.
+    expect(warnings.join('\n')).not.toMatch(/deprecated/i)
+  })
+})
+
+describe('unscoped credential deprecation warning', () => {
+  // pnpm warns whenever it reads any unscoped auth value from an .npmrc /
+  // auth.ini, regardless of whether the rebind defense fires. URL-scoped tokens
+  // have been npm's recommended pattern since npm@9, and unscoped credentials
+  // are slated for removal in a future major release.
+  let originalXdg: string | undefined
+  let configHome: string
+  let userconfig: string
+
+  beforeEach(() => {
+    prepareEmpty()
+    fs.mkdirSync('user-home')
+    userconfig = path.resolve('user-home', '.npmrc')
+    configHome = path.resolve('xdg-config')
+    fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+    originalXdg = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = configHome
+  })
+
+  afterEach(() => {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  })
+
+  test('warns about unscoped _authToken in user .npmrc', async () => {
+    fs.writeFileSync(userconfig, 'registry=https://example.com/\n_authToken=secret\n', 'utf8')
+
+    const { warnings } = await getConfig({
+      cliOptions: { userconfig },
+      env: { ...env, XDG_CONFIG_HOME: configHome },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings.find(w => w.includes('Unscoped authentication credentials'))).toBeDefined()
+    expect(warnings.find(w => w.includes('_authToken'))).toBeDefined()
+    expect(warnings.find(w => w.includes(userconfig))).toBeDefined()
+  })
+
+  test('warns about unscoped _auth, username, _password', async () => {
+    // _auth and _password are base64-encoded per npm convention.
+    // cspell:disable-next-line
+    fs.writeFileSync(userconfig, '_auth=dXNlcjpwYXNz\nusername=alice\n_password=cGFzcw==\n', 'utf8')
+
+    const { warnings } = await getConfig({
+      cliOptions: { userconfig },
+      env: { ...env, XDG_CONFIG_HOME: configHome },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    const warning = warnings.find(w => w.includes('Unscoped authentication credentials'))
+    expect(warning).toBeDefined()
+    expect(warning).toContain('_auth')
+    expect(warning).toContain('username')
+    expect(warning).toContain('_password')
+  })
+
+  test('warns about unscoped credentials in workspace .npmrc too', async () => {
+    fs.writeFileSync('.npmrc', 'registry=https://workspace.example.com/\n_authToken=workspace-token\n', 'utf8')
+
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      env: { ...env, XDG_CONFIG_HOME: configHome },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    const warning = warnings.find(w => w.includes('Unscoped authentication credentials'))
+    expect(warning).toBeDefined()
+    expect(warning).toContain(path.resolve('.npmrc'))
+  })
+
+  test('does not warn when only URL-scoped credentials are present', async () => {
+    fs.writeFileSync(
+      userconfig,
+      'registry=https://example.com/\n//example.com/:_authToken=secret\n',
+      'utf8'
+    )
+
+    const { warnings } = await getConfig({
+      cliOptions: { userconfig },
+      env: { ...env, XDG_CONFIG_HOME: configHome },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings.find(w => w.includes('Unscoped authentication credentials'))).toBeUndefined()
   })
 })
 
