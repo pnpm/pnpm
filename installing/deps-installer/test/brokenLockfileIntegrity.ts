@@ -57,13 +57,12 @@ test('installation fails by default if the lockfile contains a wrong checksum, b
 
   rimrafSync('node_modules')
 
-  await mutateModulesInSingleProject({
+  // --force is NOT an opt-in: it should still fail.
+  await expect(mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ force: true }, { retry: { retries: 0 } }))
-
-  expect(project.readLockfile()).toStrictEqual(correctLockfile)
+  }, testDefaults({ force: true }, { retry: { retries: 0 } }))).rejects.toThrow(/Got unexpected checksum for/)
 })
 
 test('installation fails by default if the lockfile contains the wrong checksum and the store is clean', async () => {

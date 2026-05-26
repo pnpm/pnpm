@@ -7,10 +7,8 @@
 
 Treat tarball-integrity mismatches against the lockfile as a hard failure by default. Previously, `pnpm install` (non-frozen) would log `ERR_PNPM_TARBALL_INTEGRITY`, silently re-resolve from the registry, and overwrite the locked integrity — which meant a compromised registry, proxy, or republished version could substitute attacker-controlled content on a clean machine even though the project shipped a committed lockfile.
 
-`pnpm install` now exits with the original `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the recovery flags. To refresh the locked integrity from the registry, run:
+`pnpm install` now exits with `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the new opt-in flag.
 
-- `pnpm install --update-checksums` — new flag, narrowly scoped to refreshing checksums. Mirrors yarn's `--update-checksums`.
-- `pnpm install --force` — broader refresh.
-- `pnpm update` — re-resolves and refreshes everything (or a targeted subset).
+The only opt-in is **`pnpm install --update-checksums`** — narrowly scoped to refreshing the locked integrity values from what the registry currently serves. Mirrors yarn's flag of the same name. A warning still prints when the bypass takes effect so the operation is auditable.
 
-`--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and deliberately does not bypass the integrity check.
+`--force` and `pnpm update` deliberately do **not** bypass the integrity check. They are routine refresh operations; silently overwriting a locked integrity in those flows would erase the protection a committed lockfile is supposed to provide. `--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and is also not a bypass.

@@ -118,24 +118,25 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 // Recovering from a tarball-integrity or store-content mismatch means
 // trusting the registry over the locked integrity — which is exactly what
 // an attacker who controls the registry or a proxy would need pnpm to do.
-// We only take that path when the caller explicitly opts in:
+// `--update-checksums` is the one and only opt-in: it explicitly says
+// "refresh the locked integrity values from what the registry currently
+// serves." Mirrors yarn's `--update-checksums`.
 //
-//   - `--update-checksums`: the narrow opt-in. Says "refresh the locked
-//     integrity values from what the registry currently serves." Mirrors
-//     yarn's `--update-checksums`.
-//   - `--force`: the broad escape hatch. Already documented as a
-//     full-refresh option, so we accept it here too.
-//   - `pnpm update`, which sets `update: true` on the mutation, because
-//     the user is explicitly asking for new resolutions.
-//
-// `--fix-lockfile` deliberately does NOT bypass this check: its
-// documented purpose is filling in *missing* lockfile entries, not
-// overwriting an existing-but-mismatched integrity.
-function lockfileRepairOptedIn (
-  opts: { updateChecksums?: boolean, force?: boolean },
-  projects: ReadonlyArray<unknown>
-): boolean {
-  return Boolean(opts.updateChecksums || opts.force || projects.some((p) => (p as InstallMutationOptions).update))
+// `--force` and `pnpm update` are deliberately NOT accepted as bypasses.
+// They are routine refresh operations; users reach for them without
+// thinking about supply-chain risk, and silently overwriting a locked
+// integrity in those flows would erase the protection a committed
+// lockfile is supposed to provide. `--fix-lockfile` is also excluded
+// because its documented job is filling in *missing* lockfile entries,
+// not overwriting an existing-but-mismatched integrity.
+function lockfileRepairOptedIn (opts: { updateChecksums?: boolean }): boolean {
+  return Boolean(opts.updateChecksums)
+}
+
+function integrityRecoveryMessage (isIntegrityError: boolean): string {
+  return isIntegrityError
+    ? 'Refreshing the locked integrity from the registry as requested by --update-checksums. Resolution step will be performed.'
+    : 'The lockfile is broken! Resolution step will be performed to fix it.'
 }
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
@@ -1071,16 +1072,17 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredBuilds,
       }
     } catch (error: any) { // eslint-disable-line
+      const isIntegrityError = BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
       if (
         frozenLockfile ||
         (
           error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
-          !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+          !isIntegrityError
         ) ||
         (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
-        (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) && !lockfileRepairOptedIn(opts, projects))
+        (isIntegrityError && !lockfileRepairOptedIn(opts))
       ) throw error
-      if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
+      if (isIntegrityError) {
         needsFullResolution = true
         // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
         for (const project of projects) {
@@ -1093,7 +1095,7 @@ Note that in CI environments, this setting is enabled by default.`,
         message: error.message,
         prefix: ctx.lockfileDir,
       })
-      logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
+      logger.error(new PnpmError(error.code, integrityRecoveryMessage(isIntegrityError)))
       return { needsFullResolution }
     }
   }
@@ -2017,7 +2019,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (
       !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
       (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
-      !lockfileRepairOptedIn(opts, projects)
+      !lockfileRepairOptedIn(opts)
     ) throw error
     opts.needsFullResolution = true
     // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
@@ -2029,7 +2031,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       message: error.message,
       prefix: ctx.lockfileDir,
     })
-    logger.error(new PnpmError(error.code, 'The lockfile is broken! A full installation will be performed in an attempt to fix it.'))
+    logger.error(new PnpmError(error.code, 'Refreshing the locked integrity from the registry as requested by --update-checksums. A full installation will be performed.'))
     return _installInContext(projects, ctx, opts)
   } finally {
     await opts.storeController.close()

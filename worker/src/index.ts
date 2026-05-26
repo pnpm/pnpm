@@ -141,13 +141,14 @@ export class TarballIntegrityError extends PnpmError {
         attempts: opts.attempts,
         hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity, because that would defeat the purpose of the lockfile if the registry or a network proxy is serving tampered content.
 
-If you trust the new content (for example, the package was legitimately republished, or your local metadata cache is stale), choose one of:
+If you trust the new content (for example, the package was legitimately republished, or your local metadata cache is stale):
 
   - Run "pnpm store prune" and retry, in case only the local metadata cache is out of date.
   - Run "pnpm install --update-checksums" to refresh the locked integrity from the registry.
-  - Run "pnpm install --force" or "pnpm update" if you also want to refresh resolutions for other packages.
 
-If you did not expect this package to change, treat this as a potential supply-chain issue and do not re-run with the flags above until you have verified the new content.`,
+"--update-checksums" is the only flag that opts into overwriting a locked integrity. "--force" and "pnpm update" deliberately do not, because routine refresh commands should not silently erase the lockfile's protection.
+
+If you did not expect this package to change, treat this as a potential supply-chain issue and do not re-run with "--update-checksums" until you have verified the new content.`,
       }
     )
     this.found = opts.found
