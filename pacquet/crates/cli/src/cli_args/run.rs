@@ -55,6 +55,10 @@ pub enum RunError {
         help(r#"Scripts starting with "." are hidden and can only be called from other scripts."#)
     )]
     AllHidden { scripts: String },
+
+    #[display("Missing script start or file server.js")]
+    #[diagnostic(code(ERR_PNPM_NO_SCRIPT_OR_SERVER))]
+    NoScriptOrServer,
 }
 
 impl RunArgs {
@@ -141,12 +145,18 @@ fn run_one_script(ctx: &RunContext<'_>, name: &str, args: &[String]) -> miette::
             .map(str::to_string)
     };
 
-    // `start` falls back to `node server.js`, matching pnpm's
-    // getSpecifiedScripts + runLifecycleHook start handling.
-    let Some(main) =
-        get_script(name).or_else(|| (name == "start").then(|| "node server.js".into()))
-    else {
-        return Ok(());
+    // `pnpm run start` with no `start` script falls back to
+    // `node server.js`, but only when `server.js` exists; otherwise pnpm
+    // raises NO_SCRIPT_OR_SERVER. Mirrors runLifecycleHook.ts:77-82.
+    let main = match get_script(name) {
+        Some(script) => script,
+        None if name == "start" => {
+            if !ctx.dir.join("server.js").exists() {
+                return Err(RunError::NoScriptOrServer.into());
+            }
+            "node server.js".to_string()
+        }
+        None => return Ok(()),
     };
 
     if ctx.config.enable_pre_post_scripts {
@@ -158,11 +168,7 @@ fn run_one_script(ctx: &RunContext<'_>, name: &str, args: &[String]) -> miette::
         }
     }
 
-    // The `npx only-allow pnpm` guard script is a no-op under pnpm, so
-    // it is skipped. Mirrors runLifecycleHook.ts:100.
-    if main != "npx only-allow pnpm" {
-        run_stage(ctx, name, &main, args)?;
-    }
+    run_stage(ctx, name, &main, args)?;
 
     if ctx.config.enable_pre_post_scripts {
         let post = format!("post{name}");
@@ -183,6 +189,13 @@ fn run_stage(
     script: &str,
     args: &[String],
 ) -> miette::Result<()> {
+    // The `npx only-allow pnpm` guard script is a no-op under pnpm, so
+    // any lifecycle stage (pre/main/post) whose body is exactly that
+    // string is skipped. Mirrors runLifecycleHook.ts:100.
+    if script == "npx only-allow pnpm" {
+        return Ok(());
+    }
+
     let status = run_script(RunScript {
         manifest: ctx.manifest.value(),
         stage,

@@ -84,6 +84,12 @@ pub enum DlxError {
     #[diagnostic(code(ERR_PNPM_DLX_COMMAND_NOT_FOUND))]
     CommandNotFound { command: String },
 
+    #[display(
+        "Cannot add {dir} to PATH because it contains the path delimiter character ({delimiter})"
+    )]
+    #[diagnostic(code(ERR_PNPM_BAD_PATH_DIR))]
+    BadPathDir { dir: String, delimiter: char },
+
     #[display("Failed to read the installed manifest at {path}: {source}")]
     #[diagnostic(code(pacquet_cli::dlx_read_manifest))]
     ReadManifest {
@@ -192,14 +198,15 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
 
     config.modules_dir = prepare_dir.join("node_modules");
     config.virtual_store_dir = prepare_dir.join("node_modules").join(".pacquet");
-    // Keep the cache self-contained: a per-prepare-dir virtual store
-    // (not the global one) so the cache directory can be symlinked and
-    // reused on its own. Mirrors pnpm's dlx anchoring at dlx.ts:180-184.
+    // Force the project-local virtual store so the whole prepare dir is
+    // self-contained and can be symlinked as the cache entry. This is a
+    // deliberate deviation from pnpm's dlx, which keeps
+    // `enableGlobalVirtualStore ?? true` (dlx.ts:179): pnpm caches only
+    // the `node_modules` tree and lets the global store back it, whereas
+    // pacquet symlinks the entire prepare dir, so its store must live
+    // inside that dir (the installer picks `global_virtual_store_dir`
+    // when this is on — see virtual_store_layout.rs).
     config.enable_global_virtual_store = false;
-    // The throwaway install is a standalone project, not part of the
-    // caller's workspace. Drop any workspace association inherited from
-    // the caller's `pnpm-workspace.yaml`.
-    config.workspace_dir = None;
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
@@ -238,7 +245,7 @@ fn run_bin(
     let mut prepend = Vec::with_capacity(1 + extra_bin_paths.len());
     prepend.push(bins_dir);
     prepend.extend(extra_bin_paths.iter().cloned());
-    let path = prepend_dirs_to_path(&prepend);
+    let path = prepend_dirs_to_path(&prepend)?;
 
     let mut cmd = if shell_mode {
         let shell = pacquet_executor::select_shell(None, cfg!(windows))
@@ -393,7 +400,17 @@ fn scopeless(pkg_name: &str) -> &str {
     }
 }
 
-fn prepend_dirs_to_path(dirs: &[PathBuf]) -> OsString {
+fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, DlxError> {
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    for dir in dirs {
+        if dir.to_string_lossy().contains(delimiter) {
+            return Err(DlxError::BadPathDir {
+                dir: dir.to_string_lossy().into_owned(),
+                delimiter,
+            });
+        }
+    }
+
     let sep = if cfg!(windows) { ";" } else { ":" };
     let mut out = OsString::new();
     for (index, dir) in dirs.iter().enumerate() {
@@ -410,7 +427,7 @@ fn prepend_dirs_to_path(dirs: &[PathBuf]) -> OsString {
         }
         out.push(current);
     }
-    out
+    Ok(out)
 }
 
 #[cfg(test)]
