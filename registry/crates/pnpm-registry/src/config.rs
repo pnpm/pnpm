@@ -212,10 +212,9 @@ impl Config {
     /// is the uplink *name* (the key in [`Self::uplinks`]); callers
     /// that have pre-built per-uplink state can use it as an index.
     pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
-        let access = self
-            .packages
-            .iter()
-            .find_map(|(pattern, access)| pattern_matches(pattern, package_name).then_some(access))?;
+        let access = self.packages.iter().find_map(|(pattern, access)| {
+            pattern_matches(pattern, package_name).then_some(access)
+        })?;
         let proxy_name = access.proxy.as_deref()?;
         self.uplinks.get_key_value(proxy_name).map(|(k, v)| (k.as_str(), v))
     }

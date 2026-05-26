@@ -47,12 +47,12 @@ async fn main() -> miette::Result<()> {
 
     let args = Args::parse();
     let mut config = match args.config.as_deref() {
-        Some(path) => Config::from_yaml(path, args.listen, args.public_url.clone()).map_err(
-            |err| {
+        Some(path) => {
+            Config::from_yaml(path, args.listen, args.public_url.clone()).map_err(|err| {
                 let path = path.display();
                 miette::miette!("load {path}: {err}")
-            },
-        )?,
+            })?
+        }
         None => Config::from_default_yaml(Path::new("."), args.listen, args.public_url.clone()),
     };
     if let Some(storage) = args.storage {
