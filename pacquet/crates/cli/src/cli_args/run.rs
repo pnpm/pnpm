@@ -63,8 +63,8 @@ impl RunArgs {
         let mut specified = get_specified_scripts(manifest.value(), &script_name);
 
         // Hidden scripts (names starting with ".") can only be invoked
-        // from within another script — i.e. when a lifecycle event is
-        // already in progress. Mirrors upstream's
+        // from within another script. That happens when a lifecycle event
+        // is already in progress. Mirrors upstream's
         // `if (!process.env.npm_lifecycle_event)` guard.
         if std::env::var_os("npm_lifecycle_event").is_none() {
             specified = throw_or_filter_hidden_scripts(specified, &script_name)?;
@@ -158,8 +158,8 @@ fn run_one(opts: RunOne<'_>) -> miette::Result<()> {
 }
 
 /// Spawn one script stage in the foreground. On a non-zero exit, print
-/// pnpm's `ELIFECYCLE` line and exit the process with the script's code
-/// — matching pnpm, which propagates the failing script's exit code.
+/// pnpm's `ELIFECYCLE` line and exit the process with the script's code.
+/// This matches pnpm, which propagates the failing script's exit code.
 fn exec_stage(opts: &RunOne<'_>, stage: &str, script: &str, args: &[String]) -> miette::Result<()> {
     let status = run_script(RunScript {
         pkg_root: opts.dir,
@@ -201,8 +201,8 @@ fn map_scripts_prepend_node_path(value: ConfigScriptsPrependNodePath) -> Scripts
 /// exact-match + `start`-fallback arms of upstream's `getSpecifiedScripts`
 /// at <https://github.com/pnpm/pnpm/blob/80037699fb/exec/commands/src/run.ts#L429-L442>.
 ///
-/// The RegExp-literal selector (`/build:.*/`) is not yet ported — pacquet
-/// has no regex engine in its dependency set — so a `/.../`-shaped
+/// The RegExp-literal selector (`/build:.*/`) is not yet ported, because
+/// pacquet has no regex engine in its dependency set. A `/.../`-shaped
 /// selector falls through to the "missing script" path.
 fn get_specified_scripts(manifest: &Value, script_name: &str) -> Vec<String> {
     let scripts = manifest.get("scripts").and_then(Value::as_object);

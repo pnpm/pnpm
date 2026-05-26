@@ -87,8 +87,8 @@ pub enum RunScriptError {
 ///
 /// Returns the child's [`ExitStatus`] so the caller can propagate the
 /// script's exit code (pnpm exits the process with the failing script's
-/// code). A non-zero exit is **not** an error here — only a failure to
-/// spawn / wait / pick a shell is.
+/// code). A non-zero exit is **not** an error here. Only a failure to
+/// spawn the process, wait on it, or pick a shell is.
 pub fn run_script(opts: RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     // Append CLI args to the script body, shell-quoted, so
     // `npm_lifecycle_script` and the spawned command both see them.
@@ -113,7 +113,8 @@ pub fn run_script(opts: RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
         // Explicitly-run scripts are trusted; no node-gyp wrapper.
         node_gyp_path: None,
         user_agent: opts.user_agent,
-        // `unsafePerm: true` — no per-package TMPDIR / privilege drop.
+        // unsafePerm is true for explicitly-run scripts. No per-package
+        // TMPDIR or privilege drop applies.
         unsafe_perm: true,
         extra_env: opts.extra_env,
     };

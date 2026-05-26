@@ -8,8 +8,8 @@ fn empty_env() -> HashMap<String, String> {
 }
 
 /// A foreground script runs with `node_modules/.bin` prepended to PATH
-/// and the `npm_*` env stamped — the very setup the pre-rewrite
-/// `pacquet run` (`sh -c <script>` with the bare inherited env) lacked.
+/// and the `npm_*` env stamped. The pre-rewrite `pacquet run` lacked this
+/// setup, because it spawned `sh -c <script>` with the bare inherited env.
 #[test]
 #[cfg_attr(not(unix), ignore = "spawns a POSIX shell")]
 fn foreground_script_sees_bin_path_and_npm_env() {

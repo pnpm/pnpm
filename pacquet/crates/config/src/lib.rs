@@ -743,13 +743,13 @@ pub struct Config {
     /// so `run` / `exec` thread it uniformly.
     pub extra_bin_paths: Vec<PathBuf>,
 
-    /// `nodeOptions` — value injected as `NODE_OPTIONS` into the
+    /// `nodeOptions` is injected as `NODE_OPTIONS` into the
     /// environment of spawned scripts. Mirrors upstream's
     /// [`Config.nodeOptions`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).
     /// `None` leaves the inherited `NODE_OPTIONS` untouched.
     pub node_options: Option<String>,
 
-    /// `dlxCacheMaxAge` — the time in minutes after which a cached
+    /// `dlxCacheMaxAge` is the time in minutes after which a cached
     /// `pnpm dlx` install is considered stale and reinstalled. Default
     /// `1440` (24 hours), matching upstream's
     /// [`Config.dlxCacheMaxAge`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).

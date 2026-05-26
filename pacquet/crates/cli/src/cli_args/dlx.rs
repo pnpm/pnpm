@@ -202,7 +202,7 @@ async fn install_into<Reporter: self::Reporter + 'static>(
     cfg.virtual_store_dir = prepare_dir.join("node_modules").join(".pnpm");
     cfg.enable_global_virtual_store = false;
     // The throwaway install is a standalone project, not part of the
-    // caller's workspace — drop any workspace association picked up from
+    // caller's workspace. Drop any workspace association picked up from
     // the caller's `pnpm-workspace.yaml`.
     cfg.workspace_dir = None;
     // Allow the requested packages (and their aliases) to run build
@@ -306,8 +306,8 @@ fn registries_map(config: &Config) -> BTreeMap<String, String> {
 /// Hash the install request into a cache key. Mirrors the *inputs* of
 /// upstream's `createCacheKey` (sorted specs, sorted registries, and the
 /// optional `allowBuild` list), but keys on the raw specs rather than the
-/// resolved package ids and uses pacquet's 32-char `create_short_hash` —
-/// the dlx cache is internal, not shared with pnpm. Resolving to ids
+/// resolved package ids and uses pacquet's 32-char [`create_short_hash`].
+/// The dlx cache is internal, not shared with pnpm. Resolving to ids
 /// before hashing (so floating tags pick up new versions before the TTL)
 /// is a follow-up once a standalone resolver entry is wired in.
 fn create_cache_key(

@@ -205,9 +205,9 @@ pub struct WorkspaceSettings {
     /// `false` (applied in [`Config`]).
     pub enable_pre_post_scripts: Option<bool>,
 
-    /// `scriptShell` from `pnpm-workspace.yaml`. Resolved against the
-    /// workspace dir is *not* applied here — pnpm treats it as a
-    /// command name or absolute path, used verbatim.
+    /// `scriptShell` from `pnpm-workspace.yaml`. No workspace-dir
+    /// resolution is applied here. pnpm treats it as a command name or
+    /// absolute path, used verbatim.
     pub script_shell: Option<String>,
 
     /// `nodeOptions` from `pnpm-workspace.yaml`. Injected as
