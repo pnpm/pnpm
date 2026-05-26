@@ -109,8 +109,10 @@ impl Config {
             UplinkConfig { url: "https://registry.npmjs.org".to_string() },
         );
         let mut packages = IndexMap::new();
-        packages
-            .insert("**".to_string(), PackageAccess { proxy: Some("npmjs".to_string()), ..Default::default() });
+        packages.insert(
+            "**".to_string(),
+            PackageAccess { proxy: Some("npmjs".to_string()), ..Default::default() },
+        );
         Self {
             listen,
             public_url: format!("http://{listen}"),
@@ -162,7 +164,7 @@ impl Config {
     /// Parse [`DEFAULT_CONFIG_YAML`] (the verdaccio-shaped YAML
     /// bundled into the binary) and merge it with the given runtime
     /// values. Relative `storage:` paths in the bundled YAML are
-    /// resolved against `base_dir` — pass [`Path::new(".")`] to mirror
+    /// resolved against `base_dir` — pass `Path::new(".")` to mirror
     /// verdaccio's CWD-relative behaviour, or an absolute path when
     /// the caller knows where the storage should live.
     ///
@@ -251,4 +253,220 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
         return name_scope == scope;
     }
     pattern == name
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, DEFAULT_CONFIG_YAML, pattern_matches, resolve_relative};
+    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+    use std::path::{Path, PathBuf};
+
+    fn listen() -> SocketAddr {
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
+    }
+
+    #[test]
+    fn pattern_double_star_matches_anything() {
+        assert!(pattern_matches("**", "lodash"));
+        assert!(pattern_matches("**", "@foo/bar"));
+        assert!(pattern_matches("**", ""));
+    }
+
+    #[test]
+    fn pattern_any_scope_matches_only_scoped() {
+        assert!(pattern_matches("@*/*", "@foo/bar"));
+        assert!(pattern_matches("@*/*", "@pnpm.e2e/needs-auth"));
+        assert!(!pattern_matches("@*/*", "lodash"));
+    }
+
+    #[test]
+    fn pattern_specific_scope_matches_only_that_scope() {
+        assert!(pattern_matches("@private/*", "@private/anything"));
+        assert!(!pattern_matches("@private/*", "@public/anything"));
+        assert!(!pattern_matches("@private/*", "private"));
+    }
+
+    #[test]
+    fn pattern_exact_match() {
+        assert!(pattern_matches("foobar", "foobar"));
+        assert!(!pattern_matches("foobar", "foobaz"));
+        assert!(!pattern_matches("foobar", "@scope/foobar"));
+    }
+
+    #[test]
+    fn resolve_relative_passes_absolute_paths_through() {
+        let absolute = PathBuf::from("/tmp/storage");
+        assert_eq!(resolve_relative("/tmp/storage", Path::new("/anywhere")), absolute);
+    }
+
+    #[test]
+    fn resolve_relative_joins_relative_paths_to_base() {
+        assert_eq!(
+            resolve_relative("./storage", Path::new("/etc/pnpr")),
+            PathBuf::from("/etc/pnpr/./storage"),
+        );
+    }
+
+    #[test]
+    fn proxy_constructor_routes_everything_through_npmjs() {
+        let config = Config::proxy(listen(), PathBuf::from("/tmp"));
+        let (name, uplink) = config.resolve_uplink("anything").expect("** rule matches");
+        assert_eq!(name, "npmjs");
+        assert_eq!(uplink.url, "https://registry.npmjs.org");
+    }
+
+    #[test]
+    fn static_constructor_has_no_uplinks() {
+        let config = Config::static_serve(listen(), PathBuf::from("/tmp"));
+        assert!(config.uplinks.is_empty());
+        assert!(config.packages.is_empty());
+        assert!(config.resolve_uplink("anything").is_none());
+    }
+
+    #[test]
+    fn from_default_yaml_parses_bundled_file() {
+        let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
+        assert!(config.uplinks.contains_key("npmjs"));
+        assert_eq!(config.uplinks["npmjs"].url, "https://registry.npmjs.org/");
+        // The bundled file routes the catch-all through npmjs.
+        let (name, _) = config.resolve_uplink("lodash").expect("** -> npmjs in defaults");
+        assert_eq!(name, "npmjs");
+    }
+
+    #[test]
+    fn default_yaml_const_matches_what_from_default_parses() {
+        // Sanity check: the const is non-empty and round-trips through
+        // the parser without panicking — i.e. `from_default_yaml`'s
+        // `expect(...)` is not a tripwire under future edits.
+        assert!(!DEFAULT_CONFIG_YAML.is_empty());
+        let _ = Config::from_default_yaml(Path::new("."), listen(), None);
+    }
+
+    #[test]
+    fn from_yaml_str_storage_is_resolved_relative_to_base_dir() {
+        let yaml = "storage: ./store\nuplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+        assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./store"));
+    }
+
+    #[test]
+    fn from_yaml_str_absolute_storage_is_left_alone() {
+        let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+        assert_eq!(config.storage, PathBuf::from("/var/lib/pnpr"));
+    }
+
+    #[test]
+    fn from_yaml_str_ignores_unknown_sections() {
+        // Sections we don't implement (`auth`, `web`, `plugins`, etc.)
+        // must parse silently so existing config files work untouched.
+        let yaml = "\
+storage: ./s
+auth:
+  htpasswd:
+    file: ./htpasswd
+web:
+  enable: false
+plugins: ../node_modules
+secret: hunter2
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+packages:
+  '**':
+    access: $all
+    proxy: npmjs
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        let (name, uplink) = config.resolve_uplink("anything").expect("** -> npmjs");
+        assert_eq!(name, "npmjs");
+        assert_eq!(uplink.url, "https://registry.npmjs.org/");
+    }
+
+    #[test]
+    fn from_yaml_str_packages_evaluated_in_declared_order() {
+        // First match wins: `@private/*` should resolve before `**`
+        // even though both are declared.
+        let yaml = "\
+storage: ./s
+uplinks:
+  mirror: { url: https://mirror.example/ }
+  npmjs:  { url: https://registry.npmjs.org/ }
+packages:
+  '@private/*':
+    proxy: mirror
+  '**':
+    proxy: npmjs
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.resolve_uplink("@private/foo").unwrap().0, "mirror");
+        assert_eq!(config.resolve_uplink("lodash").unwrap().0, "npmjs");
+    }
+
+    #[test]
+    fn from_yaml_str_package_without_proxy_does_not_resolve_an_uplink() {
+        // A pattern entry that has no `proxy:` shouldn't surface an
+        // uplink. The walker should keep searching for a later rule.
+        let yaml = "\
+storage: ./s
+uplinks:
+  npmjs: { url: https://registry.npmjs.org/ }
+packages:
+  '@private/*':
+    access: $authenticated
+  '**':
+    proxy: npmjs
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        // `@private/foo` matches the first rule but it has no proxy,
+        // so the walker falls through to `**` -> `npmjs`.
+        assert_eq!(config.resolve_uplink("@private/foo").unwrap().0, "npmjs");
+    }
+
+    #[test]
+    fn from_yaml_str_public_url_defaults_to_listen_when_none_passed() {
+        let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.public_url, format!("http://{}", listen()));
+    }
+
+    #[test]
+    fn from_yaml_str_public_url_override_wins() {
+        let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(
+            yaml,
+            Path::new("/x"),
+            listen(),
+            Some("http://override.test".to_string()),
+        )
+        .unwrap();
+        assert_eq!(config.public_url, "http://override.test");
+    }
+
+    #[test]
+    fn from_yaml_path_round_trips_through_tempfile() {
+        // Exercise the file-reading path (not just the in-memory
+        // `from_yaml_str` shortcut). Confirms relative `storage:` is
+        // resolved against the *config file's* parent dir.
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("registry.yml");
+        std::fs::write(&config_path, "storage: ./store\nuplinks: {}\npackages: {}\n").unwrap();
+        let config = Config::from_yaml(&config_path, listen(), None).unwrap();
+        assert_eq!(config.storage, dir.path().join("./store"));
+    }
+
+    #[test]
+    fn from_yaml_path_surfaces_parse_errors_as_invalid_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("broken.yml");
+        std::fs::write(&config_path, "storage: [not, a, string\n").unwrap();
+        let err = Config::from_yaml(&config_path, listen(), None).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn from_yaml_path_propagates_missing_file_errors() {
+        let err = Config::from_yaml(Path::new("/no/such/file.yml"), listen(), None).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
 }
