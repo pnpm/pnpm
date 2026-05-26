@@ -22,8 +22,7 @@ export interface StageContext {
 export function createStageContext (opts: StageOptions, packageName?: string): StageContext {
   const registry = getStageRegistry(opts, packageName)
   const getAuthHeaderByUri = createGetAuthHeaderByURI(
-    opts.configByUri ?? {} as Record<string, RegistryConfig>,
-    registry
+    opts.configByUri ?? {} as Record<string, RegistryConfig>
   )
   return {
     opts,

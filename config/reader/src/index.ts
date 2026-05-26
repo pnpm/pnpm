@@ -38,7 +38,7 @@ import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
-import { getDefaultCreds, getNetworkConfigs } from './getNetworkConfigs.js'
+import { getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
@@ -321,11 +321,8 @@ export async function getConfig (opts: {
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
-  const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
-  pnpmConfig.configByUri = {
-    ...networkConfigs.configByUri,
-    ...defaultCreds ? { '': { creds: defaultCreds } } : {},
-  }
+  pnpmConfig.configByUri = { ...networkConfigs.configByUri }
+
   // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
   // not project-level, to prevent project .npmrc from executing arbitrary commands.
   const userConfig = npmrcResult.userConfig as Record<string, string>

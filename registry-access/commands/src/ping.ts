@@ -52,7 +52,7 @@ export async function handler (opts: PingOptions): Promise<string> {
   pingUrlObject.searchParams.set('write', 'true')
   const pingUrl = pingUrlObject.toString()
 
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, normalizedRegistryUrl)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const authHeaderValue = getAuthHeader(normalizedRegistryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 

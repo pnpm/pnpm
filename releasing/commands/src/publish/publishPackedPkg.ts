@@ -251,15 +251,6 @@ function findRegistryInfo (
     tls = { ...entry.tls, ...tls }
   }
 
-  const isDefaultRegistry =
-    nonNormalizedRegistry === registries.default ||
-    registry === registries.default ||
-    registry === parseSupportedRegistryUrl(registries.default)?.normalizedUrl
-
-  if (isDefaultRegistry) {
-    creds ??= configByUri['']?.creds
-  }
-
   return {
     registry,
     config: { creds, tls },

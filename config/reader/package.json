@@ -37,6 +37,7 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.env-replace": "catalog:",
     "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.nerf-dart": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",

@@ -87,7 +87,7 @@ export async function handler (
   searchUrl.searchParams.set('size', (opts.searchLimit ?? 20).toString())
 
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
 
   const response = await fetchFromRegistry(searchUrl.toString(), {
     authHeaderValue: getAuthHeader(registry),
