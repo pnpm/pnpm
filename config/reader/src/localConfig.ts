@@ -110,7 +110,6 @@ const NPM_AUTH_SETTINGS = [
   '_authToken',
   '_password',
   'email',
-  'keyfile',
   'username',
 ]
 

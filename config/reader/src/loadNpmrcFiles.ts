@@ -142,10 +142,11 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
 //   working but warns so users migrate before a future major drops support.
 // * client certificate keys — `cert`/`key` (inline PEM). Pinned to prevent
 //   a client certificate (and the identity it carries) being presented to
-//   the wrong host. The `certfile`/`keyfile` variants are not rescoped:
-//   `certfile` isn't read unscoped by pnpm at all, and supporting `keyfile`
-//   alone would be asymmetric — users wanting the path form can write the
-//   URL-scoped key directly (`//host/:certfile=...`, `//host/:keyfile=...`).
+//   the wrong host. The `certfile`/`keyfile` path variants are not in
+//   `NPM_AUTH_SETTINGS`, so unscoped forms never reach the merged config
+//   in the first place — only the URL-scoped `//host/:certfile=...` and
+//   `//host/:keyfile=...` forms are honored, and those are already pinned
+//   to their authoring registry by construction.
 //
 // `ca`/`cafile` are intentionally left unscoped-by-default: they're trust
 // anchors, not credentials, and corporate MITM-proxy setups rely on them
