@@ -169,7 +169,7 @@ fn posix_quote(arg: &str) -> String {
         return "''".to_string();
     }
     let safe = arg.chars().all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
-    if safe { arg.to_string() } else { format!("'{}'", arg.replace('\'', "'\"'\"'")) }
+    if safe { arg.to_string() } else { format!("'{}'", arg.replace('\'', r#"'"'"'"#)) }
 }
 
 #[cfg(test)]

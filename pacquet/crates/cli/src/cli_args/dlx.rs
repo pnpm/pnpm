@@ -58,7 +58,7 @@ pub enum DlxError {
     #[diagnostic(code(ERR_PNPM_DLX_MISSING_COMMAND))]
     MissingCommand,
 
-    #[display("dlx was unable to find the installed dependency in \"dependencies\"")]
+    #[display(r#"dlx was unable to find the installed dependency in "dependencies""#)]
     #[diagnostic(code(ERR_PNPM_DLX_NO_DEP))]
     NoDep,
 

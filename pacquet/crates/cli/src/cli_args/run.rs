@@ -41,7 +41,7 @@ pub enum RunError {
     #[display("Script \"{script}\" is hidden and cannot be run directly")]
     #[diagnostic(
         code(ERR_PNPM_HIDDEN_SCRIPT),
-        help("Scripts starting with \".\" are hidden and can only be called from other scripts.")
+        help(r#"Scripts starting with "." are hidden and can only be called from other scripts."#)
     )]
     HiddenScript { script: String },
 }
@@ -281,7 +281,7 @@ fn render_project_commands(manifest: &PackageManifest) -> String {
         }
         output.push_str(&format!(
             "Commands available via \"pnpm run\":\n{}",
-            render_commands(&other)
+            render_commands(&other),
         ));
     }
     output
