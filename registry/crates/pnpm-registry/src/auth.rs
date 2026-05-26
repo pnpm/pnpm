@@ -1,82 +1,195 @@
 //! User and token storage for the registry.
 //!
-//! The pnpm tests that use `@pnpm/registry-mock` boot the registry,
-//! call `addUser` once, and then exercise the resulting Bearer token
-//! against protected packages. There's no need for password hashing,
-//! token expiration, or on-disk persistence — everything lives in an
-//! in-memory store guarded by a `Mutex`.
+//! Two stores back the auth flow:
 //!
-//! Two pieces matter:
+//! * [`UserStore`] — username → bcrypt-hashed password. Persisted as
+//!   an Apache-style htpasswd file when [`UserStore::open`] is given
+//!   a path; in-memory otherwise. The on-disk format is one
+//!   `<username>:<bcrypt-hash>` line per user, so the same file can
+//!   be inspected and verified by Apache's `htpasswd -v`.
+//! * [`TokenStore`] — SHA-256 token hash → token record. Persisted in
+//!   a SQLite database when [`TokenStore::open`] is given a path;
+//!   in-memory otherwise. The raw token is only returned to the
+//!   caller once on `issue`; only its hash ever hits disk so a leak
+//!   of the database doesn't grant access on its own.
 //!
-//! * [`UserStore`] — username → plaintext password. Verified via
-//!   constant-time compare to guard against test-timing weirdness
-//!   (overkill but cheap, since `subtle` isn't in the workspace and
-//!   we can write it ourselves).
-//! * [`TokenStore`] — token → username. Tokens are 32-hex-char
-//!   strings derived from a per-server secret plus a monotonic
-//!   counter via SHA-256 — opaque to the client, not guessable
-//!   without the secret, and never collide within a process.
+//! Both stores keep a full mirror of their state in a `Mutex<...>`
+//! and persist on every write. Reads (the hot path for
+//! `enforce_access`) never touch disk.
 
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 
-use crate::error::RegistryError;
+use crate::config::{AuthConfig, MaxUsers};
+use crate::error::{RegistryError, Result};
 
-/// In-memory username → password map. Populated by the adduser
-/// endpoint; passwords are stored in plaintext because tests
-/// already have the plaintext on hand and there's no value in
-/// hashing it for a process-local registry.
-#[derive(Debug, Default)]
+/// Bundle of the user store and the token store. Built once at
+/// startup so the rest of the server doesn't have to know whether
+/// auth is file-backed or in-memory.
+#[derive(Debug)]
+pub struct AuthState {
+    pub users: UserStore,
+    pub tokens: TokenStore,
+}
+
+impl AuthState {
+    /// All-in-memory auth state. Used when neither
+    /// `auth.htpasswd.file` nor `auth.tokens.file` are configured,
+    /// and by tests that don't care about persistence.
+    pub fn in_memory() -> Self {
+        Self { users: UserStore::in_memory(), tokens: TokenStore::in_memory() }
+    }
+
+    /// Build the auth state from an [`AuthConfig`]. Either store is
+    /// in-memory when its file path is unset; otherwise the on-disk
+    /// state is loaded eagerly so a malformed htpasswd or a
+    /// permission-denied SQLite file surfaces as a startup error.
+    pub fn load(config: &AuthConfig) -> Result<Self> {
+        let users = match config.htpasswd.file.clone() {
+            Some(path) => UserStore::open(path, config.htpasswd.max_users)?,
+            None => UserStore::in_memory(),
+        };
+        let tokens = match config.tokens.file.clone() {
+            Some(path) => TokenStore::open(path)?,
+            None => TokenStore::in_memory(),
+        };
+        Ok(Self { users, tokens })
+    }
+}
+
+/// Bcrypt cost factor used for new password hashes. Cost 10 is what
+/// verdaccio uses by default and matches Apache `htpasswd -B`'s
+/// default, so files written here verify cleanly against either
+/// tool. ~50–100 ms per hash on modern hardware — slow enough to
+/// frustrate offline cracking, cheap enough that adduser doesn't
+/// feel sluggish.
+const DEFAULT_BCRYPT_COST: u32 = 10;
+
+/// File-backed (or in-memory) htpasswd store.
+#[derive(Debug)]
 pub struct UserStore {
-    users: Mutex<std::collections::HashMap<String, String>>,
+    /// `username -> bcrypt hash`. The hash string carries its own
+    /// version and cost (`$2y$10$...`) so we never need to remember
+    /// per-record metadata.
+    users: Mutex<HashMap<String, String>>,
+    path: Option<PathBuf>,
+    max_users: MaxUsers,
+    bcrypt_cost: u32,
 }
 
 impl UserStore {
-    pub fn new() -> Self {
-        Self::default()
+    /// In-memory store with no on-disk persistence. Used when
+    /// `auth.htpasswd.file` is unset and by the existing
+    /// `@pnpm/registry-mock` integration where every restart is a
+    /// fresh process.
+    pub fn in_memory() -> Self {
+        Self {
+            users: Mutex::new(HashMap::new()),
+            path: None,
+            max_users: MaxUsers::Unlimited,
+            bcrypt_cost: DEFAULT_BCRYPT_COST,
+        }
     }
 
-    /// Returns true if the user already existed and the password
-    /// matched (a "login" against an existing account), false if
-    /// the password didn't match. When the user doesn't exist, the
-    /// account is created with the supplied password and `Ok(false)`
-    /// (still "not a login") is returned — matches verdaccio's
-    /// adduser behavior where a brand-new user is registered on
-    /// the spot.
-    pub fn add_or_login(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<UpsertOutcome, RegistryError> {
-        let mut users = self.users.lock().expect("UserStore mutex poisoned");
-        match users.get(username) {
-            Some(existing) => {
-                if constant_time_eq(existing.as_bytes(), password.as_bytes()) {
+    /// File-backed store. The file is parsed up front so a malformed
+    /// htpasswd surfaces as a startup error rather than a silent
+    /// empty user list. A missing file is OK — it's created on the
+    /// first registration.
+    pub fn open(path: PathBuf, max_users: MaxUsers) -> Result<Self> {
+        Self::open_with_cost(path, max_users, DEFAULT_BCRYPT_COST)
+    }
+
+    /// Like [`Self::open`] but with a configurable bcrypt cost — used
+    /// by tests that want sub-100ms hashing.
+    pub fn open_with_cost(path: PathBuf, max_users: MaxUsers, bcrypt_cost: u32) -> Result<Self> {
+        let users = match std::fs::read_to_string(&path) {
+            Ok(raw) => parse_htpasswd(&raw).map_err(|reason| {
+                RegistryError::InvalidHtpasswdFile { path: path.display().to_string(), reason }
+            })?,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
+            Err(err) => return Err(err.into()),
+        };
+        Ok(Self { users: Mutex::new(users), path: Some(path), max_users, bcrypt_cost })
+    }
+
+    /// Add a new user or verify a returning one.
+    ///
+    /// * Unknown username, registration allowed → bcrypt the password,
+    ///   insert, persist, return `Created`.
+    /// * Known username, password matches → return `LoggedIn`.
+    /// * Known username, password wrong → `Unauthenticated`.
+    /// * Unknown username, registration disabled or capped →
+    ///   `RegistrationDisabled` / `TooManyUsers`.
+    pub async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+        let existing_hash = {
+            let users = self.users.lock().expect("UserStore mutex poisoned");
+            users.get(username).cloned()
+        };
+        if let Some(stored) = existing_hash {
+            return verify_bcrypt(password.to_string(), stored).await.and_then(|ok| {
+                if ok {
                     Ok(UpsertOutcome::LoggedIn)
                 } else {
                     Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
                 }
-            }
-            None => {
-                users.insert(username.to_string(), password.to_string());
-                Ok(UpsertOutcome::Created)
-            }
+            });
         }
+
+        // Brand-new user — check the registration cap before doing
+        // the (expensive) bcrypt hash.
+        match self.max_users {
+            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
+            MaxUsers::Limited(max) => {
+                let current = self.users.lock().expect("UserStore mutex poisoned").len() as u64;
+                if current >= max {
+                    return Err(RegistryError::TooManyUsers { max });
+                }
+            }
+            MaxUsers::Unlimited => {}
+        }
+
+        let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
+        let snapshot = {
+            let mut users = self.users.lock().expect("UserStore mutex poisoned");
+            // Re-check the cap under the lock to make the limit hold
+            // under concurrent adduser bursts. A second writer that
+            // raced in while we were hashing could otherwise push
+            // past the cap.
+            if let MaxUsers::Limited(max) = self.max_users
+                && (users.len() as u64) >= max
+                && !users.contains_key(username)
+            {
+                return Err(RegistryError::TooManyUsers { max });
+            }
+            users.insert(username.to_string(), hash);
+            serialize_htpasswd(&users)
+        };
+        self.persist(snapshot).await?;
+        Ok(UpsertOutcome::Created)
     }
 
     /// Verify a username+password pair against the store. Returns
     /// `Some(username)` when the credentials match, `None`
-    /// otherwise — never errors, since the caller may want to
-    /// degrade to anonymous on failure rather than fail outright.
+    /// otherwise. Used by the Basic-auth path of [`identify`] —
+    /// kept synchronous so `enforce_access` can stay sync.
+    ///
+    /// Bcrypt verification runs inline on the caller's task; at
+    /// cost 10 it's ~50–100 ms, which is fine for the rare Basic
+    /// path. The hot path is Bearer, which doesn't bcrypt.
     pub fn verify(&self, username: &str, password: &str) -> Option<String> {
-        let users = self.users.lock().expect("UserStore mutex poisoned");
-        let stored = users.get(username)?;
-        constant_time_eq(stored.as_bytes(), password.as_bytes()).then(|| username.to_string())
+        let stored = {
+            let users = self.users.lock().expect("UserStore mutex poisoned");
+            users.get(username).cloned()?
+        };
+        bcrypt::verify(password, &stored).ok()?.then(|| username.to_string())
     }
 }
 
@@ -88,72 +201,125 @@ pub enum UpsertOutcome {
     LoggedIn,
 }
 
-/// In-memory token → username map. Tokens are minted on adduser
-/// and on the basic-auth fallback for endpoints that need a
-/// token in the response body.
+impl UserStore {
+    async fn persist(&self, body: String) -> Result<()> {
+        let Some(path) = self.path.clone() else {
+            return Ok(());
+        };
+        tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes())).await??;
+        Ok(())
+    }
+}
+
+/// SHA-256-hashed (token_hash → username) map, optionally backed by
+/// a SQLite database for cross-restart durability.
+///
+/// Token records carry the verdaccio shape (created_at, last_used_at,
+/// readonly, cidr_whitelist) so they can be surfaced by future
+/// `/-/npm/v1/tokens` endpoints without a schema migration.
 #[derive(Debug)]
 pub struct TokenStore {
-    tokens: Mutex<std::collections::HashMap<String, String>>,
+    inner: Mutex<TokenInner>,
+    persist: Option<PathBuf>,
     secret: [u8; 32],
     counter: AtomicU64,
 }
 
+#[derive(Debug)]
+struct TokenInner {
+    /// hex-encoded SHA-256 of the raw token → record.
+    tokens: HashMap<String, TokenRecord>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TokenRecord {
+    pub username: String,
+    pub created_at: u64,
+    pub last_used_at: u64,
+    pub readonly: bool,
+    pub cidr_whitelist: Vec<String>,
+}
+
 impl TokenStore {
-    /// Build a store with a freshly-randomized secret. The secret
-    /// is derived from the system time + process id + a small
-    /// startup-only RNG fallback — good enough for a test server
-    /// that runs for a few seconds at a time, and lets us avoid
-    /// pulling in `rand` as a new workspace dependency.
-    pub fn new() -> Self {
-        let mut hasher = Sha256::new();
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_nanos())
-            .unwrap_or(0);
-        hasher.update(nanos.to_le_bytes());
-        hasher.update(std::process::id().to_le_bytes());
-        // Mix in the address of a stack allocation to add a sliver
-        // of ASLR-derived entropy; not relied on for security, just
-        // for collision resistance across multiple test processes
-        // started within the same nanosecond.
-        let addr = &nanos as *const u128 as usize;
-        hasher.update(addr.to_le_bytes());
-        let mut secret = [0u8; 32];
-        secret.copy_from_slice(&hasher.finalize());
+    /// Pure in-memory store. Tokens vanish on restart.
+    pub fn in_memory() -> Self {
         Self {
-            tokens: Mutex::new(std::collections::HashMap::new()),
-            secret,
+            inner: Mutex::new(TokenInner { tokens: HashMap::new() }),
+            persist: None,
+            secret: fresh_secret(),
             counter: AtomicU64::new(0),
         }
     }
 
-    /// Mint a fresh token for `username` and remember it.
-    pub fn issue(&self, username: &str) -> String {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let mut hasher = Sha256::new();
-        hasher.update(self.secret);
-        hasher.update(nonce.to_le_bytes());
-        hasher.update(username.as_bytes());
-        let digest = hasher.finalize();
-        // 16 bytes of hash → 32 hex chars. Long enough to be
-        // unguessable, short enough to keep test logs readable.
-        let token = hex_encode(&digest[..16]);
-        let mut tokens = self.tokens.lock().expect("TokenStore mutex poisoned");
-        tokens.insert(token.clone(), username.to_string());
-        token
+    /// SQLite-backed store. Creates the file (and the `tokens`
+    /// table) if missing; loads existing records into memory on
+    /// startup so the hot lookup path doesn't touch disk.
+    pub fn open(path: PathBuf) -> Result<Self> {
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)?;
+        }
+        let conn = Connection::open(&path)?;
+        init_tokens_schema(&conn)?;
+        let tokens = load_all_tokens(&conn)?;
+        drop(conn);
+        Ok(Self {
+            inner: Mutex::new(TokenInner { tokens }),
+            persist: Some(path),
+            secret: fresh_secret(),
+            counter: AtomicU64::new(0),
+        })
     }
 
-    /// Resolve a token back to its username, if it was issued by
-    /// this store.
-    pub fn lookup(&self, token: &str) -> Option<String> {
-        let tokens = self.tokens.lock().expect("TokenStore mutex poisoned");
-        tokens.get(token).cloned()
+    /// Mint a fresh token for `username`, persist its hash, and
+    /// return the raw token to the caller. The raw token is never
+    /// stored.
+    pub async fn issue(&self, username: &str) -> Result<String> {
+        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
+        let raw = mint_token(&self.secret, nonce, username);
+        let token_hash = sha256_hex(raw.as_bytes());
+        let record = TokenRecord {
+            username: username.to_string(),
+            created_at: unix_seconds(),
+            last_used_at: unix_seconds(),
+            readonly: false,
+            cidr_whitelist: Vec::new(),
+        };
+        {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.tokens.insert(token_hash.clone(), record.clone());
+        }
+        if let Some(path) = self.persist.clone() {
+            let hash_for_db = token_hash.clone();
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                let conn = Connection::open(&path)?;
+                upsert_token(&conn, &hash_for_db, &record)?;
+                Ok(())
+            })
+            .await??;
+        }
+        Ok(raw)
+    }
+
+    /// Resolve a raw token back to its username, if it was ever
+    /// issued (and not since deleted). Runs entirely in memory.
+    pub fn lookup(&self, raw: &str) -> Option<String> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
+        inner.tokens.get(&token_hash).map(|record| record.username.clone())
     }
 }
 
 impl Default for TokenStore {
     fn default() -> Self {
-        Self::new()
+        Self::in_memory()
+    }
+}
+
+impl Default for UserStore {
+    fn default() -> Self {
+        Self::in_memory()
     }
 }
 
@@ -187,6 +353,229 @@ pub fn identify(
     None
 }
 
+// ---------------------------------------------------------------
+// htpasswd I/O
+// ---------------------------------------------------------------
+
+/// Parse an Apache-shaped htpasswd file. Each non-empty, non-comment
+/// line is `username:hash`; we accept any bcrypt variant (`$2a$`,
+/// `$2b$`, `$2y$`) but reject everything else so a config file
+/// holding `crypt(3)` or plaintext entries can't masquerade as
+/// passing without the password actually being verifiable.
+fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
+    let mut out = HashMap::new();
+    for (line_no, line) in raw.lines().enumerate() {
+        let line = line.trim_end_matches(['\r']);
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((user, hash)) = line.split_once(':') else {
+            return Err(format!("line {}: missing ':' separator", line_no + 1));
+        };
+        let user = user.trim();
+        let hash = hash.trim();
+        if user.is_empty() {
+            return Err(format!("line {}: empty username", line_no + 1));
+        }
+        if !is_supported_hash(hash) {
+            return Err(format!(
+                "line {}: unsupported hash format for user {user:?} (only bcrypt is accepted)",
+                line_no + 1,
+            ));
+        }
+        out.insert(user.to_string(), hash.to_string());
+    }
+    Ok(out)
+}
+
+/// True for any bcrypt variant. We don't accept `{SHA}`, `$apr1$`,
+/// crypt(3), or plaintext — every supported entry must go through
+/// `bcrypt::verify` cleanly.
+fn is_supported_hash(hash: &str) -> bool {
+    hash.starts_with("$2a$") || hash.starts_with("$2b$") || hash.starts_with("$2y$")
+}
+
+/// Serialize the user map back to htpasswd shape. Sorted output so
+/// the file is stable under `git diff` and easier to eyeball.
+fn serialize_htpasswd(users: &HashMap<String, String>) -> String {
+    let mut entries: Vec<(&String, &String)> = users.iter().collect();
+    entries.sort_by(|left, right| left.0.cmp(right.0));
+    let mut out = String::new();
+    for (user, hash) in entries {
+        out.push_str(user);
+        out.push(':');
+        out.push_str(hash);
+        out.push('\n');
+    }
+    out
+}
+
+fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::io::Write as _;
+
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp = unique_tmp_path(path);
+    {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+    }
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+fn unique_tmp_path(base: &Path) -> PathBuf {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id();
+    let mut name = base.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    name.push(format!(".tmp.{pid}.{counter}"));
+    match base.parent() {
+        Some(parent) => parent.join(name),
+        None => PathBuf::from(name),
+    }
+}
+
+// ---------------------------------------------------------------
+// bcrypt helpers
+// ---------------------------------------------------------------
+
+/// Hash a password off the reactor — bcrypt at cost 10 takes
+/// ~50–100 ms and stalls every other async task on the same thread
+/// if run inline.
+async fn hash_bcrypt(password: String, cost: u32) -> Result<String> {
+    tokio::task::spawn_blocking(move || {
+        let parts = bcrypt::hash_with_result(&password, cost)?;
+        // Format as $2y$ for maximum cross-tool compatibility —
+        // Apache's `htpasswd -B` writes $2y$, GNU coreutils tools
+        // accept it, and bcrypt::verify reads any of $2a/$2b/$2y.
+        Ok(parts.format_for_version(bcrypt::Version::TwoY))
+    })
+    .await?
+}
+
+async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
+    tokio::task::spawn_blocking(move || {
+        bcrypt::verify(&password, &hash).map_err(RegistryError::from)
+    })
+    .await?
+}
+
+// ---------------------------------------------------------------
+// SQLite-backed token store
+// ---------------------------------------------------------------
+
+fn init_tokens_schema(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS tokens (
+             token_hash      TEXT PRIMARY KEY,
+             username        TEXT NOT NULL,
+             created_at      INTEGER NOT NULL,
+             last_used_at    INTEGER NOT NULL,
+             readonly        INTEGER NOT NULL DEFAULT 0,
+             cidr_whitelist  TEXT NOT NULL DEFAULT '[]'
+         );
+         CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username);",
+    )?;
+    Ok(())
+}
+
+fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
+    let mut stmt = conn.prepare(
+        "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist
+         FROM tokens",
+    )?;
+    let mut rows = stmt.query([])?;
+    let mut out = HashMap::new();
+    while let Some(row) = rows.next()? {
+        let hash: String = row.get(0)?;
+        let username: String = row.get(1)?;
+        let created_at: i64 = row.get(2)?;
+        let last_used_at: i64 = row.get(3)?;
+        let readonly: i64 = row.get(4)?;
+        let cidr_json: String = row.get(5)?;
+        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+        out.insert(
+            hash,
+            TokenRecord {
+                username,
+                created_at: created_at as u64,
+                last_used_at: last_used_at as u64,
+                readonly: readonly != 0,
+                cidr_whitelist,
+            },
+        );
+    }
+    Ok(out)
+}
+
+fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Result<()> {
+    let cidr_json = serde_json::to_string(&record.cidr_whitelist)
+        .expect("Vec<String> always serializes to JSON");
+    conn.execute(
+        "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(token_hash) DO UPDATE SET
+            username = excluded.username,
+            last_used_at = excluded.last_used_at,
+            readonly = excluded.readonly,
+            cidr_whitelist = excluded.cidr_whitelist",
+        rusqlite::params![
+            token_hash,
+            record.username,
+            record.created_at as i64,
+            record.last_used_at as i64,
+            record.readonly as i64,
+            cidr_json,
+        ],
+    )?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------
+// crypto helpers
+// ---------------------------------------------------------------
+
+/// Build a freshly-randomized secret for [`TokenStore::issue`].
+/// Derived from system time + pid + an ASLR-derived address; good
+/// enough to make token values unguessable across two restarts of
+/// the same binary on the same machine.
+fn fresh_secret() -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    hasher.update(nanos.to_le_bytes());
+    hasher.update(std::process::id().to_le_bytes());
+    let addr = &nanos as *const u128 as usize;
+    hasher.update(addr.to_le_bytes());
+    let mut secret = [0u8; 32];
+    secret.copy_from_slice(&hasher.finalize());
+    secret
+}
+
+fn mint_token(secret: &[u8; 32], nonce: u64, username: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(secret);
+    hasher.update(nonce.to_le_bytes());
+    hasher.update(username.as_bytes());
+    let digest = hasher.finalize();
+    // 16 bytes of hash → 32 hex chars. Long enough to be
+    // unguessable, short enough to keep test logs readable.
+    hex_encode(&digest[..16])
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hex_encode(&hasher.finalize())
+}
+
 fn hex_encode(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
@@ -195,33 +584,36 @@ fn hex_encode(bytes: &[u8]) -> String {
     out
 }
 
-/// Constant-time byte equality. Avoids early-exit timing leaks
-/// between password comparisons. We don't import the `subtle`
-/// crate just for this — a hand-rolled XOR loop is trivially
-/// correct and our threat model is "test runner", not "live
-/// internet".
-fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
-    if left.len() != right.len() {
-        return false;
-    }
-    let mut diff: u8 = 0;
-    for (l, r) in left.iter().zip(right.iter()) {
-        diff |= l ^ r;
-    }
-    diff == 0
+fn unix_seconds() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|duration| duration.as_secs()).unwrap_or(0)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{TokenStore, UpsertOutcome, UserStore, identify};
+    use super::{TokenStore, UpsertOutcome, UserStore, identify, parse_htpasswd};
+    use crate::config::MaxUsers;
 
-    #[test]
-    fn adduser_creates_then_validates() {
-        let store = UserStore::new();
-        let outcome = store.add_or_login("alice", "secret").unwrap();
+    /// Tests run with cost 4 (the bcrypt crate's minimum sane value)
+    /// so per-test wall-clock stays in the single-digit ms range.
+    /// Production paths use [`DEFAULT_BCRYPT_COST`].
+    const TEST_COST: u32 = 4;
+
+    fn test_user_store() -> UserStore {
+        UserStore {
+            users: std::sync::Mutex::new(std::collections::HashMap::new()),
+            path: None,
+            max_users: MaxUsers::Unlimited,
+            bcrypt_cost: TEST_COST,
+        }
+    }
+
+    #[tokio::test]
+    async fn adduser_creates_then_validates() {
+        let store = test_user_store();
+        let outcome = store.add_or_login("alice", "secret").await.unwrap();
         assert!(matches!(outcome, UpsertOutcome::Created));
 
-        let outcome = store.add_or_login("alice", "secret").unwrap();
+        let outcome = store.add_or_login("alice", "secret").await.unwrap();
         assert!(matches!(outcome, UpsertOutcome::LoggedIn));
 
         assert!(store.verify("alice", "secret").is_some());
@@ -229,40 +621,152 @@ mod tests {
         assert!(store.verify("bob", "secret").is_none());
     }
 
-    #[test]
-    fn adduser_rejects_existing_user_with_wrong_password() {
-        let store = UserStore::new();
-        store.add_or_login("alice", "secret").unwrap();
-        let err = store.add_or_login("alice", "different").unwrap_err();
-        // Maps to 401, matching what npm/verdaccio return for a
-        // bad password against an existing username.
+    #[tokio::test]
+    async fn adduser_rejects_existing_user_with_wrong_password() {
+        let store = test_user_store();
+        store.add_or_login("alice", "secret").await.unwrap();
+        let err = store.add_or_login("alice", "different").await.unwrap_err();
         assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
     }
 
+    #[tokio::test]
+    async fn adduser_persists_across_reopen() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("htpasswd");
+
+        let store =
+            UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
+        store.add_or_login("alice", "secret").await.unwrap();
+        drop(store);
+
+        // Cold-load from disk; the hashed entry should still verify.
+        let reopened =
+            UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
+        let outcome = reopened.add_or_login("alice", "secret").await.unwrap();
+        assert!(matches!(outcome, UpsertOutcome::LoggedIn));
+        assert!(reopened.verify("alice", "secret").is_some());
+    }
+
+    #[tokio::test]
+    async fn adduser_writes_bcrypt_2y_format() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("htpasswd");
+        let store =
+            UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
+        store.add_or_login("alice", "secret").await.unwrap();
+
+        let raw = std::fs::read_to_string(&path).unwrap();
+        let (user, hash) = raw.trim_end().split_once(':').expect("user:hash line");
+        assert_eq!(user, "alice");
+        assert!(hash.starts_with("$2y$"), "expected $2y$ prefix for htpasswd compat, got {hash:?}");
+    }
+
+    #[tokio::test]
+    async fn max_users_minus_one_disables_registration() {
+        let store = UserStore {
+            users: std::sync::Mutex::new(std::collections::HashMap::new()),
+            path: None,
+            max_users: MaxUsers::Disabled,
+            bcrypt_cost: TEST_COST,
+        };
+        let err = store.add_or_login("alice", "secret").await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn max_users_caps_new_registrations() {
+        let store = UserStore {
+            users: std::sync::Mutex::new(std::collections::HashMap::new()),
+            path: None,
+            max_users: MaxUsers::Limited(2),
+            bcrypt_cost: TEST_COST,
+        };
+        store.add_or_login("alice", "x").await.unwrap();
+        store.add_or_login("bob", "x").await.unwrap();
+        let err = store.add_or_login("carol", "x").await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
+        // Existing users may still log in once the cap is hit.
+        store.add_or_login("alice", "x").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn open_rejects_corrupt_htpasswd_at_startup() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("htpasswd");
+        std::fs::write(&path, "no-colon-here\nalice:plaintext\n").unwrap();
+        let err = UserStore::open(path, MaxUsers::Unlimited).unwrap_err();
+        assert!(
+            matches!(err, crate::error::RegistryError::InvalidHtpasswdFile { .. }),
+            "got {err:?}",
+        );
+    }
+
     #[test]
-    fn tokens_round_trip() {
-        let tokens = TokenStore::new();
-        let token = tokens.issue("alice");
+    fn parse_htpasswd_accepts_blank_and_comment_lines() {
+        let raw = "\n# comment\nalice:$2y$10$abcdef\n";
+        let map = parse_htpasswd(raw).unwrap();
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key("alice"));
+    }
+
+    #[tokio::test]
+    async fn tokens_round_trip() {
+        let tokens = TokenStore::in_memory();
+        let token = tokens.issue("alice").await.unwrap();
         assert_eq!(tokens.lookup(&token).as_deref(), Some("alice"));
         assert!(tokens.lookup("not-a-token").is_none());
     }
 
-    #[test]
-    fn tokens_are_unique_per_issue() {
-        let tokens = TokenStore::new();
-        let a = tokens.issue("alice");
-        let b = tokens.issue("alice");
+    #[tokio::test]
+    async fn tokens_are_unique_per_issue() {
+        let tokens = TokenStore::in_memory();
+        let a = tokens.issue("alice").await.unwrap();
+        let b = tokens.issue("alice").await.unwrap();
         assert_ne!(a, b, "every call to issue() should mint a fresh token");
     }
 
-    #[test]
-    fn identify_recognizes_bearer_and_basic() {
-        let users = UserStore::new();
-        users.add_or_login("alice", "secret").unwrap();
-        let tokens = TokenStore::new();
-        let token = tokens.issue("alice");
+    #[tokio::test]
+    async fn tokens_persist_across_reopen() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("tokens.db");
 
-        // Bearer
+        let store = TokenStore::open(path.clone()).unwrap();
+        let raw = store.issue("alice").await.unwrap();
+        drop(store);
+
+        let reopened = TokenStore::open(path).unwrap();
+        assert_eq!(
+            reopened.lookup(&raw).as_deref(),
+            Some("alice"),
+            "token issued before restart must still resolve after reload",
+        );
+    }
+
+    #[tokio::test]
+    async fn tokens_db_stores_hash_not_raw() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("tokens.db");
+        let store = TokenStore::open(path.clone()).unwrap();
+        let raw = store.issue("alice").await.unwrap();
+
+        // Open the SQLite file directly and confirm the raw token
+        // never appears in any row.
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        let mut stmt = conn.prepare("SELECT token_hash FROM tokens").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        let row = rows.next().unwrap().expect("at least one row");
+        let stored: String = row.get(0).unwrap();
+        assert_ne!(stored, raw, "raw token must not be persisted");
+        assert_eq!(stored.len(), 64, "SHA-256 hex is 64 chars");
+    }
+
+    #[tokio::test]
+    async fn identify_recognizes_bearer_and_basic() {
+        let users = test_user_store();
+        users.add_or_login("alice", "secret").await.unwrap();
+        let tokens = TokenStore::in_memory();
+        let token = tokens.issue("alice").await.unwrap();
+
         let header = format!("Bearer {token}");
         assert_eq!(identify(Some(&header), &users, &tokens).as_deref(), Some("alice"));
 
@@ -270,29 +774,25 @@ mod tests {
         let basic = "Basic YWxpY2U6c2VjcmV0";
         assert_eq!(identify(Some(basic), &users, &tokens).as_deref(), Some("alice"));
 
-        // Wrong password — None, not an error.
         let wrong = format!(
             "Basic {}",
             base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"alice:wrong"),
         );
         assert!(identify(Some(&wrong), &users, &tokens).is_none());
 
-        // Missing header
         assert!(identify(None, &users, &tokens).is_none());
-
-        // Garbage
         assert!(identify(Some("Bearer total-nonsense"), &users, &tokens).is_none());
     }
 
     /// RFC 7235 §2.1: "the scheme is case-insensitive". All of
     /// `Bearer`, `BEARER`, and `bearer` (and the mixed-case forms
     /// some clients emit) must resolve the same way.
-    #[test]
-    fn identify_parses_auth_scheme_case_insensitively() {
-        let users = UserStore::new();
-        users.add_or_login("alice", "secret").unwrap();
-        let tokens = TokenStore::new();
-        let token = tokens.issue("alice");
+    #[tokio::test]
+    async fn identify_parses_auth_scheme_case_insensitively() {
+        let users = test_user_store();
+        users.add_or_login("alice", "secret").await.unwrap();
+        let tokens = TokenStore::in_memory();
+        let token = tokens.issue("alice").await.unwrap();
 
         for scheme in ["Bearer", "bearer", "BEARER", "BeArEr"] {
             let header = format!("{scheme} {token}");

@@ -19,7 +19,11 @@ mod server;
 mod streaming;
 mod upstream;
 
-pub use config::{Config, DEFAULT_CONFIG_YAML, PackageAccess, UplinkConfig};
+pub use auth::{AuthState, TokenStore, UserStore};
+pub use config::{
+    AuthConfig, Config, DEFAULT_CONFIG_YAML, HtpasswdConfig, MaxUsers, PackageAccess, TokensConfig,
+    UplinkConfig,
+};
 pub use error::{RegistryError, Result};
 pub use policy::{AccessRule, PackagePolicies, PackagePolicy};
-pub use server::{router, serve};
+pub use server::{router, router_with_auth, serve};
