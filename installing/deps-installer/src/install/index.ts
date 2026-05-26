@@ -115,6 +115,19 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_TARBALL_INTEGRITY',
 ])
 
+// Recovering from a tarball-integrity or store-content mismatch means
+// trusting the registry over the locked integrity — which is exactly what an
+// attacker who controls the registry or a proxy would need pnpm to do. We
+// only take that path when the caller explicitly asked for lockfile repair
+// (--fix-lockfile, --force) or for a resolution refresh on this project
+// (`pnpm update`, which sets `update: true` on the mutation).
+function lockfileRepairOptedIn (
+  opts: { fixLockfile?: boolean, force?: boolean },
+  projects: ReadonlyArray<unknown>
+): boolean {
+  return Boolean(opts.fixLockfile || opts.force || projects.some((p) => (p as InstallMutationOptions).update))
+}
+
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
 interface InstallMutationOptions {
@@ -1053,7 +1066,8 @@ Note that in CI environments, this setting is enabled by default.`,
           error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
           !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
         ) ||
-        (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
+        (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
+        (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) && !lockfileRepairOptedIn(opts, projects))
       ) throw error
       if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
         needsFullResolution = true
@@ -1991,7 +2005,8 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
   } catch (error: any) { // eslint-disable-line
     if (
       !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
-      (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
+      (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
+      !lockfileRepairOptedIn(opts, projects)
     ) throw error
     opts.needsFullResolution = true
     // Ideally, we would not update but currently there is no other way to redownload the integrity of the package

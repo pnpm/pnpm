@@ -1,4 +1,4 @@
-import { expect, jest, test } from '@jest/globals'
+import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
@@ -14,7 +14,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from './utils/index.js'
 
-test('installation breaks if the lockfile contains the wrong checksum', async () => {
+test('installation fails by default if the lockfile contains a wrong checksum, but --fix-lockfile recovers', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
@@ -38,11 +38,17 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))).rejects.toThrow(/Got unexpected checksum for/)
 
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({}, { retry: { retries: 0 } }))).rejects.toThrow(/Got unexpected checksum for/)
+
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({}, { retry: { retries: 0 } }))
+  }, testDefaults({ fixLockfile: true }, { retry: { retries: 0 } }))
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
 
@@ -55,12 +61,12 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ preferFrozenLockfile: false }, { retry: { retries: 0 } }))
+  }, testDefaults({ force: true }, { retry: { retries: 0 } }))
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
 })
 
-test('installation breaks if the lockfile contains the wrong checksum and the store is clean', async () => {
+test('installation fails by default if the lockfile contains the wrong checksum and the store is clean', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
@@ -85,35 +91,18 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
     }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
   ).rejects.toThrow(/Got unexpected checksum/)
 
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({}, { retry: { retries: 0 } }))).rejects.toThrow(/Got unexpected checksum/)
+
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({}, { retry: { retries: 0 } }))
+  }, testDefaults({ fixLockfile: true }, { retry: { retries: 0 } }))
 
-  {
-    const lockfile = project.readLockfile()
-    expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
-  }
-
-  // Breaking the lockfile again
-  writeYamlFileSync(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
-
-  rimrafSync('node_modules')
-
-  const reporter = jest.fn()
-  await mutateModulesInSingleProject({
-    manifest,
-    mutation: 'install',
-    rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ preferFrozenLockfile: false, reporter }, { retry: { retries: 0 } }))
-
-  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    level: 'warn',
-    name: 'pnpm',
-    prefix: process.cwd(),
-    message: expect.stringMatching(/Got unexpected checksum/),
-  }))
   {
     const lockfile = project.readLockfile()
     expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
