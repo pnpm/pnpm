@@ -133,7 +133,7 @@ pub fn find_workspace_projects_no_check(
 
     // Upstream (tinyglobby) treats `!`-prefixed patterns as negations.
     // wax does not accept `!` inside `Glob::new()`, so split them out
-    // and feed them through `.not()` instead. `!/…` remains a no-op:
+    // and feed them through `.not()` instead. `!/...` remains a no-op:
     // relative workspace paths never match that absolute form.
     let mut include_patterns: Vec<&str> = Vec::new();
     let mut user_negation_globs: Vec<String> = Vec::new();
