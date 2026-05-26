@@ -321,17 +321,8 @@ export async function getConfig (opts: {
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
-  const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
-  const bindDefaultCreds = defaultCreds != null && !workspaceRegistryRebindsUserCreds(npmrcResult)
-  pnpmConfig.configByUri = {
-    ...networkConfigs.configByUri,
-    ...bindDefaultCreds ? { '': { creds: defaultCreds } } : {},
-  }
-  if (defaultCreds != null && !bindDefaultCreds) {
-    warnings.push('Ignoring unscoped authentication credentials from the user-level npm config: ' +
-      'the workspace .npmrc overrides the default registry, so applying those credentials to it would leak them. ' +
-      'To send credentials to this registry, scope them to its URL (e.g. "//registry.example.com/:_authToken=...").')
-  }
+  pnpmConfig.configByUri = { ...networkConfigs.configByUri }
+
   // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
   // not project-level, to prevent project .npmrc from executing arbitrary commands.
   const userConfig = npmrcResult.userConfig as Record<string, string>
@@ -518,6 +509,19 @@ export async function getConfig (opts: {
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
+
+  // After all sources (CLI, env, pnpm-workspace.yaml, .npmrc) have been merged,
+  // decide whether to bind unscoped credentials to the final default registry.
+  const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
+  if (defaultCreds != null) {
+    if (workspaceRegistryRebindsUserCreds(npmrcResult, pnpmConfig)) {
+      warnings.push('Ignoring unscoped authentication credentials from the user-level npm config: ' +
+        'the workspace overrides the default registry, so applying those credentials to it would leak them. ' +
+        'To send credentials to this registry, scope them to its URL (e.g. "//registry.example.com/:_authToken=...").')
+    } else {
+      pnpmConfig.configByUri[''] = { creds: defaultCreds }
+    }
+  }
 
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
@@ -726,30 +730,32 @@ function getProcessEnv (env: string): string | undefined {
 // to be, regardless of which file set that registry.
 const UNSCOPED_CRED_KEYS = ['_authToken', '_auth', 'username', '_password', 'tokenHelper'] as const
 
-// When the workspace `.npmrc` changes the effective `registry=` value but the
+// When the workspace overrides the effective `registry=` value but the
 // unscoped credential value came from a user-level source (`~/.npmrc` or
 // `auth.ini`), binding the two would send a user-trusted token to a
 // workspace-selected registry — a credential disclosure across a trust
 // boundary. Detect that exact case so the caller can drop the binding.
-function workspaceRegistryRebindsUserCreds (npmrc: NpmrcConfigResult): boolean {
-  const registryFromWorkspace = npmrc.workspaceNpmrc.registry as string | undefined
-  if (registryFromWorkspace == null) return false
-  if (npmrc.mergedConfig.registry !== registryFromWorkspace) return false
+function workspaceRegistryRebindsUserCreds (npmrc: NpmrcConfigResult, pnpmConfig: Config & ConfigContext): boolean {
+  // If the user explicitly requested a registry (via CLI or env var), we trust it.
+  if (pnpmConfig.explicitlySetKeys.has('registry')) return false
+
+  const finalDefaultRegistry = pnpmConfig.registries.default
   const registryWithoutWorkspace = (
     npmrc.pnpmAuthConfig.registry ??
     npmrc.userConfig.registry ??
     npmDefaults.registry
   ) as string
+
   // No actual change in registry: workspace re-declared the same value the
   // user-level config (or the built-in default) would have set. Binding is safe.
-  if (normalizeRegistryUrl(registryFromWorkspace) === normalizeRegistryUrl(registryWithoutWorkspace)) {
+  if (normalizeRegistryUrl(finalDefaultRegistry) === normalizeRegistryUrl(registryWithoutWorkspace)) {
     return false
   }
   for (const key of UNSCOPED_CRED_KEYS) {
-    const winningValue = npmrc.mergedConfig[key]
+    const winningValue = pnpmConfig.authConfig[key]
     if (winningValue == null) continue
     // Workspace itself supplied this credential — committer's choice, not a
-    // rebind. Same logic if a later layer (CLI) overrode the user value.
+    // rebind.
     if (npmrc.workspaceNpmrc[key] === winningValue) continue
     const fromUser = npmrc.userConfig[key] === winningValue || npmrc.pnpmAuthConfig[key] === winningValue
     if (fromUser) return true
