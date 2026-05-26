@@ -60,7 +60,7 @@ pub struct Config {
 /// Verdaccio-shaped uplink declaration. Only `url` is honored —
 /// other fields verdaccio supports (auth headers, timeouts, agent
 /// options) are not implemented yet.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct UplinkConfig {
     pub url: String,
 }
@@ -68,7 +68,7 @@ pub struct UplinkConfig {
 /// Per-package routing rules. `access` and `publish` are parsed for
 /// config compatibility but ignored (pnpm-registry is read-only and
 /// has no auth). `proxy` selects the [`UplinkConfig`] by name.
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct PackageAccess {
     pub access: Option<String>,
     pub publish: Option<String>,
