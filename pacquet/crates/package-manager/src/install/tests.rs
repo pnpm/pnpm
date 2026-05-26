@@ -811,6 +811,87 @@ async fn install_writes_workspace_state() {
     drop(dir);
 }
 
+/// Unit tests for [`super::build_projects_map`] / [`super::build_workspace_state`].
+/// Ports the cases in upstream's
+/// [`createWorkspaceState.test.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/workspace/state/test/createWorkspaceState.test.ts):
+/// the `projects` map must contain one entry per project in the list,
+/// keyed on the project root dir. Pacquet's `build_projects_map`
+/// derives the list directly from `project_manifests` — same shape as
+/// pnpm's `createWorkspaceState` taking `allProjects` — so a fresh
+/// install that hasn't written a `pnpm-lock.yaml` yet still records
+/// every workspace project, not just the root.
+mod build_workspace_state_tests {
+    use super::super::build_workspace_state;
+    use pacquet_config::Config;
+    use pacquet_modules_yaml::IncludedDependencies;
+    use pacquet_package_manifest::PackageManifest;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
+
+    fn write_manifest(dir: &std::path::Path, name: &str, version: &str) -> PackageManifest {
+        let manifest_path = dir.join("package.json");
+        std::fs::write(&manifest_path, format!(r#"{{"name":"{name}","version":"{version}"}}"#))
+            .unwrap();
+        PackageManifest::from_path(manifest_path).unwrap()
+    }
+
+    /// Ports `createWorkspaceState() on empty list`: a zero-project
+    /// input produces an empty `projects` map but still populates the
+    /// timestamp.
+    #[test]
+    fn empty_project_list_produces_empty_projects_map() {
+        let config = Config::new();
+        let state = build_workspace_state(
+            &config,
+            pacquet_config::NodeLinker::default(),
+            IncludedDependencies::default(),
+            &[],
+        );
+        assert!(state.projects.is_empty());
+        assert!(state.last_validated_timestamp > 0);
+    }
+
+    /// Ports `createWorkspaceState() on non-empty list`: every project
+    /// in the list lands in `state.projects` keyed by its root_dir.
+    /// Regression catch for the bug where a workspace fresh install
+    /// (no `pnpm-lock.yaml` on disk) recorded only the root importer.
+    #[test]
+    fn records_every_workspace_project_keyed_by_root_dir() {
+        let dir = tempdir().unwrap();
+        let packages = ["a", "b", "c", "d"];
+        let manifests: Vec<(PathBuf, PackageManifest)> = packages
+            .iter()
+            .map(|name| {
+                let project_dir = dir.path().join("packages").join(name);
+                std::fs::create_dir_all(&project_dir).unwrap();
+                let manifest = write_manifest(&project_dir, name, "1.0.0");
+                (project_dir, manifest)
+            })
+            .collect();
+        let project_manifests: Vec<(PathBuf, &PackageManifest)> =
+            manifests.iter().map(|(p, m)| (p.clone(), m)).collect();
+
+        let config = Config::new();
+        let state = build_workspace_state(
+            &config,
+            pacquet_config::NodeLinker::default(),
+            IncludedDependencies::default(),
+            &project_manifests,
+        );
+
+        assert_eq!(state.projects.len(), packages.len());
+        for (project_dir, _) in &manifests {
+            let key = project_dir.to_string_lossy().into_owned();
+            let entry = state
+                .projects
+                .get(&key)
+                .unwrap_or_else(|| panic!("project entry for {key:?} should exist"));
+            assert_eq!(entry.version.as_deref(), Some("1.0.0"));
+            assert!(packages.contains(&entry.name.as_deref().unwrap_or_default(),));
+        }
+    }
+}
+
 /// Ports `'do not fail on an optional dependency that has a non-optional
 /// dependency with a failing postinstall script'` at
 /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/test/install/optionalDependencies.ts#L563-L572>.
