@@ -10,12 +10,12 @@ use tempfile::tempdir;
 #[test]
 fn create_cache_key_is_order_independent_and_deterministic() {
     let registry = "https://registry.npmjs.org/";
-    let key_ab = create_cache_key(&["a".to_string(), "b".to_string()], registry);
-    let key_ba = create_cache_key(&["b".to_string(), "a".to_string()], registry);
-    assert_eq!(key_ab, key_ba, "the key must not depend on spec order");
+    let key_forward = create_cache_key(&["a".to_string(), "b".to_string()], registry);
+    let key_reversed = create_cache_key(&["b".to_string(), "a".to_string()], registry);
+    assert_eq!(key_forward, key_reversed, "the key must not depend on spec order");
 
     let key_versioned = create_cache_key(&["a@1".to_string()], registry);
-    assert_ne!(key_ab, key_versioned, "different specs must produce different keys");
+    assert_ne!(key_forward, key_versioned, "different specs must produce different keys");
 }
 
 #[test]
