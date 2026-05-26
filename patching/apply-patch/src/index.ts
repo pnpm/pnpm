@@ -54,8 +54,8 @@ function assertPatchPathsStayInside (opts: ApplyPatchToDirOpts): void {
   try {
     effects = parsePatchFile(patchContent)
   } catch {
-    // Defer parse-error reporting to applyPatch so the message and exit behavior
-    // stay identical to the unvalidated path.
+    // Defer parse-error reporting to applyPatch so its existing
+    // ERR_PNPM_INVALID_PATCH path produces the message and exit behavior.
     return
   }
   const root = path.resolve(opts.patchedDir)
