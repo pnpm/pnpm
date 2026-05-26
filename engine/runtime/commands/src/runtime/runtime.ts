@@ -12,6 +12,8 @@ export type RuntimeCommandOptions = Pick<Config,
 > & Partial<Pick<Config,
 | 'storeDir'
 | 'cacheDir'
+| 'saveDev'
+| 'saveProd'
 >>
 
 export const skipPackageManagerCheck = true
@@ -23,6 +25,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     global: Boolean,
+    'save-dev': Boolean,
+    'save-prod': Boolean,
   }
 }
 
@@ -49,11 +53,22 @@ export function help (): string {
             name: '--global',
             shortAlias: '-g',
           },
+          {
+            description: 'Save the runtime to `devEngines.runtime`. This is the default',
+            name: '--save-dev',
+            shortAlias: '-D',
+          },
+          {
+            description: 'Save the runtime to `engines.runtime`',
+            name: '--save-prod',
+            shortAlias: '-P',
+          },
         ],
       },
     ],
     url: docsUrl('runtime'),
     usages: [
+      'pnpm runtime set node 22',
       'pnpm runtime set node 22 -g',
       'pnpm runtime set node lts -g',
       'pnpm runtime set node rc/22 -g',
@@ -91,6 +106,14 @@ function runtimeSet (opts: RuntimeCommandOptions, params: string[]): void {
   const versionSpec = params[1]?.trim()
 
   const args = ['add', `${runtimeName}@runtime:${versionSpec ?? ''}`]
+  // Default to `devEngines.runtime`; the manifest writer maps a
+  // `devDependencies.<runtime>: runtime:<version>` entry to it.
+  // `saveDev` wins over `saveProd` to match `getSaveType` precedence.
+  if (opts.saveDev || !opts.saveProd) {
+    args.push('--save-dev')
+  } else {
+    args.push('--save-prod')
+  }
   if (opts.global) {
     args.push('--global')
     if (opts.bin) args.push('--global-bin-dir', opts.bin)
