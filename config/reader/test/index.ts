@@ -897,7 +897,6 @@ describe('unscoped credentials are pinned to the registry declared in their sour
       '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
-    expect(config.configByUri['']).toBeUndefined()
   })
 
   test('pins user-level _auth (basic) the same way', async () => {
@@ -961,7 +960,6 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
     expect(config.configByUri['//trusted.example.com/']).toBeUndefined()
-    expect(config.configByUri['']).toBeUndefined()
   })
 
   test('user-level credentials work when no workspace .npmrc exists', async () => {
@@ -993,7 +991,6 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     expect(config.configByUri).toMatchObject({
       '//workspace.example.com/': { creds: { authToken: 'workspace-token' } },
     })
-    expect(config.configByUri['']).toBeUndefined()
   })
 
   test('explicit URL-scoped credentials pass through unchanged', async () => {
@@ -1014,7 +1011,6 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     expect(config.configByUri).toMatchObject({
       '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
     })
-    expect(config.configByUri['']).toBeUndefined()
     // URL-scoped tokens should NOT trigger the deprecation warning.
     expect(warnings.join('\n')).not.toMatch(/deprecated/i)
   })

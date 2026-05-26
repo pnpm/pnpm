@@ -20,7 +20,7 @@ export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: 
     throw new PnpmError('AUDIT_NO_PACKAGES', 'No installed packages found to audit')
   }
 
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri)
   const networkOptions = createAuditNetworkOptions(opts)
   const result = await verifySignatures(packages, getAuthHeader, {
     ca: networkOptions.ca,

@@ -215,7 +215,7 @@ export function createResolutionVerifiers (
     timeout: opts.timeout ?? 60_000,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10_000,
   }
-  const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries.default)
+  const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const verifiers: ResolutionVerifier[] = []
   const npmVerifier = createNpmResolutionVerifier({
     minimumReleaseAge: opts.minimumReleaseAge,
