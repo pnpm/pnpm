@@ -219,6 +219,7 @@ export type ResolveFromNpmOptions = {
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   update?: false | 'compatible' | 'latest'
+  updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
@@ -275,6 +276,7 @@ async function resolveNpm (
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
       updateToLatest: opts.update === 'latest',
+      updateChecksums: opts.updateChecksums,
       optional: wantedDependency.optional,
     })
   } catch (err: any) { // eslint-disable-line
@@ -417,6 +419,7 @@ async function resolveJsr (
     preferredVersionSelectors: opts.preferredVersions?.[spec.name],
     registry,
     updateToLatest: opts.update === 'latest',
+    updateChecksums: opts.updateChecksums,
   })
 
   if (pickedPackage == null) {

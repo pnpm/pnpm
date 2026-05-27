@@ -449,6 +449,7 @@ export async function mutateModules (
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
+      opts.updateChecksums ||
       !upToDateLockfileMajorVersion ||
       opts.forceFullResolution
     if (needsFullResolution) {
@@ -844,21 +845,16 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredBuilds,
       }
     } catch (error: any) { // eslint-disable-line
+      const isIntegrityError = BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
       if (
         frozenLockfile ||
         (
           error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
-          !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+          !isIntegrityError
         ) ||
-        (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
+        (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
+        (isIntegrityError && !opts.updateChecksums)
       ) throw error
-      if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
-        needsFullResolution = true
-        // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-        for (const project of projects) {
-          (project as InstallMutationOptions).update = true
-        }
-      }
       // A broken lockfile may be caused by a badly resolved Git conflict
       logger.warn({
         error,
@@ -1201,6 +1197,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
       forceFullResolution,
+      updateChecksums: opts.updateChecksums,
       ignoreScripts: opts.ignoreScripts,
       hooks: {
         readPackage: opts.readPackageHook,
@@ -1684,19 +1681,16 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
   } catch (error: any) { // eslint-disable-line
     if (
       !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
-      (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
+      (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
+      !opts.updateChecksums
     ) throw error
     opts.needsFullResolution = true
-    // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-    for (const project of projects) {
-      (project as InstallMutationOptions).update = true
-    }
     logger.warn({
       error,
       message: error.message,
       prefix: ctx.lockfileDir,
     })
-    logger.error(new PnpmError(error.code, 'The lockfile is broken! A full installation will be performed in an attempt to fix it.'))
+    logger.error(new PnpmError(error.code, 'Refreshing the locked integrity from the registry as requested by --update-checksums. A full installation will be performed.'))
     return _installInContext(projects, ctx, opts)
   } finally {
     await opts.storeController.close()

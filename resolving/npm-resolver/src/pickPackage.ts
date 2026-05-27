@@ -69,6 +69,15 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   updateToLatest?: boolean
   optional?: boolean
+  /**
+   * When true, skip the on-disk exact-version cache fast path so a
+   * stale on-disk packument can't satisfy the call without a
+   * conditional registry request. The in-memory cache is left alone:
+   * its entries can only be populated by this install's own fresh
+   * network fetches, so they're authoritative for second-and-onward
+   * lookups within the same install.
+   */
+  updateChecksums?: boolean
 }
 
 const pickPackageFromMetaUsingTimeStrict = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
@@ -189,7 +198,7 @@ export async function pickPackage (
       }
     }
 
-    if (!opts.updateToLatest && spec.type === 'version') {
+    if (!opts.updateToLatest && !opts.updateChecksums && spec.type === 'version') {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
