@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 1000.1.7
+
+### Patch Changes
+
+- 80306c4: Fixed `--prefix=<dir>` not being honored when locating the workspace root. The `--prefix → dir` rename was applied after workspace detection, so workspace settings declared in `<dir>/pnpm-workspace.yaml` were not loaded when pnpm was invoked from outside `<dir>` [#11535](https://github.com/pnpm/pnpm/issues/11535).
+
 ## 1000.1.6
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/node.fetcher
 
+## 1001.0.29
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.25
+
 ## 1001.0.28
 
 ### Patch Changes

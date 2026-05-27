@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 1008.8.2
+
+### Patch Changes
+
+- 455cfcd: Reject dependency aliases that contain path-traversal segments (such as `@x/../../../../../.git/hooks`) when reading them from a package manifest or symlinking them into `node_modules`. A malicious registry package could otherwise use a transitive dependency key to make `pnpm install` create symlinks at attacker-chosen paths outside the intended `node_modules` directory.
+- Updated dependencies [4a04433]
+  - @pnpm/npm-resolver@1005.2.5
+
 ## 1008.8.1
 
 ### Patch Changes
