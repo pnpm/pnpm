@@ -1,5 +1,37 @@
 # @pnpm/releasing.commands
 
+## 1100.3.1
+
+### Patch Changes
+
+- 6316e7b: Fix `pnpm deploy` crashing with `ENOENT: ... lstat '<deployDir>/node_modules'` when `configDependencies` declares pacquet (`pacquet` or `@pnpm/pacquet`). The deploy directory never installs config dependencies, so the install engine they designate isn't on disk to invoke; the nested install now skips them.
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [572842a]
+- Updated dependencies [35d2355]
+- Updated dependencies [a662de4]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/installing.commands@1100.6.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/engine.runtime.commands@1100.1.0
+  - @pnpm/workspace.projects-filter@1100.0.16
+  - @pnpm/engine.runtime.node-resolver@1101.1.2
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/fetching.directory-fetcher@1100.0.13
+  - @pnpm/releasing.exportable-manifest@1100.1.1
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/bins.resolver@1100.0.5
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/workspace.projects-sorter@1100.0.4
+  - @pnpm/fs.indexed-pkg-importer@1100.0.10
+
 ## 1100.3.0
 
 ### Minor Changes

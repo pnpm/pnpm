@@ -1,5 +1,21 @@
 # @pnpm/registry-access.commands
 
+## 1100.2.16
+
+### Patch Changes
+
+- ae21758: Refactor the dist-tag-add and login (classic adduser) handlers to delegate their PUTs to a new shared package `@pnpm/registry-access.client`. Downstream tests in this monorepo now use these helpers (via `@pnpm/testing.registry-mock`) instead of `addDistTag` / `addUser` from `@pnpm/registry-mock`, which relied on the unmaintained `anonymous-npm-registry-client`.
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/resolving.registry.types@1100.0.5
+  - @pnpm/registry-access.client@1100.0.1
+
 ## 1100.2.15
 
 ### Patch Changes

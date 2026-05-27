@@ -1,5 +1,23 @@
 # @pnpm/npm-resolver
 
+## 1101.3.3
+
+### Patch Changes
+
+- 0721d64: Require provenance before treating trusted publisher metadata as the strongest trust evidence.
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/resolving.registry.types@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.5
+
 ## 1101.3.2
 
 ### Patch Changes

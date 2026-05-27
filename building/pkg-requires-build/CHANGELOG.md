@@ -1,5 +1,12 @@
 # @pnpm/building.pkg-requires-build
 
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+
 ## 1100.0.4
 
 ### Patch Changes

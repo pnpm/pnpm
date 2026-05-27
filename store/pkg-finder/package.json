@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.pkg-finder",
-  "version": "1100.0.12",
+  "version": "1100.0.13",
   "description": "Read a package's file map from the content-addressable store",
   "keywords": [
     "pnpm",

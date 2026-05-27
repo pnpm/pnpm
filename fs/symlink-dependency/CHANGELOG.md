@@ -1,5 +1,14 @@
 # @pnpm/symlink-dependency
 
+## 1100.0.6
+
+### Patch Changes
+
+- ad84fff: Reject dependency aliases that contain path-traversal segments (such as `@x/../../../../../.git/hooks`) when reading them from a package manifest or symlinking them into `node_modules`. A malicious registry package could otherwise use a transitive dependency key to make `pnpm install` create symlinks at attacker-chosen paths outside the intended `node_modules` directory.
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/core-loggers@1100.1.2
+
 ## 1100.0.5
 
 ### Patch Changes
