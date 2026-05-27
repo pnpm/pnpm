@@ -137,7 +137,7 @@ pub fn stream_decode_verify_and_write(
             Ok(n) => n,
             Err(err) => {
                 let _ = std::fs::remove_file(dest);
-                return Err(invalid(format!("base64 decode failed: {err}")));
+                return Err(invalid(format!("EINTEGRITY: base64 decode failed: {err}")));
             }
         };
         let chunk = &buf[..n];
@@ -156,7 +156,9 @@ pub fn stream_decode_verify_and_write(
         && expected != total
     {
         let _ = std::fs::remove_file(dest);
-        return Err(invalid(format!("length mismatch: header says {expected}, decoded {total}")));
+        return Err(invalid(format!(
+            "EINTEGRITY: length mismatch: header says {expected}, decoded {total}",
+        )));
     }
 
     if let Err(err) = checker.result() {
@@ -414,7 +416,7 @@ mod tests {
         let dist = json!({ "integrity": sri_sha512(bytes) });
         let (result, dest, _tmp) = run_stream(bytes, Some(&dist), Some(99));
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("length mismatch"), "got: {msg}");
+        assert!(msg.contains("EINTEGRITY") && msg.contains("length mismatch"), "got: {msg}");
         assert!(!dest.exists());
     }
 
