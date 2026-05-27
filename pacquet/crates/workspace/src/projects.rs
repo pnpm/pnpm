@@ -137,19 +137,19 @@ pub fn find_workspace_projects_no_check(
     // relative workspace paths never match that absolute form.
     let mut include_patterns: Vec<&str> = Vec::new();
     let mut user_negation_globs: Vec<String> = Vec::new();
-    for p in patterns {
-        if let Some(body) = p.strip_prefix('!') {
+    for pattern in patterns {
+        if let Some(body) = pattern.strip_prefix('!') {
             if body.starts_with('/') {
                 continue;
             }
             let normalized = normalize_pattern(body);
             Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: p.to_string(),
+                pattern: pattern.to_string(),
                 message: err.to_string(),
             })?;
             user_negation_globs.push(normalized);
         } else {
-            include_patterns.push(p);
+            include_patterns.push(pattern);
         }
     }
 
