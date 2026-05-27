@@ -1,5 +1,104 @@
 # @pnpm/config
 
+## 1101.4.0
+
+### Minor Changes
+
+- 3b62f9d: Add a `skip-manifest-obfuscation` option for `pnpm pack` and `pnpm publish`. When enabled, the original `packageManager` field and publish lifecycle scripts are kept in the packed/published manifest instead of being stripped. The pnpm-specific `pnpm` field continues to be omitted.
+- 212315d: Added a new setting `trustLockfile`. When `true`, `pnpm install` skips the supply-chain verification pass that re-applies `minimumReleaseAge` / `trustPolicy='no-downgrade'` to every entry in the loaded lockfile. The install treats the lockfile as already-trusted — useful for closed-source projects where every commit comes from a trusted author, or for CI runs against an already-verified lockfile. Defaults to `false`; verification stays on by default. Set in `pnpm-workspace.yaml`.
+
+  Also cut the memory footprint of the verification pass itself: the per-(registry, name) trust-meta cache previously retained the full packument — dependency graphs, scripts, README, and per-version manifests — for the entire install. On large workspaces (`~4k` lockfile entries with `minimumReleaseAge` + `trustPolicy: no-downgrade` enabled) this could OOM CI runners with a 2GB heap cap. The cache now stores only the fields the trust check actually reads (`time`, per-version `_npmUser.trustedPublisher`, `dist.attestations.provenance`). The abbreviated-metadata cache is similarly projected to just the package-level `modified` field and the set of currently-listed version names. Fixes [#11860](https://github.com/pnpm/pnpm/issues/11860).
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
+## 1101.3.3
+
+### Patch Changes
+
+- 3687b0e: Fix `cafile=<relative-path>` in `.npmrc` being read from the wrong directory when pnpm is invoked from a different cwd (e.g. `pnpm --dir <project> install` from a CI wrapper or monorepo script). The path is now resolved against the directory of the `.npmrc` that declared it, not `process.cwd()`. Before this fix the CA file silently failed to load — the install proceeded without the configured CA and the user only saw TLS errors against a private registry, with no log line tying back to the wrongly resolved path [#11624](https://github.com/pnpm/pnpm/issues/11624).
+- ced20cb: Fix `config.registry` getting a trailing slash appended when `registry` is set in `.npmrc` and no `registries.default` is provided by `pnpm-workspace.yaml`. The sync from `registries.default` to `config.registry` introduced in #11744 now only fires when the workspace manifest actually contributes a different default.
+- d1b340f: Fixed `pnpm login` and `pnpm logout` ignoring `registries.default` from `pnpm-workspace.yaml` [#10099](https://github.com/pnpm/pnpm/issues/10099).
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/hooks.pnpmfile@1100.0.10
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.4
+  - @pnpm/catalogs.config@1100.0.0
+
+## 1101.3.2
+
+### Patch Changes
+
+- 020ac45: Allow redundant trailing base64 padding in `.npmrc` auth values and report invalid auth base64 with a pnpm error.
+- d3f8408: **fix**: global installs respect global config build policy (e.g., `dangerouslyAllowAllBuilds` from config.yaml) when GVS is enabled [#9249](https://github.com/pnpm/pnpm/issues/9249).
+
+  The global virtual-store (GVS) default `allowBuilds = {}` was applied before workspace manifest settings were read and before global config values (stripped by `extractAndRemoveDependencyBuildOptions`) were re-applied via `globalDepsBuildConfig`. This caused `hasDependencyBuildOptions` to return `true` (because `{}` is not null), blocking restoration of global config values like `dangerouslyAllowAllBuilds`. As a result, global installs skipped all build scripts even when the config explicitly allowed them.
+
+  This fix moves the GVS default to **after** workspace manifest reading and `globalDepsBuildConfig` re-application, so that:
+
+  1. Workspace manifest `allowBuilds` takes precedence (if present)
+  2. Global config `dangerouslyAllowAllBuilds` is properly restored (if set and no workspace policy exists)
+  3. Empty `{}` is only applied as a last resort when no policy is configured anywhere
+
+- a62f959: Fixed `pnpm publish` failing with a 404 when authentication relied on OIDC trusted publishing alongside an `.npmrc` written by `actions/setup-node` (`_authToken=${NODE_AUTH_TOKEN}`) without `NODE_AUTH_TOKEN` being set. Unresolved `${VAR}` placeholders in auth values are now treated as empty rather than passed through verbatim, so the literal placeholder no longer surfaces as a bearer token when OIDC fallback is the intended auth source [#11513](https://github.com/pnpm/pnpm/issues/11513).
+- ba2c884: Fix `devEngines.packageManager` (singular form, without `onFail`) defaulting to `onFail: "error"` instead of the documented `pmOnFail: "download"`. As a result, a project that pinned a different pnpm version via `devEngines.packageManager` and ran `pnpm install` from a mismatched pnpm version failed with a hard error, even though the migration table from `managePackageManagerVersions: true` to `pmOnFail: download (default)` promises the install would auto-download the wanted version [#11676](https://github.com/pnpm/pnpm/issues/11676).
+
+  The array form of `devEngines.packageManager` keeps its existing per-element defaults (`error` for the last entry, `ignore` for the rest), since those reflect explicit prioritization by the user. Explicit `onFail` values continue to win.
+
+- 8df408c: Warn when `package.json` contains a legacy `pnpm` field with settings pnpm no longer reads from `package.json` (e.g. `pnpm.overrides`, `pnpm.patchedDependencies`). Previously these were silently ignored after the upgrade from v10, leaving users unaware that their overrides/patched dependencies had stopped taking effect [#11677](https://github.com/pnpm/pnpm/issues/11677).
+  - @pnpm/hooks.pnpmfile@1100.0.9
+  - @pnpm/pkg-manifest.utils@1100.1.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+
+## 1101.3.1
+
+### Patch Changes
+
+- Updated dependencies [9cad827]
+- Updated dependencies [50b33c1]
+  - @pnpm/pkg-manifest.utils@1100.1.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/hooks.pnpmfile@1100.0.8
+
+## 1101.3.0
+
+### Minor Changes
+
+- b61e268: Added support for installing packages from the [GitHub Packages npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry) via a built-in `gh:` prefix (e.g. `pnpm add gh:@acme/private`), and, more broadly, for arbitrary named registries in the style of [vlt's named-registry aliases](https://docs.vlt.sh/cli/registries). Authentication is picked up from the existing per-URL `.npmrc` entries (e.g. `//npm.pkg.github.com/:_authToken=...`), so no separate auth mechanism is required.
+
+  Additional aliases — or an override for the built-in `gh` alias, for GitHub Enterprise Server — can be configured under `namedRegistries` in `pnpm-workspace.yaml`:
+
+  ```yaml
+  namedRegistries:
+    gh: https://npm.pkg.github.example.com/
+    work: https://npm.work.example.com/
+  ```
+
+  With this, `work:@corp/lib@^2.0.0` resolves against `https://npm.work.example.com/`. [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+- e1e29c1: Add `--no-runtime` flag (config: `runtime=false`) to skip installing runtime entries (e.g. Node.js downloaded via `devEngines.runtime`) without modifying the lockfile. The lockfile keeps the runtime entry so frozen-lockfile validation still passes; only the runtime fetch and `.bin` linking are skipped. Useful in CI matrices where the runtime is provisioned externally (e.g. via `pnpm runtime -g set node <version>`) before `pnpm install` runs.
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/hooks.pnpmfile@1100.0.7
+  - @pnpm/pkg-manifest.utils@1100.1.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.3
+  - @pnpm/catalogs.config@1100.0.0
+
+## 1101.2.2
+
+### Patch Changes
+
+- e9e876c: Honor `NPM_CONFIG_USERCONFIG` (and its lowercase `npm_config_userconfig` form) as a low-priority fallback when locating the user-level `.npmrc`. This restores compatibility with environments that point npm at a custom auth file via that env var — most notably `actions/setup-node`, which writes registry credentials to `${runner.temp}/.npmrc` and exports `NPM_CONFIG_USERCONFIG` to reference it. Without this, GitHub Actions workflows using `actions/setup-node` to authenticate to private registries broke after upgrading to pnpm v11. PNPM-prefixed env vars and `npmrcAuthFile` from the global `config.yaml` continue to take precedence [#11539](https://github.com/pnpm/pnpm/issues/11539).
+
 ## 1101.2.1
 
 ### Patch Changes

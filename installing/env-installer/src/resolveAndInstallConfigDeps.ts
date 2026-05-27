@@ -16,6 +16,7 @@ import getNpmTarballUrl from 'get-npm-tarball-url'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { parseIntegrity } from './parseIntegrity.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
+import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
 
 export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   rootDir: string
@@ -99,7 +100,7 @@ export async function resolveAndInstallConfigDeps (
 
   // Resolve missing deps
   const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
   await Promise.all(depsToResolve.map(async ({ name, specifier }) => {
@@ -131,7 +132,13 @@ export async function resolveAndInstallConfigDeps (
         registry
       ),
     }
-    envLockfile.snapshots[pkgKey] = {}
+    const optionalSubdeps = await resolveOptionalSubdeps(name, resolution.manifest, {
+      envLockfile,
+      lockfileDir: opts.rootDir,
+      registries: opts.registries,
+      resolveFromNpm,
+    })
+    envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
   }))
 
   pruneEnvLockfile(envLockfile)

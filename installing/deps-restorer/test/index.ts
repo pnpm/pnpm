@@ -919,3 +919,25 @@ test('installing a package deeply installs all required dependencies', async () 
     expect(projectAssertion.requireModule('is-positive')).toBeTruthy()
   }
 })
+
+// Regression test: `lockfileToDepGraph` crashed with
+// `TypeError: Cannot use 'in' operator to search for 'directory' in undefined`
+// when a peer-dep variant snapshot in the lockfile omitted its `resolution`
+// field. The variant intentionally inherits resolution from the base entry,
+// so this shape is valid pnpm output but the graph builder accessed
+// `pkgSnapshot.resolution` without guarding for undefined.
+test('headlessInstall: peer-variant snapshot without `resolution` does not crash', async () => {
+  const workspaceFixture = f.prepare('peer-variant-missing-resolution')
+  const projects = [
+    workspaceFixture,
+    path.join(workspaceFixture, 'packages', 'pkg-a'),
+    path.join(workspaceFixture, 'packages', 'peer'),
+  ]
+
+  // The bug surfaces as a rejection from `headlessInstall`, so awaiting it
+  // is enough — jest fails the test on an unhandled rejection.
+  await headlessInstall(await testDefaults({
+    lockfileDir: workspaceFixture,
+    projects,
+  }))
+})

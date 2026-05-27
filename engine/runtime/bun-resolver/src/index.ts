@@ -1,9 +1,11 @@
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
-import type { NpmResolver } from '@pnpm/resolving.npm-resolver'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE, type NpmResolver } from '@pnpm/resolving.npm-resolver'
 import type {
   BinaryResolution,
+  LatestInfo,
+  LatestQuery,
   PlatformAssetResolution,
   PlatformAssetTarget,
   ResolveOptions,
@@ -62,6 +64,30 @@ export async function resolveBunRuntime (
       type: 'variations',
       variants: assets,
     },
+  }
+}
+
+export async function resolveLatestBunRuntime (
+  ctx: { resolveFromNpm: NpmResolver },
+  query: LatestQuery,
+  opts: ResolveOptions
+): Promise<LatestInfo | undefined> {
+  const manifestSpec = query.wantedDependency.bareSpecifier
+  if (query.wantedDependency.alias !== 'bun' || !manifestSpec?.startsWith('runtime:')) return undefined
+  const versionSpec = query.compatible ? manifestSpec.substring('runtime:'.length) : 'latest'
+  try {
+    const npmResolution = await ctx.resolveFromNpm(
+      { alias: 'bun', bareSpecifier: versionSpec },
+      query.compatible ? opts : { ...opts, update: 'latest' }
+    )
+    if (npmResolution?.policyViolation?.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE) return {}
+    if (!npmResolution?.manifest) return {}
+    return { latestManifest: { name: 'bun', version: npmResolution.manifest.version } }
+  } catch (err) {
+    if (opts.publishedBy && (err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION') {
+      return {}
+    }
+    throw err
   }
 }
 

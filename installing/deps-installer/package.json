@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1101.0.8",
+  "version": "1101.4.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -143,6 +143,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/is-windows": "catalog:",

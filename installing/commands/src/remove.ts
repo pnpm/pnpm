@@ -145,6 +145,7 @@ export async function handler (
   | 'workspacePackagePatterns'
   | 'sharedWorkspaceLockfile'
   | 'cleanupUnusedCatalogs'
+  | 'trustLockfile'
   > & Pick<ConfigContext,
   | 'allProjects'
   | 'allProjectsGraph'
@@ -188,6 +189,7 @@ export async function handler (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     storeController: store.ctrl,
     storeDir: store.dir,
+    resolutionVerifiers: store.resolutionVerifiers,
     include,
   })
   const allProjects = opts.allProjects ?? (

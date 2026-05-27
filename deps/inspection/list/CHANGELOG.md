@@ -1,5 +1,61 @@
 # @pnpm/list
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/deps.inspection.tree-builder@1100.0.11
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/deps.inspection.tree-builder@1100.0.10
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+
+## 1100.0.10
+
+### Patch Changes
+
+- 50b33c1: Address CodeQL static-analysis findings: guard manifest dependency writes against prototype-polluting keys (`__proto__`, `constructor`, `prototype`), and replace a potentially super-linear semver-detection regex in registry 404 hints with an O(n) parser.
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/deps.inspection.tree-builder@1100.0.9
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.inspection.tree-builder@1100.0.8
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/deps.inspection.tree-builder@1100.0.7
+
 ## 1100.0.7
 
 ### Patch Changes

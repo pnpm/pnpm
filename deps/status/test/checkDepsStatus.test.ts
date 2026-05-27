@@ -1,8 +1,12 @@
 import type { Stats } from 'node:fs'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import type { WorkspaceState } from '@pnpm/workspace.state'
 
 {
@@ -320,4 +324,181 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('pnpmfile at "modifiedPnpmfile.js" was modified')
   })
+
+  it('returns upToDate: false when a patch was modified and manifests were not modified', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const beforeLastValidation = lastValidatedTimestamp - 10_000
+    const afterLastValidation = lastValidatedTimestamp + 1_000
+    const projectRootDir = '/project' as ProjectRootDir
+    const projectRootDirRealPath = '/project' as ProjectRootDirRealPath
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {
+        [projectRootDir]: {
+          name: 'root',
+          version: '1.0.0',
+        },
+      },
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
+      if (filePath === '/project/patches/foo.patch') {
+        return {
+          mtime: new Date(afterLastValidation),
+          mtimeMs: afterLastValidation,
+        } as Stats
+      }
+      return {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+    })
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(beforeLastValidation),
+      mtimeMs: beforeLastValidation,
+    } as Stats))
+
+    const opts: CheckDepsStatusOptions = {
+      allProjects: [{
+        rootDir: projectRootDir,
+        rootDirRealPath: projectRootDirRealPath,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+          dependencies: {
+            foo: '1.0.0',
+          },
+        },
+        writeProjectManifest: async () => {},
+      }],
+      workspaceDir: '/project',
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      patchedDependencies: {
+        foo: '/project/patches/foo.patch',
+      },
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Patches were modified')
+  })
 })
+
+describe('checkDepsStatus - lockfile conflicts', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  it('returns upToDate: false when the wanted lockfile has merge conflict markers', async () => {
+    const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-'))
+    try {
+      await writeConflictedLockfile(projectDir)
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp: Date.now() - 10_000,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {},
+        filteredInstall: false,
+      }
+
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+      const opts: CheckDepsStatusOptions = {
+        rootProjectManifest: {},
+        rootProjectManifestDir: projectDir,
+        pnpmfile: [],
+        ...mockWorkspaceState.settings,
+      }
+      const result = await checkDepsStatus(opts)
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe(`The lockfile in ${projectDir} has merge conflicts`)
+    } finally {
+      await fs.rm(projectDir, { force: true, recursive: true })
+    }
+  })
+
+  it('returns upToDate: false when a project lockfile has merge conflict markers and sharedWorkspaceLockfile is false', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-workspace-'))
+    try {
+      const projectDir = path.join(workspaceDir, 'packages/project')
+      await fs.mkdir(projectDir, { recursive: true })
+      await writeConflictedLockfile(projectDir)
+      const projectRootDir = projectDir as ProjectRootDir
+      const projectRootDirRealPath = await fs.realpath(projectDir) as ProjectRootDirRealPath
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp: Date.now() - 10_000,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {
+          [projectRootDir]: {
+            name: 'project',
+            version: '1.0.0',
+          },
+        },
+        filteredInstall: false,
+      }
+
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+      const opts: CheckDepsStatusOptions = {
+        allProjects: [{
+          rootDir: projectRootDir,
+          rootDirRealPath: projectRootDirRealPath,
+          manifest: {
+            name: 'project',
+            version: '1.0.0',
+          },
+          writeProjectManifest: async () => {},
+        }],
+        workspaceDir,
+        rootProjectManifest: {},
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        sharedWorkspaceLockfile: false,
+        ...mockWorkspaceState.settings,
+      }
+      const result = await checkDepsStatus(opts)
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe(`The lockfile in ${projectDir} has merge conflicts`)
+    } finally {
+      await fs.rm(workspaceDir, { force: true, recursive: true })
+    }
+  })
+})
+
+async function writeConflictedLockfile (lockfileDir: string): Promise<void> {
+  await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), [
+    "lockfileVersion: '9.0'",
+    '<<<<<<< HEAD',
+    'settings:',
+    '  autoInstallPeers: true',
+    '=======',
+    'settings:',
+    '  autoInstallPeers: false',
+    '>>>>>>> branch',
+    '',
+  ].join('\n'))
+}

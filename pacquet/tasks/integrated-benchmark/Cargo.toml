@@ -1,0 +1,32 @@
+[package]
+name                  = "pacquet-integrated-benchmark"
+version               = "0.0.0"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[[bin]]
+name = "integrated-benchmark"
+path = "src/main.rs"
+
+[dependencies]
+pacquet-fs            = { workspace = true }
+pacquet-registry-mock = { workspace = true }
+
+clap         = { workspace = true }
+itertools    = { workspace = true }
+os_display   = { workspace = true }
+pipe-trait   = { workspace = true }
+reqwest      = { workspace = true }
+serde        = { workspace = true }
+serde-saphyr = { workspace = true }
+tokio        = { workspace = true }
+which        = { workspace = true }
+
+[lints]
+workspace = true

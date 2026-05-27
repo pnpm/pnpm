@@ -1,5 +1,67 @@
 # @pnpm/tarball-fetcher
 
+## 1101.0.10
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.13
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/exec.prepare-package@1100.0.12
+  - @pnpm/fetching.fetcher-base@1100.1.5
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/worker@1100.1.7
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [4a79336]
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/exec.prepare-package@1100.0.11
+  - @pnpm/worker@1100.1.6
+
+## 1101.0.7
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.10
+- @pnpm/worker@1100.1.5
+
+## 1101.0.6
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.9
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/exec.prepare-package@1100.0.8
+  - @pnpm/fetching.fetcher-base@1100.1.3
+  - @pnpm/worker@1100.1.4
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [dd8d5d7]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/fs.packlist@1100.0.1
+  - @pnpm/worker@1100.1.3
+  - @pnpm/exec.prepare-package@1100.0.7
+
 ## 1101.0.3
 
 ### Patch Changes

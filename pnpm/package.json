@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.0.8",
+  "version": "11.3.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -100,6 +100,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/engine.pm.commands": "workspace:*",
     "@pnpm/engine.runtime.commands": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
@@ -112,6 +113,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/patching.commands": "workspace:*",
+    "@pnpm/pkg-manifest.commands": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
@@ -126,6 +128,7 @@
     "@pnpm/tabtab": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/worker": "workspace:*",

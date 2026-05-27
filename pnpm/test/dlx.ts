@@ -6,7 +6,8 @@ import { getConfig } from '@pnpm/config.reader'
 import { dlx } from '@pnpm/exec.commands'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
-import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addUser } from '@pnpm/testing.registry-mock'
 import type { BaseManifest } from '@pnpm/types'
 import PATH_NAME from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -108,7 +109,7 @@ describe('minimumReleaseAge from pnpm-workspace.yaml', () => {
     ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
 
     expect(result.status).toBe(1)
-    expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
+    expect(result.stderr.toString()).toMatch(/was published.+minimumReleaseAge cutoff/)
   })
 
   test('dlx succeeds when the requested version is older than minimumReleaseAge', () => {
@@ -172,7 +173,7 @@ skipOnWindows('pnpm create respects minimumReleaseAge from pnpm-workspace.yaml',
   ], { omitEnvDefaults: ['pnpm_config_minimum_release_age'] })
 
   expect(result.status).toBe(1)
-  expect(result.stderr.toString()).toMatch(/does not meet the minimumReleaseAge constraint/)
+  expect(result.stderr.toString()).toMatch(/was published.+minimumReleaseAge cutoff/)
 })
 
 describe('catalogs inherited from pnpm-workspace.yaml', () => {

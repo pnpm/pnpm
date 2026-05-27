@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli.default-reporter",
-  "version": "1100.0.10",
+  "version": "1100.2.2",
   "description": "The default reporter of pnpm",
   "keywords": [
     "pnpm",
@@ -22,8 +22,12 @@
   },
   "files": [
     "lib",
-    "!*.map"
+    "!*.map",
+    "bin"
   ],
+  "bin": {
+    "pnpm-render": "bin/pnpm-render.mjs"
+  },
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",

@@ -10,7 +10,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
@@ -281,6 +281,11 @@ async function _rebuild (
 ): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile, opts.supportedArchitectures)
   const depsStateCache: DepsStateCache = {}
+  // Resolved `engines.runtime` Node version (when one is pinned) —
+  // every side-effects-cache key computed below is anchored to it so
+  // the prefix tracks the script-runner Node rather than pnpm's own
+  // `process.version`.
+  const nodeVersion = findRuntimeNodeVersion(Object.keys(depGraph))
   const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
@@ -369,6 +374,7 @@ async function _rebuild (
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
               supportedArchitectures: opts.supportedArchitectures,
+              nodeVersion,
             })
             if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
               pkgsThatWereRebuilt.add(depPath)
@@ -403,6 +409,7 @@ async function _rebuild (
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
                 includeDepGraphHash: true,
+                nodeVersion,
               })
             }
             await opts.storeController.upload(pkgRoot, {

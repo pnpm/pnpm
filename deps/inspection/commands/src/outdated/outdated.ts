@@ -8,7 +8,7 @@ import {
   readProjectManifestOnly,
   TABLE_OPTIONS,
 } from '@pnpm/cli.utils'
-import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
+import { colorizeSemverDiff } from '@pnpm/colorize-semver-diff'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import {
   outdatedDepsOfProjects,
@@ -16,7 +16,7 @@ import {
 } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
-import semverDiff from '@pnpm/semver-diff'
+import { semverDiff } from '@pnpm/semver-diff'
 import type { DependenciesField, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -366,7 +366,7 @@ export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated
   if (outdated.latestManifest != null) {
     return {
       ...outdated,
-      ...semverDiff.default(outdated.wanted, outdated.latestManifest.version),
+      ...semverDiff(outdated.wanted, outdated.latestManifest.version),
     }
   }
   return {
@@ -398,7 +398,7 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
       : latestManifest.version
   }
 
-  const versionText = colorizeSemverDiff.default({ change, diff })
+  const versionText = colorizeSemverDiff({ change, diff })
   if (latestManifest.deprecated) {
     return `${versionText} ${chalk.redBright('(deprecated)')}`
   }

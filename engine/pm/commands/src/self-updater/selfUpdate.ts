@@ -5,8 +5,9 @@ import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, types as allTypes } from '@pnpm/config.reader'
+import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
-import { createResolver } from '@pnpm/installing.client'
+import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -60,6 +61,10 @@ export function help (): string {
 export type SelfUpdateCommandOptions = CreateStoreControllerOptions & Pick<Config,
 | 'globalPkgDir'
 | 'lockfileDir'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
+| 'minimumReleaseAgeIgnoreMissingTime'
+| 'minimumReleaseAgeStrict'
 | 'modulesDir'
 | 'pnpmHomeDir'
 > & Pick<ConfigContext,
@@ -75,8 +80,23 @@ export async function handler (
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
   globalInfo('Checking for updates...')
-  const { resolve } = createResolver({ ...opts, configByUri: opts.configByUri })
+  const { resolve: baseResolve } = createResolver({
+    ...opts,
+    configByUri: opts.configByUri,
+    ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
+  })
+  // self-update has nowhere to "defer to" either — wrap the resolver
+  // under any policy that wants to reject violations up-front. Strict
+  // minimumReleaseAge keeps self-update from switching to an immature
+  // pnpm; `trustPolicy: 'no-downgrade'` keeps it from switching to a
+  // pnpm whose trust evidence weakened relative to the installed
+  // version.
+  const strictResolution =
+    (Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true) ||
+    opts.trustPolicy === 'no-downgrade'
+  const resolve = strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
   const pkgName = 'pnpm'
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
   // refuse to downgrade in that case — `latest` on the registry can lag the
   // installed version when a new major has shipped without being tagged.
@@ -88,6 +108,8 @@ export async function handler (
     lockfileDir: opts.lockfileDir ?? opts.dir,
     preferredVersions: {},
     projectDir: opts.dir,
+    publishedBy,
+    publishedByExclude,
   })
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
@@ -186,7 +208,7 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
   }
 
-  globalInfo(`Updating pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
+  globalInfo(`Switching pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
   const store = await createStoreController(opts)
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
@@ -297,3 +319,4 @@ async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spe
   }
   return lockfilePinned ?? specMin
 }
+

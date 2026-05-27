@@ -69,7 +69,12 @@ function prepareOptions (dir: string) {
   }
 }
 
-function createMetadata (latest: string, registry: string, otherVersions: string[] = []) {
+function createMetadata (
+  latest: string,
+  registry: string,
+  otherVersions: string[] = [],
+  time: Record<string, string> = {}
+) {
   const versions = [...otherVersions, latest]
   return {
     name: 'pnpm',
@@ -87,6 +92,7 @@ function createMetadata (latest: string, registry: string, otherVersions: string
         },
       },
     ])),
+    time,
   }
 }
 
@@ -256,6 +262,171 @@ test('self-update does nothing when pnpm is up to date', async () => {
   const output = await selfUpdate.handler(opts, [])
 
   expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
+})
+
+test('self-update respects minimumReleaseAge for implicit latest resolution', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registries.default, ['9.0.0'], {
+    '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata)
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('global self-update respects minimumReleaseAge: skips immature latest, no-op when older mature matches active', async () => {
+  // Reproduces #11655: a globally-installed pnpm (no project pin / no
+  // wantedPackageManager) must not jump to a "latest" version younger than
+  // minimumReleaseAge. Active pnpm is mocked as 9.0.0 at the top of this
+  // file. The registry's `latest` (9.1.0) is 8h old — immature — so the
+  // resolver should fall back to 9.0.0, which equals the active version,
+  // producing a no-op rather than reinstalling.
+  const opts = prepare()
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registries.default, ['9.0.0'], {
+    '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata)
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+  }, [])
+
+  expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
+  // No global install dir should have been created.
+  const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
+  expect(fs.existsSync(globalDir)).toBe(false)
+})
+
+test('self-update respects minimumReleaseAgeExclude for implicit latest resolution', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registries.default, ['9.0.0'], {
+    '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata)
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    minimumReleaseAgeExclude: ['pnpm'],
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.1.0')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.1.0')
+})
+
+test('self-update respects minimumReleaseAgeExclude exact version for implicit latest resolution', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registries.default, ['9.0.0'], {
+    '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata)
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    minimumReleaseAgeExclude: ['pnpm@9.1.0'],
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.1.0')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.1.0')
+})
+
+test('self-update does not bypass minimumReleaseAge when minimumReleaseAgeExclude exact version does not match latest', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registries.default, ['9.0.0'], {
+    '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata)
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    minimumReleaseAgeExclude: ['pnpm@9.0.0'],
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('self-update throws on invalid minimumReleaseAgeExclude pattern', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+  })
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registries.default, ['9.0.0'], {
+    '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata)
+
+  await expect(selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    minimumReleaseAgeExclude: ['pnpm@^9.0.0'],
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE',
+  })
 })
 
 test('self-update refuses to downgrade when latest is older than current', async () => {

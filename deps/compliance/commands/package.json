@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.commands",
-  "version": "1101.1.10",
+  "version": "1101.2.7",
   "description": "pnpm commands for audit, licenses, and sbom",
   "keywords": [
     "pnpm",
@@ -80,6 +80,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",

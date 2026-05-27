@@ -38,7 +38,7 @@ import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
-import { getDefaultCreds, getNetworkConfigs } from './getNetworkConfigs.js'
+import { getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
@@ -208,6 +208,7 @@ export async function getConfig (opts: {
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
+    'skip-manifest-obfuscation': false,
     'registry-supports-time-field': false,
     'virtual-store-dir-max-length': isWindows() ? 60 : 120,
     'virtual-store-only': false,
@@ -221,12 +222,17 @@ export async function getConfig (opts: {
   // also have to peek at the relevant env vars here in order for
   // PNPM_CONFIG_NPMRC_AUTH_FILE / PNPM_CONFIG_USERCONFIG (and their lowercase
   // equivalents) to actually decide which user-level .npmrc gets read.
+  // npm_config_userconfig is honored as a low-priority compatibility fallback
+  // so that environments that point npm at a custom .npmrc (e.g. actions/setup-node
+  // writing to ${runner.temp}/.npmrc) keep working without requiring users to
+  // rename the env var to its PNPM_CONFIG_* equivalent.
   const globalYamlConfigForNpmrcAuthFile = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
   const npmrcAuthFile = cliOptions['npmrc-auth-file'] as string | undefined
     ?? cliOptions.userconfig as string | undefined
     ?? readEnvVar(env, 'npmrc_auth_file')
     ?? readEnvVar(env, 'userconfig')
     ?? globalYamlConfigForNpmrcAuthFile?.npmrcAuthFile
+    ?? readNpmEnvVar(env, 'userconfig')
 
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
@@ -315,11 +321,8 @@ export async function getConfig (opts: {
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
-  const defaultCreds = getDefaultCreds(pnpmConfig.authConfig)
-  pnpmConfig.configByUri = {
-    ...networkConfigs.configByUri,
-    ...defaultCreds ? { '': { creds: defaultCreds } } : {},
-  }
+  pnpmConfig.configByUri = { ...networkConfigs.configByUri }
+
   // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
   // not project-level, to prevent project .npmrc from executing arbitrary commands.
   const userConfig = npmrcResult.userConfig as Record<string, string>
@@ -390,13 +393,6 @@ export async function getConfig (opts: {
   } else if (!pnpmConfig.bin) {
     pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
   }
-  // Default allowBuilds to {} when GVS is enabled so that GVS hashes
-  // are engine-agnostic when no build policy is configured. Without
-  // this, allowBuilds is undefined which makes createAllowBuildFunction
-  // return undefined, causing all hashes to include ENGINE_NAME.
-  if (pnpmConfig.enableGlobalVirtualStore && pnpmConfig.allowBuilds == null) {
-    pnpmConfig.allowBuilds = {}
-  }
   pnpmConfig.packageManager = packageManager
 
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
@@ -405,6 +401,10 @@ export async function getConfig (opts: {
     if (pnpmConfig.rootProjectManifest != null) {
       if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
         warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+      }
+      const ignoredPnpmFieldKeys = getIgnoredPnpmFieldKeys(pnpmConfig.rootProjectManifest)
+      if (ignoredPnpmFieldKeys.length > 0) {
+        warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${ignoredPnpmFieldKeys.map(k => `"pnpm.${k}"`).join(', ')}. See https://pnpm.io/settings for the new home of each setting.`)
       }
       const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
       if (wantedPmResult.pm) {
@@ -457,6 +457,15 @@ export async function getConfig (opts: {
     if (typeof url === 'string') {
       pnpmConfig.registries[scope] = normalizeRegistryUrl(url)
     }
+  }
+
+  // Sync registries.default to the top-level registry property so that
+  // commands like login/logout that use opts.registry pick up the default
+  // registry configured in pnpm-workspace.yaml. Only sync when the workspace
+  // manifest actually contributed a different default than what .npmrc provided,
+  // and when registry was not explicitly set via CLI.
+  if (!explicitlySetKeys.has('registry') && pnpmConfig.registries.default !== registriesFromNpmrc.default) {
+    pnpmConfig.registry = pnpmConfig.registries.default
   }
 
   // omit some schema that the custom parser can't yet handle
@@ -525,6 +534,19 @@ export async function getConfig (opts: {
 
   if (!hasDependencyBuildOptions(pnpmConfig)) {
     Object.assign(pnpmConfig, globalDepsBuildConfig)
+  }
+  // Default allowBuilds to {} when GVS is enabled and no build policy is
+  // configured. This makes GVS hashes engine-agnostic for pure-JS packages.
+  // When a build policy (dangerouslyAllowAllBuilds from global config.yaml,
+  // or allowBuilds from the workspace manifest) exists, GVS hashes must
+  // include ENGINE_NAME so that built packages and their dependents are
+  // correctly invalidated across Node upgrades and architecture changes.
+  if (
+    pnpmConfig.enableGlobalVirtualStore &&
+    pnpmConfig.allowBuilds == null &&
+    pnpmConfig.dangerouslyAllowAllBuilds !== true
+  ) {
+    pnpmConfig.allowBuilds = {}
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
@@ -646,9 +668,11 @@ export async function getConfig (opts: {
 
   // The `pmOnFail` config setting overrides whatever onFail the
   // wantedPackageManager carried, so users (and internal callers) can force
-  // a specific behavior without editing the manifest. Otherwise, the legacy
-  // `packageManager` field defaults to `download` — `devEngines.packageManager`
-  // already has onFail set during parsing.
+  // a specific behavior without editing the manifest. Otherwise, both the
+  // legacy `packageManager` field and singular `devEngines.packageManager`
+  // fall through to `download` (the documented default for `pmOnFail`); the
+  // array form of `devEngines.packageManager` already has its own per-element
+  // defaults applied during parsing.
   if (pnpmConfig.wantedPackageManager) {
     if (pnpmConfig.pmOnFail) {
       pnpmConfig.wantedPackageManager.onFail = pnpmConfig.pmOnFail
@@ -696,6 +720,14 @@ function readEnvVar (env: NodeJS.ProcessEnv, key: string): string | undefined {
   return value !== '' ? value : undefined
 }
 
+// Same shape as readEnvVar but for the `npm_config_<key>` family. Used as a
+// low-priority compatibility shim so that npm-style env vars (e.g.
+// NPM_CONFIG_USERCONFIG written by actions/setup-node) keep working.
+function readNpmEnvVar (env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const value = env[`npm_config_${key}`] ?? env[`NPM_CONFIG_${key.toUpperCase()}`]
+  return value !== '' ? value : undefined
+}
+
 function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPackageManager, warnings: string[] } {
   const warnings: string[] = []
   const pmFromDevEngines = parseDevEnginesPackageManager(manifest.devEngines)
@@ -729,6 +761,38 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
   return { warnings }
 }
 
+// Settings that used to be read from the `pnpm` field of `package.json` in v10
+// but moved to `pnpm-workspace.yaml` in v11. Keys not in this set (e.g. `app`,
+// or anything set by third-party tooling that piggybacks on the `pnpm` namespace)
+// are left alone to avoid false-positive warnings.
+const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
+  'allowBuilds',
+  'allowedDeprecatedVersions',
+  'allowUnusedPatches',
+  'auditConfig',
+  'configDependencies',
+  'executionEnv',
+  'ignoredOptionalDependencies',
+  'neverBuiltDependencies',
+  'onlyBuiltDependencies',
+  'onlyBuiltDependenciesFile',
+  'overrides',
+  'packageExtensions',
+  'patchedDependencies',
+  'peerDependencyRules',
+  'requiredScripts',
+  'supportedArchitectures',
+  'updateConfig',
+])
+
+function getIgnoredPnpmFieldKeys (manifest: ProjectManifest): string[] {
+  const legacyField = (manifest as { pnpm?: unknown }).pnpm
+  if (legacyField == null || typeof legacyField !== 'object' || Array.isArray(legacyField)) {
+    return []
+  }
+  return Object.keys(legacyField as Record<string, unknown>).filter(k => MIGRATED_PNPM_FIELD_KEYS.has(k))
+}
+
 export function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
   if (!packageManager.includes('@')) return { name: packageManager, version: undefined }
   const [name, pmReference] = packageManager.split('@')
@@ -745,7 +809,7 @@ export function parsePackageManager (packageManager: string): { name: string, ve
 function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependency | undefined {
   if (!devEngines?.packageManager) return undefined
   let pmEngine: EngineDependency | undefined
-  let onFail: 'ignore' | 'warn' | 'error' | 'download'
+  let onFail: 'ignore' | 'warn' | 'error' | 'download' | undefined
   if (Array.isArray(devEngines.packageManager)) {
     const engines = devEngines.packageManager
     if (engines.length === 0) return undefined
@@ -762,7 +826,11 @@ function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependen
     }
   } else {
     pmEngine = devEngines.packageManager
-    onFail = pmEngine.onFail ?? 'error'
+    // Singular form: leave onFail undefined when the user did not set it, so
+    // the central pmOnFail default ('download') applies. The array form keeps
+    // its own per-element defaults ('error' for the last entry, 'ignore' for
+    // the rest) because those reflect explicit prioritization by the user.
+    onFail = pmEngine.onFail
   }
   if (!pmEngine?.name) return undefined
   return {
@@ -779,6 +847,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
     const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
     const nodeRuntime = runtimes.find((r) => r.name === 'node')
     if (nodeRuntime?.version == null) continue
+    if (!semver.validRange(nodeRuntime.version)) continue
     const minVersion = semver.minVersion(nodeRuntime.version)
     if (minVersion != null) {
       return minVersion.version
@@ -816,4 +885,3 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
 }
-

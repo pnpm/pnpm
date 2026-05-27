@@ -1,5 +1,57 @@
 # @pnpm/workspace.state
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/types@1101.1.1
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.3.1
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+
 ## 1100.0.9
 
 ### Patch Changes

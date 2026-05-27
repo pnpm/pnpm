@@ -5,19 +5,24 @@ import path from 'node:path'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { createDispatchedFetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
+import { extractBundledDependencies, type PublishSummary } from '../tarball/publishSummary.js'
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
-import { publishWithOtpHandling } from './otp.js'
+import { type OtpContext, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
+import { SHARED_CONTEXT } from './utils/shared-context.js'
+
+export type { PublishSummary }
 
 export type PublishPackedPkgOptions = Pick<Config,
 | 'configByUri'
@@ -30,39 +35,22 @@ export type PublishPackedPkgOptions = Pick<Config,
 | 'registries'
 | 'tag'
 | 'userAgent'
-> & {
+> & Partial<Pick<Config,
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'noProxy'
+| 'strictSsl'
+>> & {
   access?: 'public' | 'restricted'
   ci?: boolean
   otp?: string // NOTE: There is no existing test for the One-time Password feature
   provenance?: boolean
   provenanceFile?: string // NOTE: This field is currently not supported
-}
-
-/**
- * Per-package summary describing a successful publish, modeled after `npm publish --json`.
- * Returned to callers and serialized to stdout when `pnpm publish --json` is used.
- */
-export interface PublishSummary {
-  /** Human-readable identifier `${name}@${version}`. */
-  id: string
-  name: string
-  version: string
-  /** Compressed tarball size in bytes. */
-  size: number
-  /** Total uncompressed size of all files in the tarball, in bytes. */
-  unpackedSize: number
-  /** Lowercase hex SHA-1 digest of the tarball. */
-  shasum: string
-  /** SRI-formatted SHA-512 digest of the tarball (e.g. `sha512-...`). */
-  integrity: string
-  /** Tarball file basename (e.g. `pkg-1.0.0.tgz`). */
-  filename: string
-  /** Files inside the tarball, in the same shape `pnpm pack --json` emits. */
-  files: Array<{ path: string }>
-  /** Number of files inside the tarball. */
-  entryCount: number
-  /** Names of bundled dependencies included in the tarball (typically empty). */
-  bundled: string[]
+  stage?: boolean
 }
 
 export async function publishPackedPkg (
@@ -74,6 +62,7 @@ export async function publishPackedPkg (
   const publishOptions = await createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
   const { registry } = publishOptions
+  const isStage = opts.stage === true
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
   const summary: PublishSummary = {
     id: `${name}@${version}`,
@@ -91,39 +80,60 @@ export async function publishPackedPkg (
     bundled: extractBundledDependencies(publishedManifest),
   }
   if (opts.dryRun) {
-    globalWarn(`Skip publishing ${name}@${version} (dry run)`)
+    globalWarn(`Skip ${isStage ? 'staging' : 'publishing'} ${name}@${version} (dry run)`)
     return summary
   }
-  const response = await publishWithOtpHandling({ manifest: publishedManifest, tarballData, publishOptions })
+  const context = createPublishContext(opts)
+  const response = await publishWithOtpHandling({
+    context,
+    manifest: publishedManifest,
+    publishOptions,
+    tarballData,
+  })
   if (response.ok) {
-    globalInfo(`✅ Published package ${name}@${version}`)
+    if (isStage && response.stageId) {
+      summary.stageId = response.stageId
+    }
+    globalInfo(`✅ ${isStage ? 'Staged' : 'Published'} package ${name}@${version}`)
     return summary
   }
   throw await createFailedToPublishError(packResult, response)
 }
 
 /**
- * npm accepts both `bundledDependencies` and `bundleDependencies` in package.json and normalizes
- * to a list of dependency names. We mirror that normalization so consumers see a consistent array.
+ * Builds the {@link OtpContext} used to drive the publish. The default fetch
+ * is replaced by one that respects proxy / TLS / local-address settings, so
+ * the `doneUrl` polling in the web-based authentication flow goes through
+ * the same network configuration as the initial publish request (see
+ * https://github.com/pnpm/pnpm/issues/11561).
  */
-function extractBundledDependencies (manifest: ExportedManifest): string[] {
-  const raw = manifest.bundledDependencies ?? manifest.bundleDependencies
-  if (!raw) return []
-  if (Array.isArray(raw)) return raw
-  // `true` means "bundle every dependency" per npm's semantics; expand it to the dependency names.
-  if (raw === true) return Object.keys(manifest.dependencies ?? {})
-  return []
+export function createPublishContext (opts: PublishPackedPkgOptions): OtpContext {
+  return {
+    ...SHARED_CONTEXT,
+    fetch: createDispatchedFetch({ ...opts, timeout: opts.fetchTimeout }),
+  }
 }
 
-async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
+type StagePublishOptions = PublishOptions & {
+  command?: string
+  stage?: boolean
+}
+
+/**
+ * @internal Exported for unit testing of the access / registry / auth fallback rules. Not part of the package's
+ *   public API.
+ */
+export async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
   const publishConfigRegistry = typeof manifest.publishConfig?.registry === 'string'
     ? manifest.publishConfig.registry
     : undefined
   const { registry, config } = findRegistryInfo(manifest, options, publishConfigRegistry)
   const { creds, tls } = config ?? {}
 
+  const publishConfigAccess = manifest.publishConfig?.access
+  const access = options.access ?? (isPublishAccess(publishConfigAccess) ? publishConfigAccess : undefined)
+
   const {
-    access,
     ci: isFromCI,
     fetchRetries,
     fetchRetryFactor,
@@ -137,12 +147,13 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     userAgent,
   } = options
 
+  const npmCommand = options.stage === true ? 'stage' : 'publish'
   const headers: PublishOptions['headers'] = {
     'npm-auth-type': 'web',
-    'npm-command': 'publish',
+    'npm-command': npmCommand,
   }
 
-  const publishOptions: PublishOptions = {
+  const publishOptions: StagePublishOptions = {
     access,
     defaultTag,
     fetchRetries,
@@ -165,10 +176,15 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     ca: tls?.ca,
     cert: tls?.cert,
     key: tls?.key,
-    npmCommand: 'publish',
+    npmCommand,
     token: creds && extractToken(creds),
     username: creds?.basicAuth?.username,
     password: creds?.basicAuth?.password,
+  }
+
+  if (options.stage === true) {
+    publishOptions.command = 'stage'
+    publishOptions.stage = true
   }
 
   if (registry) {
@@ -186,6 +202,10 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
 
   pruneUndefined(publishOptions)
   return publishOptions
+}
+
+function isPublishAccess (access: unknown): access is 'public' | 'restricted' {
+  return access === 'public' || access === 'restricted'
 }
 
 interface RegistryInfo {
@@ -229,15 +249,6 @@ function findRegistryInfo (
     creds ??= entry.creds
     // TLS from longer path individually overrides shorter path
     tls = { ...entry.tls, ...tls }
-  }
-
-  const isDefaultRegistry =
-    nonNormalizedRegistry === registries.default ||
-    registry === registries.default ||
-    registry === parseSupportedRegistryUrl(registries.default)?.normalizedUrl
-
-  if (isDefaultRegistry) {
-    creds ??= configByUri['']?.creds
   }
 
   return {

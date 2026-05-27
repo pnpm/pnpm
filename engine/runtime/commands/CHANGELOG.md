@@ -1,5 +1,75 @@
 # @pnpm/engine.runtime.commands
 
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/engine.runtime.node-resolver@1101.1.1
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/engine.runtime.node-resolver@1101.1.0
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/network.fetch@1100.0.6
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [247d70b]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/exec.pnpm-cli-runner@1100.0.1
+  - @pnpm/engine.runtime.node-resolver@1101.0.9
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/cli.utils@1101.0.5
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [18a464f]
+  - @pnpm/network.fetch@1100.0.4
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/engine.runtime.node-resolver@1101.0.8
+
+## 1100.0.13
+
+### Patch Changes
+
+- a575dd2: `pnpm runtime set <name> <version>` no longer fails in the root of a multi-package workspace with the `ADDING_TO_ROOT` error. Installing the workspace root is a valid target for a runtime, so the command now bypasses that safety check.
+- Updated dependencies [20e7aff]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/engine.runtime.node-resolver@1101.0.7
+  - @pnpm/cli.utils@1101.0.3
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/engine.runtime.node-resolver@1101.0.6
+
 ## 1100.0.11
 
 ### Patch Changes

@@ -1,0 +1,36 @@
+[package]
+name                 = "pacquet-registry-mock"
+version              = "0.0.0"
+description          = "Drives pnpm-registry against @pnpm/registry-mock's shipped storage for pacquet tests"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[lib]
+name = "pacquet_registry_mock"
+path = "src/lib.rs"
+doc  = true
+
+[[bin]]
+name = "pacquet-registry-mock"
+path = "src/main.rs"
+doc  = false
+
+[dependencies]
+assert_cmd = { workspace = true }
+clap       = { workspace = true }
+home       = { workspace = true }
+pipe-trait = { workspace = true }
+reqwest    = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+sysinfo    = { workspace = true }
+tokio      = { workspace = true }
+walkdir    = { workspace = true }
+
+[lints]
+workspace = true

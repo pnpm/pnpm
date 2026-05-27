@@ -5,7 +5,7 @@ import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm/installing.deps-installer'
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -1755,6 +1755,119 @@ describe('update', () => {
     expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
   })
 
+  test('update --latest works on named catalog dependency', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    }])
+
+    const catalogs = {
+      foo: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.foo).toEqual({
+      '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' },
+    })
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        dir: path.join(process.cwd(), 'project1'),
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      foo: {
+        '@pnpm.e2e/foo': '100.1.0',
+      },
+    })
+
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs).toEqual({
+      foo: { '@pnpm.e2e/foo': { specifier: '100.1.0', version: '100.1.0' } },
+    })
+    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+  })
+
+  test('update --latest works on named catalog dependency with catalogMode=prefer', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    }])
+
+    const catalogs = {
+      foo: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.foo).toEqual({
+      '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' },
+    })
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        catalogMode: 'prefer',
+        dir: path.join(process.cwd(), 'project1'),
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      foo: {
+        '@pnpm.e2e/foo': '100.1.0',
+      },
+    })
+
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs).toEqual({
+      foo: { '@pnpm.e2e/foo': { specifier: '100.1.0', version: '100.1.0' } },
+    })
+    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+  })
+
   // This test will update @pnpm.e2e/bar, but make sure @pnpm.e2e/foo is
   // untouched. On the registry-mock, the versions for @pnpm.e2e/bar are:
   //
@@ -1845,6 +1958,553 @@ describe('update', () => {
       '@pnpm.e2e/bar@100.1.0',
       '@pnpm.e2e/foo@1.0.0',
     ])
+  })
+
+  // Regression test for https://github.com/pnpm/pnpm/issues/11658
+  // When running `pnpm upgrade -r` (install mutation with update=true and no specific package names),
+  // catalog: references should be preserved in package.json and only the catalog entry
+  // in pnpm-workspace.yaml should be updated.
+  test('update via install mutation preserves catalog: in manifest (issue #11658)', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '1.0.0' },
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Change the catalog to ^1.0.0 so that update can find a newer version.
+    mutateOpts.catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check that the @pnpm.e2e/foo dependency is installed on the older
+    // requested version.
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm upgrade -r` by using the "install" mutation with update=true
+    // and updatePackageManifest=true, without specifying any dependencySelectors.
+    const { updatedCatalogs, updatedProjects } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        mutation: 'install' as const,
+        update: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    // The manifest should still have "catalog:" — NOT a resolved version like "^1.3.0".
+    const updatedManifest = updatedProjects[0]?.manifest
+    expect(updatedManifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+    // The catalog should be updated to the newer version.
+    expect(updatedCatalogs).toEqual({
+      default: {
+        '@pnpm.e2e/foo': '^1.3.0',
+      },
+    })
+  })
+
+  // Similar to above but with updateToLatest (simulating `pnpm upgrade -r --latest`)
+  test('update via install mutation with updateToLatest preserves catalog: in manifest (issue #11658)', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '1.0.0' },
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Change the catalog to ^1.0.0 so that updateToLatest can find a newer version.
+    mutateOpts.catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check that the @pnpm.e2e/foo dependency is installed on the older
+    // requested version.
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm upgrade -r --latest` by using the "install" mutation with
+    // update=true, updateToLatest=true, and updatePackageManifest=true.
+    const { updatedCatalogs, updatedProjects } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        mutation: 'install' as const,
+        update: true,
+        updateToLatest: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    // The manifest should still have "catalog:" — NOT a resolved version like "^100.1.0" or "100.1.0".
+    const updatedManifest = updatedProjects[0]?.manifest
+    expect(updatedManifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+    // The catalog should be updated to the latest version (with range prefix from resolution).
+    expect(updatedCatalogs).toBeTruthy()
+    expect(updatedCatalogs!.default?.['@pnpm.e2e/foo']).toMatch(/^[\^~]?100\.1\.0$/)
+  })
+
+  // Test with multiple catalog dependencies: ensures that the index alignment in
+  // updateProjectManifest is correct when some deps are catalog and some are not.
+  test('update via install mutation preserves catalog: with mixed deps (issue #11658)', async () => {
+    await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+        '@pnpm.e2e/bar': '^100.0.0',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '1.0.0' },
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Change the catalog to ^1.0.0 so that update can find a newer version.
+    mutateOpts.catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm upgrade -r` with mixed deps (catalog and non-catalog).
+    const { updatedCatalogs, updatedProjects } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        mutation: 'install' as const,
+        update: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    // The manifest should still have "catalog:" for @pnpm.e2e/foo
+    const updatedManifest = updatedProjects[0]?.manifest
+    expect(updatedManifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+    // @pnpm.e2e/bar is not a catalog dep, its version range should remain or be updated
+    expect(updatedManifest?.dependencies?.['@pnpm.e2e/bar']).toBeTruthy()
+
+    // The catalog should be updated to the newer version.
+    expect(updatedCatalogs).toEqual({
+      default: {
+        '@pnpm.e2e/foo': '^1.3.0',
+      },
+    })
+  })
+
+  // Simulates `pnpm upgrade -r --latest` which uses installSome mutation with
+  // all dependency names as dependencySelectors.
+  test('installSome mutation with all deps preserves catalog: in manifest (issue #11658)', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Change the catalog to ^1.0.0 so that update can find a newer version.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm upgrade -r --latest`: installSome mutation with
+    // all dependency names as dependencySelectors, updateToLatest=true
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+        updatePackageManifest: true,
+      }
+    )
+
+    // The manifest should still have "catalog:" — NOT a resolved version.
+    expect(updatedManifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+    // The catalog should be updated to the latest version.
+    expect(updatedCatalogs).toBeTruthy()
+    expect(updatedCatalogs!.default?.['@pnpm.e2e/foo']).toMatch(/^[\^~]?100\.1\.0$/)
+  })
+
+  // Simulates `pnpm upgrade -r --latest` with multiple deps (catalog + non-catalog)
+  // This tests the index alignment bug in updateProjectManifest.ts where
+  // .filter().map() causes misaligned indices when some deps have updateSpec=false
+  test('installSome mutation with mixed catalog/non-catalog deps preserves catalog: (issue #11658)', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+    await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+        '@pnpm.e2e/bar': '^100.0.0',
+      },
+    }])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Change the catalog to ^1.0.0 so that update can find a newer version.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm upgrade -r --latest`: installSome mutation with
+    // both deps listed as dependencySelectors (like recursive.ts does)
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo', '@pnpm.e2e/bar'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+        updatePackageManifest: true,
+      }
+    )
+
+    // The manifest should still have "catalog:" for @pnpm.e2e/foo
+    expect(updatedManifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+    // @pnpm.e2e/bar is not a catalog dep, its version should be updated
+    expect(updatedManifest?.dependencies?.['@pnpm.e2e/bar']).toBeTruthy()
+
+    // The catalog should be updated
+    expect(updatedCatalogs).toBeTruthy()
+  })
+
+  // KEY REPRODUCTION TEST: When a project has both workspace:* and catalog: deps,
+  // the workspace dep is excluded from directDependencies (it becomes a linked dep),
+  // causing index misalignment between directDependencies and wantedDependencies
+  // in updateProjectManifest.ts's .filter().map() which then reads the wrong
+  // wantedDependency for each directDependency, resulting in catalog: being
+  // replaced by the resolved version.
+  test('install mutation with workspace + catalog deps preserves catalog: (issue #11658)', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'project1',
+        dependencies: {
+          project2: 'workspace:*',
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+      {
+        name: 'project2',
+      },
+    ])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check that the workspace dep and catalog dep both work
+    expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/foo']).toEqual({
+      specifier: 'catalog:',
+      version: '1.0.0',
+    })
+
+    // Change the catalog to ^1.0.0 so that update can find a newer version.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check that the old version was installed
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm upgrade -r`: install mutation with update=true
+    const { updatedProjects } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        update: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    // project1 manifest should still have "catalog:" — NOT a resolved version
+    const project1Manifest = updatedProjects.find(p => p.rootDir.includes('project1'))?.manifest
+    expect(project1Manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+  })
+
+  // Same as above but using installSome (simulates pnpm upgrade <pkg> in a workspace)
+  test('installSome mutation with workspace + catalog deps preserves catalog: (issue #11658)', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'project1',
+        dependencies: {
+          project2: 'workspace:*',
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+      {
+        name: 'project2',
+      },
+    ])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Change the catalog to ^1.0.0 so that updateToLatest can find a newer version.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate pnpm upgrade <pkg>: installSome mutation on @pnpm.e2e/foo
+    // Using mutateModules directly to avoid addDependenciesToPackage which
+    // doesn't provide workspace context
+    const { updatedProjects } = await mutateModules(
+      [
+        {
+          ...projects['project1' as ProjectId],
+          rootDir: path.resolve('project1') as ProjectRootDir,
+          mutation: 'installSome' as const,
+          dependencySelectors: ['@pnpm.e2e/foo'],
+          allowNew: false,
+          update: true,
+          updateToLatest: true,
+          updatePackageManifest: true,
+        },
+      ],
+      mutateOpts
+    )
+
+    // The manifest should still have "catalog:" — NOT a resolved version.
+    const project1Manifest = updatedProjects.find(p => p.rootDir.includes('project1'))?.manifest
+    expect(project1Manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+  })
+
+  // Simulates the exact recursive.ts code path for `pnpm upgrade -r --latest`
+  // in a monorepo with multiple projects. This uses installSome mutation with
+  // multiple importers, which is what recursive.ts creates.
+  test('multi-project installSome mutation with updateToLatest preserves catalog: (issue #11658)', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'project1',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+      {
+        name: 'project2',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+    ])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Change the catalog to ^1.0.0 so that updateToLatest can find a newer version.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm upgrade -r --latest`: installSome mutation for ALL projects,
+    // with all dependency names as dependencySelectors
+    const { updatedCatalogs, updatedProjects } = await mutateModules(
+      [
+        {
+          ...projects['project1' as ProjectId],
+          rootDir: path.resolve('project1') as ProjectRootDir,
+          mutation: 'installSome' as const,
+          dependencySelectors: ['@pnpm.e2e/foo'],
+          allowNew: false,
+          update: true,
+          updateToLatest: true,
+          updatePackageManifest: true,
+        },
+        {
+          ...projects['project2' as ProjectId],
+          rootDir: path.resolve('project2') as ProjectRootDir,
+          mutation: 'installSome' as const,
+          dependencySelectors: ['@pnpm.e2e/foo'],
+          allowNew: false,
+          update: true,
+          updateToLatest: true,
+          updatePackageManifest: true,
+        },
+      ],
+      mutateOpts
+    )
+
+    // Both manifests should still have "catalog:" — NOT a resolved version
+    expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+    expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+    // The catalog should be updated to the latest version.
+    expect(updatedCatalogs).toBeTruthy()
+    expect(updatedCatalogs!.default?.['@pnpm.e2e/foo']).toMatch(/^[\^~]?100\.1\.0$/)
+  })
+
+  // Simulates `pnpm upgrade -r` (no --latest, no package names) in a monorepo.
+  // This uses the `install` mutation with update=true, which is what recursive.ts
+  // creates when there are no dependencySelectors and !updateToLatest.
+  test('multi-project install mutation with update preserves catalog: (issue #11658)', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'project1',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+      {
+        name: 'project2',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+    ])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Change the catalog to ^1.0.0 so that update can find a newer version.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm upgrade -r`: install mutation with update=true for ALL projects
+    const { updatedCatalogs, updatedProjects } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        update: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    // Both manifests should still have "catalog:" — NOT a resolved version
+    expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+    expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+    // The catalog should be updated to the newer version (within the ^1.0.0 range).
+    expect(updatedCatalogs).toEqual({
+      default: { '@pnpm.e2e/foo': '^1.3.0' },
+    })
   })
 })
 

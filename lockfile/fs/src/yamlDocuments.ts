@@ -27,6 +27,8 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
       } else {
         buffer += chunk.value
       }
+      // Normalize CRLF (Windows) to LF so document separator detection works.
+      buffer = buffer.replace(/\r\n/g, '\n')
       if (buffer.length >= YAML_DOCUMENT_START.length) break
     }
     if (!buffer.startsWith(YAML_DOCUMENT_START)) {
@@ -42,7 +44,8 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
       }
       const chunk = await chunks.next() // eslint-disable-line no-await-in-loop
       if (chunk.done) break
-      buffer += chunk.value
+      // Normalize CRLF (Windows) to LF so the separator search matches on Windows-checked-out files.
+      buffer = (buffer + chunk.value).replace(/\r\n/g, '\n')
     }
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
@@ -61,6 +64,7 @@ export async function streamReadFirstYamlDocument (filePath: string): Promise<st
  * Otherwise returns the entire content (no env document present).
  */
 export function extractMainDocument (content: string): string {
+  content = content.replace(/\r\n/g, '\n')
   if (!content.startsWith(YAML_DOCUMENT_START)) return content
   const sep = content.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
   if (sep === -1) return ''

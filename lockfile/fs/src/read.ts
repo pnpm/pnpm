@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import fs, { promises as fsp } from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -64,6 +64,18 @@ export async function readWantedLockfile (
   return (await _readWantedLockfile(pkgPath, opts)).lockfile
 }
 
+export function wantedLockfileHasMergeConflictsSync (pkgPath: string): boolean {
+  try {
+    const lockfileRawContent = stripBom(fs.readFileSync(path.join(pkgPath, WANTED_LOCKFILE), 'utf8'))
+    return isDiff(extractMainDocument(lockfileRawContent))
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return false
+    }
+    throw err
+  }
+}
+
 async function _read (
   lockfilePath: string,
   prefix: string, // only for logging
@@ -78,7 +90,7 @@ async function _read (
 }> {
   let lockfileRawContent
   try {
-    lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
+    lockfileRawContent = stripBom(await fsp.readFile(lockfilePath, 'utf8'))
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err

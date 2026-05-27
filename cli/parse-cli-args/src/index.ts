@@ -65,7 +65,7 @@ export async function parseCliArgs (
     if (noptExploratoryResults['help']) {
       return {
         ...getParsedArgsForHelp(),
-        workspaceDir: await getWorkspaceDir(noptExploratoryResults),
+        workspaceDir: await getWorkspaceDir(noptExploratoryResults, opts.renamedOptions),
       }
     }
     if (noptExploratoryResults['version'] || noptExploratoryResults['v']) {
@@ -79,7 +79,7 @@ export async function parseCliArgs (
         params: noptExploratoryResults.argv.remain,
         unknownOptions: new Map(),
         fallbackCommandUsed: false,
-        workspaceDir: await getWorkspaceDir(noptExploratoryResults),
+        workspaceDir: await getWorkspaceDir(noptExploratoryResults, opts.renamedOptions),
       }
     }
   }
@@ -186,6 +186,23 @@ export async function parseCliArgs (
     const { argv: _, ...configOptions } = nopt({}, {}, configDotArgs, 0)
     Object.assign(options, configOptions)
   }
+  // Apply renamedOptions before workspace detection so `--prefix=foo`
+  // (renamed to `dir`) participates in finding the workspace root.
+  // Otherwise getWorkspaceDir falls back to process.cwd() and the
+  // workspace manifest at the prefix dir is missed (#11535).
+  // The canonical option wins if both are supplied (e.g. `--prefix=foo
+  // --dir=bar` keeps `dir=bar`); the alias is always dropped.
+  if (opts.renamedOptions != null) {
+    for (const [cliOption, optionValue] of Object.entries(options)) {
+      const target = opts.renamedOptions[cliOption]
+      if (target) {
+        if (!(target in options)) {
+          options[target] = optionValue
+        }
+        delete options[cliOption]
+      }
+    }
+  }
   const workspaceDir = await getWorkspaceDir(options)
 
   // For the run command, it's not clear whether --help should be passed to the
@@ -194,15 +211,6 @@ export async function parseCliArgs (
     return {
       ...getParsedArgsForHelp(),
       workspaceDir,
-    }
-  }
-
-  if (opts.renamedOptions != null) {
-    for (const [cliOption, optionValue] of Object.entries(options)) {
-      if (opts.renamedOptions[cliOption]) {
-        options[opts.renamedOptions[cliOption]] = optionValue
-        delete options[cliOption]
-      }
     }
   }
 
@@ -287,8 +295,22 @@ function getClosestOptionMatches (knownOptions: string[], option: string): strin
   })
 }
 
-async function getWorkspaceDir (parsedOpts: Record<string, unknown>): Promise<string | undefined> {
+async function getWorkspaceDir (
+  parsedOpts: Record<string, unknown>,
+  renamedOptions?: Record<string, string>
+): Promise<string | undefined> {
   if (parsedOpts['global'] || parsedOpts['ignore-workspace']) return undefined
-  const dir = parsedOpts['dir'] ?? process.cwd()
-  return findWorkspaceDir(dir as string)
+  // Look up dir, also honoring renamed options like `prefix → dir` so that
+  // `--prefix` works even on code paths that read parsedOpts before the
+  // rename loop has run (e.g. the --help/--version short-circuits).
+  let dir = parsedOpts['dir']
+  if (dir == null && renamedOptions != null) {
+    for (const [from, to] of Object.entries(renamedOptions)) {
+      if (to === 'dir' && parsedOpts[from] != null) {
+        dir = parsedOpts[from]
+        break
+      }
+    }
+  }
+  return findWorkspaceDir((dir ?? process.cwd()) as string)
 }

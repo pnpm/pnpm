@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import pnpmExec from '@pnpm/exec'
+import { pnpmExec } from '@pnpm/exec'
 import {
   getLockfileImporterId,
   type ProjectSnapshot,
@@ -58,7 +58,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   }
 
   try {
-    await pnpmExec.default([
+    await pnpmExec([
       'install',
       '--frozen-lockfile',
       '--lockfile-dir=.',

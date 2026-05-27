@@ -1,0 +1,130 @@
+name: Pacquet Micro-Benchmark
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'pacquet/**/*.rs'
+      - 'pacquet/**/Cargo.toml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'pacquet/tasks/micro-benchmark/fixtures/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/workflows/pacquet-micro-benchmark.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    strategy:
+      matrix:
+        os: [ubuntu-latest] # `macos-latest` is too unstable to be useful for benchmark, the variance is always huge.
+    name: Run benchmark on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Main Branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main # Checkout main first because the cache is warm
+          persist-credentials: false
+
+      - name: Install Rust Toolchain
+        uses: ./.github/actions/rustup
+        with:
+          shared-key: micro-benchmark
+
+      - name: Compile
+        run: cargo build --release --bin=micro-benchmark
+
+      - name: Sleep for CPU cooldown
+        shell: bash
+        run: sleep 15s
+
+      - name: Run Bench on Main Branch
+        run: cargo run --bin=micro-benchmark --release -- --save-baseline main
+
+      - name: Checkout PR Branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          clean: false
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Compile
+        run: cargo build --release --bin=micro-benchmark
+
+      - name: Sleep for CPU cooldown
+        shell: bash
+        run: sleep 15s
+
+      - name: Run Bench on PR Branch
+        run: cargo run --bin=micro-benchmark --release -- --save-baseline pr
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-results-${{ matrix.os }}
+          path: ./target/criterion
+
+  benchmark-compare:
+    runs-on: ubuntu-latest
+    name: Compare Benchmarks
+    needs:
+      - benchmark
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Install critcmp
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        with:
+          tool: critcmp
+
+      - name: Linux | Download PR benchmark results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: benchmark-results-ubuntu-latest
+          path: ./target/criterion
+
+      - name: Linux | Compare benchmark results
+        shell: bash
+        run: |
+          echo "## Micro-Benchmark Results" >> summary.md
+          echo "### Linux" >> summary.md
+          echo "\`\`\`" >> summary.md
+          critcmp main pr >> summary.md
+          echo "\`\`\`" >> summary.md
+          echo "" >> summary.md
+
+      - name: Linux | Cleanup benchmark results
+        run: rm -rf ./target/criterion
+
+      - name: Find Comment
+        # Check if the event is not triggered by a fork
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: Micro-Benchmark Results
+
+      - name: Create or update comment
+        # Check if the event is not triggered by a fork
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          body-file: summary.md

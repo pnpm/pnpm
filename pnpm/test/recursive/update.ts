@@ -3,7 +3,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import { preparePackages } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { writeYamlFileSync } from 'write-yaml-file'
 

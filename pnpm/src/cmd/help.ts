@@ -245,6 +245,10 @@ function getHelpText ({ all }: { all: boolean }): string {
           name: 'publish',
         },
         {
+          description: 'Stage packages for publishing',
+          name: 'stage',
+        },
+        {
           description: 'Create a package.json file',
           name: 'init',
         },

@@ -1,5 +1,83 @@
 # @pnpm/registry-access.commands
 
+## 1100.2.15
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+
+## 1100.2.14
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+
+## 1100.2.13
+
+### Patch Changes
+
+- d1b340f: Fixed `pnpm login` and `pnpm logout` ignoring `registries.default` from `pnpm-workspace.yaml` [#10099](https://github.com/pnpm/pnpm/issues/10099).
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/types@1101.1.1
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/network.auth-header@1100.0.3
+  - @pnpm/network.fetch@1100.0.6
+  - @pnpm/resolving.registry.types@1100.0.4
+
+## 1100.2.12
+
+### Patch Changes
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/cli.utils@1101.0.5
+
+## 1100.2.11
+
+### Patch Changes
+
+- Updated dependencies [18a464f]
+  - @pnpm/network.fetch@1100.0.4
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+
+## 1100.2.10
+
+### Patch Changes
+
+- 601317e: Added `pnpm owner` command to manage package owners on the registry.
+- Updated dependencies [20e7aff]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/network.auth-header@1100.0.2
+  - @pnpm/resolving.registry.types@1100.0.3
+
+## 1100.2.9
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+
 ## 1100.2.8
 
 ### Patch Changes

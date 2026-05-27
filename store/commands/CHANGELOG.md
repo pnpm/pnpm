@@ -1,5 +1,119 @@
 # @pnpm/store.commands
 
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/installing.client@1100.2.2
+
+## 1100.0.19
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.1
+- @pnpm/store.connection-manager@1100.2.2
+
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/config.normalize-registries@1100.0.4
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/global.packages@1100.0.4
+  - @pnpm/store.cafs@1100.1.6
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/store.connection-manager@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/installing.context@1100.0.11
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/cli.utils@1101.0.5
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/installing.client@1100.0.15
+  - @pnpm/installing.context@1100.0.10
+  - @pnpm/store.cafs@1100.1.4
+  - @pnpm/store.connection-manager@1100.1.2
+
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.14
+- @pnpm/store.connection-manager@1100.1.1
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/store.connection-manager@1100.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.client@1100.0.13
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.normalize-registries@1100.0.3
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/global.packages@1100.0.3
+  - @pnpm/installing.context@1100.0.9
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/store.cafs@1100.1.3
+  - @pnpm/store.controller-types@1100.0.6
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [e9e876c]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/installing.context@1100.0.8
+
 ## 1100.0.12
 
 ### Patch Changes

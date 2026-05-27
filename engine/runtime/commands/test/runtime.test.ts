@@ -23,12 +23,12 @@ test('runtime set calls pnpm add with the correct arguments globally', async () 
   }, ['set', 'node', '22'])
 
   expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['add', 'node@runtime:22', '--global', '--global-bin-dir', '/usr/local/bin', '--store-dir', '/tmp/store', '--cache-dir', '/tmp/cache'],
+    ['add', 'node@runtime:22', '--save-dev', '--global', '--global-bin-dir', '/usr/local/bin', '--store-dir', '/tmp/store', '--cache-dir', '/tmp/cache'],
     { cwd: '/tmp/pnpm-home' }
   )
 })
 
-test('runtime set uses project dir when not global', async () => {
+test('runtime set defaults to --save-dev so the runtime lands in devEngines', async () => {
   await runtime.handler({
     bin: '/usr/local/bin',
     dir: '/tmp/project',
@@ -37,7 +37,53 @@ test('runtime set uses project dir when not global', async () => {
   }, ['set', 'node', '22'])
 
   expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['add', 'node@runtime:22'],
+    ['add', 'node@runtime:22', '--save-dev', '--ignore-workspace-root-check'],
+    { cwd: '/tmp/project' }
+  )
+})
+
+test('runtime set with --save-prod saves the runtime under engines', async () => {
+  await runtime.handler({
+    bin: '/usr/local/bin',
+    dir: '/tmp/project',
+    global: false,
+    pnpmHomeDir: '/tmp/pnpm-home',
+    saveProd: true,
+  }, ['set', 'node', '22'])
+
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['add', 'node@runtime:22', '--save-prod', '--ignore-workspace-root-check'],
+    { cwd: '/tmp/project' }
+  )
+})
+
+test('runtime set with --save-dev keeps the runtime under devEngines (matches the default)', async () => {
+  await runtime.handler({
+    bin: '/usr/local/bin',
+    dir: '/tmp/project',
+    global: false,
+    pnpmHomeDir: '/tmp/pnpm-home',
+    saveDev: true,
+  }, ['set', 'node', '22'])
+
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['add', 'node@runtime:22', '--save-dev', '--ignore-workspace-root-check'],
+    { cwd: '/tmp/project' }
+  )
+})
+
+test('runtime set with both --save-dev and --save-prod prefers --save-dev (matches getSaveType precedence)', async () => {
+  await runtime.handler({
+    bin: '/usr/local/bin',
+    dir: '/tmp/project',
+    global: false,
+    pnpmHomeDir: '/tmp/pnpm-home',
+    saveDev: true,
+    saveProd: true,
+  }, ['set', 'node', '22'])
+
+  expect(mockRunPnpmCli).toHaveBeenCalledWith(
+    ['add', 'node@runtime:22', '--save-dev', '--ignore-workspace-root-check'],
     { cwd: '/tmp/project' }
   )
 })
@@ -51,7 +97,7 @@ test('runtime set without version spec', async () => {
   }, ['set', 'node'])
 
   expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['add', 'node@runtime:', '--global', '--global-bin-dir', '/usr/local/bin'],
+    ['add', 'node@runtime:', '--save-dev', '--global', '--global-bin-dir', '/usr/local/bin'],
     { cwd: '/tmp/pnpm-home' }
   )
 })
@@ -65,7 +111,7 @@ test('runtime set works with deno', async () => {
   }, ['set', 'deno', '2'])
 
   expect(mockRunPnpmCli).toHaveBeenCalledWith(
-    ['add', 'deno@runtime:2', '--global', '--global-bin-dir', '/usr/local/bin'],
+    ['add', 'deno@runtime:2', '--save-dev', '--global', '--global-bin-dir', '/usr/local/bin'],
     { cwd: '/tmp/pnpm-home' }
   )
 })

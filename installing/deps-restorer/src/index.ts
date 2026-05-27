@@ -22,7 +22,7 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -176,6 +176,7 @@ export interface HeadlessOptions {
   pendingBuilds: string[]
   resolveSymlinksInInjectedDirs?: boolean
   skipped: Set<DepPath>
+  skipRuntimes?: boolean
   enableModulesDir?: boolean
   virtualStoreOnly?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
@@ -259,6 +260,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     include: opts.include,
     registries: opts.registries,
     skipped,
+    skipRuntimes: opts.skipRuntimes,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
@@ -907,6 +909,14 @@ async function linkAllPkgs (
     needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
     await fs.writeFile(needsBuildMarkerSrc, '')
   }
+  // Resolved `engines.runtime` Node version (when present) anchors
+  // the side-effects-cache key prefix to the script-runner Node, not
+  // pnpm's own `process.version`. The restorer's `depGraph` is keyed
+  // by install directory, so scanning `Object.keys(opts.depGraph)`
+  // would never see a `node@runtime:<version>` entry — pull the
+  // depPath off each node instead. Computed once outside the
+  // per-node loop.
+  const nodeVersion = findRuntimeNodeVersion(depNodes.map((node) => node.depPath))
   await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
@@ -926,6 +936,7 @@ async function linkAllPkgs (
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
+            nodeVersion,
           })
         }
       }

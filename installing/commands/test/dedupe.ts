@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
@@ -9,10 +10,15 @@ import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { diff } from 'jest-diff'
+import type { diff as DiffFn } from 'jest-diff'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
+
+// jest-diff's ESM entry re-exports off `import cjsModule from './index.js'`,
+// which resolves to undefined under Jest's experimental VM modules. Load it
+// through CJS to bypass the broken bridge.
+const { diff } = createRequire(import.meta.url)('jest-diff') as { diff: typeof DiffFn }
 
 const f = fixtures(import.meta.dirname)
 

@@ -1,5 +1,44 @@
 # @pnpm/read-project-manifest
 
+## 1100.0.8
+
+### Patch Changes
+
+- d7da112: Implement `pnpm pkg` command natively, following `npm pkg` standards.
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.project-manifest-writer@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.utils@1100.1.4
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [9cad827]
+- Updated dependencies [50b33c1]
+  - @pnpm/pkg-manifest.utils@1100.1.3
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/pkg-manifest.utils@1100.1.2
+  - @pnpm/workspace.project-manifest-writer@1100.0.3
+
 ## 1100.0.3
 
 ### Patch Changes

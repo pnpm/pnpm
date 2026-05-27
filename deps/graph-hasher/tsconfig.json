@@ -10,13 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../core/constants"
-    },
-    {
       "path": "../../core/types"
     },
     {
       "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../engine/runtime/system-version"
     },
     {
       "path": "../../lockfile/types"

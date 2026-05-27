@@ -12,12 +12,20 @@ const argv = buildArgv()
 })()
 
 async function runPnpm (): Promise<void> {
+  const { finishWorkers } = await import('@pnpm/worker')
   const { errorHandler } = await import('./errorHandler.js')
   try {
     const { main } = await import('./main.js')
     await main(argv)
   } catch (err: any) { // eslint-disable-line
     await errorHandler(err)
+  } finally {
+    // `pnpm --version` short-circuits main() after switchCliVersion has
+    // already spawned the worker pool — drain it here so the event loop
+    // can exit. Swallow rejections so cleanup never masks the real result.
+    try {
+      await finishWorkers()
+    } catch { /* ignore */ }
   }
 }
 

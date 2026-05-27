@@ -1,5 +1,53 @@
 # @pnpm/store.pkg-finder
 
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/fetching.directory-fetcher@1100.0.12
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/fetching.directory-fetcher@1100.0.11
+  - @pnpm/store.cafs@1100.1.6
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/fetching.directory-fetcher@1100.0.10
+  - @pnpm/store.cafs@1100.1.5
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.4
+- @pnpm/fetching.directory-fetcher@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/fetching.directory-fetcher@1100.0.8
+- @pnpm/resolving.resolver-base@1100.1.3
+- @pnpm/store.cafs@1100.1.3
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/fetching.directory-fetcher@1100.0.7
+
 ## 1100.0.6
 
 ### Patch Changes

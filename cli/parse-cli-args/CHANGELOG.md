@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 1100.1.3
+
+### Patch Changes
+
+- 43d5456: Fixed `pnpm --prefix=<dir> install` overwriting the existing `pnpm-workspace.yaml` in `<dir>` with `set this to true or false` placeholders. The renamed `--prefix` option (which maps to `dir`) was not honored when locating the workspace root, so the workspace manifest's `allowBuilds` settings were not loaded into config and got clobbered when ignored builds were auto-populated [#11535](https://github.com/pnpm/pnpm/issues/11535).
+
 ## 1100.1.2
 
 ### Patch Changes

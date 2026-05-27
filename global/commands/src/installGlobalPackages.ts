@@ -3,6 +3,18 @@ import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { IgnoredBuilds, IncludedDependencies, ProjectRootDir } from '@pnpm/types'
 
+export interface ResolutionPolicyViolation {
+  name: string
+  version: string
+  code: string
+  reason: string
+}
+
+export interface InstallGlobalPackagesResult {
+  ignoredBuilds: IgnoredBuilds | undefined
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
+}
+
 export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptions {
   bin: string
   dir: string
@@ -13,6 +25,7 @@ export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptio
   include: IncludedDependencies
   includeDirect?: IncludedDependencies
   fetchFullMetadata?: boolean
+  omitSummaryLog?: boolean
   rootProjectManifest?: unknown
   rootProjectManifestDir?: string
   saveDev?: boolean
@@ -23,12 +36,13 @@ export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptio
   saveProd?: boolean
   sharedWorkspaceLockfile?: boolean
   workspaceDir?: string
+  handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
 }
 
 export async function installGlobalPackages (
   opts: InstallGlobalPackagesOptions,
   params: string[]
-): Promise<IgnoredBuilds | undefined> {
+): Promise<InstallGlobalPackagesResult> {
   const store = await createStoreController(opts)
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest == null) {
@@ -41,7 +55,7 @@ export async function installGlobalPackages (
     storeDir: store.dir,
   }
   const pinnedVersion = opts.saveExact ? 'patch' : (opts.savePrefix === '~' ? 'minor' : 'major')
-  const { updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(
+  const { updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(
     {
       allowNew: true,
       binsDir: opts.bin,
@@ -56,5 +70,5 @@ export async function installGlobalPackages (
     installOpts
   )
   await writeProjectManifest(updatedProject.manifest)
-  return ignoredBuilds
+  return { ignoredBuilds, resolutionPolicyViolations }
 }

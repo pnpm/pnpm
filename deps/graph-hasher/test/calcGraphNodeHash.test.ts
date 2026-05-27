@@ -1,8 +1,13 @@
 import { describe, expect, it } from '@jest/globals'
-import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { calcGraphNodeHash, type DepsGraph, type DepsStateCache, type PkgMeta } from '@pnpm/deps.graph-hasher'
+import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
+
+// Track the same script-runner-Node value the production code uses
+// instead of importing the legacy `ENGINE_NAME` const from
+// `@pnpm/constants`. Identical in non-SEA test runs; correct in SEA.
+const ENGINE_NAME = engineName()
 
 describe('calcGraphNodeHash', () => {
   it('should return correct hash format for unscoped package', () => {
@@ -349,6 +354,125 @@ describe('calcGraphNodeHash', () => {
     const result = calcGraphNodeHash({ graph, cache }, pkgMeta)
 
     expect(result).toMatch(/^@my-org\/my-package\/1\.2\.3\/[a-f0-9]+$/)
+  })
+
+  it('uses the snapshot\'s own engines.runtime pin over an install-wide fallback', () => {
+    // A dep that declares `engines.runtime: node@22` carries the
+    // desugared `node@runtime:22.11.0` DepPath as `children.node`.
+    // That snapshot's GVS hash has to anchor to its *own* pin —
+    // matching the Node the bin linker spawns for its lifecycle
+    // scripts (`bins/linker/src/index.ts`'s per-package
+    // `runtimeHasNodeDownloaded` branch) — instead of the
+    // install-wide `nodeVersion` fallback that PR #11689 introduced.
+    const graph: DepsGraph<DepPath> = {
+      ['pinned@1.0.0' as DepPath]: {
+        children: { node: 'node@runtime:22.11.0' as DepPath },
+        fullPkgId: 'pinned@1.0.0:sha512-pinned',
+      },
+      ['node@runtime:22.11.0' as DepPath]: {
+        children: {},
+        fullPkgId: 'node@runtime:22.11.0:sha512-node22',
+      },
+    }
+    const pkgMeta: PkgMeta = {
+      depPath: 'pinned@1.0.0' as DepPath,
+      name: 'pinned',
+      version: '1.0.0',
+    }
+
+    const ownPinHash = calcGraphNodeHash({ graph, cache: {}, nodeVersion: '20.0.0' }, pkgMeta)
+
+    const depsHash = hashObject({
+      id: 'pinned@1.0.0:sha512-pinned',
+      deps: {
+        node: hashObject({ id: 'node@runtime:22.11.0:sha512-node22', deps: {} }),
+      },
+    })
+    const expected = hashObjectWithoutSorting(
+      { engine: `${process.platform};${process.arch};node22`, deps: depsHash },
+      { encoding: 'hex' }
+    )
+    expect(ownPinHash).toBe(`@/pinned/1.0.0/${expected}`)
+  })
+
+  it('falls back to the install-wide nodeVersion when the snapshot has no own pin', () => {
+    // A snapshot whose own children don't include a `node@runtime:`
+    // entry inherits the project-wide pin instead — mirrors the
+    // common case where only the root manifest declares
+    // `engines.runtime` and every transitive dep falls through.
+    const graph: DepsGraph<DepPath> = {
+      ['sibling@1.0.0' as DepPath]: {
+        children: { dep: 'dep@1.0.0' as DepPath },
+        fullPkgId: 'sibling@1.0.0:sha512-sibling',
+      },
+      ['dep@1.0.0' as DepPath]: {
+        children: {},
+        fullPkgId: 'dep@1.0.0:sha512-dep',
+      },
+    }
+    const pkgMeta: PkgMeta = {
+      depPath: 'sibling@1.0.0' as DepPath,
+      name: 'sibling',
+      version: '1.0.0',
+    }
+
+    const fallbackHash = calcGraphNodeHash({ graph, cache: {}, nodeVersion: '20.5.0' }, pkgMeta)
+
+    const depsHash = hashObject({
+      id: 'sibling@1.0.0:sha512-sibling',
+      deps: {
+        dep: hashObject({ id: 'dep@1.0.0:sha512-dep', deps: {} }),
+      },
+    })
+    const expected = hashObjectWithoutSorting(
+      { engine: `${process.platform};${process.arch};node20`, deps: depsHash },
+      { encoding: 'hex' }
+    )
+    expect(fallbackHash).toBe(`@/sibling/1.0.0/${expected}`)
+  })
+
+  it('cross-pinning siblings produce distinct engine prefixes in the same install', () => {
+    // Two siblings with different `engines.runtime` declarations
+    // surface the bug this test guards: under PR #11689's
+    // install-wide resolution they'd share the same engine major in
+    // the GVS hash (whichever `findRuntimeNodeVersion` happened to
+    // match first), even though the bin linker would route their
+    // lifecycle scripts through different downloaded Nodes.
+    const graph: DepsGraph<DepPath> = {
+      ['pins-22@1.0.0' as DepPath]: {
+        children: { node: 'node@runtime:22.11.0' as DepPath },
+        fullPkgId: 'pins-22@1.0.0:sha512-a',
+      },
+      ['pins-20@1.0.0' as DepPath]: {
+        children: { node: 'node@runtime:20.18.0' as DepPath },
+        fullPkgId: 'pins-20@1.0.0:sha512-b',
+      },
+      ['node@runtime:22.11.0' as DepPath]: {
+        children: {},
+        fullPkgId: 'node@runtime:22.11.0:sha512-node22',
+      },
+      ['node@runtime:20.18.0' as DepPath]: {
+        children: {},
+        fullPkgId: 'node@runtime:20.18.0:sha512-node20',
+      },
+    }
+    const cache: DepsStateCache = {}
+
+    const hash22 = calcGraphNodeHash(
+      { graph, cache, nodeVersion: '22.11.0' },
+      { depPath: 'pins-22@1.0.0' as DepPath, name: 'pins-22', version: '1.0.0' }
+    )
+    const hash20 = calcGraphNodeHash(
+      { graph, cache, nodeVersion: '22.11.0' },
+      { depPath: 'pins-20@1.0.0' as DepPath, name: 'pins-20', version: '1.0.0' }
+    )
+
+    // The two slots must end up on different paths even though the
+    // install-wide fallback is the same — the engine portion of the
+    // hash diverges via each snapshot's own pin.
+    expect(hash22).not.toBe(hash20)
+    expect(hash22.startsWith('@/pins-22/1.0.0/')).toBe(true)
+    expect(hash20.startsWith('@/pins-20/1.0.0/')).toBe(true)
   })
 
   it('should handle prerelease versions', () => {

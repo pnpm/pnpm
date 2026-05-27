@@ -12,9 +12,10 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
-import type { EngineDependency } from '@pnpm/types'
+import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -103,25 +104,32 @@ export async function main (inputArgv: string[]): Promise<void> {
       workspaceDir,
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
-    if (cmd !== 'setup' && context.wantedPackageManager != null && !shouldSkipPmHandling(cmd, cliParams)) {
-      const pm = context.wantedPackageManager
-      if (pm.onFail !== 'ignore') {
-        if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
-          // Corepack owns version switching; pnpm only switches versions when
-          // the user is running pnpm directly.
-          await switchCliVersion(config, context)
-        } else if (cliOptions.global) {
-          globalWarn('Using --global skips the package manager check for this project')
-        } else {
-          // checkPackageManager and syncEnvLockfile run regardless of how pnpm
-          // was invoked. Different developers on the same project may use
-          // corepack or invoke pnpm directly, and the lockfile's
-          // `packageManagerDependencies` entry must stay consistent across both
-          // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
-          // it only writes to the lockfile when the project opted in (via
-          // `devEngines.packageManager`, or a v12+ `packageManager` pin).
-          checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
-          await syncEnvLockfile(config, context)
+    if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
+      if (context.wantedPackageManager != null) {
+        const pm = context.wantedPackageManager
+        if (pm.onFail !== 'ignore') {
+          if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
+            // Corepack owns version switching; pnpm only switches versions when
+            // the user is running pnpm directly.
+            await switchCliVersion(config, context)
+          } else if (cliOptions.global) {
+            globalWarn('Using --global skips the package manager check for this project')
+          } else {
+            // checkPackageManager and syncEnvLockfile run regardless of how pnpm
+            // was invoked. Different developers on the same project may use
+            // corepack or invoke pnpm directly, and the lockfile's
+            // `packageManagerDependencies` entry must stay consistent across both
+            // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
+            // it only writes to the lockfile when the project opted in (via
+            // `devEngines.packageManager`, or a v12+ `packageManager` pin).
+            checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
+            await syncEnvLockfile(config, context)
+          }
+        }
+      }
+      if (cmd != null && !cliOptions.global) {
+        for (const runtime of getWantedRuntimes(context)) {
+          checkRuntime(runtime)
         }
       }
     }
@@ -183,9 +191,15 @@ export async function main (inputArgv: string[]): Promise<void> {
 
   const printLogs = !config['parseable'] && !config['json']
   if (printLogs) {
+    // `pnpm add -g` may install several isolated groups in one run, one
+    // per CLI param. When that happens, force the reporter to show the
+    // per-prefix progress/stats output so every group's stats line up
+    // with the right install dir instead of being silently dropped.
+    const multiGroupGlobalAdd = cmd === 'add' && cliOptions.global === true && cliParams.length > 1
     initReporter(reporterType, {
       cmd,
       config: { ...config, ...context },
+      hideProgressPrefix: multiGroupGlobalAdd ? false : undefined,
     })
     global[REPORTER_INITIALIZED] = reporterType
   }
@@ -388,8 +402,8 @@ function printError (message: string, hint?: string): void {
 }
 
 /**
- * Whether to skip the packageManager/devEngines handling block (both auto
- * download and warn/error check). Returns true when the command itself
+ * Whether to skip the packageManager/runtime handling block (both auto
+ * download and warn/error checks). Returns true when the command itself
  * opts out via `skipPackageManagerCheck: true`, or when the user is asking
  * for help on such a command — `pnpm help <skippable>` and
  * `pnpm <skippable> --help` (which parse-cli-args rewrites to the same
@@ -437,3 +451,67 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
     }
   }
 }
+
+const RUNTIME_DISPLAY_NAMES: Record<RuntimeName, string> = {
+  node: 'Node.js',
+  deno: 'Deno',
+  bun: 'Bun',
+}
+
+// devEngines.runtime takes precedence over engines.runtime per the iteration
+// order below: the first entry seen for a given runtime wins.
+function getWantedRuntimes (context: ConfigContext): EngineDependency[] {
+  const manifest = context.rootProjectManifest
+  if (manifest == null) return []
+  const result: EngineDependency[] = []
+  const seen = new Set<RuntimeName>()
+  for (const enginesFieldName of ['devEngines', 'engines'] as const) {
+    const enginesRuntime = manifest[enginesFieldName]?.runtime
+    if (enginesRuntime == null) continue
+    const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
+    for (const runtime of runtimes) {
+      if (!runtime.name || !isRuntimeAlias(runtime.name) || seen.has(runtime.name)) continue
+      seen.add(runtime.name)
+      result.push(runtime)
+    }
+  }
+  return result
+}
+
+function checkRuntime (runtime: EngineDependency): void {
+  if (runtime.onFail == null || runtime.onFail === 'ignore' || runtime.onFail === 'download') return
+  if (!runtime.name || !isRuntimeAlias(runtime.name)) return
+  const runtimeName: RuntimeName = runtime.name
+  const displayName = RUNTIME_DISPLAY_NAMES[runtimeName]
+  const wantedRange = runtime.version
+  if (!wantedRange || !semver.validRange(wantedRange)) {
+    const msg = wantedRange
+      ? `This project requires an invalid ${displayName} version range: ${wantedRange}`
+      : `This project requires a ${displayName} runtime but does not specify a version range`
+    failRuntimeCheck(runtime.onFail, msg)
+    return
+  }
+  const currentVersion = getSystemRuntimeVersion(runtimeName)
+  if (currentVersion == null) {
+    failRuntimeCheck(
+      runtime.onFail,
+      `This project requires ${displayName} ${wantedRange}, but ${displayName} was not found on the system`
+    )
+    return
+  }
+  if (semver.satisfies(currentVersion, wantedRange, { includePrerelease: true })) return
+
+  failRuntimeCheck(
+    runtime.onFail,
+    `This project requires ${displayName} ${wantedRange}. Your current ${displayName} is ${currentVersion}`
+  )
+}
+
+function failRuntimeCheck (onFail: 'error' | 'warn', message: string): void {
+  if (onFail === 'error') {
+    throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
+  }
+  globalWarn(message)
+}
+
+const RUNTIME_ON_FAIL_HINT = 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'

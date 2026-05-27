@@ -69,15 +69,6 @@ test('getAuthHeaderByURI() when the registry has pathnames', () => {
   expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
 })
 
-test('getAuthHeaderByURI() with default registry auth', () => {
-  const getAuthHeaderByURI = createGetAuthHeaderByURI(
-    { '': { creds: { authToken: 'default-token' } } },
-    'https://registry.npmjs.org/'
-  )
-  expect(getAuthHeaderByURI('https://registry.npmjs.org/')).toBe('Bearer default-token')
-  expect(getAuthHeaderByURI('https://registry.npmjs.org/foo/-/foo-1.0.0.tgz')).toBe('Bearer default-token')
-})
-
 test('getAuthHeaderByURI() with basic auth via basicAuth', () => {
   const getAuthHeaderByURI = createGetAuthHeaderByURI({
     '//reg.com/': { creds: { basicAuth: { username: 'user', password: 'pass' } } },

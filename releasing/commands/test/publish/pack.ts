@@ -99,6 +99,97 @@ test('pack: with dry-run', async () => {
   expect(fs.existsSync('package.json')).toBeTruthy()
 })
 
+test('pack: bundles dependencies listed in bundleDependencies', async () => {
+  prepare({
+    name: 'pkg-with-bundle-deps',
+    version: '0.0.0',
+    bundleDependencies: ['bundled-dep'],
+  })
+
+  fs.mkdirSync('node_modules/bundled-dep', { recursive: true })
+  fs.writeFileSync('node_modules/bundled-dep/package.json', JSON.stringify({ name: 'bundled-dep', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync('node_modules/bundled-dep/index.js', 'module.exports = 42', 'utf8')
+  fs.mkdirSync('node_modules/not-bundled', { recursive: true })
+  fs.writeFileSync('node_modules/not-bundled/package.json', JSON.stringify({ name: 'not-bundled', version: '1.0.0' }), 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'hoisted',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'pkg-with-bundle-deps-0.0.0.tgz' })
+  expect(fs.existsSync('package/node_modules/bundled-dep/package.json')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/bundled-dep/index.js')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/not-bundled/package.json')).toBeFalsy()
+})
+
+test('pack: bundles every dependency when bundleDependencies is true', async () => {
+  prepare({
+    name: 'pkg-with-bundle-deps-true',
+    version: '0.0.0',
+    dependencies: {
+      'bundled-dep': '1.0.0',
+    },
+    bundleDependencies: true,
+  })
+
+  fs.mkdirSync('node_modules/bundled-dep', { recursive: true })
+  fs.writeFileSync('node_modules/bundled-dep/package.json', JSON.stringify({ name: 'bundled-dep', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync('node_modules/bundled-dep/index.js', 'module.exports = 42', 'utf8')
+  fs.mkdirSync('node_modules/not-a-dep', { recursive: true })
+  fs.writeFileSync('node_modules/not-a-dep/package.json', JSON.stringify({ name: 'not-a-dep', version: '1.0.0' }), 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'hoisted',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'pkg-with-bundle-deps-true-0.0.0.tgz' })
+  expect(fs.existsSync('package/node_modules/bundled-dep/index.js')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/bundled-dep/package.json')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/not-a-dep/package.json')).toBeFalsy()
+})
+
+test('pack: bundles transitive dependencies of bundled dependencies (hoisted)', async () => {
+  prepare({
+    name: 'pkg-with-transitive-bundle-deps',
+    version: '0.0.0',
+    bundledDependencies: ['top'],
+  })
+
+  fs.mkdirSync('node_modules/top', { recursive: true })
+  fs.writeFileSync(
+    'node_modules/top/package.json',
+    JSON.stringify({ name: 'top', version: '1.0.0', dependencies: { nested: '1.0.0' } }),
+    'utf8'
+  )
+  fs.writeFileSync('node_modules/top/index.js', 'top', 'utf8')
+  fs.mkdirSync('node_modules/nested', { recursive: true })
+  fs.writeFileSync('node_modules/nested/package.json', JSON.stringify({ name: 'nested', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync('node_modules/nested/index.js', 'nested', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'hoisted',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'pkg-with-transitive-bundle-deps-0.0.0.tgz' })
+  expect(fs.existsSync('package/node_modules/top/index.js')).toBeTruthy()
+  expect(fs.existsSync('package/node_modules/nested/index.js')).toBeTruthy()
+})
+
 test('pack when there is bundledDependencies but without node-linker=hoisted', async () => {
   prepare({
     name: 'bundled-deps-without-node-linker-hoisted',
@@ -227,6 +318,31 @@ test('pack a package without package version', async () => {
   })).rejects.toThrow('Package version is not defined in the package.json.')
 })
 
+test('pack: strips semver build metadata from the version', async () => {
+  prepare({
+    name: 'test-strip-build-metadata',
+    version: '1.0.0-canary.0+abc1234',
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  expect(fs.existsSync('test-strip-build-metadata-1.0.0-canary.0.tgz')).toBeTruthy()
+  expect(fs.existsSync('test-strip-build-metadata-1.0.0-canary.0+abc1234.tgz')).toBeFalsy()
+
+  await tar.x({ file: 'test-strip-build-metadata-1.0.0-canary.0.tgz' })
+
+  expect((await import(path.resolve('package/package.json'))).default).toEqual({
+    name: 'test-strip-build-metadata',
+    version: '1.0.0-canary.0',
+  })
+})
+
 test('pack: runs prepack, prepare, and postpack', async () => {
   prepare({
     name: 'test-publish-package.json',
@@ -345,6 +461,42 @@ test('pack: remove publishConfig', async () => {
     version: '0.0.0',
     main: 'index.js',
     types: 'index.d.ts',
+  })
+})
+
+test('pack: preserves packageManager and publish lifecycle scripts when skipManifestObfuscation is enabled, but still omits pnpm', async () => {
+  prepare({
+    name: 'skip-manifest-obfuscation',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    pnpm: {
+      testField: true,
+    },
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      postinstall: 'echo postinstall',
+    },
+  } as Parameters<typeof prepare>[0] & { pnpm?: Record<string, unknown> })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+    skipManifestObfuscation: true,
+  })
+
+  await tar.x({ file: 'skip-manifest-obfuscation-1.0.0.tgz' })
+
+  expect((await import(path.resolve('package/package.json'))).default).toEqual({
+    name: 'skip-manifest-obfuscation',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      postinstall: 'echo postinstall',
+    },
   })
 })
 

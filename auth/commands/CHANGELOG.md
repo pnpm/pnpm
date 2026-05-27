@@ -1,5 +1,69 @@
 # @pnpm/auth.commands
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+
+## 1100.1.0
+
+### Minor Changes
+
+- 56f3851: Implement the documented `pnpm login --scope <scope>` flag. The scope is normalized (a leading `@` is added if missing; blank values are ignored) and an `@<scope>:registry=<registry>` mapping is written to the pnpm auth file alongside the auth token. Subsequent installs of `@<scope>/*` packages then route to the chosen registry. Previously `pnpm login --scope foo` errored with `Unknown option: 'scope'` despite the flag being listed in the online documentation [#11716](https://github.com/pnpm/pnpm/issues/11716).
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/network.fetch@1100.0.6
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/cli.utils@1101.0.5
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [18a464f]
+  - @pnpm/network.fetch@1100.0.4
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [20e7aff]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/cli.utils@1101.0.3
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+
 ## 1100.0.10
 
 ### Patch Changes

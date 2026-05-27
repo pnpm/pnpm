@@ -26,6 +26,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'access',
     'git-checks',
     'ignore-scripts',
+    'skip-manifest-obfuscation',
     'provenance',
     'npm-path',
     'otp',
@@ -88,6 +89,10 @@ export function help (): string {
             name: '--ignore-scripts',
           },
           {
+            description: 'Skip pnpm\'s manifest obfuscation: keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.',
+            name: '--skip-manifest-obfuscation',
+          },
+          {
             description: 'Packages are proceeded to be published even if their current version is already in the registry. This is useful when a "prepublishOnly" script bumps the version of the package before it is published',
             name: '--force',
           },
@@ -124,7 +129,7 @@ export async function handler (
     json?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'skipManifestObfuscation'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<{ exitCode?: number, output?: string } | undefined> {
@@ -161,7 +166,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'skipManifestObfuscation'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<PublishResult> {

@@ -41,9 +41,6 @@ describe('ping command', () => {
 
     const result = await ping.handler({
       registry: 'https://registry.npmjs.org/',
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
     })
     expect(result).toMatch(/^PING https:\/\/registry\.npmjs\.org\/\nPONG \d+ms$/)
   })
@@ -57,9 +54,6 @@ describe('ping command', () => {
 
     const result = await ping.handler({
       registry: 'https://registry.npmjs.org/',
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
     })
     expect(result).toContain('PING https://registry.npmjs.org/')
     expect(result).toMatch(/PONG \d+ms/)
@@ -73,11 +67,7 @@ describe('ping command', () => {
       path: '/-/ping?write=true',
     }).reply(200, '{}')
 
-    const result = await ping.handler({
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
-    })
+    const result = await ping.handler({})
     expect(result).toContain('PING https://registry.npmjs.org/')
   })
 
@@ -90,9 +80,6 @@ describe('ping command', () => {
 
     await expect(ping.handler({
       registry: 'https://registry.npmjs.org/',
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
     })).rejects.toThrow('Failed to reach registry')
   })
 
@@ -105,9 +92,6 @@ describe('ping command', () => {
 
     const result = await ping.handler({
       registry: 'https://registry.npmjs.org/custom-prefix',
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
     })
     expect(result).toContain('PING https://registry.npmjs.org/custom-prefix')
     expect(result).toMatch(/PONG \d+ms/)
@@ -122,9 +106,6 @@ describe('ping command', () => {
 
     await expect(ping.handler({
       registry: 'https://invalid-registry-that-does-not-exist-12345.com/',
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
     })).rejects.toThrow('Failed to reach registry')
   })
 })

@@ -4,11 +4,11 @@ import path from 'node:path'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import type { DirectoryResolution, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { DirectoryResolution, LatestInfo, LatestQuery, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
 import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
-import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
+import { type LocalPackageSpec, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { type WantedLocalDependency }
 
@@ -19,26 +19,67 @@ export interface LocalResolveResult extends ResolveResult {
   resolvedVia: 'local-filesystem'
 }
 
-/**
- * Resolves a package hosted on the local filesystem
- */
-export async function resolveFromLocal (
-  ctx: {
-    preserveAbsolutePaths?: boolean
-  },
-  wantedDependency: WantedLocalDependency,
-  opts: {
-    lockfileDir?: string
-    projectDir: string
-    currentPkg?: {
-      id: PkgResolutionId
-      resolution: DirectoryResolution | TarballResolution | Resolution
-    }
-    update?: false | 'compatible' | 'latest'
+export interface LocalResolverContext {
+  preserveAbsolutePaths?: boolean
+}
+
+export interface LocalResolverOptions {
+  lockfileDir?: string
+  projectDir: string
+  currentPkg?: {
+    id: PkgResolutionId
+    resolution: DirectoryResolution | TarballResolution | Resolution
   }
+  update?: false | 'compatible' | 'latest'
+}
+
+/**
+ * Resolves a dependency declared with an explicit local scheme:
+ * `link:`, `workspace:`, `file:`, or (rejected) `path:`.
+ */
+export async function resolveFromLocalScheme (
+  ctx: LocalResolverContext,
+  wantedDependency: WantedLocalDependency,
+  opts: LocalResolverOptions
 ): Promise<LocalResolveResult | null> {
-  const preserveAbsolutePaths = ctx.preserveAbsolutePaths ?? false
-  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
+  const spec = parseLocalScheme(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, {
+    preserveAbsolutePaths: ctx.preserveAbsolutePaths ?? false,
+  })
+  return resolveSpec(spec, opts)
+}
+
+/**
+ * Resolves a dependency by path shape — a relative/absolute path or a tarball
+ * filename. Does not look at scheme prefixes; callers that want scheme support
+ * should call {@link resolveFromLocalScheme} first.
+ */
+export async function resolveFromLocalPath (
+  ctx: LocalResolverContext,
+  wantedDependency: WantedLocalDependency,
+  opts: LocalResolverOptions
+): Promise<LocalResolveResult | null> {
+  const spec = parseLocalPath(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, {
+    preserveAbsolutePaths: ctx.preserveAbsolutePaths ?? false,
+  })
+  return resolveSpec(spec, opts)
+}
+
+// link:/file:/workspace: dependencies don't have a "latest" — claim them so
+// the dispatcher stops here. Returning undefined would let downstream
+// resolvers try; in particular, a user-configured named-registry alias
+// called `link`, `file`, or `workspace` could otherwise hijack these.
+export async function resolveLatestFromLocal (query: LatestQuery): Promise<LatestInfo | undefined> {
+  const spec = query.wantedDependency.bareSpecifier
+  if (spec?.startsWith('link:') || spec?.startsWith('file:') || spec?.startsWith('workspace:')) {
+    return {}
+  }
+  return undefined
+}
+
+async function resolveSpec (
+  spec: LocalPackageSpec | null,
+  opts: LocalResolverOptions
+): Promise<LocalResolveResult | null> {
   if (spec == null) return null
 
   if (spec.type === 'file') {

@@ -13,6 +13,9 @@
       "path": "../../installing/client"
     },
     {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../../store/controller"
     },
     {

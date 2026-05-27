@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
-import parseNpmTarballUrl from 'parse-npm-tarball-url'
+import { parseNpmTarballUrl } from 'parse-npm-tarball-url'
 import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -48,7 +48,7 @@ export function parseBareSpecifier (
     }
   }
   if (bareSpecifier.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl.default(bareSpecifier)
+    const pkg = parseNpmTarballUrl(bareSpecifier)
     if (pkg != null) {
       return {
         fetchSpec: pkg.version,

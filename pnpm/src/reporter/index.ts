@@ -12,6 +12,7 @@ export function initReporter (
   opts: {
     cmd: string | null
     config: Config & ConfigContext
+    hideProgressPrefix?: boolean
   }
 ): void {
   switch (reporterType) {
@@ -29,6 +30,7 @@ export function initReporter (
           throttleProgress: 200,
           hideAddedPkgsProgress: opts.config.lockfileOnly,
           hideLifecyclePrefix: opts.config.reporterHidePrefix,
+          hideProgressPrefix: opts.hideProgressPrefix,
         },
         streamParser: streamParser as StreamParser<Log>,
       })
@@ -46,6 +48,7 @@ export function initReporter (
           logLevel: opts.config.loglevel as LogLevel,
           throttleProgress: 1000,
           hideLifecyclePrefix: opts.config.reporterHidePrefix,
+          hideProgressPrefix: opts.hideProgressPrefix,
         },
         streamParser: streamParser as StreamParser<Log>,
       })

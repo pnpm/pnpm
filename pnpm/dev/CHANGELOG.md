@@ -1,5 +1,37 @@
 # pd
 
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.7
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.6
+- @pnpm/workspace.workspace-manifest-reader@1100.0.4
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.5
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.3
+- @pnpm/workspace.workspace-manifest-reader@1100.0.3
+
 ## 1100.0.5
 
 ### Patch Changes

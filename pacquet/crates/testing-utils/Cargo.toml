@@ -1,0 +1,26 @@
+[package]
+name                 = "pacquet-testing-utils"
+version              = "0.0.0"
+description          = "Common utilities to test pacquet code"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+pacquet-registry-mock = { workspace = true }
+
+assert_cmd        = { workspace = true }
+command-extra     = { workspace = true }
+tempfile          = { workspace = true }
+walkdir           = { workspace = true }
+text-block-macros = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+junction = { workspace = true }
+
+[lints]
+workspace = true

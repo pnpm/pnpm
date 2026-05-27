@@ -1,5 +1,145 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.0.22
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.commands@1100.5.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/fetching.pick-fetcher@1100.0.8
+
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [881a865]
+  - @pnpm/installing.commands@1100.4.2
+
+## 1100.0.20
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.4.1
+- @pnpm/store.connection-manager@1100.2.2
+
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.commands@1100.4.0
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/fetching.pick-fetcher@1100.0.8
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/config.writer@1100.0.9
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [6e93f35]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/installing.commands@1100.3.0
+  - @pnpm/store.connection-manager@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/config.writer@1100.0.8
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/installing.commands@1100.2.2
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/fetching.pick-fetcher@1100.0.6
+  - @pnpm/store.connection-manager@1100.1.2
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
+## 1100.0.16
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.2.1
+- @pnpm/store.connection-manager@1100.1.1
+- @pnpm/fetching.pick-fetcher@1100.0.6
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/store.connection-manager@1100.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.commands@1100.2.0
+  - @pnpm/fetching.pick-fetcher@1100.0.6
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.writer@1100.0.7
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.3
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+- Updated dependencies [dd8d5d7]
+- Updated dependencies [15e9e35]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/fs.packlist@1100.0.1
+  - @pnpm/installing.commands@1100.1.12
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.0
+
 ## 1100.0.13
 
 ### Patch Changes

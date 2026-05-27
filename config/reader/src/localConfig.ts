@@ -86,6 +86,7 @@ const SECURITY_POLICY_CFG_KEYS = [
   'minimumReleaseAgeExclude',
   'minimumReleaseAgeIgnoreMissingTime',
   'minimumReleaseAgeStrict',
+  'trustLockfile',
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
@@ -109,7 +110,6 @@ const NPM_AUTH_SETTINGS = [
   '_authToken',
   '_password',
   'email',
-  'keyfile',
   'username',
 ]
 
