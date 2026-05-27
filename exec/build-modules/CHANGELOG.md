@@ -1,5 +1,16 @@
 # @pnpm/build-modules
 
+## 1007.0.13
+
+### Patch Changes
+
+- Updated dependencies [99cdedc]
+- Updated dependencies [6c0f294]
+- Updated dependencies [6481f6c]
+  - @pnpm/config@1004.11.2
+  - @pnpm/worker@1000.6.9
+  - @pnpm/patching.apply-patch@1000.0.9
+
 ## 1007.0.12
 
 ### Patch Changes

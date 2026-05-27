@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.48
+
+### Patch Changes
+
+- Updated dependencies [99cdedc]
+- Updated dependencies [6c0f294]
+- Updated dependencies [6481f6c]
+  - @pnpm/config@1004.11.2
+  - @pnpm/plugin-commands-installation@1004.10.0
+  - @pnpm/patching.apply-patch@1000.0.9
+  - @pnpm/cli-utils@1001.3.12
+  - @pnpm/store-connection-manager@1002.3.21
+
 ## 1000.3.47
 
 ### Patch Changes

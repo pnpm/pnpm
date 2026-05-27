@@ -1,5 +1,26 @@
 # pnpm
 
+## 10.34.0
+
+### Minor Changes
+
+- Treat tarball-integrity mismatches against the lockfile as a hard failure by default. Previously, `pnpm install` (non-frozen) would log `ERR_PNPM_TARBALL_INTEGRITY`, silently re-resolve from the registry, and overwrite the locked integrity — which meant a compromised registry, proxy, or republished version could substitute attacker-controlled content on a clean machine even though the project shipped a committed lockfile.
+
+  `pnpm install` now exits with `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the new opt-in flag.
+
+  The only opt-in is **`pnpm install --update-checksums`** — narrowly scoped to refreshing the locked integrity values from what the registry currently serves. Mirrors yarn's flag of the same name. A warning still prints when the bypass takes effect so the operation is auditable.
+
+  `--force` and `pnpm update` deliberately do **not** bypass the integrity check. They are routine refresh operations; silently overwriting a locked integrity in those flows would erase the protection a committed lockfile is supposed to provide. `--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and is also not a bypass.
+
+### Patch Changes
+
+- Pin unscoped per-registry settings (`_authToken`, `_auth`, `username`/`_password`, `tokenHelper`, inline `cert`/`key`) to the registry declared in the same config source at load time, so a later layer overriding `registry=` (workspace `.npmrc`, `pnpm-workspace.yaml`, CLI `--registry`) cannot redirect a credential or client certificate authored for a different host. A deprecation warning is emitted whenever an unscoped per-registry setting is encountered, naming the source and the URL it was pinned to. Reported by JUNYI LIU.
+- Fixed `minimumReleaseAge` handling when cached metadata is abbreviated. The npm registry returns abbreviated package metadata (without the per-version `time` field) by default, which made the maturity check throw `ERR_PNPM_MISSING_TIME` whenever cached abbreviated metadata was reused. pnpm now upgrades cached abbreviated metadata to the full document via a follow-up fetch when `minimumReleaseAge` is active, persists the upgrade to the on-disk cache so subsequent installs skip the extra fetch, and lets `ERR_PNPM_MISSING_TIME` from the cache fast-path fall through to the network fetch even under strict mode.
+- Reject git resolutions whose `commit` field is not a 40-character hexadecimal SHA before invoking `git`. A malicious lockfile could otherwise smuggle a value such as `--upload-pack=<command>` through `git fetch` / `git checkout`, which on SSH or local-file transports executes the supplied command.
+- Reject patch files whose `diff --git` headers reference paths outside the patched package directory. Previously a malicious `.patch` file added via a pull request could write, delete, or rename arbitrary files reachable by the user running `pnpm install`.
+- Fixed `--prefix=<dir>` not being honored when locating the workspace root. The `--prefix → dir` rename was applied after workspace detection, so workspace settings declared in `<dir>/pnpm-workspace.yaml` were not loaded when pnpm was invoked from outside `<dir>` [#11535](https://github.com/pnpm/pnpm/issues/11535).
+- Reject dependency aliases that contain path-traversal segments (such as `@x/../../../../../.git/hooks`) when reading them from a package manifest or symlinking them into `node_modules`. A malicious registry package could otherwise use a transitive dependency key to make `pnpm install` create symlinks at attacker-chosen paths outside the intended `node_modules` directory.
+
 ## 10.33.4
 
 ### Patch Changes

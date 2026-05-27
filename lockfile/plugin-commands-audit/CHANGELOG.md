@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.2.11
+
+### Patch Changes
+
+- Updated dependencies [99cdedc]
+  - @pnpm/config@1004.11.2
+  - @pnpm/network.auth-header@1001.0.0
+  - @pnpm/cli-utils@1001.3.12
+
 ## 1002.2.10
 
 ### Patch Changes

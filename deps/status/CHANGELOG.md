@@ -1,5 +1,14 @@
 # @pnpm/deps.status
 
+## 1003.0.39
+
+### Patch Changes
+
+- Updated dependencies [99cdedc]
+  - @pnpm/config@1004.11.2
+  - @pnpm/workspace.state@1002.1.8
+  - @pnpm/workspace.find-packages@1000.0.67
+
 ## 1003.0.38
 
 ### Patch Changes

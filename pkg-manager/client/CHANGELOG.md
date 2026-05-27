@@ -1,5 +1,16 @@
 # @pnpm/client
 
+## 1001.1.26
+
+### Patch Changes
+
+- Updated dependencies [99cdedc]
+- Updated dependencies [19f7df1]
+  - @pnpm/network.auth-header@1001.0.0
+  - @pnpm/git-fetcher@1006.0.8
+  - @pnpm/default-resolver@1002.3.10
+  - @pnpm/node.fetcher@1001.0.29
+
 ## 1001.1.25
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 1010.1.12
+
+### Patch Changes
+
+- Updated dependencies [6c0f294]
+- Updated dependencies [455cfcd]
+  - @pnpm/worker@1000.6.9
+  - @pnpm/symlink-dependency@1000.0.18
+  - @pnpm/build-modules@1007.0.13
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.18
+  - @pnpm/package-requester@1011.2.5
+
 ## 1010.1.11
 
 ### Patch Changes
