@@ -421,6 +421,51 @@ mod tests {
     }
 
     #[test]
+    fn stream_rejects_malformed_integrity_sri() {
+        let bytes = b"sri-shape";
+        let dist = json!({ "integrity": "not-a-valid-sri" });
+        let (result, dest, _tmp) = run_stream(bytes, Some(&dist), None);
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("EINTEGRITY") && msg.contains("malformed"), "got: {msg}");
+        assert!(!dest.exists());
+    }
+
+    #[test]
+    fn stream_rejects_invalid_base64() {
+        let tmp = TempDir::new().unwrap();
+        let dest = tmp.path().join("out.tgz");
+        // Pick an SRI for some real bytes so the integrity branch
+        // parses cleanly — we want the failure to surface from the
+        // base64 decoder, not the integrity parser.
+        let dist = json!({ "integrity": sri_sha512(b"anything") });
+        let result = stream_decode_verify_and_write(
+            "foo-1.0.0.tgz",
+            "!!!not-valid-base64@@@",
+            None,
+            Some(&dist),
+            &dest,
+        );
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("EINTEGRITY") && msg.contains("base64"), "got: {msg}");
+        assert!(!dest.exists());
+    }
+
+    /// Push the streaming loop past its 64 KiB chunk buffer. A
+    /// regression where the loop accidentally returned after the
+    /// first `read` (or where the hasher only saw the first chunk)
+    /// would still pass every smaller-payload test in this module —
+    /// this is the one that catches it.
+    #[test]
+    fn stream_handles_payload_larger_than_chunk_buffer() {
+        let bytes = vec![0xAB; 200 * 1024];
+        let dist = json!({ "integrity": sri_sha512(&bytes), "shasum": sha1_hex(&bytes) });
+        let (result, dest, _tmp) = run_stream(&bytes, Some(&dist), Some(bytes.len() as u64));
+        let written = result.unwrap();
+        assert_eq!(written, bytes.len() as u64);
+        assert_eq!(std::fs::read(&dest).unwrap(), bytes);
+    }
+
+    #[test]
     fn extracts_and_strips_attachments() {
         let mut body = json!({
             "name": "foo",

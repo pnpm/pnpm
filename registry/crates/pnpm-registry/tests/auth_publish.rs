@@ -503,6 +503,82 @@ async fn publish_rejects_missing_integrity_field() {
     assert!(!storage.join("no-int-pkg/package.json").exists());
 }
 
+/// Real npm clients send one attachment per publish, but the
+/// handler is written to iterate N: if the M-th attachment fails
+/// integrity, every already-written tmp file from the earlier
+/// attachments must be cleaned up so a rejected publish leaves no
+/// on-disk artifact. This pins down the `cleanup_tmp_slots` path —
+/// without it, a regression that no-op'd the cleanup would leak
+/// `*.tmp.*` files for every successful attachment before the bad
+/// one.
+#[tokio::test]
+async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let bytes_v1 = b"valid-first-attachment";
+    let bytes_v2 = b"second-attachment";
+    let body = json!({
+        "_id": "multi-attach",
+        "name": "multi-attach",
+        "dist-tags": { "latest": "2.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "multi-attach", "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://localhost:4873/multi-attach/-/multi-attach-1.0.0.tgz",
+                    "shasum": sha1_hex(bytes_v1),
+                    "integrity": sri_sha512(bytes_v1),
+                }
+            },
+            "2.0.0": {
+                "name": "multi-attach", "version": "2.0.0",
+                "dist": {
+                    "tarball": "http://localhost:4873/multi-attach/-/multi-attach-2.0.0.tgz",
+                    "shasum": sha1_hex(bytes_v2),
+                    "integrity": sri_sha512(b"WRONG-BYTES-FOR-2.0.0"),
+                }
+            }
+        },
+        "_attachments": {
+            "multi-attach-1.0.0.tgz": {
+                "content_type": "application/octet-stream",
+                "data": BASE64.encode(bytes_v1),
+                "length": bytes_v1.len(),
+            },
+            "multi-attach-2.0.0.tgz": {
+                "content_type": "application/octet-stream",
+                "data": BASE64.encode(bytes_v2),
+                "length": bytes_v2.len(),
+            },
+        }
+    });
+    let request = Request::put("/multi-attach")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // The package dir may exist (the handler creates it while
+    // reserving paths) but it must be empty: no .tgz files, no
+    // .tmp.* leftovers, no package.json.
+    let pkg_dir = storage.join("multi-attach");
+    if pkg_dir.exists() {
+        let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            entries.is_empty(),
+            "expected no artifacts after rejected publish, found: {entries:?}",
+        );
+    }
+}
+
 /// `anonymous-npm-registry-client`'s `distTags.add` URL-encodes the
 /// `/` in scoped names: `@scope/pkg` → `@scope%2Fpkg` in the URL.
 /// axum's `Path` extractor percent-decodes path segments, so the
