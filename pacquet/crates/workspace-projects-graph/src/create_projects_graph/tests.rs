@@ -121,6 +121,20 @@ fn link_path_resolves_by_directory() {
 }
 
 #[test]
+fn path_style_workspace_spec_resolves_by_directory() {
+    // `workspace:../b` is a path-style token: it resolves by directory
+    // (not by version), so range resolution must not run and no
+    // `unmatched` entry is produced.
+    let projects = vec![
+        project("/ws/packages/a", "a", "1.0.0", &[("b", "workspace:../b")]),
+        project("/ws/packages/b", "b", "2.0.0", &[]),
+    ];
+    let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
+    assert_eq!(edges(&result.graph, "/ws/packages/a"), vec!["/ws/packages/b".to_string()]);
+    assert!(result.unmatched.is_empty());
+}
+
+#[test]
 fn strict_link_workspace_packages_rejects_plain_version() {
     let projects = vec![
         project("/ws/a", "a", "1.0.0", &[("b", "2.0.0")]),

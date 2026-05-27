@@ -1,15 +1,13 @@
 use crate::{
     base_project::GraphProject,
     graph::{ProjectGraph, ProjectGraphNode},
+    path_util::lexical_normalize,
 };
 use indexmap::IndexMap;
 use node_semver::{Range, Version};
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
-use std::{
-    collections::HashMap,
-    path::{Component, Path, PathBuf},
-};
+use std::{collections::HashMap, path::PathBuf};
 
 /// Options for [`create_projects_graph`]. Mirrors upstream's
 /// `createProjectsGraph(projects, opts)` second argument.
@@ -175,19 +173,33 @@ fn resolve_edge(
     };
 
     if is_workspace_spec {
+        // Upstream runs the workspace token through
+        // `workspacePrefToNpm` + `npa.resolve`, so a path-style token
+        // (`workspace:../foo`) resolves by directory. The `*` / `^` /
+        // `~` / version / range tokens fall through to name + version
+        // resolution, where `resolve_workspace_range` interprets the
+        // wildcard tokens.
+        if let SpecKind::Directory(path) = classify(&effective_spec) {
+            return resolve_directory(importer, path, lookups);
+        }
         return resolve_by_name_version(&effective_name, &effective_spec, true, lookups, unmatched);
     }
 
     match classify(&effective_spec) {
-        SpecKind::Directory(path) => {
-            let resolved = lexical_normalize(&lookups.node_keys[importer].join(path));
-            lookups.by_dir.get(&resolved).map(|&index| lookups.node_keys[index].clone())
-        }
+        SpecKind::Directory(path) => resolve_directory(importer, path, lookups),
         SpecKind::VersionOrRange => {
             resolve_by_name_version(&effective_name, &effective_spec, false, lookups, unmatched)
         }
         SpecKind::Skip => None,
     }
+}
+
+/// Resolve a local-path dependency to a sibling by directory: join the
+/// path onto the importer's root, normalize, and look it up in the
+/// by-directory index.
+fn resolve_directory(importer: usize, path: &str, lookups: &Lookups) -> Option<PathBuf> {
+    let resolved = lexical_normalize(&lookups.node_keys[importer].join(path));
+    lookups.by_dir.get(&resolved).map(|&index| lookups.node_keys[index].clone())
 }
 
 fn resolve_by_name_version(
@@ -284,24 +296,6 @@ fn has_windows_drive_prefix(spec: &str) -> bool {
         (chars.next(), chars.next(), chars.next()),
         (Some(letter), Some(':'), Some('/' | '\\')) if letter.is_ascii_alphabetic()
     )
-}
-
-/// Lexically normalize a path: collapse `.` and resolve `..` without
-/// touching the filesystem. Mirrors the `path.resolve` step upstream
-/// applies before the `projectMapByDir` lookup; the on-disk slow path
-/// for case-insensitive filesystems is intentionally omitted.
-fn lexical_normalize(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::ParentDir => {
-                out.pop();
-            }
-            Component::CurDir => {}
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
 }
 
 #[cfg(test)]

@@ -187,3 +187,51 @@ fn diff_with_dependencies_and_dependents() {
         },
     );
 }
+
+// The upstream regex name group `[^.][^{}[\]]*` lets the name's first
+// char be a brace/bracket; the parser backtracks the greedy name to let
+// `{…}` / `[…]` match. These cases (malformed or unusual selectors) must
+// resolve the same way the regex does, including keeping `!`/`...`
+// modifiers that the name-fallback path would otherwise drop.
+
+#[test]
+fn exclude_with_leading_brace_name_keeps_exclude() {
+    // `!{foo`: the unclosed brace is absorbed into the name, so this is
+    // an exclude name selector, not an include one.
+    assert_eq!(
+        parse("!{foo"),
+        ProjectSelector { exclude: true, name_pattern: name("{foo"), ..Default::default() },
+    );
+}
+
+#[test]
+fn leading_brace_name_then_diff() {
+    assert_eq!(
+        parse("{[master]"),
+        ProjectSelector {
+            diff: Some("master".to_string()),
+            name_pattern: name("{"),
+            ..Default::default()
+        },
+    );
+}
+
+#[test]
+fn leading_brace_name_then_dir() {
+    assert_eq!(
+        parse("}foo{bar}"),
+        ProjectSelector {
+            name_pattern: name("}foo"),
+            parent_dir: dir("/prefix/bar"),
+            ..Default::default()
+        },
+    );
+}
+
+#[test]
+fn unparseable_braces_fall_back_to_name() {
+    assert_eq!(
+        parse("foo}bar"),
+        ProjectSelector { name_pattern: name("foo}bar"), ..Default::default() },
+    );
+}

@@ -110,56 +110,78 @@ struct SelectorParts<'a> {
 /// regex dependency). Returns `None` when the regex would not match the
 /// whole input, so the caller falls through to the location / name
 /// branch exactly as upstream does on a `null` match.
+///
+/// The name group `[^.][^{}[\]]*` is greedy and the whole expression is
+/// anchored, so the regex backtracks: a leading non-`.` char (including
+/// `{`, `}`, `[`, `]`) is absorbed into the name unless a shorter name
+/// lets the `{…}` / `[…]` groups consume the rest. This mirrors that by
+/// trying every candidate name length from longest to shortest (then no
+/// name) and keeping the first decomposition that consumes the whole
+/// input.
 fn match_selector_pattern(input: &str) -> Option<SelectorParts<'_>> {
-    let first_special = input.find(['{', '[']);
-    let (name_str, rest) = match first_special {
-        Some(index) => (&input[..index], &input[index..]),
-        None => (input, ""),
-    };
+    for name_len in name_candidate_lengths(input) {
+        let (name_str, rest) = input.split_at(name_len);
+        if let Some((brace_inner, bracket_inner)) = match_groups(rest) {
+            return Some(SelectorParts {
+                name: (!name_str.is_empty()).then_some(name_str),
+                brace_inner,
+                bracket_inner,
+            });
+        }
+    }
+    None
+}
 
-    // `[^.][^{}[\]]*`: the name may not start with `.` nor contain any
-    // brace / bracket character. `}` / `]` before the first `{` / `[`
-    // means the regex cannot match.
-    if !name_str.is_empty() && (name_str.starts_with('.') || name_str.contains(['}', ']'])) {
+/// Byte lengths the name group could match, longest first, ending with
+/// `0` (the name-absent case). The name is `[^.]` (any non-`.` first
+/// char) followed by a run of non-`{}[]` chars, so the candidates are
+/// the prefix lengths from the full run down to the first char, then 0.
+fn name_candidate_lengths(input: &str) -> Vec<usize> {
+    let mut chars = input.char_indices();
+    let Some((_, first)) = chars.next() else {
+        return vec![0];
+    };
+    if first == '.' {
+        return vec![0];
+    }
+    let mut lengths = vec![first.len_utf8()];
+    let mut end = first.len_utf8();
+    for (_, ch) in chars {
+        if matches!(ch, '{' | '}' | '[' | ']') {
+            break;
+        }
+        end += ch.len_utf8();
+        lengths.push(end);
+    }
+    lengths.reverse();
+    lengths.push(0);
+    lengths
+}
+
+/// Match an optional `{…}` brace group then an optional `[…]` bracket
+/// group against the whole of `rest`, returning their inner text.
+/// `None` unless the groups consume `rest` exactly, mirroring the
+/// anchored `(\{[^}]+\})?(\[[^\]]+\])?$` tail of the regex.
+fn match_groups(rest: &str) -> Option<(Option<&str>, Option<&str>)> {
+    let (brace_inner, rest) = match_delimited(rest, '{', '}')?;
+    let (bracket_inner, rest) = match_delimited(rest, '[', ']')?;
+    rest.is_empty().then_some((brace_inner, bracket_inner))
+}
+
+/// Match an optional `<open><inner><close>` group at the start of
+/// `input`, where `inner` is one or more characters other than `close`
+/// (the regex's `[^close]+`). Returns the inner text (when present) and
+/// the remaining input. `None` only when an `<open>` is present but the
+/// group is malformed (no `close`, or an empty inner).
+fn match_delimited(input: &str, open: char, close: char) -> Option<(Option<&str>, &str)> {
+    let Some(after_open) = input.strip_prefix(open) else {
+        return Some((None, input));
+    };
+    let close_at = after_open.find(close)?;
+    if close_at == 0 {
         return None;
     }
-
-    let mut cursor = rest;
-
-    let brace_inner = if cursor.starts_with('{') {
-        let close = cursor.find('}')?;
-        // `[^}]+` requires at least one inner character.
-        if close == 1 {
-            return None;
-        }
-        let inner = &cursor[1..close];
-        cursor = &cursor[close + 1..];
-        Some(inner)
-    } else {
-        None
-    };
-
-    let bracket_inner = if cursor.starts_with('[') {
-        let close = cursor.find(']')?;
-        if close == 1 {
-            return None;
-        }
-        let inner = &cursor[1..close];
-        cursor = &cursor[close + 1..];
-        Some(inner)
-    } else {
-        None
-    };
-
-    if !cursor.is_empty() {
-        return None;
-    }
-
-    Some(SelectorParts {
-        name: (!name_str.is_empty()).then_some(name_str),
-        brace_inner,
-        bracket_inner,
-    })
+    Some((Some(&after_open[..close_at]), &after_open[close_at + close.len_utf8()..]))
 }
 
 /// Whether `raw` is a relative-path selector (`.`, `./x`, `..`, `../x`,

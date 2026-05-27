@@ -35,24 +35,36 @@ fn match_segments(pattern: &[&str], candidate: &[&str]) -> bool {
 }
 
 /// Match a single pattern segment against a single candidate segment,
-/// treating `*` as any (possibly empty) run of characters.
+/// treating `*` as any (possibly empty) run of characters. Uses the
+/// classic iterative wildcard match with backtracking so multiple `*`
+/// in one segment (`a*b*c`) match correctly.
 fn segment_match(pattern: &str, text: &str) -> bool {
-    let parts: Vec<&str> = pattern.split('*').collect();
-    if parts.len() == 1 {
-        return pattern == text;
-    }
+    let pattern: Vec<char> = pattern.chars().collect();
+    let text: Vec<char> = text.chars().collect();
+    let (mut pat, mut txt) = (0usize, 0usize);
+    // The last `*` seen and the text position it was matched against, so
+    // a failed match can backtrack and let the `*` consume one more char.
+    let mut backtrack: Option<(usize, usize)> = None;
 
-    let Some(remainder) = text.strip_prefix(parts[0]) else {
-        return false;
-    };
-    let mut remainder = remainder;
-    for part in &parts[1..parts.len() - 1] {
-        match remainder.find(part) {
-            Some(found) => remainder = &remainder[found + part.len()..],
-            None => return false,
+    while txt < text.len() {
+        if pattern.get(pat) == Some(&'*') {
+            backtrack = Some((pat, txt));
+            pat += 1;
+        } else if pattern.get(pat) == Some(&text[txt]) {
+            pat += 1;
+            txt += 1;
+        } else if let Some((star_pat, star_txt)) = backtrack {
+            pat = star_pat + 1;
+            txt = star_txt + 1;
+            backtrack = Some((star_pat, txt));
+        } else {
+            return false;
         }
     }
-    remainder.ends_with(parts[parts.len() - 1])
+    while pattern.get(pat) == Some(&'*') {
+        pat += 1;
+    }
+    pat == pattern.len()
 }
 
 #[cfg(test)]

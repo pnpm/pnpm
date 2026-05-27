@@ -31,3 +31,10 @@ fn partial_segment_wildcard() {
 fn trailing_slash_is_ignored() {
     assert!(is_match("/packages/project-0/", "/packages/*/"));
 }
+
+#[test]
+fn multiple_stars_in_one_segment_backtrack() {
+    assert!(is_match("/a/xaaaab", "/a/x*aa*aab"));
+    assert!(is_match("/a/foo-bar-baz", "/a/foo-*-baz"));
+    assert!(!is_match("/a/foo-bar", "/a/foo-*-baz"));
+}
