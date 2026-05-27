@@ -426,28 +426,28 @@ fn returns_skipped_when_allow_builds_drift() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
-/// State written by pnpm with a field pacquet doesn't yet read (e.g.
-/// `packageExtensions`, `peersSuffixMaxLength`) is detected as drift
-/// rather than silently trusted. The mismatch comes from pacquet's
-/// `current_settings` producing `None` for those fields while the
-/// stored state carries `Some(...)`. This proves
-/// `WorkspaceStateSettings::PartialEq` field-by-field comparison
-/// covers fields the writer side doesn't populate yet.
+/// State written by pnpm with a field pacquet doesn't read or
+/// consume during install (e.g. `peersSuffixMaxLength`,
+/// `packageExtensions`, `dedupeDirectDeps`) does NOT trip the
+/// settings-drift gate. Pacquet ignores those fields because its
+/// install pipeline doesn't react to them — invalidating the
+/// fast path on a value pacquet can't actually consume would force
+/// a redundant reinstall every time a user runs `pacquet install`
+/// after `pnpm install` in the same project, which is the
+/// scenario the vlt benchmark exercises (pnpm/pnpm#11992).
 ///
-/// Tracks
-/// [`checkDepsStatus.test.ts:85-113`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/test/checkDepsStatus.test.ts#L85-L113)
-/// and
-/// [`:175-203`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/test/checkDepsStatus.test.ts#L175-L203)
-/// (`packageExtensions` and `peersSuffixMaxLength` drift). Once
-/// pacquet reads either yaml field into `Config`, this test should
-/// expand into the more specific per-field drift checks pnpm has.
+/// As each setting is ported end-to-end (yaml plumbing, `Config`
+/// field, real consumer, and joined into `current_settings`), it
+/// joins [`settings_match`]'s comparison automatically and a
+/// drift on it starts rejecting again. Tracked in pnpm/pnpm#12009.
 #[test]
-fn returns_skipped_when_unported_pnpm_settings_present() {
+fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     let manifest_path = workspace_root.join("package.json");
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
@@ -456,10 +456,26 @@ fn returns_skipped_when_unported_pnpm_settings_present() {
 
     let mut settings =
         current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
-    // Inject a pnpm-only field pacquet doesn't write to today.
-    // Either field is sufficient to prove the equality check catches
-    // it; pick the simpler scalar.
+    // Populate every field pacquet doesn't surface through
+    // `current_settings` today. Each is an upstream pnpm setting
+    // listed in pnpm/pnpm#12009.
+    settings.dedupe_direct_deps = Some(false);
+    settings.dedupe_injected_deps = Some(true);
+    settings.dedupe_peers = Some(false);
+    settings.exclude_links_from_lockfile = Some(false);
+    settings.inject_workspace_packages = Some(true);
+    settings.package_extensions =
+        Some(serde_json::json!({"foo": {"peerDependencies": {"bar": "*"}}}));
     settings.peers_suffix_max_length = Some(42);
+    settings.prefer_workspace_packages = Some(true);
+    // `catalogs` is always ignored by pnpm itself; pacquet
+    // mirrors that.
+    settings.catalogs = Some(serde_json::json!({"default": {"react": "^18.0.0"}}));
+    // `workspacePackagePatterns` is recorded by pnpm from
+    // pnpm-workspace.yaml's `packages:` field, which pacquet
+    // tracks via `WorkspaceManifest.packages` instead of this
+    // state-file field.
+    settings.workspace_package_patterns = Some(vec!["packages/**/*".to_string()]);
 
     let mut projects = BTreeMap::new();
     projects.insert(
@@ -476,7 +492,53 @@ fn returns_skipped_when_unported_pnpm_settings_present() {
         &[(workspace_root.to_path_buf(), &manifest)],
         false,
     );
-    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// `allowBuilds` is the one field where pnpm and pacquet round-trip
+/// an empty configured value differently: pnpm writes `Some({})` for
+/// an empty allow-list, while pacquet's [`current_settings`] writes
+/// `None`. The comparison must treat the two as equivalent —
+/// otherwise the cross-package-manager scenario from pnpm/pnpm#11992
+/// rejects the fast path on every iteration where pnpm wrote the
+/// state. Mirrors pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/72d997cc34/deps/status/src/checkDepsStatus.ts#L141)
+/// coercion on the read side.
+#[test]
+fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+
+    let mut settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    // Simulate a pnpm-written state: empty `allowBuilds` map
+    // serialized as `{}`, where pacquet would have written `None`.
+    settings.allow_builds = Some(BTreeMap::new());
+
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert_eq!(decision, Decision::UpToDate);
 }
 
 /// Workspace install where a sibling project declares dependencies

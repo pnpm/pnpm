@@ -163,10 +163,29 @@ pub fn check_optimistic_repeat_install(
 }
 
 /// Compare today's settings against what the previous install
-/// recorded. Returns `false` on any drift the workspace-state schema
-/// covers; missing fields in the cached record (older write or fields
-/// pacquet doesn't track yet) round-trip as `None` and are treated as
-/// "no opinion" — same posture as pnpm's `Object.entries` walk.
+/// recorded.
+///
+/// Only the fields pacquet actively populates via [`current_settings`]
+/// participate in the comparison. Fields the upstream pnpm CLI writes
+/// but pacquet hasn't ported yet (e.g. `peersSuffixMaxLength`,
+/// `dedupeDirectDeps`) are ignored — pacquet doesn't consume them
+/// during install, so a difference can't affect the materialised
+/// `node_modules`. Without this carve-out a cross-package-manager
+/// scenario (pnpm wrote the state, pacquet reads it next) would
+/// always reject the fast path because pnpm's defaults fill those
+/// fields while pacquet's `current_settings` leaves them `None`.
+///
+/// As each ported setting in pnpm/pnpm#12009 lands end-to-end and
+/// gets surfaced through `current_settings`, it joins the comparison
+/// here automatically.
+///
+/// Mirrors pnpm's `Object.entries(workspaceState.settings)` walk in
+/// [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/72d997cc34/deps/status/src/checkDepsStatus.ts):
+/// pnpm iterates fields *in the state*, which by symmetry only
+/// includes fields the writer cared about. The `allowBuilds` coercion
+/// mirrors pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/72d997cc34/deps/status/src/checkDepsStatus.ts#L141)
+/// on the read side and pnpm's tolerance of an absent
+/// `allowBuilds` key in the recorded state on the write side.
 fn settings_match(
     state: &WorkspaceState,
     config: &Config,
@@ -174,7 +193,54 @@ fn settings_match(
     included: IncludedDependencies,
 ) -> bool {
     let current = current_settings(config, node_linker, included);
-    state.settings == current
+    let recorded = &state.settings;
+    let live = &current;
+    allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref())
+        && recorded.auto_install_peers == live.auto_install_peers
+        && recorded.dedupe_peer_dependents == live.dedupe_peer_dependents
+        && recorded.dev == live.dev
+        && recorded.hoist_pattern == live.hoist_pattern
+        && recorded.hoist_workspace_packages == live.hoist_workspace_packages
+        && recorded.ignored_optional_dependencies == live.ignored_optional_dependencies
+        && recorded.link_workspace_packages == live.link_workspace_packages
+        && recorded.node_linker == live.node_linker
+        && recorded.optional == live.optional
+        && recorded.overrides == live.overrides
+        && recorded.patched_dependencies == live.patched_dependencies
+        && recorded.production == live.production
+        && recorded.public_hoist_pattern == live.public_hoist_pattern
+    // Deliberately *not* compared (tracked at pnpm/pnpm#12009 — drop
+    // each from this list once `current_settings` writes its value):
+    //   catalogs                    (pnpm always ignores; see
+    //                                ignoredSettings.add('catalogs'))
+    //   dedupeDirectDeps
+    //   dedupeInjectedDeps
+    //   dedupePeers
+    //   excludeLinksFromLockfile
+    //   injectWorkspacePackages
+    //   minimumReleaseAge*          (pacquet supports it but doesn't
+    //                                round-trip through workspace state
+    //                                yet — separate follow-up).
+    //   packageExtensions
+    //   peersSuffixMaxLength
+    //   preferWorkspacePackages
+    //   trustPolicy*                (same situation as minimumReleaseAge)
+    //   workspacePackagePatterns    (already covered via
+    //                                pnpm-workspace.yaml `packages:`)
+}
+
+/// Pnpm writes `Some({})` for an empty `allowBuilds`; pacquet writes
+/// `None` for the same effective value. Treat them as equivalent so
+/// cross-package-manager state files don't trip the comparison.
+fn allow_builds_match(
+    state_value: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
+    current_value: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
+) -> bool {
+    match (state_value, current_value) {
+        (None, None) => true,
+        (Some(map), None) | (None, Some(map)) => map.is_empty(),
+        (Some(state_map), Some(current_map)) => state_map == current_map,
+    }
 }
 
 /// Build the [`WorkspaceStateSettings`] that today's install would
