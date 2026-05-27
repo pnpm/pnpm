@@ -1,5 +1,13 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.26
+
+### Patch Changes
+
+- Updated dependencies [b8196b8]
+  - @pnpm/lockfile.utils@1004.0.5
+  - @pnpm/get-context@1001.2.10
+
 ## 1001.2.25
 
 ### Patch Changes

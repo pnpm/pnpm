@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.70
+
+### Patch Changes
+
+- Updated dependencies [b8196b8]
+  - @pnpm/lockfile.utils@1004.0.5
+  - @pnpm/get-context@1001.2.10
+
 ## 1000.0.69
 
 ### Patch Changes

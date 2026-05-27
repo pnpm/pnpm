@@ -1,5 +1,14 @@
 # @pnpm/resolve-dependencies
 
+## 1008.8.3
+
+### Patch Changes
+
+- Updated dependencies [b8196b8]
+  - @pnpm/lockfile.utils@1004.0.5
+  - @pnpm/lockfile.preferred-versions@1000.0.34
+  - @pnpm/calc-dep-state@1003.0.5
+
 ## 1008.8.2
 
 ### Patch Changes

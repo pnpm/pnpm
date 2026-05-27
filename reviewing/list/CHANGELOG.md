@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 1000.3.6
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.34
+- @pnpm/reviewing.dependencies-hierarchy@1001.3.6
+
 ## 1000.3.5
 
 ### Patch Changes

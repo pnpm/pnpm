@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 1002.0.28
+
+### Patch Changes
+
+- Updated dependencies [b8196b8]
+  - @pnpm/lockfile.utils@1004.0.5
+
 ## 1002.0.27
 
 ### Patch Changes

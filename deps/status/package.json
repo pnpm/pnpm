@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.status",
-  "version": "1003.0.39",
+  "version": "1003.0.40",
   "description": "Check dependencies status",
   "keywords": [
     "pnpm",

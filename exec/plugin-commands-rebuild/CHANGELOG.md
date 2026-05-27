@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1008.0.16
+
+### Patch Changes
+
+- Updated dependencies [b8196b8]
+  - @pnpm/lockfile.utils@1004.0.5
+  - @pnpm/calc-dep-state@1003.0.5
+  - @pnpm/get-context@1001.2.10
+
 ## 1008.0.15
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.10.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1008.0.16
+- @pnpm/core@1016.4.1
+- @pnpm/outdated@1001.1.24
+- @pnpm/deps.status@1003.0.40
+- @pnpm/get-context@1001.2.10
+
 ## 1004.10.0
 
 ### Minor Changes
