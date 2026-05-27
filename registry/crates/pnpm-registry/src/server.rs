@@ -10,7 +10,7 @@ use indexmap::IndexMap;
 use serde_json::{Value, json};
 use tower_http::trace::TraceLayer;
 
-use crate::auth::{TokenStore, UpsertOutcome, UserStore, identify};
+use crate::auth::{AuthState, UpsertOutcome, identify};
 use crate::cache::Cache;
 use crate::config::Config;
 use crate::error::RegistryError;
@@ -49,12 +49,14 @@ struct AppInner {
     /// time so each request avoids re-allocating a `ThrottledClient`.
     upstreams: IndexMap<String, Upstream>,
     config: Config,
-    users: UserStore,
-    tokens: TokenStore,
+    auth: AuthState,
 }
 
-/// Build the axum [`Router`] for the registry. Exposed for tests and
-/// for callers that want to drive the app without binding a TCP socket.
+/// Build the axum [`Router`] with in-memory auth state. Convenient
+/// for tests and for callers that don't want disk-backed users —
+/// [`serve`] is the production entry point and goes through
+/// [`router_with_auth`] with an [`AuthState::load`]-ed bundle so a
+/// corrupted htpasswd file surfaces as a startup error.
 ///
 /// The 2- and 3-segment routes do dispatch inside the handler rather
 /// than registering overlapping parametric routes — matchit can't
@@ -62,21 +64,20 @@ struct AppInner {
 /// router level, so we take both via one handler that branches on
 /// the `@` prefix and the literal-`-` segment.
 pub fn router(config: Config) -> Router {
+    router_with_auth(config, AuthState::in_memory())
+}
+
+/// Like [`router`] but with a caller-supplied [`AuthState`]. Used
+/// by [`serve`] to wire the persistent file-backed stores, and by
+/// tests that want to override the bcrypt cost or pre-seed users.
+pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     let cache = Cache::new(config.storage.clone());
     let upstreams: IndexMap<String, Upstream> = config
         .uplinks
         .iter()
         .map(|(name, uplink)| (name.clone(), Upstream::new(uplink.url.clone())))
         .collect();
-    let state = AppState {
-        inner: Arc::new(AppInner {
-            cache,
-            upstreams,
-            config,
-            users: UserStore::new(),
-            tokens: TokenStore::new(),
-        }),
-    };
+    let state = AppState { inner: Arc::new(AppInner { cache, upstreams, config, auth }) };
     Router::new()
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
@@ -97,10 +98,14 @@ pub fn router(config: Config) -> Router {
         .with_state(state)
 }
 
-/// Bind to `config.listen` and serve forever.
+/// Bind to `config.listen` and serve forever. Loads the configured
+/// htpasswd users and token database before binding the socket so
+/// a startup-time auth error surfaces before we accept any client
+/// connections.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
+    let auth = AuthState::load(&config.auth)?;
     let listen = config.listen;
-    let app = router(config);
+    let app = router_with_auth(config, auth);
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpm-registry listening");
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
@@ -499,11 +504,14 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
         }
     };
 
-    let outcome = match state.inner.users.add_or_login(name, password) {
+    let outcome = match state.inner.auth.users.add_or_login(name, password).await {
         Ok(o) => o,
         Err(err) => return error_response(&err),
     };
-    let token = state.inner.tokens.issue(name);
+    let token = match state.inner.auth.tokens.issue(name).await {
+        Ok(t) => t,
+        Err(err) => return error_response(&err),
+    };
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{name}' created"),
         UpsertOutcome::LoggedIn => format!("you are authenticated as '{name}'"),
@@ -1038,8 +1046,8 @@ fn enforce_access(
     };
     let authenticated = identify(
         headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
-        &state.inner.users,
-        &state.inner.tokens,
+        &state.inner.auth.users,
+        &state.inner.auth.tokens,
     );
     match (rule, authenticated, action) {
         (AccessRule::All, _, Action::Access) => Ok(()),

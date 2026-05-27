@@ -55,6 +55,63 @@ pub struct Config {
     /// `@private/*` and `@pnpm.e2e/needs-auth` policies that
     /// `@pnpm/registry-mock` did under verdaccio.
     pub policies: PackagePolicies,
+    /// Where to read/write the htpasswd-format user file and the
+    /// token database. Both stores are in-memory when their paths
+    /// are `None`, matching the original `@pnpm/registry-mock` mode
+    /// where every restart wipes accounts.
+    pub auth: AuthConfig,
+}
+
+/// Auth-related runtime configuration. Built from the YAML
+/// `auth:` block plus runtime defaults.
+#[derive(Debug, Default, Clone)]
+pub struct AuthConfig {
+    pub htpasswd: HtpasswdConfig,
+    pub tokens: TokensConfig,
+}
+
+/// Where the htpasswd users file lives and how many users may sign
+/// up before registration is refused.
+#[derive(Debug, Default, Clone)]
+pub struct HtpasswdConfig {
+    /// Absolute path to the htpasswd file. `None` keeps user state
+    /// in memory (back-compat with `@pnpm/registry-mock`).
+    pub file: Option<PathBuf>,
+    /// Cap on new user registrations.
+    pub max_users: MaxUsers,
+}
+
+/// Where the token database lives. SQLite-backed when `file` is
+/// set; an in-memory map otherwise.
+#[derive(Debug, Default, Clone)]
+pub struct TokensConfig {
+    pub file: Option<PathBuf>,
+}
+
+/// Three-state cap on `auth.htpasswd.max_users`:
+///
+/// * absent → unlimited (verdaccio's `+infinity` default; the YAML
+///   `+inf` token is a float literal and won't parse into the
+///   `i64` field, so the only way to ask for "no cap" is to omit
+///   the key)
+/// * `-1` → registration disabled
+/// * non-negative `n` → at most `n` users
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum MaxUsers {
+    #[default]
+    Unlimited,
+    Disabled,
+    Limited(u64),
+}
+
+impl MaxUsers {
+    /// Translate the YAML value into [`MaxUsers`]. Verdaccio accepts
+    /// any signed integer here; negative anything other than `-1` is
+    /// nonsense and is treated as "disabled" to err on the side of
+    /// rejecting unsafe configs.
+    fn from_yaml(value: i64) -> Self {
+        if value < 0 { MaxUsers::Disabled } else { MaxUsers::Limited(value as u64) }
+    }
 }
 
 /// Verdaccio-shaped uplink declaration. Only `url` is honored —
@@ -90,6 +147,32 @@ struct ConfigFile {
     uplinks: IndexMap<String, UplinkConfig>,
     #[serde(default)]
     packages: IndexMap<String, PackageAccess>,
+    #[serde(default)]
+    auth: AuthFile,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct AuthFile {
+    #[serde(default)]
+    htpasswd: HtpasswdFile,
+    #[serde(default)]
+    tokens: TokensFile,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct HtpasswdFile {
+    #[serde(default)]
+    file: Option<String>,
+    /// `i64` so the verdaccio sentinel `-1` (registration disabled)
+    /// parses; anything `≥ 0` becomes a hard cap.
+    #[serde(default)]
+    max_users: Option<i64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TokensFile {
+    #[serde(default)]
+    file: Option<String>,
 }
 
 impl Config {
@@ -121,6 +204,7 @@ impl Config {
             packages,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
+            auth: AuthConfig::default(),
         }
     }
 
@@ -135,6 +219,7 @@ impl Config {
             packages: IndexMap::new(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
+            auth: AuthConfig::default(),
         }
     }
 
@@ -188,6 +273,7 @@ impl Config {
         let file: ConfigFile = serde_saphyr::from_str(raw)?;
         let storage = resolve_relative(&file.storage, base_dir);
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
+        let auth = build_auth_config(&file.auth, base_dir);
         Ok(Self {
             listen,
             public_url,
@@ -201,6 +287,7 @@ impl Config {
             // policy wiring is out of scope for this rebase. Keep the
             // hard-coded defaults — same as `proxy` / `static_serve`.
             policies: PackagePolicies::registry_mock_defaults(),
+            auth,
         })
     }
 
@@ -218,6 +305,38 @@ impl Config {
         let proxy_name = access.proxy.as_deref()?;
         self.uplinks.get_key_value(proxy_name).map(|(k, v)| (k.as_str(), v))
     }
+}
+
+/// Build the runtime [`AuthConfig`] from the YAML `auth:` block.
+/// Relative paths are resolved against `base_dir` so a path like
+/// `./htpasswd` lives next to the config file (verdaccio's
+/// convention). When `auth.htpasswd.file` is set but
+/// `auth.tokens.file` is not, tokens default to a `tokens.db`
+/// sibling of the htpasswd file — keeping credentials co-located in
+/// one directory the operator can lock down (`chmod 600`).
+fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
+    let htpasswd_file = file.htpasswd.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
+    let tokens_file = file
+        .tokens
+        .file
+        .as_deref()
+        .map(|raw| resolve_relative(raw, base_dir))
+        .or_else(|| htpasswd_file.as_deref().map(default_tokens_path_sibling_of));
+    AuthConfig {
+        htpasswd: HtpasswdConfig {
+            file: htpasswd_file,
+            max_users: file.htpasswd.max_users.map_or(MaxUsers::Unlimited, MaxUsers::from_yaml),
+        },
+        tokens: TokensConfig { file: tokens_file },
+    }
+}
+
+/// `tokens.db` next to the htpasswd file. The sibling layout lets an
+/// operator lock the auth directory down with a single chmod and
+/// stops the tokens file from leaking into a `storage` directory
+/// that may be served over HTTP through an unrelated misconfig.
+fn default_tokens_path_sibling_of(htpasswd: &Path) -> PathBuf {
+    htpasswd.parent().unwrap_or_else(|| Path::new(".")).join("tokens.db")
 }
 
 /// Resolve a (possibly relative) storage path against `base_dir`.
@@ -470,5 +589,79 @@ packages:
     fn from_yaml_path_propagates_missing_file_errors() {
         let err = Config::from_yaml(Path::new("/no/such/file.yml"), listen(), None).unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn auth_block_resolves_htpasswd_relative_to_config_dir() {
+        let yaml = "\
+storage: ./s
+auth:
+  htpasswd:
+    file: ./htpasswd
+uplinks: {}
+packages: {}
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+        assert_eq!(config.auth.htpasswd.file.as_deref(), Some(Path::new("/etc/pnpr/./htpasswd")));
+        // Tokens default to the htpasswd sibling.
+        assert_eq!(config.auth.tokens.file.as_deref(), Some(Path::new("/etc/pnpr/tokens.db")));
+    }
+
+    #[test]
+    fn auth_block_absent_keeps_in_memory_defaults() {
+        let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert!(config.auth.htpasswd.file.is_none());
+        assert!(config.auth.tokens.file.is_none());
+        assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Unlimited);
+    }
+
+    #[test]
+    fn auth_tokens_file_explicit_override_wins_over_sibling_default() {
+        let yaml = "\
+storage: ./s
+auth:
+  htpasswd:
+    file: ./htpasswd
+  tokens:
+    file: /var/lib/pnpr/tokens.sqlite
+uplinks: {}
+packages: {}
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+        assert_eq!(
+            config.auth.tokens.file.as_deref(),
+            Some(Path::new("/var/lib/pnpr/tokens.sqlite")),
+        );
+    }
+
+    #[test]
+    fn auth_max_users_negative_one_means_disabled() {
+        let yaml = "\
+storage: ./s
+auth:
+  htpasswd:
+    file: ./htpasswd
+    max_users: -1
+uplinks: {}
+packages: {}
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
+    }
+
+    #[test]
+    fn auth_max_users_positive_is_a_hard_cap() {
+        let yaml = "\
+storage: ./s
+auth:
+  htpasswd:
+    file: ./htpasswd
+    max_users: 5
+uplinks: {}
+packages: {}
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Limited(5));
     }
 }

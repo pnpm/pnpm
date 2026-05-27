@@ -87,6 +87,43 @@ pub enum RegistryError {
         reason: String,
     },
 
+    /// `auth.htpasswd.max_users: -1` blocks new registrations.
+    /// Returned for adduser on a username that doesn't already
+    /// exist; existing-user logins are unaffected.
+    #[display("New user registration is disabled by auth.htpasswd.max_users: -1")]
+    RegistrationDisabled,
+
+    /// `auth.htpasswd.max_users: N` cap reached. Returned for
+    /// adduser on a username that doesn't already exist.
+    #[display("Maximum number of users ({max}) reached")]
+    #[from(skip)]
+    TooManyUsers { max: u64 },
+
+    /// The htpasswd file on disk couldn't be parsed at startup.
+    /// Surfaced as a startup-time error rather than a silent empty
+    /// store so a corrupted file can't quietly lock every existing
+    /// user out.
+    #[display("Invalid htpasswd file {path}: {reason}")]
+    #[from(skip)]
+    InvalidHtpasswdFile {
+        #[error(not(source))]
+        path: String,
+        reason: String,
+    },
+
+    /// Bcrypt hash/verify failure. Operational error, not user-facing.
+    #[display("Bcrypt failure: {_0}")]
+    Bcrypt(bcrypt::BcryptError),
+
+    /// SQLite-backed token store failure.
+    #[display("Token database error: {_0}")]
+    Sqlite(rusqlite::Error),
+
+    /// A blocking task spawned for bcrypt or SQLite work panicked
+    /// or was cancelled. Treat as an internal server error.
+    #[display("Background task failed: {_0}")]
+    JoinError(tokio::task::JoinError),
+
     #[display("I/O error: {_0}")]
     Io(std::io::Error),
 
@@ -129,6 +166,13 @@ impl RegistryError {
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
+            RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
+                StatusCode::FORBIDDEN
+            }
+            RegistryError::InvalidHtpasswdFile { .. }
+            | RegistryError::Bcrypt(_)
+            | RegistryError::Sqlite(_)
+            | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             RegistryError::Io(_) | RegistryError::Json(_) => StatusCode::BAD_GATEWAY,
         }
     }
