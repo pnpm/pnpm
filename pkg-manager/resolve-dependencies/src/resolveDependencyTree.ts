@@ -116,6 +116,7 @@ export interface ResolveDependenciesOptions {
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean
+  updateChecksums?: boolean
   ignoreScripts?: boolean
   hooks: {
     readPackage?: ReadPackageHook
@@ -180,6 +181,7 @@ export async function resolveDependencyTree<T> (
     engineStrict: opts.engineStrict,
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,
+    updateChecksums: opts.updateChecksums,
     ignoreScripts: opts.ignoreScripts,
     injectWorkspacePackages: opts.injectWorkspacePackages,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,

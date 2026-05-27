@@ -155,6 +155,7 @@ export interface ResolutionContext {
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
+  updateChecksums?: boolean
   ignoreScripts?: boolean
   resolvedPkgsById: ResolvedPkgsById
   resolvePeersFromWorkspaceRoot?: boolean
@@ -866,6 +867,7 @@ async function resolveDependenciesOfDependency (
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
     update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
+    updateChecksums: ctx.updateChecksums,
     updateDepth,
     updateRequested,
     supportedArchitectures: options.supportedArchitectures,
@@ -1254,6 +1256,7 @@ interface ResolveDependencyOptions {
   publishedBy?: Date
   pickLowestVersion?: boolean
   update: false | 'compatible' | 'latest'
+  updateChecksums?: boolean
   updateDepth: number
   /**
    * Whether or not an update is requested based on filter conditions (such as
@@ -1354,6 +1357,7 @@ async function resolveDependency (
       trustPolicyExclude: ctx.trustPolicyExclude,
       trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
       update: options.update,
+      updateChecksums: options.updateChecksums,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
       onFetchError: (err: any) => { // eslint-disable-line
