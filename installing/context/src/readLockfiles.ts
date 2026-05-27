@@ -20,6 +20,7 @@ export interface PnpmContext {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
+  hasUsableLockfile: boolean
   wantedLockfile: LockfileObject
 }
 
@@ -48,6 +49,7 @@ export async function readLockfiles (
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
+  hasUsableLockfile: boolean
   wantedLockfile: LockfileObject
   wantedLockfileIsModified: boolean
   lockfileHadConflicts: boolean
@@ -122,10 +124,14 @@ export async function readLockfiles (
       }
     }
   }
+  const existsWantedLockfile = files[0] != null
+  const existsCurrentLockfile = files[1] != null
   const wantedLockfile = files[0] ??
     (currentLockfile && clone(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
-  let wantedLockfileIsModified = false
+  // Cloning the current lockfile means the disk copy of the wanted lockfile is
+  // stale, so flag it for rewriting after the install completes.
+  let wantedLockfileIsModified = !existsWantedLockfile && existsCurrentLockfile
   for (const importerId of importerIds) {
     if (!wantedLockfile.importers[importerId]) {
       wantedLockfileIsModified = true
@@ -134,13 +140,13 @@ export async function readLockfiles (
       }
     }
   }
-  const existsWantedLockfile = files[0] != null
   return {
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
-    existsCurrentLockfile: files[1] != null,
+    existsCurrentLockfile,
     existsWantedLockfile,
     existsNonEmptyWantedLockfile: existsWantedLockfile && !isEmptyLockfile(wantedLockfile),
+    hasUsableLockfile: !isEmptyLockfile(wantedLockfile),
     wantedLockfile,
     wantedLockfileIsModified,
     lockfileHadConflicts,

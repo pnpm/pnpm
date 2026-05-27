@@ -36,6 +36,7 @@ export interface PnpmContext {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
+  hasUsableLockfile: boolean
   extraBinPaths: string[]
   /** Affected by existing modules directory, if it exists. */
   extraNodePaths: string[]
@@ -207,6 +208,7 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
+  hasUsableLockfile: boolean
   /** Affected by existing modules directory, if it exists. */
   extraBinPaths: string[]
   extraNodePaths: string[]
