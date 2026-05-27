@@ -1,4 +1,3 @@
-import { nerfDart } from '@pnpm/config.nerf-dart'
 import { PnpmError } from '@pnpm/error'
 import { spawnSync } from 'child_process'
 import fs from 'fs'
@@ -35,16 +34,6 @@ export function getAuthHeadersFromConfig (
     if (authType === 'tokenHelper') {
       authHeaderValueByURI[uri] = loadToken(value, key)
     }
-  }
-  const registry = allSettings['registry'] ? nerfDart(allSettings['registry']) : '//registry.npmjs.org/'
-  if (userSettings['tokenHelper']) {
-    authHeaderValueByURI[registry] = loadToken(userSettings['tokenHelper'], 'tokenHelper')
-  } else if (allSettings['_authToken']) {
-    authHeaderValueByURI[registry] = `Bearer ${allSettings['_authToken']}`
-  } else if (allSettings['_auth']) {
-    authHeaderValueByURI[registry] = `Basic ${allSettings['_auth']}`
-  } else if (allSettings['_password'] && allSettings['username']) {
-    authHeaderValueByURI[registry] = `Basic ${Buffer.from(`${allSettings['username']}:${allSettings['_password']}`).toString('base64')}`
   }
   return authHeaderValueByURI
 }

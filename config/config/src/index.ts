@@ -20,6 +20,7 @@ import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { inheritAuthConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
+import { rescopeUnscopedCreds } from './rescopeUnscopedCreds.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
 import { transformPathKeys } from './transformPath.js'
@@ -211,7 +212,17 @@ export async function getConfig (opts: {
     'peers-suffix-max-length': 1000,
   }
 
-  const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
+  // Pin any unscoped per-registry credentials/cert keys passed on the CLI
+  // (e.g. `--_authToken=...`) to whichever registry the CLI itself names —
+  // or to the npmjs default if the CLI didn't name one. A later workspace
+  // .npmrc or pnpm-workspace.yaml setting `registry=` to a different host
+  // can no longer pull the credential along. We mutate in place since the
+  // surrounding code already mutates cliOptions (dir, prefix).
+  const warnings: string[] = []
+  rescopeUnscopedCreds(cliOptions, '<command line>', warnings)
+
+  const { config: npmConfig, warnings: npmConfWarnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
+  warnings.push(...npmConfWarnings)
 
   const configDir = getConfigDir(process)
   {
@@ -225,6 +236,20 @@ export async function getConfig (opts: {
   {
     const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
     if (warn) warnings.push(warn)
+  }
+
+  // After every source (cli, env, project, workspace, user, global,
+  // pnpm-global, pnpm-builtin, npm-builtin) has been loaded, rewrite each
+  // source's unscoped per-registry credential/cert keys to their URL-scoped
+  // form using that source's own `registry=` (or the npmjs default). The
+  // merged rawConfig built below picks up the URL-scoped form, so a layer
+  // overriding the default `registry=` can no longer rebind a credential or
+  // cert that was authored elsewhere.
+  for (const [name, sourceEntry] of Object.entries(npmConfig.sources)) {
+    if (name === 'cli') continue // already rescoped above
+    const data = (sourceEntry as { data?: Record<string, unknown> }).data
+    if (data == null) continue
+    rescopeUnscopedCreds(data, sourceLabel(name, sourceEntry as { path?: string }), warnings)
   }
 
   delete cliOptions.prefix
@@ -561,6 +586,12 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+function sourceLabel (name: string, sourceEntry: { path?: string }): string {
+  if (typeof sourceEntry.path === 'string' && sourceEntry.path !== '') return sourceEntry.path
+  if (name === 'env') return 'npm_config_* environment variables'
+  return name
 }
 
 function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
