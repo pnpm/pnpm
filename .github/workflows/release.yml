@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install git build-essential libplist-dev libssl-dev openssl qemu-user-binfmt pkg-config
           cd /tmp
-          git clone https://gitlab.com/opensource-saurik/ldid.git
+          git clone https://github.com/ProcursusTeam/ldid.git
           cd ldid
           git checkout c2f8abf013b22c335f44241a6a552a7767e73419
           git submodule update --init
