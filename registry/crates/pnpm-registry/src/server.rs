@@ -17,7 +17,8 @@ use crate::error::RegistryError;
 use crate::package_name::PackageName;
 use crate::policy::{AccessRule, PackagePolicies};
 use crate::publish::{
-    PendingAttachment, extract_attachments, merge_manifest, now_iso, stream_decode_verify_and_write,
+    PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
+    stream_decode_verify_and_write,
 };
 use crate::streaming;
 use crate::upstream::{
@@ -179,6 +180,9 @@ async fn get_two_segments(
     headers: HeaderMap,
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
+    if first == "-" && second == "whoami" {
+        return serve_whoami(&state, &headers);
+    }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
         serve_packument(&state, &headers, &full).await
@@ -219,8 +223,11 @@ async fn get_tarball_scoped(
     serve_tarball(&state, &headers, &full, &filename).await
 }
 
-/// 4-segment GET: `/-/package/{pkg}/dist-tags`. Returns the
-/// packument's `dist-tags` object.
+/// 4-segment GET:
+/// * `/-/package/{pkg}/dist-tags` — packument's `dist-tags` object.
+/// * `/-/npm/v1/user` — caller's profile (`npm profile get`).
+/// * `/-/npm/v1/tokens` — list bearer tokens for the caller
+///   (`npm token list`).
 async fn get_four_segments(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -228,6 +235,12 @@ async fn get_four_segments(
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
         return get_dist_tags(&state, &headers, &c).await;
+    }
+    if a == "-" && b == "npm" && c == "v1" && d == "user" {
+        return serve_profile(&state, &headers);
+    }
+    if a == "-" && b == "npm" && c == "v1" && d == "tokens" {
+        return list_tokens(&state, &headers);
     }
     not_found()
 }
@@ -325,12 +338,17 @@ async fn put_five_segments(
     not_found()
 }
 
-/// `DELETE /{a}/{b}/{c}/{d}` — not a real npm shape; sits here so
-/// the route is symmetric with PUT/GET. Returns 404.
+/// `DELETE /-/user/token/{tok}` — npm logout. `{tok}` is the raw
+/// bearer token sent verbatim. We hash it and remove the matching
+/// row from the token store.
 async fn delete_four_segments(
-    State(_state): State<AppState>,
-    Path(_): Path<(String, String, String, String)>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
+    if a == "-" && b == "user" && c == "token" {
+        return logout(&state, &headers, &d).await;
+    }
     not_found()
 }
 
@@ -353,16 +371,23 @@ async fn delete_five_segments(
     not_found()
 }
 
-/// `DELETE /{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
-/// tarball. The pnpm unpublish flow gets here when the tarball URL it
-/// reconstructs from the packument is the literal-slash scoped form
-/// (`http://host/@scope/name/-/name-1.0.0.tgz`), so the request lands
-/// here unencoded rather than as a 5-seg `@scope%2Fname` URL.
+/// 6-segment DELETE:
+/// * `/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
+///   tarball. The pnpm unpublish flow gets here when the tarball URL
+///   it reconstructs from the packument is the literal-slash scoped
+///   form (`http://host/@scope/name/-/name-1.0.0.tgz`), so the
+///   request lands here unencoded rather than as a 5-seg
+///   `@scope%2Fname` URL.
+/// * `/-/npm/v1/tokens/token/{key}` — revoke a bearer token by its
+///   listing-side `key` (`npm token revoke`).
 async fn delete_six_segments(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
+    if a == "-" && b == "npm" && c == "v1" && d == "tokens" && e == "token" {
+        return revoke_token_by_key(&state, &headers, &f).await;
+    }
     if a.starts_with('@') && c == "-" && e == "-rev" {
         let _ = f; // revision token is unused
         let full = format!("{a}/{b}");
@@ -524,6 +549,151 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
         .status(StatusCode::CREATED)
         .header(header::CONTENT_TYPE, "application/json")
         .header(header::CACHE_CONTROL, "no-cache")
+        .body(Body::from(bytes))
+        .expect("static-shape response always builds")
+}
+
+/// `GET /-/whoami` — return the username of the caller, or 401 if
+/// the request is anonymous. `npm whoami` reads this. The check is
+/// pure auth: no per-package policy applies, so anonymous always
+/// gets 401 even when `$all` would let it through for packument
+/// reads.
+fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
+    let Some(username) = caller_username(state, headers) else {
+        return error_response(&RegistryError::Unauthenticated {
+            resource: "user identity".to_string(),
+        });
+    };
+    json_response(StatusCode::OK, &json!({ "username": username }))
+}
+
+/// `GET /-/npm/v1/user` — return the profile of the authenticated
+/// caller. `npm profile get` reads this. pnpr doesn't track email,
+/// 2FA, or anything beyond the username; the absent fields surface
+/// as their zero-value defaults so the npm CLI's table renderer
+/// doesn't choke on a missing key.
+fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
+    let Some(username) = caller_username(state, headers) else {
+        return error_response(&RegistryError::Unauthenticated {
+            resource: "user profile".to_string(),
+        });
+    };
+    json_response(
+        StatusCode::OK,
+        &json!({
+            "name": username,
+            "email": "",
+            "email_verified": false,
+            "tfa": false,
+            "fullname": "",
+            "cidr_whitelist": null,
+        }),
+    )
+}
+
+/// `GET /-/npm/v1/tokens` — list every bearer token issued to the
+/// authenticated caller. Returns the npm-CLI-compatible wrapper
+/// (`{ objects, urls }`) so `npm token list` parses it cleanly. The
+/// raw token itself is never persisted; the `token` field surfaces
+/// the leading 6 hex characters of the key as a preview, matching
+/// what verdaccio does when it can't reconstruct the original.
+fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
+    let Some(username) = caller_username(state, headers) else {
+        return error_response(&RegistryError::Unauthenticated {
+            resource: "token list".to_string(),
+        });
+    };
+    let objects: Vec<Value> = state
+        .inner
+        .auth
+        .tokens
+        .list_for_user(&username)
+        .into_iter()
+        .map(|(key, record)| token_response_object(&key, &record))
+        .collect();
+    json_response(StatusCode::OK, &json!({ "objects": objects, "urls": {} }))
+}
+
+/// `DELETE /-/npm/v1/tokens/token/:key` — revoke a token by its
+/// listing-side key. The caller must be the owner of the token
+/// (anonymous is 401, a different authenticated user is 403); an
+/// unknown key returns 404. `npm token revoke` calls this with the
+/// `key` it pulled from [`list_tokens`].
+async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -> Response {
+    let Some(username) = caller_username(state, headers) else {
+        return error_response(&RegistryError::Unauthenticated {
+            resource: "token revocation".to_string(),
+        });
+    };
+    match state.inner.auth.tokens.find_by_key(key) {
+        Some(record) if record.username != username => error_response(&RegistryError::Forbidden {
+            user: username,
+            action: "revoke",
+            resource: "this token".to_string(),
+        }),
+        Some(_) => match state.inner.auth.tokens.revoke_by_key(key).await {
+            Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
+            Ok(None) => not_found(),
+            Err(err) => error_response(&err),
+        },
+        None => not_found(),
+    }
+}
+
+/// `DELETE /-/user/token/:tok` — npm logout. The path holds the raw
+/// bearer token (npm sends it verbatim alongside an
+/// `Authorization: Bearer <tok>` header). We require authentication
+/// and require that the auth identifies the same user who owns the
+/// token being deleted.
+async fn logout(state: &AppState, headers: &HeaderMap, raw_token: &str) -> Response {
+    let Some(username) = caller_username(state, headers) else {
+        return error_response(&RegistryError::Unauthenticated { resource: "logout".to_string() });
+    };
+    let Some(target_owner) = state.inner.auth.tokens.lookup(raw_token) else {
+        return not_found();
+    };
+    if target_owner != username {
+        return error_response(&RegistryError::Forbidden {
+            user: username,
+            action: "revoke",
+            resource: "this token".to_string(),
+        });
+    }
+    match state.inner.auth.tokens.revoke_by_raw(raw_token).await {
+        Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": true })),
+        Ok(None) => not_found(),
+        Err(err) => error_response(&err),
+    }
+}
+
+fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value {
+    let preview: String = key.chars().take(6).collect();
+    let created = iso_from_unix_millis((record.created_at as i64) * 1000);
+    let updated = iso_from_unix_millis((record.last_used_at as i64) * 1000);
+    json!({
+        "key": key,
+        "token": preview,
+        "user": record.username,
+        "cidr_whitelist": record.cidr_whitelist,
+        "readonly": record.readonly,
+        "created": created,
+        "updated": updated,
+    })
+}
+
+fn caller_username(state: &AppState, headers: &HeaderMap) -> Option<String> {
+    identify(
+        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
+        &state.inner.auth.users,
+        &state.inner.auth.tokens,
+    )
+}
+
+fn json_response(status: StatusCode, body: &Value) -> Response {
+    let bytes = serde_json::to_vec(body).expect("static-shape JSON serializes");
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
 }

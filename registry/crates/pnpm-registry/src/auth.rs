@@ -309,6 +309,60 @@ impl TokenStore {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
         inner.tokens.get(&token_hash).map(|record| record.username.clone())
     }
+
+    /// Snapshot the record for a token by its key (SHA-256 hex). Used
+    /// to check ownership before revocation — the revoke handler
+    /// rejects a delete from a non-owner with 403 before touching the
+    /// store.
+    pub fn find_by_key(&self, key: &str) -> Option<TokenRecord> {
+        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
+        inner.tokens.get(key).cloned()
+    }
+
+    /// All tokens owned by `username`. Returns `(key, record)` pairs
+    /// where `key` is the SHA-256 hex digest of the raw token — the
+    /// same value the `/-/npm/v1/tokens` listing surfaces, and what
+    /// `npm token revoke` sends back to the delete endpoint.
+    pub fn list_for_user(&self, username: &str) -> Vec<(String, TokenRecord)> {
+        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
+        inner
+            .tokens
+            .iter()
+            .filter(|(_, record)| record.username == username)
+            .map(|(hash, record)| (hash.clone(), record.clone()))
+            .collect()
+    }
+
+    /// Remove a token by its key (the SHA-256 hex digest). Returns
+    /// the deleted record so the caller can check ownership before
+    /// committing the revocation in a higher layer.
+    pub async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let removed = {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.tokens.remove(key)
+        };
+        let Some(record) = removed else {
+            return Ok(None);
+        };
+        if let Some(path) = self.persist.clone() {
+            let key = key.to_string();
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                let conn = Connection::open(&path)?;
+                delete_token(&conn, &key)?;
+                Ok(())
+            })
+            .await??;
+        }
+        Ok(Some(record))
+    }
+
+    /// Remove a token by its raw value. The `DELETE /-/user/token/:tok`
+    /// (npm logout) path puts the bearer token verbatim in the URL,
+    /// so this hashes first and then defers to [`Self::revoke_by_key`].
+    pub async fn revoke_by_raw(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        let key = sha256_hex(raw.as_bytes());
+        self.revoke_by_key(&key).await
+    }
 }
 
 impl Default for TokenStore {
@@ -511,6 +565,11 @@ fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
         );
     }
     Ok(out)
+}
+
+fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
+    conn.execute("DELETE FROM tokens WHERE token_hash = ?1", rusqlite::params![token_hash])?;
+    Ok(())
 }
 
 fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Result<()> {
