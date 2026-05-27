@@ -2934,6 +2934,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-workspace-projects-filter"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap",
+ "miette 7.6.0",
+ "pacquet-config",
+ "pacquet-testing-utils",
+ "pacquet-workspace-projects-graph",
+ "pathdiff",
+]
+
+[[package]]
+name = "pacquet-workspace-projects-graph"
+version = "0.0.1"
+dependencies = [
+ "indexmap",
+ "node-semver",
+ "pacquet-workspace-range-resolver",
+ "pacquet-workspace-spec",
+]
+
+[[package]]
 name = "pacquet-workspace-range-resolver"
 version = "0.0.1"
 dependencies = [

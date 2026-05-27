@@ -23,3 +23,42 @@ fn recursive_flag_is_global_and_parses_either_side_of_subcommand() {
     assert!(after.recursive, "`install --recursive` → recursive");
     assert!(matches!(after.command, CliCommand::Install(_)));
 }
+
+/// `--filter` / `--filter-prod` default to empty when absent.
+#[test]
+fn filter_defaults_are_empty() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
+    assert!(parsed.filter.is_empty(), "no `--filter` → empty");
+    assert!(parsed.filter_prod.is_empty(), "no `--filter-prod` → empty");
+}
+
+/// `--filter` (and its `-F` short form) is repeatable, collecting each
+/// occurrence into the selector list, and `--filter-prod` collects
+/// separately. Mirrors pnpm's CLI-only `filter` / `filterProd` arrays.
+#[test]
+fn filter_flags_collect_selectors() {
+    let parsed = CliArgs::try_parse_from([
+        "pacquet",
+        "install",
+        "--filter",
+        "@scope/*",
+        "-F",
+        "./pkg",
+        "--filter-prod",
+        "app...",
+    ])
+    .expect("parses repeated filter flags");
+    assert_eq!(parsed.filter, ["@scope/*", "./pkg"]);
+    assert_eq!(parsed.filter_prod, ["app..."]);
+    assert!(matches!(parsed.command, CliCommand::Install(_)));
+}
+
+/// `-F` is global, so it parses before the subcommand too. Mirrors
+/// pnpm's global `--filter`.
+#[test]
+fn filter_flag_is_global_and_parses_before_subcommand() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "-F", "@scope/*", "install"])
+        .expect("parses -F install");
+    assert_eq!(parsed.filter, ["@scope/*"]);
+    assert!(matches!(parsed.command, CliCommand::Install(_)));
+}

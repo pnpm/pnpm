@@ -1,0 +1,26 @@
+[package]
+name                  = "pacquet-workspace-projects-filter"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-config                   = { workspace = true }
+pacquet-workspace-projects-graph = { workspace = true }
+
+derive_more = { workspace = true }
+indexmap    = { workspace = true }
+miette      = { workspace = true }
+pathdiff    = { workspace = true }
+
+[dev-dependencies]
+pacquet-testing-utils = { workspace = true }
+
+[lints]
+workspace = true
