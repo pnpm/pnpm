@@ -1,6 +1,6 @@
 ---
 "@pnpm/config": patch
-"@pnpm/network.auth-header": patch
+"@pnpm/network.auth-header": major
 "pnpm": patch
 ---
 
