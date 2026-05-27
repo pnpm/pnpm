@@ -68,6 +68,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       ...getHeaders({
         auth: opts?.authHeaderValue,
         fullMetadata: opts?.fullMetadata,
+        method: opts?.method,
         userAgent: defaultOpts.userAgent,
       }),
     }
@@ -125,7 +126,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
 }
 
 interface Headers {
-  accept: string
+  accept?: string
   authorization?: string
   'user-agent'?: string
 }
@@ -134,11 +135,16 @@ function getHeaders (
   opts: {
     auth?: string
     fullMetadata?: boolean
+    method?: string
     userAgent?: string
   }
 ): Headers {
-  const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
-    accept: opts.fullMetadata === true ? ACCEPT_FULL_DOC : ACCEPT_ABBREVIATED_DOC,
+  const headers: Headers = {}
+  // The abbreviated/full-metadata Accept header is meaningful only on package
+  // metadata reads. Setting it on writes (PUT/POST/DELETE) breaks npmjs.org's
+  // dist-tag endpoint, which rejects the request with a generic 400.
+  if (!opts.method || opts.method === 'GET' || opts.method === 'HEAD') {
+    headers.accept = opts.fullMetadata === true ? ACCEPT_FULL_DOC : ACCEPT_ABBREVIATED_DOC
   }
   if (opts.auth) {
     headers['authorization'] = opts.auth

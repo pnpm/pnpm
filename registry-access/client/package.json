@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/network.web-auth": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:"
   },
   "devDependencies": {
