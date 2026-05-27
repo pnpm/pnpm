@@ -279,11 +279,9 @@ pub struct PickPackageOptions<'a> {
     /// either knob set to `true` makes the pick request full
     /// metadata.
     pub optional: bool,
-    /// `true` skips the cache fast paths and always goes to the
-    /// registry (with conditional headers). Mirrors pnpm's
-    /// `--update-checksums` flag — the refresh must not be subverted
-    /// by a stale local cache that already has the wanted version
-    /// pinned.
+    /// `true` skips the on-disk exact-version fast path so a stale
+    /// disk packument can't satisfy the call without a conditional
+    /// registry request. Mirrors pnpm's `--update-checksums`.
     pub update_checksums: bool,
 }
 
@@ -422,9 +420,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     };
 
     // 1. In-memory cache.
-    if !opts.update_checksums
-        && let Some(cached) = ctx.meta_cache.get(&cache_key)
-    {
+    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
         return handle_cache_hit(
             ctx,
             spec,
@@ -466,9 +462,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // this re-check, every duplicate caller would still fall
     // through to the disk + network path even though they were
     // waiting precisely for the winner's fetch to complete.
-    if !opts.update_checksums
-        && let Some(cached) = ctx.meta_cache.get(&cache_key)
-    {
+    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
         return handle_cache_hit(
             ctx,
             spec,

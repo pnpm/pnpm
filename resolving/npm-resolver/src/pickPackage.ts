@@ -71,10 +71,12 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   includeLatestTag?: boolean
   optional?: boolean
   /**
-   * When true, skip the in-memory and exact-version on-disk metadata
-   * caches and always go to the registry (with conditional headers).
-   * Set by `--update-checksums` so the refresh isn't subverted by a
-   * stale local cache that already has the wanted version pinned.
+   * When true, skip the on-disk exact-version cache fast path so a
+   * stale on-disk packument can't satisfy the call without a
+   * conditional registry request. The in-memory cache is left alone:
+   * its entries can only be populated by this install's own fresh
+   * network fetches, so they're authoritative for second-and-onward
+   * lookups within the same install.
    */
   updateChecksums?: boolean
 }
@@ -213,7 +215,7 @@ export async function pickPackage (
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
   const pkgMirror = getPkgMirrorPath(ctx.cacheDir, metaDir, opts.registry, spec.name)
   const cachedMeta = ctx.metaCache.get(cacheKey)
-  if (cachedMeta != null && !opts.updateChecksums) {
+  if (cachedMeta != null) {
     // The in-memory cache may hold abbreviated metadata from an earlier call
     // that didn't need `time` (no publishedBy then). If this call has
     // publishedBy and the package was modified recently, upgrade to full
