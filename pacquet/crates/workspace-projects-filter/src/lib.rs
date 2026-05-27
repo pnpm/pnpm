@@ -4,7 +4,7 @@
 //! Turns `--filter` / `--filter-prod` selector strings into the set of
 //! workspace projects they select. The pieces mirror upstream:
 //!
-//! - [`parse_project_selector`] parses one selector string into a
+//! - [`parse_project_selector()`] parses one selector string into a
 //!   [`ProjectSelector`] (name glob, directory, `...`-dependents /
 //!   dependencies, `^` exclude-self, `!` exclude, `[<since>]` diff).
 //! - [`filter_workspace_projects`] resolves selectors against a
