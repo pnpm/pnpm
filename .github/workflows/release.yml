@@ -31,13 +31,20 @@ jobs:
         uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
         with:
           standalone: true
+      # Pin Node to the latest version still compatible with `esm@3.2.25`,
+      # which is pulled in transitively by `publish-packed` and crashes the
+      # `pnpm/bundle.ts` step on the runner's default Node. See #11988 /
+      # release 10.34.0 incident for context.
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20
       - name: npm install
         run: pnpm install --global npm@11.6.2
       - name: pnpm install
         # We use --force because we want all artifacts of @reflink/reflink to be installed.
         run: pnpm install --force
       - name: Publish Packages
-        continue-on-error: true
         env:
           # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
           # probably "pnpm release" doesn't pass auth tokens to child processes
