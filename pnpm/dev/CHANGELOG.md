@@ -1,5 +1,13 @@
 # pd
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [e8b3ae1]
+  - @pnpm/workspace.projects-reader@1101.0.8
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.5
+
 ## 1100.0.10
 
 ### Patch Changes

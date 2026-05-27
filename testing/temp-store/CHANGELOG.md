@@ -1,5 +1,14 @@
 # @pnpm/testing.temp-store
 
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.3
+- @pnpm/resolving.resolver-base@1100.3.1
+- @pnpm/store.controller@1101.0.9
+- @pnpm/store.controller-types@1100.1.2
+
 ## 1100.1.3
 
 ### Patch Changes
