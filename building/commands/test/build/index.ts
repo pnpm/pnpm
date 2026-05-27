@@ -101,6 +101,59 @@ test('rebuilds dependencies', async () => {
   cacheIntegrity.sideEffects!.get(sideEffectsKey)!.added!.delete('generated-by-postinstall.js')
 })
 
+test('rebuilds dependencies in the global virtual store', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  // `allowBuilds` is part of the GVS hash, so the install and the later rebuild
+  // must agree on it (otherwise they'd resolve different projection directories).
+  fs.writeFileSync('pnpm-workspace.yaml', [
+    'enableGlobalVirtualStore: true',
+    'allowBuilds:',
+    '  "@pnpm.e2e/pre-and-postinstall-scripts-example": true',
+    '',
+  ].join('\n'))
+
+  // Install with the build deferred (--ignore-scripts) under the global virtual
+  // store. The package lives in <storeDir>/<version>/links/<hash>, NOT the classic
+  // node_modules/.pnpm layout, so the subsequent rebuild must target it.
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '--save-dev',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    '--ignore-scripts',
+    `--cache-dir=${cacheDir}`,
+  ])
+
+  const pkgVersionDir = path.join(storeDir, STORE_VERSION, 'links/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
+  const hash = fs.readdirSync(pkgVersionDir)[0]
+  const pkgInGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+
+  // The build was deferred, so the postinstall artifact is not there yet.
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
+
+  const modulesManifest = project.readModulesManifest()
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    registries: modulesManifest!.registries!,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }, [])
+
+  // Regression (GVS): the rebuild previously resolved the package from the classic
+  // virtualStoreDir path, which does not exist under the global virtual store, so
+  // the build script never ran. It must build into the GVS projection instead.
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+})
+
 test('skipIfHasSideEffectsCache', async () => {
   const project = prepare()
   const cacheDir = path.resolve('cache')
