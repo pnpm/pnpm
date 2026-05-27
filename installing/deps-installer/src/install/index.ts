@@ -43,6 +43,7 @@ import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
   getWantedLockfileName,
+  isEmptyLockfile,
   type LockfileObject,
   type ProjectSnapshot,
   readWantedLockfile,
@@ -909,7 +910,7 @@ export async function mutateModules (
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
-        ctx.hasUsableLockfile &&
+        !isEmptyLockfile(ctx.wantedLockfile) &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           catalogs: opts.catalogs,
@@ -983,7 +984,7 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredBuilds: undefined,
       }
     }
-    if (!ctx.hasUsableLockfile) {
+    if (isEmptyLockfile(ctx.wantedLockfile)) {
       if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
         throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
       }

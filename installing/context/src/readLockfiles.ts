@@ -20,7 +20,6 @@ export interface PnpmContext {
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
-  hasUsableLockfile: boolean
   wantedLockfile: LockfileObject
 }
 
@@ -49,7 +48,6 @@ export async function readLockfiles (
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
-  hasUsableLockfile: boolean
   wantedLockfile: LockfileObject
   wantedLockfileIsModified: boolean
   lockfileHadConflicts: boolean
@@ -146,7 +144,6 @@ export async function readLockfiles (
     existsCurrentLockfile,
     existsWantedLockfile,
     existsNonEmptyWantedLockfile: existsWantedLockfile && !isEmptyLockfile(wantedLockfile),
-    hasUsableLockfile: !isEmptyLockfile(wantedLockfile),
     wantedLockfile,
     wantedLockfileIsModified,
     lockfileHadConflicts,
