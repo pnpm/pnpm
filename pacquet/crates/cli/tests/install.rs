@@ -505,6 +505,87 @@ fn fresh_install_honors_enable_global_virtual_store() {
     drop((root, mock_instance)); // cleanup
 }
 
+/// End-to-end coverage for the `cache+node_modules` shortcut. After a
+/// successful install, deleting `pnpm-lock.yaml` but keeping `node_modules`
+/// (and the materialized `node_modules/.pnpm/lock.yaml`) should let the
+/// next `pacquet install` skip resolution and regenerate the lockfile
+/// from the on-disk snapshot. Mirrors the pnpm-side fix at
+/// <https://github.com/pnpm/pnpm/commit/8a2146b7be>.
+#[test]
+fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
+    use std::process::Command;
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    eprintln!("Priming with the first install...");
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    assert!(lockfile_path.exists(), "first install must produce pnpm-lock.yaml");
+
+    eprintln!("Removing pnpm-lock.yaml; node_modules/.pnpm/lock.yaml stays intact...");
+    fs::remove_file(&lockfile_path).expect("remove pnpm-lock.yaml");
+    // The test helper writes a `pnpm-workspace.yaml` for storeDir/cacheDir
+    // config, which makes `optimistic_repeat_install` treat this as a
+    // workspace install and skip the missing-wanted-lockfile invalidator.
+    // Drop the workspace state file so the freshness fast path falls
+    // through to the regular install dispatch where the synthesis logic
+    // lives. Real-world single-project installs (no pnpm-workspace.yaml)
+    // hit the `wanted lockfile missing` gate at
+    // `optimistic_repeat_install.rs:149` directly.
+    fs::remove_file(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+        .expect("remove .pnpm-workspace-state-v1.json");
+
+    eprintln!("Re-running install with --reporter=ndjson...");
+    let pacquet_rerun = Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace);
+    let output = pacquet_rerun
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run pacquet install");
+    assert!(
+        output.status.success(),
+        "second install must succeed: stderr={}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let up_to_date = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|record| {
+            record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+                && record.get("level").and_then(|v| v.as_str()) == Some("info")
+                && record.get("message").and_then(|v| v.as_str())
+                    == Some("Lockfile is up to date, resolution step is skipped")
+        });
+    assert!(
+        up_to_date.is_some(),
+        "expected `name: \"pnpm\" / level: \"info\"` up-to-date log in NDJSON stderr; got:\n{stderr}",
+    );
+
+    let regenerated =
+        fs::read_to_string(&lockfile_path).expect("pnpm-lock.yaml was regenerated");
+    assert!(
+        regenerated.contains("@pnpm.e2e/hello-world-js-bin-parent")
+            && regenerated.contains("@pnpm.e2e/hello-world-js-bin"),
+        "regenerated pnpm-lock.yaml must list the installed packages:\n{regenerated}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
 /// End-to-end coverage for the no-op short-circuit. After a successful
 /// install, a second `pacquet install --frozen-lockfile` against an
 /// untouched workspace must skip materialization and emit pnpm's
