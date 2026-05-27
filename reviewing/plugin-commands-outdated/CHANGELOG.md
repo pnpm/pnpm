@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.71
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.34
+- @pnpm/outdated@1001.1.24
+
 ## 1000.0.70
 
 ### Patch Changes

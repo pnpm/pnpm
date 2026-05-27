@@ -1,5 +1,25 @@
 # @pnpm/core
 
+## 1016.4.1
+
+### Patch Changes
+
+- Updated dependencies [b8196b8]
+  - @pnpm/lockfile.utils@1004.0.5
+  - @pnpm/plugin-commands-rebuild@1008.0.16
+  - @pnpm/lockfile.filtering@1001.0.33
+  - @pnpm/lockfile.fs@1001.1.34
+  - @pnpm/lockfile-to-pnp@1001.0.36
+  - @pnpm/lockfile.preferred-versions@1000.0.34
+  - @pnpm/lockfile.verification@1001.2.26
+  - @pnpm/calc-dep-state@1003.0.5
+  - @pnpm/headless@1010.1.13
+  - @pnpm/modules-cleaner@1001.0.37
+  - @pnpm/resolve-dependencies@1008.8.3
+  - @pnpm/get-context@1001.2.10
+  - @pnpm/lockfile.settings-checker@1001.1.2
+  - @pnpm/build-modules@1007.0.14
+
 ## 1016.4.0
 
 ### Minor Changes

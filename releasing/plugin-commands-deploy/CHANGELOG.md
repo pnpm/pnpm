@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.42
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.34
+- @pnpm/plugin-commands-installation@1004.10.1
+
 ## 1002.0.41
 
 ### Patch Changes

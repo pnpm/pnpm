@@ -1,5 +1,14 @@
 # @pnpm/deps.status
 
+## 1003.0.40
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.34
+- @pnpm/lockfile.verification@1001.2.26
+- @pnpm/get-context@1001.2.10
+- @pnpm/lockfile.settings-checker@1001.1.2
+
 ## 1003.0.39
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1000.0.43
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.34
+
 ## 1000.0.42
 
 ### Patch Changes
