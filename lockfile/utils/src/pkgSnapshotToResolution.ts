@@ -1,4 +1,5 @@
 import url from 'url'
+import { PnpmError } from '@pnpm/error'
 import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.types'
 import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
@@ -10,10 +11,33 @@ export function pkgSnapshotToResolution (
   pkgSnapshot: PackageSnapshot,
   registries: Registries
 ): Resolution {
+  const resolution = pkgSnapshot.resolution as TarballResolution
+  // Tarball-shaped resolutions (no `type` field) must carry `integrity`,
+  // except where the URL itself anchors the bytes:
+  //   - `file:` tarballs (local file on the user's machine; integrity
+  //     adds nothing the user doesn't already control).
+  //   - Git-hosted tarballs (URL contains the commit SHA; git's content-
+  //     addressed model binds the bytes to the commit). The `gitHosted`
+  //     flag may be absent on legacy lockfiles, so fall back to a URL
+  //     match against the known git-host download endpoints.
+  // For any other tarball entry a missing integrity is what a tampered
+  // lockfile looks like: the worker would mint a fresh integrity from
+  // whatever bytes the URL returned, so we fail closed here.
   if (
-    Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
-    (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||
-    (pkgSnapshot.resolution as TarballResolution).gitHosted === true
+    resolution.type == null &&
+    resolution.integrity == null &&
+    !resolution.tarball?.startsWith('file:') &&
+    !(resolution.gitHosted === true || (resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball)))
+  ) {
+    throw new PnpmError('MISSING_TARBALL_INTEGRITY',
+      `Cannot install package "${depPath}": its lockfile entry has no "integrity" field, so pnpm cannot verify the downloaded tarball.`,
+      { hint: 'The lockfile may be corrupted or have been tampered with. Restore it from a trusted source, or delete it and re-run installation without --frozen-lockfile to regenerate.' }
+    )
+  }
+  if (
+    Boolean(resolution.type) ||
+    resolution.tarball?.startsWith('file:') ||
+    resolution.gitHosted === true
   ) {
     return pkgSnapshot.resolution as Resolution
   }
@@ -46,4 +70,16 @@ export function pkgSnapshotToResolution (
     }
     return getNpmTarballUrl(name, version, { registry })
   }
+}
+
+// Fallback for legacy lockfile entries whose tarball resolution lacks the
+// `gitHosted` flag. Matches the known git-host download endpoints so a URL
+// rewritten by pnpm's git resolver is still recognized as content-addressed
+// and exempt from the integrity requirement.
+function isGitHostedTarballUrl (url: string): boolean {
+  return (
+    url.startsWith('https://codeload.github.com/') ||
+    url.startsWith('https://bitbucket.org/') ||
+    url.startsWith('https://gitlab.com/')
+  )
 }
