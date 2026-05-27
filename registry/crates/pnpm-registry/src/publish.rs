@@ -1,101 +1,108 @@
 //! Helpers for the `PUT /:pkg` publish endpoint.
 //!
 //! npm sends the entire packument plus base64-encoded tarballs in a
-//! single JSON body. This module decodes those attachments, merges
-//! the incoming manifest into whatever packument is already on disk,
-//! and returns the bytes that should be written back. The actual I/O
-//! happens in the server handler — keeping the side-effecting code
-//! isolated keeps these helpers easy to unit-test.
+//! single JSON body. This module pulls the attachment metadata out of
+//! the body, merges the incoming manifest into whatever packument is
+//! already on disk, and provides the streaming decode/verify/write
+//! routine the handler uses to persist each tarball. The actual I/O
+//! lives here behind a sync interface so the publish handler can run
+//! it inside [`tokio::task::spawn_blocking`] without blocking the
+//! async runtime, and so these helpers stay easy to unit-test.
 
 use std::collections::BTreeMap;
-use std::fmt::Write;
+use std::fmt::Write as FmtWrite;
+use std::fs::File;
+use std::io::{Cursor, Read, Write};
+use std::path::Path;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::read::DecoderReader;
 use serde_json::{Map, Value};
-use ssri::{Algorithm, Integrity, IntegrityOpts};
+use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
 
 use crate::error::RegistryError;
 
-/// One decoded attachment from a publish body.
+/// Per-tarball metadata pulled out of an `_attachments` entry. We
+/// hold the base64 payload as an owned `String` rather than decoding
+/// it eagerly — the streaming write path consumes it directly and
+/// the decoded bytes never have to live in memory.
 #[derive(Debug)]
-pub struct Attachment {
+pub struct PendingAttachment {
     pub filename: String,
-    pub bytes: Vec<u8>,
+    /// Base64-encoded tarball, taken verbatim from the publish body.
+    pub data: String,
+    /// `_attachments.<filename>.length` — the declared byte count of
+    /// the *decoded* tarball, used to catch truncated uploads.
+    pub declared_length: Option<u64>,
 }
 
-/// Pull all `_attachments` out of a publish body and base64-decode
-/// the tarballs. Returns the attachments and removes the
-/// `_attachments` field from `body` so the saved packument doesn't
-/// duplicate the on-disk tarball. Length mismatches between the
-/// declared `length` and the decoded body surface as a 400.
-pub fn extract_attachments(body: &mut Value) -> Result<Vec<Attachment>, RegistryError> {
+/// Pull all `_attachments` out of a publish body. Returns one
+/// [`PendingAttachment`] per entry and removes the `_attachments`
+/// field from `body` so the saved packument doesn't duplicate the
+/// on-disk tarball. Base64 decoding is deferred to the streaming
+/// write path; this function just validates shape.
+pub fn extract_attachments(body: &mut Value) -> Result<Vec<PendingAttachment>, RegistryError> {
     let Some(obj) = body.as_object_mut() else {
         return Ok(Vec::new());
     };
     let Some(attachments_value) = obj.remove("_attachments") else {
         return Ok(Vec::new());
     };
-    let Some(attachments) = attachments_value.as_object() else {
+    let Value::Object(attachments) = attachments_value else {
         return Err(RegistryError::BadRequest {
             reason: "_attachments must be an object".to_string(),
         });
     };
     let mut out = Vec::with_capacity(attachments.len());
     for (filename, value) in attachments {
-        let Some(value_obj) = value.as_object() else {
+        let Value::Object(mut value_obj) = value else {
             return Err(RegistryError::InvalidAttachment {
-                filename: filename.clone(),
+                filename,
                 reason: "expected object".to_string(),
             });
         };
-        let data = value_obj.get("data").and_then(Value::as_str).ok_or_else(|| {
-            RegistryError::InvalidAttachment {
-                filename: filename.clone(),
-                reason: "missing string field `data`".to_string(),
-            }
-        })?;
-        let bytes = BASE64.decode(data).map_err(|err| RegistryError::InvalidAttachment {
-            filename: filename.clone(),
-            reason: format!("base64 decode failed: {err}"),
-        })?;
-        if let Some(expected) = value_obj.get("length").and_then(Value::as_u64) {
-            // npm sends both the length and the data; cross-check to
-            // catch a truncated upload before we write it.
-            if expected != bytes.len() as u64 {
+        let data = match value_obj.remove("data") {
+            Some(Value::String(s)) => s,
+            _ => {
                 return Err(RegistryError::InvalidAttachment {
-                    filename: filename.clone(),
-                    reason: format!(
-                        "length mismatch: header says {expected}, decoded {}",
-                        bytes.len(),
-                    ),
+                    filename,
+                    reason: "missing string field `data`".to_string(),
                 });
             }
-        }
-        out.push(Attachment { filename: filename.clone(), bytes });
+        };
+        let declared_length = value_obj.get("length").and_then(Value::as_u64);
+        out.push(PendingAttachment { filename, data, declared_length });
     }
     Ok(out)
 }
 
-/// Verify that the bytes uploaded for a publish attachment match the
-/// `dist.integrity` (required) and `dist.shasum` (optional, legacy)
-/// digests the packument declares.
+/// Stream-decode a base64 attachment, hash it as it flows by, and
+/// write the bytes to `dest`. Fails fast (and leaves no on-disk
+/// artifact other than the caller-supplied tmp file) if the decoded
+/// tarball doesn't match the declared `dist.integrity` SRI, the
+/// optional legacy `dist.shasum`, or the declared `length`.
+///
+/// Synchronous on purpose: the publish handler runs this inside
+/// [`tokio::task::spawn_blocking`] so the base64-decode and hashing
+/// stages can use plain `std::io` and operate on chunks small enough
+/// (`CHUNK_BYTES`) that the full decoded payload never lives in
+/// memory at once — only the original base64 string (held by the
+/// JSON value) and a 64 KiB working buffer.
 ///
 /// `dist.integrity` is required. npm always emits it; a body that
-/// arrives without it is either tampered with or produced by a buggy
-/// client, and accepting it would store a tarball whose hash the
-/// registry can never claim to have verified. Rejecting the publish
-/// up-front prevents the silent-corruption class of bug where a
-/// downstream `pnpm install` only discovers the mismatch much later
-/// — after the bad bytes have already replicated to other caches.
-///
-/// Both mismatches surface as a 400 with an `EINTEGRITY:` prefix so
-/// pnpm / npm clients can recognize the failure mode.
-pub fn verify_attachment(
+/// arrives without it is either tampered with or produced by a
+/// buggy client, and accepting it would store a tarball whose hash
+/// the registry never verified. All EINTEGRITY-class failures
+/// surface with an `EINTEGRITY:` prefix so pnpm / npm clients can
+/// recognize them.
+pub fn stream_decode_verify_and_write(
     filename: &str,
-    bytes: &[u8],
+    base64_data: &str,
+    declared_length: Option<u64>,
     dist: Option<&Value>,
-) -> Result<(), RegistryError> {
+    dest: &Path,
+) -> Result<u64, RegistryError> {
     let invalid = |reason: String| RegistryError::InvalidAttachment {
         filename: filename.to_string(),
         reason,
@@ -106,38 +113,79 @@ pub fn verify_attachment(
                 .to_string(),
         )
     })?;
-
     let declared_integrity = dist
         .get("integrity")
         .and_then(Value::as_str)
         .ok_or_else(|| invalid("EINTEGRITY: dist.integrity is required".to_string()))?;
-    let parsed: Integrity = declared_integrity
+    let integrity: Integrity = declared_integrity
         .parse()
         .map_err(|err| invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
-    parsed.check(bytes).map_err(|err| invalid(format!("EINTEGRITY: integrity mismatch: {err}")))?;
+    let declared_shasum = dist.get("shasum").and_then(Value::as_str);
 
-    if let Some(declared_shasum) = dist.get("shasum").and_then(Value::as_str) {
-        let computed = compute_shasum_hex(bytes);
-        if !computed.eq_ignore_ascii_case(declared_shasum) {
+    let mut checker = IntegrityChecker::new(integrity);
+    let mut shasum_hasher =
+        declared_shasum.is_some().then(|| IntegrityOpts::new().algorithm(Algorithm::Sha1));
+
+    let mut decoder = DecoderReader::new(Cursor::new(base64_data.as_bytes()), &BASE64);
+    let mut file = File::create(dest).map_err(RegistryError::Io)?;
+    const CHUNK_BYTES: usize = 64 * 1024;
+    let mut buf = vec![0u8; CHUNK_BYTES];
+    let mut total: u64 = 0;
+    loop {
+        let n = match decoder.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(err) => {
+                let _ = std::fs::remove_file(dest);
+                return Err(invalid(format!("base64 decode failed: {err}")));
+            }
+        };
+        let chunk = &buf[..n];
+        if let Err(err) = file.write_all(chunk) {
+            let _ = std::fs::remove_file(dest);
+            return Err(RegistryError::Io(err));
+        }
+        checker.input(chunk);
+        if let Some(hasher) = shasum_hasher.as_mut() {
+            hasher.input(chunk);
+        }
+        total += n as u64;
+    }
+
+    if let Some(expected) = declared_length
+        && expected != total
+    {
+        let _ = std::fs::remove_file(dest);
+        return Err(invalid(format!("length mismatch: header says {expected}, decoded {total}")));
+    }
+
+    if let Err(err) = checker.result() {
+        let _ = std::fs::remove_file(dest);
+        return Err(invalid(format!("EINTEGRITY: integrity mismatch: {err}")));
+    }
+    if let Some(declared) = declared_shasum {
+        let hasher = shasum_hasher.expect("shasum_hasher initialized when declared_shasum present");
+        let computed = sha1_hex_from_integrity_opts(hasher);
+        if !computed.eq_ignore_ascii_case(declared) {
+            let _ = std::fs::remove_file(dest);
             return Err(invalid(format!(
-                "EINTEGRITY: shasum mismatch: declared {declared_shasum:?}, computed {computed:?}",
+                "EINTEGRITY: shasum mismatch: declared {declared:?}, computed {computed:?}",
             )));
         }
     }
 
-    Ok(())
+    if let Err(err) = file.sync_all() {
+        let _ = std::fs::remove_file(dest);
+        return Err(RegistryError::Io(err));
+    }
+    Ok(total)
 }
 
-/// Compute the SHA-1 of `bytes` as a 40-character lowercase hex
-/// string — the shape npm's legacy `dist.shasum` field uses.
-///
-/// We piggyback on `ssri` (already a workspace dep for the streaming
-/// `integrity` check) so we don't pull in a second SHA-1 crate. ssri
-/// returns the digest base64-encoded inside an [`Integrity`]; we
-/// decode and re-encode as hex for the shasum comparison.
-fn compute_shasum_hex(bytes: &[u8]) -> String {
-    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
-    opts.input(bytes);
+/// Finalize a SHA-1 [`IntegrityOpts`] and re-encode the digest as a
+/// 40-character lowercase hex string — the shape npm's legacy
+/// `dist.shasum` field uses. ssri stores digests base64-encoded, so
+/// we decode and re-encode as hex for the comparison.
+fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
     let integrity = opts.result();
     let digest_base64 = integrity
         .hashes
@@ -276,9 +324,18 @@ pub fn now_iso() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_attachments, merge_manifest, now_iso, verify_attachment};
+    use std::path::PathBuf;
+
+    use base64::Engine;
+    use base64::engine::general_purpose::STANDARD as BASE64;
     use serde_json::{Value, json};
     use ssri::{Algorithm, IntegrityOpts};
+    use tempfile::TempDir;
+
+    use super::{
+        extract_attachments, merge_manifest, now_iso, sha1_hex_from_integrity_opts,
+        stream_decode_verify_and_write,
+    };
 
     fn sri_sha512(bytes: &[u8]) -> String {
         let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
@@ -286,44 +343,79 @@ mod tests {
         opts.result().to_string()
     }
 
+    fn sha1_hex(bytes: &[u8]) -> String {
+        let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
+        opts.input(bytes);
+        sha1_hex_from_integrity_opts(opts)
+    }
+
+    fn run_stream(
+        bytes: &[u8],
+        dist: Option<&Value>,
+        declared_length: Option<u64>,
+    ) -> (Result<u64, crate::error::RegistryError>, PathBuf, TempDir) {
+        let tmp = TempDir::new().unwrap();
+        let dest = tmp.path().join("out.tgz");
+        let b64 = BASE64.encode(bytes);
+        let result =
+            stream_decode_verify_and_write("foo-1.0.0.tgz", &b64, declared_length, dist, &dest);
+        (result, dest, tmp)
+    }
+
     #[test]
-    fn verify_accepts_matching_integrity() {
+    fn stream_writes_matching_tarball() {
         let bytes = b"hello-world";
-        let dist = json!({ "integrity": sri_sha512(bytes) });
-        verify_attachment("foo-1.0.0.tgz", bytes, Some(&dist)).unwrap();
+        let dist = json!({ "integrity": sri_sha512(bytes), "shasum": sha1_hex(bytes) });
+        let (result, dest, _tmp) = run_stream(bytes, Some(&dist), Some(bytes.len() as u64));
+        let written = result.unwrap();
+        assert_eq!(written, bytes.len() as u64);
+        assert_eq!(std::fs::read(&dest).unwrap(), bytes);
     }
 
     #[test]
-    fn verify_rejects_integrity_mismatch() {
+    fn stream_rejects_integrity_mismatch_and_removes_tmp() {
         let dist = json!({ "integrity": sri_sha512(b"other-bytes") });
-        let err = verify_attachment("foo-1.0.0.tgz", b"actual-bytes", Some(&dist)).unwrap_err();
+        let (result, dest, _tmp) = run_stream(b"actual-bytes", Some(&dist), None);
+        let err = result.unwrap_err();
         assert!(err.to_string().contains("EINTEGRITY"), "got: {err}");
+        assert!(!dest.exists(), "tmp file must be removed on integrity mismatch");
     }
 
     #[test]
-    fn verify_rejects_missing_integrity() {
+    fn stream_rejects_missing_integrity() {
         let dist = json!({ "tarball": "http://example.com/foo-1.0.0.tgz" });
-        let err = verify_attachment("foo-1.0.0.tgz", b"bytes", Some(&dist)).unwrap_err();
-        let msg = err.to_string();
+        let (result, _dest, _tmp) = run_stream(b"bytes", Some(&dist), None);
+        let msg = result.unwrap_err().to_string();
         assert!(msg.contains("EINTEGRITY") && msg.contains("integrity"), "got: {msg}");
     }
 
     #[test]
-    fn verify_rejects_missing_dist_entry() {
-        let err = verify_attachment("foo-1.0.0.tgz", b"bytes", None).unwrap_err();
-        assert!(err.to_string().contains("EINTEGRITY"), "got: {err}");
+    fn stream_rejects_missing_dist_entry() {
+        let (result, _dest, _tmp) = run_stream(b"bytes", None, None);
+        assert!(result.unwrap_err().to_string().contains("EINTEGRITY"));
     }
 
     #[test]
-    fn verify_rejects_shasum_mismatch() {
+    fn stream_rejects_shasum_mismatch() {
         let bytes = b"shasum-bytes";
         let dist = json!({
             "integrity": sri_sha512(bytes),
             "shasum": "ffffffffffffffffffffffffffffffffffffffff",
         });
-        let err = verify_attachment("foo-1.0.0.tgz", bytes, Some(&dist)).unwrap_err();
-        let msg = err.to_string();
+        let (result, dest, _tmp) = run_stream(bytes, Some(&dist), None);
+        let msg = result.unwrap_err().to_string();
         assert!(msg.contains("shasum") && msg.contains("EINTEGRITY"), "got: {msg}");
+        assert!(!dest.exists());
+    }
+
+    #[test]
+    fn stream_rejects_declared_length_mismatch() {
+        let bytes = b"len-check";
+        let dist = json!({ "integrity": sri_sha512(bytes) });
+        let (result, dest, _tmp) = run_stream(bytes, Some(&dist), Some(99));
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("length mismatch"), "got: {msg}");
+        assert!(!dest.exists());
     }
 
     #[test]
@@ -341,18 +433,9 @@ mod tests {
         let attachments = extract_attachments(&mut body).unwrap();
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].filename, "foo-1.0.0.tgz");
-        assert_eq!(attachments[0].bytes, b"hello");
+        assert_eq!(attachments[0].data, "aGVsbG8=");
+        assert_eq!(attachments[0].declared_length, Some(5));
         assert!(body.get("_attachments").is_none(), "_attachments should be stripped");
-    }
-
-    #[test]
-    fn rejects_length_mismatch() {
-        let mut body = json!({
-            "_attachments": {
-                "f.tgz": { "data": "aGVsbG8=", "length": 99 }
-            }
-        });
-        assert!(extract_attachments(&mut body).is_err());
     }
 
     #[test]
