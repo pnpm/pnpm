@@ -199,6 +199,12 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     SaveCurrentLockfile(#[error(source)] SaveLockfileError),
 
+    /// Surfaces a failure to persist `pnpm-lock.yaml` after the
+    /// `cache+node_modules` shortcut regenerated it from the
+    /// materialized snapshot at `<virtual_store_dir>/lock.yaml`.
+    #[diagnostic(transparent)]
+    SaveWantedLockfile(#[error(source)] SaveLockfileError),
+
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` for
     /// the project being installed. Mirrors upstream's
     /// `ERR_PNPM_OUTDATED_LOCKFILE` thrown from
@@ -497,6 +503,32 @@ where
             Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::LoadCurrentLockfile)?;
 
+        // Synthesize the wanted lockfile from `<virtual_store_dir>/lock.yaml`
+        // when `pnpm-lock.yaml` is absent and the materialized snapshot still
+        // satisfies the manifest. The install then skips resolution and
+        // regenerates `pnpm-lock.yaml` from the synthesized object. Mirrors
+        // pnpm's `installing/context/src/readLockfiles.ts` clone of
+        // `currentLockfile` into the wanted slot at
+        // <https://github.com/pnpm/pnpm/blob/8a2146b7be/installing/context/src/readLockfiles.ts#L125-L138>.
+        let synthesized_lockfile: Option<Lockfile> =
+            if lockfile.is_none() && !frozen_lockfile && prefer_frozen_lockfile {
+                current_lockfile.as_ref().and_then(|current| {
+                    check_lockfile_freshness(
+                        current,
+                        manifest,
+                        config,
+                        &catalogs,
+                        ignore_manifest_check,
+                    )
+                    .ok()
+                    .map(|()| current.clone())
+                })
+            } else {
+                None
+            };
+        let lockfile_synthesized_from_current = synthesized_lockfile.is_some();
+        let lockfile = lockfile.or(synthesized_lockfile.as_ref());
+
         // Lockfile-verification gate: re-apply `minimumReleaseAge` /
         // `trustPolicy='no-downgrade'` to every entry in the loaded
         // `pnpm-lock.yaml` before any resolver or fetcher runs.
@@ -684,6 +716,11 @@ where
                 prefix: prefix.clone(),
                 stage: Stage::ImportingDone,
             }));
+            if lockfile_synthesized_from_current && config.lockfile {
+                wanted_lockfile
+                    .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                    .map_err(InstallError::SaveWantedLockfile)?;
+            }
             update_workspace_state(
                 &workspace_root,
                 &build_workspace_state(config, node_linker, included, &project_manifests),
@@ -915,6 +952,21 @@ where
             fresh_lockfile
                 .save_current_to_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::SaveCurrentLockfile)?;
+        }
+
+        // Regenerate `pnpm-lock.yaml` from the synthesized snapshot when
+        // the wanted lockfile was reconstructed from
+        // `<virtual_store_dir>/lock.yaml`. The no-op short-circuit above
+        // handles the common case; this branch covers the rare path where
+        // `.modules.yaml` was wiped or inconsistent and the frozen install
+        // had to relink.
+        if lockfile_synthesized_from_current
+            && config.lockfile
+            && let Some(synthesized) = synthesized_lockfile.as_ref()
+        {
+            synthesized
+                .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                .map_err(InstallError::SaveWantedLockfile)?;
         }
 
         // Write `node_modules/.pnpm-workspace-state-v1.json`. Mirrors

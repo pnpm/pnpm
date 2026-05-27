@@ -43,6 +43,7 @@ import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
   getWantedLockfileName,
+  isEmptyLockfile,
   type LockfileObject,
   type ProjectSnapshot,
   readWantedLockfile,
@@ -909,7 +910,7 @@ export async function mutateModules (
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
-        ctx.existsNonEmptyWantedLockfile &&
+        !isEmptyLockfile(ctx.wantedLockfile) &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           catalogs: opts.catalogs,
@@ -939,6 +940,17 @@ Note that in CI environments, this setting is enabled by default.`,
       )
     }
     if (!opts.ignorePackageManifest) {
+      // `--frozen-lockfile` (the CI default) means "fail if pnpm-lock.yaml is
+      // out of sync." Treat its absence as a sync failure even when the
+      // synthesized snapshot from node_modules/.pnpm/lock.yaml would satisfy
+      // the manifest — the developer needs to commit the regenerated file.
+      if (frozenLockfile && !ctx.existsWantedLockfile &&
+        Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
+        throw new PnpmError('NO_LOCKFILE',
+          `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
+            hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
+          })
+      }
       const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -972,7 +984,7 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredBuilds: undefined,
       }
     }
-    if (!ctx.existsNonEmptyWantedLockfile) {
+    if (isEmptyLockfile(ctx.wantedLockfile)) {
       if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
         throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
       }
