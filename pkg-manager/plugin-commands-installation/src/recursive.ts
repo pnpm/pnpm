@@ -52,6 +52,7 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 import { getSaveType } from './getSaveType.js'
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { type PreferredVersions } from '@pnpm/resolver-base'
+import { mergeOverrides } from './mergeOverrides.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -68,6 +69,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
+| 'overrides'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'
@@ -146,8 +148,9 @@ export async function recursive (
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
   const rootManifestDir = (opts.lockfileDir ?? opts.dir) as ProjectRootDir
+  const rootManifestOptions = getOptionsFromRootManifest(rootManifestDir, manifestsByPath[rootManifestDir]?.manifest ?? {})
   const installOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(rootManifestDir, manifestsByPath[rootManifestDir]?.manifest ?? {}),
+    ...mergeOverrides(rootManifestOptions, opts.overrides),
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
@@ -397,7 +400,7 @@ export async function recursive (
           {
             ...installOpts,
             ...localConfig,
-            ...getOptionsFromRootManifest(rootDir, manifest),
+            ...mergeOverrides(getOptionsFromRootManifest(rootDir, manifest), installOpts.overrides),
             ...opts.allProjectsGraph[rootDir]?.package,
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,

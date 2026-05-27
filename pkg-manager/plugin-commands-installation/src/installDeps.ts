@@ -40,6 +40,7 @@ import {
   recursive,
 } from './recursive.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { mergeOverrides } from './mergeOverrides.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -73,6 +74,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'overrides'
 | 'production'
 | 'preferWorkspacePackages'
 | 'rawLocalConfig'
@@ -215,11 +217,12 @@ when running add/update with the --workspace option')
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
+      const rootManifestOptions = getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {})
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
-          ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
+          ...mergeOverrides(rootManifestOptions, opts.overrides),
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -250,9 +253,10 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
+  const rootManifestOptions = getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest))
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest)),
+    ...mergeOverrides(rootManifestOptions, opts.overrides),
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
