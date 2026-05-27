@@ -33,45 +33,6 @@ describe('getAuthHeadersFromConfig()', () => {
       '//localhost:3000/': 'Basic foobar',
     })
   })
-  describe('should get settings for the default registry', () => {
-    it('_auth', () => {
-      const allSettings = {
-        registry: 'https://reg.com/',
-        _auth: 'foobar',
-      }
-      expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({
-        '//reg.com/': 'Basic foobar',
-      })
-    })
-    it('username/_password', () => {
-      const allSettings = {
-        registry: 'https://reg.com/',
-        username: 'foo',
-        _password: 'bar',
-      }
-      expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({
-        '//reg.com/': `Basic ${encodeBase64('foo:bar')}`,
-      })
-    })
-    it('tokenHelper', () => {
-      const allSettings = {
-        registry: 'https://reg.com/',
-      }
-      const userSettings = {
-        tokenHelper: osTokenHelper[osFamily],
-      }
-      expect(getAuthHeadersFromConfig({ allSettings, userSettings })).toStrictEqual({
-        '//reg.com/': 'Bearer token-from-spawn',
-      })
-    })
-    it('only read token helper from user config', () => {
-      const allSettings = {
-        registry: 'https://reg.com/',
-        tokenHelper: osTokenHelper[osFamily],
-      }
-      expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({})
-    })
-  })
   it('should get tokenHelper', () => {
     const userSettings = {
       '//registry.foobar.eu/:tokenHelper': osTokenHelper[osFamily],
