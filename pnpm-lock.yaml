@@ -6224,6 +6224,9 @@ importers:
       semver-range-intersect:
         specifier: 'catalog:'
         version: 0.3.1
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 5.0.0
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6243,6 +6246,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
 
   pkg-manifest/exportable-manifest:
     dependencies:
