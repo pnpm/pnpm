@@ -575,8 +575,7 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
         "expected `name: \"pnpm\" / level: \"info\"` up-to-date log in NDJSON stderr; got:\n{stderr}",
     );
 
-    let regenerated =
-        fs::read_to_string(&lockfile_path).expect("pnpm-lock.yaml was regenerated");
+    let regenerated = fs::read_to_string(&lockfile_path).expect("pnpm-lock.yaml was regenerated");
     assert!(
         regenerated.contains("@pnpm.e2e/hello-world-js-bin-parent")
             && regenerated.contains("@pnpm.e2e/hello-world-js-bin"),
