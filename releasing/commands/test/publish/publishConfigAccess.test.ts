@@ -49,19 +49,19 @@ describe('createPublishOptions: access', () => {
     expect(opts.access).toBe('public')
   })
 
-  test('access is omitted when neither CLI nor publishConfig set it', async () => {
+  test('access defaults to null when neither CLI nor publishConfig set it', async () => {
     const opts = await createPublishOptions(
       { name: '@scope/pkg', version: '1.0.0' },
       baseOpts()
     )
-    expect(opts.access).toBeUndefined()
+    expect(opts.access).toBeNull()
   })
 
-  test('invalid publishConfig.access values are ignored', async () => {
+  test('invalid publishConfig.access values fall back to default access', async () => {
     const opts = await createPublishOptions(
       { name: '@scope/pkg', version: '1.0.0', publishConfig: { access: 'bogus' as 'public' } },
       baseOpts()
     )
-    expect(opts.access).toBeUndefined()
+    expect(opts.access).toBeNull()
   })
 })
