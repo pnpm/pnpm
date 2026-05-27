@@ -107,6 +107,10 @@ where
     /// override merge happens in the caller and lands here as a
     /// fully-resolved value.
     pub trust_lockfile: bool,
+    /// Refresh locked integrity values from the registry. Skips the
+    /// frozen-lockfile path so the fresh-resolve path rewrites them.
+    /// Mirrors pnpm's `--update-checksums`.
+    pub update_checksums: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
     /// with the CLI per-axis overrides (`--cpu` / `--os` / `--libc`).
@@ -223,6 +227,13 @@ pub enum InstallError {
     #[diagnostic(code(pacquet_package_manager::no_importer))]
     NoImporter { importer_id: String },
 
+    /// Mirrors upstream pnpm's `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE`.
+    #[display(
+        "Cannot use --frozen-lockfile together with --update-checksums: frozen installs never rewrite pnpm-lock.yaml, but --update-checksums exists to do exactly that."
+    )]
+    #[diagnostic(code(pacquet_package_manager::frozen_lockfile_with_outdated_lockfile))]
+    FrozenLockfileWithUpdateChecksums,
+
     #[diagnostic(transparent)]
     FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
 
@@ -298,6 +309,7 @@ where
             ignore_manifest_check,
             skip_runtimes,
             trust_lockfile,
+            update_checksums,
             supported_architectures,
             node_linker,
         } = self;
@@ -593,6 +605,10 @@ where
         // the rebuild path (which throws `MISSING_HOISTED_LOCATIONS` when
         // this field is gone).
 
+        if update_checksums && frozen_lockfile {
+            return Err(InstallError::FrozenLockfileWithUpdateChecksums);
+        }
+
         // Compute the dispatch decision once. `take_frozen_path` is true
         // for both state 1 (--frozen-lockfile) and state 2 (auto-frozen
         // via prefer-frozen-lockfile). The freshness check fires for both
@@ -609,6 +625,8 @@ where
             check_lockfile_freshness(lockfile, manifest, config, &catalogs, ignore_manifest_check)
                 .map_err(InstallError::from)?;
             true
+        } else if update_checksums {
+            false
         } else if let Some(lockfile) = lockfile {
             // Auto-frozen via `preferFrozenLockfile`. Skip when the
             // user opted out (`--no-prefer-frozen-lockfile` /
@@ -798,6 +816,7 @@ where
                 catalogs,
                 lockfile_dir: &workspace_root,
                 workspace_packages,
+                update_checksums,
                 meta_cache: Arc::clone(&meta_cache),
                 // States 3 and 4 of the dispatch share this branch.
                 // State 3 (lockfile present but stale or

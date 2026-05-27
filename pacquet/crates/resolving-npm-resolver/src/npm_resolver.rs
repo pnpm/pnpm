@@ -364,6 +364,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             include_latest_tag: opts.update == UpdateBehavior::Latest,
             dry_run: opts.dry_run,
             optional,
+            update_checksums: opts.update_checksums,
         };
 
         let ctx = PickPackageContext {

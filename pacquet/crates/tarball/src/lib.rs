@@ -180,7 +180,12 @@ pub enum TarballError {
     #[diagnostic(code(pacquet_tarball::io_error))]
     ReadTarballEntries(std::io::Error),
 
-    #[diagnostic(code(pacquet_tarball::verify_checksum_error))]
+    #[diagnostic(
+        code(pacquet_tarball::verify_checksum_error),
+        help(
+            "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums` (or `pacquet install --update-checksums`). Otherwise treat this as a potential supply-chain issue and verify the new content first."
+        )
+    )]
     Checksum(VerifyChecksumError),
 
     #[from(ignore)]

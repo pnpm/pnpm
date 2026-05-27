@@ -106,6 +106,7 @@ where
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
+            update_checksums: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,

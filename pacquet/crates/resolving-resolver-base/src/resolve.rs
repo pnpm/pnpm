@@ -201,6 +201,10 @@ pub struct ResolveOptions {
     pub prefer_workspace_packages: bool,
     pub always_try_workspace_packages: bool,
     pub update: UpdateBehavior,
+    /// When `true`, bypass cached metadata fast paths so the registry
+    /// is the authority on integrity values. Mirrors pnpm's
+    /// `--update-checksums`.
+    pub update_checksums: bool,
     pub inject_workspace_packages: bool,
     pub calc_specifier: bool,
     /// `minimumReleaseAge` cutoff. Versions published after this point

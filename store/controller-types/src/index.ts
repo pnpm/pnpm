@@ -121,6 +121,7 @@ export interface RequestPackageOptions {
   sideEffectsCache?: boolean
   skipFetch?: boolean
   update?: false | 'compatible' | 'latest'
+  updateChecksums?: boolean
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
   supportedArchitectures?: SupportedArchitectures

@@ -124,6 +124,11 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// [`Cannot resolve package from workspace because opts.workspacePackages is not defined`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830)
     /// behavior.
     pub workspace_packages: Option<pacquet_resolving_resolver_base::WorkspacePackages>,
+    /// Refresh locked integrity values from the registry. Threaded
+    /// into [`ResolveOptions::update_checksums`] so the picker bypasses
+    /// its in-memory and on-disk metadata caches and always goes to
+    /// the registry with conditional headers.
+    pub update_checksums: bool,
     /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
     /// with already-pinned `(name, version)` pairs. `Some` on the
     /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
@@ -280,6 +285,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             catalogs,
             lockfile_dir,
             workspace_packages,
+            update_checksums,
             wanted_lockfile,
             meta_cache,
         } = self;
@@ -571,6 +577,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     // workspace when the names collide.
                     always_try_workspace_packages: config.link_workspace_packages
                         != LinkWorkspacePackages::Off,
+                    update_checksums,
                     ..ResolveOptions::default()
                 },
                 catalogs: catalogs.clone(),

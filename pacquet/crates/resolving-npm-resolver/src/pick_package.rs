@@ -279,6 +279,10 @@ pub struct PickPackageOptions<'a> {
     /// either knob set to `true` makes the pick request full
     /// metadata.
     pub optional: bool,
+    /// `true` skips the on-disk exact-version fast path so a stale
+    /// disk packument can't satisfy the call without a conditional
+    /// registry request. Mirrors pnpm's `--update-checksums`.
+    pub update_checksums: bool,
 }
 
 /// Outcome of a successful [`pick_package`] call. Mirrors
@@ -519,7 +523,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 3. Version-spec fast path.
-    if !opts.include_latest_tag && matches!(spec.spec_type, RegistryPackageSpecType::Version) {
+    if !opts.include_latest_tag
+        && !opts.update_checksums
+        && matches!(spec.spec_type, RegistryPackageSpecType::Version)
+    {
         if meta_cached_in_store.is_none() {
             meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }
