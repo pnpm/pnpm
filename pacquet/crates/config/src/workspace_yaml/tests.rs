@@ -1,6 +1,7 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    Config, LinkWorkspacePackages, NodeLinker, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, ScriptsPrependNodePath, TrustPolicy,
+    api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
 use pipe_trait::Pipe;
@@ -972,30 +973,23 @@ fn empty_package_extensions_map_collapses_to_none() {
     assert!(config.package_extensions.is_none(), "empty map collapses to None");
 }
 
-/// `hoistingLimits` deserializes as a map keyed by importer
-/// locator (e.g. `'.@'`); inner value is a list of alias names.
-/// Mirrors upstream's [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10)
-/// shape and threads straight into [`pacquet_real_hoist::HoistOpts`]
-/// via the install pipeline. Yaml-empty / missing keeps the
-/// `Config` field at its `BTreeMap::default()` empty value.
+/// `hoistingLimits` deserializes as one of the `none` / `workspaces`
+/// / `dependencies` modes. Mirrors upstream's
+/// [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/89812a9353/installing/linking/real-hoist/src/index.ts)
+/// shape; the install pipeline translates the mode into the
+/// per-locator border map via `pacquet_package_manager::get_hoisting_limits`.
+/// Yaml-empty / missing keeps the `Config` field at its
+/// [`HoistingLimits::None`] default.
 #[test]
 fn parses_hoisting_limits_from_yaml_and_applies() {
-    let yaml = r#"
-hoistingLimits:
-  ".@":
-    - foo
-    - bar
-"#;
+    let yaml = "hoistingLimits: dependencies\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let raw = settings.hoisting_limits.clone().expect("field present");
-    let aliases = raw.get(".@").expect("locator present");
-    assert!(aliases.contains("foo") && aliases.contains("bar"));
+    assert_eq!(settings.hoisting_limits, Some(HoistingLimits::Dependencies));
 
     let mut config = Config::new();
-    assert!(config.hoisting_limits.is_empty(), "default is empty");
+    assert_eq!(config.hoisting_limits, HoistingLimits::None, "default is None");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    let aliases = config.hoisting_limits.get(".@").expect("locator present in config");
-    assert!(aliases.contains("foo") && aliases.contains("bar"));
+    assert_eq!(config.hoisting_limits, HoistingLimits::Dependencies);
 }
 
 /// `externalDependencies` deserializes as a flat list of names.
@@ -1032,7 +1026,7 @@ fn omitting_hoisting_limits_and_external_dependencies_keeps_defaults() {
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(config.hoisting_limits.is_empty());
+    assert_eq!(config.hoisting_limits, HoistingLimits::None);
     assert!(config.external_dependencies.is_empty());
 }
 

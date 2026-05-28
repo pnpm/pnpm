@@ -151,22 +151,6 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
 
-    /// Requested `nodeLinker` value isn't supported on the
-    /// fresh-lockfile path yet. Pacquet's hoist pass runs only over
-    /// a loaded lockfile's snapshots (`link_hoisted_modules`); a
-    /// non-frozen install with `nodeLinker: hoisted` would produce
-    /// an isolated layout silently, which doesn't match the user's
-    /// intent. Re-run with `--frozen-lockfile`, or set
-    /// `nodeLinker: isolated`.
-    #[display(
-        "nodeLinker: {node_linker:?} is not supported without --frozen-lockfile yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or set nodeLinker: isolated."
-    )]
-    #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_node_linker))]
-    UnsupportedFreshInstallNodeLinker {
-        #[error(not(source))]
-        node_linker: NodeLinker,
-    },
-
     /// `--no-runtime` (or `config.skip_runtimes`) is honored only on
     /// the frozen-lockfile path today, where the runtime filter runs
     /// against the loaded lockfile's `packages:` map. A non-frozen
@@ -778,21 +762,12 @@ where
             // auto-frozen install (state 2 of [`Install::run`]) doesn't
             // get rejected up front:
             //
-            // - `nodeLinker: hoisted` on the fresh path would need a
-            //   port of upstream's hoist pass against the freshly-built
-            //   graph (the frozen path uses `link_hoisted_modules` over
-            //   the lockfile's snapshots). Falling through to the
-            //   isolated linker would lay out `node_modules` in the
-            //   wrong shape, so refuse the install instead.
             // - `skip_runtimes` (CLI `--no-runtime`) on the fresh path
             //   would need a runtime-filter at the materialization step
             //   matching the frozen path's
             //   [`installing/deps-installer/src/install/index.ts:1374-1387`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L1374-L1387)
             //   filter. Without it, runtime archives get fetched +
             //   materialized despite the opt-out.
-            if matches!(node_linker, NodeLinker::Hoisted) {
-                return Err(InstallError::UnsupportedFreshInstallNodeLinker { node_linker });
-            }
             if skip_runtimes {
                 return Err(InstallError::UnsupportedFreshInstallSkipRuntimes);
             }
@@ -865,6 +840,8 @@ where
                 // upstream's `update: false` mode. State 4 (no
                 // lockfile) passes `None`.
                 wanted_lockfile: lockfile,
+                node_linker,
+                supported_architectures: supported_architectures.as_ref(),
             }
             .run::<Reporter>()
             .await
@@ -872,7 +849,7 @@ where
 
             (
                 fresh_result.hoisted_dependencies,
-                BTreeMap::new(),
+                fresh_result.hoisted_locations,
                 crate::SkippedSnapshots::new(),
                 fresh_result.wanted_lockfile,
             )

@@ -30,6 +30,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'global',
     'hoist',
     'hoist-pattern',
+    'hoisting-limits',
     'https-proxy',
     'ignore-pnpmfile',
     'ignore-scripts',
@@ -305,6 +306,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'global'
 | 'globalPnpmfile'
 | 'hoistPattern'
+| 'hoistingLimits'
 | 'publicHoistPattern'
 | 'ignorePnpmfile'
 | 'ignoreScripts'

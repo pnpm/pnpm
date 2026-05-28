@@ -345,9 +345,11 @@ pub enum HoistedDepGraphError {
 /// populated by Slice 5's linker, which kicks off the actual
 /// store fetches when it has a real consumer for the handles.
 ///
-/// Single-importer only today — multi-importer (workspace)
-/// lockfiles surface as `HoistError::UnsupportedWorkspace` via
-/// the hoister.
+/// Multi-importer (workspace) lockfiles are supported: the hoister
+/// ([`pacquet_real_hoist::hoist`]) attaches each non-root importer as
+/// a workspace child of the virtual `.` root when
+/// `hoist_workspace_packages` is enabled. Per-importer hoisting roots
+/// (upstream's multi-level output shape) are not modelled yet.
 pub fn lockfile_to_hoisted_dep_graph(
     lockfile: &Lockfile,
     current_lockfile: Option<&Lockfile>,

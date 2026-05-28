@@ -757,13 +757,16 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
     assert!(app.dependencies.borrow().is_empty(), "app stripped after multi-round: {app:#?}");
 }
 
-/// `hoisting_limits` blocks a single name from hoisting to root.
-/// Ports the spirit of upstream's `should not hoist packages past
-/// hoist boundary`. Setup: `root → a → b`. With no limits, `b`
+/// A `hoisting_limits` border keeps a bordered node's descendants
+/// nested. Ports the spirit of upstream's `should not hoist packages
+/// past hoist boundary`. Setup: `root → a → b`. With no limits, `b`
 /// would flatten to root (see `one_transitive_dep_hoists_to_root`).
-/// With `hoisting_limits[".@"] = {b}`, `b` stays under `a`.
+/// With `hoisting_limits[".@"] = {a}`, `a` is a border, so its
+/// descendant `b` stays nested under `a`. The border node `a` itself
+/// still sits at root (a border blocks a node's children, not the
+/// node).
 #[test]
-fn hoisting_limits_keeps_blocked_name_at_parent() {
+fn hoisting_limits_border_keeps_descendants_nested() {
     let mut importers = HashMap::new();
     let mut root_deps = ResolvedDependencyMap::new();
     root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
@@ -793,7 +796,7 @@ fn hoisting_limits_keeps_blocked_name_at_parent() {
     };
 
     let mut blocked = BTreeSet::new();
-    blocked.insert("b".to_string());
+    blocked.insert("a".to_string());
     let mut opts = HoistOpts::default();
     opts.hoisting_limits.insert(".@".to_string(), blocked);
 
@@ -801,18 +804,20 @@ fn hoisting_limits_keeps_blocked_name_at_parent() {
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
-    assert_eq!(names, ["a"], "b stayed below the limit: {result:#?}");
+    assert_eq!(names, ["a"], "border node a sits at root; b did not flatten: {result:#?}");
     let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     let a_deps = a.dependencies.borrow();
     let a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
-    assert_eq!(a_names, ["b"], "b remains under a: {a_names:?}");
+    assert_eq!(a_names, ["b"], "b stays nested under the border a: {a_names:?}");
 }
 
-/// Multiple blocked names work the same way — each one stays at
-/// its declaring parent. Ports the spirit of upstream's `should
-/// not hoist multiple package past nohoist root`.
+/// A border keeps *every* descendant of the bordered node nested,
+/// not just the first. Ports the spirit of upstream's `should not
+/// hoist multiple package past nohoist root`. Setup: `root → a →
+/// {b, c, d}` with `hoisting_limits[".@"] = {a}`. All three of a's
+/// deps stay under a.
 #[test]
-fn hoisting_limits_blocks_multiple_names() {
+fn hoisting_limits_border_keeps_all_descendants_nested() {
     let mut importers = HashMap::new();
     let mut root_deps = ResolvedDependencyMap::new();
     root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
@@ -846,8 +851,7 @@ fn hoisting_limits_blocks_multiple_names() {
     };
 
     let mut blocked = BTreeSet::new();
-    blocked.insert("b".to_string());
-    blocked.insert("c".to_string());
+    blocked.insert("a".to_string());
     let mut opts = HoistOpts::default();
     opts.hoisting_limits.insert(".@".to_string(), blocked);
 
@@ -855,14 +859,18 @@ fn hoisting_limits_blocks_multiple_names() {
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
-    // Only `a` (direct dep) and `d` (not blocked) sit at root; b
-    // and c stay nested under a.
-    assert_eq!(names, ["a", "d"], "blocked names stayed at a: {result:#?}");
+    // Only the border node `a` sits at root; all of its deps stay
+    // nested beneath it.
+    assert_eq!(names, ["a"], "only the border a sits at root: {result:#?}");
     let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     let a_deps = a.dependencies.borrow();
     let mut a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
     a_names.sort();
-    assert_eq!(a_names, ["b", "c"], "a kept its blocked deps: {a_names:?}");
+    assert_eq!(
+        a_names,
+        ["b", "c", "d"],
+        "all of a's deps stay nested under the border: {a_names:?}",
+    );
 }
 
 /// `hoisting_limits` keyed on a different importer (one we don't

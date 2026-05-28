@@ -4428,30 +4428,32 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     drop((dir, mock_instance));
 }
 
-/// `nodeLinker: hoisted` on the fresh-lockfile path is refused up
-/// front: pacquet's hoist pass runs only against a loaded lockfile's
-/// snapshots, so a from-scratch install with the flag would silently
-/// produce an isolated layout. The error must fire *before* any
-/// state file lands so a follow-up `--frozen-lockfile` retry can
-/// reuse the workspace.
+/// `nodeLinker: hoisted` on the fresh-lockfile path (no lockfile,
+/// not frozen) installs successfully and records the hoisted linker
+/// in `.modules.yaml`. With an empty manifest there is nothing to
+/// materialize, so the assertion focuses on the dispatch reaching
+/// the hoisted-linker pipeline rather than bailing — the previous
+/// hard-refusal at this site (#11871) is gone.
 #[tokio::test]
-async fn fresh_install_refuses_hoisted_node_linker_before_writing_state() {
+async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
     let virtual_store_dir = modules_dir.join(".pacquet");
 
-    let manifest_path = dir.path().join("package.json");
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
+    config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
-    let result = Install {
+    Install {
         tarball_mem_cache: Default::default(),
         http_client: &Default::default(),
         http_client_arc: std::sync::Arc::new(Default::default()),
@@ -4471,12 +4473,28 @@ async fn fresh_install_refuses_hoisted_node_linker_before_writing_state() {
         resolved_packages: &Default::default(),
     }
     .run::<SilentReporter>()
-    .await;
+    .await
+    .expect("fresh hoisted-linker install should succeed");
 
-    assert!(matches!(result, Err(InstallError::UnsupportedFreshInstallNodeLinker { .. })));
-    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "no wanted lockfile written");
-    assert!(!virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists(), "no current lockfile");
-    assert!(!modules_dir.join(".modules.yaml").exists(), "no modules manifest");
+    let written = modules_dir
+        .pipe_as_ref(read_modules_manifest::<Host>)
+        .expect("read .modules.yaml")
+        .expect("modules manifest exists");
+
+    assert_eq!(written.node_linker, Some(NodeLinker::Hoisted));
+    // Empty manifest → no packages, so the hoisted linker records no
+    // locations. The field is `None`-when-empty so a stale
+    // `hoistedLocations: {}` key isn't written.
+    assert!(
+        written.hoisted_locations.is_none(),
+        "empty manifest produces no hoisted_locations: {:?}",
+        written.hoisted_locations,
+    );
+    // Hoisted skips the virtual store entirely.
+    assert!(
+        !virtual_store_dir.exists(),
+        "hoisted install must not materialize the virtual-store root at {virtual_store_dir:?}",
+    );
 
     drop(dir);
 }

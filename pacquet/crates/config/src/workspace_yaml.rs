@@ -1,6 +1,6 @@
 use crate::{
-    Config, LinkWorkspacePackages, NodeLinker, PackageImportMethod, ScriptsPrependNodePath,
-    TrustPolicy, api::EnvVar, resolve_child_concurrency,
+    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod,
+    ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -149,12 +149,11 @@ pub struct WorkspaceSettings {
     /// `file:` (hard-linked copy) instead of a `link:` symlink. See
     /// [`Config::inject_workspace_packages`].
     pub inject_workspace_packages: Option<bool>,
-    /// `hoistingLimits` from `pnpm-workspace.yaml`. Outer key is
-    /// the importer locator (e.g. `'.@'`); inner list is the
-    /// alias names whose hoisting is bordered. Mirrors upstream's
-    /// programmatic-only knob shape, exposed here as yaml for
-    /// parity. Empty / missing → no limits.
-    pub hoisting_limits: Option<BTreeMap<String, BTreeSet<String>>>,
+    /// `hoistingLimits` from `pnpm-workspace.yaml`. One of `none`,
+    /// `workspaces`, or `dependencies` — see
+    /// [`crate::HoistingLimits`]. Missing → default
+    /// [`crate::HoistingLimits::None`].
+    pub hoisting_limits: Option<HoistingLimits>,
     /// `externalDependencies` from `pnpm-workspace.yaml`. Names
     /// whose top-level slot is reserved for an external linker
     /// and stripped from the hoist tree. Mirrors upstream's

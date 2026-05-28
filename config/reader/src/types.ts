@@ -48,6 +48,7 @@ export const pnpmTypes = {
   'http-proxy': [null, String],
   'hoist-pattern': Array,
   'hoist-workspace-packages': Boolean,
+  'hoisting-limits': ['none', 'workspaces', 'dependencies'],
   'ignore-compatibility-db': Boolean,
   'ignore-pnpmfile': Boolean,
   'ignore-workspace': Boolean,

@@ -17,8 +17,8 @@
 //! [`config/reader/src/index.ts:719-722`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L719-L722).
 
 use crate::{
-    NodeLinker, PackageImportMethod, ScriptsPrependNodePath, TrustPolicy, WorkspaceSettings,
-    api::EnvVar,
+    HoistingLimits, NodeLinker, PackageImportMethod, ScriptsPrependNodePath, TrustPolicy,
+    WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -141,7 +141,7 @@ impl WorkspaceSettings {
         json_field!(auto_install_peers_from_highest_match, "AUTO_INSTALL_PEERS_FROM_HIGHEST_MATCH");
         json_field!(exclude_links_from_lockfile, "EXCLUDE_LINKS_FROM_LOCKFILE");
         json_field!(hoist_workspace_packages, "HOIST_WORKSPACE_PACKAGES");
-        json_field!(hoisting_limits, "HOISTING_LIMITS");
+        enum_field!(hoisting_limits, "HOISTING_LIMITS", HoistingLimits);
         json_field!(external_dependencies, "EXTERNAL_DEPENDENCIES");
         json_field!(dedupe_peer_dependents, "DEDUPE_PEER_DEPENDENTS");
         json_field!(dedupe_peers, "DEDUPE_PEERS");
