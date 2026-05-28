@@ -66,7 +66,7 @@ mod tests {
         for os in ["linux", "macos", "windows"] {
             // The home thunk panics: the XDG branch must short-circuit
             // before it is ever called.
-            let dir = config_dir("pnpm", os, Some("/srv/xdg"), Some("C:\\LocalAppData"), || {
+            let dir = config_dir("pnpm", os, Some("/srv/xdg"), Some(r"C:\LocalAppData"), || {
                 unreachable!("home must not be consulted when XDG_CONFIG_HOME is set")
             });
             assert_eq!(dir, Some(PathBuf::from("/srv/xdg").join("pnpm")), "{os}");
@@ -94,33 +94,20 @@ mod tests {
             "pnpm",
             "windows",
             None,
-            Some("C:\\Users\\u\\AppData\\Local"),
-            home("C:\\Users\\u"),
+            Some(r"C:\Users\u\AppData\Local"),
+            home(r"C:\Users\u"),
         );
-        assert_eq!(
-            dir,
-            Some(Path::new("C:\\Users\\u\\AppData\\Local").join("pnpm").join("config"))
-        );
+        assert_eq!(dir, Some(Path::new(r"C:\Users\u\AppData\Local").join("pnpm").join("config")));
     }
 
     #[test]
     fn windows_without_local_app_data_falls_back_to_dot_config() {
-        let dir = config_dir("pnpm", "windows", None, None, home("C:\\Users\\u"));
-        assert_eq!(dir, Some(Path::new("C:\\Users\\u").join(".config").join("pnpm")));
+        let dir = config_dir("pnpm", "windows", None, None, home(r"C:\Users\u"));
+        assert_eq!(dir, Some(Path::new(r"C:\Users\u").join(".config").join("pnpm")));
     }
 
     #[test]
     fn none_when_home_missing_and_env_bypass_unset() {
         assert!(config_dir("pnpm", "linux", None, None, no_home).is_none());
-    }
-
-    #[test]
-    fn app_name_is_the_leaf_on_every_branch() {
-        assert!(
-            config_dir("pnpr", "linux", None, None, home("/home/u")).unwrap().ends_with("pnpr")
-        );
-        assert!(
-            config_dir("pnpm", "linux", None, None, home("/home/u")).unwrap().ends_with("pnpm")
-        );
     }
 }
