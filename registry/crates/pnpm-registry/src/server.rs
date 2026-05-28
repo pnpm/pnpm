@@ -82,8 +82,6 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         .collect();
     let state = AppState { inner: Arc::new(AppInner { cache, upstreams, config, auth }) };
     Router::new()
-        .route("/healthz", get(serve_healthz))
-        .route("/readyz", get(serve_readyz))
         .route("/-/ping", get(serve_ping))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
@@ -1416,17 +1414,4 @@ fn error_response(err: &RegistryError) -> Response {
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
-}
-
-async fn serve_healthz(State(_state): State<AppState>) -> Response {
-    (StatusCode::OK, "OK").into_response()
-}
-
-async fn serve_readyz(State(state): State<AppState>) -> Response {
-    match tokio::fs::metadata(&state.inner.config.storage).await {
-        Ok(meta) if meta.is_dir() => (StatusCode::OK, "OK").into_response(),
-        _ => {
-            (StatusCode::SERVICE_UNAVAILABLE, "Storage directory is not accessible").into_response()
-        }
-    }
 }
