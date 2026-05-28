@@ -40,7 +40,8 @@ use crate::{
         hoist_peers,
     },
     resolve_dependency_tree::{
-        ResolveDependencyTreeError, TreeCtx, extend_tree, importer_optional_dependency_names,
+        ResolveDependencyTreeError, TreeCtx, WantedSpec, extend_tree,
+        importer_injected_dependency_names, importer_optional_dependency_names,
         resolve_catalog_specifiers,
     },
     resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
@@ -198,7 +199,14 @@ where
     // direct dep with the right `wanted.optional` flag for the
     // `ResolvedPackage.optional` propagation.
     let optional_names = importer_optional_dependency_names(manifest);
-    let mut initial_wanted: Vec<(String, String, bool)> = Vec::new();
+    // `dependenciesMeta[name].injected = true` opts a single direct
+    // dep into the hard-linked `file:` resolution shape even when the
+    // global `injectWorkspacePackages` flag is off. Mirrors upstream's
+    // [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L73)
+    // — importer-level only; the recursive walker does not inherit
+    // this from any resolved package's own `dependenciesMeta`.
+    let injected_names = importer_injected_dependency_names(manifest);
+    let mut initial_wanted: Vec<WantedSpec> = Vec::new();
     for (name, range) in manifest.dependencies(groups) {
         if !crate::is_valid_dependency_alias(name) {
             return Err(ResolveImporterError::Resolve(
@@ -209,7 +217,8 @@ where
             ));
         }
         let optional = optional_names.contains(name);
-        initial_wanted.push((name.to_string(), range.to_string(), optional));
+        let injected = injected_names.contains(name);
+        initial_wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
     let initial_wanted = resolve_catalog_specifiers(initial_wanted, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
@@ -271,9 +280,13 @@ where
             // to satisfy a missing required peer, so flipping their
             // own `optional` flag to `true` would defeat the
             // auto-install. Mirrors upstream's `wantedDependency`
-            // shape inside `hoistPeers`.
-            let new_wanted: Vec<(String, String, bool)> =
-                hoisted.into_iter().map(|(name, range)| (name, range, false)).collect();
+            // shape inside `hoistPeers`. Hoisted peers don't carry
+            // `dependenciesMeta` from any manifest, so `injected`
+            // defaults to `false` — matches upstream where the hoist
+            // path constructs a fresh `WantedDependency` without
+            // threading the per-dep meta.
+            let new_wanted: Vec<WantedSpec> =
+                hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
             let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
             direct.extend(new_direct);
             update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
@@ -293,9 +306,10 @@ where
         // Optional peers picked up via `getHoistableOptionalPeers` are
         // also installed at the importer level — the picker already
         // confirmed a preferred version is in scope. Treating them as
-        // non-optional matches the required-peer arm above.
-        let new_wanted: Vec<(String, String, bool)> =
-            hoisted_optional.into_iter().map(|(name, range)| (name, range, false)).collect();
+        // non-optional matches the required-peer arm above; `injected`
+        // also defaults to `false` for the same reason.
+        let new_wanted: Vec<WantedSpec> =
+            hoisted_optional.into_iter().map(|(name, range)| (name, range, false, false)).collect();
         let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
         direct.extend(new_direct);
         update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
