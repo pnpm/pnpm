@@ -412,6 +412,42 @@ fn rejects_invalid_link_workspace_packages() {
     serde_saphyr::from_str::<WorkspaceSettings>(yaml).expect_err("must reject");
 }
 
+/// `injectWorkspacePackages: true` propagates from yaml to
+/// `Config.inject_workspace_packages`. Mirrors upstream's
+/// [`Config.injectWorkspacePackages`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L190).
+#[test]
+fn parses_inject_workspace_packages_true_from_yaml() {
+    let yaml = "injectWorkspacePackages: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.inject_workspace_packages, Some(true));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.inject_workspace_packages);
+}
+
+#[test]
+fn parses_inject_workspace_packages_false_from_yaml() {
+    let yaml = "injectWorkspacePackages: false\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.inject_workspace_packages, Some(false));
+
+    let mut config = Config::new();
+    config.inject_workspace_packages = true;
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.inject_workspace_packages);
+}
+
+#[test]
+fn inject_workspace_packages_defaults_off_when_absent() {
+    let yaml = "linkWorkspacePackages: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.inject_workspace_packages, None);
+
+    let config = Config::new();
+    assert!(!config.inject_workspace_packages);
+}
+
 /// `unsafePerm: false` from yaml propagates to `Config.unsafe_perm`
 /// on POSIX. Mirrors upstream's [`Config.unsafePerm: boolean`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).
 /// The starting `Config::new()` value depends on the runtime uid

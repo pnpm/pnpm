@@ -143,6 +143,11 @@ pub struct WorkspaceSettings {
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
+    /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
+    /// `true`, every workspace-resolved dep is materialized as a
+    /// `file:` (hard-linked copy) instead of a `link:` symlink. See
+    /// [`Config::inject_workspace_packages`].
+    pub inject_workspace_packages: Option<bool>,
     /// `hoistingLimits` from `pnpm-workspace.yaml`. Outer key is
     /// the importer locator (e.g. `'.@'`); inner list is the
     /// alias names whose hoisting is bordered. Mirrors upstream's
@@ -414,6 +419,7 @@ impl WorkspaceSettings {
         self.exclude_links_from_lockfile = None;
         self.hoist_workspace_packages = None;
         self.link_workspace_packages = None;
+        self.inject_workspace_packages = None;
         self.dedupe_peer_dependents = None;
         self.dedupe_peers = None;
         self.prefer_workspace_packages = None;
@@ -515,6 +521,7 @@ impl WorkspaceSettings {
             resolve_peers_from_workspace_root, verify_store_integrity,
             block_exotic_subdeps,
             link_workspace_packages,
+            inject_workspace_packages,
             prefer_workspace_packages,
             side_effects_cache, side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
