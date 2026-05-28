@@ -8,8 +8,6 @@
 //! `file:<workspace>` back to `link:<rel>` once the dedupe pass
 //! recognizes the children-subset case.
 
-pub mod _utils;
-
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
