@@ -45,6 +45,7 @@ assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
 insta             = { workspace = true }
 pretty_assertions = { workspace = true }
+serde-saphyr      = { workspace = true }
 serde_json        = { workspace = true }
 tempfile          = { workspace = true }
 walkdir           = { workspace = true }

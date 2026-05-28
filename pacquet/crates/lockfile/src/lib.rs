@@ -67,6 +67,17 @@ pub struct LockfileSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_peers: Option<bool>,
     pub exclude_links_from_lockfile: bool,
+    /// `injectWorkspacePackages` recorded by the install that wrote
+    /// this lockfile. `false` round-trips as a missing key — pnpm's
+    /// [`lockfileFormatConverters.ts:70-72`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L70-L72)
+    /// strips the key on save so historic v9 lockfiles (which never
+    /// carried it) stay byte-identical after a re-save. The drift
+    /// gate at
+    /// [`getOutdatedLockfileSetting.ts:80-82`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L80-L82)
+    /// reads through `Boolean(...)` so missing and `false` are
+    /// equivalent.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inject_workspace_packages: bool,
     /// Cap that drove this lockfile's peer-suffix rendering. Omitted
     /// from the serialized file when it equals the default ([`DEFAULT_PEERS_SUFFIX_MAX_LENGTH`])
     /// so existing lockfiles round-trip byte-for-byte; mirrors upstream's

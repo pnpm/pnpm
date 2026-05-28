@@ -739,15 +739,51 @@ async fn build_pkg_id_with_patch_hash(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> Result<String, ResolveDependencyTreeError> {
     let raw_id = result.id.as_str();
-    let (name, version) = match result.name_ver.as_ref() {
-        Some(name_ver) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
-        None => return Ok(raw_id.to_string()),
+    // `link:`-resolved workspace deps are short-circuited downstream
+    // by `id.starts_with("link:")` checks (see [`is_link`] in the
+    // tree walker and `importer_dep_version`'s
+    // `dep_path_str.strip_prefix("link:")` arm). Leaving the id
+    // unprefixed preserves those short-circuits — pnpm prefixes them
+    // too but routes them through a separate `isLinkedDependency`
+    // branch that pacquet hasn't ported yet.
+    //
+    // [`is_link`]: fn@resolve_node
+    if raw_id.starts_with("link:") {
+        return Ok(raw_id.to_string());
+    }
+    // Resolvers that learn the name from the fetched manifest (git,
+    // tarball, directory) leave `name_ver` unset. Upstream reads
+    // `pkg.name` from the manifest itself
+    // ([`resolveDependencies.ts:1502-1507`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1502-L1507))
+    // and prefixes the id regardless — so a `file:project-1` id
+    // becomes `project-1@file:project-1`. Skipping the prefix would
+    // leave `(` as the first paren-bearing character in the downstream
+    // depPath, which `PkgNameVerPeer`'s `@`-split parser can't recover
+    // from (it finds the `@` inside the peer suffix first).
+    let manifest_name = result
+        .manifest
+        .as_ref()
+        .and_then(|manifest| manifest.get("name"))
+        .and_then(serde_json::Value::as_str);
+    let (name, version) = match (result.name_ver.as_ref(), manifest_name) {
+        (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
+        (None, Some(name)) => (name.to_string(), String::new()),
+        (None, None) => return Ok(raw_id.to_string()),
     };
     let prefixed = if raw_id.starts_with(&format!("{name}@")) {
         raw_id.to_string()
     } else {
         format!("{name}@{raw_id}")
     };
+    // `patched_dependencies` keys carry a `name@version` shape, so
+    // entries that came in without a `name_ver` (file: / git: /
+    // tarball: resolutions whose name we just learned from the
+    // manifest above) can't match unless the manifest also surfaced
+    // a version. Bail out when version is empty so the patch lookup
+    // doesn't run a `name@""` query.
+    if version.is_empty() {
+        return Ok(prefixed);
+    }
     let Some(groups) = ctx.patched_dependencies.as_deref() else {
         return Ok(prefixed);
     };
