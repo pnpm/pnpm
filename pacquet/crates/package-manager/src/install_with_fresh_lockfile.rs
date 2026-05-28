@@ -145,6 +145,18 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// from it to skip duplicate fetches when both touch the same
     /// `(registry, name)`.
     pub meta_cache: Arc<InMemoryPackageMetaCache>,
+    /// Resolved [`pacquet_config::Config::node_linker`]. Selects the
+    /// materialization shape after the virtual store is populated:
+    /// under [`NodeLinker::Hoisted`] the freshly-built lockfile is
+    /// routed through [`crate::lockfile_to_hoisted_dep_graph`] +
+    /// [`crate::link_hoisted_modules()`] instead of the isolated
+    /// symlink layout.
+    pub node_linker: NodeLinker,
+    /// CLI-merged `supportedArchitectures` (`pnpm-workspace.yaml` +
+    /// `--cpu`/`--os`/`--libc`). Threaded into the hoisted-linker
+    /// walker so its installability filter honors user-supplied
+    /// accept lists. `None` when no architectures are configured.
+    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -158,6 +170,20 @@ pub enum InstallWithFreshLockfileError {
 
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+
+    /// Surfaces failures from [`crate::lockfile_to_hoisted_dep_graph`]
+    /// when a fresh install runs under `nodeLinker: hoisted`. Same
+    /// shape the frozen-lockfile path surfaces — see
+    /// `InstallFrozenLockfileError::HoistedDepGraph`.
+    #[diagnostic(transparent)]
+    HoistedDepGraph(#[error(source)] crate::HoistedDepGraphError),
+
+    /// Surfaces failures from [`crate::link_hoisted_modules()`] while
+    /// materializing the on-disk hoisted tree on the fresh path. Same
+    /// shape the frozen-lockfile path surfaces — see
+    /// `InstallFrozenLockfileError::LinkHoistedModules`.
+    #[diagnostic(transparent)]
+    LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
 
     #[diagnostic(transparent)]
     LinkBins(#[error(source)] LinkBinsError),
@@ -253,6 +279,23 @@ pub enum InstallWithFreshLockfileError {
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 }
 
+impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFreshLockfileError {
+    fn from(error: crate::install_frozen_lockfile::HoistedLinkerError) -> Self {
+        use crate::install_frozen_lockfile::HoistedLinkerError;
+        match error {
+            HoistedLinkerError::HoistedDepGraph(error) => {
+                InstallWithFreshLockfileError::HoistedDepGraph(error)
+            }
+            HoistedLinkerError::LinkHoistedModules(error) => {
+                InstallWithFreshLockfileError::LinkHoistedModules(error)
+            }
+            HoistedLinkerError::SymlinkDirectDependencies(error) => {
+                InstallWithFreshLockfileError::SymlinkDirectDependencies(error)
+            }
+        }
+    }
+}
+
 /// Output of [`InstallWithFreshLockfile::run`].
 ///
 /// Returns the hoist-graph slot the dispatch already consumed plus the
@@ -264,6 +307,14 @@ pub enum InstallWithFreshLockfileError {
 #[must_use]
 pub struct InstallWithFreshLockfileResult {
     pub hoisted_dependencies: HoistedDependencies,
+    /// Per-depPath list of lockfile-relative directory paths the
+    /// hoisted linker placed each package at. Empty under the
+    /// isolated linker (the field is hoisted-only on disk). The
+    /// caller persists it into
+    /// [`pacquet_modules_yaml::Modules::hoisted_locations`] so a
+    /// follow-up install or rebuild can locate every package without
+    /// re-running the walker.
+    pub hoisted_locations: BTreeMap<String, Vec<String>>,
     /// `Some` when the install resolved a graph that was written to
     /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
     /// `config.lockfile=false`). The caller mirrors the same gate when
@@ -274,13 +325,11 @@ pub struct InstallWithFreshLockfileResult {
 impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Execute the subroutine.
     ///
-    /// The fresh-lockfile path's [`HoistedDependencies`] slot is always
-    /// empty. Hoisting needs the resolved snapshot graph the lockfile
-    /// carries; this path serializes the graph into `pnpm-lock.yaml`
-    /// itself, but the hoist pass still runs only inside the
-    /// frozen-lockfile install ([`crate::InstallFrozenLockfile::run`]).
-    /// The signature symmetry keeps `Install::run` from branching on
-    /// which sub-path produced the result.
+    /// Under the isolated linker the [`HoistedDependencies`] result
+    /// carries the publicly/privately-hoisted alias map; under
+    /// `nodeLinker: hoisted` it is empty (the hoisted linker writes the
+    /// on-disk tree directly and reports its placements through
+    /// [`InstallWithFreshLockfileResult::hoisted_locations`] instead).
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError>
@@ -314,7 +363,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             update_checksums,
             wanted_lockfile,
             meta_cache,
+            node_linker,
+            supported_architectures,
         } = self;
+        let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
         // the iterator) and `SymlinkDirectDependencies` (needs to walk
@@ -826,15 +878,21 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // The fresh-lockfile path has no installability check yet
         // (the resolver's `PackageVersion` deserializer doesn't carry
         // engine / cpu / os / libc constraints to gate on), so the
-        // skip set is empty. A future port of `compute_skipped_snapshots`
-        // for fresh-lockfile would route through here too.
-        let empty_skipped = SkippedSnapshots::new();
+        // skip set starts empty. A future port of
+        // `compute_skipped_snapshots` for fresh-lockfile would route
+        // through here too. Under `nodeLinker: hoisted` the
+        // hoisted-linker walker may fold its own installability skips
+        // into this set, so it is `mut`.
+        let mut skipped = SkippedSnapshots::new();
         let phase_start = std::time::Instant::now();
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot: _,
             fetch_failed: _,
-            cas_paths_by_pkg_id: _,
+            // Populated only under `node_linker == Hoisted`; consumed by
+            // the hoisted-linker pass below to materialize the on-disk
+            // tree. `None` for the isolated linker.
+            cas_paths_by_pkg_id,
         } = CreateVirtualStore {
             http_client,
             config,
@@ -847,9 +905,9 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             requester,
             store_index_writer: &store_index_writer,
             allow_build_policy: &allow_build_policy,
-            skipped: &empty_skipped,
+            skipped: &skipped,
             workspace_root: lockfile_dir,
-            node_linker: NodeLinker::Isolated,
+            node_linker,
         }
         .run::<Reporter>()
         .await
@@ -904,22 +962,63 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // writes.
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
 
-        // Pre-compute the hoist plan so the dedupe pass in
-        // `SymlinkDirectDependencies` can fold publicly-hoisted
-        // aliases into root's target map — same shape as the
-        // frozen-lockfile path. The `HoistResult` is reused for
-        // the on-disk hoist phase below, so the BFS runs once.
-        let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
-            config,
-            built_lockfile.snapshots.as_ref(),
-            built_lockfile.packages.as_ref(),
-            &built_lockfile.importers,
-            &dependency_groups,
-            &empty_skipped,
-            false,
-        );
-        let public_hoist_targets: Option<std::collections::BTreeMap<String, std::path::PathBuf>> =
-            pre_hoist.as_ref().map(|plan| {
+        // Under `nodeLinker: hoisted` the regular deps live as real
+        // directories materialized by the hoisted linker, not as
+        // symlinks into the virtual store. Route through the same
+        // walker + linker + `link_only` symlink pass the frozen path
+        // uses (shared via `run_hoisted_linker`), then skip the
+        // isolated-linker public/private hoist and `LinkVirtualStoreBins`
+        // passes entirely — the hoisted linker writes per-`node_modules`
+        // bins while walking the hierarchy. `hoisted_dependencies` stays
+        // empty (the hoisted linker has no isolated-mode alias→kind
+        // adapter shape); `hoisted_locations` carries the walker's
+        // placements so `.modules.yaml` round-trips them.
+        let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
+            let output = crate::install_frozen_lockfile::run_hoisted_linker::<Reporter>(
+                crate::install_frozen_lockfile::HoistedLinkerInputs {
+                    config,
+                    lockfile: &built_lockfile,
+                    // No previous-install `<virtual_store_dir>/lock.yaml`
+                    // is threaded into the fresh path yet (#11871), so the
+                    // walker runs without an orphan diff.
+                    current_lockfile: None,
+                    layout: &layout,
+                    importers: &built_lockfile.importers,
+                    dependency_groups: &dependency_groups,
+                    walker_lockfile_dir: lockfile_dir,
+                    symlink_workspace_root: symlink_root,
+                    // No installability host was probed on the fresh
+                    // path (the resolver's `PackageVersion` carries no
+                    // engine/cpu/os/libc constraints), so the walker
+                    // falls back to its default host triple.
+                    host_node: None,
+                    supported_architectures,
+                    cas_paths_by_pkg_id,
+                    logged_methods,
+                    requester,
+                },
+                &mut skipped,
+            )
+            .map_err(InstallWithFreshLockfileError::from)?;
+            (HoistedDependencies::new(), output.hoisted_locations)
+        } else {
+            // Pre-compute the hoist plan so the dedupe pass in
+            // `SymlinkDirectDependencies` can fold publicly-hoisted
+            // aliases into root's target map — same shape as the
+            // frozen-lockfile path. The `HoistResult` is reused for
+            // the on-disk hoist phase below, so the BFS runs once.
+            let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
+                config,
+                built_lockfile.snapshots.as_ref(),
+                built_lockfile.packages.as_ref(),
+                &built_lockfile.importers,
+                &dependency_groups,
+                &skipped,
+                false,
+            );
+            let public_hoist_targets: Option<
+                std::collections::BTreeMap<String, std::path::PathBuf>,
+            > = pre_hoist.as_ref().map(|plan| {
                 crate::install_frozen_lockfile::collect_public_hoist_targets(
                     &plan.result,
                     &plan.graph,
@@ -928,105 +1027,111 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 )
             });
 
-        SymlinkDirectDependencies {
-            config,
-            layout: &layout,
-            importers: &built_lockfile.importers,
-            dependency_groups: dependency_groups.iter().copied(),
-            workspace_root: symlink_root,
-            skipped: &empty_skipped,
-            link_only: false,
-            public_hoist_targets: public_hoist_targets.as_ref(),
-        }
-        .run::<Reporter>()
-        .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
+            SymlinkDirectDependencies {
+                config,
+                layout: &layout,
+                importers: &built_lockfile.importers,
+                dependency_groups: dependency_groups.iter().copied(),
+                workspace_root: symlink_root,
+                skipped: &skipped,
+                link_only: false,
+                public_hoist_targets: public_hoist_targets.as_ref(),
+            }
+            .run::<Reporter>()
+            .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
 
-        // On-disk hoist phase. Mirrors the frozen-install block at
-        // `install_frozen_lockfile.rs`: symlink the publicly + privately
-        // hoisted aliases into their target dirs, then link private-side
-        // bins into `<vs>/node_modules/.bin`. Public-side bin precedence
-        // is handled implicitly by the per-importer `link_bins` pass below,
-        // which now walks both direct-dep and public-hoist symlinks in
-        // root's `node_modules/`.
-        let hoisted_dependencies = if let Some(plan) = pre_hoist {
-            let crate::install_frozen_lockfile::HoistPlan {
-                graph,
-                result,
-                skipped: hoist_skipped,
-                ..
-            } = plan;
-            let private_dir = config.virtual_store_dir.join("node_modules");
-            let public_dir = config.modules_dir.clone();
-            crate::symlink_hoisted_dependencies(
-                &result.hoisted_dependencies_by_node_id,
-                &graph,
-                &layout,
-                &private_dir,
-                &public_dir,
-                &hoist_skipped,
-            )
-            .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
-            crate::link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
-                .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
-            result.hoisted_dependencies
-        } else {
-            HoistedDependencies::new()
+            // On-disk hoist phase. Mirrors the frozen-install block at
+            // `install_frozen_lockfile.rs`: symlink the publicly +
+            // privately hoisted aliases into their target dirs, then
+            // link private-side bins into `<vs>/node_modules/.bin`.
+            // Public-side bin precedence is handled implicitly by the
+            // per-importer `link_bins` pass below, which now walks both
+            // direct-dep and public-hoist symlinks in root's
+            // `node_modules/`.
+            let hoisted_dependencies = if let Some(plan) = pre_hoist {
+                let crate::install_frozen_lockfile::HoistPlan {
+                    graph,
+                    result,
+                    skipped: hoist_skipped,
+                    ..
+                } = plan;
+                let private_dir = config.virtual_store_dir.join("node_modules");
+                let public_dir = config.modules_dir.clone();
+                crate::symlink_hoisted_dependencies(
+                    &result.hoisted_dependencies_by_node_id,
+                    &graph,
+                    &layout,
+                    &private_dir,
+                    &public_dir,
+                    &hoist_skipped,
+                )
+                .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
+                crate::link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
+                    .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
+                result.hoisted_dependencies
+            } else {
+                HoistedDependencies::new()
+            };
+
+            // Link bins. Direct dependencies first (each importer's
+            // `node_modules/.bin`) and then per-slot children inside the
+            // virtual store. Mirrors the same two-call shape as
+            // `install_frozen_lockfile.rs`. We re-walk `<modules_dir>`
+            // instead of replaying the manifest because the
+            // `dependency_groups` iterator was already consumed above;
+            // pnpm's own `linkBins(modulesDir, binsDir)` overload uses
+            // the same strategy. One pass per importer so sibling
+            // workspace projects get their own `.bin/` populated,
+            // mirroring upstream's per-importer `linkBinsOfImporter` at
+            // <https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-installer/src/install/link.ts>.
+            let modules_basename = config
+                .modules_dir
+                .file_name()
+                .map(std::ffi::OsStr::to_os_string)
+                .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
+            for importer_id in importer_manifests.keys() {
+                let project_dir = crate::symlink_direct_dependencies::importer_root_dir(
+                    symlink_root,
+                    importer_id,
+                );
+                let modules_dir = project_dir.join(&modules_basename);
+                let bins_dir = modules_dir.join(".bin");
+                link_bins::<Host>(&modules_dir, &bins_dir)
+                    .map_err(InstallWithFreshLockfileError::LinkBins)?;
+            }
+
+            // Drive the lockfile-driven `LinkVirtualStoreBins` path. The
+            // bin linker iterates `snapshots:` (no per-slot `read_dir`)
+            // and reads each child's manifest from `package_manifests`
+            // (no per-child `package.json` disk read on warm hits).
+            // `package_manifests` is now produced by `CreateVirtualStore`
+            // directly — its prefetch + cold-batch passes both feed into
+            // the same map.
+            //
+            // `packages: None` on purpose: the freshly-built lockfile's
+            // `packages:` rows carry an incomplete `has_bin` because the
+            // resolver's `PackageVersion` deserializer does not include
+            // the `bin` field. Trusting the empty-by-omission
+            // `has_bin_set` here would filter out every child and skip
+            // bin linking entirely. With `packages: None` the bin linker
+            // falls through to "process every child" and lets each
+            // child's actual manifest (`bin` present or not) decide.
+            // Threading `bin` through `PackageVersion` is the proper
+            // fix; once that lands, pass
+            // `built_lockfile.packages.as_ref()` here to recover the
+            // ~95% slot short-circuit the frozen path enjoys.
+            LinkVirtualStoreBins {
+                layout: &layout,
+                snapshots: built_lockfile.snapshots.as_ref(),
+                packages: None,
+                package_manifests: &package_manifests,
+                skipped: &skipped,
+            }
+            .run()
+            .map_err(InstallWithFreshLockfileError::LinkVirtualStoreBins)?;
+
+            (hoisted_dependencies, BTreeMap::new())
         };
-
-        // Link bins. Direct dependencies first (each importer's
-        // `node_modules/.bin`) and then per-slot children inside the
-        // virtual store. Mirrors the same two-call shape as
-        // `install_frozen_lockfile.rs`. We re-walk `<modules_dir>` instead
-        // of replaying the manifest because the `dependency_groups`
-        // iterator was already consumed above; pnpm's own
-        // `linkBins(modulesDir, binsDir)` overload uses the same
-        // strategy. One pass per importer so sibling workspace projects
-        // get their own `.bin/` populated, mirroring upstream's
-        // per-importer `linkBinsOfImporter` at
-        // <https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-installer/src/install/link.ts>.
-        let modules_basename = config
-            .modules_dir
-            .file_name()
-            .map(std::ffi::OsStr::to_os_string)
-            .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
-        for importer_id in importer_manifests.keys() {
-            let project_dir =
-                crate::symlink_direct_dependencies::importer_root_dir(symlink_root, importer_id);
-            let modules_dir = project_dir.join(&modules_basename);
-            let bins_dir = modules_dir.join(".bin");
-            link_bins::<Host>(&modules_dir, &bins_dir)
-                .map_err(InstallWithFreshLockfileError::LinkBins)?;
-        }
-
-        // Drive the lockfile-driven `LinkVirtualStoreBins` path. The
-        // bin linker iterates `snapshots:` (no per-slot `read_dir`)
-        // and reads each child's manifest from `package_manifests`
-        // (no per-child `package.json` disk read on warm hits).
-        // `package_manifests` is now produced by `CreateVirtualStore`
-        // directly — its prefetch + cold-batch passes both feed into
-        // the same map.
-        //
-        // `packages: None` on purpose: the freshly-built lockfile's
-        // `packages:` rows carry an incomplete `has_bin` because the
-        // resolver's `PackageVersion` deserializer does not include
-        // the `bin` field. Trusting the empty-by-omission
-        // `has_bin_set` here would filter out every child and skip
-        // bin linking entirely. With `packages: None` the bin linker
-        // falls through to "process every child" and lets each
-        // child's actual manifest (`bin` present or not) decide.
-        // Threading `bin` through `PackageVersion` is the proper
-        // fix; once that lands, pass
-        // `built_lockfile.packages.as_ref()` here to recover the
-        // ~95% slot short-circuit the frozen path enjoys.
-        LinkVirtualStoreBins {
-            layout: &layout,
-            snapshots: built_lockfile.snapshots.as_ref(),
-            packages: None,
-            package_manifests: &package_manifests,
-            skipped: &empty_skipped,
-        }
-        .run()
-        .map_err(InstallWithFreshLockfileError::LinkVirtualStoreBins)?;
 
         // Write `pnpm-lock.yaml` from the resolved graph. Mirrors
         // upstream's
@@ -1068,7 +1173,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             stage: Stage::ImportingDone,
         }));
 
-        Ok(InstallWithFreshLockfileResult { hoisted_dependencies, wanted_lockfile })
+        Ok(InstallWithFreshLockfileResult {
+            hoisted_dependencies,
+            hoisted_locations,
+            wanted_lockfile,
+        })
     }
 }
 
