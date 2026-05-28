@@ -91,8 +91,20 @@ fn injected_leaf_workspace_dep_is_deduped_to_link() {
 /// `link:` sibling. Regression test for the writer panic on `file:`
 /// importer-level depPaths that the resolver-side dedupe used to hide.
 ///
+/// Windows-skipped: pacquet's `create_virtual_store` pass does not
+/// materialise `file:<workspace>` snapshots into the virtual store
+/// yet (broader gap tracked under pnpm/pnpm#12009's
+/// `injectWorkspacePackages` line), so the symlink at
+/// `packages/a/node_modules/b` points at a non-existent target. Unix
+/// silently tolerates the broken link during the bin-link manifest
+/// walk; Windows is stricter and trips `ERROR_INVALID_NAME` reading
+/// through it with a mixed-separator path. The lockfile-writer
+/// regression this test guards is platform-independent, so the
+/// Linux + macOS coverage is enough until the materialise gap closes.
+///
 /// [`ImporterDepVersion::File`]: pacquet_lockfile::ImporterDepVersion::File
 #[test]
+#[cfg_attr(target_os = "windows", ignore = "file:<workspace> materialisation not ported")]
 fn injected_workspace_dep_with_dedupe_off_writes_file_arm() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
