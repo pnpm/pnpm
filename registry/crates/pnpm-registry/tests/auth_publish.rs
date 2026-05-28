@@ -1,6 +1,7 @@
-//! Integration tests for the auth, dist-tag, and publish endpoints
-//! added to support migrating `@pnpm/registry-mock` off verdaccio.
+//! Integration tests for the auth, dist-tag, and publish endpoints.
 //! Static-mode (no upstream) to keep the tests hermetic.
+
+mod common;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
@@ -95,16 +96,10 @@ async fn adduser_rejects_wrong_password_for_existing_user() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// Use the registry-mock storage to verify that the auth policy
-/// gates `@pnpm.e2e/needs-auth` correctly.
-fn registry_mock_storage() -> PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/storage-cache")
-}
-
 #[tokio::test]
 async fn anonymous_request_to_protected_package_returns_401() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     // The fixture publishes @pnpm.e2e/needs-auth — but our access
     // policy still requires auth for it because the package name
     // matches the `@pnpm.e2e/needs-auth` policy rule.
@@ -117,8 +112,8 @@ async fn anonymous_request_to_protected_package_returns_401() {
 
 #[tokio::test]
 async fn bearer_token_grants_access_to_protected_package() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let response = app
@@ -135,8 +130,8 @@ async fn bearer_token_grants_access_to_protected_package() {
 
 #[tokio::test]
 async fn basic_auth_grants_access_to_protected_package() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
 
     let basic = BASE64.encode(b"alice:secret");
@@ -710,8 +705,8 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
 
 #[tokio::test]
 async fn search_finds_packages_by_substring_in_local_storage() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     let response = app
         .oneshot(Request::get("/-/v1/search?text=no-deps&size=20").body(Body::empty()).unwrap())
         .await
@@ -727,8 +722,8 @@ async fn search_finds_packages_by_substring_in_local_storage() {
 
 #[tokio::test]
 async fn search_filters_protected_packages_for_anonymous_callers() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     // Anonymous: `@pnpm.e2e/needs-auth` matches the access policy
     // for $authenticated, so search shouldn't surface it.
@@ -778,8 +773,8 @@ async fn search_filters_protected_packages_for_anonymous_callers() {
 
 #[tokio::test]
 async fn search_returns_empty_for_made_up_query() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     let response = app
         .oneshot(
             Request::get("/-/v1/search?text=zzz-does-not-exist-99999&size=20")
