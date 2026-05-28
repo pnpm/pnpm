@@ -19,6 +19,7 @@ name = "pnpm-registry"
 path = "src/main.rs"
 
 [dependencies]
+pacquet-config-dir  = { workspace = true }
 pacquet-env-replace = { workspace = true }
 pacquet-network     = { workspace = true }
 axum                = { workspace = true }
@@ -28,6 +29,7 @@ clap                = { workspace = true }
 derive_more         = { workspace = true }
 futures-util        = { workspace = true }
 getrandom           = { workspace = true }
+home                = { workspace = true }
 indexmap            = { workspace = true }
 miette              = { workspace = true }
 reqwest             = { workspace = true }
@@ -40,7 +42,7 @@ ssri                = { workspace = true }
 tokio               = { workspace = true }
 tower-http          = { workspace = true }
 tracing             = { workspace = true }
-tracing-subscriber  = { workspace = true }
+tracing-subscriber  = { workspace = true, features = ["json"] }
 wax                 = { workspace = true }
 
 [dev-dependencies]

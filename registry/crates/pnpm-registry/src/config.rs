@@ -16,6 +16,21 @@ use crate::policy::PackagePolicies;
 /// routing applied.
 pub const DEFAULT_CONFIG_YAML: &str = include_str!("../config.yaml");
 
+/// Where the live [`Config`] came from. Returned alongside
+/// [`Config::resolve`] so the binary can log the resolved source
+/// (path or "bundled") after the tracing subscriber is up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfigSource {
+    /// User passed `-c` / `--config`.
+    Cli(PathBuf),
+    /// Loaded from the auto-discovered global config (the `pnpr`
+    /// config dir; see [`Config::auto_config_path`]).
+    DefaultPath(PathBuf),
+    /// No file was found; the bundled [`DEFAULT_CONFIG_YAML`] was
+    /// used.
+    Bundled,
+}
+
 /// Runtime configuration for the pnpm registry server.
 ///
 /// The persisted (YAML) shape follows verdaccio's `config.yaml` —
@@ -61,6 +76,10 @@ pub struct Config {
     /// are `None`, matching the original `@pnpm/registry-mock` mode
     /// where every restart wipes accounts.
     pub auth: AuthConfig,
+    /// Format and level for the `tracing-subscriber` the binary
+    /// installs at startup. Sourced from the YAML `log:` object
+    /// (Verdaccio 6+ shape). Defaults to pretty/info.
+    pub logs: LogConfig,
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -115,6 +134,90 @@ impl MaxUsers {
     }
 }
 
+/// Runtime logging configuration. Mirrors the YAML `log:` object
+/// (Verdaccio 6+ shape). Drives the `tracing-subscriber` init in the
+/// binary: format selects human-readable vs NDJSON, level seeds the
+/// default `EnvFilter`.
+///
+/// Only `type: stdout` is honored — file and syslog sinks are future
+/// work. An unsupported `type:` still parses (so a verdaccio config
+/// can be copied in untouched) but is ignored at runtime, with a
+/// warning logged once the subscriber is up.
+#[derive(Debug, Clone)]
+pub struct LogConfig {
+    pub format: LogFormat,
+    pub level: LogLevel,
+    /// The configured sink (`log.type`). Only [`Self::STDOUT_SINK`]
+    /// is implemented; any other value is recorded here so the binary
+    /// can warn about it at startup.
+    pub sink: String,
+}
+
+impl LogConfig {
+    /// The single sink pnpm-registry actually writes to.
+    pub const STDOUT_SINK: &'static str = "stdout";
+
+    /// Whether the configured sink is one the server implements.
+    pub fn sink_is_supported(&self) -> bool {
+        self.sink == Self::STDOUT_SINK
+    }
+}
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self {
+            format: LogFormat::Pretty,
+            level: LogLevel::default(),
+            sink: Self::STDOUT_SINK.to_string(),
+        }
+    }
+}
+
+/// Wire format for log records. `Pretty` is human-readable with
+/// colors when stdout is a TTY; `Json` is NDJSON (one JSON object
+/// per record) suitable for log shippers — the same shape pino
+/// emits.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogFormat {
+    #[default]
+    Pretty,
+    Json,
+}
+
+/// Severity threshold. Maps onto `tracing::Level` plus a synthetic
+/// `Http` mid-tier (between info and debug) that mirrors what
+/// verdaccio and pino call "the request-log level."
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Trace,
+    Debug,
+    Http,
+    #[default]
+    Info,
+    Warn,
+    Error,
+}
+
+impl LogLevel {
+    /// Convert to an `EnvFilter` directive string. `http` is not a
+    /// tracing level, so we expand it to `info` for the framework
+    /// plus a `pnpm_registry::access=info` target so the per-request
+    /// access log surfaces even when the rest of the crate is
+    /// quieter.
+    pub fn as_filter_directive(self) -> &'static str {
+        match self {
+            LogLevel::Trace => "trace",
+            LogLevel::Debug => "debug",
+            LogLevel::Http => "info,pnpm_registry::access=info",
+            LogLevel::Info => "info",
+            LogLevel::Warn => "warn",
+            LogLevel::Error => "error",
+        }
+    }
+}
+
 /// Verdaccio-shaped uplink declaration. Only `url` is honored —
 /// other fields verdaccio supports (auth headers, timeouts, agent
 /// options) are not implemented yet.
@@ -150,6 +253,26 @@ struct ConfigFile {
     packages: IndexMap<String, PackageAccess>,
     #[serde(default)]
     auth: AuthFile,
+    /// Verdaccio 6+ shape: `log:` is a single object at the top
+    /// level, not a list. The older `logs:` list shape is
+    /// intentionally not accepted.
+    #[serde(default)]
+    log: Option<LogEntryFile>,
+}
+
+/// The YAML `log:` object. Mirrors verdaccio 6's logger config.
+#[derive(Debug, Deserialize)]
+struct LogEntryFile {
+    #[serde(default = "default_log_type")]
+    r#type: String,
+    #[serde(default)]
+    format: Option<LogFormat>,
+    #[serde(default)]
+    level: Option<LogLevel>,
+}
+
+fn default_log_type() -> String {
+    LogConfig::STDOUT_SINK.to_string()
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -206,6 +329,7 @@ impl Config {
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
+            logs: LogConfig::default(),
         }
     }
 
@@ -221,6 +345,7 @@ impl Config {
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
+            logs: LogConfig::default(),
         }
     }
 
@@ -237,7 +362,9 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> std::io::Result<Self> {
-        let raw = std::fs::read_to_string(path)?;
+        let raw = std::fs::read_to_string(path).map_err(|err| {
+            std::io::Error::new(err.kind(), format!("read {}: {err}", path.display()))
+        })?;
         let base = path.parent().unwrap_or_else(|| Path::new("."));
         Self::from_yaml_str(&raw, base, listen, public_url).map_err(|err| {
             std::io::Error::new(
@@ -265,6 +392,52 @@ impl Config {
             .expect("bundled DEFAULT_CONFIG_YAML must always parse")
     }
 
+    /// Resolve the auto-discovery path for the global `config.yaml`,
+    /// reading the process environment. Returns the path only when it
+    /// exists as a file; otherwise `None`, so the caller falls back to
+    /// [`Self::from_default_yaml`] for the bundled config.
+    ///
+    /// The directory follows pnpm's own global-config-dir rules (via
+    /// the shared [`pacquet_config_dir::config_dir`]) under a `pnpr`
+    /// leaf, so an operator who knows where `pnpm config` looks knows
+    /// where pnpr looks too.
+    pub fn auto_config_path() -> Option<PathBuf> {
+        let dir = pacquet_config_dir::config_dir(
+            "pnpr",
+            std::env::consts::OS,
+            std::env::var("XDG_CONFIG_HOME").ok().as_deref(),
+            std::env::var("LOCALAPPDATA").ok().as_deref(),
+            home::home_dir,
+        );
+        config_file_in(dir)
+    }
+
+    /// Pick the right config source in precedence order:
+    /// 1. `explicit` (the binary's `-c` / `--config` flag);
+    /// 2. `default_path` (typically [`Self::auto_config_path`]'s
+    ///    result);
+    /// 3. the bundled [`DEFAULT_CONFIG_YAML`].
+    ///
+    /// Returns the resolved [`Config`] alongside a [`ConfigSource`]
+    /// describing which branch fired so the binary can log it
+    /// after the subscriber is up.
+    pub fn resolve(
+        explicit: Option<&Path>,
+        default_path: Option<&Path>,
+        listen: SocketAddr,
+        public_url: Option<String>,
+    ) -> std::io::Result<(Self, ConfigSource)> {
+        if let Some(path) = explicit {
+            let config = Self::from_yaml(path, listen, public_url)?;
+            return Ok((config, ConfigSource::Cli(path.to_path_buf())));
+        }
+        if let Some(path) = default_path {
+            let config = Self::from_yaml(path, listen, public_url)?;
+            return Ok((config, ConfigSource::DefaultPath(path.to_path_buf())));
+        }
+        Ok((Self::from_default_yaml(Path::new("."), listen, public_url), ConfigSource::Bundled))
+    }
+
     fn from_yaml_str(
         raw: &str,
         base_dir: &Path,
@@ -279,6 +452,7 @@ impl Config {
         let storage = resolve_relative(&file.storage, base_dir);
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
+        let logs = build_log_config(file.log.as_ref());
         Ok(Self {
             listen,
             public_url,
@@ -293,6 +467,7 @@ impl Config {
             // hard-coded defaults — same as `proxy` / `static_serve`.
             policies: PackagePolicies::registry_mock_defaults(),
             auth,
+            logs,
         })
     }
 
@@ -334,6 +509,26 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
         },
         tokens: TokensConfig { file: tokens_file },
     }
+}
+
+/// Lift the YAML `log:` object's `format` / `level` onto runtime
+/// defaults. Missing block = default pretty/info config; missing
+/// individual fields fall back to their `Default` impls.
+fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
+    let Some(entry) = entry else { return LogConfig::default() };
+    LogConfig {
+        format: entry.format.unwrap_or_default(),
+        level: entry.level.unwrap_or_default(),
+        sink: entry.r#type.clone(),
+    }
+}
+
+/// Join `config.yaml` onto a resolved config directory and keep the
+/// path only when it points at an existing file (so a directory or a
+/// missing entry falls back to the bundled config).
+fn config_file_in(dir: Option<PathBuf>) -> Option<PathBuf> {
+    let path = dir?.join("config.yaml");
+    path.is_file().then_some(path)
 }
 
 /// `tokens.db` next to the htpasswd file. The sibling layout lets an
@@ -382,7 +577,10 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, DEFAULT_CONFIG_YAML, pattern_matches, resolve_relative};
+    use super::{
+        Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, config_file_in,
+        pattern_matches, resolve_relative,
+    };
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::path::{Path, PathBuf};
 
@@ -668,5 +866,390 @@ packages: {}
 ";
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
         assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Limited(5));
+    }
+
+    #[test]
+    fn logs_default_when_yaml_omits_block() {
+        let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Pretty);
+        assert_eq!(config.logs.level, LogLevel::Info);
+        assert_eq!(config.logs.sink, "stdout");
+        assert!(config.logs.sink_is_supported());
+    }
+
+    #[test]
+    fn log_unsupported_sink_type_is_recorded_but_flagged_unsupported() {
+        // `type: file` parses (verdaccio compatibility) but is not a
+        // sink the server implements, so `sink_is_supported` is false
+        // and the binary warns at startup. Format/level still apply.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  type: file
+  format: json
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.sink, "file");
+        assert!(!config.logs.sink_is_supported());
+        assert_eq!(config.logs.format, LogFormat::Json);
+    }
+
+    #[test]
+    fn log_pretty_and_level_picked_from_singular_block() {
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  type: stdout
+  format: pretty
+  level: warn
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Pretty);
+        assert_eq!(config.logs.level, LogLevel::Warn);
+    }
+
+    #[test]
+    fn log_json_format_parses() {
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  type: stdout
+  format: json
+  level: debug
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Json);
+        assert_eq!(config.logs.level, LogLevel::Debug);
+    }
+
+    #[test]
+    fn log_legacy_plural_list_is_ignored() {
+        // Verdaccio 4/5 used `logs:` as a list. We only honor the
+        // verdaccio-6 `log:` (singular) shape, so the older spelling
+        // is silently dropped and defaults apply.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+logs:
+  - type: stdout
+    format: json
+    level: error
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Pretty);
+        assert_eq!(config.logs.level, LogLevel::Info);
+    }
+
+    #[test]
+    fn log_missing_fields_fall_back_to_defaults() {
+        // Only `type:` is given. Format and level default individually.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  type: stdout
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Pretty);
+        assert_eq!(config.logs.level, LogLevel::Info);
+    }
+
+    #[test]
+    fn log_level_filter_directives_are_valid() {
+        // Each LogLevel must map to a directive string that
+        // `EnvFilter::new` accepts at runtime — guards against typos.
+        for level in [
+            LogLevel::Trace,
+            LogLevel::Debug,
+            LogLevel::Http,
+            LogLevel::Info,
+            LogLevel::Warn,
+            LogLevel::Error,
+        ] {
+            let directive = level.as_filter_directive();
+            tracing_subscriber::EnvFilter::try_new(directive)
+                .unwrap_or_else(|err| panic!("{level:?} -> `{directive}`: {err}"));
+        }
+    }
+
+    // ----- config_file_in (existence gating) --------------------------------
+
+    #[test]
+    fn config_file_in_returns_none_for_none_dir() {
+        assert!(config_file_in(None).is_none());
+    }
+
+    #[test]
+    fn config_file_in_returns_none_when_file_is_missing() {
+        // A fresh tempdir has no `config.yaml`.
+        let dir = tempfile::tempdir().unwrap();
+        assert!(config_file_in(Some(dir.path().to_path_buf())).is_none());
+    }
+
+    #[test]
+    fn config_file_in_returns_path_when_file_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let expected = dir.path().join("config.yaml");
+        std::fs::write(&expected, "storage: ./s\nuplinks: {}\npackages: {}\n").unwrap();
+        let resolved = config_file_in(Some(dir.path().to_path_buf())).expect("file is present");
+        assert_eq!(resolved, expected);
+    }
+
+    #[test]
+    fn config_file_in_rejects_a_directory_at_the_target() {
+        // If `config.yaml` exists but is a directory (or symlink to
+        // one, etc.), `is_file()` returns false. Auto-discovery should
+        // bail rather than try to read it.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("config.yaml")).unwrap();
+        assert!(config_file_in(Some(dir.path().to_path_buf())).is_none());
+    }
+
+    #[test]
+    fn config_file_in_resolved_file_round_trips_through_from_yaml() {
+        // The whole point of returning a path is that `from_yaml` can
+        // load it. This is the end-to-end happy path for the
+        // auto-discovery flow.
+        //
+        // The `storage:` value is computed at runtime so it's a
+        // genuinely absolute path on whichever OS the test runs on
+        // (Windows requires a drive-letter prefix to satisfy
+        // `Path::is_absolute()`; a Unix-style "/tmp/auto" is not
+        // absolute there and gets joined to the config's parent dir).
+        let dir = tempfile::tempdir().unwrap();
+        let storage = dir.path().join("registry-storage");
+        let yaml = format!(
+            "\
+storage: {storage}
+uplinks:
+  npmjs: {{ url: https://registry.npmjs.org/ }}
+packages:
+  '**':
+    proxy: npmjs
+log:
+  type: stdout
+  format: json
+  level: info
+",
+            storage = storage.display(),
+        );
+        std::fs::write(dir.path().join("config.yaml"), yaml).unwrap();
+        let path = config_file_in(Some(dir.path().to_path_buf())).unwrap();
+        let config = Config::from_yaml(&path, listen(), None).unwrap();
+        assert_eq!(config.storage, storage);
+        assert_eq!(config.logs.format, LogFormat::Json);
+        assert_eq!(config.logs.level, LogLevel::Info);
+        assert_eq!(config.resolve_uplink("lodash").unwrap().0, "npmjs");
+    }
+
+    // ----- LogFormat / LogLevel serde behavior ------------------------------
+
+    /// Helper: deserialize a YAML scalar into the requested enum.
+    /// Lets us assert the variant mapping concisely.
+    fn parse_log_yaml<Target: serde::de::DeserializeOwned>(yaml: &str) -> Result<Target, String> {
+        serde_saphyr::from_str::<Target>(yaml).map_err(|err| err.to_string())
+    }
+
+    #[test]
+    fn log_format_accepts_each_known_variant() {
+        assert_eq!(parse_log_yaml::<LogFormat>("pretty").unwrap(), LogFormat::Pretty);
+        assert_eq!(parse_log_yaml::<LogFormat>("json").unwrap(), LogFormat::Json);
+    }
+
+    #[test]
+    fn log_format_rejects_unknown_variant() {
+        // `format: xml` (or anything else) should fail parsing
+        // rather than silently fall back. Matches verdaccio: an
+        // unknown enum value is a typo, not a request for a default.
+        let err = parse_log_yaml::<LogFormat>("xml").unwrap_err();
+        assert!(err.contains("xml") || err.to_lowercase().contains("unknown"));
+    }
+
+    #[test]
+    fn log_format_is_case_sensitive() {
+        // `rename_all = "lowercase"` means we accept only lowercase
+        // tokens; pino is case-sensitive too.
+        assert!(parse_log_yaml::<LogFormat>("Pretty").is_err());
+        assert!(parse_log_yaml::<LogFormat>("JSON").is_err());
+    }
+
+    #[test]
+    fn log_level_accepts_each_known_variant() {
+        let pairs: &[(&str, LogLevel)] = &[
+            ("trace", LogLevel::Trace),
+            ("debug", LogLevel::Debug),
+            ("http", LogLevel::Http),
+            ("info", LogLevel::Info),
+            ("warn", LogLevel::Warn),
+            ("error", LogLevel::Error),
+        ];
+        for (yaml, expected) in pairs {
+            let parsed: LogLevel = parse_log_yaml(yaml).unwrap();
+            assert_eq!(parsed, *expected, "{yaml}");
+        }
+    }
+
+    #[test]
+    fn log_level_rejects_unknown_variant() {
+        // `fatal` (pino has it) and `silly` (npm's logger had it)
+        // are not in our set — we want a hard error, not a silent
+        // fallback.
+        assert!(parse_log_yaml::<LogLevel>("fatal").is_err());
+        assert!(parse_log_yaml::<LogLevel>("silly").is_err());
+        assert!(parse_log_yaml::<LogLevel>("verbose").is_err());
+    }
+
+    // ----- Config::resolve precedence ---------------------------------------
+
+    /// Helper: write a config file under a tempdir and hand back the
+    /// path. Tests use this to populate both the explicit `-c` arg
+    /// and the auto-discovered default path.
+    fn write_yaml(dir: &Path, name: &str, contents: &str) -> PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, contents).expect("write yaml fixture");
+        path
+    }
+
+    const MINIMAL_YAML: &str = "storage: ./s\nuplinks: {}\npackages: {}\n";
+
+    #[test]
+    fn resolve_bundled_when_no_path_supplied() {
+        let (config, source) = Config::resolve(None, None, listen(), None).unwrap();
+        assert_eq!(source, ConfigSource::Bundled);
+        // The bundled config has the `npmjs` uplink + `**` route.
+        assert!(config.uplinks.contains_key("npmjs"));
+    }
+
+    #[test]
+    fn resolve_default_path_when_only_default_supplied() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = write_yaml(tmp.path(), "config.yaml", MINIMAL_YAML);
+        let (_, source) = Config::resolve(None, Some(&path), listen(), None).unwrap();
+        assert_eq!(source, ConfigSource::DefaultPath(path));
+    }
+
+    #[test]
+    fn resolve_cli_when_only_cli_supplied() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = write_yaml(tmp.path(), "explicit.yml", MINIMAL_YAML);
+        let (_, source) = Config::resolve(Some(&path), None, listen(), None).unwrap();
+        assert_eq!(source, ConfigSource::Cli(path));
+    }
+
+    #[test]
+    fn resolve_cli_wins_over_default_path() {
+        // Both paths exist. CLI must take priority — the auto-discovered
+        // path is a *fallback*, not a merge target.
+        //
+        // Storage paths are derived from `tmp` so they're absolute on
+        // every OS (Windows needs a drive-letter prefix to satisfy
+        // `Path::is_absolute()`; a Unix-style `/a` is not absolute
+        // there and gets joined to the config file's parent dir).
+        let tmp = tempfile::tempdir().unwrap();
+        let cli_storage = tmp.path().join("from-cli");
+        let default_storage = tmp.path().join("from-default");
+        let cli = write_yaml(
+            tmp.path(),
+            "explicit.yml",
+            &format!("storage: {}\nuplinks: {{}}\npackages: {{}}\n", cli_storage.display()),
+        );
+        let default = write_yaml(
+            tmp.path(),
+            "default.yml",
+            &format!("storage: {}\nuplinks: {{}}\npackages: {{}}\n", default_storage.display()),
+        );
+        let (config, source) = Config::resolve(Some(&cli), Some(&default), listen(), None).unwrap();
+        assert_eq!(source, ConfigSource::Cli(cli));
+        // Confirms the *content* came from the CLI file, not the default.
+        assert_eq!(config.storage, cli_storage);
+    }
+
+    #[test]
+    fn resolve_propagates_missing_file_error_for_cli_path() {
+        let err = Config::resolve(Some(Path::new("/no/such/file.yml")), None, listen(), None)
+            .unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn resolve_propagates_parse_error_for_cli_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = write_yaml(tmp.path(), "broken.yml", "storage: [not, a, string\n");
+        let err = Config::resolve(Some(&path), None, listen(), None).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn resolve_propagates_missing_file_error_for_default_path() {
+        // Symmetric to the CLI case — a bad default path is just as
+        // fatal as a bad CLI path. (In practice callers only pass a
+        // default path that already passed `config_file_in`'s
+        // `is_file()` check, so this is a defense-in-depth assertion.)
+        let err = Config::resolve(None, Some(Path::new("/no/such/file.yml")), listen(), None)
+            .unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn resolve_public_url_override_threads_through() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = write_yaml(tmp.path(), "config.yaml", MINIMAL_YAML);
+        let (config, _) =
+            Config::resolve(Some(&path), None, listen(), Some("http://override.test".to_string()))
+                .unwrap();
+        assert_eq!(config.public_url, "http://override.test");
+    }
+
+    #[test]
+    fn resolve_bundled_branch_honors_public_url_override() {
+        let (config, source) =
+            Config::resolve(None, None, listen(), Some("http://from-cli.test".to_string()))
+                .unwrap();
+        assert_eq!(source, ConfigSource::Bundled);
+        assert_eq!(config.public_url, "http://from-cli.test");
+    }
+
+    // ----- serde defaults ---------------------------------------------------
+
+    #[test]
+    fn yaml_with_no_storage_uses_default_storage_string() {
+        // `storage:` is absent entirely — `default_storage_string`
+        // supplies `"./storage"`, which `resolve_relative` then joins
+        // to the config-file's parent dir.
+        let yaml = "uplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+        assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./storage"));
+    }
+
+    #[test]
+    fn yaml_log_block_with_no_type_field_uses_default_log_type() {
+        // `type:` omitted but `format:` and `level:` present. The
+        // `default_log_type` serde default kicks in for the missing
+        // field; we don't otherwise care about its value at runtime,
+        // we just need the parse to succeed (and the runtime config
+        // to reflect the supplied format/level).
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  format: json
+  level: warn
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Json);
+        assert_eq!(config.logs.level, LogLevel::Warn);
+        // `type:` omitted entirely falls back to the supported stdout sink.
+        assert_eq!(config.logs.sink, "stdout");
+        assert!(config.logs.sink_is_supported());
     }
 }

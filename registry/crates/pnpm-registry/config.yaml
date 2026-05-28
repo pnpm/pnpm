@@ -66,8 +66,8 @@ packages:
     publish: $authenticated
     proxy: npmjs
 
-# log settings
-logs:
-  - type: stdout
-    format: pretty
-    level: error
+# log settings (verdaccio 6+ shape: a single `log:` object, not a list)
+log:
+  type: stdout
+  format: pretty
+  level: error

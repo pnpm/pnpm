@@ -21,8 +21,8 @@ mod upstream;
 
 pub use auth::{AuthState, TokenStore, UserStore, identify};
 pub use config::{
-    AuthConfig, Config, DEFAULT_CONFIG_YAML, HtpasswdConfig, MaxUsers, PackageAccess, TokensConfig,
-    UplinkConfig,
+    AuthConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HtpasswdConfig, LogConfig, LogFormat,
+    LogLevel, MaxUsers, PackageAccess, TokensConfig, UplinkConfig,
 };
 pub use error::{RegistryError, Result};
 pub use policy::{AccessRule, PackagePolicies, PackagePolicy};

@@ -127,38 +127,23 @@ pub fn default_modules_dir() -> PathBuf {
 }
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
-/// file) from.
-///
-/// Port of pnpm's
-/// [`getConfigDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L67-L86).
-/// Resolution order:
-///
-/// 1. `$XDG_CONFIG_HOME/pnpm`.
-/// 2. macOS: `~/Library/Preferences/pnpm`.
-/// 3. Other non-Windows: `~/.config/pnpm`.
-/// 4. Windows: `%LOCALAPPDATA%/pnpm/config`, falling back to
-///    `~/.config/pnpm` when `LOCALAPPDATA` is unset.
-///
-/// Returns `None` when the home directory is unavailable and the env
-/// vars that bypass it are also unset — the caller treats that as
-/// "no global config file."
+/// file) from. Threads this crate's [`EnvVar`] / [`GetHomeDir`] seam
+/// into [`pacquet_config_dir::config_dir`] — the shared port of
+/// pnpm's `getConfigDir`, also used by the registry server — under
+/// the `pnpm` leaf.
 pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
-    if let Some(xdg_config_home) = Sys::var("XDG_CONFIG_HOME") {
-        return Some(PathBuf::from(xdg_config_home).join("pnpm"));
-    }
-    if env::consts::OS == "windows"
-        && let Some(local_app_data) = Sys::var("LOCALAPPDATA")
-    {
-        return Some(PathBuf::from(local_app_data).join("pnpm/config"));
-    }
-    let home_dir = Sys::home_dir()?;
-    Some(match env::consts::OS {
-        "macos" => home_dir.join("Library/Preferences/pnpm"),
-        _ => home_dir.join(".config/pnpm"),
-    })
+    let xdg_config_home = Sys::var("XDG_CONFIG_HOME");
+    let local_app_data = Sys::var("LOCALAPPDATA");
+    pacquet_config_dir::config_dir(
+        "pnpm",
+        env::consts::OS,
+        xdg_config_home.as_deref(),
+        local_app_data.as_deref(),
+        Sys::home_dir,
+    )
 }
 
 /// Resolve the default packument-cache directory.
