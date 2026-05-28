@@ -289,6 +289,80 @@ fn dedupes_only_overlapping_direct_deps() {
     drop((root, mock_instance));
 }
 
+/// Two `link:` deps that resolve to the same physical directory via
+/// different relative paths must still dedupe. Pnpm's dedupe runs
+/// `path.relative` on stored symlink targets — which Node normalises
+/// through `path.resolve` — so `<workspace>/packages/shared` and
+/// `<workspace>/packages/sibling/../shared` compare equal. Pacquet's
+/// dedupe map uses lexical equality of `PathBuf`s, which would miss
+/// this case unless the target paths are normalised first; this test
+/// pins that normalisation.
+#[test]
+fn dedupes_link_deps_resolving_to_the_same_dir_via_different_segments() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "shared": "link:packages/shared" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/shared")).expect("mkdir packages/shared");
+    fs::write(
+        workspace.join("packages/shared/package.json"),
+        serde_json::json!({ "name": "shared", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/shared/package.json");
+
+    // Sibling reaches `packages/shared` via `../shared` — same
+    // physical target as root's `packages/shared` after lexical
+    // normalisation.
+    fs::create_dir_all(workspace.join("packages/sibling")).expect("mkdir packages/sibling");
+    fs::write(
+        workspace.join("packages/sibling/package.json"),
+        serde_json::json!({
+            "name": "sibling",
+            "version": "1.0.0",
+            "dependencies": { "shared": "link:../shared" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/sibling/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules/shared")).expect("query root link"),
+        "root should have its link dep symlinked",
+    );
+    // Sibling's only direct dep was a `link:../shared` resolving to
+    // the same dir root already linked at the alias `shared`; the
+    // sibling should be deduped and have no `node_modules/` at all.
+    assert!(
+        !workspace.join("packages/sibling/node_modules").exists(),
+        "packages/sibling/node_modules should not exist: link:../shared deduped against root's link:packages/shared",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Mirrors pnpm's [`'dedupe direct dependencies after public hoisting'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/dedupeDirectDeps.ts#L113):
 /// a transitive of the root that gets publicly hoisted into root's
 /// `node_modules/` should dedupe a non-root importer's *direct* dep

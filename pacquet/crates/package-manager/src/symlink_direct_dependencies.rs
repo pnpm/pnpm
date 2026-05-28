@@ -646,12 +646,23 @@ fn resolve_target_path(
             // — but pacquet's lockfile snapshot already carries the
             // raw `link:` payload, so the resolution lives at the
             // install layer.
+            //
+            // Run the joined result through `lexical_normalize` so
+            // the dedupe pass treats `<workspace>/packages/a` and
+            // `<workspace>/packages/foo/../a` as the same target.
+            // Pnpm's `linkDirectDepsAndDedupe` compares stored
+            // symlink targets via `path.relative(a, b) === ''`,
+            // which on absolute paths reduces to lexical equality
+            // *after* both arguments pass through `path.resolve`
+            // (Node normalises by default). `Path::join` does not,
+            // so we have to do it explicitly here.
             let candidate = Path::new(target);
-            if candidate.is_absolute() {
+            let joined = if candidate.is_absolute() {
                 candidate.to_path_buf()
             } else {
                 project_dir.join(candidate)
-            }
+            };
+            pacquet_fs::lexical_normalize(&joined)
         }
     }
 }
