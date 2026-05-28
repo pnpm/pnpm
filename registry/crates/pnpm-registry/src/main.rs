@@ -58,14 +58,16 @@ async fn main() -> miette::Result<()> {
 fn load_config(args: &Args) -> miette::Result<(Config, ConfigSource)> {
     let (mut config, source) = match args.config.as_deref() {
         Some(path) => {
+            let displayed = path.display();
             let config = Config::from_yaml(path, args.listen, args.public_url.clone())
-                .map_err(|err| miette::miette!("load {}: {err}", path.display()))?;
+                .map_err(|err| miette::miette!("load {displayed}: {err}"))?;
             (config, ConfigSource::Cli(path.to_path_buf()))
         }
         None => match default_config_path() {
             Some(path) => {
+                let displayed = path.display();
                 let config = Config::from_yaml(&path, args.listen, args.public_url.clone())
-                    .map_err(|err| miette::miette!("load {}: {err}", path.display()))?;
+                    .map_err(|err| miette::miette!("load {displayed}: {err}"))?;
                 (config, ConfigSource::DefaultPath(path))
             }
             None => (

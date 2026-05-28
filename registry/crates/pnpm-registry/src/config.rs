@@ -923,15 +923,21 @@ log:
         // The whole point of returning a path is that `from_yaml` can
         // load it. This is the end-to-end happy path for the
         // auto-discovery flow.
+        //
+        // The `storage:` value is computed at runtime so it's a
+        // genuinely absolute path on whichever OS the test runs on
+        // (Windows requires a drive-letter prefix to satisfy
+        // `Path::is_absolute()`; a Unix-style "/tmp/auto" is not
+        // absolute there and gets joined to the config's parent dir).
         let home = tempfile::tempdir().unwrap();
         let dir = home.path().join(".config").join("pnpm-registry");
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("config.yaml"),
+        let storage = home.path().join("registry-storage");
+        let yaml = format!(
             "\
-storage: /tmp/auto
+storage: {storage}
 uplinks:
-  npmjs: { url: https://registry.npmjs.org/ }
+  npmjs: {{ url: https://registry.npmjs.org/ }}
 packages:
   '**':
     proxy: npmjs
@@ -940,11 +946,12 @@ log:
   format: json
   level: info
 ",
-        )
-        .unwrap();
+            storage = storage.display(),
+        );
+        std::fs::write(dir.join("config.yaml"), yaml).unwrap();
         let path = Config::auto_config_path(Some(home.path())).unwrap();
         let config = Config::from_yaml(&path, listen(), None).unwrap();
-        assert_eq!(config.storage, PathBuf::from("/tmp/auto"));
+        assert_eq!(config.storage, storage);
         assert_eq!(config.logs.format, LogFormat::Json);
         assert_eq!(config.logs.level, LogLevel::Info);
         assert_eq!(config.resolve_uplink("lodash").unwrap().0, "npmjs");
