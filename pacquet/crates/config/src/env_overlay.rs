@@ -147,6 +147,7 @@ impl WorkspaceSettings {
         json_field!(dedupe_peers, "DEDUPE_PEERS");
         json_field!(dedupe_direct_deps, "DEDUPE_DIRECT_DEPS");
         json_field!(prefer_workspace_packages, "PREFER_WORKSPACE_PACKAGES");
+        json_field!(dedupe_injected_deps, "DEDUPE_INJECTED_DEPS");
         json_field!(strict_peer_dependencies, "STRICT_PEER_DEPENDENCIES");
         json_field!(resolve_peers_from_workspace_root, "RESOLVE_PEERS_FROM_WORKSPACE_ROOT");
         json_field!(block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");

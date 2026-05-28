@@ -198,6 +198,7 @@ fn settings_match(
     allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref())
         && recorded.auto_install_peers == live.auto_install_peers
         && recorded.dedupe_direct_deps == live.dedupe_direct_deps
+        && recorded.dedupe_injected_deps == live.dedupe_injected_deps
         && recorded.dedupe_peer_dependents == live.dedupe_peer_dependents
         && recorded.dedupe_peers == live.dedupe_peers
         && recorded.dev == live.dev
@@ -222,7 +223,6 @@ fn settings_match(
     // each from this list once `current_settings` writes its value):
     //   catalogs                    (pnpm always ignores; see
     //                                ignoredSettings.add('catalogs'))
-    //   dedupeInjectedDeps
     //   excludeLinksFromLockfile
     //   minimumReleaseAge*          (pacquet supports it but doesn't
     //                                round-trip through workspace state
@@ -286,6 +286,7 @@ pub(crate) fn current_settings(
         allow_builds,
         auto_install_peers: Some(config.auto_install_peers),
         dedupe_direct_deps: Some(config.dedupe_direct_deps),
+        dedupe_injected_deps: Some(config.dedupe_injected_deps),
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
         dedupe_peers: Some(config.dedupe_peers),
         dev: Some(included.dev_dependencies),

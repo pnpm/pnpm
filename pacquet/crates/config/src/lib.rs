@@ -668,6 +668,16 @@ pub struct Config {
     #[default = true]
     pub dedupe_direct_deps: bool,
 
+    /// When `true`, injected workspace dependencies whose materialised
+    /// children turn out to be a subset of the target workspace
+    /// project's own direct dependencies get rewritten back to
+    /// symlinks. Mirrors pnpm's
+    /// [`dedupeInjectedDeps`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/dedupeInjectedDeps.ts).
+    /// Default `true` to match pnpm's
+    /// [`extendInstallOptions`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/extendInstallOptions.ts#L282).
+    #[default = true]
+    pub dedupe_injected_deps: bool,
+
     /// If this is enabled, commands will fail if there is a missing or invalid peer dependency in the tree.
     pub strict_peer_dependencies: bool,
 

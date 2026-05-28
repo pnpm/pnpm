@@ -42,12 +42,14 @@
 //!   on anyway.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use node_semver::{Range, Version};
 use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
 
 use crate::{
+    dedupe_injected_deps::dedupe_injected_deps,
     dependencies_graph::{
         DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef,
         PeerDependencyIssue, PeerDependencyIssues,
@@ -153,6 +155,34 @@ pub struct ResolvePeersResult {
     pub peer_dependency_issues: PeerDependencyIssues,
 }
 
+/// One importer's input to the multi-importer [`fn@resolve_peers_workspace`]
+/// — the lockfile importer id, the importer's `directNodeIdsByAlias`
+/// slice, the absolute project root, and the per-importer
+/// `modules_dir` used by the `excludeLinksFromLockfile` link-remap.
+/// Mirrors the per-project payload pnpm's `resolvePeers` reads off
+/// `opts.projects`.
+#[derive(Debug, Clone)]
+pub struct ImporterPeerInput {
+    pub id: String,
+    pub direct: Vec<DirectDep>,
+    pub root_dir: PathBuf,
+    /// Absolute path of this importer's `node_modules` directory.
+    /// Threaded into [`ResolvePeersOptions::modules_dir`] while this
+    /// importer is being walked so the `excludeLinksFromLockfile` link
+    /// remap uses the correct per-importer target. `None` disables
+    /// the remap for this importer.
+    pub modules_dir: Option<PathBuf>,
+}
+
+/// Output of [`fn@resolve_peers_workspace`] — the cross-importer
+/// dedupe map plus per-importer `direct_dependencies_by_alias` slices.
+#[derive(Debug, Default)]
+pub struct WorkspaceResolvePeersResult {
+    pub graph: DependenciesGraph,
+    pub direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
+    pub peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues>,
+}
+
 /// Resolve peer dependencies for `tree` and emit a depPath-keyed graph.
 ///
 /// Takes `tree` by `&mut` because lazy [`TreeChildren`] entries are
@@ -178,6 +208,82 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         parent_pkgs_of_node: HashMap::new(),
     };
     walker.walk()
+}
+
+/// Resolve peer dependencies for every importer in `importers` against
+/// the shared `tree`, then rewrite injected workspace deps that
+/// dedupe back to `link:` symlinks.
+///
+/// Mirrors pnpm's
+/// [`resolvePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L72)
+/// multi-importer entry point: one Walker walks every importer's
+/// direct deps in sequence so `peersCache` + `purePkgs` are shared
+/// across importers, then the in-crate `dedupe_injected_deps` pass
+/// runs once with all importers' direct deps in scope.
+pub fn resolve_peers_workspace(
+    tree: &mut ResolvedTree,
+    importers: &[ImporterPeerInput],
+    lockfile_dir: &Path,
+    dedupe_injected_deps_enabled: bool,
+    opts: ResolvePeersOptions,
+) -> WorkspaceResolvePeersResult {
+    let mut walker = Walker {
+        tree,
+        opts,
+        graph: DependenciesGraph::new(),
+        issues: PeerDependencyIssues::default(),
+        node_dep_paths: HashMap::new(),
+        node_external_peers: HashMap::new(),
+        node_missing_peers: HashMap::new(),
+        in_progress: HashSet::new(),
+        pending_peer_edges: Vec::new(),
+        pure_pkgs: HashSet::new(),
+        peers_cache: HashMap::new(),
+        parent_pkgs_of_node: HashMap::new(),
+    };
+
+    let mut direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>> =
+        BTreeMap::new();
+    let mut peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues> =
+        BTreeMap::new();
+    let mut importer_root_dirs: BTreeMap<String, PathBuf> = BTreeMap::new();
+    for importer in importers {
+        importer_root_dirs.insert(importer.id.clone(), importer.root_dir.clone());
+        // Swap the per-importer `modules_dir` in before the walk so
+        // the `excludeLinksFromLockfile` link-remap inside
+        // `resolve_node` uses the correct importer-scoped target.
+        walker.opts.modules_dir = importer.modules_dir.clone();
+        let importer_parents = walker.build_importer_parents_from(&importer.direct);
+        let parent_chain_names: Vec<String> = Vec::new();
+        let mut direct_by_alias = BTreeMap::new();
+        for dep in &importer.direct {
+            let output =
+                walker.resolve_node(dep.node_id.clone(), &importer_parents, &parent_chain_names, 0);
+            direct_by_alias.insert(dep.alias.clone(), output.dep_path);
+        }
+        direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
+        let issues = std::mem::take(&mut walker.issues);
+        if !issues.bad.is_empty() || !issues.missing.is_empty() {
+            peer_dependency_issues_by_importer.insert(importer.id.clone(), issues);
+        }
+    }
+    walker.patch_pending_peer_edges();
+    let mut graph = walker.graph;
+
+    if dedupe_injected_deps_enabled {
+        dedupe_injected_deps(
+            &mut graph,
+            &mut direct_dependencies_by_importer,
+            &importer_root_dirs,
+            lockfile_dir,
+        );
+    }
+
+    WorkspaceResolvePeersResult {
+        graph,
+        direct_dependencies_by_importer,
+        peer_dependency_issues_by_importer,
+    }
 }
 
 /// Per-name entry in the propagating `ParentRefs` map. Mirrors upstream's
@@ -413,8 +519,16 @@ impl<'tree> Walker<'tree> {
     /// upstream's
     /// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244).
     fn build_importer_parents(&self) -> ParentRefs {
+        self.build_importer_parents_from(&self.tree.direct)
+    }
+
+    /// Same as [`Self::build_importer_parents`] but seeds from an
+    /// externally-supplied direct-deps slice — used by the multi-importer
+    /// [`fn@resolve_peers_workspace`] where each importer's `direct`
+    /// lives outside [`ResolvedTree`].
+    fn build_importer_parents_from(&self, direct_deps: &[DirectDep]) -> ParentRefs {
         let mut refs = ParentRefs::new();
-        for direct in &self.tree.direct {
+        for direct in direct_deps {
             let Some(tree_node) = self.tree.dependencies_tree.get(&direct.node_id) else {
                 continue;
             };

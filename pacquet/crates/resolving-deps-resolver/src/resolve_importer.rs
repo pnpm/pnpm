@@ -17,8 +17,11 @@
 //!    preferred version already in scope, and extend the tree with
 //!    those. Re-enter the inner loop if any landed.
 //!
-//! Single-importer slice; multi-importer support waits on pacquet's
-//! workspace work.
+//! Per-importer slice. The workspace-wide orchestrator
+//! [`fn@crate::resolve_workspace`] loops this function for every
+//! importer, then runs a single multi-importer
+//! [`fn@crate::resolve_peers_workspace`] pass that shares the peer
+//! walker's caches across importers and applies `dedupeInjectedDeps`.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
@@ -40,7 +43,7 @@ use crate::{
         hoist_peers,
     },
     resolve_dependency_tree::{
-        ResolveDependencyTreeError, TreeCtx, WantedSpec, extend_tree,
+        ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
         importer_injected_dependency_names, importer_optional_dependency_names,
         resolve_catalog_specifiers,
     },
@@ -185,6 +188,32 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     Chain: Resolver + ?Sized,
 {
+    // `manifest_hook` lives on the workspace ctx (it's workspace-wide,
+    // not per-importer). Apply it before sharing the `Arc` —
+    // `resolve_importer_with_workspace` reads through the shared ctx
+    // and can't mutate it after the fact.
+    let workspace =
+        Arc::new(WorkspaceTreeCtx::default().with_manifest_hook(opts.manifest_hook.clone()));
+    resolve_importer_with_workspace(resolver, manifest, dependency_groups, opts, workspace).await
+}
+
+/// Same as [`fn@resolve_importer`] but reuses a shared
+/// [`WorkspaceTreeCtx`] so the resolver's per-`pkgIdWithPatchHash`
+/// dedup carries across importers in a workspace install. The
+/// multi-importer orchestrator [`fn@crate::resolve_workspace`] uses
+/// this to fold every importer's resolved packages into one shared
+/// map.
+pub async fn resolve_importer_with_workspace<DependencyGroupList, Chain>(
+    resolver: &Chain,
+    manifest: &PackageManifest,
+    dependency_groups: DependencyGroupList,
+    opts: ResolveImporterOptions,
+    workspace: Arc<WorkspaceTreeCtx>,
+) -> Result<ResolveImporterResult, ResolveImporterError>
+where
+    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+    Chain: Resolver + ?Sized,
+{
     let ResolveImporterOptions {
         auto_install_peers,
         auto_install_peers_from_highest_match,
@@ -198,7 +227,11 @@ where
         lockfile_dir,
         modules_dir,
         peers_suffix_max_length,
-        manifest_hook,
+        // `manifest_hook` is workspace-wide; it lives on the shared
+        // [`WorkspaceTreeCtx`] and the caller (`resolve_importer` or
+        // `resolve_workspace`) is responsible for setting it there
+        // before handing the `Arc` to this function.
+        manifest_hook: _,
     } = opts;
     let peers_opts = || ResolvePeersOptions {
         peers_suffix_max_length,
@@ -208,9 +241,8 @@ where
         modules_dir: modules_dir.clone(),
     };
 
-    let ctx = TreeCtx::new(base_opts)
-        .with_patched_dependencies(patched_dependencies)
-        .with_manifest_hook(manifest_hook);
+    let ctx = TreeCtx::with_workspace(workspace, base_opts)
+        .with_patched_dependencies(patched_dependencies);
 
     // Mirrors upstream's
     // [`getAllDependenciesFromManifest({ autoInstallPeers })`](https://github.com/pnpm/pnpm/blob/097983fbca/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts):

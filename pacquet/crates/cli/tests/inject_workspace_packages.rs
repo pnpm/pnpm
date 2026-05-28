@@ -280,6 +280,13 @@ fn dependencies_meta_injected_per_dep_overrides_global_off() {
     // Explicit `false` so a contributor flipping the global default
     // can't accidentally make this test pass for the wrong reason.
     workspace_yaml.push_str("injectWorkspacePackages: false\n");
+    // Isolate the resolver-output assertion below from the
+    // `dedupeInjectedDeps` pass that rewrites an injected workspace
+    // dep back to `link:` when the target's children are a subset of
+    // the injected snapshot's. With project-1 being a childless leaf
+    // and dedupe enabled, the file: resolution this test asserts on
+    // would otherwise collapse to `link:../project-1`.
+    workspace_yaml.push_str("dedupeInjectedDeps: false\n");
     workspace_yaml.push_str("packages:\n  - 'project-*'\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 

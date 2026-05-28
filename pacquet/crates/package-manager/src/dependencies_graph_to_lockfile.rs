@@ -288,6 +288,13 @@ fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<St
 ///   the [`ImporterDepVersion::Link`] arm so the lockfile records the
 ///   sibling project's relative path instead of trying to parse it as
 ///   `name@version`.
+/// - When the depPath is an injected workspace id (`file:<rel-path>`
+///   plus optional `(peer@suffix)`), emit the
+///   [`ImporterDepVersion::File`] arm so the importer entry records
+///   the `file:` snapshot key instead of trying to parse it as
+///   `name@version`. The injected workspace dep didn't dedupe back to
+///   `link:` because its children weren't a subset of the target
+///   project's direct deps (or `dedupeInjectedDeps` is off).
 /// - When the resolved real name equals the manifest alias and the
 ///   depPath starts with `<name>@`, drop the prefix so the importer
 ///   carries just the version-with-peer string.
@@ -299,6 +306,9 @@ fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDe
 
     if let Some(target) = dep_path_str.strip_prefix("link:") {
         return ImporterDepVersion::Link(target.to_string());
+    }
+    if let Some(target) = dep_path_str.strip_prefix("file:") {
+        return ImporterDepVersion::File(target.to_string());
     }
 
     let real_name = real_name(&node.resolve_result);
