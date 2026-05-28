@@ -1,21 +1,24 @@
 use super::{BinOrigin, LinkBinsError, PackageBinSource, link_bins, link_bins_of_packages};
 use crate::{
     capabilities::{
-        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadString,
-        FsSetExecutable, FsWalkFiles, FsWrite, RealApi,
+        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
+        FsSetExecutable, FsWalkFiles, FsWrite, Host,
     },
     shim::is_shim_pointing_at,
 };
 use serde_json::{Value, json};
 use std::{
-    fs::{create_dir_all, metadata, read as read_file, read_to_string, write as write_file},
+    fs::{create_dir_all, read as read_file, read_to_string, write as write_file},
     iter::{Empty, empty},
     path::{Path, PathBuf},
     sync::Arc,
 };
-// `remove_file` is only used by the Windows-only upgrade-recovery
-// test below; importing it unconditionally trips the
-// `unused-imports` dylint on Unix builds.
+// `metadata` is only used by Unix-only permission-mode assertions,
+// and `remove_file` is only used by the Windows-only upgrade-recovery
+// test. Importing either one unconditionally trips `unused-imports`
+// on the opposite platform.
+#[cfg(unix)]
+use std::fs::metadata;
 #[cfg(windows)]
 use std::fs::remove_file;
 use tempfile::tempdir;
@@ -45,8 +48,8 @@ fn writes_shim_flavors_matching_host_platform() {
     let bins_dir = tmp.path().join("node_modules/.bin");
     let manifest_value: Value =
         serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
-    link_bins_of_packages::<RealApi>(
-        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
         &bins_dir,
     )
     .unwrap();
@@ -63,13 +66,13 @@ fn writes_shim_flavors_matching_host_platform() {
         let cmd_body = read_to_string(&cmd).unwrap();
         assert!(cmd_body.starts_with("@SETLOCAL\r\n"), "cmd shim must use CRLF SETLOCAL");
         assert!(
-            cmd_body.contains("\"%~dp0\\..\\foo\\cli.js\""),
+            cmd_body.contains(r#""%~dp0\..\foo\cli.js""#),
             "cmd target should be windows-style",
         );
 
         let ps1_body = read_to_string(&ps1).unwrap();
         assert!(ps1_body.starts_with("#!/usr/bin/env pwsh\n"));
-        assert!(ps1_body.contains("\"$basedir/../foo/cli.js\""));
+        assert!(ps1_body.contains(r#""$basedir/../foo/cli.js""#));
     } else {
         assert!(!cmd.exists(), ".cmd shim must not be written on Unix (pnpm parity)");
         assert!(!ps1.exists(), ".ps1 shim must not be written on Unix (pnpm parity)");
@@ -94,7 +97,7 @@ fn writes_shim_for_bin_string() {
     let bins_dir = tmp.path().join("node_modules/.bin");
     let manifest_value: Value =
         serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
-    link_bins_of_packages::<RealApi>(
+    link_bins_of_packages::<Host>(
         &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
         &bins_dir,
     )
@@ -104,7 +107,7 @@ fn writes_shim_for_bin_string() {
     assert!(shim_path.exists(), "shim should be created");
 
     let body = read_to_string(&shim_path).unwrap();
-    assert!(body.contains("\"$basedir/../foo/bin/cli.js\""), "shim body: {body}");
+    assert!(body.contains(r#""$basedir/../foo/bin/cli.js""#), "shim body: {body}");
     assert!(is_shim_pointing_at(&body, &pkg_dir.join("bin/cli.js")));
 
     #[cfg(unix)]
@@ -122,7 +125,7 @@ fn writes_shim_for_bin_string() {
     }
 }
 
-/// [`link_bins::<RealApi>`](link_bins) walks every package and its scoped
+/// [`link_bins::<Host>`](link_bins) walks every package and its scoped
 /// children. Both regular and `@scope/...` packages must contribute their
 /// bins.
 #[test]
@@ -146,7 +149,7 @@ fn link_bins_walks_modules_and_scopes() {
     create_dir_all(modules.join("not-a-package")).unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<RealApi>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins).unwrap();
 
     assert!(bins.join("foo").exists(), "foo shim must exist");
     assert!(bins.join("bar").exists(), "scoped @s/bar shim must use bare name `bar`");
@@ -159,8 +162,7 @@ fn link_bins_walks_modules_and_scopes() {
 fn link_bins_handles_missing_modules_dir() {
     let tmp = tempdir().unwrap();
     let bins_dir = tmp.path().join(".bin");
-    link_bins::<RealApi>(&tmp.path().join("missing"), &bins_dir)
-        .expect("missing modules dir is Ok");
+    link_bins::<Host>(&tmp.path().join("missing"), &bins_dir).expect("missing modules dir is Ok");
     assert!(!bins_dir.exists(), "no shims means no bin dir created");
 }
 
@@ -176,7 +178,7 @@ fn link_bins_of_packages_no_op_when_no_bins() {
     let bins = tmp.path().join(".bin");
     let manifest: Value =
         serde_json::from_slice(&read_file(pkg.join("package.json")).unwrap()).unwrap();
-    link_bins_of_packages::<RealApi>(&[PackageBinSource::new(pkg, Arc::new(manifest))], &bins)
+    link_bins_of_packages::<Host>(&[PackageBinSource::new(pkg, Arc::new(manifest))], &bins)
         .unwrap();
     assert!(!bins.exists(), "bins dir must not be created when nothing to link");
 }
@@ -212,10 +214,10 @@ fn lexical_compare_breaks_tie_when_neither_owns() {
     let bins = tmp.path().join(".bin");
     // Order beta-then-alpha to verify the choice doesn't depend on
     // discovery order.
-    link_bins_of_packages::<RealApi>(
+    link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(beta.clone(), Arc::new(manifest_beta)),
-            PackageBinSource::new(alpha.clone(), Arc::new(manifest_alpha)),
+            PackageBinSource::new(beta, Arc::new(manifest_beta)),
+            PackageBinSource::new(alpha, Arc::new(manifest_alpha)),
         ],
         &bins,
     )
@@ -238,7 +240,7 @@ fn link_bins_propagates_parse_manifest_error() {
     write_file(modules.join("broken/package.json"), "{ this is not json").unwrap();
 
     let bins = modules.join(".bin");
-    let err = link_bins::<RealApi>(&modules, &bins).expect_err("invalid manifest must surface");
+    let err = link_bins::<Host>(&modules, &bins).expect_err("invalid manifest must surface");
     assert!(
         matches!(err, LinkBinsError::ParseManifest { .. }),
         "expected ParseManifest, got {err:?}",
@@ -260,14 +262,14 @@ fn link_bins_skips_existing_shim_with_matching_marker() {
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<RealApi>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins).unwrap();
     let original = read_to_string(bins.join("foo")).unwrap();
     // Append a sentinel. If the second pass rewrites the shim, the
     // sentinel disappears.
     let sentinel = format!("{original}\n# SENTINEL");
     write_file(bins.join("foo"), &sentinel).unwrap();
 
-    link_bins::<RealApi>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins).unwrap();
     assert_eq!(read_to_string(bins.join("foo")).unwrap(), sentinel);
 }
 
@@ -294,7 +296,7 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<RealApi>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins).unwrap();
 
     // Simulate the partial-write / older-pacquet state: delete the
     // .cmd and .ps1 siblings, leaving only the canonical shim with its
@@ -302,17 +304,17 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     remove_file(bins.join("foo.cmd")).unwrap();
     remove_file(bins.join("foo.ps1")).unwrap();
 
-    link_bins::<RealApi>(&modules, &bins).unwrap();
+    link_bins::<Host>(&modules, &bins).unwrap();
 
     assert!(bins.join("foo").exists(), "canonical shim must remain");
     assert!(bins.join("foo.cmd").exists(), ".cmd sibling must be re-created on second pass");
     assert!(bins.join("foo.ps1").exists(), ".ps1 sibling must be re-created on second pass");
 }
 
-/// [`link_bins_of_packages`] propagates a non-`NotFound` `read_dir`
-/// error from the calling context. Use a fake `Api` that fails the
-/// initial `create_dir_all` to cover the [`LinkBinsError::CreateBinDir`]
-/// error variant that real fs can't trigger portably.
+/// [`link_bins_of_packages`] propagates a `create_dir_all` failure on
+/// the destination bins directory as [`LinkBinsError::CreateBinDir`].
+/// Use a fake `Sys` that fails the initial `create_dir_all` to drive
+/// the variant, since the real fs can't trigger it portably.
 #[test]
 fn link_bins_propagates_create_bin_dir_error_via_di() {
     use std::io;
@@ -328,7 +330,7 @@ fn link_bins_propagates_create_bin_dir_error_via_di() {
             unreachable!("not called when chosen is empty")
         }
     }
-    impl FsReadString for FailingCreateDir {
+    impl FsReadToString for FailingCreateDir {
         fn read_to_string(_: &Path) -> io::Result<String> {
             unreachable!()
         }
@@ -397,7 +399,7 @@ fn link_bins_propagates_write_shim_error_via_di() {
             unreachable!()
         }
     }
-    impl FsReadString for FailingWrite {
+    impl FsReadToString for FailingWrite {
         fn read_to_string(_: &Path) -> io::Result<String> {
             // Pretend no existing shim, forcing the writer path.
             Err(io::Error::from(io::ErrorKind::NotFound))
@@ -466,7 +468,7 @@ fn link_bins_propagates_chmod_error_via_di() {
             unreachable!()
         }
     }
-    impl FsReadString for FailingChmod {
+    impl FsReadToString for FailingChmod {
         fn read_to_string(_: &Path) -> io::Result<String> {
             Err(io::Error::from(io::ErrorKind::NotFound))
         }
@@ -538,7 +540,7 @@ fn link_bins_propagates_target_chmod_error_via_di() {
             unreachable!()
         }
     }
-    impl FsReadString for FailingTargetChmod {
+    impl FsReadToString for FailingTargetChmod {
         fn read_to_string(_: &Path) -> io::Result<String> {
             Err(io::Error::from(io::ErrorKind::NotFound))
         }
@@ -612,7 +614,7 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
             unreachable!()
         }
     }
-    impl FsReadString for NotFoundTargetChmod {
+    impl FsReadToString for NotFoundTargetChmod {
         fn read_to_string(_: &Path) -> io::Result<String> {
             Err(io::Error::from(io::ErrorKind::NotFound))
         }
@@ -682,7 +684,7 @@ fn link_bins_propagates_probe_shim_source_error_via_di() {
             unreachable!()
         }
     }
-    impl FsReadString for FailingProbe {
+    impl FsReadToString for FailingProbe {
         fn read_to_string(_: &Path) -> io::Result<String> {
             unreachable!()
         }
@@ -751,7 +753,7 @@ fn link_bins_propagates_read_manifest_error_via_di() {
             Err(io::Error::from(io::ErrorKind::PermissionDenied))
         }
     }
-    impl FsReadString for DenyManifestRead {
+    impl FsReadToString for DenyManifestRead {
         fn read_to_string(_: &Path) -> io::Result<String> {
             unreachable!()
         }
@@ -828,10 +830,10 @@ fn ownership_breaks_bin_conflicts_when_existing_owns() {
     // Order npm-first; this exercises the (true, false) arm because
     // `npm` (existing) owns and `aaa-other` (candidate) doesn't.
     let bins = tmp.path().join(".bin");
-    link_bins_of_packages::<RealApi>(
+    link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(npm.clone(), Arc::new(manifest_npm)),
-            PackageBinSource::new(aaa_other.clone(), Arc::new(manifest_other)),
+            PackageBinSource::new(npm, Arc::new(manifest_npm)),
+            PackageBinSource::new(aaa_other, Arc::new(manifest_other)),
         ],
         &bins,
     )
@@ -859,7 +861,7 @@ fn link_bins_propagates_modules_dir_read_error_via_di() {
             unreachable!()
         }
     }
-    impl FsReadString for FailingModulesRead {
+    impl FsReadToString for FailingModulesRead {
         fn read_to_string(_: &Path) -> io::Result<String> {
             unreachable!()
         }
@@ -934,9 +936,9 @@ fn ownership_breaks_bin_conflicts() {
         serde_json::from_slice(&read_file(aaa_other.join("package.json")).unwrap()).unwrap();
 
     let bins = tmp.path().join(".bin");
-    link_bins_of_packages::<RealApi>(
+    link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(aaa_other.clone(), Arc::new(manifest_other)),
+            PackageBinSource::new(aaa_other, Arc::new(manifest_other)),
             PackageBinSource::new(npm.clone(), Arc::new(manifest_npm)),
         ],
         &bins,
@@ -988,12 +990,11 @@ fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
         serde_json::from_slice(&read_file(direct.join("package.json")).unwrap()).unwrap();
 
     let bins = tmp.path().join(".bin");
-    link_bins_of_packages::<RealApi>(
+    link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(hoisted.clone(), Arc::new(manifest_hoisted))
+            PackageBinSource::new(hoisted, Arc::new(manifest_hoisted))
                 .with_origin(BinOrigin::Hoisted),
-            PackageBinSource::new(direct.clone(), Arc::new(manifest_direct))
-                .with_origin(BinOrigin::Direct),
+            PackageBinSource::new(direct, Arc::new(manifest_direct)).with_origin(BinOrigin::Direct),
         ],
         &bins,
     )
@@ -1041,11 +1042,10 @@ fn hoisted_origin_loses_to_existing_direct() {
     let bins = tmp.path().join(".bin");
     // Direct goes first so it's the incumbent when the Hoisted
     // candidate is processed second.
-    link_bins_of_packages::<RealApi>(
+    link_bins_of_packages::<Host>(
         &[
-            PackageBinSource::new(direct.clone(), Arc::new(manifest_direct))
-                .with_origin(BinOrigin::Direct),
-            PackageBinSource::new(hoisted.clone(), Arc::new(manifest_hoisted))
+            PackageBinSource::new(direct, Arc::new(manifest_direct)).with_origin(BinOrigin::Direct),
+            PackageBinSource::new(hoisted, Arc::new(manifest_hoisted))
                 .with_origin(BinOrigin::Hoisted),
         ],
         &bins,
@@ -1057,4 +1057,227 @@ fn hoisted_origin_loses_to_existing_direct() {
         body.contains("/zeta/cmd.js"),
         "Direct incumbent must shut out Hoisted candidate, got body:\n{body}",
     );
+}
+
+/// Mirrors pnpm's `linkBinsOfPackages() symlinks node binary directly
+/// instead of creating a shell shim` at
+/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L643>.
+///
+/// The `node` bin must land as a symlink to the real binary, never a
+/// `/bin/sh`-wrapped shim. Wrapping is the recursion trap described in
+/// [`super::link_node_bin`]'s doc comment.
+#[cfg(unix)]
+#[test]
+fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    let node_dir = tmp.path().join("node_pkg");
+    let node_bin_dir = node_dir.join("bin");
+    create_dir_all(&node_bin_dir).unwrap();
+    write_file(node_bin_dir.join("node"), "fake-node-binary").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    let bin_location = bin_target.join("node");
+    let meta = std::fs::symlink_metadata(&bin_location).unwrap();
+    assert!(meta.file_type().is_symlink(), "node bin must be a symlink, not a shim file");
+    assert_eq!(
+        std::fs::canonicalize(&bin_location).unwrap(),
+        std::fs::canonicalize(node_bin_dir.join("node")).unwrap(),
+        "symlink must resolve to the real binary",
+    );
+    // The target binary must not have been mutated to a sh-shim text.
+    assert_eq!(
+        read_to_string(node_bin_dir.join("node")).unwrap(),
+        "fake-node-binary",
+        "node bin special case must not rewrite the underlying binary",
+    );
+}
+
+/// Mirrors pnpm's `linkBinsOfPackages() replaces a dangling symlink
+/// when linking node binary` at
+/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L671>.
+///
+/// A previous install can leave a dangling symlink at `bin/node` when
+/// the prior store entry was pruned. The next install must overwrite
+/// it; `fs::symlink` would otherwise error with `AlreadyExists`.
+#[cfg(unix)]
+#[test]
+fn link_node_bin_replaces_dangling_symlink() {
+    use std::os::unix::fs::symlink;
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    create_dir_all(&bin_target).unwrap();
+    let dangling_target = tmp.path().join("does_not_exist");
+    symlink(&dangling_target, bin_target.join("node")).unwrap();
+    assert!(
+        std::fs::metadata(bin_target.join("node")).is_err(),
+        "precondition: symlink must be dangling",
+    );
+
+    let node_dir = tmp.path().join("node_pkg");
+    let node_bin_dir = node_dir.join("bin");
+    create_dir_all(&node_bin_dir).unwrap();
+    write_file(node_bin_dir.join("node"), "fake-node-binary").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    let stat = std::fs::symlink_metadata(bin_target.join("node")).unwrap();
+    assert!(stat.file_type().is_symlink());
+    assert_eq!(
+        std::fs::canonicalize(bin_target.join("node")).unwrap(),
+        std::fs::canonicalize(node_bin_dir.join("node")).unwrap(),
+    );
+}
+
+/// Regression test for the corruption pattern that motivated the
+/// node-bin short-circuit. Without the special case, if `bin/node` is
+/// hardlinked into a pacquet slot and `<bin_dir>/node` is also a
+/// regular file hardlinked to the same inode (e.g. a prior pacquet
+/// revision left it that way), then `fs::write` truncating the dirent
+/// would rewrite the underlying node binary as a 459-byte
+/// `/bin/sh`-wrapper text file — propagating to every project that
+/// reflinks from the same store.
+///
+/// The fix is `remove_file` followed by `fs::symlink`. `remove_file`
+/// drops only the dirent, leaving the hardlinked content intact.
+#[cfg(unix)]
+#[test]
+fn link_node_bin_does_not_corrupt_hardlinked_target() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    create_dir_all(&bin_target).unwrap();
+
+    let node_dir = tmp.path().join("node_pkg");
+    let node_bin_dir = node_dir.join("bin");
+    create_dir_all(&node_bin_dir).unwrap();
+    write_file(node_bin_dir.join("node"), "fake-node-binary").unwrap();
+    // Hardlink the binary into the would-be bin slot, simulating the
+    // disk state that produced the upstream corruption.
+    std::fs::hard_link(node_bin_dir.join("node"), bin_target.join("node")).unwrap();
+
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_to_string(node_bin_dir.join("node")).unwrap(),
+        "fake-node-binary",
+        "real node binary must not be rewritten by the bin linker",
+    );
+}
+
+/// Mirrors pnpm's `linkBinsOfPackages() hardlinks node.exe instead of
+/// creating a cmd-shim` at
+/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L709>.
+///
+/// On Windows the canonical bin dirent for the node runtime is
+/// `<bin_dir>/node.exe` — a hardlink (or copy fallback) of the source
+/// `.exe`. No `.cmd` or `.ps1` shim is emitted, because npm's cmd
+/// shims call `node.exe` from `IF EXIST` blocks that mishandle a
+/// `.cmd` redirection.
+#[cfg(windows)]
+#[test]
+fn link_node_bin_hardlinks_node_exe_on_windows() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    let node_dir = tmp.path().join("node_pkg");
+    create_dir_all(&node_dir).unwrap();
+    write_file(node_dir.join("node.exe"), "fake-node-binary").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "node.exe"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    let exe = bin_target.join("node.exe");
+    assert!(exe.exists(), "node.exe must be created in the bin dir");
+    assert_eq!(read_to_string(&exe).unwrap(), "fake-node-binary");
+    // No canonical shim, .cmd, or .ps1 should be written.
+    assert!(
+        !bin_target.join("node").exists(),
+        "canonical shim must not be written for the node special case",
+    );
+    assert!(
+        !bin_target.join("node.cmd").exists(),
+        ".cmd shim must not be written for the node special case",
+    );
+    assert!(
+        !bin_target.join("node.ps1").exists(),
+        ".ps1 shim must not be written for the node special case",
+    );
+}
+
+/// Windows-only: when the node manifest declares a non-`.exe` source
+/// (uncommon but possible — e.g. a wrapper script), pnpm falls through
+/// to the regular cmd-shim path. Pacquet must too.
+#[cfg(windows)]
+#[test]
+fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    let node_dir = tmp.path().join("node_pkg");
+    create_dir_all(node_dir.join("bin")).unwrap();
+    write_file(node_dir.join("bin/node"), "#!/usr/bin/env node\nconsole.log(1)\n").unwrap();
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),
+    )
+    .unwrap();
+
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir, Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    // The non-`.exe` node source falls through to the cmd-shim path,
+    // so the canonical sh shim, `.cmd`, and `.ps1` siblings all land
+    // exactly as for any other bin.
+    assert!(bin_target.join("node").exists());
+    assert!(bin_target.join("node.cmd").exists());
+    assert!(bin_target.join("node.ps1").exists());
+    assert!(!bin_target.join("node.exe").exists());
 }

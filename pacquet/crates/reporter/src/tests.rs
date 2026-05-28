@@ -6,12 +6,13 @@ use serde_json::Value;
 
 use crate::{
     AddedRoot, BrokenModulesLog, ContextLog, DependencyType, Envelope, FetchingProgressLog,
-    FetchingProgressMessage, GetHostName, IgnoredScriptsLog, LifecycleLog, LifecycleMessage,
-    LifecycleStdio, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
-    PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, RealApi, RemovedRoot,
-    Reporter, RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog,
-    StatsLog, StatsMessage, SummaryLog,
+    FetchingProgressMessage, GetHostName, Host, IgnoredScriptsLog, LifecycleLog, LifecycleMessage,
+    LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel,
+    PackageImportMethod, PackageImportMethodLog, PackageManifestLog, PackageManifestMessage,
+    PnpmLog, ProgressLog, ProgressMessage, RemovedRoot, Reporter, RequestRetryError,
+    RequestRetryLog, RootLog, RootMessage, SilentReporter, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
+    SummaryLog,
 };
 
 /// Context log serializes with the camelCase field names
@@ -91,6 +92,32 @@ fn summary_event_matches_pnpm_wire_shape() {
 
     assert_eq!(json["name"], "pnpm:summary");
     assert_eq!(json["level"], "debug");
+    assert_eq!(json["prefix"], "/some/project");
+}
+
+/// Generic-channel (`name: "pnpm"`) log carries the bare `pnpm`
+/// channel name — without a `:`-suffix — matching the shape pnpm's
+/// global logger writes. `@pnpm/cli.default-reporter` routes these
+/// records through the "other" stream branch; a typo on the channel
+/// name would silently fail to render.
+#[test]
+fn pnpm_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Lockfile is up to date, resolution step is skipped".to_string(),
+        prefix: "/some/project".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm");
+    assert_eq!(json["level"], "info");
+    assert_eq!(json["message"], "Lockfile is up to date, resolution step is skipped");
     assert_eq!(json["prefix"], "/some/project");
 }
 
@@ -776,13 +803,13 @@ fn recording_fake_captures_emitted_events() {
         }
     }
 
-    fn install_step<R: Reporter>() {
-        R::emit(&LogEvent::Stage(StageLog {
+    fn install_step<Reporter: self::Reporter>() {
+        Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: "/proj".to_string(),
             stage: Stage::ImportingStarted,
         }));
-        R::emit(&LogEvent::Stage(StageLog {
+        Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: "/proj".to_string(),
             stage: Stage::ImportingDone,
@@ -800,25 +827,127 @@ fn recording_fake_captures_emitted_events() {
     assert!(matches!(&captured[1], LogEvent::Stage(StageLog { stage: Stage::ImportingDone, .. })));
 }
 
+/// `pnpm:lockfile-verification` `started` event carries `entries` and
+/// the camelCase `lockfilePath`, both flattened into the envelope
+/// alongside `status: "started"`. Mirrors upstream's emit at
+/// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L135-L139>.
+#[test]
+fn lockfile_verification_started_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Started {
+            entries: 12,
+            lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
+        },
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert_eq!(json["name"], "pnpm:lockfile-verification");
+    assert_eq!(json["level"], "debug");
+    assert_eq!(json["status"], "started");
+    assert_eq!(json["entries"], 12);
+    assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
+    assert!(json.get("elapsedMs").is_none(), "elapsedMs must be absent on started");
+}
+
+/// `pnpm:lockfile-verification` `done` event adds `elapsedMs` in
+/// camelCase, with `status: "done"`. Matches upstream's emit at
+/// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L163-L168>.
+#[test]
+fn lockfile_verification_done_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Done {
+            entries: 12,
+            elapsed_ms: 234,
+            lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
+        },
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert_eq!(json["name"], "pnpm:lockfile-verification");
+    assert_eq!(json["status"], "done");
+    assert_eq!(json["entries"], 12);
+    assert_eq!(json["elapsedMs"], 234);
+    assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
+}
+
+/// `pnpm:lockfile-verification` `failed` mirrors the `done` shape
+/// except for the discriminator. Upstream sends it whenever the gate
+/// emitted `started` but didn't reach `done` — policy violations and
+/// unexpected throws alike — so the reporter can close out the
+/// transient frame.
+#[test]
+fn lockfile_verification_failed_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Failed {
+            entries: 12,
+            elapsed_ms: 999,
+            lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
+        },
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert_eq!(json["status"], "failed");
+    assert_eq!(json["entries"], 12);
+    assert_eq!(json["elapsedMs"], 999);
+    assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
+}
+
+/// `lockfilePath` is upstream-optional (undefined in test paths that
+/// skip the cache wiring). When `None`, the field must be omitted
+/// rather than rendered as `null` — pnpm's reporter dispatches on
+/// presence to decide whether to render the path suffix.
+#[test]
+fn lockfile_verification_omits_absent_lockfile_path() {
+    let event = LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Started { entries: 1, lockfile_path: None },
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert!(
+        json.get("lockfilePath").is_none(),
+        "lockfilePath must be omitted when absent, got {json:?}",
+    );
+}
+
 /// A test fake of [`GetHostName`] returns whatever value its impl
 /// declares. This proves the capability trait is dispatchable from a
 /// test, which is what consumers of the trait need to know.
 #[test]
 fn get_host_name_capability_is_mockable() {
-    struct FakeApi;
-    impl GetHostName for FakeApi {
+    struct FakeHostName;
+    impl GetHostName for FakeHostName {
         fn get_host_name() -> String {
             "fixture-host".to_owned()
         }
     }
-    assert_eq!(FakeApi::get_host_name(), "fixture-host");
+    assert_eq!(FakeHostName::get_host_name(), "fixture-host");
 }
 
-/// [`RealApi::get_host_name`] returns the value of `gethostname(2)`,
+/// [`Host::get_host_name`] returns the value of `gethostname(2)`,
 /// which any real environment populates with at least one byte.
 #[test]
-fn real_api_returns_a_non_empty_host_name() {
-    let host = RealApi::get_host_name();
-    eprintln!("RealApi::get_host_name() = {host:?}");
+fn host_returns_a_non_empty_host_name() {
+    let host = Host::get_host_name();
+    eprintln!("Host::get_host_name() = {host:?}");
     assert!(!host.is_empty());
 }

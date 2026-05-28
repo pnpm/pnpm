@@ -17,14 +17,14 @@ pub enum ResolvePatchedDependenciesError {
 }
 
 impl From<CalcPatchHashError> for ResolvePatchedDependenciesError {
-    fn from(e: CalcPatchHashError) -> Self {
-        Self::Hash(e)
+    fn from(error: CalcPatchHashError) -> Self {
+        Self::Hash(error)
     }
 }
 
 impl From<PatchNonSemverRangeError> for ResolvePatchedDependenciesError {
-    fn from(e: PatchNonSemverRangeError) -> Self {
-        Self::Range(e)
+    fn from(error: PatchNonSemverRangeError) -> Self {
+        Self::Range(error)
     }
 }
 

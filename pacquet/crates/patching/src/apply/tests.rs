@@ -2,6 +2,7 @@ use crate::apply::{PatchApplyError, apply_patch_to_dir};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::tempdir;
+use text_block_macros::text_block_fnl;
 
 /// Mirrors the upstream `is-positive` fixture at
 /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-restorer/test/fixtures/simple-with-patch/patches/is-positive.patch>:
@@ -337,4 +338,341 @@ deleted file mode 100644
 
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
     assert!(!target.exists(), "deleted target must be gone");
+}
+
+/// Reading the patch-file path itself can fail with errors other
+/// than `NotFound` — here, the patch path is a directory rather
+/// than a file. The classifier must surface this as `ReadPatchFile`
+/// (not `PatchNotFound`).
+#[cfg(unix)]
+#[test]
+fn read_patch_file_surfaces_non_not_found_error() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    // Pass the directory itself as the patch path. `fs::read` on a
+    // directory returns `IsADirectory`, never `NotFound`.
+    let err = apply_patch_to_dir(patched.path(), patch_dir.path())
+        .expect_err("reading a directory as a patch file should fail");
+    assert!(
+        matches!(err, PatchApplyError::ReadPatchFile { .. }),
+        "expected ReadPatchFile error, got {err:?}",
+    );
+}
+
+/// A delete patch that does not consume the entire file leaves
+/// non-empty content behind after `diffy::apply`. The implementation
+/// must refuse to remove the file in that case rather than silently
+/// dropping the unpatched tail. Tests the `if !after.is_empty()`
+/// guard in the Delete arm.
+#[test]
+fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("partial.txt");
+    // Two lines on disk. The patch below claims to delete the file
+    // but only removes the first line — `diffy::apply` applies the
+    // single hunk and returns the unpatched tail (`stay\n`), which
+    // is non-empty, so the implementation must error.
+    fs::write(&target, "going away\nstay\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/partial.txt b/partial.txt"
+            "deleted file mode 100644"
+            "--- a/partial.txt"
+            "+++ /dev/null"
+            "@@ -1 +0,0 @@"
+            "-going away"
+        },
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must refuse partial delete");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(message.contains("non-empty"), "got: {message:?}");
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+    assert!(target.exists(), "target must NOT be unlinked when content remains");
+}
+
+/// Rename and copy file operations are not yet supported. A patch
+/// that contains one of these headers must error cleanly via
+/// `PatchFailed`, not silently no-op.
+#[test]
+fn rename_operation_errors_as_unsupported() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("from.txt"), "hello\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/from.txt b/to.txt"
+            "similarity index 100%"
+            "rename from from.txt"
+            "rename to to.txt"
+        },
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("rename must error");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(
+                message.contains("rename/copy operations in patches are not yet supported"),
+                "got: {message:?}",
+            );
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+}
+
+/// `Create` resolves the parent dir via `create_dir_all`. When the
+/// parent path is a regular file rather than a directory, that call
+/// fails and must surface as `PatchFailed` with a `create parent of`
+/// prefix.
+#[cfg(unix)]
+#[test]
+fn create_with_unwritable_parent_path_errors() {
+    let patched = tempdir().unwrap();
+    // Plant a regular file where the patch wants to create the
+    // nested target's parent directory.
+    fs::write(patched.path().join("blocker"), b"not a dir").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/blocker/nested.txt b/blocker/nested.txt"
+            "new file mode 100644"
+            "--- /dev/null"
+            "+++ b/blocker/nested.txt"
+            "@@ -0,0 +1 @@"
+            "+hi"
+        },
+    );
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("create_dir_all must fail");
+    match err {
+        PatchApplyError::PatchFailed { message, .. } => {
+            assert!(message.contains("create parent of"), "got: {message:?}");
+        }
+        other => panic!("expected PatchFailed, got {other:?}"),
+    }
+}
+
+/// Re-applying a Modify patch over a file that already contains the
+/// post-patch content must succeed (no-op), matching upstream
+/// `@pnpm/patch-package`'s
+/// [retry-with-reverse-in-dry-run](https://github.com/ds300/patch-package/blob/master/src/applyPatches.ts)
+/// idempotency. Triggers in practice when two snapshots of the same
+/// patched package share a hardlinked store file: the first apply
+/// mutates the store inode through the hardlink, so the second
+/// snapshot's apply sees already-patched content and would otherwise
+/// fail with "error applying hunk #1". Reported against pacquet's
+/// configDependencies preview engine for `msw@2.12.14`.
+///
+/// The patch substitutes one line (`old` → `new`) so forward apply
+/// against the already-patched file fails to find the `-old` context
+/// line — the case that exercises the reverse-apply idempotency
+/// branch. A purely additive patch wouldn't reach the reverse
+/// branch: diffy's fuzz matching shifts the insertion point and
+/// double-applies the addition, producing duplicate content.
+#[test]
+fn modify_on_already_patched_file_is_noop() {
+    let original = "alpha\nbravo\nold\ndelta\necho\n";
+    let already_patched = "alpha\nbravo\nnew\ndelta\necho\n";
+    let patch_text = "\
+diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -1,5 +1,5 @@
+ alpha
+ bravo
+-old
++new
+ delta
+ echo
+";
+
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("file.txt"), already_patched).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), patch_text);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+
+    // Content stays at the post-patch state — we didn't double-patch.
+    let after = fs::read_to_string(patched.path().join("file.txt")).unwrap();
+    assert_eq!(after, already_patched);
+
+    // Sanity: a fresh file at the original state still applies normally.
+    let fresh = tempdir().unwrap();
+    fs::write(fresh.path().join("file.txt"), original).unwrap();
+    apply_patch_to_dir(fresh.path(), &patch).expect("fresh apply must succeed");
+    assert_eq!(fs::read_to_string(fresh.path().join("file.txt")).unwrap(), already_patched);
+}
+
+/// `Modify` must NOT mutate any other hardlink pointing at the same
+/// inode. Pacquet's import layer hardlinks files from the content-
+/// addressable store into `node_modules/.pnpm/<slot>/node_modules/<pkg>`,
+/// so a plain truncating `fs::write` on the patched target would
+/// silently corrupt the store copy and leak patched content into every
+/// sibling snapshot that shares the same store inode. The fix is to
+/// unlink the target before writing — the rewritten file gets a fresh
+/// inode and the other hardlinks (the store, sibling snapshots) keep
+/// the original content. This was the root cause of the
+/// `error applying hunk #1` failure reported against pacquet's
+/// configDependencies preview engine for `msw@2.12.14`: worker A
+/// patched its slot's hardlink, mutating the store, and worker B
+/// then read already-patched content from its own hardlinked slot.
+#[cfg(unix)]
+#[test]
+fn modify_does_not_mutate_hardlinked_store_file() {
+    use std::os::unix::fs::MetadataExt;
+
+    // Simulate the store: one canonical file plus a hardlink into a
+    // package slot. They share an inode the way pacquet's link_file
+    // arranges it on filesystems where reflink isn't available.
+    let store = tempdir().unwrap();
+    let store_file = store.path().join("index.js");
+    fs::write(&store_file, IS_POSITIVE_INDEX_JS).unwrap();
+
+    let patched = tempdir().unwrap();
+    let slot_file = patched.path().join("index.js");
+    fs::hard_link(&store_file, &slot_file).unwrap();
+    assert_eq!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "test setup: slot must share inode with store",
+    );
+
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    // Slot has patched content.
+    assert_eq!(fs::read_to_string(&slot_file).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
+    // Store copy is untouched.
+    assert_eq!(fs::read_to_string(&store_file).unwrap(), IS_POSITIVE_INDEX_JS);
+    // And the slot points at a new inode now — the unlink broke the
+    // shared-inode link cleanly.
+    assert_ne!(
+        fs::metadata(&slot_file).unwrap().ino(),
+        fs::metadata(&store_file).unwrap().ino(),
+        "slot must no longer share the store's inode after patching",
+    );
+}
+
+/// `Modify` must preserve the target file's mode. Without an explicit
+/// `set_permissions` after the unlink-then-write, the rewrite would
+/// take its mode from the process umask and silently drop the
+/// executable bit on patched shebang scripts under `bin/`.
+#[cfg(unix)]
+#[test]
+fn modify_preserves_executable_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("index.js");
+    fs::write(&target, IS_POSITIVE_INDEX_JS).unwrap();
+    // Mark the script executable, the way an npm-published bin entry
+    // would be.
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let mode = fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o755, "executable bit must be preserved across the rewrite");
+    assert_eq!(fs::read_to_string(&target).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
+}
+
+/// `Modify` must NOT destroy the target when the rewrite can't finish.
+/// Simulate the write failure by making the patched directory read-
+/// only after staging the target: the temp file open fails with
+/// `PermissionDenied`, and the original target must still be on disk
+/// with its original content. Mirrors the crash-safety guarantee of
+/// the atomic-replace pattern in
+/// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs).
+/// CodeRabbit flagged the prior `unlink → write` ordering as a
+/// data-loss risk during review of pnpm/pnpm#11782.
+#[cfg(unix)]
+#[test]
+fn modify_does_not_destroy_target_on_write_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("index.js");
+    fs::write(&target, IS_POSITIVE_INDEX_JS).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+
+    // Make the directory read-only so the sibling temp file open in
+    // `write_atomic_with_mode` fails with `PermissionDenied`.
+    let dir_mode = fs::metadata(patched.path()).unwrap().permissions().mode();
+    fs::set_permissions(patched.path(), fs::Permissions::from_mode(0o555)).unwrap();
+
+    let err = apply_patch_to_dir(patched.path(), &patch);
+
+    // Restore write perms so tempdir cleanup works.
+    fs::set_permissions(patched.path(), fs::Permissions::from_mode(dir_mode)).unwrap();
+
+    err.expect_err("apply must surface the write failure");
+    // The crucial invariant: the original target survives untouched.
+    assert_eq!(
+        fs::read_to_string(&target).unwrap(),
+        IS_POSITIVE_INDEX_JS,
+        "target must NOT be destroyed when the rewrite can't finish",
+    );
+}
+
+/// Re-applying a Create patch over a file that already exists with the
+/// expected post-patch content is treated as no-op. A genuine
+/// pre-existing file with different content still errors (covered by
+/// [`create_on_existing_file_errors`]).
+#[test]
+fn create_on_already_created_file_with_matching_content_is_noop() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("created.txt");
+    fs::write(&target, "first line\nsecond line\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/created.txt b/created.txt
+new file mode 100644
+--- /dev/null
++++ b/created.txt
+@@ -0,0 +1,2 @@
++first line
++second line
+",
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+    assert_eq!(fs::read_to_string(&target).unwrap(), "first line\nsecond line\n");
+}
+
+/// Re-applying a Delete patch when the target is already gone is a
+/// no-op. Mirrors upstream's `@pnpm/patch-package` reverse-dry-run
+/// idempotency: re-running `pnpm install` after a previously
+/// successful delete must not error.
+#[test]
+fn delete_on_already_deleted_file_is_noop() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        "\
+diff --git a/to-delete.txt b/to-delete.txt
+deleted file mode 100644
+--- a/to-delete.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-going away
+",
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+    assert!(!patched.path().join("to-delete.txt").exists());
 }

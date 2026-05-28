@@ -213,7 +213,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
   const { envLockfile, include, lockfile } = await loadAuditContext(opts)
   const networkOptions = createAuditNetworkOptions(opts)
   let auditReport!: AuditReport
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri)
   try {
     auditReport = await audit(lockfile, getAuthHeader, {
       dispatcherOptions: {

@@ -6,6 +6,7 @@ use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker};
+use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgNameVerPeer,
     SnapshotEntry, select_platform_variant,
@@ -182,7 +183,7 @@ impl<'a> CreateVirtualStore<'a> {
     /// recovered from `index.db` for the warm-batch slots — the
     /// bin linker uses these to avoid re-reading `package.json` per
     /// child. See [`PackageManifests`].
-    pub async fn run<R: Reporter>(
+    pub async fn run<Reporter: self::Reporter>(
         self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         let CreateVirtualStore {
@@ -357,7 +358,7 @@ impl<'a> CreateVirtualStore<'a> {
         // the legacy path is empty, so the skip gate would
         // incorrectly mark every warm slot as "broken" and emit
         // `BrokenModules` for the wrong path.
-        let survivors: Vec<(&PackageKey, &SnapshotEntry)> = snapshots
+        let survivors = snapshots
             .iter()
             // Reason 1: installability skip. Drop entirely.
             .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
@@ -383,7 +384,7 @@ impl<'a> CreateVirtualStore<'a> {
                 // true, the slot directory check passes, and the
                 // directory-fetcher never runs on the second install.
                 if matches!(
-                    wanted_metadata.map(|m| &m.resolution),
+                    wanted_metadata.map(|meta| &meta.resolution),
                     Some(LockfileResolution::Directory(_)),
                 ) {
                     return true;
@@ -403,15 +404,13 @@ impl<'a> CreateVirtualStore<'a> {
                 if dir.is_dir() {
                     false
                 } else {
-                    R::emit(&LogEvent::BrokenModules(BrokenModulesLog {
+                    Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
                         level: LogLevel::Debug,
                         missing: dir.to_string_lossy().into_owned(),
                     }));
                     true
                 }
-            })
-            .collect();
-
+            });
         // Validate every surviving snapshot upfront so a malformed
         // lockfile (missing metadata, missing tarball integrity,
         // currently-unsupported directory / git resolution) errors
@@ -437,7 +436,6 @@ impl<'a> CreateVirtualStore<'a> {
         //   warm-reinstall path).
         type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, Option<String>);
         let snapshot_entries: Vec<SnapshotWithCacheKey<'_>> = survivors
-            .into_iter()
             .map(|(snapshot_key, snapshot)| {
                 snapshot_cache_key(snapshot_key, packages).map(|key| (snapshot_key, snapshot, key))
             })
@@ -461,7 +459,7 @@ impl<'a> CreateVirtualStore<'a> {
             // `skipped_entries` too — they were never installed, so
             // there's no store-index row to keep warm for the
             // build-cache lookup. Only the current-lockfile-skip
-            // path (`survivors` filtered above) should contribute
+            // path (`snapshot_entries` filtered above) should contribute
             // here.
             .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
             .map(|(snapshot_key, snapshot)| {
@@ -486,14 +484,14 @@ impl<'a> CreateVirtualStore<'a> {
         // so consumers don't render a stale "removed" count from a
         // previous install. Pacquet has no pruning pipeline yet, so
         // the placeholder is the truthful value today.
-        R::emit(&LogEvent::Stats(StatsLog {
+        Reporter::emit(&LogEvent::Stats(StatsLog {
             level: LogLevel::Debug,
             message: StatsMessage::Added {
                 prefix: requester.to_owned(),
                 added: snapshot_entries.len() as u64,
             },
         }));
-        R::emit(&LogEvent::Stats(StatsLog {
+        Reporter::emit(&LogEvent::Stats(StatsLog {
             level: LogLevel::Debug,
             message: StatsMessage::Removed { prefix: requester.to_owned(), removed: 0 },
         }));
@@ -612,7 +610,7 @@ impl<'a> CreateVirtualStore<'a> {
                 side_effects_maps_by_snapshot
                     .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
             }
-            match cache_key.as_deref().and_then(|k| prefetched.get(k)) {
+            match cache_key.as_deref().and_then(|key| prefetched.get(key)) {
                 Some(cas_paths) => warm.push((snapshot_key, snapshot, cas_paths)),
                 None => cold.push((snapshot_key, snapshot)),
             }
@@ -624,16 +622,20 @@ impl<'a> CreateVirtualStore<'a> {
         // need to reason across the two branches. Cold-batch
         // entries are appended at the bottom of the function once
         // the cold-batch fetch finishes.
-        let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = if is_hoisted {
+        let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = is_hoisted.then(|| {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
             for (snapshot_key, _snapshot, cas_paths) in &warm {
-                let pkg_id = PkgIdWithPatchHash::from(snapshot_key.to_string());
+                // Mirrors upstream's `getPkgIdWithPatchHash` — strip
+                // the peer-graph suffix but keep `(patch_hash=...)` so
+                // patched packages share one CAS-paths entry across
+                // their peer variants.
+                let pkg_id = PkgIdWithPatchHash::from(
+                    get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+                );
                 map.entry(pkg_id).or_insert_with(|| (***cas_paths).clone());
             }
-            Some(map)
-        } else {
-            None
-        };
+            map
+        });
 
         let import_method = config.package_import_method;
         if !is_hoisted {
@@ -662,7 +664,7 @@ impl<'a> CreateVirtualStore<'a> {
             let warm_work = move || {
                 warm.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths)| {
                     let package_id = snapshot_key.without_peer().to_string();
-                    emit_warm_snapshot_progress::<R>(&package_id, requester);
+                    emit_warm_snapshot_progress::<Reporter>(&package_id, requester);
 
                     crate::CreateVirtualDirBySnapshot {
                         layout,
@@ -675,16 +677,17 @@ impl<'a> CreateVirtualStore<'a> {
                         snapshot,
                         skipped,
                     }
-                    .run::<R>()
-                    .map_err(|e| {
+                    .run::<Reporter>()
+                    .map_err(|error| {
                         CreateVirtualStoreError::InstallPackageBySnapshot(
-                            InstallPackageBySnapshotError::CreateVirtualDir(e),
+                            InstallPackageBySnapshotError::CreateVirtualDir(error),
                         )
                     })
                 })
             };
-            let on_multi_thread = tokio::runtime::Handle::try_current()
-                .is_ok_and(|h| h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
+            let on_multi_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
+                handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread
+            });
             if on_multi_thread {
                 tokio::task::block_in_place(warm_work)?;
             } else {
@@ -697,7 +700,7 @@ impl<'a> CreateVirtualStore<'a> {
             // `link_hoisted_modules`.
             for (snapshot_key, _, _) in &warm {
                 let package_id = snapshot_key.without_peer().to_string();
-                emit_warm_snapshot_progress::<R>(&package_id, requester);
+                emit_warm_snapshot_progress::<Reporter>(&package_id, requester);
             }
         }
 
@@ -756,7 +759,7 @@ impl<'a> CreateVirtualStore<'a> {
                         workspace_root,
                         node_linker,
                     }
-                    .run::<R>()
+                    .run::<Reporter>()
                     .await;
                     match result {
                         Ok(cas_paths) => {
@@ -838,7 +841,13 @@ impl<'a> CreateVirtualStore<'a> {
         if let Some(map) = cas_paths_by_pkg_id.as_mut() {
             map.reserve(cold_cas_paths.len());
             for (snapshot_key, paths) in cold_cas_paths {
-                let pkg_id = PkgIdWithPatchHash::from(snapshot_key.to_string());
+                // Mirrors upstream's `getPkgIdWithPatchHash` — strip
+                // the peer-graph suffix but keep `(patch_hash=...)` so
+                // patched packages share one CAS-paths entry across
+                // their peer variants.
+                let pkg_id = PkgIdWithPatchHash::from(
+                    get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+                );
                 map.entry(pkg_id).or_insert(paths);
             }
         }
@@ -995,14 +1004,17 @@ fn snapshot_cache_key(
 /// optional-deps check is the `isEmpty(...) && isEmpty(...) ||
 /// equals(...)` arm folded together.
 fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntry) -> bool {
-    fn maps_equal<K, V>(a: Option<&HashMap<K, V>>, b: Option<&HashMap<K, V>>) -> bool
+    fn maps_equal<Key, Value>(
+        lhs: Option<&HashMap<Key, Value>>,
+        rhs: Option<&HashMap<Key, Value>>,
+    ) -> bool
     where
-        K: std::cmp::Eq + std::hash::Hash,
-        V: PartialEq,
+        Key: std::cmp::Eq + std::hash::Hash,
+        Value: PartialEq,
     {
-        match (a, b) {
+        match (lhs, rhs) {
             (None, None) => true,
-            (Some(m), None) | (None, Some(m)) => m.is_empty(),
+            (Some(map), None) | (None, Some(map)) => map.is_empty(),
             (Some(x), Some(y)) => x == y,
         }
     }
@@ -1017,8 +1029,8 @@ fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntry) -> bool 
 /// check; directory and git resolutions yield `None` on both sides,
 /// which we treat as "unchanged" so the existing slot is reused.
 fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMetadata>) -> bool {
-    let current_integrity = current.and_then(|m| m.resolution.integrity());
-    let wanted_integrity = wanted.and_then(|m| m.resolution.integrity());
+    let current_integrity = current.and_then(|meta| meta.resolution.integrity());
+    let wanted_integrity = wanted.and_then(|meta| meta.resolution.integrity());
     current_integrity == wanted_integrity
 }
 
@@ -1071,15 +1083,15 @@ fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
     )
 }
 
-fn emit_warm_snapshot_progress<R: Reporter>(package_id: &str, requester: &str) {
-    R::emit(&LogEvent::Progress(ProgressLog {
+fn emit_warm_snapshot_progress<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+    Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Resolved {
             package_id: package_id.to_owned(),
             requester: requester.to_owned(),
         },
     }));
-    R::emit(&LogEvent::Progress(ProgressLog {
+    Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::FoundInStore {
             package_id: package_id.to_owned(),

@@ -120,10 +120,10 @@ impl StoreIndexWriter {
     pub fn spawn(
         store_dir: &StoreDir,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
-        let v11_dir = store_dir.v11();
+        let store_root = store_dir.root().to_path_buf();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
         let handle = tokio::task::spawn_blocking(move || -> Result<(), StoreIndexError> {
-            let mut index = StoreIndex::open(&v11_dir)?;
+            let mut index = StoreIndex::open(&store_root)?;
             let mut batch: Vec<WriteMsg> = Vec::with_capacity(MAX_BATCH_SIZE);
             while let Some(first) = rx.blocking_recv() {
                 batch.push(first);
@@ -401,9 +401,9 @@ impl StoreIndex {
         Ok(StoreIndex { conn })
     }
 
-    /// Open the `index.db` that lives under a [`StoreDir`]'s `v11` subdirectory.
+    /// Open the `index.db` that lives directly under a [`StoreDir`]'s root.
     pub fn open_in(store_dir: &StoreDir) -> Result<Self, StoreIndexError> {
-        StoreIndex::open(&store_dir.v11())
+        StoreIndex::open(store_dir.root())
     }
 
     /// Open an existing `index.db` read-only. Skips the schema-mutating
@@ -427,7 +427,7 @@ impl StoreIndex {
 
     /// Read-only counterpart to [`StoreIndex::open_in`].
     pub fn open_readonly_in(store_dir: &StoreDir) -> Result<Self, StoreIndexError> {
-        StoreIndex::open_readonly(&store_dir.v11())
+        StoreIndex::open_readonly(store_dir.root())
     }
 
     /// Open a read-only index wrapped in `Arc<Mutex<…>>` so it can be shared
@@ -440,11 +440,11 @@ impl StoreIndex {
     /// redoing its PRAGMAs) on every package, which otherwise scales
     /// linearly with the snapshot count.
     pub fn shared_readonly_in(store_dir: &StoreDir) -> Option<SharedReadonlyStoreIndex> {
-        let v11_dir = store_dir.v11();
-        if !v11_dir.join("index.db").exists() {
+        let store_root = store_dir.root();
+        if !store_root.join("index.db").exists() {
             return None;
         }
-        StoreIndex::open_readonly(&v11_dir).ok().map(|index| Arc::new(Mutex::new(index)))
+        StoreIndex::open_readonly(store_root).ok().map(|index| Arc::new(Mutex::new(index)))
     }
 
     /// Look up a package-files index by key. Returns `Ok(None)` if no row exists.
@@ -814,12 +814,12 @@ pub struct CafsFileInfo {
 /// interop reasoning — short version, msgpackr reads `uint 64` as a
 /// `BigInt` and pnpm's integrity check then crashes on Number/BigInt
 /// mixing.
-fn serialize_checked_at<S: serde::Serializer>(
+fn serialize_checked_at<Serializer: serde::Serializer>(
     value: &Option<u64>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
+    serializer: Serializer,
+) -> Result<Serializer::Ok, Serializer::Error> {
     match value {
-        Some(v) => serializer.serialize_f64(*v as f64),
+        Some(inner) => serializer.serialize_f64(*inner as f64),
         None => serializer.serialize_none(),
     }
 }

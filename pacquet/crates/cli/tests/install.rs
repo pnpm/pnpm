@@ -7,6 +7,7 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_files, get_all_folders, is_symlink_or_junction},
 };
+#[cfg(unix)]
 use pipe_trait::Pipe;
 use std::fs;
 
@@ -253,7 +254,7 @@ fn should_install_circular_dependencies() {
 
 /// End-to-end coverage for `${VAR}` substitution in `.npmrc`.
 ///
-/// `<RealApi as EnvVar>::var` (the `std::env::var` bridge in
+/// `<Host as EnvVar>::var` (the `std::env::var` bridge in
 /// `crates/config/src/api.rs`) is unreachable by every other test
 /// because `add_mocked_registry` writes literal values, so
 /// `env_replace` short-circuits at the no-`$` branch.
@@ -264,7 +265,7 @@ fn should_install_circular_dependencies() {
 /// upstream's [`installing/deps-installer/test/install/auth.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/installing/deps-installer/test/install/auth.ts)
 /// is not exercised here. The mock registry doesn't gate on auth, so
 /// substituting the registry URL is the smallest scenario that drives
-/// `<RealApi as EnvVar>::var` end-to-end. Token-substitution coverage
+/// `<Host as EnvVar>::var` end-to-end. Token-substitution coverage
 /// belongs in a test against a registry that actually validates the
 /// header.
 #[test]
@@ -306,6 +307,337 @@ fn install_resolves_env_var_in_npmrc_registry() {
     let installed = is_symlink_or_junction(&symlink_path).unwrap();
     eprintln!("symlink_path={symlink_path:?} installed={installed}");
     assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// `@pnpm.e2e/abc-parent-with-missing-peers@1.0.0` depends on
+/// `@pnpm.e2e/abc@1.0.0`, which declares `peer-a`, `peer-b`, and
+/// `peer-c` as peer dependencies. The parent provides none of them.
+/// With `auto-install-peers` enabled (pacquet's default, matching
+/// pnpm), all three peers should appear in `node_modules/.pnpm/`.
+/// Without the orchestrator's hoist loop they'd be missing, and the
+/// peer-resolution issue list would carry three entries.
+///
+/// Transitive auto-installed peers are NOT also linked at
+/// `node_modules/<alias>` — pnpm's `addDirectDependenciesToLockfile`
+/// iterates only `getAllDependenciesFromManifest(manifest)`, so
+/// transitive peers live in `snapshots:` / `packages:` only and
+/// consumers reach them through their parent's slot's `node_modules`.
+/// Hoisting them at the importer would require listing them in
+/// `importer.dependencies`, which breaks `satisfiesPackageManifest`
+/// and pushes every later install onto the fresh-resolve path.
+#[test]
+fn auto_install_peers_hoists_missing_peers_at_importer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/abc-parent-with-missing-peers": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    let entries: Vec<String> = fs::read_dir(&pnpm_dir)
+        .map(|dir| {
+            dir.filter_map(Result::ok)
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    for peer in ["peer-a", "peer-b", "peer-c"] {
+        // The registry's `^1.0.0` resolves to the latest 1.x; assert on
+        // the slot prefix rather than a specific version so a registry
+        // bump doesn't churn this test.
+        let prefix = format!("@pnpm.e2e+{peer}@1.");
+        assert!(
+            entries.iter().any(|name| name.starts_with(&prefix) && !name.contains('_')),
+            "expected {peer} to be auto-installed; .pnpm/ entries: {entries:?}",
+        );
+    }
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// `catalog:` on a direct dep should be dereferenced through
+/// `pnpm-workspace.yaml`'s `catalog` section before the npm resolver
+/// sees it. The fetched virtual-store entry is the catalog's resolved
+/// version, not the literal `catalog:` string.
+///
+/// Mirrors the upstream end-to-end coverage in
+/// [`installing/deps-installer/test/catalogs.ts`](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-installer/test/catalogs.ts).
+#[test]
+fn install_resolves_catalog_protocol() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Appending catalog to pnpm-workspace.yaml...");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing.push_str("catalog:\n  '@pnpm.e2e/hello-world-js-bin-parent': '1.0.0'\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    eprintln!("Creating package.json that uses the catalog protocol...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "catalog:",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command...");
+    pacquet.with_arg("install").assert().success();
+
+    eprintln!("Make sure the package is installed at the catalog's version");
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    assert!(is_symlink_or_junction(&symlink_path).unwrap());
+    let virtual_path =
+        workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0");
+    assert!(virtual_path.exists(), "expected virtual store entry at {virtual_path:?}");
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// A misconfigured catalog (specifier points at a missing entry) must
+/// fail the install with the upstream `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`
+/// rather than the chain's `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
+#[test]
+fn install_surfaces_catalog_misconfiguration() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json with a catalog: dep but no matching catalog entry...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "catalog:",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command...");
+    let output = pacquet.with_arg("install").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    // The miette report hard-wraps the message and inserts a leading
+    // `│` on the wrapped line. Strip all whitespace and box-drawing
+    // characters before substring-matching so wrap position can't
+    // make the assertion brittle.
+    let flattened: String = stderr
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
+        .collect();
+    assert!(
+        flattened.contains(
+            "Nocatalogentry'@pnpm.e2e/hello-world-js-bin-parent'wasfoundforcatalog'default'.",
+        ),
+        "stderr did not mention the missing-catalog-entry error: {stderr}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// Fresh-install GVS regression: `pacquet install` (no flag, no
+/// lockfile) on a clean project with `enableGlobalVirtualStore: true`
+/// must materialize packages under the shared
+/// `<store_dir>/v11/links/<scope>/<name>/<version>/<hash>` tree, not
+/// the project-local `node_modules/.pnpm/` legacy layout. Pins the
+/// fix for pnpm/pnpm#11814: before that fix the without-lockfile
+/// path hardcoded `VirtualStoreLayout::legacy`, so the fresh-resolve
+/// install silently fell through to project-local slots even with
+/// GVS opted in.
+///
+/// Also asserts that the project gets registered under
+/// `<store_dir>/v11/projects/`, mirroring the frozen-lockfile branch
+/// — the prune sweep walks that directory to learn which projects
+/// still reference the shared store.
+#[cfg(unix)]
+#[test]
+fn fresh_install_honors_enable_global_virtual_store() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    enable_gvs_in_workspace_yaml(&workspace, "");
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Running pacquet install (no flag, no lockfile, GVS opted in)...");
+    pacquet.with_arg("install").assert().success();
+
+    eprintln!("Direct-dep symlink must resolve under <store_dir>/v11/links/...");
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    assert!(is_symlink_or_junction(&symlink_path).unwrap());
+    let canonical = symlink_path.pipe(fs::canonicalize).expect("canonicalize symlink");
+    let canonical_store = store_dir.pipe(fs::canonicalize).expect("canonicalize store_dir");
+    let gvs_root = canonical_store.join("v11").join("links");
+    assert!(
+        canonical.starts_with(&gvs_root),
+        "expected the package directory to live under {gvs_root:?}, got {canonical:?}",
+    );
+
+    eprintln!("Project must be registered under <store_dir>/v11/projects/...");
+    let projects_dir = canonical_store.join("v11").join("projects");
+    let projects_entries =
+        fs::read_dir(&projects_dir).expect("v11/projects must exist after a GVS install");
+    let project_count = projects_entries.count();
+    assert!(
+        project_count >= 1,
+        "expected at least one project-registry entry under {projects_dir:?}; got {project_count}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// End-to-end coverage for the `cache+node_modules` shortcut. After a
+/// successful install, deleting `pnpm-lock.yaml` but keeping `node_modules`
+/// (and the materialized `node_modules/.pnpm/lock.yaml`) should let the
+/// next `pacquet install` skip resolution and regenerate the lockfile
+/// from the on-disk snapshot. Mirrors the pnpm-side fix at
+/// <https://github.com/pnpm/pnpm/commit/8a2146b7be>.
+#[test]
+fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
+    use std::process::Command;
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    eprintln!("Priming with the first install...");
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    assert!(lockfile_path.exists(), "first install must produce pnpm-lock.yaml");
+
+    eprintln!("Removing pnpm-lock.yaml; node_modules/.pnpm/lock.yaml stays intact...");
+    fs::remove_file(&lockfile_path).expect("remove pnpm-lock.yaml");
+    // The test helper writes a `pnpm-workspace.yaml` for storeDir/cacheDir
+    // config, which makes `optimistic_repeat_install` treat this as a
+    // workspace install and skip the missing-wanted-lockfile invalidator.
+    // Drop the workspace state file so the freshness fast path falls
+    // through to the regular install dispatch where the synthesis logic
+    // lives. Real-world single-project installs (no pnpm-workspace.yaml)
+    // hit the `wanted lockfile missing` gate at
+    // `optimistic_repeat_install.rs:149` directly.
+    fs::remove_file(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+        .expect("remove .pnpm-workspace-state-v1.json");
+
+    eprintln!("Re-running install with --reporter=ndjson...");
+    let pacquet_rerun = Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace);
+    let output = pacquet_rerun
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run pacquet install");
+    assert!(
+        output.status.success(),
+        "second install must succeed: stderr={}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let up_to_date = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|record| {
+            record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+                && record.get("level").and_then(|v| v.as_str()) == Some("info")
+                && record.get("message").and_then(|v| v.as_str())
+                    == Some("Lockfile is up to date, resolution step is skipped")
+        });
+    assert!(
+        up_to_date.is_some(),
+        "expected `name: \"pnpm\" / level: \"info\"` up-to-date log in NDJSON stderr; got:\n{stderr}",
+    );
+
+    let regenerated = fs::read_to_string(&lockfile_path).expect("pnpm-lock.yaml was regenerated");
+    assert!(
+        regenerated.contains("@pnpm.e2e/hello-world-js-bin-parent")
+            && regenerated.contains("@pnpm.e2e/hello-world-js-bin"),
+        "regenerated pnpm-lock.yaml must list the installed packages:\n{regenerated}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// End-to-end coverage for the no-op short-circuit. After a successful
+/// install, a second `pacquet install --frozen-lockfile` against an
+/// untouched workspace must skip materialization and emit pnpm's
+/// `name: "pnpm" / level: "info"` "Lockfile is up to date, resolution
+/// step is skipped" log. Mirrors upstream pnpm's behavior at
+/// <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L984>.
+#[test]
+fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
+    use std::process::Command;
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    eprintln!("Priming with the first install...");
+    pacquet.with_arg("install").assert().success();
+
+    eprintln!("Re-running with --frozen-lockfile + --reporter=ndjson...");
+    let pacquet_rerun = Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace);
+    let output = pacquet_rerun
+        .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
+        .output()
+        .expect("run pacquet install --frozen-lockfile");
+    assert!(
+        output.status.success(),
+        "second install must succeed: stderr={}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let up_to_date = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|record| {
+            record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+                && record.get("level").and_then(|v| v.as_str()) == Some("info")
+                && record.get("message").and_then(|v| v.as_str())
+                    == Some("Lockfile is up to date, resolution step is skipped")
+        });
+    assert!(
+        up_to_date.is_some(),
+        "expected `name: \"pnpm\" / level: \"info\"` up-to-date log in NDJSON stderr; got:\n{stderr}",
+    );
 
     drop((root, mock_instance)); // cleanup
 }

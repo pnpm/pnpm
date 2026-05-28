@@ -1,8 +1,10 @@
 mod cli_args;
+mod config_overrides;
 mod state;
 
 use clap::Parser;
 use cli_args::CliArgs;
+use config_overrides::ConfigOverrides;
 use miette::set_panic_hook;
 use pacquet_diagnostics::enable_tracing_by_env;
 use state::State;
@@ -10,14 +12,20 @@ use state::State;
 pub async fn main() -> miette::Result<()> {
     enable_tracing_by_env();
     set_panic_hook();
+    // Extract pnpm's `--config.<key>=<value>` tokens before clap sees
+    // argv. Clap can't parse a dotted-key flag whose right-hand name is
+    // arbitrary, so a `--config.registry=...` from pnpm's forwarded flags
+    // would otherwise error out as "unexpected argument". Each extracted
+    // token is layered onto `Config` after `.npmrc` / yaml run.
+    let (config_overrides, argv) = ConfigOverrides::extract(std::env::args_os());
     // Run argument parsing *before* sizing the rayon pool so
     // `pacquet --help` / `--version` (and any clap parse error) exit
     // without spinning up worker threads. `clap::Parser::parse` calls
     // `std::process::exit` on those paths, so we never reach
     // `configure_rayon_pool` for them (Copilot review on #292).
-    let args = CliArgs::parse();
+    let args = CliArgs::parse_from(argv);
     configure_rayon_pool();
-    args.run().await
+    args.run(&config_overrides).await
 }
 
 /// Size rayon's global pool at `2 × available_parallelism`. The link

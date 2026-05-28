@@ -1,5 +1,117 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.2.8
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [572842a]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/installing.commands@1100.6.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/deps.compliance.audit@1101.0.10
+  - @pnpm/deps.compliance.license-scanner@1100.0.15
+  - @pnpm/deps.compliance.sbom@1100.1.5
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.writer@1100.0.10
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/deps.security.signatures@1101.1.4
+
+## 1101.2.7
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.commands@1100.5.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/deps.compliance.license-scanner@1100.0.14
+  - @pnpm/deps.compliance.sbom@1100.1.4
+
+## 1101.2.6
+
+### Patch Changes
+
+- Updated dependencies [881a865]
+  - @pnpm/installing.commands@1100.4.2
+
+## 1101.2.5
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/installing.commands@1100.4.1
+
+## 1101.2.4
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.commands@1100.4.0
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/deps.compliance.audit@1101.0.9
+  - @pnpm/deps.compliance.license-scanner@1100.0.13
+  - @pnpm/deps.compliance.sbom@1100.1.3
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/cli.meta@1100.0.4
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/config.writer@1100.0.9
+  - @pnpm/lockfile.walker@1100.0.7
+  - @pnpm/network.auth-header@1100.0.3
+  - @pnpm/deps.security.signatures@1101.1.3
+
+## 1101.2.3
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [6e93f35]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/installing.commands@1100.3.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/deps.compliance.sbom@1100.1.2
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/deps.compliance.audit@1101.0.8
+  - @pnpm/deps.compliance.license-scanner@1100.0.12
+  - @pnpm/lockfile.walker@1100.0.6
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/deps.security.signatures@1101.1.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/config.writer@1100.0.8
+
 ## 1101.2.2
 
 ### Patch Changes

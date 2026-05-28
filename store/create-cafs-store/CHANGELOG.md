@@ -1,5 +1,35 @@
 # @pnpm/create-cafs-store
 
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.5
+- @pnpm/fetching.fetcher-base@1100.1.6
+- @pnpm/store.cafs@1100.1.7
+- @pnpm/store.controller-types@1100.1.2
+- @pnpm/fs.indexed-pkg-importer@1100.0.10
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.5
+- @pnpm/store.controller-types@1100.1.1
+- @pnpm/building.pkg-requires-build@1100.0.4
+- @pnpm/store.cafs@1100.1.6
+- @pnpm/fs.indexed-pkg-importer@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/fs.indexed-pkg-importer@1100.0.8
+  - @pnpm/store.cafs@1100.1.5
+
 ## 1100.0.7
 
 ### Patch Changes

@@ -5,7 +5,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import { BUILTIN_NAMED_REGISTRIES } from '@pnpm/resolving.npm-resolver'
-import type { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, Resolution, ResolutionPolicyViolation, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
@@ -115,6 +115,7 @@ export interface ResolveDependenciesOptions {
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean
+  updateChecksums?: boolean
   ignoreScripts?: boolean
   hooks: {
     readPackage?: ReadPackageHook
@@ -159,6 +160,14 @@ export interface ResolveDependencyTreeResult {
   wantedToBeSkippedPackageIds: Set<string>
   appliedPatches: Set<string>
   time?: Record<string, string>
+  /**
+   * Policy violations collected inline during resolution — the
+   * resolver pushes to this list whenever it picks a package that
+   * trips one of its own checks (today: `minimumReleaseAge`). The
+   * shape mirrors `ResolutionPolicyViolation`; downstream callers
+   * filter by `code` to decide what to do.
+   */
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
 export async function resolveDependencyTree<T> (
@@ -182,6 +191,7 @@ export async function resolveDependencyTree<T> (
     engineStrict: opts.engineStrict,
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,
+    updateChecksums: opts.updateChecksums,
     ignoreScripts: opts.ignoreScripts,
     injectWorkspacePackages: opts.injectWorkspacePackages,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
@@ -220,6 +230,7 @@ export async function resolveDependencyTree<T> (
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     blockExoticSubdeps: opts.blockExoticSubdeps,
+    resolutionPolicyViolations: [],
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
@@ -343,6 +354,7 @@ export async function resolveDependencyTree<T> (
     appliedPatches: ctx.appliedPatches,
     time,
     allPeerDepNames: ctx.allPeerDepNames,
+    resolutionPolicyViolations: ctx.resolutionPolicyViolations,
   }
 }
 

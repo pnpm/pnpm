@@ -135,7 +135,7 @@ fn index_db_lives_at_store_dir_v11() {
     let store = StoreDir::new(root.path());
     let idx = StoreIndex::open_in(&store).unwrap();
     idx.set("k\tv", &sample_index()).unwrap();
-    assert!(store.v11().join("index.db").exists());
+    assert!(store.root().join("index.db").exists());
 }
 
 /// A row whose bytes are msgpackr-records (as pnpm writes) must decode
@@ -204,7 +204,7 @@ fn get_many_all_hit_returns_every_row() {
     let idx = StoreIndex::open(dir.path()).unwrap();
     let payload = sample_index();
     let keys: Vec<String> =
-        (0..5).map(|i| store_index_key("sha512-x", &format!("pkg{i}@1.0.0"))).collect();
+        (0..5).map(|index| store_index_key("sha512-x", &format!("pkg{index}@1.0.0"))).collect();
     for key in &keys {
         idx.set(key, &payload).unwrap();
     }
@@ -222,9 +222,9 @@ fn get_many_mixed_hit_and_miss_returns_only_hits() {
     let idx = StoreIndex::open(dir.path()).unwrap();
     let payload = sample_index();
     let hit_keys: Vec<String> =
-        (0..3).map(|i| store_index_key("sha512-h", &format!("hit{i}@1.0.0"))).collect();
+        (0..3).map(|index| store_index_key("sha512-h", &format!("hit{index}@1.0.0"))).collect();
     let miss_keys: Vec<String> =
-        (0..3).map(|i| store_index_key("sha512-m", &format!("miss{i}@1.0.0"))).collect();
+        (0..3).map(|index| store_index_key("sha512-m", &format!("miss{index}@1.0.0"))).collect();
     for key in &hit_keys {
         idx.set(key, &payload).unwrap();
     }
@@ -281,9 +281,10 @@ fn get_many_handles_more_keys_than_chunk_size() {
     let mut idx = StoreIndex::open(dir.path()).unwrap();
     let payload = sample_index();
     let total = GET_MANY_CHUNK + 100;
-    let keys: Vec<String> =
-        (0..total).map(|i| store_index_key("sha512-c", &format!("chunked{i}@1.0.0"))).collect();
-    let entries = keys.iter().map(|k| (k.clone(), sample_index()));
+    let keys: Vec<String> = (0..total)
+        .map(|index| store_index_key("sha512-c", &format!("chunked{index}@1.0.0")))
+        .collect();
+    let entries = keys.iter().map(|key| (key.clone(), sample_index()));
     idx.set_many(entries).unwrap();
 
     let out = idx.get_many(&keys).unwrap();

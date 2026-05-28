@@ -1,7 +1,7 @@
 [package]
 name                 = "pacquet-registry-mock"
 version              = "0.0.0"
-description          = "Wrapper of @pnpm/registry-mock"
+description          = "Drives pnpm-registry against @pnpm/registry-mock's shipped storage for pacquet tests"
 publish              = false
 authors.workspace    = true
 edition.workspace    = true
@@ -23,10 +23,14 @@ doc  = false
 [dependencies]
 assert_cmd = { workspace = true }
 clap       = { workspace = true }
+home       = { workspace = true }
 pipe-trait = { workspace = true }
 reqwest    = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 sysinfo    = { workspace = true }
 tokio      = { workspace = true }
-which      = { workspace = true }
+walkdir    = { workspace = true }
+
+[lints]
+workspace = true

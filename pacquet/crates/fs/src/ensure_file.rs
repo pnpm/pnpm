@@ -2,9 +2,13 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
     fs::{self, File, OpenOptions},
+    hash::{BuildHasher, Hasher},
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -38,9 +42,9 @@ const ENFILE: i32 = 23;
 /// the helper is a thin pass-through there — the trailing `op()`
 /// after the `cfg(unix)` block is the one and only attempt on that
 /// platform. Pacquet's Windows build path otherwise stays unchanged.
-fn retry_on_fd_pressure<F, T>(mut op: F) -> io::Result<T>
+fn retry_on_fd_pressure<Func, Value>(mut op: Func) -> io::Result<Value>
 where
-    F: FnMut() -> io::Result<T>,
+    Func: FnMut() -> io::Result<Value>,
 {
     #[cfg(unix)]
     {
@@ -148,12 +152,13 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 ///   buffer we were about to write, so comparing against it
 ///   implicitly verifies the sha512 without a second hash pass. Same
 ///   correctness guarantee, one fewer full-buffer walk.
-/// * **No `locker: Map<string, number>` process-local cache**: pnpm's
-///   locker skips re-verifying the same file within one install.
-///   Pacquet's hot path calls `ensure_file` at most once per CAS file
-///   per install (the `StoreIndex` cache decides whether we even get
-///   here), so the locker would be mostly empty work. Can revisit if
-///   profiling shows repeated AlreadyExists hits on a single path.
+/// * **Process-local per-path mutex for serialization**: two
+///   snapshots whose tarballs ship identical file content
+///   (e.g. a shared `LICENSE`) compute the same CAS path and would
+///   race in `verify_or_rewrite`. The mutex makes the second
+///   writer wait for the first's `write_all` so the byte-match
+///   fast path always applies. Pacquet's stronger form of pnpm
+///   v11's [`locker: Map<string, number>`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts).
 ///
 /// Matches pnpm's guarantee: a successful return means `file_path`
 /// exists on disk with contents equal to `content`. A torn mid-write
@@ -163,6 +168,11 @@ pub fn ensure_file(
     content: &[u8],
     #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
+    // See the "Process-local per-path mutex" bullet above and
+    // [`cas_write_lock`] for the rationale.
+    let lock = cas_write_lock(file_path);
+    let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
 
@@ -187,6 +197,56 @@ pub fn ensure_file(
         }
     }
 }
+
+/// Borrow the process-local write mutex for `file_path`.
+///
+/// The hot path costs one path hash + one uncontended mutex acquire
+/// per CAFS file written (~170k on the alotta-files fixture), with no
+/// allocations: the path is hashed into one of `NUM_CAS_LOCK_STRIPES`
+/// statically-allocated mutexes. Pnpm's own
+/// [`writeFile`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts)
+/// uses a refcount `Map<string, number>` for the equivalent
+/// coordination — this is the Rust analogue.
+///
+/// **Coordination contract.** Callers handing in the same `&Path`
+/// always receive the same `Mutex<()>`. The hasher is initialised
+/// once per process (`OnceLock<RandomState>`) so the path-to-stripe
+/// mapping stays stable for the lifetime of the process; writers
+/// (`ensure_file`) and verifiers (`check_pkg_files_integrity`) of the
+/// same path are guaranteed to meet on the same lock and serialise.
+/// Stripe-hash collisions between unrelated paths block each other
+/// too — that false-sharing is bounded by `NUM_CAS_LOCK_STRIPES` and
+/// the guarded section (a single `O_CREAT|O_EXCL` open + `write_all`)
+/// is microseconds long.
+///
+/// Made `pub` so verifiers (`check_pkg_files_integrity`) can acquire
+/// the same lock before stat-then-maybe-`rimraf`'ing a CAS path —
+/// otherwise the verifier can `unlink` a file while a writer's
+/// `write_all` is still running.
+pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
+    use std::collections::hash_map::RandomState;
+    static BUILDER: std::sync::OnceLock<RandomState> = std::sync::OnceLock::new();
+    let builder = BUILDER.get_or_init(RandomState::new);
+    let mut hasher = builder.build_hasher();
+    std::hash::Hash::hash(file_path, &mut hasher);
+    let stripe = (hasher.finish() as usize) & (NUM_CAS_LOCK_STRIPES - 1);
+    &CAS_LOCK_STRIPES[stripe]
+}
+
+/// Number of static mutex stripes used by [`cas_write_lock`]. Power of
+/// two so the modulo collapses to a mask. 256 picked so each stripe
+/// sees on average `total_files / 256` writes per install; for a 170k-
+/// file install that's ~660 writes per stripe, all on different paths
+/// — uncontended pairings dominate.
+const NUM_CAS_LOCK_STRIPES: usize = 256;
+const _: () = assert!(
+    NUM_CAS_LOCK_STRIPES.is_power_of_two(),
+    "cas_write_lock uses `& (NUM_CAS_LOCK_STRIPES - 1)` as the stripe selector, which only \
+     distributes uniformly when the count is a power of two",
+);
+
+static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
+    [const { Mutex::new(()) }; NUM_CAS_LOCK_STRIPES];
 
 /// Re-read an already-present CAS file and byte-compare with `content`.
 /// If they match we're done; if not, recover the torn blob by writing a
@@ -482,7 +542,10 @@ fn temp_path_for(file_path: &Path) -> PathBuf {
     let pid = std::process::id();
 
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
-    let name = file_path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = file_path
+        .file_name()
+        .map(|file_name| file_name.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let base = strip_dash_suffix(&name);
 
     parent.join(format!("{base}{pid}{counter}"))

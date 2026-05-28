@@ -25,7 +25,7 @@ fn expands_packages_glob() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     // Sorted lex by rootDir → root then alpha then beta.
     assert_eq!(names, vec!["root".to_string(), "alpha".to_string(), "beta".to_string()]);
@@ -47,7 +47,7 @@ fn always_includes_workspace_root() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert_eq!(names, vec!["root".to_string(), "web".to_string()]);
 }
@@ -67,7 +67,7 @@ fn filters_node_modules() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert!(
         !names.contains(&"foo".to_string()),
@@ -97,7 +97,7 @@ fn dedupes_overlapping_patterns() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
 }
@@ -113,10 +113,68 @@ fn default_patterns_when_packages_omitted() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     // `.` + `**` enumerates everything.
     assert_eq!(names, vec!["root".to_string(), "web".to_string()]);
+}
+
+/// Negation patterns exclude matching workspace projects.
+#[test]
+fn negation_pattern_excludes_matching_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "components/component-1", "component-1");
+    make_project(tmp.path(), "components/component-2", "component-2");
+    make_project(tmp.path(), "libs/foo", "foo");
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["**".to_string(), "!libs/**".to_string()]),
+        },
+    )
+    .unwrap();
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    assert!(
+        !names.contains(&"foo".to_string()),
+        "libs/foo must be excluded by `!libs/**`: {names:?}",
+    );
+    assert!(
+        names.contains(&"component-1".to_string()) && names.contains(&"component-2".to_string()),
+        "components must still be included: {names:?}",
+    );
+}
+
+/// A negation starting with `!/` is a no-op for relative workspace paths.
+#[test]
+fn negation_pattern_with_leading_slash_is_noop() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "components/component-1", "component-1");
+    make_project(tmp.path(), "components/component-2", "component-2");
+    make_project(tmp.path(), "libs/foo", "foo");
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["**".to_string(), "!/libs/**".to_string()]),
+        },
+    )
+    .unwrap();
+
+    let names: Vec<String> = projects
+        .iter()
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+    assert!(
+        names.contains(&"foo".to_string()),
+        "`!/libs/**` must be a no-op; expected libs/foo to be included: {names:?}",
+    );
 }
 
 /// `packages: []` (explicit empty array) is *not* the same as
@@ -139,7 +197,7 @@ fn empty_patterns_array_enumerates_root_only() {
 
     let names: Vec<String> = projects
         .iter()
-        .map(|p| p.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     // Only the workspace root surfaces — `web` is not enumerated.
     assert_eq!(names, vec!["root".to_string()]);

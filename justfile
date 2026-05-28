@@ -52,9 +52,9 @@ fmt:
 
 # Run cargo check
 check:
-  cargo check --locked
+  cargo check --locked --workspace --all-targets
 
-# Run all the tests
+# Run all the tests.
 test:
   cargo nextest run
 
@@ -68,7 +68,7 @@ known-failures:
   @cargo test --workspace known_failures -- --list 2>nul | rg '^known_failures::'
 # Lint the whole project
 lint:
-  cargo clippy --locked -- --deny warnings
+  cargo clippy --locked --workspace --all-targets -- --deny warnings
 
 # Run perfectionist dylint rules. Requires `cargo-dylint` and `dylint-link`
 # (install with `cargo binstall cargo-dylint dylint-link`). The lint library
@@ -84,11 +84,26 @@ codecov:
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
-# Manage registry-mock
+# Manage registry-mock. The launcher spawns `pnpm-registry`; on
+# Windows you can't overwrite a running .exe, so we pre-build all
+# the test artifacts a subsequent `just test` will need with the
+# exact same invocation. A `-p pnpm-registry`-scoped pre-build is
+# not enough — workspace-wide feature unification gives a
+# different fingerprint and nextest would still try to re-link the
+# running binary, failing with `os error 5` on Windows MSVC.
 registry-mock +args:
+  cargo nextest run --no-run
   cargo run --bin=pacquet-registry-mock -- {{args}}
 
+# The benchmark may auto-spawn the registry mock (via
+# `AutoMockInstance::load_or_init()`), so make sure `pnpm-registry`
+# is built before the executor runs — otherwise the spawn step
+# aborts with "binary not found". Built with `--release` so the
+# mock serves at optimized perf; a debug build would put the
+# Rust mock at a multi-second handicap vs verdaccio, which V8
+# always JITs, polluting the install-perf signal.
 integrated-benchmark +args:
+  cargo build --release --bin=pnpm-registry
   cargo run --bin=integrated-benchmark -- {{args}}
 
 cli +args:

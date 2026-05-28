@@ -6,10 +6,9 @@ use pacquet_lockfile::{
     PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec, SnapshotEntry,
 };
-use pacquet_reporter::{
-    IgnoredScriptsLog, LogEvent, Reporter, SilentReporter, SkippedOptionalPackage,
-    SkippedOptionalReason,
-};
+use pacquet_reporter::{IgnoredScriptsLog, LogEvent, Reporter, SilentReporter};
+#[cfg(unix)]
+use pacquet_reporter::{SkippedOptionalPackage, SkippedOptionalReason};
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
@@ -216,16 +215,16 @@ fn from_config_consumes_allow_builds_and_dangerously_allow_all_builds() {
     assert_eq!(policy.check("@pnpm.e2e/unrelated", "1.0.0"), None);
 }
 
-fn name(s: &str) -> PkgName {
-    PkgName::parse(s).expect("parse pkg name")
+fn name(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse pkg name")
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(name(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(name(name_text), ver(version))
 }
 
 /// Materialize a `<virtual_store_dir>/<store_name>/node_modules/<pkg_name>/package.json`
@@ -291,7 +290,10 @@ fn build_modules_collects_ignored_builds() {
     create_buildable_pkg(virtual_store_dir.path(), &key("aaa", "2.0.0"));
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -360,7 +362,10 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
     create_buildable_pkg(virtual_store_dir.path(), &key("aaa", "2.0.0"));
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -417,7 +422,10 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
     create_buildable_pkg(virtual_store_dir.path(), &key("ignored", "1.0.0"));
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -482,8 +490,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     }
 
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
-    let mut optional_snapshot = SnapshotEntry::default();
-    optional_snapshot.optional = true;
+    let optional_snapshot = SnapshotEntry { optional: true, ..Default::default() };
     let snapshots = HashMap::from([(pkg_key.clone(), optional_snapshot)]);
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
     // `dangerouslyAllowAllBuilds` so the policy lets the failing
@@ -498,7 +505,10 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -528,7 +538,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     dbg!(&captured);
     let skipped_event = captured
         .iter()
-        .find_map(|e| match e {
+        .find_map(|event| match event {
             LogEvent::SkippedOptionalDependency(log) => Some(log),
             _ => None,
         })
@@ -630,7 +640,10 @@ fn using_side_effects_cache_skips_rebuild() {
     side_effects_maps.insert(pkg_key.clone(), std::sync::Arc::new(overlay));
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -691,10 +704,13 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     let mut overlay = std::collections::HashMap::new();
     overlay.insert("any-key".to_string(), std::collections::HashMap::new());
     let mut side_effects_maps = std::collections::HashMap::new();
-    side_effects_maps.insert(pkg_key.clone(), std::sync::Arc::new(overlay));
+    side_effects_maps.insert(pkg_key, std::sync::Arc::new(overlay));
 
     let err = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -751,7 +767,10 @@ fn fail_when_failing_postinstall_is_required() {
     create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
 
     let err = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -787,6 +806,7 @@ fn fail_when_failing_postinstall_is_required() {
 /// `optionalDependencies.ts` exercises against the live mock
 /// registry, without dragging the lockfile-with-real-integrity
 /// machinery into a `BuildModules`-unit test.
+#[cfg(unix)]
 fn create_failing_postinstall_fixture(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
@@ -844,11 +864,22 @@ fn ignored_scripts_event_carries_returned_names() {
 /// a file (`generated.txt`) that the original tarball didn't, so
 /// the WRITE-path diff produces a non-empty `added` entry under
 /// the snapshot's cache key.
+///
+/// Returns the package directory path and the actual file mode of
+/// `index.js`. The mode is read from disk because `fs::write()`
+/// assigns permissions according to the process umask (typically
+/// 0022 → 0o644, but 0002 → 0o664 when pam_umask's `usergroups`
+/// logic matches UID to group name, the default on Debian for
+/// non-root users). Callers that pre-seed store rows should use
+/// this returned mode so `calculate_diff()` doesn't flag a
+/// mode-only mismatch on unchanged files.
 #[cfg(unix)]
 fn create_postinstall_modifies_source_fixture(
     virtual_store_dir: &Path,
     key: &PackageKey,
-) -> PathBuf {
+) -> (PathBuf, u32) {
+    use std::os::unix::fs::PermissionsExt;
+
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
     let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
@@ -868,7 +899,10 @@ fn create_postinstall_modifies_source_fixture(
         "scripts": { "postinstall": "echo touched > generated.txt" },
     });
     fs::write(pkg_dir.join("package.json"), manifest.to_string()).expect("write manifest");
-    pkg_dir
+    let actual_mode =
+        std::fs::metadata(pkg_dir.join("index.js")).expect("stat index.js").permissions().mode()
+            & 0o777;
+    (pkg_dir, actual_mode)
 }
 
 /// Mirrors upstream's `'a postinstall script does not modify the
@@ -927,8 +961,8 @@ async fn write_path_populates_side_effects_row() {
     let virtual_store_dir = tempdir().expect("create vstore dir");
     let modules_dir = tempdir().expect("create modules dir");
     let lockfile_dir = tempdir().expect("create lockfile dir");
-
-    create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let (_pkg_dir, actual_mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
 
     // Pre-seed the base PackageFilesIndex row that the WRITE
     // path will mutate. The base captures only `index.js`; the
@@ -947,7 +981,7 @@ async fn write_path_populates_side_effects_row() {
             // `module.exports = 'hi'\n`, the diff for `index.js`
             // stays empty (= no spurious entry in `added`).
             digest: sha512_hex(b"module.exports = 'hi'\n"),
-            mode: 0o644,
+            mode: actual_mode,
             size: b"module.exports = 'hi'\n".len() as u64,
             checked_at: None,
         },
@@ -985,7 +1019,10 @@ async fn write_path_populates_side_effects_row() {
     );
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1075,7 +1112,8 @@ async fn write_path_disabled_skips_upload() {
     let modules_dir = tempdir().expect("create modules dir");
     let lockfile_dir = tempdir().expect("create lockfile dir");
 
-    create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let (_pkg_dir, _actual_mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
 
     let files_index_file = store_index_key(integrity_str, &pkg_key.without_peer().to_string());
     let base_row = PackageFilesIndex {
@@ -1094,7 +1132,10 @@ async fn write_path_disabled_skips_upload() {
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1212,7 +1253,10 @@ async fn upload_error_does_not_interrupt_install() {
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1302,6 +1346,7 @@ fn create_postinstall_with_unreadable_fixture(
 /// stores digests as raw hex (no `sha512-` prefix); using the same
 /// shape here keeps the test's pre-seeded base row in lockstep with
 /// what `add_files_from_dir` will compute.
+#[cfg(unix)]
 fn sha512_hex(buf: &[u8]) -> String {
     use sha2::{Digest, Sha512};
     let digest = Sha512::digest(buf);
@@ -1360,8 +1405,8 @@ async fn write_path_cache_key_includes_patch_hash() {
     let virtual_store_dir = tempdir().expect("create vstore dir");
     let modules_dir = tempdir().expect("create modules dir");
     let lockfile_dir = tempdir().expect("create lockfile dir");
-
-    create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    let (_pkg_dir, actual_mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
 
     let files_index_file = store_index_key(integrity_str, &pkg_key.without_peer().to_string());
     let mut base_files = HashMap::new();
@@ -1369,7 +1414,7 @@ async fn write_path_cache_key_includes_patch_hash() {
         "index.js".to_string(),
         CafsFileInfo {
             digest: sha512_hex(b"module.exports = 'hi'\n"),
-            mode: 0o644,
+            mode: actual_mode,
             size: b"module.exports = 'hi'\n".len() as u64,
             checked_at: None,
         },
@@ -1440,7 +1485,10 @@ new file mode 100644
     );
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1546,7 +1594,10 @@ new file mode 100644
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),
@@ -1623,7 +1674,10 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     let err = BuildModules {
-        layout: &VirtualStoreLayout::legacy(virtual_store_dir.path()),
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
         modules_dir: modules_dir.path(),
         lockfile_dir: lockfile_dir.path(),
         snapshots: Some(&snapshots),

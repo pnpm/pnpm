@@ -117,7 +117,7 @@ function detectStrongestTrustEvidenceBeforeDate (
 }
 
 export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {
-  if (manifest._npmUser?.trustedPublisher) {
+  if (manifest._npmUser?.trustedPublisher && manifest.dist?.attestations?.provenance) {
     return 'trustedPublisher'
   }
   if (manifest.dist?.attestations?.provenance) {

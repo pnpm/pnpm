@@ -6,15 +6,213 @@ use serde::{Deserialize, Serialize};
 
 use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq)]
+#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageVersion {
     pub name: String,
     pub version: node_semver::Version,
     pub dist: PackageDistribution,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_dependency_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_dependency_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub dev_dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_dependency_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub peer_dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_dependency_map",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub optional_dependencies: Option<HashMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
+
+    /// npm registry's per-version publisher metadata. When
+    /// `trusted_publisher` is present alongside
+    /// `dist.attestations.provenance`, the version was published
+    /// through an OIDC-backed trusted-publisher integration *and*
+    /// shipped a provenance attestation, which together count as the
+    /// higher (`trustedPublisher`) trust rank that upstream's
+    /// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/fea5fd41da/resolving/npm-resolver/src/trustChecks.ts#L119-L127)
+    /// checks before falling back to the `provenance` attestation
+    /// rank. The publisher flag without provenance is ignored.
+    ///
+    /// Mirrors pnpm's
+    /// [`PackageInRegistry._npmUser`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/registry/types/src/index.ts#L29-L36)
+    /// (note the leading underscore on the wire).
+    #[serde(
+        default,
+        rename = "_npmUser",
+        skip_serializing_if = "Option::is_none",
+        alias = "_npm_user"
+    )]
+    pub npm_user: Option<NpmUser>,
+
+    /// `deprecated` field on a per-version manifest. When present the
+    /// version has been marked deprecated on the registry and carries
+    /// the maintainer-supplied reason. The resolver uses this for the
+    /// deprecated-fallback in `pickVersionByVersionRange`: if the
+    /// highest version satisfying the range is deprecated, retry the
+    /// pick against the non-deprecated subset.
+    ///
+    /// **Wire format:** the field is declared as a string upstream
+    /// (`PackageInRegistry.deprecated?: string`) but the real npm
+    /// registry occasionally serves `"deprecated": false` for
+    /// never-deprecated versions — JavaScript stores the boolean and
+    /// the upstream `if (info.deprecated)` truthiness check happens
+    /// to handle both shapes silently. Rust serde is strict, so we
+    /// route through a custom deserializer that normalizes the field
+    /// to `Option<String>`: a string stays a string, `false` becomes
+    /// `None`, `true` becomes `Some("")` (deprecated without a
+    /// recorded reason). Mirrors pnpm's
+    /// [`PackageInRegistry.deprecated`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts).
+    #[serde(
+        default,
+        deserialize_with = "deserialize_deprecated_field",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub deprecated: Option<String>,
+}
+
+/// Deserialize a `Record<string, string>`-shaped dependency map while
+/// tolerating historical npm registry entries whose values are objects
+/// or other non-string shapes. Non-string entries are silently dropped,
+/// matching pnpm's JavaScript path which never validates the value
+/// shape and relies on later `typeof spec === 'string'` checks to
+/// ignore the bad rows (e.g. `deep-diff@0.1.0`'s nested
+/// `devDependencies`). Missing field and JSON `null` both decode to
+/// `None`; a present map (even one whose entries are all dropped)
+/// decodes to `Some`.
+fn deserialize_dependency_map<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<HashMap<String, String>>, Deser::Error>
+where
+    Deser: serde::Deserializer<'de>,
+{
+    use serde::de::{self, MapAccess, Visitor};
+    use std::fmt;
+
+    struct DependencyMapVisitor;
+    impl<'de> Visitor<'de> for DependencyMapVisitor {
+        type Value = Option<HashMap<String, String>>;
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("a map of dependency name to version-spec string, or null")
+        }
+        fn visit_none<Err: de::Error>(self) -> Result<Self::Value, Err> {
+            Ok(None)
+        }
+        fn visit_unit<Err: de::Error>(self) -> Result<Self::Value, Err> {
+            Ok(None)
+        }
+        fn visit_some<Nested: serde::Deserializer<'de>>(
+            self,
+            deserializer: Nested,
+        ) -> Result<Self::Value, Nested::Error> {
+            deserializer.deserialize_any(DependencyMapVisitor)
+        }
+        fn visit_map<Map: MapAccess<'de>>(self, mut map: Map) -> Result<Self::Value, Map::Error> {
+            let mut out = HashMap::new();
+            while let Some(key) = map.next_key::<String>()? {
+                let value = map.next_value::<serde_json::Value>()?;
+                if let serde_json::Value::String(spec) = value {
+                    out.insert(key, spec);
+                }
+            }
+            Ok(Some(out))
+        }
+    }
+    deserializer.deserialize_any(DependencyMapVisitor)
+}
+
+/// Accept either a string or a boolean for the `deprecated` field.
+/// A bool `true` becomes `Some("")`, a bool `false` becomes `None`;
+/// a string stays as `Some(s)`. Missing field defaults to `None` via
+/// the `#[serde(default)]` on the field itself.
+fn deserialize_deprecated_field<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<String>, Deser::Error>
+where
+    Deser: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct DeprecatedVisitor;
+    impl<'de> Visitor<'de> for DeprecatedVisitor {
+        type Value = Option<String>;
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("a deprecation reason (string), a boolean, or null")
+        }
+        fn visit_str<Err: de::Error>(self, value: &str) -> Result<Self::Value, Err> {
+            Ok(Some(value.to_string()))
+        }
+        fn visit_string<Err: de::Error>(self, value: String) -> Result<Self::Value, Err> {
+            Ok(Some(value))
+        }
+        fn visit_bool<Err: de::Error>(self, value: bool) -> Result<Self::Value, Err> {
+            Ok(value.then(String::new))
+        }
+        fn visit_none<Err: de::Error>(self) -> Result<Self::Value, Err> {
+            Ok(None)
+        }
+        fn visit_unit<Err: de::Error>(self) -> Result<Self::Value, Err> {
+            Ok(None)
+        }
+        fn visit_some<Nested: serde::Deserializer<'de>>(
+            self,
+            deserializer: Nested,
+        ) -> Result<Self::Value, Nested::Error> {
+            deserializer.deserialize_any(DeprecatedVisitor)
+        }
+    }
+    deserializer.deserialize_any(DeprecatedVisitor)
+}
+
+/// `peerDependenciesMeta[name]` shape from the npm registry. Only the
+/// `optional` flag is consumed by the resolver; other fields the
+/// registry may serve are ignored.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerDependencyMeta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub optional: Option<bool>,
+}
+
+/// `_npmUser` field on a per-version manifest. The verifier reads
+/// `trusted_publisher` to assign the higher of the two trust ranks
+/// (`trustedPublisher` > `provenance` > none). `name` / `email` are
+/// kept for round-trip parity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NpmUser {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_publisher: Option<TrustedPublisher>,
+}
+
+/// OIDC trusted-publisher record on `_npmUser.trustedPublisher`.
+/// The verifier only checks for the field's presence; the inner
+/// values are kept for round-trip parity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrustedPublisher {
+    pub id: String,
+    pub oidc_config_id: String,
 }
 
 impl PartialEq for PackageVersion {
@@ -54,10 +252,6 @@ impl PackageVersion {
             .await
             .map_err(network_error)?
             .pipe(Ok)
-    }
-
-    pub fn to_virtual_store_name(&self) -> String {
-        format!("{0}@{1}", self.name.replace('/', "+"), self.version)
     }
 
     pub fn as_tarball_url(&self) -> &str {
@@ -134,5 +328,54 @@ mod tests {
         .expect("server should accept the request once the bearer header is attached");
         assert_eq!(pkg_version.name, "acme");
         mock.assert_async().await;
+    }
+
+    /// The abbreviated registry response (`application/vnd.npm.install-v1+json`)
+    /// carries `optionalDependencies` and `peerDependenciesMeta` for any
+    /// package that publishes them. Both must round-trip through
+    /// [`PackageVersion`] so the resolver's `extract_children` reads the
+    /// optional-dep edges and `extract_peer_dependencies` reads the
+    /// per-peer `optional` flag. Dropping either field silently treats
+    /// optional peers as required (auto-installed via
+    /// `autoInstallPeers`) and skips `optionalDependencies` entirely.
+    #[test]
+    fn deserializes_optional_dependencies_and_peer_dependencies_meta() {
+        let body = r#"{
+            "name": "unstorage",
+            "version": "1.17.5",
+            "dist": {
+                "integrity": "sha512-AAAA",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry.test/unstorage-1.17.5.tgz"
+            },
+            "peerDependencies": {
+                "@vercel/kv": "^1 || ^2 || ^3",
+                "ioredis": "^5.4.2"
+            },
+            "peerDependenciesMeta": {
+                "@vercel/kv": { "optional": true },
+                "ioredis": { "optional": true }
+            },
+            "optionalDependencies": {
+                "sharp": "^0.34.0"
+            }
+        }"#;
+
+        let pkg: PackageVersion =
+            serde_json::from_str(body).expect("deserialize PackageVersion fixture");
+
+        let optional = pkg.optional_dependencies.as_ref().expect("optionalDependencies present");
+        assert_eq!(optional.get("sharp").map(String::as_str), Some("^0.34.0"));
+
+        let peer_meta = pkg.peer_dependencies_meta.as_ref().expect("peerDependenciesMeta present");
+        assert_eq!(peer_meta["@vercel/kv"].optional, Some(true));
+        assert_eq!(peer_meta["ioredis"].optional, Some(true));
+
+        // The JSON shape `serde_json::to_value(pkg)` produces feeds
+        // `extract_children` / `extract_peer_dependencies` downstream;
+        // both consume the camelCase keys verbatim.
+        let value = serde_json::to_value(&pkg).expect("serialize PackageVersion");
+        assert!(value.get("optionalDependencies").is_some_and(|v| v.is_object()));
+        assert!(value.get("peerDependenciesMeta").is_some_and(|v| v.is_object()));
     }
 }

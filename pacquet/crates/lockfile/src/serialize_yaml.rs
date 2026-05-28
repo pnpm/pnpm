@@ -18,6 +18,6 @@ fn options() -> SerializerOptions {
 
 /// Serialize `value` to a YAML string with options that match pnpm's lockfile
 /// formatting.
-pub(crate) fn to_string<T: Serialize>(value: &T) -> Result<String, ser::Error> {
+pub(crate) fn to_string<Value: Serialize>(value: &Value) -> Result<String, ser::Error> {
     to_string_with_options(value, options())
 }

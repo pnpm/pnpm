@@ -1,5 +1,52 @@
 # @pnpm/cli.commands
 
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [e8b3ae1]
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.projects-reader@1101.0.8
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.5
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/workspace.projects-reader@1101.0.7
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/workspace.projects-reader@1101.0.6
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.4
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/workspace.projects-reader@1101.0.5
+
 ## 1100.0.12
 
 ### Patch Changes

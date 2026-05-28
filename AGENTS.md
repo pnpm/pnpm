@@ -17,7 +17,7 @@ When you change one side, do the equivalent change on the other in the same PR i
 
 "User-visible" means anything that affects the CLI surface or the on-disk contract: command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file format, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, hook semantics. Pure internal refactors, perf wins, and TS-only test cleanups don't need mirroring.
 
-**Scope caveat:** pacquet currently only implements `install`. Resolution and every other command (`update`, `add`, `remove`, `publish`, `exec`, `run`, `dlx`, `audit`, etc.) live only in the TypeScript code, so changes there don't need a pacquet-side port yet — they're outside pacquet's current surface area. The parity rule will widen as pacquet ports more commands; check what pacquet exposes before deciding whether your change is in scope.
+**Scope caveat:** pacquet's current surface area is the dependency-management commands — `install`, `add`, `update`, and `remove`. Every other command (`publish`, `exec`, `run`, `dlx`, `audit`, etc.) lives only in the TypeScript code, so changes there don't need a pacquet-side port yet. The parity rule will widen as pacquet ports more commands; check what pacquet exposes before deciding whether your change is in scope.
 
 The pacquet-side obligation — pnpm is the source of truth, pacquet ports from it, never the other way around — is spelled out at [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
 
@@ -185,6 +185,24 @@ To ensure your code adheres to the style guide, run:
 ```bash
 pnpm run lint
 ```
+
+### Comments
+
+Write code that explains itself. A reader should understand what a function does from its name, parameters, and types — not from prose above the call site.
+
+Defaults:
+
+-   **Do not write a comment** that restates what the code already says. If renaming a variable, splitting a helper, or moving a check to a more obvious place would carry the information, do that instead.
+-   **Do not repeat documentation** at call sites that already lives on the callee. If the function has a JSDoc, the call site shouldn't re-explain what calling it does. Update the JSDoc once; let every call site benefit.
+-   **JSDoc is for the function's contract** — preconditions, postconditions, edge cases, why the function exists. Not for re-narrating the body.
+-   **Do not record past implementation shape, refactor history, or "the previous code did X" framing.** That's what `git log` and `git blame` are for. Describe the current contract — what the code is and what it guarantees — not what it replaced. Phrasings like "used to", "previously", "the original X", or a parenthetical naming a removed type belong in the commit message, not in the source.
+
+Write a comment only when:
+
+-   The reason for the code is non-obvious from reading it (a hidden invariant, a workaround for a known bug, a deliberate exception to the surrounding pattern).
+-   The right name doesn't fit — e.g., a temporary technical constraint that's worth flagging but doesn't justify a new symbol.
+
+Before adding a comment, ask: "Could I rename, restructure, or extract instead?" If yes, do that. The bar for prose-in-code is high; the bar for prose-that-restates-code is "don't."
 
 ## Common Gotchas
 

@@ -90,7 +90,10 @@ pub struct AddArgs {
 
 impl AddArgs {
     /// Execute the subcommand.
-    pub async fn run<R: Reporter>(self, mut state: State) -> miette::Result<()> {
+    pub async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        mut state: State,
+    ) -> miette::Result<()> {
         // TODO: if a package already exists in another dependency group, don't remove the existing entry.
 
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
@@ -104,19 +107,25 @@ impl AddArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
 
+        let lockfile_path = manifest
+            .path()
+            .parent()
+            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
         Add {
-            tarball_mem_cache,
+            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
+            http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
             lockfile: lockfile.as_ref(),
+            lockfile_path: lockfile_path.as_deref(),
             list_dependency_groups: || self.dependency_options.dependency_groups(),
             package_name: &self.package_name,
             save_exact: self.save_exact,
             resolved_packages,
             supported_architectures,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .await
         .wrap_err("adding a new package")
     }

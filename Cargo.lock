@@ -148,9 +148,9 @@ dependencies = [
 
 [[package]]
 name = "assert_cmd"
-version = "2.2.1"
+version = "2.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39bae1d3fa576f7c6519514180a72559268dd7d1fe104070956cb687bc6673bd"
+checksum = "2aa3a22042e45de04255c7bf3626e239f450200fd0493c1e382263544b20aea6"
 dependencies = [
  "anstyle",
  "bstr",
@@ -218,6 +218,54 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
+dependencies = [
+ "axum-core",
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "itoa",
+ "matchit",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "serde_core",
+ "serde_json",
+ "serde_path_to_error",
+ "sync_wrapper",
+ "tokio",
+ "tower",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08c78f31d7b1291f7ee735c1c6780ccde7785daae9a9206026862dab7d8792d1"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "http",
+ "http-body",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "sync_wrapper",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -254,6 +302,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "bcrypt"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abaf6da45c74385272ddf00e1ac074c7d8a6c1a1dda376902bd6a427522a8b2c"
+dependencies = [
+ "base64 0.22.1",
+ "blowfish",
+ "getrandom 0.3.4",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -266,6 +327,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "blowfish"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e412e2cd0f2b2d93e02543ceae7917b3c70331573df19ee046bcbc35e45e87d7"
+dependencies = [
+ "byteorder",
+ "cipher",
 ]
 
 [[package]]
@@ -290,6 +361,12 @@ name = "bytecount"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
+
+[[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
@@ -363,6 +440,16 @@ checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
 dependencies = [
  "ciborium-io",
  "half",
+]
+
+[[package]]
+name = "cipher"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
+dependencies = [
+ "crypto-common",
+ "inout",
 ]
 
 [[package]]
@@ -1410,6 +1497,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "inout"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
 name = "insta"
 version = "1.47.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1669,6 +1765,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "matchit"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
+
+[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1726,6 +1828,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "mime"
+version = "0.3.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
 name = "minimal-lexical"
@@ -1972,6 +2080,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
+name = "pacquet-catalogs-config"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-catalogs-types",
+ "pacquet-workspace",
+]
+
+[[package]]
+name = "pacquet-catalogs-protocol-parser"
+version = "0.0.1"
+dependencies = [
+ "pacquet-catalogs-types",
+]
+
+[[package]]
+name = "pacquet-catalogs-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-catalogs-protocol-parser",
+ "pacquet-catalogs-types",
+]
+
+[[package]]
+name = "pacquet-catalogs-types"
+version = "0.0.1"
+
+[[package]]
 name = "pacquet-cli"
 version = "0.0.1"
 dependencies = [
@@ -2012,6 +2151,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "pacquet-fs",
  "pipe-trait",
  "rayon",
  "serde_json",
@@ -2028,6 +2168,7 @@ dependencies = [
  "indexmap",
  "libc",
  "miette 7.6.0",
+ "node-semver",
  "pacquet-network",
  "pacquet-package-is-installable",
  "pacquet-patching",
@@ -2037,9 +2178,55 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "smart-default",
  "tempfile",
  "tracing",
+]
+
+[[package]]
+name = "pacquet-config-parse-overrides"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-catalogs-resolver",
+ "pacquet-catalogs-types",
+ "pacquet-resolving-parse-wanted-dependency",
+]
+
+[[package]]
+name = "pacquet-crypto-hash"
+version = "0.0.1"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "pacquet-crypto-shasums-file"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-network",
+ "pretty_assertions",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-deps-path"
+version = "0.0.1"
+dependencies = [
+ "pacquet-crypto-hash",
+]
+
+[[package]]
+name = "pacquet-detect-libc"
+version = "0.0.1"
+dependencies = [
+ "pretty_assertions",
 ]
 
 [[package]]
@@ -2069,6 +2256,63 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-engine-runtime-bun-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-crypto-shasums-file",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-engine-runtime-deno-resolver"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-engine-runtime-node-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-crypto-shasums-file",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-executor"
 version = "0.0.1"
 dependencies = [
@@ -2083,13 +2327,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-exportable-manifest"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-package-manifest",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "pacquet-fs"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "dunce",
  "junction",
  "miette 7.6.0",
  "pathdiff",
+ "sha2",
  "tempfile",
 ]
 
@@ -2120,6 +2377,7 @@ name = "pacquet-graph-hasher"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "pacquet-detect-libc",
  "pretty_assertions",
  "serde_json",
  "sha2",
@@ -2148,6 +2406,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "node-semver",
+ "pacquet-crypto-hash",
  "pacquet-diagnostics",
  "pacquet-package-manifest",
  "pipe-trait",
@@ -2159,6 +2418,42 @@ dependencies = [
  "ssri",
  "tempfile",
  "text-block-macros",
+]
+
+[[package]]
+name = "pacquet-lockfile-preferred-versions"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "pacquet-lockfile-verification"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "futures-util",
+ "insta",
+ "miette 7.6.0",
+ "pacquet-diagnostics",
+ "pacquet-lockfile",
+ "pacquet-reporter",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -2190,6 +2485,7 @@ dependencies = [
  "httpdate",
  "indexmap",
  "pacquet-diagnostics",
+ "pacquet-fs",
  "pacquet-testing-utils",
  "pathdiff",
  "pipe-trait",
@@ -2231,6 +2527,7 @@ name = "pacquet-package-manager"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
+ "chrono",
  "dashmap",
  "derive_more",
  "dunce",
@@ -2240,14 +2537,24 @@ dependencies = [
  "insta",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-catalogs-config",
+ "pacquet-catalogs-types",
  "pacquet-cmd-shim",
  "pacquet-config",
+ "pacquet-config-parse-overrides",
+ "pacquet-crypto-hash",
+ "pacquet-deps-path",
  "pacquet-directory-fetcher",
+ "pacquet-engine-runtime-bun-resolver",
+ "pacquet-engine-runtime-deno-resolver",
+ "pacquet-engine-runtime-node-resolver",
  "pacquet-executor",
  "pacquet-fs",
  "pacquet-git-fetcher",
  "pacquet-graph-hasher",
  "pacquet-lockfile",
+ "pacquet-lockfile-preferred-versions",
+ "pacquet-lockfile-verification",
  "pacquet-modules-yaml",
  "pacquet-network",
  "pacquet-package-is-installable",
@@ -2257,6 +2564,13 @@ dependencies = [
  "pacquet-registry",
  "pacquet-registry-mock",
  "pacquet-reporter",
+ "pacquet-resolving-default-resolver",
+ "pacquet-resolving-deps-resolver",
+ "pacquet-resolving-git-resolver",
+ "pacquet-resolving-local-resolver",
+ "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-resolver-base",
+ "pacquet-resolving-tarball-resolver",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
@@ -2305,6 +2619,7 @@ dependencies = [
  "pretty_assertions",
  "sha2",
  "tempfile",
+ "text-block-macros",
 ]
 
 [[package]]
@@ -2344,13 +2659,14 @@ version = "0.0.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "home",
  "pipe-trait",
  "reqwest",
  "serde",
  "serde_json",
  "sysinfo",
  "tokio",
- "which",
+ "walkdir",
 ]
 
 [[package]]
@@ -2366,6 +2682,152 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-resolving-default-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pacquet-lockfile",
+ "pacquet-resolving-resolver-base",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-resolving-deps-resolver"
+version = "0.0.1"
+dependencies = [
+ "async-recursion",
+ "derive_more",
+ "futures-util",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-catalogs-resolver",
+ "pacquet-catalogs-types",
+ "pacquet-deps-path",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-patching",
+ "pacquet-resolving-parse-wanted-dependency",
+ "pacquet-resolving-resolver-base",
+ "pipe-trait",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-resolving-git-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pacquet-resolving-jsr-specifier-parser"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+]
+
+[[package]]
+name = "pacquet-resolving-local-resolver"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "home",
+ "miette 7.6.0",
+ "pacquet-lockfile",
+ "pacquet-package-manifest",
+ "pacquet-resolving-default-resolver",
+ "pacquet-resolving-resolver-base",
+ "pacquet-testing-utils",
+ "pathdiff",
+ "pretty_assertions",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pacquet-resolving-npm-resolver"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "dashmap",
+ "derive_more",
+ "futures-util",
+ "indexmap",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pacquet-config",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-registry",
+ "pacquet-resolving-default-resolver",
+ "pacquet-resolving-jsr-specifier-parser",
+ "pacquet-resolving-local-resolver",
+ "pacquet-resolving-resolver-base",
+ "pacquet-workspace-range-resolver",
+ "pacquet-workspace-spec",
+ "pipe-trait",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pacquet-resolving-parse-wanted-dependency"
+version = "0.0.1"
+
+[[package]]
+name = "pacquet-resolving-resolver-base"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "pacquet-config",
+ "pacquet-lockfile",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tokio",
+]
+
+[[package]]
+name = "pacquet-resolving-tarball-resolver"
+version = "0.0.1"
+dependencies = [
+ "mockito",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-store-dir"
 version = "0.0.1"
 dependencies = [
@@ -2373,6 +2835,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "miette 7.6.0",
+ "pacquet-crypto-hash",
  "pacquet-fs",
  "pipe-trait",
  "pretty_assertions",
@@ -2438,13 +2901,26 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "pacquet-catalogs-types",
  "pacquet-package-manifest",
+ "pathdiff",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
  "tempfile",
  "wax",
 ]
+
+[[package]]
+name = "pacquet-workspace-range-resolver"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+]
+
+[[package]]
+name = "pacquet-workspace-spec"
+version = "0.0.1"
 
 [[package]]
 name = "pacquet-workspace-state"
@@ -2554,6 +3030,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51bae2ac328883f7acdfea3d66a7c35751187f870bc81f94563733a154d7a670"
 dependencies = [
  "plotters-backend",
+]
+
+[[package]]
+name = "pnpm-registry"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "bcrypt",
+ "clap",
+ "derive_more",
+ "futures-util",
+ "getrandom 0.3.4",
+ "indexmap",
+ "miette 7.6.0",
+ "mockito",
+ "pacquet-network",
+ "pipe-trait",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "sha2",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "wax",
 ]
 
 [[package]]
@@ -3180,6 +3688,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_path_to_error"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457"
+dependencies = [
+ "itoa",
+ "serde",
+ "serde_core",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3237,6 +3756,16 @@ name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+
+[[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
+]
 
 [[package]]
 name = "simd-adler32"
@@ -3597,6 +4126,7 @@ dependencies = [
  "mio",
  "parking_lot",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",
@@ -3667,6 +4197,7 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]

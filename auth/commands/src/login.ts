@@ -15,6 +15,7 @@ import {
   type WebAuthFetchOptions,
   withOtpHandling,
 } from '@pnpm/network.web-auth'
+import { addUser, AddUserHttpError, AddUserNoTokenError } from '@pnpm/registry-access.client'
 import enquirer from 'enquirer'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
@@ -24,7 +25,10 @@ import { writeIniFile } from 'write-ini-file'
 import { getRegistryConfigKey, safeReadIniFile } from './shared.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return { registry: allTypes.registry }
+  return {
+    registry: allTypes.registry,
+    scope: allTypes.scope,
+  }
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
@@ -46,11 +50,15 @@ export function help (): string {
             description: 'The registry to log in to',
             name: '--registry <url>',
           },
+          {
+            description: 'Associate an operation with a scope for a scoped registry. The scope-to-registry mapping is recorded so future installs in the same scope use the chosen registry.',
+            name: '--scope <scope>',
+          },
         ],
       },
     ],
     url: docsUrl('login'),
-    usages: ['pnpm login [--registry <url>]'],
+    usages: ['pnpm login [--registry <url>] [--scope <scope>]'],
   })
 }
 
@@ -65,6 +73,7 @@ export type LoginCommandOptions = Pick<Config,
 | 'authConfig'
 > & {
   registry?: string
+  scope?: string
 }
 
 export async function handler (
@@ -101,19 +110,7 @@ export interface LoginFetchResponseHeaders {
 
 export interface LoginFetchOptions {
   method?: 'GET' | 'POST' | 'PUT'
-  headers?: {
-    accept: 'application/json'
-    'content-type': 'application/json'
-
-    // Q: Why does pnpm send this header unconditionally?
-    // A: This header doesn't say "I prefer web-based authentication";
-    //    it only says "I am capable of web-based authentication".
-    //    The npm CLI does the same:
-    //    <https://github.com/npm/npm-registry-fetch/blob/844230f/lib/index.js#L196-L198>
-    'npm-auth-type': 'web'
-
-    'npm-otp'?: string
-  }
+  headers?: Record<string, string>
   body?: string
   retry?: {
     factor?: number
@@ -202,9 +199,26 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   const settings = await safeReadIniFile(readIniFile, configPath) as Record<string, unknown>
   const registryConfigKey = getRegistryConfigKey(registry)
   settings[`${registryConfigKey}:_authToken`] = token
+  // Persist the scope → registry mapping next to the auth token so subsequent
+  // installs for `@scope/*` packages route to this registry. `auth.ini` is
+  // already an allowed source of `@scope:registry=` (see config/reader).
+  const scopeKey = normalizeScope(opts.scope)
+  if (scopeKey != null) {
+    settings[`${scopeKey}:registry`] = registry
+  }
   await writeIniFile(configPath, settings)
 
   return `Logged in on ${registry}`
+}
+
+// `--scope foo` and `--scope @foo` should both produce `@foo`. Empty / blank
+// values are treated as unset so accidental whitespace doesn't write a broken
+// `@:registry=` entry.
+function normalizeScope (scope: string | undefined): string | undefined {
+  if (scope == null) return undefined
+  const trimmed = scope.trim()
+  if (trimmed === '' || trimmed === '@') return undefined
+  return trimmed.startsWith('@') ? trimmed : `@${trimmed}`
 }
 
 interface WebLoginParams {
@@ -291,70 +305,38 @@ async function classicLogin ({
     throw new LoginMissingCredentialsError()
   }
 
-  const loginUrl = new URL(`-/user/org.couchdb.user:${encodeURIComponent(username)}`, registry).href
-
   const token = await withOtpHandling({
     context,
     fetchOptions,
     operation: async (otp?: string) => {
-      const response = await fetch(loginUrl, {
-        method: 'PUT',
-        headers: {
-          'content-type': 'application/json',
-          accept: 'application/json',
-          'npm-auth-type': 'web',
-          // Conditionally include npm-otp: some HTTP implementations coerce
-          // `undefined` to the string "undefined", which would send a bad header
-          // on the initial attempt (before OTP is known).
-          ...(otp != null ? { 'npm-otp': otp } : {}),
-        },
-        body: JSON.stringify({
-          _id: `org.couchdb.user:${username}`,
-          name: username,
+      try {
+        const result = await addUser({
+          username,
           password,
           email,
-          type: 'user',
-        }),
-      })
-
-      if (!response.ok) {
-        await throwIfOtpRequired(globalWarn, response)
-        const text = await response.text()
-        throw new ClassicLoginError(response.status, text)
+          otp,
+          registryUrl: registry,
+          fetch,
+        })
+        return result.token
+      } catch (err) {
+        if (err instanceof AddUserHttpError) {
+          if (err.status === 401 && err.responseHeaders.get('www-authenticate')?.includes('otp')) {
+            throw SyntheticOtpError.fromUnknownBody(globalWarn, err.responseJson)
+          }
+          throw new ClassicLoginError(err.status, err.responseText)
+        }
+        if (err instanceof AddUserNoTokenError) {
+          throw new LoginNoTokenError()
+        }
+        throw err
       }
-
-      const body = await response.json() as { token?: string }
-
-      if (!body.token) {
-        throw new LoginNoTokenError()
-      }
-
-      return body.token
     },
   })
 
   globalInfo(`Logged in as ${username}`)
 
   return token
-}
-
-/**
- * Inspects a non-ok HTTP response for OTP requirements and throws an EOTP
- * error when detected. This mirrors the behaviour of npm-registry-fetch,
- * which checks the `www-authenticate` header for one-time password indicators.
- */
-async function throwIfOtpRequired (globalWarn: LoginContext['globalWarn'], response: LoginFetchResponse): Promise<void> {
-  if (response.status !== 401) return
-
-  const wwwAuth = response.headers.get('www-authenticate')
-  if (!wwwAuth?.includes('otp')) return
-
-  let body: unknown
-  try {
-    body = await response.json()
-  } catch {}
-
-  throw SyntheticOtpError.fromUnknownBody(globalWarn, body)
 }
 
 class LoginNonInteractiveError extends PnpmError {

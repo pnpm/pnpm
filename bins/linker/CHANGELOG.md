@@ -1,5 +1,43 @@
 # @pnpm/link-bins
 
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/bins.resolver@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.2.1
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/bins.resolver@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.utils@1100.1.4
+- @pnpm/workspace.project-manifest-reader@1100.0.6
+
 ## 1100.0.6
 
 ### Patch Changes

@@ -80,6 +80,42 @@ pub struct InstallArgs {
     #[clap(long)]
     pub frozen_lockfile: bool,
 
+    /// Force-enable `preferFrozenLockfile` for this invocation.
+    /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
+    /// Mirrors pnpm's `--prefer-frozen-lockfile`. Conflicts with
+    /// [`Self::no_prefer_frozen_lockfile`] so a single invocation
+    /// can't both force-on and force-off.
+    #[clap(long = "prefer-frozen-lockfile")]
+    pub prefer_frozen_lockfile: bool,
+
+    /// Force-disable `preferFrozenLockfile` for this invocation.
+    /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
+    /// Mirrors pnpm's `--no-prefer-frozen-lockfile`. Useful for CI
+    /// runs that want to force a re-resolve against the registry
+    /// without setting the flag globally.
+    #[clap(long = "no-prefer-frozen-lockfile", conflicts_with = "prefer_frozen_lockfile")]
+    pub no_prefer_frozen_lockfile: bool,
+
+    /// Skip the per-importer `package.json` ↔ `pnpm-lock.yaml`
+    /// freshness check that normally guards `--frozen-lockfile`.
+    /// Intended for callers that just resolved and wrote the
+    /// lockfile themselves (today: the pnpm CLI delegating
+    /// materialization to pacquet via `configDependencies`), where
+    /// the manifest may still be the pre-mutation copy while the
+    /// lockfile is already post-mutation — the upstream resolver
+    /// will rewrite the manifest right after pacquet returns. See
+    /// <https://github.com/pnpm/pnpm/issues/11797>.
+    ///
+    /// Narrow on purpose: only gates
+    /// [`pacquet_lockfile::satisfies_package_manifest`]. Settings
+    /// drift (`overrides`, `ignoredOptionalDependencies`,
+    /// `pnpmfileChecksum`, …) still aborts. A future broader flag
+    /// matching pnpm's internal `ignorePackageManifest` (used by
+    /// `pnpm fetch`) would skip linking / hoisting / pruning too;
+    /// that's deliberately a separate name.
+    #[clap(long)]
+    pub ignore_manifest_check: bool,
+
     /// Skip the install of any runtime dependencies
     /// (`node@runtime:`, `deno@runtime:`, `bun@runtime:`).
     /// Their archives aren't fetched, their slots aren't
@@ -130,21 +166,68 @@ pub struct InstallArgs {
     /// path the way upstream does.
     #[clap(long)]
     pub prefer_offline: bool,
+
+    /// Skip the lockfile supply-chain verification pass entirely.
+    /// Overrides `pnpm-workspace.yaml#trustLockfile`. Mirrors pnpm's
+    /// `--trust-lockfile`. See [`pacquet_config::Config::trust_lockfile`].
+    /// Added for [pnpm/pnpm#11860](https://github.com/pnpm/pnpm/issues/11860).
+    #[clap(long = "trust-lockfile")]
+    pub trust_lockfile: bool,
+
+    /// Refresh the integrity checksums recorded in `pnpm-lock.yaml`
+    /// from the registry. Mirrors pnpm's `--update-checksums`. Skips
+    /// the frozen-lockfile fast path; conflicts with `--frozen-lockfile`.
+    #[clap(long = "update-checksums")]
+    pub update_checksums: bool,
+
+    /// Maximum number of workspace projects to process in parallel.
+    /// Mirrors pnpm's `--workspace-concurrency`. Overrides the
+    /// `workspaceConcurrency` value resolved from `pnpm-workspace.yaml` /
+    /// global `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY` for
+    /// this invocation. A non-positive value is read as
+    /// `parallelism - |value|` (floored at 1), matching upstream's
+    /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
+    /// `None` (flag absent) leaves the config-resolved value in place.
+    ///
+    /// Applied to [`pacquet_config::Config::workspace_concurrency`] at
+    /// the CLI dispatch in [`crate::cli_args::CliArgs::run`]; see that
+    /// field for why it has no consumption point on `install` yet.
+    #[clap(long = "workspace-concurrency")]
+    pub workspace_concurrency: Option<i32>,
 }
 
 impl InstallArgs {
-    pub async fn run<R: Reporter>(self, state: State) -> miette::Result<()> {
+    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
         let InstallArgs {
             dependency_options,
             supported_architectures,
             frozen_lockfile,
+            prefer_frozen_lockfile,
+            no_prefer_frozen_lockfile,
+            ignore_manifest_check,
             no_runtime,
             node_linker,
             offline: _,
             prefer_offline: _,
+            trust_lockfile,
+            update_checksums,
+            workspace_concurrency: _,
         } = self;
+
+        // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
+        // map to `Option<bool>`: `Some(true)` / `Some(false)` when
+        // either flag is set, `None` otherwise (use config). Clap's
+        // `conflicts_with` on the off-flag ensures the two aren't
+        // both set, so the precedence here is straightforward.
+        let prefer_frozen_lockfile = if prefer_frozen_lockfile {
+            Some(true)
+        } else if no_prefer_frozen_lockfile {
+            Some(false)
+        } else {
+            None
+        };
 
         // Merge CLI overrides with the yaml-derived value before
         // handing off to the install pipeline. `state.config` is a
@@ -161,28 +244,65 @@ impl InstallArgs {
         // matching pnpm's stance on the same flag.
         let skip_runtimes = config.skip_runtimes || no_runtime;
 
+        // Same shape as `skip_runtimes`: yaml `trustLockfile: true`
+        // or the CLI flag turns the verification skip on. There's no
+        // CLI inverse — relax the yaml value if you need to flip it
+        // back off for a single invocation.
+        let trust_lockfile = config.trust_lockfile || trust_lockfile;
+
         // `--node-linker` flag (if passed) overrides the
         // yaml/npmrc value for this invocation. Mirrors pnpm's
         // override-on-explicit-flag semantics.
         let node_linker = node_linker.map(NodeLinkerArg::into_config).unwrap_or(config.node_linker);
+        // The lockfile-verification gate keys its on-disk cache off
+        // `<manifest_dir>/pnpm-lock.yaml`. Once workspace support
+        // lands (pacquet#431), this becomes `workspace_root` to
+        // match where the lockfile actually lives.
+        let lockfile_path = manifest
+            .path()
+            .parent()
+            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
         Install {
-            tarball_mem_cache,
+            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
+            http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
             lockfile: lockfile.as_ref(),
+            lockfile_path: lockfile_path.as_deref(),
             dependency_groups: dependency_options.dependency_groups(),
             frozen_lockfile,
+            prefer_frozen_lockfile,
+            ignore_manifest_check,
             skip_runtimes,
+            trust_lockfile,
+            update_checksums,
             resolved_packages,
             supported_architectures,
             node_linker,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .await
         .wrap_err("installing dependencies")?;
 
         Ok(())
+    }
+
+    /// Effective `workspaceConcurrency` for this invocation: the
+    /// `--workspace-concurrency` flag when passed (resolved through
+    /// [`pacquet_config::resolve_child_concurrency`], so a non-positive
+    /// value means `parallelism - |value|`, floored at 1), otherwise
+    /// the already-resolved `config_value` from `pnpm-workspace.yaml` /
+    /// global `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`.
+    ///
+    /// Mirrors upstream's final `workspaceConcurrency =
+    /// getWorkspaceConcurrency(...)` pass at
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L641>.
+    pub(crate) fn resolve_workspace_concurrency(&self, config_value: u32) -> u32 {
+        match self.workspace_concurrency {
+            Some(value) => pacquet_config::resolve_child_concurrency(Some(value)),
+            None => config_value,
+        }
     }
 }
 

@@ -3,6 +3,7 @@ import type {
   PkgResolutionId,
   PreferredVersions,
   Resolution,
+  ResolutionPolicyViolation,
   WantedDependency,
   WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
@@ -120,6 +121,7 @@ export interface RequestPackageOptions {
   sideEffectsCache?: boolean
   skipFetch?: boolean
   update?: false | 'compatible' | 'latest'
+  updateChecksums?: boolean
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
   supportedArchitectures?: SupportedArchitectures
@@ -152,6 +154,13 @@ export interface PackageResponse {
     // resolved package, it is out-of-date.
     latest?: string
     alias?: string
+    /**
+     * Forwarded from the resolver's `ResolveResult.policyViolation`.
+     * The caller (deps-resolver) aggregates these per-pick into a
+     * single set the install command can react to — see
+     * `ResolutionPolicyViolation` in `@pnpm/resolving.resolver-base`.
+     */
+    policyViolation?: ResolutionPolicyViolation
   } & (
     {
       isLocal: true

@@ -18,7 +18,7 @@ use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_lockfile::{
     Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
-use pacquet_modules_yaml::{RealApi, read_modules_manifest};
+use pacquet_modules_yaml::{Host, read_modules_manifest};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_patching::{
@@ -256,7 +256,7 @@ where
     /// hoist decisions, and `skipped` lets the next install seed
     /// the installability re-check against the previously skipped
     /// snapshots.
-    pub async fn run<R: Reporter>(
+    pub async fn run<Reporter: self::Reporter>(
         self,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         let InstallFrozenLockfile {
@@ -338,7 +338,7 @@ where
         // A read error (corrupt yaml, permissions) is degraded to
         // an empty seed — `.modules.yaml` is a cache artifact, not
         // an authoritative source. Missing file → empty seed.
-        let seed = match read_modules_manifest::<RealApi>(&config.modules_dir) {
+        let seed = match read_modules_manifest::<Host>(&config.modules_dir) {
             Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
             Ok(None) => SkippedSnapshots::new(),
             Err(error) => {
@@ -382,7 +382,7 @@ where
             if let Some(supp) = supported_architectures {
                 host.supported_architectures = Some(supp.clone());
             }
-            let s = compute_skipped_snapshots::<R>(
+            let skipped = compute_skipped_snapshots::<Reporter>(
                 snapshots.expect("guarded by needs_installability_check"),
                 packages.expect("guarded by needs_installability_check"),
                 &host,
@@ -393,7 +393,7 @@ where
             // Preserve `node_detected` + `node_version` for the
             // engine-name derivation below. Dropping the rest of the
             // host struct frees the allocations early.
-            (s, Some((host.node_detected, host.node_version)))
+            (skipped, Some((host.node_detected, host.node_version)))
         } else {
             // Constraint-free lockfile: keep the seed verbatim so a
             // snapshot recorded as skipped on the previous install
@@ -596,7 +596,7 @@ where
             workspace_root,
             node_linker,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .await
         .map_err(InstallFrozenLockfileError::CreateVirtualStore)?;
 
@@ -623,7 +623,7 @@ where
                 skipped: &skipped,
                 link_only: false,
             }
-            .run::<R>()
+            .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
 
             // Link the bins of each virtual-store slot's children into the
@@ -762,7 +762,7 @@ where
                 logged_methods,
                 requester,
             };
-            link_hoisted_modules::<R>(&link_opts)
+            link_hoisted_modules::<Reporter>(&link_opts)
                 .map_err(InstallFrozenLockfileError::LinkHoistedModules)?;
             // Workspace `link:` deps still need symlinks under
             // each importer's `node_modules/<alias>` even though
@@ -785,7 +785,7 @@ where
                 skipped: &skipped,
                 link_only: true,
             }
-            .run::<R>()
+            .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
             // Map snapshot key → first recorded directory. The
             // walker can emit multiple [`crate::DependenciesGraphNode`]s
@@ -989,7 +989,7 @@ where
         // phase. Reporters use it to close the import progress display so
         // subsequent `pnpm:lifecycle` events render in their own section.
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>
-        R::emit(&LogEvent::Stage(StageLog {
+        Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: requester.to_string(),
             stage: Stage::ImportingDone,
@@ -1111,14 +1111,14 @@ where
             pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
             gather_ancestor_bin_paths: is_hoisted,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .map_err(InstallFrozenLockfileError::BuildModules)?;
 
         // Mirrors upstream's single emit at the end of the build phase:
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L414>.
         // Always emitted (with an empty list when nothing was ignored), so
         // the reporter can display a consistent "no ignored scripts" state.
-        R::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+        Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
             level: LogLevel::Debug,
             package_names: ignored_builds,
         }));
@@ -1300,8 +1300,111 @@ fn find_runtime_node_major(snapshots: Option<&HashMap<PackageKey, SnapshotEntry>
         // `engine_name` argument is `u32`, matching upstream's
         // `process.version.split('.')[0].substring(1)`-derived
         // integer.
-        let major = key.suffix.version().major;
+        let major = key.suffix.version_semver()?.major;
         return Some(major as u32);
     }
     None
+}
+
+/// Read one snapshot's own `engines.runtime` Node pin from its
+/// `dependencies` map. Mirrors upstream's
+/// [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts):
+/// the resolver desugars `engines.runtime` declared on a dep's
+/// manifest into `dependencies.node: 'runtime:<version>'` (see
+/// [`installing/deps-resolver/src/resolveDependencies.ts:1477-1479`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-resolver/src/resolveDependencies.ts#L1477-L1479)).
+///
+/// Returns the bare major when this snapshot pins its own Node, or
+/// `None` when it doesn't — callers should then fall back to the
+/// install-wide pin / host probe via [`find_runtime_node_major`].
+///
+/// Per-snapshot resolution matters because pnpm's bin linker routes
+/// lifecycle-script spawns for a pinning package through that
+/// package's own downloaded Node (see
+/// [`bins/linker/src/index.ts:229-237`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L229-L237)).
+/// Anchoring the snapshot's GVS engine hash to an install-wide value
+/// would produce the wrong side-effects-cache key for cross-pinning
+/// installs.
+pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
+    let deps = snapshot.dependencies.as_ref()?;
+    for (alias, dep_ref) in deps {
+        // Match upstream's per-snapshot extraction rule — only the
+        // unscoped `node` alias counts, and only when the resolved
+        // ref-value's prefix is `runtime:` (bun/deno runtimes don't
+        // contribute to the Node-shaped engine string).
+        if alias.scope.is_some() || alias.bare != "node" {
+            continue;
+        }
+        // `link:` deps have no version slot and can't carry a
+        // `runtime:` pin — skip them.
+        let Some(ver_peer) = dep_ref.ver_peer() else {
+            continue;
+        };
+        if ver_peer.prefix() != Prefix::Runtime {
+            continue;
+        }
+        // Same cast as `find_runtime_node_major` above; see the
+        // comment there for why `u64 → u32` is lossless in practice.
+        return Some(ver_peer.version_semver()?.major as u32);
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_own_runtime_node_major;
+    use pacquet_lockfile::{PkgName, SnapshotDepRef, SnapshotEntry};
+    use pretty_assertions::assert_eq;
+    use std::collections::HashMap;
+
+    /// `dependencies.node: 'runtime:<v>'` is the desugared form pnpm's
+    /// resolver writes when a dep declares its own `engines.runtime`
+    /// (see [`installing/deps-resolver/src/resolveDependencies.ts:1477-1479`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-resolver/src/resolveDependencies.ts#L1477-L1479)).
+    /// The helper pulls the bare major back out.
+    #[test]
+    fn picks_up_runtime_pin_from_dependencies() {
+        let mut deps = HashMap::new();
+        deps.insert(
+            PkgName::parse("node").expect("parse pkg name"),
+            SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
+        );
+        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+        assert_eq!(find_own_runtime_node_major(&snapshot), Some(22));
+    }
+
+    /// A plain semver `node` dep (no `runtime:` prefix) is not an
+    /// `engines.runtime` pin — workspaces can depend on the `node`
+    /// npm package without intending it as the script runner. The
+    /// helper must skip these.
+    #[test]
+    fn ignores_non_runtime_node_dep() {
+        let mut deps = HashMap::new();
+        deps.insert(
+            PkgName::parse("node").expect("parse pkg name"),
+            SnapshotDepRef::Plain("22.11.0".parse().expect("parse ver-peer")),
+        );
+        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+        assert_eq!(find_own_runtime_node_major(&snapshot), None);
+    }
+
+    /// Scoped `node` (`@scope/node`) isn't pnpm's runtime alias —
+    /// only the bare unscoped `node` alias counts. Matches the
+    /// sibling [`super::find_runtime_node_major`] check.
+    #[test]
+    fn ignores_scoped_node_alias() {
+        let mut deps = HashMap::new();
+        deps.insert(
+            PkgName::parse("@scope/node").expect("parse pkg name"),
+            SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
+        );
+        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+        assert_eq!(find_own_runtime_node_major(&snapshot), None);
+    }
+
+    /// A snapshot with no `dependencies` map yields `None` — the
+    /// install-wide fallback handles those.
+    #[test]
+    fn empty_dependencies_yields_none() {
+        let snapshot = SnapshotEntry::default();
+        assert_eq!(find_own_runtime_node_major(&snapshot), None);
+    }
 }

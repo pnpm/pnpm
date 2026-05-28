@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 
-#[derive(Debug, Display, Error, From, Diagnostic)]
+#[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum PackageManifestError {
     #[diagnostic(code(pacquet_package_manifest::serialization_error))]
@@ -54,7 +54,7 @@ pub enum DependencyGroup {
     Peer,
 }
 
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BundleDependencies {
     Boolean(bool),
@@ -62,6 +62,7 @@ pub enum BundleDependencies {
 }
 
 /// Content of the `package.json` files and its path.
+#[derive(Clone)]
 pub struct PackageManifest {
     path: PathBuf,
     value: Value, // TODO: convert this into a proper struct + an array of keys order
@@ -75,7 +76,7 @@ impl PackageManifest {
             "description": "",
             "main": "index.js",
             "scripts": {
-              "test": "echo \"Error: no test specified\" && exit 1"
+              "test": r#"echo "Error: no test specified" && exit 1"#
             },
             "keywords": [],
             "author": "",
@@ -144,6 +145,17 @@ impl PackageManifest {
 
     pub fn value(&self) -> &'_ Value {
         &self.value
+    }
+
+    /// In-memory mutation handle on the underlying JSON value.
+    ///
+    /// Used by the read-package-hook layer to rewrite a manifest's
+    /// dependency maps before downstream consumers see it (mirrors
+    /// upstream's `readPackageHook` returning a modified manifest).
+    /// Mutations stay in memory — there is no implicit `save`, so the
+    /// user's on-disk `package.json` is untouched.
+    pub fn value_mut(&mut self) -> &'_ mut Value {
+        &mut self.value
     }
 
     pub fn save(&self) -> Result<(), PackageManifestError> {
@@ -297,8 +309,9 @@ pub fn convert_engines_runtime_to_dependencies(
             single @ Value::Object(_) => std::slice::from_ref(single),
             _ => continue,
         };
-        let Some(runtime) =
-            runtimes.iter().find(|r| r.get("name").and_then(Value::as_str) == Some(runtime_name))
+        let Some(runtime) = runtimes
+            .iter()
+            .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
         else {
             continue;
         };

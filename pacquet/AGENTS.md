@@ -42,6 +42,22 @@ Before writing code for a feature, bug fix, or behavior change:
    [Reporter / log events](./CODE_STYLE_GUIDE.md#reporter--log-events)
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
+7. **Prefer real fixtures; reach for the dependency-injection seam
+   only when they can't cover the branch.** Most happy paths and
+   error paths should be tested with a `tempfile::TempDir`, the
+   mocked registry, or an integration test that spawns the actual
+   binary. Use the DI seam — a capability trait on the `Host`
+   provider, threaded as `Sys: <Bounds>` — only for branches a real
+   fixture can't reach portably: filesystem error kinds
+   (`PermissionDenied`, `ENOSPC`, …), deterministic time, shared
+   process-global state a test would otherwise mutate
+   (`env::set_var`, `set_current_dir`, the umask, …), or the
+   external-service happy paths in features like `pnpm login` (2FA)
+   and `pnpm publish` (OIDC / provenance) when those land. See
+   [Dependency injection for tests](./CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
+   in the style guide for the gating rule, the names (`Sys`, `Host`,
+   `Fs*`, `Clock`, `EnvVar`, …), the eight principles, and the
+   `modules-yaml` worked example.
 
 If the pnpm behavior is unclear or looks wrong, stop and ask the user
 rather than guessing.
@@ -156,8 +172,8 @@ by crate or name — see below).
 - `just ready` — run the same checks CI runs (typos, fmt, check, test, lint).
   Run this before declaring a task complete.
 - `just test` — `cargo nextest run`.
-- `just lint` — `cargo clippy --locked -- --deny warnings`.
-- `just check` — `cargo check --locked`.
+- `just lint` — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
+- `just check` — `cargo check --locked --workspace --all-targets`.
 - `just fmt` — `cargo fmt` + `taplo format`.
 - `just cli -- <args>` — run the pacquet binary.
 - `just registry-mock <args>` — manage the mock registry used by tests.
@@ -189,6 +205,48 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   subject under test to verify the ported test actually catches the
   regression. Consult it before adding ported tests, and update its
   checkboxes as items land.
+
+### No "tolerant" tests for missing tools
+
+Tests must not be tolerant of a missing build / runtime environment by
+silently `return`-ing early when a tool isn't found. Patterns like:
+
+```rust
+fn skip_if_no_git() -> bool {
+    if std::process::Command::new("git").arg("--version").output().is_err() {
+        eprintln!("skipping: `git` not on PATH");
+        return true;
+    }
+    false
+}
+
+#[test]
+fn my_test() {
+    if skip_if_no_git() {
+        return;
+    }
+    // ...
+}
+```
+
+are forbidden. If the test needs a tool, just call into it and let the
+existing `.unwrap()` / `.expect(...)` panic when the tool is absent — a
+failing test in an under-provisioned environment is the correct signal.
+Tolerance defeats the purpose of testing: if the environment really
+doesn't have the required tools, that's the *environment's* fault and it
+needs to be fixed.
+
+This applies in particular to `git`, `node`, and `npm` — git is ubiquitous
+on developer machines, and Node.js is a documented prerequisite for
+building pnpm. There is no realistic environment in which pacquet's tests
+should run *and* these tools should be absent.
+
+The only marginally acceptable exception is platform-locked tools — APIs
+or binaries that exist on one OS but not another. Even then, prefer
+`#[cfg_attr(target_os = "windows", ignore = "...")]` (or the matching
+`#[cfg(unix)]` gate already used in this crate for `/bin/sh` shims) over a
+runtime probe-and-skip helper. The gate is visible to `cargo test` and
+shows up in the test report; a silent `return` does not.
 
 ### Running tests narrowly
 
@@ -228,6 +286,19 @@ Run `just ready` (full suite) before handing the PR off.
   preludes such as `use rayon::prelude::*;` and root-of-module
   re-exports such as `pub use submodule::*;` in a `lib.rs`. See the
   "No star imports" section in `CODE_STYLE_GUIDE.md`.
+
+### Comments
+
+Same baseline as [`../AGENTS.md`](../AGENTS.md#comments): write code that explains itself; comments are for the non-obvious *why*, not a translation of the *what*.
+
+Rust-specific defaults:
+
+-   **Doc comments (`///`, `//!`) document the contract.** Preconditions, postconditions, panics, the reason the function exists. They are not a re-narration of the body.
+-   **Do not restate at call sites what the callee's doc comment already says.** If `///` on the function says "no-op when …", the caller should not repeat that. Update the doc once; let every call site benefit.
+-   **Tests are documentation. Do not duplicate them in prose.** If a behavioral scenario, edge case, failure mode, or worked example is already captured by a test (its name, its setup, its assertions), do not also narrate it in the doc comment on the implementation. The doc comment should state the contract once; the test demonstrates the behavior. The same applies in reverse: a test's own doc comment should not re-explain what the asserts already say, only the *why* if it is not obvious.
+-   **`// SAFETY:`, `// TODO:`, and similar prefixes are the exception.** They signal hidden invariants or known follow-ups that a reader cannot recover from the code alone.
+
+Prefer renaming, restructuring, or extracting a helper over leaving a comment. Reach for prose only when the right names and types genuinely cannot carry the information.
 
 ### Preserve existing method chains
 

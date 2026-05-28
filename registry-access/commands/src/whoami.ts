@@ -34,7 +34,7 @@ export function help (): string {
 
 export async function handler (opts: WhoamiOptions): Promise<string> {
   const registryUrl = normalizeRegistryUrl(opts.registries?.default ?? 'https://registry.npmjs.org/')
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const authHeader = getAuthHeader(registryUrl)
   if (!authHeader) {
     throw new PnpmError('WHOAMI_UNAUTHORIZED', 'You must be logged in to use whoami')

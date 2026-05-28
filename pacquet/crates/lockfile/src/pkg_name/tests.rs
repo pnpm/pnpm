@@ -1,6 +1,7 @@
 use super::{ParsePkgNameError, PkgName};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
+use std::borrow::Cow;
 
 #[test]
 fn parse_ok() {
@@ -77,4 +78,29 @@ fn serialize() {
 
     case(PkgName { scope: Some("foo".to_string()), bare: "bar".to_string() }, "\"@foo/bar\"\n");
     case(PkgName { scope: None, bare: "foo-bar".to_string() }, "foo-bar\n");
+}
+
+/// `TryFrom<String>` and `TryFrom<Cow<'_, str>>` route through
+/// the validating parser. Owned and borrowed input forms must
+/// behave identically, since both back the serde deserializer
+/// and the public constructor in different contexts.
+#[test]
+fn try_from_owned_and_cow_route_through_parse() {
+    let from_string = PkgName::try_from("@foo/bar".to_string()).expect("valid scoped name parses");
+    assert_eq!(from_string.scope.as_deref(), Some("foo"));
+    assert_eq!(from_string.bare, "bar");
+
+    let from_cow = PkgName::try_from(Cow::Borrowed("foo-bar")).expect("valid bare name parses");
+    assert!(from_cow.scope.is_none());
+    assert_eq!(from_cow.bare, "foo-bar");
+
+    // Invalid input still propagates `ParsePkgNameError` from both
+    // entry points — pin that the error type matches.
+    let owned_err =
+        PkgName::try_from(String::new()).expect_err("empty string must fail validation");
+    assert!(matches!(owned_err, ParsePkgNameError::EmptyName));
+
+    let cow_err =
+        PkgName::try_from(Cow::Owned(String::new())).expect_err("empty cow must fail validation");
+    assert!(matches!(cow_err, ParsePkgNameError::EmptyName));
 }

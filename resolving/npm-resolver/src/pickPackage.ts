@@ -70,12 +70,20 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   includeLatestTag?: boolean
   optional?: boolean
+  /**
+   * When true, skip the on-disk exact-version cache fast path so a
+   * stale on-disk packument can't satisfy the call without a
+   * conditional registry request. The in-memory cache is left alone:
+   * its entries can only be populated by this install's own fresh
+   * network fetches, so they're authoritative for second-and-onward
+   * lookups within the same install.
+   */
+  updateChecksums?: boolean
 }
 
 interface PickerOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
-  strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
 }
 
@@ -106,8 +114,9 @@ const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
 // When minimumReleaseAge is active: try the highest mature version; if none
-// and strictPublishedByCheck is off, fall back to the lowest version in range
-// without applying the maturity filter.
+// satisfies the range, fall back to the lowest version regardless of maturity
+// so the resolver can report the violation inline and let the install layer
+// (or other caller) decide what to do — never throw at this layer.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
@@ -115,7 +124,7 @@ function pickRespectingMinReleaseAge (
 ): PackageInRegistry | null {
   return runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
-    if (highest || pickerOpts.strictPublishedByCheck) return highest
+    if (highest) return highest
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
@@ -178,7 +187,6 @@ export async function pickPackage (
     offline?: boolean
     preferOffline?: boolean
     filterMetadata?: boolean
-    strictPublishedByCheck?: boolean
     ignoreMissingTimeField?: boolean
   },
   spec: RegistryPackageSpec,
@@ -192,7 +200,6 @@ export async function pickPackage (
     publishedByExclude: opts.publishedByExclude,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,
-    strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
   }
 
@@ -266,7 +273,7 @@ export async function pickPackage (
       }
     }
 
-    if (!opts.includeLatestTag && spec.type === 'version') {
+    if (!opts.includeLatestTag && !opts.updateChecksums && spec.type === 'version') {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
@@ -279,14 +286,15 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch (err: unknown) {
-          if (shouldRethrowFromFastPathCache(err, ctx.strictPublishedByCheck)) {
-            throw err
-          }
+        } catch {
+          // Swallow fast-path errors (e.g. ERR_PNPM_MISSING_TIME from
+          // abbreviated meta) and fall through to the network fetch, which
+          // can upgrade to full metadata and run the maturity check on
+          // real `time` data.
         }
       }
     }
-    if (opts.publishedBy) {
+    if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
       const mtime = await limit(async () => getFileMtime(pkgMirror))
       if (mtime != null && mtime >= opts.publishedBy) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
@@ -299,10 +307,8 @@ export async function pickPackage (
                 pickedPackage,
               }
             }
-          } catch (err: unknown) {
-            if (shouldRethrowFromFastPathCache(err, ctx.strictPublishedByCheck)) {
-              throw err
-            }
+          } catch {
+            // Same as above — fall through to the network fetch.
           }
         }
       }
@@ -372,7 +378,12 @@ export async function pickPackage (
       ) {
         const modifiedDate = meta.modified ? new Date(meta.modified) : null
         const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
-        if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
+        // Strict `>` (not `>=`) so the boundary case `modified == publishedBy`
+        // takes the abbreviated fast path: `modified` is an upper bound on
+        // every version's publish time, so when it equals the cutoff every
+        // version passes the per-version `<=` filter in
+        // `filterPkgMetadataByPublishDate` and a full re-fetch isn't needed.
+        if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
             const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
@@ -469,9 +480,12 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   }
   const modifiedDate = meta.modified ? new Date(meta.modified) : null
   const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
-  if (isModifiedValid && modifiedDate < opts.publishedBy) {
-    // The package was last modified before the maturity cutoff. No individual
-    // version can be newer than the cutoff, so the abbreviated form is fine.
+  if (isModifiedValid && modifiedDate <= opts.publishedBy) {
+    // The package was last modified at or before the maturity cutoff. Since
+    // `modified` is an upper bound on every version's publish time, no version
+    // can be newer than the cutoff, so the abbreviated form is fine.
+    // Inclusive at the boundary on purpose: matches the per-version `<=` filter
+    // in `filterPkgMetadataByPublishDate`.
     return { meta }
   }
   // When `modified` is missing or malformed we fall through to the upgrade
@@ -493,14 +507,6 @@ async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     return { meta }
   }
   return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
-}
-
-// Returns true when a fast-path cache catch should rethrow under
-// strictPublishedByCheck. ERR_PNPM_MISSING_TIME is excluded so callers fall
-// through to the network fetch path, which can upgrade abbreviated cached
-// metadata to full and run the maturity check on real `time` data.
-function shouldRethrowFromFastPathCache (err: unknown, strictPublishedByCheck: boolean | undefined): boolean {
-  return strictPublishedByCheck === true && !isMissingTimeError(err)
 }
 
 // Persists upgraded full metadata to the on-disk cache mirror and returns
@@ -604,7 +610,7 @@ function isMissingTimeError (err: unknown): boolean {
 const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
-function warnMissingTimeFieldOnce (pkgName: string): void {
+export function warnMissingTimeFieldOnce (pkgName: string): void {
   if (warnedMissingTimeFor.has(pkgName)) return
   if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
     // Set preserves insertion order, so the first entry is the oldest.

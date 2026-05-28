@@ -13,6 +13,7 @@ import { renderHelp } from 'render-help'
 import { getFetchFullMetadata } from './getFetchFullMetadata.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
+import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
@@ -78,6 +79,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache',
     'store-dir',
     'strict-peer-dependencies',
+    'trust-lockfile',
     'trust-policy',
     'trust-policy-exclude',
     'trust-policy-ignore-after',
@@ -257,7 +259,10 @@ export async function handler (
     if (params.includes('pnpm') || params.includes('@pnpm/exe')) {
       throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
     }
-    return handleGlobalAdd(opts, params, commands ?? {})
+    return handleGlobalAdd({
+      ...opts,
+      ...createGlobalPolicyCallbacks(opts),
+    }, params, commands ?? {})
   }
 
   const include = {

@@ -45,10 +45,18 @@ fn same_file_structure() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     let modules_dir = workspace.join("node_modules");
+    // Cleanup also drops `pnpm-lock.yaml` because the fresh-lockfile
+    // install path writes one, and leaving it would let pnpm's second
+    // install pick a different code path (frozen-with-existing-lockfile)
+    // than pacquet's first install (fresh), which the
+    // `.pnpm-needs-build-marker` artifact in the GVS store difference
+    // would surface as a spurious diff here.
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
     let cleanup = || {
         eprintln!("Cleaning up...");
         fs::remove_dir_all(&store_dir).expect("delete store dir");
         fs::remove_dir_all(&modules_dir).expect("delete node_modules");
+        let _ = fs::remove_file(&lockfile_path);
     };
 
     eprintln!("Creating package.json...");
@@ -73,16 +81,16 @@ fn same_file_structure() {
             .into_iter()
             // Per-project metadata that pnpm 11 populates and pacquet doesn't.
             // Doesn't affect the shared-cafs story.
-            .filter(|p| !p.starts_with("v11/projects/"))
+            .filter(|path| !path.starts_with("v11/projects/"))
             // Hoisted-symlinks layout introduced in pnpm 11 — pnpm stores
             // one `node_modules` tree per `<name>/<version>/<hash>/` under
             // `v11/links/` and links the project's `node_modules/X` into there.
             // Pacquet still uses the older per-project `.pnpm/` virtual store,
             // so these paths exist only on the pnpm side.
-            .filter(|p| !p.starts_with("v11/links/"))
+            .filter(|path| !path.starts_with("v11/links/"))
             // SQLite WAL sidecars exist only while a connection holds the
             // journal open. Their presence at compare-time depends on timing.
-            .filter(|p| p != "v11/index.db-wal" && p != "v11/index.db-shm")
+            .filter(|path| path != "v11/index.db-wal" && path != "v11/index.db-shm")
             .collect()
     };
 
@@ -118,10 +126,15 @@ fn same_index_file_contents() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     let modules_dir = workspace.join("node_modules");
+    // Cleanup also drops `pnpm-lock.yaml` so pnpm doesn't pick a
+    // different install code path than pacquet on the second leg —
+    // see the matching note in `same_file_structure`.
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
     let cleanup = || {
         eprintln!("Cleaning up...");
         fs::remove_dir_all(&store_dir).expect("delete store dir");
         fs::remove_dir_all(&modules_dir).expect("delete node_modules");
+        let _ = fs::remove_file(&lockfile_path);
     };
 
     eprintln!("Creating package.json...");
@@ -218,27 +231,10 @@ fn pnpm_reads_pacquet_written_rows() {
 /// alongside any inner-shape disagreement instead of being silently
 /// normalized away.
 fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
-    files.into_iter().filter(|p| p.starts_with("links/") || p.starts_with("v11/links/")).collect()
-}
-
-/// Append GVS opt-in (and any extra fields) to the `pnpm-workspace.yaml`
-/// that [`CommandTempCwd::add_mocked_registry`] already populated with
-/// `storeDir` / `cacheDir`. `enableGlobalVirtualStore: true` is the
-/// switch that flips both pnpm and pacquet to the shared-store layout.
-fn enable_gvs_in_workspace_yaml(workspace: &std::path::Path, extra_yaml: &str) {
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    // Guarantee a newline before the appended keys. If the helper
-    // that wrote the file ever drops the trailing newline, naive
-    // concatenation would merge its last key with
-    // `enableGlobalVirtualStore` and produce invalid YAML — flagged
-    // by CodeRabbit on PR #11689.
-    if !yaml.ends_with('\n') {
-        yaml.push('\n');
-    }
-    yaml.push_str("enableGlobalVirtualStore: true\n");
-    yaml.push_str(extra_yaml);
-    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    files
+        .into_iter()
+        .filter(|path| path.starts_with("links/") || path.starts_with("v11/links/"))
+        .collect()
 }
 
 /// Run pnpm-then-pacquet against a shared workspace and compare the

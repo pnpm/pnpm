@@ -7,27 +7,21 @@ inputs:
   clippy:
     default: false
     required: false
-    type: boolean
   fmt:
     default: false
     required: false
-    type: boolean
   docs:
     default: false
     required: false
-    type: boolean
   restore-cache:
     default: true
     required: false
-    type: boolean
   save-cache:
     default: false
     required: false
-    type: boolean
   shared-key:
     default: 'warm'
     required: false
-    type: string
 
 runs:
   using: composite

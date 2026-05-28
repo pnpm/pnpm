@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.commands",
-  "version": "1100.1.7",
+  "version": "1100.1.13",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -77,7 +77,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/engine.runtime.system-node-version": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",

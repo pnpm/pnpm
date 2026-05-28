@@ -1,5 +1,117 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.3.1
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+- Updated dependencies [440e155]
+- Updated dependencies [0721d64]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/deps.inspection.list@1100.0.14
+  - @pnpm/types@1101.2.0
+  - @pnpm/global.commands@1100.0.22
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/resolving.default-resolver@1100.3.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/deps.inspection.outdated@1100.1.3
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/deps.inspection.peers-checker@1100.0.11
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.3
+  - @pnpm/global.packages@1100.0.5
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/resolving.registry.types@1100.0.5
+
+## 1100.3.0
+
+### Minor Changes
+
+- 22cb743: Implement `pnpm repo` command natively, following `npm repo` standards.
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/deps.inspection.list@1100.0.13
+  - @pnpm/global.commands@1100.0.21
+  - @pnpm/deps.inspection.outdated@1100.1.2
+  - @pnpm/resolving.default-resolver@1100.3.2
+
+## 1100.2.5
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.3.1
+  - @pnpm/deps.inspection.outdated@1100.1.1
+  - @pnpm/resolving.default-resolver@1100.3.1
+  - @pnpm/global.commands@1100.0.20
+
+## 1100.2.4
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/global.commands@1100.0.19
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/deps.inspection.outdated@1100.1.0
+  - @pnpm/resolving.default-resolver@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/deps.inspection.list@1100.0.12
+  - @pnpm/deps.inspection.peers-checker@1100.0.10
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.2
+  - @pnpm/global.packages@1100.0.4
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/network.auth-header@1100.0.3
+  - @pnpm/network.fetch@1100.0.6
+  - @pnpm/resolving.registry.types@1100.0.4
+
+## 1100.2.3
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [d3f8408]
+- Updated dependencies [6e93f35]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/resolving.default-resolver@1100.2.0
+  - @pnpm/deps.inspection.outdated@1100.0.16
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/global.commands@1100.0.18
+  - @pnpm/deps.inspection.list@1100.0.11
+  - @pnpm/deps.inspection.peers-checker@1100.0.9
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/cli.utils@1101.0.5
+
 ## 1100.2.2
 
 ### Patch Changes

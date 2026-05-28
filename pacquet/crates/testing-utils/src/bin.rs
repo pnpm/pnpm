@@ -66,10 +66,18 @@ impl CommandTempCwd<()> {
         let npmrc_text = format!("registry={mocked_registry}\n{npmrc_text}");
         fs::write(&npmrc_path, npmrc_text).expect("write to .npmrc");
 
+        // Explicitly pin `enableGlobalVirtualStore: false` so a test
+        // is hermetic regardless of any GVS opt-in the developer
+        // has set in their global pnpm config (`~/.config/pnpm/config.yaml`
+        // on Linux/macOS-with-XDG, `~/Library/Preferences/pnpm/config.yaml`
+        // on macOS by default). Tests that exercise GVS explicitly
+        // override this — see `enable_gvs_in_workspace_yaml` in
+        // `pacquet/crates/cli/tests/_utils.rs`.
         let workspace_yaml = self.workspace.join("pnpm-workspace.yaml");
         let workspace_yaml_text = text_block_fnl! {
             "storeDir: ../pacquet-store"
             "cacheDir: ../pacquet-cache"
+            "enableGlobalVirtualStore: false"
         };
         fs::write(&workspace_yaml, workspace_yaml_text).expect("write to pnpm-workspace.yaml");
 

@@ -9,17 +9,15 @@ import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 const {
   getSystemNodeVersion: originalGetSystemNodeVersion,
   engineName: originalEngineName,
-  findRuntimeNodeVersion: originalFindRuntimeNodeVersion,
-} = await import('@pnpm/engine.runtime.system-node-version')
+} = await import('@pnpm/engine.runtime.system-version')
 // Re-export every public symbol the package surfaces so downstream
 // dynamic imports (e.g. `@pnpm/deps.graph-hasher`'s use of
 // `engineName` for the GVS hash) keep working under the mock. Only
 // `getSystemNodeVersion` is wrapped with `jest.fn` for spy-ability;
-// the other two delegate straight back to the originals.
-jest.unstable_mockModule('@pnpm/engine.runtime.system-node-version', () => ({
+// `engineName` delegates straight back to the original.
+jest.unstable_mockModule('@pnpm/engine.runtime.system-version', () => ({
   getSystemNodeVersion: jest.fn(originalGetSystemNodeVersion),
   engineName: originalEngineName,
-  findRuntimeNodeVersion: originalFindRuntimeNodeVersion,
 }))
 const installingCommands = await import('@pnpm/installing.commands')
 const { add: originalAdd } = installingCommands
@@ -31,7 +29,7 @@ jest.unstable_mockModule('@pnpm/installing.commands', () => ({
   },
 }))
 
-const systemNodeVersion = await import('@pnpm/engine.runtime.system-node-version')
+const systemNodeVersion = await import('@pnpm/engine.runtime.system-version')
 const { add } = await import('@pnpm/installing.commands')
 const { dlx } = await import('@pnpm/exec.commands')
 const { approveBuilds } = await import('@pnpm/building.commands')
@@ -484,7 +482,7 @@ test('dlx should fail when the requested package does not meet the minimum age r
         default: 'https://registry.npmjs.org/',
       },
     }, ['shx@0.3.4'])
-  ).rejects.toThrow(/Version 0\.3\.4 \(released .+\) of shx does not meet the minimumReleaseAge constraint/)
+  ).rejects.toThrow(/shx@0\.3\.4 was published.+minimumReleaseAge cutoff/)
 })
 
 test('dlx should respect minimumReleaseAgeExclude', async () => {

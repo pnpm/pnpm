@@ -99,6 +99,9 @@
       "path": "../engine/runtime/commands"
     },
     {
+      "path": "../engine/runtime/system-version"
+    },
+    {
       "path": "../exec/commands"
     },
     {
@@ -126,6 +129,9 @@
       "path": "../patching/commands"
     },
     {
+      "path": "../pkg-manifest/commands"
+    },
+    {
       "path": "../pkg-manifest/reader"
     },
     {
@@ -148,6 +154,9 @@
     },
     {
       "path": "../store/index"
+    },
+    {
+      "path": "../testing/registry-mock"
     },
     {
       "path": "../worker"

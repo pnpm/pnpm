@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Wrapper that checks compatibility of `lockfileVersion` against `MAJOR`.
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, AsRef, Deref, Into, Deserialize, Serialize,
+    Debug, Display, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, AsRef, Deref, Into,
 )]
 #[serde(try_from = "ComVer", into = "ComVer")]
 pub struct LockfileVersion<const MAJOR: u16>(ComVer);

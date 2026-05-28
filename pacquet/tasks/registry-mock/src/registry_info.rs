@@ -1,6 +1,4 @@
-use crate::{
-    MockInstanceOptions, kill_verdaccio::kill_all_verdaccio_children, port_to_url::port_to_url,
-};
+use crate::{MockInstanceOptions, port_to_url::port_to_url, process_kill::kill_process_by_pid};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -14,7 +12,7 @@ use std::{
 use sysinfo::{Pid, Signal};
 
 /// Information of a spawned mocked registry server instance.
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryInfo {
     pub port: u16,
     pub pid: u32,
@@ -28,7 +26,7 @@ impl RegistryInfo {
 
 /// Manage a single shared mocked registry server instance that is spawned by
 /// the CLI command.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PreparedRegistryInfo {
     pub info: RegistryInfo,
 }
@@ -79,9 +77,9 @@ impl PreparedRegistryInfo {
         let prepared = PreparedRegistryInfo::try_load()?;
         let pid = prepared.info.pid;
 
-        eprintln!("info: Terminating all verdaccio instances below {pid}...");
-        let kill_count = kill_all_verdaccio_children(Pid::from_u32(pid), Signal::Interrupt);
-        eprintln!("info: Terminated {kill_count} verdaccio instances");
+        eprintln!("info: Terminating pnpm-registry pid {pid}...");
+        let killed = kill_process_by_pid(Pid::from_u32(pid), Signal::Interrupt);
+        eprintln!("info: kill signal delivered: {killed}");
 
         PreparedRegistryInfo::delete();
         Some(prepared)

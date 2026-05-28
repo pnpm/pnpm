@@ -4,7 +4,7 @@ import path from 'node:path'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import type { DirectoryResolution, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { DirectoryResolution, LatestInfo, LatestQuery, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
 import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
@@ -62,6 +62,18 @@ export async function resolveFromLocalPath (
     preserveAbsolutePaths: ctx.preserveAbsolutePaths ?? false,
   })
   return resolveSpec(spec, opts)
+}
+
+// link:/file:/workspace: dependencies don't have a "latest" — claim them so
+// the dispatcher stops here. Returning undefined would let downstream
+// resolvers try; in particular, a user-configured named-registry alias
+// called `link`, `file`, or `workspace` could otherwise hijack these.
+export async function resolveLatestFromLocal (query: LatestQuery): Promise<LatestInfo | undefined> {
+  const spec = query.wantedDependency.bareSpecifier
+  if (spec?.startsWith('link:') || spec?.startsWith('file:') || spec?.startsWith('workspace:')) {
+    return {}
+  }
+  return undefined
 }
 
 async function resolveSpec (

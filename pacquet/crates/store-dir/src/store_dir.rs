@@ -1,10 +1,23 @@
 use dashmap::DashSet;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha512, digest};
-use std::path::{self, PathBuf};
+use std::{
+    path::{self, PathBuf},
+    sync::OnceLock,
+};
 
 /// Content hash of a file.
 pub type FileHash = digest::Output<Sha512>;
+
+/// Major version of the pnpm store layout that pacquet writes to and reads
+/// from. Mirrors pnpm's [`STORE_VERSION`](https://github.com/pnpm/pnpm/blob/29a42efc3b/core/constants/src/index.ts#L9).
+///
+/// The constant is part of the public contract pnpm exposes to every
+/// project's `.modules.yaml` (the recorded `storeDir` is the
+/// `STORE_VERSION`-suffixed path), so changing it requires moving in
+/// lockstep with pnpm — otherwise both tools start refusing each
+/// other's stores with `ERR_PNPM_UNEXPECTED_STORE`.
+pub const STORE_VERSION: &str = "v11";
 
 /// Represent a store directory.
 ///
@@ -12,14 +25,25 @@ pub type FileHash = digest::Output<Sha512>;
 /// * The files in `node_modules` directories are hardlinks or reflinks to the files in the store directory.
 /// * The store directory can and often act as a global shared cache of all installation of different workspaces.
 /// * The location of the store directory can be customized by `store-dir` field.
-/// * The on-disk layout matches pnpm v11 (`<root>/v11/files/XX/…[-exec]` + `<root>/v11/index.db`)
-///   so the two tools can share a store.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(transparent)]
+/// * The on-disk layout matches pnpm v11 (`<root>/files/XX/…[-exec]` + `<root>/index.db`)
+///   where `<root>` already includes the `v11` suffix, so the two tools share both the
+///   physical layout *and* the user-visible `storeDir` string written to
+///   `.modules.yaml`.
+//
+// `#[serde(from = "PathBuf", into = "PathBuf")]` routes both
+// directions through the `PathBuf` boundary so deserialization goes
+// back through [`From<PathBuf>`] and the [`STORE_VERSION`] suffix
+// invariant holds for persisted unsuffixed paths too — the previous
+// `#[serde(transparent)]` derive deserialised straight into the
+// `root` field and bypassed the auto-append.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "PathBuf", into = "PathBuf")]
 pub struct StoreDir {
-    /// Path to the root of the store directory from which all sub-paths are derived.
-    ///
-    /// Consumer of this struct should interact with the sub-paths instead of this path.
+    /// The `STORE_VERSION`-suffixed store path, equivalent to pnpm's
+    /// [`storeDir`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42).
+    /// Consumers should reach for the purpose-built helpers
+    /// ([`Self::files`][], [`Self::tmp`], [`Self::links`],
+    /// [`Self::projects`]) rather than this raw path.
     root: PathBuf,
 
     /// Runtime cache of shard bytes (`files/XX/`) this process has already
@@ -30,9 +54,25 @@ pub struct StoreDir {
     /// `stat` per file. After the first hit, the shard is cached and
     /// subsequent writes skip the syscall entirely. Populated lazily by
     /// [`StoreDir::write_cas_file`]; duplicate inserts across threads are
-    /// harmless since `create_dir_all` is idempotent.
-    #[serde(skip, default)]
+    /// harmless since `create_dir_all` is idempotent. Not part of the
+    /// serialised wire shape — `#[serde(from/into)]` round-trips only
+    /// through `PathBuf`, so the cache is regenerated empty on every
+    /// deserialise.
     ensured_shards: DashSet<u8>,
+
+    /// Memoised `<root>/files` directory. Resolved lazily on the first
+    /// CAS path lookup and reused across every subsequent file write
+    /// — saves one `Path::join` allocation per file on the hot path,
+    /// ~170k on the alotta-files clean install. `OnceLock` so
+    /// initialization across rayon threads stays race-free.
+    #[serde(skip, default)]
+    cached_files_dir: OnceLock<PathBuf>,
+}
+
+impl From<StoreDir> for PathBuf {
+    fn from(store_dir: StoreDir) -> Self {
+        store_dir.root
+    }
 }
 
 /// Manual `PartialEq` / `Eq`: the shard cache is runtime state, two stores
@@ -46,8 +86,19 @@ impl PartialEq for StoreDir {
 impl Eq for StoreDir {}
 
 impl From<PathBuf> for StoreDir {
+    /// Wrap a raw path into a [`StoreDir`], appending [`STORE_VERSION`]
+    /// when the path doesn't already end with that segment. Mirrors
+    /// pnpm's [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42),
+    /// so both tools record the same `storeDir` string in
+    /// `.modules.yaml` and switching between them stops tripping
+    /// `ERR_PNPM_UNEXPECTED_STORE`.
     fn from(root: PathBuf) -> Self {
-        StoreDir { root, ensured_shards: DashSet::new() }
+        let root = if root.file_name().and_then(|name| name.to_str()) == Some(STORE_VERSION) {
+            root
+        } else {
+            root.join(STORE_VERSION)
+        };
+        StoreDir { root, ensured_shards: DashSet::new(), cached_files_dir: OnceLock::new() }
     }
 }
 
@@ -76,14 +127,17 @@ impl StoreDir {
         self.root.display()
     }
 
-    /// Get `{store}/v11` — the root of the pnpm v11 store layout.
-    pub fn v11(&self) -> PathBuf {
-        self.root.join("v11")
-    }
-
     /// The directory that contains all content-addressed files.
     fn files(&self) -> PathBuf {
-        self.v11().join("files")
+        self.files_dir().to_path_buf()
+    }
+
+    /// Borrow the memoised `<root>/files` path. The CAS write hot
+    /// path calls this per CAFS file written, so caching the joined
+    /// path saves one `PathBuf` allocation per call (~170k on the
+    /// alotta-files clean install).
+    fn files_dir(&self) -> &PathBuf {
+        self.cached_files_dir.get_or_init(|| self.root.join("files"))
     }
 
     /// Path to a file in the store directory.
@@ -92,7 +146,7 @@ impl StoreDir {
     /// * `head` is the first 2 hexadecimal digit of the file address.
     /// * `tail` is the rest of the address and an optional suffix.
     fn file_path_by_head_tail(&self, head: &str, tail: &str) -> PathBuf {
-        self.files().join(head).join(tail)
+        self.files_dir().join(head).join(tail)
     }
 
     /// Path to a content-addressed file. The hex digest is split into a
@@ -108,7 +162,7 @@ impl StoreDir {
 
     /// Path to the temporary directory inside the store.
     pub fn tmp(&self) -> PathBuf {
-        self.v11().join("tmp")
+        self.root.join("tmp")
     }
 
     /// Path to the shared global-virtual-store directory inside the
@@ -117,27 +171,26 @@ impl StoreDir {
     /// `globalVirtualStoreDir = path.join(extendedOpts.storeDir, 'links')`.
     /// `extendedOpts.storeDir` has already been routed through
     /// [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
-    /// by the time that join runs, and `getStorePath` appends
-    /// `STORE_VERSION` (`"v11"`) to whatever the user configured. So
-    /// the resulting on-disk location is `<root>/v11/links`, not
-    /// `<root>/links` — the latter would put pacquet one level
-    /// shallower than pnpm and split slot caches across the two
-    /// tools. Sharing the path across pnpm and pacquet is the whole
-    /// point, so anchor under [`Self::v11`].
+    /// — which appends [`STORE_VERSION`] (`"v11"`) to whatever the
+    /// user configured — by the time that join runs. Pacquet's
+    /// [`StoreDir::from`] applies the same suffix, so `self.root` is
+    /// already the v11 path and the on-disk location is
+    /// `<root>/links`, identical to pnpm's. Sharing this path across
+    /// pnpm and pacquet is the whole point.
     pub fn links(&self) -> PathBuf {
-        self.v11().join("links")
+        self.root.join("links")
     }
 
     /// Path to the per-store projects registry — a flat directory of
-    /// symlinks (`<store>/v11/projects/<short-hash>` → project dir)
-    /// the global-virtual-store prune sweep walks when deciding which
-    /// `<store>/v11/links/...` slots are still referenced. Mirrors
-    /// pnpm 11's
-    /// [`{storeDir}/v11/projects/` layout](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/controller/CHANGELOG.md#L136)
-    /// — same `getStorePath`-driven `v11` reasoning as
+    /// symlinks (`<store>/projects/<short-hash>` → project dir) the
+    /// global-virtual-store prune sweep walks when deciding which
+    /// `<store>/links/...` slots are still referenced. Mirrors pnpm
+    /// 11's
+    /// [`{storeDir}/projects/` layout](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/controller/CHANGELOG.md#L136)
+    /// — `<store>` already carries the v11 suffix on both sides per
     /// [`Self::links`].
     pub fn projects(&self) -> PathBuf {
-        self.v11().join("projects")
+        self.root.join("projects")
     }
 
     /// Borrow the raw store-root path. Most code should prefer the
@@ -148,7 +201,7 @@ impl StoreDir {
         &self.root
     }
 
-    /// On a fresh store, eagerly create `<store>/v11/files/` plus every
+    /// On a fresh store, eagerly create `<store>/files/` plus every
     /// `files/XX/` shard (00..ff) and seed the shard cache with the
     /// bytes we just created, so CAFS writes never pay a
     /// `create_dir_all` syscall in the hot path.

@@ -28,7 +28,7 @@ fn collect_rels(
             // the remainder. That keeps assertions deterministic.
             let stripped = abs
                 .strip_prefix(root)
-                .map(|p| p.display().to_string().replace('\\', "/"))
+                .map(|path| path.display().to_string().replace('\\', "/"))
                 .unwrap_or_else(|_| abs.display().to_string());
             (rel, stripped)
         })
@@ -104,7 +104,7 @@ fn walk_all_files_terminates_on_symlink_cycle() {
 
     assert!(rels.contains_key("real.txt"), "direct children must still be walked: {rels:?}");
     assert!(
-        rels.keys().all(|k| !k.starts_with("loop/")),
+        rels.keys().all(|key| !key.starts_with("loop/")),
         "cycle guard must short-circuit before any `loop/` descendant is recorded: {rels:?}",
     );
 }

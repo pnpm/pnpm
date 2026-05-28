@@ -8,9 +8,7 @@
 //! ported, so these direct unit tests guard the behavior in the meantime.
 
 use indexmap::IndexSet;
-use pacquet_modules_yaml::{
-    DepPath, Modules, RealApi, read_modules_manifest, write_modules_manifest,
-};
+use pacquet_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
@@ -33,10 +31,38 @@ fn read_preserves_absolute_virtual_store_dir() {
     fs::write(modules_dir.join(".modules.yaml"), raw).expect("write fixture");
 
     let manifest = modules_dir
-        .pipe_as_ref(read_modules_manifest::<RealApi>)
+        .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read manifest")
         .expect("manifest exists");
     assert_eq!(Path::new(&manifest.virtual_store_dir), custom_store);
+}
+
+/// A non-descendant `virtualStoreDir` (the default macOS / Linux
+/// setup, where the global store sits outside the project) must
+/// survive a write→read round-trip with its absolute form intact.
+///
+/// This is what [`crate::Install`]'s no-op short-circuit relies on:
+/// the recovered absolute path is compared byte-for-byte against
+/// `Config::effective_virtual_store_dir`, and an unnormalized join
+/// (`<modules_dir>/../../...`) never matches the normalized config
+/// side — so the short-circuit silently misses every install whose
+/// store lives outside the project.
+#[cfg(not(windows))]
+#[test]
+fn round_trip_recovers_normalized_absolute_for_non_descendant_store() {
+    let temp_dir = tempfile::tempdir().expect("create temporary directory");
+    let modules_dir = temp_dir.path().join("project").join("node_modules");
+    let absolute_store = temp_dir.path().join(".pnpm-store");
+    let manifest = manifest_from_json(json!({
+        "layoutVersion": 5,
+        "virtualStoreDir": &absolute_store,
+    }));
+
+    write_modules_manifest::<Host>(&modules_dir, manifest).expect("write manifest");
+    let actual = read_modules_manifest::<Host>(&modules_dir)
+        .expect("read manifest")
+        .expect("manifest exists");
+    assert_eq!(Path::new(&actual.virtual_store_dir), absolute_store);
 }
 
 /// On non-Windows, `write_modules_manifest` rewrites a non-descendant
@@ -55,7 +81,7 @@ fn write_relativizes_non_descendant_virtual_store_dir() {
         "virtualStoreDir": &sibling_store,
     }));
 
-    write_modules_manifest::<RealApi>(&modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(&modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)
@@ -77,7 +103,7 @@ fn write_sorts_skipped_array() {
         "skipped": ["zeta", "alpha", "mu"],
     }));
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)
@@ -99,7 +125,7 @@ fn write_removes_null_public_hoist_pattern() {
         "publicHoistPattern": null,
     }));
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)
@@ -129,14 +155,14 @@ fn dep_path_serializes_transparently() {
         "publicHoistPattern": [],
     }));
     assert_eq!(
-        manifest.hoisted_aliases.as_ref().and_then(|m| m.keys().next()),
+        manifest.hoisted_aliases.as_ref().and_then(|map| map.keys().next()),
         Some(&DepPath::from("/accepts/1.3.7".to_string())),
     );
     let expected_ignored: IndexSet<DepPath> =
         [DepPath::from("/sharp/0.32.0".to_string())].into_iter().collect();
     assert_eq!(manifest.ignored_builds.as_ref(), Some(&expected_ignored));
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)
@@ -181,8 +207,8 @@ fn hoisted_locations_round_trips() {
         Some(&vec!["node_modules/accepts".to_string()]),
     );
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest.clone()).expect("write manifest");
-    let actual = read_modules_manifest::<RealApi>(modules_dir)
+    write_modules_manifest::<Host>(modules_dir, manifest.clone()).expect("write manifest");
+    let actual = read_modules_manifest::<Host>(modules_dir)
         .expect("read manifest")
         .expect("manifest exists");
     assert_eq!(actual.hoisted_locations, manifest.hoisted_locations);
@@ -211,7 +237,7 @@ fn absent_hoisted_locations_is_omitted_on_write() {
     let manifest = manifest_from_json(json!({ "layoutVersion": 5 }));
     assert!(manifest.hoisted_locations.is_none(), "fixture seed");
 
-    write_modules_manifest::<RealApi>(modules_dir, manifest).expect("write manifest");
+    write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");
     let raw: Value = modules_dir
         .join(".modules.yaml")
         .pipe(fs::read_to_string)

@@ -1,5 +1,48 @@
 # @pnpm/directory-fetcher
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/building.pkg-requires-build@1100.0.5
+  - @pnpm/fetching.fetcher-base@1100.1.6
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.cafs-types@1100.0.1
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/fetching.fetcher-base@1100.1.5
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/building.pkg-requires-build@1100.0.4
+  - @pnpm/store.cafs-types@1100.0.1
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+
 ## 1100.0.9
 
 ### Patch Changes

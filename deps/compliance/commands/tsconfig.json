@@ -83,6 +83,9 @@
       "path": "../../../testing/mock-agent"
     },
     {
+      "path": "../../../testing/registry-mock"
+    },
+    {
       "path": "../../../workspace/project-manifest-reader"
     },
     {

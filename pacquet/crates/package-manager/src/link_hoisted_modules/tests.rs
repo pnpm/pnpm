@@ -82,13 +82,21 @@ fn plant_package(
     combined
 }
 
+/// `(rel_path, contents)` describing one file to plant for a
+/// package in the synthetic CAS.
+type CasFile<'a> = (&'a str, &'a [u8]);
+
+/// `(alias, dep_path, pkg_id, files)` describing one entry in a
+/// flat install layout for [`flat_layout`].
+type FlatLayoutEntry<'a> = (&'a str, &'a str, &'a str, &'a [CasFile<'a>]);
+
 /// Build a `(graph, hierarchy, cas_paths_by_pkg_id)` for a single
 /// flat install: `lockfile_dir/node_modules/<alias>` per entry.
 /// `entries: &[(alias, dep_path, pkg_id, files)]`.
 fn flat_layout(
     lockfile_dir: &Path,
     cas_root: &Path,
-    entries: &[(&str, &str, &str, &[(&str, &[u8])])],
+    entries: &[FlatLayoutEntry<'_>],
 ) -> (DependenciesGraph, BTreeMap<PathBuf, DepHierarchy>, CasPathsByPkgId) {
     let modules = lockfile_dir.join("node_modules");
     let mut graph = DependenciesGraph::new();
@@ -250,7 +258,7 @@ fn missing_cas_for_required_dep_errors() {
     graph.insert(dir.clone(), make_node("a", "a@1.0.0", "a@1.0.0", dir.clone()));
 
     let mut hierarchy_children = BTreeMap::new();
-    hierarchy_children.insert(dir.clone(), DepHierarchy::default());
+    hierarchy_children.insert(dir, DepHierarchy::default());
     let mut hierarchy = BTreeMap::new();
     hierarchy.insert(lockfile_dir.clone(), DepHierarchy(hierarchy_children));
 
@@ -361,7 +369,7 @@ fn orphan_already_removed_is_tolerated() {
     let mut prev_graph = DependenciesGraph::new();
     prev_graph.insert(
         phantom_orphan.clone(),
-        make_node("phantom", "phantom@1.0.0", "phantom@1.0.0", phantom_orphan.clone()),
+        make_node("phantom", "phantom@1.0.0", "phantom@1.0.0", phantom_orphan),
     );
 
     let (graph, hierarchy, cas_paths) = flat_layout(

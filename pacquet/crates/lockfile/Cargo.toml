@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-crypto-hash      = { workspace = true }
 pacquet-diagnostics      = { workspace = true }
 pacquet-package-manifest = { workspace = true }
 
@@ -27,3 +28,6 @@ split-first-char = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }
 text-block-macros = { workspace = true }
+
+[lints]
+workspace = true

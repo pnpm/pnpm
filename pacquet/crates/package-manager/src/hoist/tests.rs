@@ -20,16 +20,16 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::{HashMap, HashSet};
 
-fn name(s: &str) -> PkgName {
-    PkgName::parse(s).expect("parse pkg name")
+fn name(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse pkg name")
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(name(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(name(name_text), ver(version))
 }
 
 fn integrity() -> Integrity {
@@ -54,14 +54,23 @@ fn metadata(has_bin: bool) -> PackageMetadata {
     }
 }
 
-fn pats<const N: usize>(p: [&str; N]) -> Vec<String> {
-    p.iter().map(|s| s.to_string()).collect()
+fn pats<const N: usize>(patterns: [&str; N]) -> Vec<String> {
+    patterns.iter().map(|text| text.to_string()).collect()
 }
+
+/// `(alias, dep_name, dep_version)` triple describing one entry in
+/// a snapshot's dependency map. `alias == dep_name` for plain deps;
+/// `alias != dep_name` denotes an npm-alias.
+type LockfileDataDep<'a> = (&'a str, &'a str, &'a str);
+
+/// `(name, version, dependencies, has_bin)` row describing one
+/// snapshot entry to be assembled by [`make_lockfile_data`].
+type LockfileDataRow<'a> = (&'a str, &'a str, &'a [LockfileDataDep<'a>], bool);
 
 /// Helper: build (snapshots, packages) from a flat list of
 /// `(name, ver, deps_by_alias_to_(name,ver), has_bin)` tuples.
 fn make_lockfile_data(
-    rows: &[(&str, &str, &[(&str, &str, &str)], bool)],
+    rows: &[LockfileDataRow<'_>],
 ) -> (HashMap<PackageKey, SnapshotEntry>, HashMap<PackageKey, PackageMetadata>) {
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
@@ -141,7 +150,7 @@ fn star_pattern_hoists_all_transitives_privately() {
         vec![("b".to_string(), HoistKind::Private)],
     );
     assert!(
-        result.hoisted_dependencies.get("a@1.0.0").is_none(),
+        !result.hoisted_dependencies.contains_key("a@1.0.0"),
         "direct deps must not be hoisted: {:?}",
         result.hoisted_dependencies.get("a@1.0.0"),
     );
@@ -293,7 +302,7 @@ fn direct_dep_blocks_same_alias_transitive() {
     // The transitive `shared@2.0.0` must NOT be hoisted under that
     // alias, because the root already owns it at v1.
     assert!(
-        result.hoisted_dependencies.get("shared@2.0.0").is_none(),
+        !result.hoisted_dependencies.contains_key("shared@2.0.0"),
         "direct-dep `shared@1` must block hoisting of transitive `shared@2`",
     );
 }
@@ -321,7 +330,7 @@ fn skipped_snapshot_is_excluded() {
     .expect("non-empty graph");
 
     assert!(
-        result.hoisted_dependencies.get("opt@1.0.0").is_none(),
+        !result.hoisted_dependencies.contains_key("opt@1.0.0"),
         "skipped snapshot must not appear in hoistedDependencies",
     );
     // ...but the symlink-by-node-id map DOES carry the entry —
@@ -389,11 +398,14 @@ fn symlink_skips_dropped_nodes() {
     // valid target. The dropped snapshot's slot is intentionally
     // absent — without the skip filter, the symlink pass would try
     // to create a link pointing at it.
-    let layout = VirtualStoreLayout::legacy(&virtual_store_dir);
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
     std::fs::create_dir_all(layout.slot_dir(&kept_key).join("node_modules/kept")).unwrap();
 
     let mut skipped: HashSet<PackageKey> = HashSet::new();
-    skipped.insert(dropped_key.clone());
+    skipped.insert(dropped_key);
 
     super::symlink_hoisted_dependencies(
         &hoisted,

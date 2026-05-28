@@ -15,9 +15,6 @@ jobs:
     name: Compile & Lint
     runs-on: ubuntu-latest
 
-    env:
-      pnpm_config_verify_deps_before_run: false
-
     steps:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -25,10 +22,6 @@ jobs:
         persist-credentials: false
     - name: Install pnpm
       uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
-      with:
-        install: false
-    - name: pacquet install
-      run: pnx --config.minimum-release-age=0 pacquet install --frozen-lockfile
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint

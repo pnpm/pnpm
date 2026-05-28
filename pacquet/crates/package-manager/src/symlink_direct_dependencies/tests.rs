@@ -82,7 +82,10 @@ fn emits_pnpm_root_added_per_direct_dependency() {
 
     SymlinkDirectDependencies {
         config,
-        layout: &crate::VirtualStoreLayout::legacy(config.virtual_store_dir.clone()),
+        layout: &crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        ),
         importers: &importers,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev],
         workspace_root: &project_root,
@@ -110,7 +113,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     let expected_prefix = project_root.to_string_lossy().into_owned();
     let added: Vec<&AddedRoot> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
                 assert_eq!(prefix, &expected_prefix);
                 Some(added)
@@ -124,13 +127,16 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     // must carry their version, the matching dependency type, and
     // `realName == name` (pacquet's lockfile snapshots don't
     // preserve npm-alias keys at this layer).
-    let fastify = added.iter().find(|a| a.name == "fastify").expect("fastify added event missing");
+    let fastify =
+        added.iter().find(|added| added.name == "fastify").expect("fastify added event missing");
     assert_eq!(fastify.real_name, "fastify");
     assert_eq!(fastify.version.as_deref(), Some("4.0.0"));
     assert_eq!(fastify.dependency_type, Some(DependencyType::Prod));
 
-    let dev =
-        added.iter().find(|a| a.name == "@pnpm.e2e/dev-dep").expect("dev-dep added event missing");
+    let dev = added
+        .iter()
+        .find(|added| added.name == "@pnpm.e2e/dev-dep")
+        .expect("dev-dep added event missing");
     assert_eq!(dev.real_name, "@pnpm.e2e/dev-dep");
     assert_eq!(dev.version.as_deref(), Some("1.2.3"));
     assert_eq!(dev.dependency_type, Some(DependencyType::Dev));
@@ -164,7 +170,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
 
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
-    config.modules_dir = modules_dir.clone();
+    config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
@@ -202,7 +208,10 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
 
     SymlinkDirectDependencies {
         config,
-        layout: &crate::VirtualStoreLayout::legacy(config.virtual_store_dir.clone()),
+        layout: &crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        ),
         importers: &importers,
         // Prod first → first-wins gives `dependencyType: prod`.
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
@@ -216,7 +225,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
     let captured = EVENTS.lock().unwrap();
     let added: Vec<&AddedRoot> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Root(RootLog { message: RootMessage::Added { added, .. }, .. }) => {
                 Some(added)
             }
@@ -283,7 +292,10 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
 
     SymlinkDirectDependencies {
         config,
-        layout: &crate::VirtualStoreLayout::legacy(config.virtual_store_dir.clone()),
+        layout: &crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        ),
         importers: &importers,
         dependency_groups: [DependencyGroup::Prod],
         workspace_root: &workspace_root,
@@ -307,7 +319,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     let captured = EVENTS.lock().unwrap();
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
                 Some((prefix.as_str(), added))
             }
@@ -342,7 +354,10 @@ fn empty_importers_is_a_no_op() {
     let config = config.leak();
 
     let importers = HashMap::new();
-    let layout = crate::VirtualStoreLayout::legacy(config.virtual_store_dir.clone());
+    let layout = crate::VirtualStoreLayout::legacy(
+        config.virtual_store_dir.clone(),
+        config.virtual_store_dir_max_length as usize,
+    );
     let result = SymlinkDirectDependencies {
         config,
         layout: &layout,
@@ -421,7 +436,10 @@ fn per_importer_prefix_in_pnpm_root_events() {
 
     SymlinkDirectDependencies {
         config,
-        layout: &crate::VirtualStoreLayout::legacy(config.virtual_store_dir.clone()),
+        layout: &crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        ),
         importers: &importers,
         dependency_groups: [DependencyGroup::Prod],
         workspace_root: &workspace_root,
@@ -434,7 +452,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
     let captured = EVENTS.lock().unwrap();
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
                 Some((prefix.as_str(), added))
             }
@@ -469,7 +487,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
         "../sibling",         // traversal
         "packages/../escape", // mid-string traversal
         "C:/win",             // Windows drive prefix
-        "packages\\web",      // backslash separator
+        r"packages\web",      // backslash separator
     ];
 
     for &importer_id in cases {
@@ -486,7 +504,10 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
 
         let result = SymlinkDirectDependencies {
             config,
-            layout: &crate::VirtualStoreLayout::legacy(config.virtual_store_dir.clone()),
+            layout: &crate::VirtualStoreLayout::legacy(
+                config.virtual_store_dir.clone(),
+                config.virtual_store_dir_max_length as usize,
+            ),
             importers: &importers,
             dependency_groups: [DependencyGroup::Prod],
             workspace_root: &workspace_root,
@@ -561,7 +582,10 @@ fn custom_modules_dir_propagates_to_each_importer() {
 
     SymlinkDirectDependencies {
         config,
-        layout: &crate::VirtualStoreLayout::legacy(config.virtual_store_dir.clone()),
+        layout: &crate::VirtualStoreLayout::legacy(
+            config.virtual_store_dir.clone(),
+            config.virtual_store_dir_max_length as usize,
+        ),
         importers: &importers,
         dependency_groups: [DependencyGroup::Prod],
         workspace_root: &workspace_root,

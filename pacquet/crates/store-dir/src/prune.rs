@@ -259,8 +259,9 @@ fn walk_symlinks_to_store(
                 continue;
             };
             let parts: Vec<_> = rel.components().collect();
-            let nm_idx =
-                parts.iter().position(|c| c.as_os_str() == std::ffi::OsStr::new("node_modules"));
+            let nm_idx = parts
+                .iter()
+                .position(|comp| comp.as_os_str() == std::ffi::OsStr::new("node_modules"));
             if let Some(idx) = nm_idx {
                 let slot: PathBuf = parts[..idx].iter().collect();
                 reachable.insert(slot.clone());

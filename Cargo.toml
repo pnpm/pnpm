@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members  = ["pacquet/crates/*", "pacquet/tasks/*"]
+members  = ["pacquet/crates/*", "pacquet/tasks/*", "registry/crates/*"]
 
 [workspace.package]
 authors     = ["Yagiz Nizipli <yagiz@nizipli.com"]
@@ -13,39 +13,77 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
-pacquet-cli                    = { path = "pacquet/crates/cli" }
-pacquet-cmd-shim               = { path = "pacquet/crates/cmd-shim" }
-pacquet-fs                     = { path = "pacquet/crates/fs" }
-pacquet-registry               = { path = "pacquet/crates/registry" }
-pacquet-tarball                = { path = "pacquet/crates/tarball" }
-pacquet-testing-utils          = { path = "pacquet/crates/testing-utils" }
-pacquet-package-manifest       = { path = "pacquet/crates/package-manifest" }
-pacquet-package-manager        = { path = "pacquet/crates/package-manager" }
-pacquet-package-is-installable = { path = "pacquet/crates/package-is-installable" }
-pacquet-lockfile               = { path = "pacquet/crates/lockfile" }
-pacquet-modules-yaml           = { path = "pacquet/crates/modules-yaml" }
-pacquet-network                = { path = "pacquet/crates/network" }
-pacquet-config                 = { path = "pacquet/crates/config" }
-pacquet-executor               = { path = "pacquet/crates/executor" }
-pacquet-directory-fetcher      = { path = "pacquet/crates/directory-fetcher" }
-pacquet-git-fetcher            = { path = "pacquet/crates/git-fetcher" }
-pacquet-diagnostics            = { path = "pacquet/crates/diagnostics" }
-pacquet-graph-hasher           = { path = "pacquet/crates/graph-hasher" }
-pacquet-store-dir              = { path = "pacquet/crates/store-dir" }
-pacquet-reporter               = { path = "pacquet/crates/reporter" }
-pacquet-patching               = { path = "pacquet/crates/patching" }
-pacquet-real-hoist             = { path = "pacquet/crates/real-hoist" }
-pacquet-workspace              = { path = "pacquet/crates/workspace" }
-pacquet-workspace-state        = { path = "pacquet/crates/workspace-state" }
+pacquet-catalogs-config                   = { path = "pacquet/crates/catalogs-config" }
+pacquet-catalogs-protocol-parser          = { path = "pacquet/crates/catalogs-protocol-parser" }
+pacquet-catalogs-resolver                 = { path = "pacquet/crates/catalogs-resolver" }
+pacquet-catalogs-types                    = { path = "pacquet/crates/catalogs-types" }
+pacquet-cli                               = { path = "pacquet/crates/cli" }
+pacquet-cmd-shim                          = { path = "pacquet/crates/cmd-shim" }
+pacquet-crypto-hash                       = { path = "pacquet/crates/crypto-hash" }
+pacquet-crypto-shasums-file               = { path = "pacquet/crates/crypto-shasums-file" }
+pacquet-engine-runtime-bun-resolver       = { path = "pacquet/crates/engine-runtime-bun-resolver" }
+pacquet-engine-runtime-deno-resolver      = { path = "pacquet/crates/engine-runtime-deno-resolver" }
+pacquet-engine-runtime-node-resolver      = { path = "pacquet/crates/engine-runtime-node-resolver" }
+pacquet-fs                                = { path = "pacquet/crates/fs" }
+pacquet-registry                          = { path = "pacquet/crates/registry" }
+pacquet-tarball                           = { path = "pacquet/crates/tarball" }
+pacquet-testing-utils                     = { path = "pacquet/crates/testing-utils" }
+pacquet-package-manifest                  = { path = "pacquet/crates/package-manifest" }
+pacquet-package-manager                   = { path = "pacquet/crates/package-manager" }
+pacquet-package-is-installable            = { path = "pacquet/crates/package-is-installable" }
+pacquet-lockfile                          = { path = "pacquet/crates/lockfile" }
+pacquet-lockfile-preferred-versions       = { path = "pacquet/crates/lockfile-preferred-versions" }
+pacquet-lockfile-verification             = { path = "pacquet/crates/lockfile-verification" }
+pacquet-modules-yaml                      = { path = "pacquet/crates/modules-yaml" }
+pacquet-network                           = { path = "pacquet/crates/network" }
+pacquet-config                            = { path = "pacquet/crates/config" }
+pacquet-config-parse-overrides            = { path = "pacquet/crates/config-parse-overrides" }
+pacquet-executor                          = { path = "pacquet/crates/executor" }
+pacquet-exportable-manifest               = { path = "pacquet/crates/exportable-manifest" }
+pacquet-directory-fetcher                 = { path = "pacquet/crates/directory-fetcher" }
+pacquet-git-fetcher                       = { path = "pacquet/crates/git-fetcher" }
+pacquet-deps-path                         = { path = "pacquet/crates/deps-path" }
+pacquet-detect-libc                       = { path = "pacquet/crates/detect-libc" }
+pacquet-diagnostics                       = { path = "pacquet/crates/diagnostics" }
+pacquet-graph-hasher                      = { path = "pacquet/crates/graph-hasher" }
+pacquet-store-dir                         = { path = "pacquet/crates/store-dir" }
+pacquet-reporter                          = { path = "pacquet/crates/reporter" }
+pacquet-patching                          = { path = "pacquet/crates/patching" }
+pacquet-real-hoist                        = { path = "pacquet/crates/real-hoist" }
+pacquet-resolving-default-resolver        = { path = "pacquet/crates/resolving-default-resolver" }
+pacquet-resolving-deps-resolver           = { path = "pacquet/crates/resolving-deps-resolver" }
+pacquet-resolving-git-resolver            = { path = "pacquet/crates/resolving-git-resolver" }
+pacquet-resolving-jsr-specifier-parser    = { path = "pacquet/crates/resolving-jsr-specifier-parser" }
+pacquet-resolving-local-resolver          = { path = "pacquet/crates/resolving-local-resolver" }
+pacquet-resolving-npm-resolver            = { path = "pacquet/crates/resolving-npm-resolver" }
+pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-parse-wanted-dependency" }
+pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }
+pacquet-resolving-tarball-resolver        = { path = "pacquet/crates/resolving-tarball-resolver" }
+pacquet-workspace                         = { path = "pacquet/crates/workspace" }
+pacquet-workspace-range-resolver          = { path = "pacquet/crates/workspace-range-resolver" }
+pacquet-workspace-spec                    = { path = "pacquet/crates/workspace-spec" }
+pacquet-workspace-state                   = { path = "pacquet/crates/workspace-state" }
 
 # Tasks
 pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }
 
+# Registry (sibling project — pnpm-compatible registry server)
+pnpm-registry = { path = "registry/crates/pnpm-registry", version = "0.0.1" }
+
 # Dependencies
 async-recursion = { version = "1.1.1" }
+axum = { version = "0.8.7", default-features = false, features = [
+  "http1",
+  "tokio",
+  "json",
+  "matched-path",
+  "original-uri",
+] }
 clap = { version = "4", features = ["derive", "string"] }
 command-extra = { version = "1.0.0" }
 base64 = { version = "0.22.1" }
+bcrypt = { version = "0.17.1" }
+chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 dashmap = { version = "6.1.0" }
 derive_more = { version = "2.1.1", features = ["full"] }
 diffy = { version = "0.5.0" }
@@ -58,6 +96,7 @@ insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.14.0" }
 futures-util = { version = "0.3.32" }
 gethostname = { version = "1" }
+getrandom = { version = "0.3.4" }
 miette = { version = "7.6.0", features = ["fancy"] }
 num_cpus = { version = "1.17.0" }
 os_display = { version = "0.1.4" }
@@ -89,9 +128,11 @@ strum              = { version = "0.28.0", features = ["derive"] }
 sysinfo            = { version = "0.39.1" }
 tar                = { version = "0.4.45" }
 text-block-macros  = { version = "0.2.0" }
+tower              = { version = "0.5.3" }
+tower-http         = { version = "0.6.8", features = ["trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
 walkdir            = { version = "2.5.0" }
 wax                = { version = "0.7.0" }
 which              = { version = "8.0.2" }
@@ -99,8 +140,7 @@ zip                = { version = "8", default-features = false, features = ["def
 zune-inflate       = { version = "0.2.54" }
 
 # Dev dependencies
-assert_cmd        = { version = "2.2.1" }
-chrono            = { version = "0.4.44", default-features = false, features = ["clock"] }
+assert_cmd        = { version = "2.2.2" }
 criterion         = { version = "0.8.2", features = ["async_tokio"] }
 pretty_assertions = { version = "1.4.1" }
 project-root      = { version = "0.2.2" }
@@ -109,6 +149,25 @@ mockito           = { version = "1.7.2" }
 
 [workspace.metadata.workspaces]
 allow_branch = "main"
+
+# Declares the `dylint_lib = "perfectionist"` cfg used by the
+# `cfg_attr(dylint_lib = "perfectionist", feature(register_tool))` /
+# `register_tool(perfectionist)` lines at each pacquet crate's root.
+# Those `cfg_attr`s register the perfectionist tool name under dylint's
+# nightly toolchain (so `#[expect(perfectionist::lint, reason = "...")]`
+# at use sites compiles cleanly without a wrapper); this `check-cfg`
+# entry tells stable `cargo check` that the cfg name is expected even
+# though it's never set off-dylint.
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfectionist"))'] }
+
+[workspace.lints.clippy]
+clone_on_ref_ptr             = "warn"
+if_then_some_else_none       = "warn"
+needless_collect             = "warn"
+or_fun_call                  = "warn"
+redundant_clone              = "warn"
+unnecessary_lazy_evaluations = "warn"
 
 [profile.release]
 opt-level     = 3

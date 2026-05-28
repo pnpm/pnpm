@@ -464,6 +464,42 @@ test('pack: remove publishConfig', async () => {
   })
 })
 
+test('pack: preserves packageManager and publish lifecycle scripts when skipManifestObfuscation is enabled, but still omits pnpm', async () => {
+  prepare({
+    name: 'skip-manifest-obfuscation',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    pnpm: {
+      testField: true,
+    },
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      postinstall: 'echo postinstall',
+    },
+  } as Parameters<typeof prepare>[0] & { pnpm?: Record<string, unknown> })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+    skipManifestObfuscation: true,
+  })
+
+  await tar.x({ file: 'skip-manifest-obfuscation-1.0.0.tgz' })
+
+  expect((await import(path.resolve('package/package.json'))).default).toEqual({
+    name: 'skip-manifest-obfuscation',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      postinstall: 'echo postinstall',
+    },
+  })
+})
+
 test('pack should read from the correct node_modules when publishing from a custom directory', async () => {
   prepare({
     name: 'custom-publish-dir',

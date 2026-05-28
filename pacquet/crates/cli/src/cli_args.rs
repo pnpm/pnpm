@@ -4,12 +4,12 @@ pub mod run;
 pub mod store;
 pub mod supported_architectures;
 
-use crate::State;
+use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::{Config, RealApi};
+use pacquet_config::{Config, Host};
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
@@ -21,7 +21,7 @@ use store::StoreCommand;
 #[derive(Debug, Parser)]
 #[clap(name = "pacquet")]
 #[clap(bin_name = "pacquet")]
-#[clap(version = "0.2.1")]
+#[clap(version = "0.2.2")]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {
     #[clap(subcommand)]
@@ -30,6 +30,15 @@ pub struct CliArgs {
     /// Set working directory.
     #[clap(short = 'C', long, default_value = ".")]
     pub dir: PathBuf,
+
+    /// Run the command for every project in the workspace instead of
+    /// only the project in `--dir`. Mirrors pnpm's global `-r` /
+    /// `--recursive` flag and sets
+    /// [`pacquet_config::Config::recursive`]. pacquet's `install`
+    /// already spans the whole workspace, so the flag is a surface
+    /// no-op there today; see the field docs.
+    #[clap(short = 'r', long, global = true)]
+    pub recursive: bool,
 
     /// Reporter output format.
     #[clap(long, value_enum, default_value_t = ReporterType::Silent, global = true)]
@@ -52,7 +61,7 @@ pub enum ReporterType {
     Silent,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Debug, Subcommand)]
 pub enum CliCommand {
     /// Initialize a package.json
     Init,
@@ -72,9 +81,13 @@ pub enum CliCommand {
 }
 
 impl CliArgs {
-    /// Execute the command
-    pub async fn run(self) -> miette::Result<()> {
-        let CliArgs { command, dir, reporter } = self;
+    /// Execute the command. `config_overrides` carries `--config.<key>=<value>`
+    /// tokens already stripped from argv by [`ConfigOverrides::extract`];
+    /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever
+    /// `Config` is loaded, mirroring pnpm 11's
+    /// "CLI > yaml > .npmrc > defaults" precedence.
+    pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
+        let CliArgs { command, dir, recursive, reporter } = self;
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
         // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
@@ -94,19 +107,24 @@ impl CliArgs {
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`) —
         // see [`loadNpmrcConfig`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts#L48-L50).
         //
-        // Production callers turbofish `RealApi` explicitly so the
+        // Production callers turbofish `Host` explicitly so the
         // dependency-injection plumbing is visible at the call site.
         // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
         // for the pattern and rationale.
         let config = || -> miette::Result<&'static mut Config> {
-            Config::current::<RealApi, _, _, _, _>(
-                || Ok::<_, std::convert::Infallible>(dir.clone()),
-                home::home_dir,
-                Default::default,
-            )
-            .map(Config::leak)
-            .map_err(miette::Report::new)
-            .wrap_err("load configuration")
+            Config::default()
+                .current::<Host>(&dir)
+                .map(|mut cfg| {
+                    config_overrides.apply(&mut cfg);
+                    // `--recursive` / `-r` is CLI-only upstream (not a
+                    // `.npmrc` / yaml key), so it is set here from the
+                    // global flag rather than through the yaml / env
+                    // overlay. Mirrors pnpm's `Config.recursive`.
+                    cfg.recursive = recursive;
+                    Config::leak(cfg)
+                })
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
         };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
@@ -141,6 +159,8 @@ impl CliArgs {
                 let cfg = config()?;
                 cfg.offline = cfg.offline || args.offline;
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
+                cfg.workspace_concurrency =
+                    args.resolve_workspace_concurrency(cfg.workspace_concurrency);
                 let require_lockfile = args.frozen_lockfile;
                 let state = State::init(manifest_path(), cfg, require_lockfile)
                     .wrap_err("initialize the state")?;
@@ -174,3 +194,6 @@ impl CliArgs {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

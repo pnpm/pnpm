@@ -1,5 +1,141 @@
 # @pnpm/releasing.commands
 
+## 1100.3.1
+
+### Patch Changes
+
+- 6316e7b: Fix `pnpm deploy` crashing with `ENOENT: ... lstat '<deployDir>/node_modules'` when `configDependencies` declares pacquet (`pacquet` or `@pnpm/pacquet`). The deploy directory never installs config dependencies, so the install engine they designate isn't on disk to invoke; the nested install now skips them.
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [572842a]
+- Updated dependencies [35d2355]
+- Updated dependencies [a662de4]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/installing.commands@1100.6.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/engine.runtime.commands@1100.1.0
+  - @pnpm/workspace.projects-filter@1100.0.16
+  - @pnpm/engine.runtime.node-resolver@1101.1.2
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/fetching.directory-fetcher@1100.0.13
+  - @pnpm/releasing.exportable-manifest@1100.1.1
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/bins.resolver@1100.0.5
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/workspace.projects-sorter@1100.0.4
+  - @pnpm/fs.indexed-pkg-importer@1100.0.10
+
+## 1100.3.0
+
+### Minor Changes
+
+- 3b62f9d: Add a `skip-manifest-obfuscation` option for `pnpm pack` and `pnpm publish`. When enabled, the original `packageManager` field and publish lifecycle scripts are kept in the packed/published manifest instead of being stripped. The pnpm-specific `pnpm` field continues to be omitted.
+- 508e6d8: Added `pnpm stage` with `publish`, `list`, `view`, `approve`, `reject`, and `download` subcommands for npm staged publishing.
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/releasing.exportable-manifest@1100.1.0
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.commands@1100.5.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/fetching.directory-fetcher@1100.0.12
+  - @pnpm/engine.runtime.commands@1100.0.17
+  - @pnpm/engine.runtime.node-resolver@1101.1.1
+  - @pnpm/installing.client@1100.2.2
+  - @pnpm/exec.lifecycle@1100.0.13
+  - @pnpm/workspace.projects-filter@1100.0.15
+
+## 1100.2.18
+
+### Patch Changes
+
+- Updated dependencies [881a865]
+  - @pnpm/installing.commands@1100.4.2
+
+## 1100.2.17
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/installing.commands@1100.4.1
+  - @pnpm/installing.client@1100.2.1
+  - @pnpm/workspace.projects-filter@1100.0.14
+
+## 1100.2.16
+
+### Patch Changes
+
+- 64afc92: Honor `publishConfig.access` when publishing packages.
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.commands@1100.4.0
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/engine.runtime.commands@1100.0.16
+  - @pnpm/fetching.directory-fetcher@1100.0.11
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/bins.resolver@1100.0.4
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/network.fetch@1100.0.6
+  - @pnpm/releasing.exportable-manifest@1100.0.7
+  - @pnpm/workspace.projects-filter@1100.0.13
+  - @pnpm/workspace.projects-sorter@1100.0.3
+  - @pnpm/fs.indexed-pkg-importer@1100.0.9
+
+## 1100.2.15
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [247d70b]
+- Updated dependencies [6e93f35]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/installing.commands@1100.3.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/exec.pnpm-cli-runner@1100.0.1
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/engine.runtime.node-resolver@1101.0.9
+  - @pnpm/fetching.directory-fetcher@1100.0.10
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/exec.lifecycle@1100.0.11
+  - @pnpm/fs.indexed-pkg-importer@1100.0.8
+  - @pnpm/engine.runtime.commands@1100.0.15
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.12
+  - @pnpm/releasing.exportable-manifest@1100.0.6
+  - @pnpm/cli.utils@1101.0.5
+
 ## 1100.2.14
 
 ### Patch Changes

@@ -72,7 +72,12 @@ function getErrorInfo (logObj: Log, config?: Config): ErrorInfo | null {
         return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
       case 'ERR_PNPM_NO_MATCHING_VERSION':
       case 'ERR_PNPM_NO_MATURE_MATCHING_VERSION':
-        return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta, immatureVersion?: string })
+        // ERR_PNPM_NO_MATURE_MATCHING_VERSION used to come from the resolver
+        // with `packageMeta` attached; it now comes from the install / dlx /
+        // self-update callers as a plain PnpmError once the resolver has
+        // surfaced the violations. `packageMeta` may be undefined, in which
+        // case the formatter falls back to the bare title+message.
+        return formatNoMatchingVersion(err, logObj as unknown as { packageMeta?: PackageMeta })
       case 'ERR_PNPM_RECURSIVE_FAIL':
         return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
       case 'ERR_PNPM_BAD_TARBALL_SIZE':
@@ -134,11 +139,18 @@ interface PackageMeta {
   time?: Record<string, string>
 }
 
-function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, immatureVersion?: string }) {
-  const meta: PackageMeta = msg.packageMeta
+function formatNoMatchingVersion (err: Error, msg: { packageMeta?: PackageMeta }) {
+  // Errors raised by the install/dlx/self-update layer after the resolver
+  // surfaces violations may not carry the original packageMeta. In that
+  // case the error message alone already names every offending entry,
+  // so we just echo it through without the registry-metadata appendix.
+  const meta = msg.packageMeta
+  if (!meta) {
+    return { title: err.message }
+  }
   const latestVersion = meta['dist-tags'].latest
   let output = `The latest release of ${meta.name} is "${latestVersion}".`
-  const latestTime = msg.packageMeta.time?.[latestVersion]
+  const latestTime = meta.time?.[latestVersion]
   if (latestTime) {
     output += ` Published at ${stringifyDate(latestTime)}`
   }
@@ -150,7 +162,7 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, i
       if (tag !== 'latest') {
         const version = meta['dist-tags'][tag]
         output += `  * ${tag}: ${version}`
-        const time = msg.packageMeta.time?.[version]
+        const time = meta.time?.[version]
         if (time) {
           output += ` published at ${stringifyDate(time)}`
         }
@@ -160,10 +172,6 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, i
   }
 
   output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "pnpm view ${meta.name} versions".`
-
-  if (msg.immatureVersion) {
-    output += `${EOL}${EOL}If you want to install the matched version ignoring the time it was published, you can add the package name to the minimumReleaseAgeExclude setting. Read more about it: https://pnpm.io/settings#minimumreleaseageexclude`
-  }
 
   return {
     title: err.message,

@@ -4,7 +4,7 @@ use walkdir::WalkDir;
 pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
     let mut files = fs::read_dir(path)
         .unwrap()
-        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
         .collect::<Vec<_>>();
 
     files.sort();

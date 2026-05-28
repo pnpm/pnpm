@@ -86,7 +86,11 @@ pub fn build_hoist_graph(
                 .flat_map(|m| m.iter())
                 .chain(snapshot.optional_dependencies.iter().flat_map(|m| m.iter()));
             let children: HashMap<String, PackageKey> = dep_entries
-                .map(|(alias, dep_ref)| (alias.to_string(), dep_ref.resolve(alias)))
+                // `dep_ref.resolve` is `None` for `link:` deps —
+                // workspace siblings that live outside the virtual
+                // store. Mirrors upstream's `if (childDepPath)`
+                // check in `getChildren`.
+                .filter_map(|(alias, dep_ref)| Some((alias.to_string(), dep_ref.resolve(alias)?)))
                 .collect();
             Some((
                 key.clone(),
@@ -131,12 +135,12 @@ pub type DirectDepsByImporter = HashMap<String, HashMap<String, PackageKey>>;
 /// `link:` workspace-sibling entries are skipped via
 /// [`pacquet_lockfile::ImporterDepVersion::as_regular`] inside the
 /// loop.
-pub fn build_direct_deps_by_importer<'a, I>(
-    importers: I,
+pub fn build_direct_deps_by_importer<'a, Iter>(
+    importers: Iter,
     dependency_groups: impl IntoIterator<Item = pacquet_package_manifest::DependencyGroup> + Clone,
 ) -> DirectDepsByImporter
 where
-    I: IntoIterator<Item = (&'a String, &'a ProjectSnapshot)>,
+    Iter: IntoIterator<Item = (&'a String, &'a ProjectSnapshot)>,
 {
     let mut result: DirectDepsByImporter = HashMap::new();
     for (importer_id, project_snapshot) in importers {
@@ -334,7 +338,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     let mut hoisted_aliases: HashSet<String> = input
         .direct_deps_by_importer
         .get(".")
-        .map(|m| m.keys().map(|k| k.to_lowercase()).collect())
+        .map(|map| map.keys().map(|k| k.to_lowercase()).collect())
         .unwrap_or_default();
 
     let mut hoisted_dependencies: HoistedDependencies = BTreeMap::new();

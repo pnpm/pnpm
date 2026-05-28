@@ -17,12 +17,14 @@ where
     ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    pub tarball_mem_cache: &'a MemCache,
+    pub tarball_mem_cache: std::sync::Arc<MemCache>,
     pub resolved_packages: &'a ResolvedPackages,
     pub http_client: &'a ThrottledClient,
+    pub http_client_arc: std::sync::Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a mut PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
+    pub lockfile_path: Option<&'a std::path::Path>,
     pub list_dependency_groups: ListDependencyGroups, // must be a function because it is called multiple times
     pub package_name: &'a str, // TODO: 1. support version range, 2. multiple arguments, 3. name this `packages`
     pub save_exact: bool,      // TODO: add `save-exact` to `.npmrc`, merge configs, and remove this
@@ -49,13 +51,15 @@ where
     ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    pub async fn run<R: Reporter>(self) -> Result<(), AddError> {
+    pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
         let Add {
             tarball_mem_cache,
             http_client,
+            http_client_arc,
             config,
             manifest,
             lockfile,
+            lockfile_path,
             list_dependency_groups,
             package_name,
             save_exact,
@@ -83,17 +87,31 @@ where
         Install {
             tarball_mem_cache,
             http_client,
+            http_client_arc,
             config,
             manifest,
             lockfile,
+            lockfile_path,
             dependency_groups: list_dependency_groups(),
             frozen_lockfile: false,
+            // `pacquet add` mutates the manifest, so the lockfile is
+            // necessarily stale by the time the install dispatch
+            // runs — short-circuit the prefer-frozen fast path so we
+            // always re-resolve. `None` would fall back to
+            // `config.prefer_frozen_lockfile`, which is `true` by
+            // default and the dispatch would discover the staleness
+            // anyway; explicit `Some(false)` keeps `pacquet add`
+            // behaviour self-evident at the call site.
+            prefer_frozen_lockfile: Some(false),
+            ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
+            trust_lockfile: config.trust_lockfile,
+            update_checksums: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
         }
-        .run::<R>()
+        .run::<Reporter>()
         .await
         .map_err(AddError::Install)?;
 
@@ -119,7 +137,7 @@ where
             .unwrap_or_else(|| manifest.path())
             .to_string_lossy()
             .into_owned();
-        R::emit(&LogEvent::PackageManifest(PackageManifestLog {
+        Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
             message: PackageManifestMessage::Updated { prefix, updated: manifest.value().clone() },
         }));

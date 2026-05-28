@@ -98,9 +98,8 @@ fn private_hoist_default_pattern_hoists_transitives() {
         is_symlink_or_junction(&private_hoist).unwrap(),
         "transitive `@pnpm.e2e/hello-world-js-bin` should be hoisted to {private_hoist:?}",
     );
-    // Public-hoist patterns default to `["*eslint*", "*prettier*"]`,
-    // neither of which match this transitive — so it should NOT be at
-    // the root.
+    // Public-hoist patterns default to `[]` (matching pnpm v11), so
+    // no transitive can match — it should NOT be at the root.
     assert!(
         !workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "transitive should not be publicly hoisted under default patterns",
@@ -235,7 +234,7 @@ fn modules_yaml_records_hoisted_dependencies() {
     // doesn't drag in a YAML parser. Assert the presence rather than
     // exact serialization to keep the test resilient to ordering.
     assert!(
-        modules_yaml_text.contains("\"@pnpm.e2e/hello-world-js-bin@1.0.0\""),
+        modules_yaml_text.contains(r#""@pnpm.e2e/hello-world-js-bin@1.0.0""#),
         "hoistedDependencies should record the transitive dep path; got:\n{modules_yaml_text}",
     );
     // Alias-as-stored is the full scoped name, since that's how the
@@ -243,8 +242,40 @@ fn modules_yaml_records_hoisted_dependencies() {
     // `dependencies` map. Mirrors upstream's
     // `hoistedDependencies[depPath][alias] = kind`.
     assert!(
-        modules_yaml_text.contains("\"@pnpm.e2e/hello-world-js-bin\": \"private\""),
+        modules_yaml_text.contains(r#""@pnpm.e2e/hello-world-js-bin": "private""#),
         "transitive should be marked as `private` hoist; got:\n{modules_yaml_text}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Regression for [pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750):
+/// pacquet's default `publicHoistPattern` must match pnpm v11's
+/// (empty list) so a follow-up `pnpm` invocation in the same project
+/// doesn't reject the `.modules.yaml` with
+/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`. See pnpm's default at
+/// <https://github.com/pnpm/pnpm/blob/1627943d2a/config/reader/src/index.ts#L184>
+/// and the comparison site at
+/// <https://github.com/pnpm/pnpm/blob/1627943d2a/installing/deps-installer/src/install/validateModules.ts#L67-L80>.
+#[test]
+fn modules_yaml_public_hoist_pattern_matches_pnpm_default() {
+    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    generate_lockfile(pnpm);
+
+    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    let modules_yaml_text = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+        .expect("read .modules.yaml");
+    assert!(
+        modules_yaml_text.contains(r#""publicHoistPattern": []"#),
+        "publicHoistPattern should serialize as an empty list (pnpm default); got:\n{modules_yaml_text}",
     );
 
     drop((root, mock_instance));

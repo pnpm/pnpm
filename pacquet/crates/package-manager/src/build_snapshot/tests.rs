@@ -6,8 +6,8 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::HashMap;
 
-fn integrity(s: &str) -> Integrity {
-    s.parse().expect("parse integrity string")
+fn integrity(text: &str) -> Integrity {
+    text.parse().expect("parse integrity string")
 }
 
 fn make_package(name: &str, version: &str) -> PackageVersion {
@@ -22,10 +22,15 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
             tarball: format!("https://registry.npmjs.org/{name}/-/{name}-{version}.tgz"),
             file_count: None,
             unpacked_size: None,
+            attestations: None,
         },
         dependencies: None,
         dev_dependencies: None,
         peer_dependencies: None,
+        optional_dependencies: None,
+        peer_dependencies_meta: None,
+        npm_user: None,
+        deprecated: None,
     }
 }
 

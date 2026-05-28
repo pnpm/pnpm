@@ -32,6 +32,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     ...cliOptionsTypes(),
     ...pick([
       'npm-path',
+      'skip-manifest-obfuscation',
     ], allTypes),
   }
 }
@@ -45,6 +46,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'pack-destination',
       'pack-gzip-level',
       'json',
+      'skip-manifest-obfuscation',
       'workspace-concurrency',
     ], allTypes),
   }
@@ -83,6 +85,10 @@ export function help (): string {
             shortAlias: '-r',
           },
           {
+            description: 'Skip pnpm\'s manifest obfuscation: keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.',
+            name: '--skip-manifest-obfuscation',
+          },
+          {
             description: `Set the maximum number of concurrency. Default is ${getDefaultWorkspaceConcurrency()}. For unlimited concurrency use Infinity.`,
             name: '--workspace-concurrency <number>',
           },
@@ -98,6 +104,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'embedReadme'
 | 'packGzipLevel'
 | 'nodeLinker'
+| 'skipManifestObfuscation'
 | 'userAgent'
 > & Partial<Pick<Config, 'extraBinPaths'
 | 'extraEnv'
@@ -230,6 +237,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     embedReadme: opts.embedReadme,
     catalogs: opts.catalogs ?? {},
     hooks: opts.hooks,
+    skipManifestObfuscation: opts.skipManifestObfuscation,
   })
   // Strip semver build metadata (the `+<build>` segment) from the published version so that
   // the tarball, the manifest packed inside it, and the metadata sent to the registry all agree.
@@ -394,14 +402,16 @@ async function createPublishManifest (opts: {
   manifest: ProjectManifest
   catalogs: Catalogs
   hooks?: Hooks
+  skipManifestObfuscation?: boolean
 }): Promise<ExportedManifest> {
-  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks } = opts
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation } = opts
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
   return createExportableManifest(projectDir, manifest, {
     catalogs,
     hooks,
     readmeFile,
     modulesDir,
+    skipManifestObfuscation,
   })
 }
 

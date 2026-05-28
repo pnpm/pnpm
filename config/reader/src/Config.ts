@@ -210,6 +210,7 @@ export interface Config extends OptionsFromRootManifest {
   modulesCacheMaxAge: number
   dlxCacheMaxAge: number
   embedReadme?: boolean
+  skipManifestObfuscation?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
   allowBuilds?: Record<string, boolean | string>
@@ -267,6 +268,7 @@ export interface Config extends OptionsFromRootManifest {
   minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
+  trustLockfile?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number

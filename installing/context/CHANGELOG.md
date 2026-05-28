@@ -1,5 +1,48 @@
 # @pnpm/get-context
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/installing.read-projects-context@1100.0.12
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller@1101.0.9
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/installing.read-projects-context@1100.0.11
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/installing.modules-yaml@1100.0.5
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [6e93f35]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/installing.read-projects-context@1100.0.10
+
 ## 1100.0.10
 
 ### Patch Changes

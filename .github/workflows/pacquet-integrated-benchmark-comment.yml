@@ -26,6 +26,7 @@ permissions:
   actions: read
   issues: write
   pull-requests: write
+  checks: write
 
 jobs:
   comment:
@@ -131,3 +132,41 @@ jobs:
           edit-mode: replace
           comment-id: ${{ steps.fc.outputs.comment-id }}
           body-file: benchmark-artifact/SUMMARY.md
+
+      - name: Install Bencher CLI
+        if: hashFiles('benchmark-artifact/bencher-results.json') != ''
+        uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+
+      - name: Upload PR results to Bencher
+        # workflow_run runs in the base-repo privilege context, so
+        # BENCHER_API_TOKEN is available even for fork PRs. PR number
+        # comes from the trusted workflow_run payload (resolved in
+        # `meta` above), never from the artifact body. `--ci-number`
+        # is required here because Bencher can't infer the PR from a
+        # workflow_run event the way it does on pull_request.
+        if: hashFiles('benchmark-artifact/bencher-results.json') != ''
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.meta.outputs.pr }}
+        shell: bash
+        run: |
+          if [ -z "${BENCHER_API_TOKEN:-}" ]; then
+            echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
+            exit 0
+          fi
+          # `--start-point-clone-thresholds` so the PR branch inherits the
+          # threshold configured on main; `--err` so the action surfaces
+          # a regression on the PR check.
+          bencher run \
+            --project pnpm \
+            --testbed pacquet \
+            --branch "pr/$PR_NUMBER" \
+            --start-point main \
+            --start-point-reset \
+            --start-point-clone-thresholds \
+            --err \
+            --adapter shell_hyperfine \
+            --file benchmark-artifact/bencher-results.json \
+            --ci-number "$PR_NUMBER" \
+            --github-actions "$GITHUB_TOKEN"

@@ -182,7 +182,7 @@ function getAuthHeaderForRegistry (
   configByUri: Record<string, RegistryConfig> | undefined,
   registryUrl: string
 ): string | undefined {
-  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {}, registryUrl)
+  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
   return getAuthHeader(registryUrl)
 }
 

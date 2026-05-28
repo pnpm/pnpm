@@ -131,6 +131,28 @@ pub fn find_workspace_projects_no_check(
         None => &default_patterns,
     };
 
+    // Upstream (tinyglobby) treats `!`-prefixed patterns as negations.
+    // wax does not accept `!` inside `Glob::new()`, so split them out
+    // and feed them through `.not()` instead. `!/...` remains a no-op:
+    // relative workspace paths never match that absolute form.
+    let mut include_patterns: Vec<&str> = Vec::new();
+    let mut user_negation_globs: Vec<String> = Vec::new();
+    for pattern in patterns {
+        if let Some(body) = pattern.strip_prefix('!') {
+            if body.starts_with('/') {
+                continue;
+            }
+            let normalized = normalize_pattern(body);
+            Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                pattern: pattern.to_string(),
+                message: err.to_string(),
+            })?;
+            user_negation_globs.push(normalized);
+        } else {
+            include_patterns.push(pattern);
+        }
+    }
+
     // wax's `not` takes a single pattern; combine the ignores with
     // `wax::any` so the walk filters them all in one pass, matching
     // upstream's `ignore: ['**/node_modules/**', '**/bower_components/**']`.
@@ -138,25 +160,26 @@ pub fn find_workspace_projects_no_check(
     // `Walk::not` call (both `Glob` and `Any` derive `Clone` in wax),
     // since `IGNORE_PATTERNS` is a constant and reparsing it on every
     // user-supplied pattern is wasted work.
-    let ignore_template = wax::any(IGNORE_PATTERNS.iter().copied()).map_err(|err| {
-        FindWorkspaceProjectsError::InvalidGlob {
-            pattern: "<built-in ignore>".to_string(),
-            message: err.to_string(),
-        }
+    let ignore_template = wax::any(
+        IGNORE_PATTERNS.iter().copied().chain(user_negation_globs.iter().map(|s| s.as_str())),
+    )
+    .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+        pattern: "<built-in ignore>".to_string(),
+        message: err.to_string(),
     })?;
 
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
-    for pattern in patterns {
+    for pattern in include_patterns {
         let normalized = normalize_pattern(pattern);
         let glob =
             Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.clone(),
+                pattern: pattern.to_string(),
                 message: err.to_string(),
             })?;
 
         let walk = glob.walk(workspace_root).not(ignore_template.clone()).map_err(|err| {
             FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.clone(),
+                pattern: pattern.to_string(),
                 message: err.to_string(),
             }
         })?;
@@ -186,10 +209,10 @@ pub fn find_workspace_projects_no_check(
     // `package.json` the two orderings coincide. Keep the explicit
     // sort below to make the contract visible.
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
-    sorted.sort_by(|a, b| {
-        let dir_a = a.parent().unwrap_or(Path::new(""));
-        let dir_b = b.parent().unwrap_or(Path::new(""));
-        dir_a.cmp(dir_b)
+    sorted.sort_by(|left, right| {
+        let dir_left = left.parent().unwrap_or_else(|| Path::new(""));
+        let dir_right = right.parent().unwrap_or_else(|| Path::new(""));
+        dir_left.cmp(dir_right)
     });
 
     let mut projects = Vec::with_capacity(sorted.len());

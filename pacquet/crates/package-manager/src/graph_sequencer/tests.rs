@@ -92,7 +92,7 @@ fn cycle_marks_unsafe_and_groups_cycle_nodes() {
     assert!(!r.cycles.is_empty(), "cycle list must record the cycle: {r:?}");
     // Both nodes still appear in some chunk.
     let flat: Vec<String> = r.chunks.into_iter().flatten().collect();
-    let mut sorted = flat.clone();
+    let mut sorted = flat;
     sorted.sort();
     assert_eq!(sorted, vec!["a".to_string(), "b".to_string()]);
 }

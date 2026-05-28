@@ -8,14 +8,17 @@ import semver from 'semver'
 import { shouldPersistLockfile } from './shouldPersistLockfile.js'
 
 /**
- * Refreshes the env lockfile's `packageManagerDependencies` entry when it
- * records a pnpm version that no longer satisfies the wanted
- * `devEngines.packageManager` range. The currently running pnpm version
- * (already verified to satisfy the wanted range by checkPackageManager) is
- * recorded as the new resolution.
+ * Records the currently running pnpm version in the env lockfile's
+ * `packageManagerDependencies` entry when the project opts in to
+ * lockfile-pinned versioning (via `devEngines.packageManager`, or a v12+
+ * `packageManager` pin) and the lockfile doesn't already record a version
+ * that satisfies the wanted range.
  *
- * No-op when the project does not pin a pnpm version, when no env lockfile
- * exists yet, or when the recorded version still satisfies the wanted range.
+ * The currently running pnpm version has already been verified by
+ * checkPackageManager to satisfy the wanted range, so recording it is safe.
+ *
+ * No-op when the project does not pin a pnpm version or when the recorded
+ * version still satisfies the wanted range.
  */
 export async function syncEnvLockfile (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
@@ -27,15 +30,13 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   if (!semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })) return
 
   const envLockfile = await readEnvLockfile(context.rootProjectManifestDir)
-  if (envLockfile == null) return
-  const lockedVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
-  if (lockedVersion == null) return
-  if (semver.satisfies(lockedVersion, pm.version, { includePrerelease: true })) return
+  const lockedVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (lockedVersion != null && semver.satisfies(lockedVersion, pm.version, { includePrerelease: true })) return
 
   const store = await createStoreController({ ...config, ...context })
   try {
     await resolvePackageManagerIntegrities(packageManager.version, {
-      envLockfile,
+      envLockfile: envLockfile ?? undefined,
       registries: config.registries,
       rootDir: context.rootProjectManifestDir,
       storeController: store.ctrl,

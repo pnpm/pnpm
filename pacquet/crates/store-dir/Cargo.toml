@@ -11,7 +11,8 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-fs = { workspace = true }
+pacquet-crypto-hash = { workspace = true }
+pacquet-fs          = { workspace = true }
 
 dashmap       = { workspace = true }
 derive_more   = { workspace = true }
@@ -41,4 +42,8 @@ sha2 = { workspace = true, features = ["asm"] }
 [dev-dependencies]
 pipe-trait        = { workspace = true }
 pretty_assertions = { workspace = true }
+sha2              = { workspace = true }
 tempfile          = { workspace = true }
+
+[lints]
+workspace = true

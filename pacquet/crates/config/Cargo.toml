@@ -20,9 +20,11 @@ derive_more   = { workspace = true }
 home          = { workspace = true }
 indexmap      = { workspace = true }
 miette        = { workspace = true }
+node-semver   = { workspace = true }
 pipe-trait    = { workspace = true }
 serde         = { workspace = true }
 serde-saphyr  = { workspace = true }
+serde_json    = { workspace = true }
 smart-default = { workspace = true }
 tracing       = { workspace = true }
 
@@ -34,3 +36,6 @@ pacquet-testing-utils = { workspace = true }
 
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }
+
+[lints]
+workspace = true

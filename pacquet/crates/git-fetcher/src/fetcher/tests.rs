@@ -1,4 +1,4 @@
-use super::{GitFetcher, exec_git, extract_host, should_use_shallow};
+use super::{GitFetcher, exec_git, extract_host, is_valid_commit_hash, should_use_shallow};
 use crate::error::GitFetcherError;
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
@@ -7,33 +7,6 @@ use pacquet_store_dir::StoreDir;
 use pacquet_testing_utils::env_guard::EnvGuard;
 use std::{fs, path::Path, path::PathBuf};
 use tempfile::tempdir;
-
-fn skip_if_no_git() -> bool {
-    let probe = std::process::Command::new("git").arg("--version").output();
-    if probe.is_err() {
-        eprintln!("skipping: `git` not on PATH");
-        return true;
-    }
-    false
-}
-
-/// Skip the test if `npm` (and `node`) aren't on `PATH`. Used by the
-/// real-prepare tests below, which spawn an actual lifecycle script:
-/// `prepare_package` synthesizes `npm install` for any non-pnpm
-/// preferred-pm, and that needs an npm binary to invoke. Hosts
-/// without node tooling (a Rust-only sandbox, an embedded CI image)
-/// silently skip rather than fail so the suite stays portable.
-fn skip_if_no_npm() -> bool {
-    if std::process::Command::new("npm").arg("--version").output().is_err() {
-        eprintln!("skipping: `npm` not on PATH");
-        return true;
-    }
-    if std::process::Command::new("node").arg("--version").output().is_err() {
-        eprintln!("skipping: `node` not on PATH");
-        return true;
-    }
-    false
-}
 
 /// Build a bare repo whose manifest declares a `prepare` script. The
 /// script is whatever the caller passes — typically a `node -e '…'`
@@ -112,6 +85,55 @@ fn should_use_shallow_matches_known_host() {
 }
 
 #[test]
+fn is_valid_commit_hash_accepts_full_sha() {
+    assert!(is_valid_commit_hash("c9b30e71d704cd30fa71f2edd1ecc7dcc4985493"));
+    assert!(is_valid_commit_hash("C9B30E71D704CD30FA71F2EDD1ECC7DCC4985493"));
+}
+
+#[test]
+fn is_valid_commit_hash_rejects_short_or_option_shaped_values() {
+    assert!(!is_valid_commit_hash("deadbeef"));
+    assert!(!is_valid_commit_hash(""));
+    assert!(!is_valid_commit_hash("--upload-pack=touch /tmp/pwned"));
+    assert!(!is_valid_commit_hash("c9b30e71d704cd30fa71f2edd1ecc7dcc4985493 "));
+    // 40 chars but contains a non-hex digit.
+    assert!(!is_valid_commit_hash("c9b30e71d704cd30fa71f2edd1ecc7dcc498549z"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn fetcher_rejects_option_shaped_commit() {
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    let err = GitFetcher {
+        repo: "file:///tmp/githost",
+        commit: "--upload-pack=touch /tmp/pwned",
+        path: None,
+        git_shallow_hosts: &[],
+        allow_build: deny_all_builds(),
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        store_dir: &store_dir,
+        package_id: "pkg@1.0.0",
+        requester: "/test",
+        store_index_writer: None,
+        files_index_file: "pkg@1.0.0\tbuilt",
+        git_bin: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(err, GitFetcherError::InvalidCommit { .. }),
+        "expected InvalidCommit, got {err:?}",
+    );
+}
+
+#[test]
 fn extract_host_handles_user_authority_and_port() {
     assert_eq!(extract_host("https://github.com/foo/bar"), Some("github.com"));
     assert_eq!(extract_host("git+ssh://git@github.com/foo/bar.git"), Some("github.com"));
@@ -122,9 +144,6 @@ fn extract_host_handles_user_authority_and_port() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_imports_package_into_cas() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_bare_repo(tmp.path());
     let store_root = tempdir().unwrap();
@@ -164,9 +183,6 @@ async fn fetcher_imports_package_into_cas() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_rejects_commit_mismatch() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, _commit) = make_bare_repo(tmp.path());
     let store_root = tempdir().unwrap();
@@ -211,9 +227,6 @@ async fn fetcher_rejects_commit_mismatch() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_blocks_build_when_not_allowed() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     // A repo whose manifest declares a `prepare` script — exercises
     // the `allow_build` gate without actually spawning the script
@@ -337,9 +350,6 @@ fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
 /// the monorepo root or sibling packages.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_packs_subfolder_when_path_set() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_monorepo_bare_repo(tmp.path());
     let store_root = tempdir().unwrap();
@@ -374,7 +384,7 @@ async fn fetcher_packs_subfolder_when_path_set() {
     assert!(keys.contains(&"package.json"), "sub-dir manifest must be included: {keys:?}");
     assert!(keys.contains(&"index.js"), "sub-dir main must be included: {keys:?}");
     assert!(
-        !keys.iter().any(|k| k.contains("other") || k.contains("packages/")),
+        !keys.iter().any(|key| key.contains("other") || key.contains("packages/")),
         "sibling-package files must not appear; keys are relative to the sub-dir: {keys:?}",
     );
 }
@@ -387,9 +397,6 @@ async fn fetcher_packs_subfolder_when_path_set() {
 /// downstream, but the fetcher itself must not crash.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_handles_repo_without_package_json() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_bare_repo_without_manifest(tmp.path());
     let store_root = tempdir().unwrap();
@@ -433,9 +440,6 @@ async fn fetcher_handles_repo_without_package_json() {
 /// build (matches upstream's `shouldBeBuilt = true` short-circuit).
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_skips_build_when_ignore_scripts() {
-    if skip_if_no_git() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     // A repo whose `prepare` script would fail if it ran — observing
     // success proves the lifecycle runner never spawned anything.
@@ -510,9 +514,6 @@ async fn fetcher_skips_build_when_ignore_scripts() {
 /// actually executed (the file didn't exist in the source tree).
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_runs_prepare_script_when_allowed() {
-    if skip_if_no_git() || skip_if_no_npm() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     // The prepare script writes a marker. Single-quoted inner
     // string so the JSON doesn't need to escape it; node reads the
@@ -569,9 +570,6 @@ async fn fetcher_runs_prepare_script_when_allowed() {
 /// fetcher refuses to add a broken-build snapshot to the CAS.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_surfaces_prepare_failure() {
-    if skip_if_no_git() || skip_if_no_npm() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_bare_repo_with_prepare_script(
         tmp.path(),
@@ -641,9 +639,6 @@ async fn fetcher_surfaces_prepare_failure() {
 /// keep the block-test green.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_runs_prepare_when_allow_build_returns_true() {
-    if skip_if_no_git() || skip_if_no_npm() {
-        return;
-    }
     let tmp = tempdir().unwrap();
     let (bare, commit) = make_bare_repo_with_prepare_script(
         tmp.path(),
@@ -732,21 +727,21 @@ fn write_git_shim(dir: &Path) -> PathBuf {
     // POSIX `sh` (not bash) — every host has `/bin/sh`. The body
     // is a static string: paths/values come from env vars at run
     // time, so no embedded value can be shell-interpreted.
-    let body = "#!/bin/sh
+    let body = r#"#!/bin/sh
 set -eu
 # Tab-separate each argv, terminating with a newline. The trailing
-# tab in `printf '%s\\t'` becomes a column separator in the log;
-# downstream parsing splits on '\\t' and drops the empty trailing
-# field. Quoting `\"$@\"` and `\"$PACQUET_GIT_SHIM_LOG\"` keeps
+# tab in `printf '%s\t'` becomes a column separator in the log;
+# downstream parsing splits on '\t' and drops the empty trailing
+# field. Quoting `"$@"` and `"$PACQUET_GIT_SHIM_LOG"` keeps
 # whitespace/metachars in arg values from being re-tokenized.
-{ printf '%s\\t' \"$@\"; printf '\\n'; } >> \"$PACQUET_GIT_SHIM_LOG\"
+{ printf '%s\t' "$@"; printf '\n'; } >> "$PACQUET_GIT_SHIM_LOG"
 # `rev-parse HEAD` is the only invocation whose stdout the fetcher
 # actually inspects (to compare against the resolution commit).
-if [ \"$1\" = rev-parse ] && [ \"$2\" = HEAD ]; then
-    printf '%s\\n' \"$PACQUET_GIT_SHIM_FAKE_COMMIT\"
+if [ "$1" = rev-parse ] && [ "$2" = HEAD ]; then
+    printf '%s\n' "$PACQUET_GIT_SHIM_FAKE_COMMIT"
 fi
 exit 0
-";
+"#;
     fs::write(&shim_path, body).unwrap();
     fs::set_permissions(&shim_path, fs::Permissions::from_mode(0o755)).unwrap();
     shim_path
@@ -762,7 +757,7 @@ fn parse_shim_log(log_path: &Path) -> Vec<Vec<String>> {
         .unwrap()
         .lines()
         .map(|line| {
-            line.split('\t').filter(|s| !s.is_empty()).map(str::to_string).collect::<Vec<_>>()
+            line.split('\t').filter(|part| !part.is_empty()).map(str::to_string).collect::<Vec<_>>()
         })
         .filter(|args| !args.is_empty())
         .collect()

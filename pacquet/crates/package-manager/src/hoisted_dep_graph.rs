@@ -34,6 +34,7 @@
 use derive_more::{Display, Error, From};
 use indexmap::IndexSet;
 use miette::Diagnostic;
+use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_lockfile::{
     Lockfile, LockfileResolution, PackageKey, ParsePkgNameVerPeerError, PkgIdWithPatchHash,
 };
@@ -116,7 +117,7 @@ pub type DependenciesGraph = BTreeMap<PathBuf, DependenciesGraphNode>;
 ///
 /// Wrapped in a newtype rather than typedef'd to a recursive
 /// `BTreeMap` because Rust doesn't allow recursive type aliases.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct DepHierarchy(pub BTreeMap<PathBuf, DepHierarchy>);
 
 /// Per-importer alias → direct-dependency directory. For the
@@ -134,7 +135,7 @@ pub type DirectDependenciesByImporterId = BTreeMap<String, BTreeMap<String, Path
 /// isolated linker uses the same struct with `hierarchy`,
 /// `hoisted_locations`, and `symlinked_direct_dependencies_by_importer_id`
 /// left empty.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct LockfileToDepGraphResult {
     pub graph: DependenciesGraph,
     pub direct_dependencies_by_importer_id: DirectDependenciesByImporterId,
@@ -696,7 +697,12 @@ fn walk_deps(
         let node = DependenciesGraphNode {
             alias: Some(dep.0.name.clone()),
             dep_path: DepPath::from(reference.clone()),
-            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(pkg_key.to_string()),
+            // `pkgIdWithPatchHash` strips peer-graph hashes but
+            // keeps `(patch_hash=...)`. Mirrors upstream's
+            // [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
+            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(
+                get_pkg_id_with_patch_hash(&pkg_key.to_string()).to_string(),
+            ),
             dir: dir.clone(),
             modules: modules.to_path_buf(),
             children: BTreeMap::new(),
@@ -704,8 +710,8 @@ fn walk_deps(
             version: pkg_key.suffix.version().to_string(),
             optional: snapshot.map(|s| s.optional).unwrap_or(false),
             optional_dependencies: snapshot
-                .and_then(|s| s.optional_dependencies.as_ref())
-                .map(|m| m.keys().map(|k| k.to_string()).collect())
+                .and_then(|snap| snap.optional_dependencies.as_ref())
+                .map(|map| map.keys().map(|k| k.to_string()).collect())
                 .unwrap_or_default(),
             has_bin: metadata.has_bin.unwrap_or(false),
             has_bundled_dependencies: metadata.bundled_dependencies.is_some(),
@@ -816,7 +822,13 @@ fn compute_children(
         .flatten()
         .chain(snapshot.optional_dependencies.iter().flatten());
     for (alias_name, dep_ref) in dep_iter {
-        let child_key = dep_ref.resolve(alias_name);
+        // `link:` deps return `None` here — they live outside the
+        // virtual store and don't show up in `pkg_locations`.
+        // Mirrors upstream's `if (childDepPath && pkgLocations...)`
+        // guard in `getChildren`.
+        let Some(child_key) = dep_ref.resolve(alias_name) else {
+            continue;
+        };
         let child_dep_path = child_key.to_string();
         if let Some(locations) = pkg_locations.get(&child_dep_path)
             && let Some(first) = locations.first()
@@ -954,12 +966,12 @@ mod tests {
             .expect("lockfileVersion 9.0 is compatible")
     }
 
-    fn pkg_name(s: &str) -> PkgName {
-        PkgName::parse(s).expect("parse PkgName")
+    fn pkg_name(text: &str) -> PkgName {
+        PkgName::parse(text).expect("parse PkgName")
     }
 
-    fn ver_peer(s: &str) -> PkgVerPeer {
-        s.parse::<PkgVerPeer>().expect("parse PkgVerPeer")
+    fn ver_peer(text: &str) -> PkgVerPeer {
+        text.parse::<PkgVerPeer>().expect("parse PkgVerPeer")
     }
 
     fn dep_key(name: &str, version: &str) -> PkgNameVerPeer {
@@ -1713,7 +1725,7 @@ mod tests {
         );
         // Workspace nodes themselves are NOT graph entries; only
         // their package-bearing descendants are.
-        assert!(!result.graph.values().any(|n| n.alias.as_deref() == Some("packages%2Ffoo")));
+        assert!(!result.graph.values().any(|node| node.alias.as_deref() == Some("packages%2Ffoo")));
     }
 
     /// Hierarchy must include one entry per importer root: the
@@ -1841,7 +1853,7 @@ mod tests {
         );
         let lockfile_dir = PathBuf::from("/repo");
         let opts = LockfileToHoistedDepGraphOptions {
-            lockfile_dir: lockfile_dir.clone(),
+            lockfile_dir,
             ..LockfileToHoistedDepGraphOptions::default()
         };
         let result =
@@ -1880,7 +1892,7 @@ mod tests {
         let mut externals = BTreeSet::new();
         externals.insert("a".to_string());
         let opts = LockfileToHoistedDepGraphOptions {
-            lockfile_dir: lockfile_dir.clone(),
+            lockfile_dir,
             external_dependencies: externals,
             ..LockfileToHoistedDepGraphOptions::default()
         };

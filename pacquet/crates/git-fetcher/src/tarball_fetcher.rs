@@ -87,11 +87,11 @@ impl<'a> GitHostedTarballFetcher<'a> {
     /// Run the fetcher. Blocks under
     /// [`tokio::task::block_in_place`] so the synchronous
     /// `preparePackage` work doesn't tie up the async runtime.
-    pub async fn run<R: Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
-        tokio::task::block_in_place(|| self.run_sync::<R>())
+    pub async fn run<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
+        tokio::task::block_in_place(|| self.run_sync::<Reporter>())
     }
 
-    fn run_sync<R: Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
+    fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
 
@@ -129,7 +129,7 @@ impl<'a> GitHostedTarballFetcher<'a> {
         // underlying lifecycle error". A dedicated context variant is
         // a follow-up if the rendered chain proves unclear.
         let PreparedPackage { pkg_dir, should_be_built } =
-            prepare_package::<R>(&prepare_opts, temp_location, self.path)
+            prepare_package::<Reporter>(&prepare_opts, temp_location, self.path)
                 .map_err(GitFetcherError::Prepare)?;
 
         // Upstream's `globalWarn` at gitHostedTarballFetcher.ts:39

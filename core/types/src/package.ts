@@ -53,6 +53,14 @@ export interface DependenciesMeta {
   }
 }
 
+export const RUNTIME_NAMES = ['node', 'deno', 'bun'] as const
+
+export type RuntimeName = typeof RUNTIME_NAMES[number]
+
+export function isRuntimeAlias (alias: string): alias is RuntimeName {
+  return (RUNTIME_NAMES as readonly string[]).includes(alias)
+}
+
 export interface EngineDependency {
   name: string
   version?: string
@@ -64,6 +72,7 @@ type DevEngineKey = 'os' | 'cpu' | 'libc' | 'runtime' | 'packageManager'
 export type DevEngines = Partial<Record<DevEngineKey, EngineDependency | EngineDependency[]>>
 
 export interface PublishConfig extends Record<string, unknown> {
+  access?: 'public' | 'restricted'
   directory?: string
   linkDirectory?: boolean
   executableFiles?: string[]

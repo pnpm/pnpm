@@ -1,5 +1,59 @@
 # @pnpm/license-scanner
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.package-is-installable@1100.0.7
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/store.pkg-finder@1100.0.13
+
+## 1100.0.14
+
+### Patch Changes
+
+- @pnpm/store.pkg-finder@1100.0.12
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.pkg-finder@1100.0.11
+  - @pnpm/config.package-is-installable@1100.0.6
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/lockfile.detect-dep-types@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/store.pkg-finder@1100.0.10
+  - @pnpm/config.package-is-installable@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.6
+  - @pnpm/lockfile.walker@1100.0.6
+
 ## 1100.0.11
 
 ### Patch Changes

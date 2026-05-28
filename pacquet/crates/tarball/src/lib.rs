@@ -61,13 +61,13 @@ fn walk_reqwest_chain(error: &reqwest::Error) -> String {
     let mut out = error.to_string();
     let mut error: &dyn std::error::Error = error;
     while let Some(src) = error.source() {
-        let s = src.to_string();
+        let frame = src.to_string();
         // Skip empty or duplicate frames — hyper occasionally repeats
         // the same message across two layers, and reqwest sometimes
         // already includes the inner string in its top-level Display.
-        if !s.is_empty() && !out.ends_with(&s) {
+        if !frame.is_empty() && !out.ends_with(&frame) {
             out.push_str(": ");
-            out.push_str(&s);
+            out.push_str(&frame);
         }
         error = src;
     }
@@ -167,7 +167,7 @@ pub struct VerifyChecksumError {
     pub error: ssri::Error,
 }
 
-#[derive(Debug, Display, Error, From, Diagnostic)]
+#[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum TarballError {
     #[diagnostic(code(pacquet_tarball::fetch_tarball))]
@@ -180,7 +180,12 @@ pub enum TarballError {
     #[diagnostic(code(pacquet_tarball::io_error))]
     ReadTarballEntries(std::io::Error),
 
-    #[diagnostic(code(pacquet_tarball::verify_checksum_error))]
+    #[diagnostic(
+        code(pacquet_tarball::verify_checksum_error),
+        help(
+            "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums` (or `pacquet install --update-checksums`). Otherwise treat this as a potential supply-chain issue and verify the new content first."
+        )
+    )]
     Checksum(VerifyChecksumError),
 
     #[from(ignore)]
@@ -662,7 +667,8 @@ fn extract_tarball_entries(
         // explicit. If the clock ever reports something
         // unrepresentable, drop the timestamp — the `checkedAt` field
         // is optional and pnpm tolerates `None`.
-        let checked_at = UNIX_EPOCH.elapsed().ok().and_then(|x| u64::try_from(x.as_millis()).ok());
+        let checked_at =
+            UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
         let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
         let file_attrs = CafsFileInfo {
             digest: format!("{file_hash:x}"),
@@ -738,7 +744,7 @@ fn extract_zip_entries(
     // verbatim. The trailing slash anchors the strip so a prefix of
     // `foo` doesn't accidentally consume `foobar/...`.
     let basename_prefix: Option<String> =
-        archive_prefix.filter(|p| !p.is_empty()).map(|p| format!("{p}/"));
+        archive_prefix.filter(|prefix| !prefix.is_empty()).map(|prefix| format!("{prefix}/"));
 
     for i in 0..entry_count {
         let mut entry = archive.by_index(i).map_err(|source| TarballError::ReadZipArchive {
@@ -792,8 +798,8 @@ fn extract_zip_entries(
         // path-component walk below covers every case.
         let normalized: String = enclosed
             .components()
-            .map(|c| match c {
-                Component::Normal(s) => s.to_string_lossy().into_owned(),
+            .map(|component| match component {
+                Component::Normal(name) => name.to_string_lossy().into_owned(),
                 _ => unreachable!("enclosed_name returns only Normal components: {:?}", enclosed),
             })
             .collect::<Vec<_>>()
@@ -860,7 +866,8 @@ fn extract_zip_entries(
             .map_err(TarballError::WriteCasFile)?;
 
         let file_size = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-        let checked_at = UNIX_EPOCH.elapsed().ok().and_then(|x| u64::try_from(x.as_millis()).ok());
+        let checked_at =
+            UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
         let file_attrs = CafsFileInfo {
             digest: format!("{file_hash:x}"),
             mode: file_mode,
@@ -1404,7 +1411,7 @@ fn is_transient_error(err: &TarballError) -> bool {
     clippy::too_many_arguments,
     reason = "arg count is set by upstream pnpm's fetcher signature"
 )]
-async fn fetch_and_extract_once<R: Reporter>(
+async fn fetch_and_extract_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
     package_integrity: &Integrity,
@@ -1465,7 +1472,7 @@ async fn fetch_and_extract_once<R: Reporter>(
     // line), so a zero would silence every "Downloading ..." line.
     let send_result = request.send().await;
     let size = send_result.as_ref().ok().and_then(|r| r.content_length());
-    R::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+    Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
         message: FetchingProgressMessage::Started {
             attempt: attempt + 1,
@@ -1524,7 +1531,7 @@ async fn fetch_and_extract_once<R: Reporter>(
         //    to be cached at the last 500ms tick.
         const BIG_TARBALL_SIZE: u64 = 5 * 1024 * 1024;
         const IN_PROGRESS_THROTTLE: Duration = Duration::from_millis(500);
-        let emit_progress = expected_size.is_some_and(|n| n >= BIG_TARBALL_SIZE);
+        let emit_progress = expected_size.is_some_and(|size| size >= BIG_TARBALL_SIZE);
         // `None` means the leading-edge emit hasn't happened yet, so
         // the first chunk always fires. Subsequent chunks fire only
         // when the previous emit was at least 500ms ago.
@@ -1535,9 +1542,10 @@ async fn fetch_and_extract_once<R: Reporter>(
             let chunk = chunk.map_err(network_error)?;
             buf.extend_from_slice(&chunk);
             downloaded = downloaded.saturating_add(chunk.len() as u64);
-            let throttle_ready = last_emit.is_none_or(|t| t.elapsed() >= IN_PROGRESS_THROTTLE);
+            let throttle_ready =
+                last_emit.is_none_or(|instant| instant.elapsed() >= IN_PROGRESS_THROTTLE);
             if emit_progress && throttle_ready {
-                R::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+                Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
                     level: LogLevel::Debug,
                     message: FetchingProgressMessage::InProgress {
                         downloaded,
@@ -1554,7 +1562,7 @@ async fn fetch_and_extract_once<R: Reporter>(
         // after the previous tick would leave consumers stuck at a
         // stale `downloaded` value below the real total.
         if emit_progress && downloaded != last_emitted_downloaded {
-            R::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+            Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
                 level: LogLevel::Debug,
                 message: FetchingProgressMessage::InProgress {
                     downloaded,
@@ -1644,8 +1652,8 @@ async fn fetch_and_extract_once<R: Reporter>(
 /// Emit `pnpm:progress found_in_store` for a (package_id, requester)
 /// pair the cache resolved without a download. Mirrors pnpm's emit at
 /// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L435>.
-fn emit_progress_found_in_store<R: Reporter>(package_id: &str, requester: &str) {
-    R::emit(&LogEvent::Progress(ProgressLog {
+fn emit_progress_found_in_store<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+    Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::FoundInStore {
             package_id: package_id.to_owned(),
@@ -1661,7 +1669,7 @@ fn emit_progress_found_in_store<R: Reporter>(package_id: &str, requester: &str) 
 // ignore_file_pattern is the per-fetch archive filter. Bundling
 // into a struct would just push the same fields into a wrapper.
 #[allow(clippy::too_many_arguments)]
-async fn fetch_and_extract_with_retry<R: Reporter>(
+async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
     package_integrity: &Integrity,
@@ -1675,7 +1683,7 @@ async fn fetch_and_extract_with_retry<R: Reporter>(
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut attempt: u32 = 0;
     loop {
-        let result = fetch_and_extract_once::<R>(
+        let result = fetch_and_extract_once::<Reporter>(
             http_client,
             package_url,
             package_integrity,
@@ -1693,7 +1701,7 @@ async fn fetch_and_extract_with_retry<R: Reporter>(
                 // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L435>:
                 // one event per (resolved) package once the tarball
                 // has been pulled from the network and extracted.
-                R::emit(&LogEvent::Progress(ProgressLog {
+                Reporter::emit(&LogEvent::Progress(ProgressLog {
                     level: LogLevel::Debug,
                     message: ProgressMessage::Fetched {
                         package_id: package_id.to_owned(),
@@ -1733,7 +1741,7 @@ async fn fetch_and_extract_with_retry<R: Reporter>(
                 // is one-indexed (the failed attempt) to match
                 // pnpm's wire shape; pacquet's loop counter is
                 // zero-indexed.
-                R::emit(&LogEvent::RequestRetry(RequestRetryLog {
+                Reporter::emit(&LogEvent::RequestRetry(RequestRetryLog {
                     level: LogLevel::Debug,
                     attempt: attempt + 1,
                     error: tarball_error_to_request_retry(&err),
@@ -1772,11 +1780,53 @@ impl<'a> DownloadTarballToStore<'a> {
     /// filter.
     ///
     /// [`ignore_file_pattern`]: DownloadTarballToStore::ignore_file_pattern
-    pub async fn run_with_mem_cache<R: Reporter>(
+    pub async fn run_with_mem_cache<Reporter: self::Reporter>(
         self,
         mem_cache: &'a MemCache,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let &DownloadTarballToStore { package_url, package_id, requester, .. } = &self;
+        let &DownloadTarballToStore {
+            package_url,
+            package_id,
+            package_integrity,
+            prefetched_cas_paths,
+            requester,
+            ..
+        } = &self;
+
+        // Warm-cache fast path: when [`prefetch_cas_paths`] already
+        // batched the `(integrity, pkg_id)` row in at install start,
+        // return the `Arc<HashMap>` straight through instead of
+        // calling [`Self::run_without_mem_cache`] (which clones the
+        // inner per-file map by value before wrapping it in a fresh
+        // `Arc`). On warm installs every snapshot lands here; the
+        // deep clone the previous path was paying — entire
+        // `HashMap<String, PathBuf>` per snapshot, where each entry
+        // is a `String` + `PathBuf` allocation — adds up to dominant
+        // memory traffic by 1k+ snapshots.
+        //
+        // Also stash the `Arc` into `mem_cache` keyed by URL so a
+        // second fetch of the same tarball (e.g. peer-resolved
+        // variants of the same package) hits the in-memory cache
+        // without re-checking the prefetched map. Matches what the
+        // normal path does with the result of
+        // [`Self::run_without_mem_cache`].
+        if let Some(prefetched) = prefetched_cas_paths {
+            let cache_key = store_index_key(&package_integrity.to_string(), package_id);
+            if let Some(cas_paths) = prefetched.get(&cache_key) {
+                tracing::info!(
+                    target: "pacquet::download",
+                    ?package_url,
+                    ?package_id,
+                    "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
+                );
+                emit_progress_found_in_store::<Reporter>(package_id, requester);
+                let cas_paths = Arc::clone(cas_paths);
+                let cache_lock =
+                    Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
+                mem_cache.insert(package_url.to_string(), cache_lock);
+                return Ok(cas_paths);
+            }
+        }
 
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?
         // TODO: If it's not implemented yet, implement it
@@ -1787,20 +1837,40 @@ impl<'a> DownloadTarballToStore<'a> {
         // `mem_cache.insert` for a key that hashes to the same shard,
         // block on the write side, and starve every worker. Clone the
         // inner `Arc` out and drop the `Ref` immediately.
-        let existing = mem_cache.get(package_url).map(|r| Arc::clone(r.value()));
+        let existing = mem_cache.get(package_url).map(|entry| Arc::clone(entry.value()));
         if let Some(cache_lock) = existing {
-            let notify = match &*cache_lock.write().await {
+            // `pnpm:progress` fires exactly once per URL — only the
+            // first writer's `run_without_mem_cache` call emits.
+            // Mirrors pnpm's
+            // [`packageRequester`](https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L410-L436),
+            // which attaches the emit via `.then()` on the first
+            // writer's promise; later `await`s of the same promise
+            // do not re-trigger the handler.
+            //
+            // Read-lock the state read: the variant inspection below
+            // doesn't mutate anything, and a `write().await` would
+            // serialize every late visitor for a popular tarball
+            // (e.g. dozens of peer-suffix variants of the same
+            // package) behind a single exclusive guard, even though
+            // they're all just observing the in-progress / available
+            // flag. The owner branch below is the only writer; the
+            // RwLock's reader-writer fairness guarantees the owner
+            // still makes progress.
+            let notify = match &*cache_lock.read().await {
                 CacheValue::Available(cas_paths) => {
-                    // The mem cache deduplicates concurrent fetches of the
-                    // same tarball URL. The first requester goes through
-                    // `run_without_mem_cache` and emits `fetched` /
-                    // `found_in_store` for *its* package_id; later
-                    // requesters share the bytes here without reaching
-                    // those emit sites. From this requester's
-                    // perspective the package is already in the store, so
-                    // emit `found_in_store` so the per-package counters
-                    // in pnpm's reporter increment correctly.
-                    emit_progress_found_in_store::<R>(package_id, requester);
+                    // Another task (typically the resolve-time
+                    // `PrefetchingResolver` spawn) already populated
+                    // the slot. The owner's `run_without_mem_cache`
+                    // path emitted `pnpm:progress fetched` /
+                    // `found_in_store` on its own reporter — usually
+                    // the silent prefetcher reporter, so the install
+                    // pass needs to emit the equivalent now from its
+                    // own reporter so consumers see the
+                    // `resolved → found_in_store → imported` triple.
+                    // Treat this as a `found_in_store` (the content
+                    // is already on disk / in cache from our
+                    // perspective).
+                    emit_progress_found_in_store::<Reporter>(package_id, requester);
                     return Ok(Arc::clone(cas_paths));
                 }
                 CacheValue::InProgress(notify) => Arc::clone(notify),
@@ -1815,11 +1885,11 @@ impl<'a> DownloadTarballToStore<'a> {
             notify.notified().await;
             match &*cache_lock.read().await {
                 CacheValue::Available(cas_paths) => {
-                    // Same rationale as the immediate-`Available`
-                    // branch above: this requester didn't drive the
-                    // fetch, but its package_id still needs
-                    // `found_in_store` for the counter to advance.
-                    emit_progress_found_in_store::<R>(package_id, requester);
+                    // Same rationale as the pre-notify `Available`
+                    // branch above — emit `found_in_store` so the
+                    // install pass's reporter sees the event the
+                    // owner's silent emit dropped.
+                    emit_progress_found_in_store::<Reporter>(package_id, requester);
                     Ok(Arc::clone(cas_paths))
                 }
                 CacheValue::Failed => {
@@ -1852,7 +1922,7 @@ impl<'a> DownloadTarballToStore<'a> {
             // freshly-started fetch (e.g., via `pacquet add` after
             // a transient network failure) retry without inheriting
             // the failed slot.
-            let result = self.run_without_mem_cache::<R>().await;
+            let result = self.run_without_mem_cache::<Reporter>().await;
             match result {
                 Ok(cas_paths) => {
                     let cas_paths = Arc::new(cas_paths);
@@ -1875,7 +1945,7 @@ impl<'a> DownloadTarballToStore<'a> {
     }
 
     /// Execute the subroutine without an in-memory cache.
-    pub async fn run_without_mem_cache<R: Reporter>(
+    pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
         let &DownloadTarballToStore {
@@ -1941,7 +2011,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping download",
             );
-            emit_progress_found_in_store::<R>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester);
             return Ok((**cas_paths).clone());
         }
         if let Some(cas_paths) = load_cached_cas_paths(
@@ -1954,7 +2024,7 @@ impl<'a> DownloadTarballToStore<'a> {
         .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
-            emit_progress_found_in_store::<R>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester);
             return Ok(cas_paths);
         }
 
@@ -1989,7 +2059,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // parsing recovers via re-fetch instead of aborting the install
         // (#259). Only HTTP 401 / 403 / 404 fail fast — see
         // [`is_transient_error`].
-        let (cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<R>(
+        let (cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
             http_client,
             package_url,
             package_integrity,
@@ -2048,7 +2118,7 @@ impl<'a> DownloadTarballToStore<'a> {
     clippy::too_many_arguments,
     reason = "arg count is set by upstream pnpm's fetcher signature"
 )]
-async fn fetch_and_extract_zip_once<R: Reporter>(
+async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
     package_integrity: &Integrity,
@@ -2078,7 +2148,7 @@ async fn fetch_and_extract_zip_once<R: Reporter>(
 
     let send_result = request.send().await;
     let size = send_result.as_ref().ok().and_then(|r| r.content_length());
-    R::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+    Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
         message: FetchingProgressMessage::Started {
             attempt: attempt + 1,
@@ -2109,7 +2179,7 @@ async fn fetch_and_extract_zip_once<R: Reporter>(
 
         const BIG_TARBALL_SIZE: u64 = 5 * 1024 * 1024;
         const IN_PROGRESS_THROTTLE: Duration = Duration::from_millis(500);
-        let emit_progress = expected_size.is_some_and(|n| n >= BIG_TARBALL_SIZE);
+        let emit_progress = expected_size.is_some_and(|size| size >= BIG_TARBALL_SIZE);
         let mut last_emit: Option<Instant> = None;
         let mut last_emitted_downloaded: u64 = 0;
         let mut downloaded: u64 = 0;
@@ -2117,9 +2187,10 @@ async fn fetch_and_extract_zip_once<R: Reporter>(
             let chunk = chunk.map_err(network_error)?;
             buf.extend_from_slice(&chunk);
             downloaded = downloaded.saturating_add(chunk.len() as u64);
-            let throttle_ready = last_emit.is_none_or(|t| t.elapsed() >= IN_PROGRESS_THROTTLE);
+            let throttle_ready =
+                last_emit.is_none_or(|instant| instant.elapsed() >= IN_PROGRESS_THROTTLE);
             if emit_progress && throttle_ready {
-                R::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+                Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
                     level: LogLevel::Debug,
                     message: FetchingProgressMessage::InProgress {
                         downloaded,
@@ -2131,7 +2202,7 @@ async fn fetch_and_extract_zip_once<R: Reporter>(
             }
         }
         if emit_progress && downloaded != last_emitted_downloaded {
-            R::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+            Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
                 level: LogLevel::Debug,
                 message: FetchingProgressMessage::InProgress {
                     downloaded,
@@ -2204,7 +2275,7 @@ async fn fetch_and_extract_zip_once<R: Reporter>(
     clippy::too_many_arguments,
     reason = "arg count is set by upstream pnpm's fetcher signature"
 )]
-async fn fetch_and_extract_zip_with_retry<R: Reporter>(
+async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
     package_integrity: &Integrity,
@@ -2218,7 +2289,7 @@ async fn fetch_and_extract_zip_with_retry<R: Reporter>(
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut attempt: u32 = 0;
     loop {
-        let result = fetch_and_extract_zip_once::<R>(
+        let result = fetch_and_extract_zip_once::<Reporter>(
             http_client,
             package_url,
             package_integrity,
@@ -2232,7 +2303,7 @@ async fn fetch_and_extract_zip_with_retry<R: Reporter>(
         .await;
         match result {
             Ok(value) => {
-                R::emit(&LogEvent::Progress(ProgressLog {
+                Reporter::emit(&LogEvent::Progress(ProgressLog {
                     level: LogLevel::Debug,
                     message: ProgressMessage::Fetched {
                         package_id: package_id.to_owned(),
@@ -2263,7 +2334,7 @@ async fn fetch_and_extract_zip_with_retry<R: Reporter>(
                     ?err,
                     "Zip archive fetch failed; retrying after backoff",
                 );
-                R::emit(&LogEvent::RequestRetry(RequestRetryLog {
+                Reporter::emit(&LogEvent::RequestRetry(RequestRetryLog {
                     level: LogLevel::Debug,
                     attempt: attempt + 1,
                     error: tarball_error_to_request_retry(&err),
@@ -2336,7 +2407,7 @@ impl<'a> DownloadZipArchiveToStore<'a> {
     /// prefetch-cas-paths reuse, same SQLite-index lookup, same
     /// store-index writer queue — only the network and extract
     /// path differs (zip instead of gzip + tar).
-    pub async fn run_without_mem_cache<R: Reporter>(
+    pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
         let &DownloadZipArchiveToStore {
@@ -2372,7 +2443,7 @@ impl<'a> DownloadZipArchiveToStore<'a> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping zip download",
             );
-            emit_progress_found_in_store::<R>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester);
             return Ok((**cas_paths).clone());
         }
         if let Some(cas_paths) = load_cached_cas_paths(
@@ -2385,7 +2456,7 @@ impl<'a> DownloadZipArchiveToStore<'a> {
         .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping zip download");
-            emit_progress_found_in_store::<R>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester);
             return Ok(cas_paths);
         }
 
@@ -2407,7 +2478,7 @@ impl<'a> DownloadZipArchiveToStore<'a> {
 
         tracing::info!(target: "pacquet::download", ?package_url, "New cache (zip)");
 
-        let (cas_paths, pkg_files_idx) = fetch_and_extract_zip_with_retry::<R>(
+        let (cas_paths, pkg_files_idx) = fetch_and_extract_zip_with_retry::<Reporter>(
             http_client,
             package_url,
             package_integrity,

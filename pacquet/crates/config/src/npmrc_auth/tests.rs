@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::{EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
 use crate::Config;
 use pacquet_network::NoProxySetting;
@@ -35,7 +37,7 @@ impl EnvVar for NoEnv {
 #[test]
 fn picks_up_registry_and_normalises_trailing_slash() {
     let ini = "registry=https://r.example\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.registry.as_deref(), Some("https://r.example"));
 
     let mut config = Config::new();
@@ -46,7 +48,8 @@ fn picks_up_registry_and_normalises_trailing_slash() {
 #[test]
 fn preserves_existing_trailing_slash() {
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>("registry=https://r.example/\n").apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>("registry=https://r.example/\n", Path::new(""))
+        .apply_to::<NoEnv>(&mut config);
     assert_eq!(config.registry, "https://r.example/");
 }
 
@@ -56,13 +59,18 @@ fn ignores_non_auth_keys() {
     // from pnpm-workspace.yaml now. Writing them to .npmrc should be a
     // no-op.
     //
-    // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` to compute
-    // `store_dir`, and the env-mutating tests in `defaults`
-    // toggle those vars under `EnvGuard`. Hold the same lock so a
-    // parallel test can't change the env between the two `Config::new()`
-    // snapshots compared below. Proper fix is dependency injection.
-    // See the TODO on `default_store_dir`.
-    let _g = pacquet_testing_utils::env_guard::EnvGuard::snapshot(["PNPM_HOME", "XDG_DATA_HOME"]);
+    // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` via the
+    // SmartDefault expression on `Config::store_dir` —
+    // `default_store_dir::<Host, _, _, _>(home::home_dir,
+    // env::current_dir)` — to compute `store_dir`. Both values come
+    // from the real process environment, but no other test in this
+    // crate mutates them anymore — the per-branch tests in
+    // `defaults::tests` and `lib::tests` drive `default_store_dir`
+    // through the dependency-injection seam (pnpm/pacquet#339,
+    // pnpm/pnpm#11708, pnpm/pacquet#343) with fake `Sys` providers,
+    // so the two `Config::new()` snapshots compared below observe
+    // the same env-derived `store_dir` even under nextest's
+    // in-process parallelism without an `EnvGuard` lock.
     let ini = "
 store-dir=/should/not/apply
 lockfile=false
@@ -71,7 +79,7 @@ node-linker=hoisted
 ";
     let config_before = Config::new();
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(ini).apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(config.store_dir, config_before.store_dir);
     assert_eq!(config.lockfile, config_before.lockfile);
     assert_eq!(config.hoist, config_before.hoist);
@@ -87,21 +95,21 @@ fn ignores_comments_and_empty_lines() {
 registry=https://r.example
 # trailing comment
 ";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.registry.as_deref(), Some("https://r.example"));
 }
 
 #[test]
 fn ignores_malformed_lines() {
     let ini = "not_a_key_value\nregistry=https://r.example\n=orphan_equals\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.registry.as_deref(), Some("https://r.example"));
 }
 
 #[test]
 fn parses_per_registry_auth_token() {
     let ini = "//npm.pkg.github.com/pnpm/:_authToken=ghp_xxx\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(
         auth.creds_by_uri
             .get("//npm.pkg.github.com/pnpm/")
@@ -113,7 +121,7 @@ fn parses_per_registry_auth_token() {
 #[test]
 fn parses_default_auth_token_and_keys_to_registry() {
     let ini = "_authToken=top-secret\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.default_creds.auth_token.as_deref(), Some("top-secret"));
 
     let mut config = Config::new();
@@ -133,7 +141,7 @@ fn env_replace_substitutes_token() {
         }
     }
     let ini = "//reg.com/:_authToken=${TOKEN}\n";
-    let auth = NpmrcAuth::from_ini::<EnvWithToken>(ini);
+    let auth = NpmrcAuth::from_ini::<EnvWithToken>(ini, Path::new(""));
     assert_eq!(
         auth.creds_by_uri.get("//reg.com/").map(|creds| creds.auth_token.as_deref()),
         Some(Some("abc123")),
@@ -146,7 +154,7 @@ fn env_replace_failure_warns_and_drops_unresolved_to_empty() {
     // "" so a downstream `Authorization: Bearer ...` header is never sent with a
     // literal placeholder. See https://github.com/pnpm/pnpm/issues/11513.
     let ini = "//reg.com/:_authToken=${MISSING}\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(
         auth.creds_by_uri.get("//reg.com/").map(|creds| creds.auth_token.as_deref()),
         Some(Some("")),
@@ -168,7 +176,7 @@ fn env_replace_failure_preserves_resolved_and_default_placeholders() {
         }
     }
     let ini = "//reg.com/:_authToken=${SET}-${UNSET}-${DEFAULTED:-fallback}\n";
-    let auth = NpmrcAuth::from_ini::<EnvWithSet>(ini);
+    let auth = NpmrcAuth::from_ini::<EnvWithSet>(ini, Path::new(""));
     assert_eq!(
         auth.creds_by_uri.get("//reg.com/").map(|creds| creds.auth_token.as_deref()),
         Some(Some("AAA--fallback")),
@@ -185,7 +193,7 @@ fn basic_auth_built_from_username_and_password() {
     let password_b64 = base64_encode(raw_password);
     let ini = format!("//reg.com/:username=alice\n//reg.com/:_password={password_b64}\n");
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(&ini).apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(
         config.auth_headers.for_url("https://reg.com/").as_deref(),
         Some(format!("Basic {}", base64_encode("alice:p@ss")).as_str()),
@@ -197,7 +205,7 @@ fn auth_pair_base64_passes_through_to_basic_header() {
     let pair = base64_encode("alice:p@ss");
     let ini = format!("//reg.com/:_auth={pair}\n");
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(&ini).apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(
         config.auth_headers.for_url("https://reg.com/").as_deref(),
         Some(format!("Basic {pair}").as_str()),
@@ -212,7 +220,7 @@ fn auth_pair_base64_passes_through_to_basic_header() {
 #[test]
 fn ini_section_headers_are_dropped_silently() {
     let ini = "[default]\nregistry=https://r.example\n[other]\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.registry.as_deref(), Some("https://r.example"));
     assert_eq!(auth.warnings, Vec::<String>::new());
 }
@@ -227,7 +235,7 @@ fn env_replace_failure_on_key_warns_and_drops_unresolved_to_empty() {
     // the typed `_authToken` field. The point of this test is to exercise
     // the warning + lossy-substitution branch at the top of `from_ini`.
     let ini = "${MISSING}_authToken=abc\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.default_creds.auth_token.as_deref(), Some("abc"));
     assert!(auth.warnings.iter().any(|warning| warning.contains("${MISSING}")));
 }
@@ -240,7 +248,7 @@ fn top_level_auth_pair_keys_to_default_registry_basic_header() {
     let pair = base64_encode("bob:hunter2");
     let ini = format!("_auth={pair}\n");
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(&ini).apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(
         config.auth_headers.for_url("https://registry.npmjs.org/").as_deref(),
         Some(format!("Basic {pair}").as_str()),
@@ -253,7 +261,7 @@ fn top_level_username_password_keys_to_default_registry_basic_header() {
     let password_b64 = base64_encode(raw_password);
     let ini = format!("username=bob\n_password={password_b64}\n");
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(&ini).apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(
         config.auth_headers.for_url("https://registry.npmjs.org/").as_deref(),
         Some(format!("Basic {}", base64_encode("bob:hunter2")).as_str()),
@@ -267,7 +275,7 @@ fn top_level_username_password_keys_to_default_registry_basic_header() {
 fn lone_per_registry_password_produces_no_header() {
     let ini = format!("//reg.com/:_password={}\n", base64_encode("solo"));
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(&ini).apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(config.auth_headers.for_url("https://reg.com/"), None);
 }
 
@@ -281,7 +289,7 @@ fn per_registry_username_password_apply_through_build_auth_headers() {
     let password_b64 = base64_encode(raw_password);
     let ini = format!("//reg.example/:username=alice\n//reg.example/:_password={password_b64}\n");
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(&ini).apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(
         config.auth_headers.for_url("https://reg.example/foo").as_deref(),
         Some(format!("Basic {}", base64_encode("alice:hunter2")).as_str()),
@@ -296,7 +304,7 @@ fn per_registry_username_password_apply_through_build_auth_headers() {
 #[test]
 fn unknown_per_registry_suffix_is_silently_dropped() {
     let ini = "//reg.example/:registry=https://other.example/\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert!(auth.creds_by_uri.is_empty());
     assert_eq!(auth.default_creds, RawCreds::default());
     assert_eq!(auth.warnings, Vec::<String>::new());
@@ -308,7 +316,7 @@ fn unknown_per_registry_suffix_is_silently_dropped() {
 #[test]
 fn apply_registry_and_warn_drains_warnings() {
     let ini = "//reg.com/:_authToken=${MISSING}\n";
-    let mut auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let mut auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.warnings.len(), 1);
     let mut config = Config::new();
     auth.apply_registry_and_warn(&mut config);
@@ -327,7 +335,7 @@ fn invalid_base64_password_falls_back_to_raw_value() {
     // returns `None` and the raw string is used as the password.
     let ini = "//reg.com/:username=alice\n//reg.com/:_password=raw*pw\n";
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(ini).apply_to::<NoEnv>(&mut config);
+    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(
         config.auth_headers.for_url("https://reg.com/").as_deref(),
         Some(format!("Basic {}", base64_encode("alice:raw*pw")).as_str()),
@@ -349,6 +357,9 @@ fn base64_decode_covers_every_alphabet_branch() {
     assert_eq!(base64_decode("fn5+").as_deref(), Some("~~~"));
     // `=` padding short-circuits the loop on a 2-byte input.
     assert_eq!(base64_decode("aGk=").as_deref(), Some("hi"));
+    // Redundant trailing padding is ignored, matching pnpm's tolerant
+    // credential decoder.
+    assert_eq!(base64_decode("aGk===").as_deref(), Some("hi"));
     // Invalid byte returns None so the parser keeps the raw
     // value verbatim. `*` is not in the alphabet.
     assert_eq!(base64_decode("not*base64"), None);
@@ -358,19 +369,21 @@ fn base64_decode_covers_every_alphabet_branch() {
 
 #[test]
 fn parses_https_proxy_from_ini() {
-    let auth = NpmrcAuth::from_ini::<NoEnv>("https-proxy=http://proxy.example:8080\n");
+    let auth =
+        NpmrcAuth::from_ini::<NoEnv>("https-proxy=http://proxy.example:8080\n", Path::new(""));
     assert_eq!(auth.https_proxy.as_deref(), Some("http://proxy.example:8080"));
 }
 
 #[test]
 fn parses_http_proxy_from_ini() {
-    let auth = NpmrcAuth::from_ini::<NoEnv>("http-proxy=http://proxy.example:3128\n");
+    let auth =
+        NpmrcAuth::from_ini::<NoEnv>("http-proxy=http://proxy.example:3128\n", Path::new(""));
     assert_eq!(auth.http_proxy.as_deref(), Some("http://proxy.example:3128"));
 }
 
 #[test]
 fn parses_legacy_proxy_key_from_ini() {
-    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=http://legacy.example:8080\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=http://legacy.example:8080\n", Path::new(""));
     assert_eq!(auth.legacy_proxy.as_deref(), Some("http://legacy.example:8080"));
     assert_eq!(auth.https_proxy, None, "legacy `proxy` is its own slot");
 }
@@ -379,17 +392,23 @@ fn parses_legacy_proxy_key_from_ini() {
 fn no_proxy_and_noproxy_aliases_last_wins() {
     // pnpm pipes both spellings into a single `noProxy` slot — the last
     // assignment in `.npmrc` order wins, same as upstream's single field.
-    let auth = NpmrcAuth::from_ini::<NoEnv>("no-proxy=first.example\nnoproxy=second.example\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>(
+        "no-proxy=first.example\nnoproxy=second.example\n",
+        Path::new(""),
+    );
     assert_eq!(auth.no_proxy.as_deref(), Some("second.example"));
 
-    let auth = NpmrcAuth::from_ini::<NoEnv>("noproxy=second.example\nno-proxy=first.example\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>(
+        "noproxy=second.example\nno-proxy=first.example\n",
+        Path::new(""),
+    );
     assert_eq!(auth.no_proxy.as_deref(), Some("first.example"));
 }
 
 #[test]
 fn cascade_https_proxy_uses_legacy_proxy_when_unset() {
     // Mirrors upstream: `httpsProxy ?? proxy ?? env`.
-    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=http://legacy.example:8080\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=http://legacy.example:8080\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://legacy.example:8080"));
@@ -399,6 +418,7 @@ fn cascade_https_proxy_uses_legacy_proxy_when_unset() {
 fn cascade_explicit_https_proxy_wins_over_legacy_key() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "https-proxy=http://https.example:8080\nproxy=http://legacy.example:8080\n",
+        Path::new(""),
     );
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
@@ -414,7 +434,8 @@ fn cascade_http_proxy_uses_resolved_https_proxy() {
         EnvHttpButOverridden,
         &[("HTTP_PROXY", "http://env.example:80"), ("PROXY", "http://envproxy.example:80")]
     );
-    let auth = NpmrcAuth::from_ini::<NoEnv>("https-proxy=http://https.example:8080\n");
+    let auth =
+        NpmrcAuth::from_ini::<NoEnv>("https-proxy=http://https.example:8080\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<EnvHttpButOverridden>(&mut config);
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https.example:8080"));
@@ -422,7 +443,7 @@ fn cascade_http_proxy_uses_resolved_https_proxy() {
 
 #[test]
 fn cascade_no_proxy_true_literal_becomes_bypass_variant() {
-    let auth = NpmrcAuth::from_ini::<NoEnv>("no-proxy=true\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("no-proxy=true\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(config.proxy.no_proxy, Some(NoProxySetting::Bypass));
@@ -430,7 +451,8 @@ fn cascade_no_proxy_true_literal_becomes_bypass_variant() {
 
 #[test]
 fn cascade_no_proxy_comma_list_trimmed() {
-    let auth = NpmrcAuth::from_ini::<NoEnv>("no-proxy= foo.example , , bar.example ,\n");
+    let auth =
+        NpmrcAuth::from_ini::<NoEnv>("no-proxy= foo.example , , bar.example ,\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(
@@ -465,6 +487,7 @@ fn cascade_npmrc_value_wins_over_env() {
     );
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "https-proxy=http://npmrc.example:8080\nno-proxy=npmrc.example\n",
+        Path::new(""),
     );
     let mut config = Config::new();
     auth.apply_to::<ConflictingEnv>(&mut config);
@@ -511,35 +534,85 @@ fn parses_inline_ca_from_ini() {
     // INI doesn't allow real newlines in values, but for round-trip
     // through this test we still parse `value` as a single line. The
     // important assertion is that the value lands on `auth.ca`.
-    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
     assert_eq!(auth.ca.len(), 1, "auth.ca={:?}", auth.ca);
 }
 
 #[test]
 fn parses_cafile_path_from_ini() {
-    let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=/etc/pacquet/ca.pem\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=/etc/pacquet/ca.pem\n", Path::new(""));
     assert_eq!(auth.cafile.as_deref(), Some("/etc/pacquet/ca.pem"));
+}
+
+// Regression for https://github.com/pnpm/pnpm/issues/11624.
+#[test]
+fn cafile_relative_path_resolves_against_npmrc_dir() {
+    let npmrc_dir = tempfile::tempdir().expect("tempdir");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=certs/ca.pem\n", npmrc_dir.path());
+    let expected = npmrc_dir.path().join("certs/ca.pem").to_string_lossy().into_owned();
+    assert_eq!(auth.cafile.as_deref(), Some(expected.as_str()));
+}
+
+#[test]
+fn cafile_absolute_path_passes_through_unchanged() {
+    let npmrc_dir = tempfile::tempdir().expect("tempdir");
+    let abs_cafile = tempfile::NamedTempFile::new().expect("tempfile");
+    let abs_path = abs_cafile.path().to_string_lossy().into_owned();
+    let auth = NpmrcAuth::from_ini::<NoEnv>(&format!("cafile={abs_path}\n"), npmrc_dir.path());
+    assert_eq!(auth.cafile.as_deref(), Some(abs_path.as_str()));
+}
+
+#[test]
+fn cafile_empty_value_passes_through_unchanged() {
+    // An explicit `cafile=` (empty) means "no cafile". Joining the
+    // npmrc dir onto an empty path would incorrectly load the dir
+    // itself, so empty must short-circuit.
+    let npmrc_dir = tempfile::tempdir().expect("tempdir");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=\n", npmrc_dir.path());
+    assert_eq!(auth.cafile.as_deref(), Some(""));
+}
+
+// End-to-end regression for https://github.com/pnpm/pnpm/issues/11624.
+#[test]
+fn cafile_relative_path_loads_ca_from_disk_via_apply() {
+    use std::io::Write;
+    let npmrc_dir = tempfile::tempdir().expect("tempdir");
+    let certs_dir = npmrc_dir.path().join("certs");
+    std::fs::create_dir_all(&certs_dir).expect("certs dir");
+    let mut ca_file = std::fs::File::create(certs_dir.join("ca.pem")).expect("create ca.pem");
+    ca_file.write_all(TEST_CA_PEM.as_bytes()).expect("write");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=certs/ca.pem\n", npmrc_dir.path());
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.tls.ca.len(), 1, "tls.ca={:?}", config.tls.ca);
+    assert!(config.tls.ca[0].contains("BEGIN CERTIFICATE"));
 }
 
 #[test]
 fn parses_cert_and_key_from_ini() {
     let ini = "cert=cert-pem\nkey=key-pem\n";
-    let auth = NpmrcAuth::from_ini::<NoEnv>(ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.cert.as_deref(), Some("cert-pem"));
     assert_eq!(auth.key.as_deref(), Some("key-pem"));
 }
 
 #[test]
 fn parses_strict_ssl_true_and_false() {
-    assert_eq!(NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n").strict_ssl, Some(true));
-    assert_eq!(NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n").strict_ssl, Some(false));
+    assert_eq!(
+        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).strict_ssl,
+        Some(true),
+    );
+    assert_eq!(
+        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n", Path::new("")).strict_ssl,
+        Some(false),
+    );
 }
 
 #[test]
 fn strict_ssl_invalid_value_silently_drops() {
     // pnpm/nopt drops non-boolean values. Pacquet does the same so
     // the per-emit-site `?? true` default kicks in.
-    let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=maybe\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=maybe\n", Path::new(""));
     assert_eq!(auth.strict_ssl, None);
 }
 
@@ -550,13 +623,13 @@ fn strict_ssl_invalid_value_resets_prior_value() {
     // parser silently kept the earlier `false`, a typo on a later
     // line would leave TLS verification disabled — silently — until
     // the user noticed.
-    let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\nstrict-ssl=oops\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\nstrict-ssl=oops\n", Path::new(""));
     assert_eq!(auth.strict_ssl, None);
 }
 
 #[test]
 fn parses_local_address_from_ini() {
-    let auth = NpmrcAuth::from_ini::<NoEnv>("local-address=10.0.0.5\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("local-address=10.0.0.5\n", Path::new(""));
     assert_eq!(auth.local_address.as_deref(), Some("10.0.0.5"));
 }
 
@@ -705,6 +778,7 @@ fn defaults_leave_tls_config_empty() {
 fn parses_scoped_inline_ca() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "//reg.example.com/:ca=-----BEGIN CERTIFICATE-----\\nMIIB-----END CERTIFICATE-----\n",
+        Path::new(""),
     );
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     let ca = entry.ca.as_deref().expect("ca set");
@@ -718,7 +792,7 @@ fn parses_scoped_cafile_reads_from_disk() {
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     tmp.as_file().write_all(TEST_CA_PEM.as_bytes()).expect("write");
     let ini = format!("//reg.example.com/:cafile={}\n", tmp.path().display());
-    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     let ca = entry.ca.as_deref().expect("ca set");
     assert!(ca.contains("BEGIN CERTIFICATE"), "expected PEM contents from cafile: {ca:?}");
@@ -726,12 +800,15 @@ fn parses_scoped_cafile_reads_from_disk() {
 
 #[test]
 fn parses_scoped_cafile_missing_silently_dropped() {
-    let auth = NpmrcAuth::from_ini::<NoEnv>("//reg.example.com/:cafile=/nonexistent/path/ca.pem\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>(
+        "//reg.example.com/:cafile=/nonexistent/path/ca.pem\n",
+        Path::new(""),
+    );
     // Either the entry doesn't exist, or it exists with `ca = None`.
     // `PerRegistryTls::from_map` filters all-`None` entries later;
     // here the parse-time behavior is "no entry written".
     assert!(
-        auth.tls_by_uri.get("//reg.example.com/").is_none_or(|e| e.ca.is_none()),
+        auth.tls_by_uri.get("//reg.example.com/").is_none_or(|entry| entry.ca.is_none()),
         "missing cafile must not produce a non-None ca slot: {:?}",
         auth.tls_by_uri,
     );
@@ -741,6 +818,7 @@ fn parses_scoped_cafile_missing_silently_dropped() {
 fn parses_scoped_cert_and_key() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "//reg.example.com/:cert=cert-pem\n//reg.example.com/:key=key-pem\n",
+        Path::new(""),
     );
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.cert.as_deref(), Some("cert-pem"));
@@ -759,7 +837,7 @@ fn parses_scoped_certfile_and_keyfile() {
         tmp_cert.path().display(),
         tmp_key.path().display(),
     );
-    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.cert.as_deref(), Some("CERT-CONTENTS"));
     assert_eq!(entry.key.as_deref(), Some("KEY-CONTENTS"));
@@ -776,7 +854,7 @@ fn scoped_inline_and_file_share_same_slot_last_wins() {
         "//reg.example.com/:cert=inline\n//reg.example.com/:certfile={}\n",
         tmp.path().display(),
     );
-    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini);
+    let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.cert.as_deref(), Some("FROM-FILE"));
 }
@@ -786,7 +864,7 @@ fn scoped_n_escape_expansion_only_on_inline() {
     // pnpm's `:ca=...` value goes through `.replace(/\\n/g, '\n')`.
     // The `:cafile` variant reads from disk and doesn't apply the
     // replacement (the file already has real newlines).
-    let auth = NpmrcAuth::from_ini::<NoEnv>("//reg.example.com/:ca=line1\\nline2\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("//reg.example.com/:ca=line1\\nline2\n", Path::new(""));
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.ca.as_deref(), Some("line1\nline2"));
 }
@@ -795,6 +873,7 @@ fn scoped_n_escape_expansion_only_on_inline() {
 fn applies_tls_by_uri_to_config_drops_empty() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "//keep.example.com/:ca=ca-pem\n//drop.example.com/:registry=https://drop.example/\n",
+        Path::new(""),
     );
     // `//drop.example.com/:registry=` doesn't match any TLS suffix
     // so no `RegistryTls` entry is ever created for that prefix.
@@ -809,7 +888,7 @@ fn scoped_tls_keys_dont_collide_with_top_level() {
     // Top-level `ca=`, `cert=`, `key=`, `cafile=` arms run *before*
     // the SSL-suffix matcher. A bare `ca=` line should land on
     // `auth.ca`, not in `tls_by_uri` as registry=`""`.
-    let auth = NpmrcAuth::from_ini::<NoEnv>("ca=top-level\n");
+    let auth = NpmrcAuth::from_ini::<NoEnv>("ca=top-level\n", Path::new(""));
     assert_eq!(auth.ca, vec!["top-level".to_string()]);
     assert!(auth.tls_by_uri.is_empty(), "top-level `ca=` must not pollute tls_by_uri");
 }

@@ -9,7 +9,7 @@ use std::{borrow::Cow, fmt, str::FromStr};
 /// Syntax:
 /// * Without scope: `{bare}`
 /// * With scope: `@{scope}/bare`
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "Cow<'de, str>", into = "String")]
 pub struct PkgName {
     /// The scope (if any) without the `@` prefix.

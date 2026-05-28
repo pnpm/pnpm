@@ -1,5 +1,21 @@
 # @pnpm/dependency-path
 
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.3
 
 ### Patch Changes

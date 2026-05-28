@@ -36,15 +36,58 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 /// link's parent directory to `original`. Mirrors upstream's
 /// `resolveSrcOnTrueSymlink(src, dest) = path.relative(path.dirname(dest), src)`.
 ///
-/// Callers in pacquet always pass absolute paths; if `pathdiff` cannot
-/// produce a relative form (one side is relative, or they live on
-/// different roots — only possible on Windows), fall back to the
-/// absolute `original` so the kernel still gets a valid path. This
-/// matches upstream's behavior when `path.relative` returns an
-/// absolute path because the two arguments share no common root.
+/// Returns an absolute path when no relative form exists between the
+/// two arguments. This matches Node.js's `path.win32.relative`, which
+/// returns the absolute `to` argument when the paths share no common
+/// root (different drives, different UNC shares).
 fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
     let parent = link.parent().unwrap_or_else(|| Path::new(""));
+    relative_target_inner(original, parent)
+}
+
+#[cfg(windows)]
+fn relative_target_inner(original: &Path, parent: &Path) -> PathBuf {
+    let original = dunce::simplified(original);
+    let parent = dunce::simplified(parent);
+    if !same_path_root(original, parent) {
+        return original.to_path_buf();
+    }
     pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
+}
+
+#[cfg(not(windows))]
+fn relative_target_inner(original: &Path, parent: &Path) -> PathBuf {
+    pathdiff::diff_paths(original, parent).unwrap_or_else(|| original.to_path_buf())
+}
+
+/// Whether `a` and `b` have an identical `Component::Prefix` after
+/// `dunce::simplified`, with drive letters case-folded. UNC shares
+/// only match when their server/share are written with identical
+/// casing and variant — the check has to stay in lockstep with what
+/// `pathdiff::diff_paths` will tolerate, since a variant-tolerant or
+/// case-tolerant comparison here would let the downstream diff emit
+/// a re-anchored garbage path on a `Prefix` mismatch it cannot relate.
+#[cfg(windows)]
+fn same_path_root(a: &Path, b: &Path) -> bool {
+    fn first_prefix(path: &Path) -> Option<std::path::Prefix<'_>> {
+        match path.components().next()? {
+            std::path::Component::Prefix(p) => Some(p.kind()),
+            _ => None,
+        }
+    }
+    fn case_normalize(prefix: std::path::Prefix<'_>) -> std::path::Prefix<'_> {
+        use std::path::Prefix::{Disk, VerbatimDisk};
+        match prefix {
+            Disk(d) => Disk(d.to_ascii_uppercase()),
+            VerbatimDisk(d) => VerbatimDisk(d.to_ascii_uppercase()),
+            other => other,
+        }
+    }
+    match (first_prefix(a), first_prefix(b)) {
+        (Some(pa), Some(pb)) => case_normalize(pa) == case_normalize(pb),
+        (None, None) => true,
+        _ => false,
+    }
 }
 
 /// Remove a symlink (or junction on Windows) previously created with
@@ -104,7 +147,7 @@ pub fn read_symlink_dir(link: &Path) -> io::Result<PathBuf> {
 /// had to move an existing non-symlink occupant out of the way to
 /// install the symlink — surface it to the user if your call site
 /// has a reporter.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ForceSymlinkOutcome {
     pub reused: bool,
     pub warning: Option<String>,

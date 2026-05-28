@@ -1,5 +1,6 @@
 use super::{
-    emit_warm_snapshot_progress, integrity_equal, snapshot_cache_key, snapshot_deps_equal,
+    CreateVirtualStoreError, InstallPackageBySnapshotError, emit_warm_snapshot_progress,
+    integrity_equal, snapshot_cache_key, snapshot_deps_equal,
 };
 use pacquet_lockfile::{
     GitResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
@@ -8,8 +9,8 @@ use pacquet_lockfile::{
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
 use std::{collections::HashMap, sync::Mutex};
 
-fn name(s: &str) -> PkgName {
-    PkgName::parse(s).expect("parse pkg name")
+fn name(text: &str) -> PkgName {
+    PkgName::parse(text).expect("parse pkg name")
 }
 
 fn metadata_with_integrity(integrity: &str) -> PackageMetadata {
@@ -170,12 +171,12 @@ fn integrity_equal_treats_one_sided_missing_as_unequal() {
     assert!(!integrity_equal(Some(&with_integrity), None));
 }
 
-fn ver(s: &str) -> PkgVerPeer {
-    s.parse().expect("parse PkgVerPeer")
+fn ver(text: &str) -> PkgVerPeer {
+    text.parse().expect("parse PkgVerPeer")
 }
 
-fn key(n: &str, v: &str) -> PackageKey {
-    PackageKey::new(name(n), ver(v))
+fn key(name_text: &str, version: &str) -> PackageKey {
+    PackageKey::new(name(name_text), ver(version))
 }
 
 fn git_metadata() -> PackageMetadata {
@@ -252,4 +253,47 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
         Some(format!("{pkg}\tbuilt")),
         "git-hosted tarball resolutions must route through gitHostedStoreIndexKey",
     );
+}
+
+/// Failing closed at the cache-key site (rather than only at the
+/// install-side guard) is the whole point of the check duplication —
+/// otherwise a malformed lockfile burns the warm rayon batch before
+/// the install path fires the same error.
+#[test]
+fn snapshot_cache_key_rejects_tarball_without_integrity() {
+    let pkg = key("foo", "1.0.0");
+    let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
+
+    let err =
+        snapshot_cache_key(&pkg, &packages).expect_err("missing integrity must reject upfront");
+    assert!(
+        matches!(
+            &err,
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::MissingTarballIntegrity { package_key },
+            ) if package_key == &pkg.to_string(),
+        ),
+        "expected MissingTarballIntegrity for `{pkg}`, got {err:?}",
+    );
+}
+
+fn tarball_metadata_without_integrity() -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
+            integrity: None,
+            git_hosted: None,
+            path: None,
+        }),
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
 }

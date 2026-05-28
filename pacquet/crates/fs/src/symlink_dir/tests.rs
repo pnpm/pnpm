@@ -7,8 +7,16 @@
 //! idempotent re-symlink, retargeting a stale link, and renaming a
 //! non-symlink occupant out of the way.
 
-use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir, symlink_dir};
-use std::{fs, path::PathBuf};
+#[cfg(windows)]
+use super::relative_target_for;
+#[cfg(unix)]
+use super::symlink_dir;
+use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
+use std::fs;
+#[cfg(windows)]
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
 use tempfile::tempdir;
 
 /// On Unix, [`symlink_dir`] writes the symlink contents as a path
@@ -143,6 +151,37 @@ fn force_symlink_dir_creates_missing_parent_directories() {
     let resolved_link = fs::canonicalize(&link).expect("canonicalize the new symlink");
     let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
     assert_eq!(resolved_link, resolved_target);
+}
+
+/// Regression for the Windows CI failure where the workspace lives
+/// on `D:` and the global store (installed by `setup-pnpm`) lives on
+/// `C:`: `pathdiff::diff_paths` produced a re-anchored garbage path
+/// that Windows rejected with `ERROR_INVALID_PARAMETER` (os error 87).
+#[cfg(windows)]
+#[test]
+fn windows_cross_drive_symlink_target_falls_back_to_absolute() {
+    let target = Path::new(r"C:\Users\runneradmin\setup-pnpm\store\@babel\plugin-x");
+    let link = Path::new(r"D:\a\pnpm\pnpm\node_modules\@babel\plugin-x");
+
+    assert_eq!(relative_target_for(target, link), target);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_same_drive_symlink_target_stays_relative() {
+    let target = Path::new(r"C:\workspace\packages\pkg-a");
+    let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
+
+    assert!(relative_target_for(target, link).is_relative());
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
+    let target = Path::new(r"\\?\C:\workspace\packages\pkg-a");
+    let link = Path::new(r"C:\workspace\app\node_modules\pkg-a");
+
+    assert!(relative_target_for(target, link).is_relative());
 }
 
 /// After [`force_symlink_dir`] places a symlink, [`read_symlink_dir`]

@@ -60,7 +60,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
         with:
           tool: cross
 
@@ -71,6 +71,28 @@ jobs:
 
       - name: Add Rust Target
         run: rustup target add ${{ matrix.target }}
+
+      - name: Validate version input
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid version: '$VERSION' (expected semver like 0.2.3 or 0.2.3-rc.1)"
+            exit 1
+          fi
+
+      - name: Inject version into pacquet/crates/cli/src/cli_args.rs
+        # The version reported by `pacquet --version` is a hardcoded clap
+        # attribute. Patch it here so the binary built for the matrix leg
+        # reports the version we're about to publish.
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          file=pacquet/crates/cli/src/cli_args.rs
+          perl -i -pe 's/#\[clap\(version = "[^"]*"\)\]/#[clap(version = "'"$VERSION"'")]/' "$file"
+          grep -F "version = \"$VERSION\"" "$file"
 
       - name: Build with cross
         run: cross build -p pacquet-cli --bin pacquet --release --target=${{ matrix.target }}
@@ -166,7 +188,7 @@ jobs:
         run: |
           node pacquet/npm/pacquet/scripts/generate-packages.mjs
           cat pacquet/npm/pacquet/package.json
-          for package in pacquet/npm/pacquet*; do cat $package/package.json ; echo ; done
+          for package in pacquet/npm/pacquet* pacquet/npm/pnpm-pacquet; do cat $package/package.json ; echo ; done
 
       - name: Publish npm packages as latest
         # Auth is via npm's trusted publishing: `id-token: write` above grants
@@ -174,7 +196,12 @@ jobs:
         # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
         # token to a provenance attestation on each tarball.
         # The trailing slash on $package/ changes it to publishing the directory.
+        # `pnpm-pacquet` is the `@pnpm/pacquet` scoped alias mirror —
+        # same shim and same `@pacquet/<plat>-<arch>` optional deps as the
+        # unscoped `pacquet`. Published alongside so users can adopt
+        # either name; the per-platform binary sub-packages stay under
+        # the `@pacquet/` scope (no need to mirror those).
         run: |
-          for package in pacquet/npm/pacquet*; do
+          for package in pacquet/npm/pacquet* pacquet/npm/pnpm-pacquet; do
             pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
           done

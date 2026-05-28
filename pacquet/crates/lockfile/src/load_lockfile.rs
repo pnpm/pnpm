@@ -68,7 +68,12 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        serde_saphyr::from_str(main).map(Some).map_err(LoadLockfileError::ParseYaml)
+        serde_saphyr::from_str::<Self>(main)
+            .map(|mut lockfile| {
+                lockfile.reconstruct_missing_directory_resolutions();
+                Some(lockfile)
+            })
+            .map_err(LoadLockfileError::ParseYaml)
     }
 }
 

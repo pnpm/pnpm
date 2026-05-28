@@ -8,17 +8,23 @@ import type { PublishOptions } from 'libnpmpublish'
 
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
+export type PublishOptionsWithDefaultAccess = Omit<PublishOptions, 'access'> & {
+  access?: PublishOptions['access'] | null
+}
+
 export interface OtpPublishResponse {
   readonly ok: boolean
   readonly status: number
   readonly statusText: string
   readonly text: () => Promise<string>
+  /** Set by the registry only when the publish was staged (i.e. `stage: true` was sent). */
+  readonly stageId?: string
 }
 
 export type OtpPublishFn = (
   manifest: ExportedManifest,
   tarballData: Buffer,
-  options: PublishOptions
+  options: PublishOptionsWithDefaultAccess
 ) => Promise<OtpPublishResponse>
 
 export interface OtpContext extends BaseOtpContext {
@@ -28,7 +34,7 @@ export interface OtpContext extends BaseOtpContext {
 export interface OtpParams {
   context?: OtpContext
   manifest: ExportedManifest
-  publishOptions: PublishOptions
+  publishOptions: PublishOptionsWithDefaultAccess
   tarballData: Buffer
 }
 

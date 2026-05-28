@@ -20,10 +20,12 @@
 //! [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
 //! [`pacquet_graph_hasher::format_global_virtual_store_path`]: pacquet_graph_hasher::format_global_virtual_store_path
 
-use crate::AllowBuildPolicy;
+use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major};
 use pacquet_config::Config;
+use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_graph_hasher::{
-    DepsGraphNode, DepsStateCache, calc_graph_node_hash, format_global_virtual_store_path,
+    DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
+    format_global_virtual_store_path,
 };
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, SnapshotDepRef,
@@ -50,7 +52,7 @@ pub struct VirtualStoreLayout {
     /// and from `Config::virtual_store_dir` when GVS is disabled (the
     /// project-local `<modules_dir>/.pnpm`). Pacquet keeps the two
     /// fields separate so the legacy non-frozen
-    /// [`crate::InstallWithoutLockfile`] path can keep reading
+    /// [`crate::InstallWithFreshLockfile`] path can keep reading
     /// `virtual_store_dir` directly via [`Self::legacy`] without the
     /// frozen-lockfile derivation redirecting it. See
     /// [`Config::apply_global_virtual_store_derivation`] for the
@@ -70,18 +72,35 @@ pub struct VirtualStoreLayout {
     ///
     /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
     gvs_suffixes: Option<HashMap<PackageKey, String>>,
+
+    /// Threshold passed into
+    /// [`PkgNameVerPeer::to_virtual_store_name`] for the legacy flat-
+    /// name fallback. Mirrors pnpm's `virtualStoreDirMaxLength`: when
+    /// the escaped filename exceeds this many bytes, the tail is
+    /// replaced with a 32-char sha256 hash so the directory name fits
+    /// within filesystem limits (macOS / ext4 cap component names at
+    /// 255 bytes, but pnpm defaults to 120 to leave headroom for the
+    /// `<name>@<version>/` suffix appended below).
+    ///
+    /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
+    virtual_store_dir_max_length: usize,
 }
 
 impl VirtualStoreLayout {
     /// Construct a layout that always uses the legacy
     /// `<root>/<flat-name>` shape, regardless of any
-    /// `enable_global_virtual_store` setting on `Config`. The
-    /// non-frozen install path uses this — GVS is scoped to
-    /// frozen-lockfile installs (pnpm/pacquet#432), so without-lockfile
-    /// callers stay on the project-local flat layout even when
-    /// `enable_global_virtual_store: true` is configured.
-    pub fn legacy(root: impl Into<PathBuf>) -> Self {
-        VirtualStoreLayout { package_store_dir: root.into(), gvs_suffixes: None }
+    /// `enable_global_virtual_store` setting on `Config`. Reserved
+    /// for callers that must stay on the project-local flat layout
+    /// even under GVS — today no production install path uses this
+    /// directly. Both `InstallFrozenLockfile` and
+    /// `InstallWithoutLockfile` construct via [`Self::new`] so they
+    /// honor `Config::enable_global_virtual_store` consistently.
+    pub fn legacy(root: impl Into<PathBuf>, virtual_store_dir_max_length: usize) -> Self {
+        VirtualStoreLayout {
+            package_store_dir: root.into(),
+            gvs_suffixes: None,
+            virtual_store_dir_max_length,
+        }
     }
 
     /// Build the layout for one install. Reads
@@ -96,10 +115,22 @@ impl VirtualStoreLayout {
     /// internal `HashMap<PackageKey, String>` doesn't mutate after
     /// `new`).
     ///
-    /// `engine` is the `ENGINE_NAME`-style string that
-    /// [`pacquet_graph_hasher::engine_name`] produces; threaded in
-    /// instead of recomputed inside so the value matches whatever the
-    /// rest of the install (notably the side-effects cache key) uses.
+    /// `engine` is the install-wide fallback `ENGINE_NAME`-style
+    /// string that [`pacquet_graph_hasher::engine_name`] produces;
+    /// threaded in instead of recomputed inside so the value matches
+    /// whatever the rest of the install (notably the side-effects
+    /// cache key) uses. Snapshots that themselves pin Node via
+    /// `engines.runtime` (carried in the lockfile as
+    /// `dependencies.node: runtime:<version>`) override the fallback
+    /// per-snapshot through `find_own_runtime_node_major` — the
+    /// engine portion of the hash then tracks the Node that pnpm's
+    /// bin linker would spawn for that pinning package's lifecycle
+    /// scripts (see
+    /// [`bins/linker/src/index.ts:229-237`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L229-L237)).
+    /// Mirrors upstream's
+    /// [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
+    /// branch in `@pnpm/deps.graph-hasher`.
+    ///
     /// `None` propagates straight into
     /// [`calc_graph_node_hash`]'s `engine` parameter — `None` and
     /// `Some("")` produce *different* GVS hashes (the former omits
@@ -143,11 +174,20 @@ impl VirtualStoreLayout {
         } else {
             config.virtual_store_dir.clone()
         };
+        let virtual_store_dir_max_length = config.virtual_store_dir_max_length as usize;
         if !config.enable_global_virtual_store {
-            return VirtualStoreLayout { package_store_dir, gvs_suffixes: None };
+            return VirtualStoreLayout {
+                package_store_dir,
+                gvs_suffixes: None,
+                virtual_store_dir_max_length,
+            };
         }
         let Some(snapshots) = snapshots else {
-            return VirtualStoreLayout { package_store_dir, gvs_suffixes: Some(HashMap::new()) };
+            return VirtualStoreLayout {
+                package_store_dir,
+                gvs_suffixes: Some(HashMap::new()),
+                virtual_store_dir_max_length,
+            };
         };
         let graph = lockfile_to_dep_graph(snapshots, packages);
         // Build the engine-agnostic gating set once per install,
@@ -158,8 +198,8 @@ impl VirtualStoreLayout {
         let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()
-                .filter(|k| {
-                    let metadata_key = k.without_peer();
+                .filter(|key| {
+                    let metadata_key = key.without_peer();
                     let name = metadata_key.name.to_string();
                     let version = metadata_key.suffix.version().to_string();
                     policy.check(&name, &version) == Some(true)
@@ -175,12 +215,26 @@ impl VirtualStoreLayout {
         // [`buildRequiredCache`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L113-L114).
         let mut build_required_cache: HashMap<PackageKey, bool> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
-        for snapshot_key in snapshots.keys() {
+        for (snapshot_key, snapshot) in snapshots {
+            // Per-snapshot engine resolution: a snapshot that declares
+            // its own `engines.runtime` carries the desugared
+            // `dependencies.node: 'runtime:<version>'` pin, which has
+            // to drive the engine portion of *its* hash rather than
+            // the install-wide fallback. Match upstream's
+            // [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
+            // precedence: own pin first, install-wide fallback
+            // second. Default host platform / arch (`None`, `None`)
+            // matches whatever the caller used to format the
+            // fallback `engine` so the two strings remain comparable
+            // across snapshots in one install.
+            let own_engine =
+                find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
+            let snapshot_engine = own_engine.as_deref().or(engine);
             let hex_digest = calc_graph_node_hash(
                 &graph,
                 &mut cache,
                 snapshot_key,
-                engine,
+                snapshot_engine,
                 built_dep_paths.as_ref(),
                 &mut build_required_cache,
             );
@@ -190,7 +244,11 @@ impl VirtualStoreLayout {
             let suffix = format_global_virtual_store_path(&name, &version, &hex_digest);
             gvs_suffixes.insert(snapshot_key.clone(), suffix);
         }
-        VirtualStoreLayout { package_store_dir, gvs_suffixes: Some(gvs_suffixes) }
+        VirtualStoreLayout {
+            package_store_dir,
+            gvs_suffixes: Some(gvs_suffixes),
+            virtual_store_dir_max_length,
+        }
     }
 
     /// Root of the layout — the directory that contains every per-
@@ -221,8 +279,11 @@ impl VirtualStoreLayout {
     /// to fire).
     pub fn slot_dir(&self, key: &PackageKey) -> PathBuf {
         let suffix = match &self.gvs_suffixes {
-            Some(map) => map.get(key).cloned().unwrap_or_else(|| key.to_virtual_store_name()),
-            None => key.to_virtual_store_name(),
+            Some(map) => map
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| key.to_virtual_store_name(self.virtual_store_dir_max_length)),
+            None => key.to_virtual_store_name(self.virtual_store_dir_max_length),
         };
         self.package_store_dir.join(suffix)
     }
@@ -253,8 +314,16 @@ fn lockfile_to_dep_graph(
         .map(|(snapshot_key, snapshot)| {
             let children = collect_children(snapshot);
             let metadata_key = snapshot_key.without_peer();
-            let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(metadata_key.to_string());
-            let resolution = packages.and_then(|m| m.get(&metadata_key)).map(|m| &m.resolution);
+            // `pkgIdWithPatchHash` strips only the peer-graph suffix,
+            // not the `(patch_hash=...)` segment. Mirrors upstream's
+            // [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
+            // The metadata-map key (peer- and patch-hash-stripped) is
+            // still derived via `without_peer` for the `packages:` lookup.
+            let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
+                get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
+            );
+            let resolution =
+                packages.and_then(|map| map.get(&metadata_key)).map(|meta| &meta.resolution);
             let full_pkg_id = create_full_pkg_id(&pkg_id_with_patch_hash, resolution);
             (snapshot_key.clone(), DepsGraphNode { full_pkg_id, children })
         })
@@ -282,7 +351,10 @@ fn merge_into_children(
     deps: &HashMap<PkgName, SnapshotDepRef>,
 ) {
     for (alias, dep_ref) in deps {
-        let resolved = dep_ref.resolve(alias);
+        // `link:` deps have no snapshot key — skip them.
+        let Some(resolved) = dep_ref.resolve(alias) else {
+            continue;
+        };
         children.insert(alias.to_string(), resolved);
     }
 }
@@ -313,9 +385,10 @@ mod tests {
     use super::VirtualStoreLayout;
     use pacquet_config::Config;
     use pacquet_lockfile::{
-        LockfileResolution, PackageKey, PackageMetadata, RegistryResolution, SnapshotEntry,
+        LockfileResolution, PackageKey, PackageMetadata, PkgName, RegistryResolution,
+        SnapshotDepRef, SnapshotEntry,
     };
-    use pretty_assertions::assert_eq;
+    use pretty_assertions::{assert_eq, assert_ne};
     use std::{collections::HashMap, path::PathBuf};
 
     /// Build a `Config` test-double with the GVS-relevant fields
@@ -564,5 +637,159 @@ mod tests {
         )
         .slot_dir(&key);
         assert_ne!(darwin, linux, "builder snapshot must partition GVS slot by engine string");
+    }
+
+    /// Per-snapshot `engines.runtime` resolution: two builder
+    /// siblings that pin *different* Node majors must land on
+    /// different GVS slots even when given the same install-wide
+    /// fallback engine. Mirrors the upstream behaviour in
+    /// [`@pnpm/deps.graph-hasher`'s `readSnapshotRuntimePin`
+    /// branch](https://github.com/pnpm/pnpm/blob/HEAD/deps/graph-hasher/src/index.ts).
+    /// The bin linker spawns each pinning package's lifecycle scripts
+    /// through its own downloaded Node, so anchoring the engine
+    /// portion of the hash to a single install-wide value would
+    /// produce the wrong side-effects-cache key for cross-pinning
+    /// installs.
+    #[test]
+    fn cross_pinning_siblings_get_distinct_slots() {
+        let config = make_config(
+            true,
+            PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+            PathBuf::from("/tmp/store/links"),
+        );
+
+        let pins_22: PackageKey = "pins-22@1.0.0".parse().unwrap();
+        let pins_20: PackageKey = "pins-20@1.0.0".parse().unwrap();
+        let node22_key: PackageKey = "node@runtime:22.11.0".parse().unwrap();
+        let node20_key: PackageKey = "node@runtime:20.18.0".parse().unwrap();
+
+        let mut packages = HashMap::new();
+        let integrities = [
+            (
+                pins_22.clone(),
+                "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            ),
+            (
+                pins_20.clone(),
+                "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            ),
+            (
+                node22_key.clone(),
+                "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            ),
+            (
+                node20_key.clone(),
+                "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+            ),
+        ];
+        for (key, integrity_str) in integrities {
+            packages.insert(
+                key,
+                PackageMetadata {
+                    resolution: LockfileResolution::Registry(RegistryResolution {
+                        integrity: integrity_str.parse().expect("parse integrity"),
+                    }),
+                    engines: None,
+                    cpu: None,
+                    os: None,
+                    libc: None,
+                    deprecated: None,
+                    has_bin: None,
+                    prepare: None,
+                    bundled_dependencies: None,
+                    peer_dependencies: None,
+                    peer_dependencies_meta: None,
+                },
+            );
+        }
+
+        // Two builder siblings, each with `dependencies.node:
+        // runtime:<major>` — the desugared form upstream's resolver
+        // writes for a manifest-level `engines.runtime` declaration.
+        let mut pins_22_deps = HashMap::new();
+        pins_22_deps.insert(
+            PkgName::parse("node").expect("parse pkg name"),
+            SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
+        );
+        let pins_22_snapshot =
+            SnapshotEntry { dependencies: Some(pins_22_deps), ..SnapshotEntry::default() };
+
+        let mut pins_20_deps = HashMap::new();
+        pins_20_deps.insert(
+            PkgName::parse("node").expect("parse pkg name"),
+            SnapshotDepRef::Plain("runtime:20.18.0".parse().expect("parse ver-peer")),
+        );
+        let pins_20_snapshot =
+            SnapshotEntry { dependencies: Some(pins_20_deps), ..SnapshotEntry::default() };
+
+        let mut snapshots = HashMap::new();
+        snapshots.insert(pins_22.clone(), pins_22_snapshot);
+        snapshots.insert(pins_20.clone(), pins_20_snapshot);
+        snapshots.insert(node22_key, SnapshotEntry::default());
+        snapshots.insert(node20_key, SnapshotEntry::default());
+
+        // Both siblings are approved builders so the engine portion
+        // of the hash isn't dropped by the engine-agnostic gating.
+        let allowed: std::collections::HashSet<String> =
+            ["pins-22".to_string(), "pins-20".to_string()].into_iter().collect();
+        let policy = crate::AllowBuildPolicy::new(allowed, std::collections::HashSet::new(), false);
+
+        // Same install-wide fallback for both layout queries — the
+        // divergence has to come from the per-snapshot pin lookup.
+        let layout = VirtualStoreLayout::new(
+            &config,
+            Some("darwin;arm64;node24"),
+            Some(&snapshots),
+            Some(&packages),
+            Some(&policy),
+        );
+        let slot_22 = layout.slot_dir(&pins_22);
+        let slot_20 = layout.slot_dir(&pins_20);
+        assert_ne!(slot_22, slot_20, "cross-pinning builders must land on distinct GVS slots");
+    }
+
+    /// `lockfile_to_dep_graph` builds each node's `pkg_id_with_patch_hash`
+    /// via upstream's `getPkgIdWithPatchHash` semantics — strip the
+    /// peer-graph suffix but **keep** the `(patch_hash=…)` segment. Two
+    /// patched snapshots with different peer suffixes therefore land on
+    /// one `pkg_id_with_patch_hash`, mirroring pnpm's side-effects-cache
+    /// keying. See
+    /// [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
+    #[test]
+    fn full_pkg_id_keeps_patch_hash_when_present() {
+        let patched_key: PackageKey =
+            "foo@1.0.0(patch_hash=abc)(react@18.0.0)".parse().expect("parse patched key");
+        let metadata_key = patched_key.without_peer();
+        let mut packages = HashMap::new();
+        packages.insert(
+            metadata_key,
+            PackageMetadata {
+                resolution: LockfileResolution::Registry(RegistryResolution {
+                    integrity: "sha512-PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP"
+                        .parse()
+                        .expect("parse integrity"),
+                }),
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            },
+        );
+        let mut snapshots = HashMap::new();
+        snapshots.insert(patched_key.clone(), SnapshotEntry::default());
+
+        let graph = super::lockfile_to_dep_graph(&snapshots, Some(&packages));
+        let node = graph.get(&patched_key).expect("patched snapshot node");
+        assert!(
+            node.full_pkg_id.starts_with("foo@1.0.0(patch_hash=abc):"),
+            "full_pkg_id must keep the patch-hash segment; got {:?}",
+            node.full_pkg_id,
+        );
     }
 }

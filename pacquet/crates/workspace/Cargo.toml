@@ -11,10 +11,12 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-catalogs-types   = { workspace = true }
 pacquet-package-manifest = { workspace = true }
 
 derive_more  = { workspace = true }
 miette       = { workspace = true }
+pathdiff     = { workspace = true }
 serde        = { workspace = true }
 serde-saphyr = { workspace = true }
 wax          = { workspace = true }
@@ -22,3 +24,6 @@ wax          = { workspace = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }
+
+[lints]
+workspace = true

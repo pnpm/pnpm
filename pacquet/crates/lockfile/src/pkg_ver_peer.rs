@@ -3,6 +3,35 @@ use node_semver::{SemverError, Version};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt, str::FromStr};
 
+/// Version slot of a [`PkgVerPeer`]: a semver, the raw path of an
+/// injected workspace `file:<path>` dep, or an opaque non-semver
+/// reference (typically a tarball or git URL). Mirrors pnpm's
+/// `parseDepPath` `nonSemverVersion` arm in `packages/deps.path/src`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VersionPart {
+    Semver(Version),
+    /// Path portion of a `file:<path>` dep, scheme stripped.
+    File(String),
+    /// Non-semver reference preserved verbatim. Pnpm writes the raw
+    /// reference (e.g. a `https://codeload.github.com/...` tarball URL,
+    /// a `git+...` URL, or a custom resolution id) into the version
+    /// slot of importer entries and `packages:` / `snapshots:` keys
+    /// when no semver applies. Pacquet preserves the string so the
+    /// lockfile round-trips byte-for-byte and downstream resolvers
+    /// can inspect it.
+    NonSemver(String),
+}
+
+impl fmt::Display for VersionPart {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VersionPart::Semver(version) => version.fmt(f),
+            VersionPart::File(path) => write!(f, "file:{path}"),
+            VersionPart::NonSemver(raw) => f.write_str(raw),
+        }
+    }
+}
+
 /// Suffix type of [`PkgNameVerPeer`](crate::PkgNameVerPeer) and
 /// type of [`ResolvedDependencySpec::version`](crate::ResolvedDependencySpec::version).
 ///
@@ -25,7 +54,7 @@ pub struct PkgVerPeer {
     /// the round-trip. [`Prefix::None`] for plain semver — the only
     /// shape pacquet recognises before pnpm v11.
     prefix: Prefix,
-    version: Version,
+    version: VersionPart,
     peer: String,
 }
 
@@ -71,8 +100,18 @@ impl PkgVerPeer {
     /// Get the version part. The `runtime:` prefix (if any) is
     /// stripped — callers that need to discriminate runtime
     /// entries should consult [`PkgVerPeer::prefix`] instead.
-    pub fn version(&self) -> &'_ Version {
+    pub fn version(&self) -> &'_ VersionPart {
         &self.version
+    }
+
+    /// Semver `Version` if this is a [`VersionPart::Semver`], else
+    /// `None`. Use from call sites that need `major` / `minor` /
+    /// `patch` — Display via [`PkgVerPeer::version`] covers the rest.
+    pub fn version_semver(&self) -> Option<&'_ Version> {
+        match &self.version {
+            VersionPart::Semver(version) => Some(version),
+            VersionPart::File(_) | VersionPart::NonSemver(_) => None,
+        }
     }
 
     /// Get the peer part.
@@ -90,9 +129,23 @@ impl PkgVerPeer {
     /// backward-compatible with pre-runtime consumers. New callers
     /// that need the prefix should access it via
     /// [`PkgVerPeer::prefix`] before destructuring.
-    pub fn into_tuple(self) -> (Version, String) {
+    pub fn into_tuple(self) -> (VersionPart, String) {
         let PkgVerPeer { prefix: _, version, peer } = self;
         (version, peer)
+    }
+
+    /// Return a copy with the peer-dependency suffix cleared.
+    ///
+    /// The result preserves the original `prefix` and `version` slots
+    /// byte-for-byte, so no parse-and-render round-trip runs. Callers
+    /// that need the metadata-map key for a peer-variant snapshot key
+    /// should reach for this instead of stringifying and re-parsing —
+    /// some legitimately-resolved snapshot keys carry a `version` slot
+    /// (e.g. a workspace `link:<rel-path>(peer@x)` shape under
+    /// `linkWorkspacePackages: true`) whose `Display` form would not
+    /// re-parse as a [`PkgVerPeer`].
+    pub fn without_peer(&self) -> PkgVerPeer {
+        PkgVerPeer { prefix: self.prefix, version: self.version.clone(), peer: String::new() }
     }
 }
 
@@ -103,6 +156,29 @@ pub enum ParsePkgVerPeerError {
     ParseVersionFailure(#[error(source)] SemverError),
     #[display("Mismatch parenthesis")]
     MismatchParenthesis,
+    #[display("Empty path after `file:` scheme")]
+    EmptyFilePath,
+    #[display("`runtime:` and `file:` schemes are mutually exclusive")]
+    ConflictingSchemes,
+}
+
+fn parse_version_part(input: &str) -> Result<VersionPart, ParsePkgVerPeerError> {
+    if let Some(path) = input.strip_prefix("file:") {
+        if path.is_empty() {
+            return Err(ParsePkgVerPeerError::EmptyFilePath);
+        }
+        return Ok(VersionPart::File(path.to_string()));
+    }
+    // Upstream's `parse` in `deps/path/src/index.ts` (pnpm@1819226b51)
+    // falls back to `nonSemverVersion` whenever `semver.valid` rejects
+    // the version, so tarball / git URLs and other custom resolution
+    // ids in the version slot still parse. Mirror that here — only an
+    // empty body is a hard error.
+    match input.parse::<Version>() {
+        Ok(version) => Ok(VersionPart::Semver(version)),
+        Err(err) if input.is_empty() => Err(ParsePkgVerPeerError::ParseVersionFailure(err)),
+        Err(_) => Ok(VersionPart::NonSemver(input.to_string())),
+    }
 }
 
 impl FromStr for PkgVerPeer {
@@ -119,20 +195,25 @@ impl FromStr for PkgVerPeer {
             (Prefix::None, value)
         };
 
+        // Pnpm never writes `runtime:file:...`; rejecting it here keeps
+        // [`PkgVerPeer::to_string`] byte-stable (a silent acceptance would
+        // round-trip back as `file:...` with the prefix dropped).
+        if prefix == Prefix::Runtime && body.starts_with("file:") {
+            return Err(ParsePkgVerPeerError::ConflictingSchemes);
+        }
+
         if !body.ends_with(')') {
             if body.find(['(', ')']).is_some() {
                 return Err(ParsePkgVerPeerError::MismatchParenthesis);
             }
 
-            let version = body.parse().map_err(ParsePkgVerPeerError::ParseVersionFailure)?;
+            let version = parse_version_part(body)?;
             return Ok(PkgVerPeer { prefix, version, peer: String::new() });
         }
 
         let opening_parenthesis =
             body.find('(').ok_or(ParsePkgVerPeerError::MismatchParenthesis)?;
-        let version = body[..opening_parenthesis]
-            .parse()
-            .map_err(ParsePkgVerPeerError::ParseVersionFailure)?;
+        let version = parse_version_part(&body[..opening_parenthesis])?;
         let peer = body[opening_parenthesis..].to_string();
         Ok(PkgVerPeer { prefix, version, peer })
     }

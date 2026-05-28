@@ -60,7 +60,10 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     // but `#[tokio::test]` defaults to single-thread, so we run
     // `.run()` directly here. The function itself is sync — only
     // the caller's runtime flavor matters.
-    let layout = crate::VirtualStoreLayout::legacy(virtual_store_dir.clone());
+    let layout = crate::VirtualStoreLayout::legacy(
+        virtual_store_dir,
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
     let skipped = crate::SkippedSnapshots::default();
     CreateVirtualDirBySnapshot {
         layout: &layout,
@@ -77,7 +80,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     .expect("empty-cas-paths run should succeed");
 
     let captured = EVENTS.lock().unwrap();
-    let imported = captured.iter().find_map(|e| match e {
+    let imported = captured.iter().find_map(|event| match event {
         LogEvent::Progress(log) => match &log.message {
             ProgressMessage::Imported { method, requester, to } => {
                 Some((*method, requester.clone(), to.clone()))

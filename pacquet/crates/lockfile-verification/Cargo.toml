@@ -1,0 +1,37 @@
+[package]
+name                  = "pacquet-lockfile-verification"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-diagnostics             = { workspace = true }
+pacquet-lockfile                = { workspace = true }
+pacquet-reporter                = { workspace = true }
+pacquet-resolving-resolver-base = { workspace = true }
+
+chrono       = { workspace = true }
+derive_more  = { workspace = true }
+futures-util = { workspace = true }
+miette       = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+sha2         = { workspace = true }
+tokio        = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+insta             = { workspace = true }
+pretty_assertions = { workspace = true }
+serde-saphyr      = { workspace = true }
+ssri              = { workspace = true }
+tempfile          = { workspace = true }
+tokio             = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+
+[lints]
+workspace = true

@@ -1,4 +1,4 @@
-use crate::{MockInstanceOptions, RegistryInfo, kill_verdaccio::kill_all_verdaccio_children};
+use crate::{MockInstanceOptions, RegistryInfo, process_kill::kill_process_by_pid};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -14,7 +14,7 @@ use sysinfo::{Pid, Signal};
 /// by the first test to run.
 ///
 /// The reference counter increases on [load](RegistryAnchor::load_or_init) and decreases on [drop](Drop).
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RegistryAnchor {
     pub ref_count: u32,
     pub info: RegistryInfo,
@@ -44,9 +44,9 @@ impl Drop for RegistryAnchor {
 
         let pid = anchor.info.pid;
         eprintln!("info: There are no more users that use the mocked server");
-        eprintln!("info: Terminating all verdaccio instances below {pid}...");
-        let kill_count = kill_all_verdaccio_children(Pid::from_u32(pid), Signal::Interrupt);
-        eprintln!("info: Terminated {kill_count} verdaccio instances");
+        eprintln!("info: Terminating pnpm-registry pid {pid}...");
+        let killed = kill_process_by_pid(Pid::from_u32(pid), Signal::Interrupt);
+        eprintln!("info: kill signal delivered: {killed}");
 
         RegistryAnchor::delete();
         guard.unlock();

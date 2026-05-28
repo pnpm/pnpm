@@ -12,7 +12,7 @@ use std::{
 /// type (upstream's `scriptsPrependNodePath: boolean | 'warn-only'`
 /// shape) and converts to this one at the call site, so the executor
 /// crate stays free of serde and Config wiring.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptsPrependNodePath {
     /// `scriptsPrependNodePath: true` — always prepend.
     Always,
@@ -158,8 +158,8 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
 }
 
 fn normalize_for_split(wd: &Path) -> String {
-    let s = wd.to_string_lossy().into_owned();
-    if cfg!(windows) { s.replace('\\', "/") } else { s }
+    let text = wd.to_string_lossy().into_owned();
+    if cfg!(windows) { text.replace('\\', "/") } else { text }
 }
 
 #[cfg(test)]

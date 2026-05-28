@@ -1,3 +1,4 @@
+use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pacquet_store_dir::StoreDir;
 use std::{env, path::PathBuf};
 
@@ -22,8 +23,16 @@ pub fn default_git_shallow_hosts() -> Vec<String> {
     ]
 }
 
+/// Default for `public-hoist-pattern`. Matches pnpm v11's empty-list
+/// default at
+/// <https://github.com/pnpm/pnpm/blob/1627943d2a/config/reader/src/index.ts#L184>.
+/// Writing a non-empty list on a fresh install would record a
+/// `publicHoistPattern` in `.modules.yaml` that the next `pnpm`
+/// invocation in the same project rejects with
+/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF` — see
+/// [pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750).
 pub fn default_public_hoist_pattern() -> Vec<String> {
-    vec!["*eslint*".to_string(), "*prettier*".to_string()]
+    Vec::new()
 }
 
 // Get the drive letter from a path on Windows. If it's not a Windows path, return None.
@@ -52,28 +61,55 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
     PathBuf::from(format!("{current_drive}:\\.pnpm-store"))
 }
 
-/// If the $PNPM_HOME env variable is set, then $PNPM_HOME/store
-/// If the $XDG_DATA_HOME env variable is set, then $XDG_DATA_HOME/pnpm/store
-/// On Windows: ~/AppData/Local/pnpm/store
-/// On macOS: ~/Library/pnpm/store
-/// On Linux: ~/.local/share/pnpm/store
-pub fn default_store_dir() -> StoreDir {
+/// If the `$PNPM_HOME` env variable is set, then `$PNPM_HOME/store`.
+/// If the `$XDG_DATA_HOME` env variable is set, then `$XDG_DATA_HOME/pnpm/store`.
+/// On Windows: `~/AppData/Local/pnpm/store` (same drive) or `<drive>:\.pnpm-store` (different drive).
+/// On macOS: `~/Library/pnpm/store`.
+/// On Linux: `~/.local/share/pnpm/store`.
+///
+/// Generic over [`EnvVar`], [`GetHomeDir`], and [`GetCurrentDir`]
+/// so unit tests can drive every branch — `PNPM_HOME` set,
+/// `XDG_DATA_HOME` set, neither set — without mutating the process
+/// environment. Mirrors the trait-based DI seam established in
+/// pnpm/pacquet#339 and consolidated in
+/// [pnpm/pnpm#11708](https://github.com/pnpm/pnpm/pull/11708).
+/// Production callers pass [`crate::Host`] for `Sys`, which threads
+/// `home::home_dir` and `env::current_dir` through the
+/// capability impls — see the `SmartDefault` expression on
+/// [`crate::Config::store_dir`].
+///
+/// On non-Windows hosts, this is only the **initial** default. After
+/// [`crate::Config::current`] has applied global config, workspace
+/// yaml, and `PNPM_CONFIG_*` env vars, the store is re-resolved
+/// against the project's volume via
+/// [`crate::store_path::resolve_store_dir`] when none of those
+/// sources pinned `storeDir` — mirroring pnpm's
+/// [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L14-L43),
+/// which falls back to `<mountpoint>/.pnpm-store` when the home
+/// volume can't be hardlinked from the project. Without that
+/// re-resolution a workspace on a separate case-sensitive volume
+/// would land in the case-insensitive home store, breaking tools
+/// that compare canonicalised file paths (typescript-eslint, for one).
+pub fn default_store_dir<Sys>() -> StoreDir
+where
+    Sys: EnvVar + GetHomeDir + GetCurrentDir,
+{
     // TODO: If env variables start with ~, make sure to resolve it into home_dir.
-    if let Ok(pnpm_home) = env::var("PNPM_HOME") {
+    if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
         return PathBuf::from(pnpm_home).join("store").into();
     }
 
-    if let Ok(xdg_data_home) = env::var("XDG_DATA_HOME") {
+    if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
         return PathBuf::from(xdg_data_home).join("pnpm").join("store").into();
     }
 
     // Using ~ (tilde) for defining home path is not supported in Rust and
     // needs to be resolved into an absolute path.
-    let home_dir = home::home_dir().expect("Home directory is not available");
+    let home_dir = Sys::home_dir().expect("Home directory is not available");
 
     #[cfg(windows)]
     if cfg!(windows) {
-        let current_dir = env::current_dir().expect("current directory is unavailable");
+        let current_dir = Sys::current_dir().expect("current directory is unavailable");
         return default_store_dir_windows(&home_dir, &current_dir).into();
     }
 
@@ -88,6 +124,76 @@ pub fn default_store_dir() -> StoreDir {
 pub fn default_modules_dir() -> PathBuf {
     // TODO: find directory with package.json
     env::current_dir().expect("current directory is unavailable").join("node_modules")
+}
+
+/// Resolve the directory pnpm reads `config.yaml` (the global config
+/// file) from.
+///
+/// Port of pnpm's
+/// [`getConfigDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L67-L86).
+/// Resolution order:
+///
+/// 1. `$XDG_CONFIG_HOME/pnpm`.
+/// 2. macOS: `~/Library/Preferences/pnpm`.
+/// 3. Other non-Windows: `~/.config/pnpm`.
+/// 4. Windows: `%LOCALAPPDATA%/pnpm/config`, falling back to
+///    `~/.config/pnpm` when `LOCALAPPDATA` is unset.
+///
+/// Returns `None` when the home directory is unavailable and the env
+/// vars that bypass it are also unset — the caller treats that as
+/// "no global config file."
+pub fn default_config_dir<Sys>() -> Option<PathBuf>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    if let Some(xdg_config_home) = Sys::var("XDG_CONFIG_HOME") {
+        return Some(PathBuf::from(xdg_config_home).join("pnpm"));
+    }
+    if env::consts::OS == "windows"
+        && let Some(local_app_data) = Sys::var("LOCALAPPDATA")
+    {
+        return Some(PathBuf::from(local_app_data).join("pnpm/config"));
+    }
+    let home_dir = Sys::home_dir()?;
+    Some(match env::consts::OS {
+        "macos" => home_dir.join("Library/Preferences/pnpm"),
+        _ => home_dir.join(".config/pnpm"),
+    })
+}
+
+/// Resolve the default packument-cache directory.
+///
+/// Port of pnpm's
+/// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
+/// Resolution order:
+///
+/// 1. `$XDG_CACHE_HOME/pnpm` — set on Linux desktops following the
+///    XDG base-dir spec.
+/// 2. macOS: `~/Library/Caches/pnpm`.
+/// 3. Other non-Windows: `~/.cache/pnpm`.
+/// 4. Windows: `%LOCALAPPDATA%/pnpm-cache`, falling back to
+///    `~/.pnpm-cache` when `LOCALAPPDATA` is unset.
+///
+/// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
+/// as [`default_store_dir`]: unit tests drive every branch without
+/// mutating the process environment. Production callers pass
+/// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
+/// the [`GetHomeDir`] impl.
+pub fn default_cache_dir<Sys>() -> PathBuf
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    if let Some(xdg_cache_home) = Sys::var("XDG_CACHE_HOME") {
+        return PathBuf::from(xdg_cache_home).join("pnpm");
+    }
+    let home_dir = Sys::home_dir().expect("Home directory is not available");
+    match env::consts::OS {
+        "macos" => home_dir.join("Library/Caches/pnpm"),
+        "windows" => Sys::var("LOCALAPPDATA")
+            .map(|local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"))
+            .unwrap_or_else(|| home_dir.join(".pnpm-cache")),
+        _ => home_dir.join(".cache/pnpm"),
+    }
 }
 
 pub fn default_virtual_store_dir() -> PathBuf {
@@ -124,6 +230,18 @@ pub fn default_modules_cache_max_age() -> u64 {
     10080
 }
 
+/// Default `virtualStoreDirMaxLength` matching pnpm's fallback at
+/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L101-L103>.
+///
+/// Kept as a free function (not a re-export of
+/// `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`) so
+/// `pacquet-config` doesn't pull in the modules-yaml crate just for one
+/// integer. Both copies must agree; the modules-yaml side carries the
+/// same upstream link.
+pub fn default_virtual_store_dir_max_length() -> u64 {
+    120
+}
+
 pub fn default_fetch_retries() -> u32 {
     2
 }
@@ -157,11 +275,25 @@ pub fn default_child_concurrency_with_parallelism(parallelism: u32) -> u32 {
     parallelism.min(4)
 }
 
+/// Default `workspaceConcurrency` matching upstream's
+/// [`getDefaultWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L21-L23),
+/// the default for `workspace-concurrency` at
+/// [`config/reader/src/index.ts:208`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L208).
+///
+/// Identical in value to `default_child_concurrency` — both pnpm
+/// settings default through the same upstream `getDefaultWorkspaceConcurrency`
+/// — but exposed under its own name so the
+/// [`crate::Config::workspace_concurrency`] field default reads at its
+/// own call site.
+pub fn default_workspace_concurrency() -> u32 {
+    default_child_concurrency()
+}
+
 /// Available CPU parallelism, mirroring upstream's
 /// [`getAvailableParallelism`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L5-L13).
 /// Floors at 1.
 pub fn available_parallelism() -> u32 {
-    std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(1).max(1)
+    std::thread::available_parallelism().map(|count| count.get() as u32).unwrap_or(1).max(1)
 }
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value

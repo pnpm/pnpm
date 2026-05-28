@@ -57,16 +57,16 @@ use crate::dep_state::{DepsGraphNode, DepsStateCache};
 ///   for the upstream lifecycle. Untouched when `built_dep_paths`
 ///   is `None`; callers that don't care can hold a throwaway
 ///   `let mut cache = HashMap::new();` and pass `&mut cache`.
-pub fn calc_graph_node_hash<K>(
-    graph: &HashMap<K, DepsGraphNode<K>>,
-    cache: &mut DepsStateCache<K>,
-    dep_path: &K,
+pub fn calc_graph_node_hash<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &mut DepsStateCache<Key>,
+    dep_path: &Key,
     engine: Option<&str>,
-    built_dep_paths: Option<&HashSet<K>>,
-    build_required_cache: &mut HashMap<K, bool>,
+    built_dep_paths: Option<&HashSet<Key>>,
+    build_required_cache: &mut HashMap<Key, bool>,
 ) -> String
 where
-    K: Clone + Eq + std::hash::Hash,
+    Key: Clone + Eq + std::hash::Hash,
 {
     let include_engine = match built_dep_paths {
         None => true,

@@ -186,7 +186,7 @@ export async function handler (
     preferredVersions,
     storeController: store.ctrl,
     storeDir: store.dir,
-    verifyResolution: store.verifyResolution,
+    resolutionVerifiers: store.resolutionVerifiers,
   }
   await install(manifest, installOpts)
 }

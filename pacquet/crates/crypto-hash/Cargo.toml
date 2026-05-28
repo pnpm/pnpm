@@ -1,0 +1,22 @@
+[package]
+name                 = "pacquet-crypto-hash"
+description          = "Hash helpers shared across pacquet crates"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+sha2 = { workspace = true }
+
+# Match pacquet-store-dir's MSVC-aware feature gate so this crate
+# inherits the `asm` backend on every target where it compiles.
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+sha2 = { workspace = true, features = ["asm"] }
+
+[lints]
+workspace = true

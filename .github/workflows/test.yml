@@ -29,9 +29,6 @@ jobs:
 
     runs-on: ${{ inputs.platform }}
 
-    env:
-      pnpm_config_verify_deps_before_run: false
-
     steps:
     - name: Configure Git
       run: |
@@ -43,16 +40,13 @@ jobs:
       with:
         persist-credentials: false
     - if: ${{ inputs.garnet }}
-      uses: garnet-org/action@9e819143e63d6dda04bca2e90ac85e3cf0e5289d # v2
+      uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
       uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
-        install: false
         runtime: node@${{ inputs.node }}
-    - name: pacquet install
-      run: pnx --config.minimum-release-age=0 pacquet install --frozen-lockfile --no-runtime
     - name: Verify Node version
       shell: bash
       env:

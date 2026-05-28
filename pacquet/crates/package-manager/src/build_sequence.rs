@@ -62,12 +62,14 @@ pub fn build_sequence(
 
     let filtered_graph: HashMap<PackageKey, Vec<PackageKey>> = nodes_to_build
         .iter()
-        .map(|k| {
+        .map(|key| {
             let edges = children
-                .get(k)
-                .map(|cs| cs.iter().filter(|c| nodes_to_build_set.contains(c)).cloned().collect())
+                .get(key)
+                .map(|cs| {
+                    cs.iter().filter(|child| nodes_to_build_set.contains(child)).cloned().collect()
+                })
                 .unwrap_or_default();
-            (k.clone(), edges)
+            (key.clone(), edges)
         })
         .collect();
 
@@ -100,7 +102,9 @@ fn build_children_map(
             [snap.dependencies.as_ref(), snap.optional_dependencies.as_ref()].into_iter().flatten()
         {
             for (alias, dep_ref) in deps {
-                let resolved = dep_ref.resolve(alias);
+                let Some(resolved) = dep_ref.resolve(alias) else {
+                    continue;
+                };
                 if snapshots.contains_key(&resolved) {
                     child_keys.push(resolved);
                 }

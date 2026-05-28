@@ -5,7 +5,7 @@ use std::{borrow::Cow, num::ParseIntError, str::FromStr};
 /// Information of the top-level field `lockfileVersion`.
 ///
 /// It contains only major and minor.
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[display("{major}.{minor}")]
 #[serde(try_from = "Cow<'de, str>", into = "String")]
 pub struct ComVer {
@@ -33,8 +33,8 @@ pub enum ParseComVerError {
 
 impl FromStr for ComVer {
     type Err = ParseComVerError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (major, minor) = s.split_once('.').ok_or(ParseComVerError::MissingDot)?;
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let (major, minor) = text.split_once('.').ok_or(ParseComVerError::MissingDot)?;
         let major = major.parse::<u16>().map_err(ParseComVerError::InvalidMajor)?;
         let minor = minor.parse::<u16>().map_err(ParseComVerError::InvalidMinor)?;
         Ok(ComVer::new(major, minor))

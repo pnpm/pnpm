@@ -1,5 +1,59 @@
 # @pnpm/engine.runtime.commands
 
+## 1100.1.0
+
+### Minor Changes
+
+- a662de4: `pnpm runtime set <name> <version>` now saves the runtime to `devEngines.runtime` by default instead of `engines.runtime`. Pass `--save-prod` (or `-P`) to save it to `engines.runtime` instead [#11948](https://github.com/pnpm/pnpm/issues/11948).
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/engine.runtime.node-resolver@1101.1.2
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/network.fetch@1100.0.7
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/engine.runtime.node-resolver@1101.1.1
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/engine.runtime.node-resolver@1101.1.0
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/network.fetch@1100.0.6
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [247d70b]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/exec.pnpm-cli-runner@1100.0.1
+  - @pnpm/engine.runtime.node-resolver@1101.0.9
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/cli.utils@1101.0.5
+
 ## 1100.0.14
 
 ### Patch Changes

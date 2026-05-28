@@ -1,5 +1,34 @@
 # @pnpm/package-is-installable
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/engine.runtime.system-version@1100.0.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/cli.meta@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/engine.runtime.system-node-version@1100.1.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [3ddde2b]
+- Updated dependencies [4a79336]
+  - @pnpm/engine.runtime.system-node-version@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+
 ## 1100.0.4
 
 ### Patch Changes

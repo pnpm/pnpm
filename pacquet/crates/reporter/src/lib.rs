@@ -175,6 +175,30 @@ pub enum LogEvent {
     /// (per-snapshot emit site).
     #[serde(rename = "pnpm:_broken_node_modules")]
     BrokenModules(BrokenModulesLog),
+
+    /// Lockfile-verification gate progress (`pnpm:lockfile-verification`).
+    /// One `started` event before the fan-out, followed by exactly one
+    /// terminal `done` (success) or `failed` (policy violation or
+    /// unexpected throw). Fires only when the candidate set is
+    /// non-empty — a lockfile whose snapshots all fail name/version
+    /// extraction produces no events.
+    ///
+    /// Upstream: <https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts>.
+    /// Emit site: <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L134-L168>.
+    #[serde(rename = "pnpm:lockfile-verification")]
+    LockfileVerification(LockfileVerificationLog),
+
+    /// Generic global-logger message (`name: "pnpm"`). Mirrors
+    /// pnpm's [`globalLogger`](https://github.com/pnpm/pnpm/blob/a456dc78fb/packages/logger/src/index.ts)
+    /// `logger.info({ message, prefix })` emits — for example, the
+    /// "Lockfile is up to date, resolution step is skipped" line the
+    /// frozen-install short-circuit prints at
+    /// [`installing/deps-installer/src/install/index.ts:984`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L984).
+    /// `@pnpm/cli.default-reporter` routes these into the "other" log
+    /// stream at
+    /// [`cli/default-reporter/src/index.ts:222`](https://github.com/pnpm/pnpm/blob/a456dc78fb/cli/default-reporter/src/index.ts#L222).
+    #[serde(rename = "pnpm")]
+    Pnpm(PnpmLog),
 }
 
 /// `pnpm:context` payload.
@@ -645,6 +669,64 @@ pub struct BrokenModulesLog {
     pub missing: String,
 }
 
+/// `pnpm:lockfile-verification` payload. The [bunyan]-envelope `level`
+/// is a fixed outer field; the rest of the record is a status-tagged
+/// union via `#[serde(flatten)]` so the wire shape stays flat
+/// (matching pnpm's `LockfileVerificationMessage` discriminator on
+/// `status`).
+///
+/// [bunyan]: https://github.com/trentm/node-bunyan
+#[derive(Debug, Clone, Serialize)]
+pub struct LockfileVerificationLog {
+    pub level: LogLevel,
+    #[serde(flatten)]
+    pub message: LockfileVerificationMessage,
+}
+
+/// `pnpm:lockfile-verification` discriminated payload. `Started`
+/// fires once before the per-candidate fan-out begins; exactly one
+/// terminal `Done` or `Failed` fires after, with `elapsed_ms`
+/// measured against the matching `Started`.
+///
+/// `lockfile_path` is the absolute path of the lockfile being
+/// verified. It's `Option` because the runner is invoked without a
+/// path in unit tests that skip the cache wiring; production code
+/// paths always supply it. Mirrors upstream's
+/// [`LockfileVerificationMessageBase.lockfilePath`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts#L11-L16).
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum LockfileVerificationMessage {
+    Started {
+        entries: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
+    Done {
+        entries: u64,
+        #[serde(rename = "elapsedMs")]
+        elapsed_ms: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
+    Failed {
+        entries: u64,
+        #[serde(rename = "elapsedMs")]
+        elapsed_ms: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
+}
+
+/// Generic-channel (`name: "pnpm"`) payload, used for `logger.info`-style
+/// emits with no dedicated channel. `prefix` carries the install root the
+/// message applies to, matching pnpm's wire shape.
+#[derive(Debug, Clone, Serialize)]
+pub struct PnpmLog {
+    pub level: LogLevel,
+    pub message: String,
+    pub prefix: String,
+}
+
 /// Severity level on the [bunyan]-shaped envelope.
 ///
 /// pnpm's logger uses the [bole] library, which writes one of these strings
@@ -741,8 +823,17 @@ fn now_millis() -> u128 {
 /// Capability for obtaining the host name written into the [bunyan]-shaped
 /// envelope.
 ///
-/// Backed by a real syscall in production via [`RealApi`]. Tests can supply
-/// their own implementation when behavior depends on the value.
+/// Backed by a real syscall in production via [`Host`]. The envelope itself
+/// reads from a process-cached `HOSTNAME` `static` initialized by
+/// [`Host::get_host_name`], so the value is fixed for the lifetime of the
+/// process and the envelope path is **not** currently generic over this
+/// trait. The trait therefore exists for two narrow reasons: to keep the
+/// `gethostname` syscall behind a named seam (so the production call site
+/// is consistent with the rest of `Host`'s capability surface), and so the
+/// capability can be exercised in isolation by unit tests. Substituting a
+/// hostname per-test in the rendered envelope would require plumbing a
+/// `Sys: GetHostName` generic through the emission site, which has not
+/// been done.
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
 pub trait GetHostName {
@@ -753,9 +844,9 @@ pub trait GetHostName {
 ///
 /// Each trait method calls into the real underlying system facility (for
 /// [`GetHostName`], the `gethostname` syscall via the [`gethostname`] crate).
-pub struct RealApi;
+pub struct Host;
 
-impl GetHostName for RealApi {
+impl GetHostName for Host {
     fn get_host_name() -> String {
         gethostname::gethostname().to_string_lossy().into_owned()
     }
@@ -763,9 +854,9 @@ impl GetHostName for RealApi {
 
 // Process-wide cache of the host name. The value cannot change at runtime,
 // and `gethostname` is one syscall we'd otherwise repeat on every emit.
-// Initialized lazily through `RealApi::get_host_name` so tests that exercise
+// Initialized lazily through `Host::get_host_name` so tests that exercise
 // the capability trait directly can do so without paying for the syscall.
-static HOSTNAME: LazyLock<String> = LazyLock::new(RealApi::get_host_name);
+static HOSTNAME: LazyLock<String> = LazyLock::new(Host::get_host_name);
 
 #[cfg(test)]
 mod tests;

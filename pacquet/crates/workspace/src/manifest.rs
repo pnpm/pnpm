@@ -23,6 +23,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_catalogs_types::{Catalog, Catalogs};
 use serde::Deserialize;
 use std::{
     fs,
@@ -41,12 +42,7 @@ pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 /// Splitting along the upstream package boundary keeps each reader
 /// focused on the shape its callers actually need and avoids a
 /// monolithic struct that has to grow with every new pnpm setting.
-///
-/// Catalogs are accepted at parse time but not yet consumed downstream
-/// — they belong to Stage 2 of the workspace roadmap. Parsing them now
-/// keeps `pnpm-workspace.yaml` files with catalog entries valid input
-/// to pacquet rather than tripping `deny_unknown_fields`.
-#[derive(Debug, Default, Deserialize, PartialEq)]
+#[derive(Debug, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceManifest {
     /// Glob patterns identifying the workspace's projects, relative to
@@ -61,6 +57,17 @@ pub struct WorkspaceManifest {
     /// promote `packages: []` into a recursive scan.
     #[serde(default)]
     pub packages: Option<Vec<String>>,
+
+    /// Top-level shorthand for the default catalog. Mutually exclusive
+    /// with `catalogs.default` — `pacquet_catalogs_config` enforces
+    /// that.
+    #[serde(default)]
+    pub catalog: Option<Catalog>,
+
+    /// Named catalogs. Includes a `default` key when the user opted for
+    /// the explicit form over the top-level [`Self::catalog`] field.
+    #[serde(default)]
+    pub catalogs: Option<Catalogs>,
 }
 
 /// Raised when `pnpm-workspace.yaml` parses as YAML but fails an

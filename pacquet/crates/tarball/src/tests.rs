@@ -1,7 +1,8 @@
 use super::{
     DownloadTarballToStore, HttpStatusError, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
     TarballError, VerifyChecksumError, allocate_tarball_buffer, extract_tarball_entries,
-    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error, prefetch_cas_paths,
+    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
+    normalize_bundled_manifest, prefetch_cas_paths,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_reporter::SilentReporter;
@@ -1291,7 +1292,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                 let target_shard = mem_cache.determine_map(&url1);
                 let url2 = (0u32..10_000)
                     .map(|i| format!("{}/pkg-{i}.tgz", server.url()))
-                    .find(|u| u != &url1 && mem_cache.determine_map(u) == target_shard)
+                    .find(|url| url != &url1 && mem_cache.determine_map(url) == target_shard)
                     .expect("no colliding URL within 10000 candidates");
 
                 let path1 = url1.trim_start_matches(server.url().as_str()).to_string();
@@ -1306,9 +1307,9 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     .mock("GET", path1.as_str())
                     .with_status(200)
                     .expect(1)
-                    .with_chunked_body(|w| {
+                    .with_chunked_body(|writer| {
                         std::thread::sleep(RESPONSE_LATENCY);
-                        w.write_all(FASTIFY_ERROR_TARBALL)
+                        writer.write_all(FASTIFY_ERROR_TARBALL)
                     })
                     .create_async()
                     .await;
@@ -1316,9 +1317,9 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     .mock("GET", path2.as_str())
                     .with_status(200)
                     .expect(1)
-                    .with_chunked_body(|w| {
+                    .with_chunked_body(|writer| {
                         std::thread::sleep(RESPONSE_LATENCY);
-                        w.write_all(FASTIFY_ERROR_TARBALL)
+                        writer.write_all(FASTIFY_ERROR_TARBALL)
                     })
                     .create_async()
                     .await;
@@ -1533,20 +1534,27 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     drop(store_dir_keep);
 }
 
-/// `run_with_mem_cache`'s in-process dedup must still fire
-/// `pnpm:progress found_in_store` for the *second* requester of a
-/// shared tarball URL. Without it, the per-package counters in
-/// pnpm's reporter would only advance for the first package sharing
-/// a URL — every later package would resolve and import successfully
-/// but never tick the "fetched" gauge.
+/// `run_with_mem_cache`'s `Available` short-circuit emits
+/// `pnpm:progress found_in_store` against the *caller's* reporter,
+/// regardless of who originally populated the slot. The
+/// `PrefetchingResolver` populates the slot via a `SilentReporter`
+/// so the resolve-time fetch doesn't fire `fetched` ahead of the
+/// install pass's `resolved`; the install pass's later
+/// `run_with_mem_cache` call must still produce the
+/// `found_in_store` event for `@pnpm/cli.default-reporter` to see
+/// the documented `resolved → fetched|found_in_store → imported`
+/// triple. Without the emit on the short-circuit, the install pass
+/// would silently skip past the cache hit and the event triple
+/// would be missing its middle.
 ///
 /// Drives two `run_with_mem_cache` calls for the same URL but
-/// different `package_id`s. The first goes through
-/// `run_without_mem_cache` (network fetch + `fetched`); the second
-/// hits the immediate-`Available` branch and must emit
-/// `found_in_store` for *its* package_id.
+/// different `package_id`s. The first uses `SilentReporter`
+/// (modelling the prefetcher). The second uses the recording
+/// reporter (modelling the install pass) and hits the
+/// immediate-`Available` branch — the only event captured must be
+/// a single `found_in_store` for the install pass's `package_id`.
 #[tokio::test]
-async fn mem_cache_hit_emits_found_in_store_for_second_requester() {
+async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     use std::sync::Mutex;
 
     use pacquet_reporter::{LogEvent, ProgressMessage};
@@ -1578,9 +1586,9 @@ async fn mem_cache_hit_emits_found_in_store_for_second_requester() {
     let mem_cache = MemCache::default();
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
-    // First requester: `package_id = "first@1.0.0"`. Drives the
-    // network fetch.
-    EVENTS.lock().unwrap().clear();
+    // First requester: silent (mirrors the `PrefetchingResolver`
+    // route, which uses `SilentReporter` so its resolve-time
+    // emits don't land before the install pass emits `resolved`).
     DownloadTarballToStore {
         http_client: &client,
         store_dir: store_path,
@@ -1599,16 +1607,15 @@ async fn mem_cache_hit_emits_found_in_store_for_second_requester() {
         ignore_file_pattern: None,
         offline: false,
     }
-    .run_with_mem_cache::<RecordingReporter>(&mem_cache)
+    .run_with_mem_cache::<pacquet_reporter::SilentReporter>(&mem_cache)
     .await
     .expect("first call should populate the mem cache");
 
-    // First call's emits: `started` (per attempt) + `fetched` once.
-    // Drain so the next call's emits are isolated.
-    EVENTS.lock().unwrap().clear();
-
     // Second requester: same URL, different `package_id`. Hits the
-    // immediate-`Available` branch in `run_with_mem_cache`.
+    // immediate-`Available` branch — must emit one `found_in_store`
+    // against the recording reporter so consumers see the cache
+    // hit even though the owner emit was silent.
+    EVENTS.lock().unwrap().clear();
     DownloadTarballToStore {
         http_client: &client,
         store_dir: store_path,
@@ -1632,18 +1639,28 @@ async fn mem_cache_hit_emits_found_in_store_for_second_requester() {
     .expect("second call should reuse the mem cache");
 
     let captured = EVENTS.lock().unwrap();
-    assert!(
-        captured.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log)
-                if matches!(
-                    &log.message,
-                    ProgressMessage::FoundInStore { package_id, requester }
-                        if package_id == "second@2.0.0" && requester == "/proj",
-                )
-        )),
-        "found_in_store must fire for the second requester's package_id; got {captured:?}",
+    let found_in_store_events: Vec<_> = captured
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                LogEvent::Progress(log)
+                    if matches!(&log.message, ProgressMessage::FoundInStore { .. }),
+            )
+        })
+        .collect();
+    assert_eq!(
+        found_in_store_events.len(),
+        1,
+        "exactly one found_in_store emit expected on Available short-circuit; got {captured:?}",
     );
+    if let LogEvent::Progress(log) = found_in_store_events[0]
+        && let ProgressMessage::FoundInStore { package_id, .. } = &log.message
+    {
+        assert_eq!(package_id, "second@2.0.0");
+    } else {
+        unreachable!("captured event filtered above");
+    }
     assert!(
         !captured.iter().any(|e| matches!(
             e,
@@ -1827,7 +1844,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     let captured = EVENTS.lock().unwrap();
     let started: Vec<(u32, Option<u64>)> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::FetchingProgress(log) => match &log.message {
                 FetchingProgressMessage::Started { attempt, package_id, size } => {
                     assert_eq!(package_id, "@fastify/error@3.3.0");
@@ -1914,7 +1931,7 @@ async fn started_fires_for_connection_level_failures() {
     let captured = EVENTS.lock().unwrap();
     let started: Vec<Option<u64>> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::FetchingProgress(log) => match &log.message {
                 FetchingProgressMessage::Started { size, .. } => Some(*size),
                 FetchingProgressMessage::InProgress { .. } => None,
@@ -2124,7 +2141,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     let captured = EVENTS.lock().unwrap();
     let retries: Vec<&RequestRetryLog> = captured
         .iter()
-        .filter_map(|e| match e {
+        .filter_map(|event| match event {
             LogEvent::RequestRetry(log) => Some(log),
             _ => None,
         })
@@ -2509,4 +2526,185 @@ async fn offline_mode_still_uses_prefetched_cache() {
     must_not_fire.assert_async().await;
 
     drop(store_dir_keep);
+}
+
+/// Ported from upstream's
+/// [`normalizeBundledManifest.test.ts`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/store/cafs/test/normalizeBundledManifest.test.ts).
+///
+/// Pacquet's [`normalize_bundled_manifest`] picks the subset of
+/// `package.json` fields downstream install code reads (bin lookup,
+/// peer extraction, build-script detection) and narrows `scripts` to
+/// the three lifecycle hooks. Adding a case here? Add (or mirror) the
+/// upstream case too. Two upstream cases are intentionally NOT ported:
+/// `semver.clean` normalization (pacquet keeps version verbatim, per
+/// the function's doc comment) and the missing-version default of
+/// `0.0.0` (pacquet leaves the field absent rather than synthesizing
+/// one).
+mod normalize_bundled_manifest_tests {
+    use super::normalize_bundled_manifest;
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
+
+    #[test]
+    fn returns_none_for_empty_manifest() {
+        assert_eq!(normalize_bundled_manifest(&json!({})), None);
+    }
+
+    #[test]
+    fn returns_none_for_non_object() {
+        // Mirrors upstream's type guard at the top of
+        // `normalizeBundledManifest` — a non-object input degrades to
+        // `None` rather than panicking.
+        assert_eq!(normalize_bundled_manifest(&json!("not an object")), None);
+        assert_eq!(normalize_bundled_manifest(&json!(null)), None);
+        assert_eq!(normalize_bundled_manifest(&json!(42)), None);
+    }
+
+    #[test]
+    fn returns_none_when_manifest_has_only_excluded_fields() {
+        assert_eq!(
+            normalize_bundled_manifest(&json!({
+                "description": "a package",
+                "keywords": ["test"],
+                "license": "MIT",
+                "author": "test",
+                "repository": "test/test",
+            })),
+            None,
+        );
+    }
+
+    #[test]
+    fn picks_included_fields_and_excludes_others() {
+        let result = normalize_bundled_manifest(&json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "description": "should be excluded",
+            "license": "MIT",
+            "bin": { "foo": "./bin/foo.js" },
+            "engines": { "node": ">=18" },
+            "cpu": ["x64"],
+            "os": ["linux"],
+            "libc": ["glibc"],
+            "dependencies": { "bar": "^1.0.0" },
+            "devDependencies": { "qux": "^3.0.0" },
+            "optionalDependencies": { "baz": "^2.0.0" },
+            "peerDependencies": { "react": "^18" },
+            "peerDependenciesMeta": { "react": { "optional": true } },
+            "bundledDependencies": ["bar"],
+            "directories": { "bin": "./bin" },
+        }))
+        .expect("non-empty pick");
+        let map = result.as_object().expect("object");
+        assert_eq!(map.get("name").and_then(|v| v.as_str()), Some("foo"));
+        assert_eq!(map.get("version").and_then(|v| v.as_str()), Some("1.0.0"));
+        assert_eq!(map.get("bin"), Some(&json!({ "foo": "./bin/foo.js" })));
+        assert_eq!(map.get("engines"), Some(&json!({ "node": ">=18" })));
+        assert_eq!(map.get("cpu"), Some(&json!(["x64"])));
+        assert_eq!(map.get("os"), Some(&json!(["linux"])));
+        assert_eq!(map.get("libc"), Some(&json!(["glibc"])));
+        assert_eq!(map.get("dependencies"), Some(&json!({ "bar": "^1.0.0" })));
+        assert_eq!(map.get("devDependencies"), Some(&json!({ "qux": "^3.0.0" })));
+        assert_eq!(map.get("optionalDependencies"), Some(&json!({ "baz": "^2.0.0" })));
+        assert_eq!(map.get("peerDependencies"), Some(&json!({ "react": "^18" })));
+        assert_eq!(
+            map.get("peerDependenciesMeta"),
+            Some(&json!({ "react": { "optional": true } })),
+        );
+        assert_eq!(map.get("bundledDependencies"), Some(&json!(["bar"])));
+        assert_eq!(map.get("directories"), Some(&json!({ "bin": "./bin" })));
+        // Excluded fields stay out.
+        assert!(map.get("description").is_none());
+        assert!(map.get("license").is_none());
+        assert!(map.get("keywords").is_none());
+    }
+
+    #[test]
+    fn only_picks_lifecycle_scripts_not_all_scripts() {
+        let result = normalize_bundled_manifest(&json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "scripts": {
+                "preinstall": "echo pre",
+                "install": "echo install",
+                "postinstall": "echo post",
+                "test": "jest",
+                "build": "tsc",
+                "start": "node index.js",
+                "prepare": "tsc",
+            },
+        }))
+        .expect("non-empty pick");
+        assert_eq!(
+            result.get("scripts").expect("scripts present"),
+            &json!({
+                "preinstall": "echo pre",
+                "install": "echo install",
+                "postinstall": "echo post",
+            }),
+        );
+    }
+
+    #[test]
+    fn omits_scripts_key_when_no_lifecycle_scripts_exist() {
+        let result = normalize_bundled_manifest(&json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "scripts": {
+                "test": "jest",
+                "build": "tsc",
+            },
+        }))
+        .expect("non-empty pick");
+        assert!(
+            result.get("scripts").is_none(),
+            "scripts key must be absent when no lifecycle hook is present",
+        );
+    }
+
+    /// Upstream skips `null` and `undefined` fields. Rust's
+    /// [`serde_json::Value`] has no `undefined`, but JSON `null`
+    /// reaches the picker as [`serde_json::Value::Null`] and must be
+    /// filtered the same way (`if (...!v.is_null())` in the source).
+    #[test]
+    fn skips_null_fields() {
+        let result = normalize_bundled_manifest(&json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "bin": null,
+            "engines": null,
+        }))
+        .expect("non-empty pick");
+        assert!(result.get("bin").is_none(), "null `bin` must be dropped");
+        assert!(result.get("engines").is_none(), "null `engines` must be dropped");
+        assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("foo"));
+        assert_eq!(result.get("version").and_then(|v| v.as_str()), Some("1.0.0"));
+    }
+
+    /// The bundled manifest is downstream-fed into
+    /// [`extract_peer_dependencies`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/pacquet/crates/resolving-deps-resolver/src/resolve_dependency_tree.rs#L776-L824)
+    /// and `extract_children`; dropping `peerDependenciesMeta` or
+    /// `optionalDependencies` here would replicate the pnpm/pnpm#11934
+    /// resolver-side bug on the install-side. Pin the keys explicitly.
+    #[test]
+    fn preserves_optional_dependencies_and_peer_dependencies_meta_keys() {
+        let result = normalize_bundled_manifest(&json!({
+            "name": "consumer",
+            "version": "1.0.0",
+            "optionalDependencies": { "sharp": "^0.34.0" },
+            "peerDependenciesMeta": {
+                "@vercel/kv": { "optional": true },
+                "ioredis": { "optional": true },
+            },
+        }))
+        .expect("non-empty pick");
+        assert_eq!(result.get("optionalDependencies"), Some(&json!({ "sharp": "^0.34.0" })));
+        assert_eq!(
+            result.get("peerDependenciesMeta"),
+            Some(&json!({
+                "@vercel/kv": { "optional": true },
+                "ioredis": { "optional": true },
+            })),
+        );
+    }
 }

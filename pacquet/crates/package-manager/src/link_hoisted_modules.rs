@@ -143,7 +143,7 @@ pub enum LinkHoistedModulesError {
 /// Optional nodes whose CAS paths are missing are silently
 /// skipped (no error, no import). Required nodes surface as
 /// [`LinkHoistedModulesError::MissingCasPaths`].
-pub fn link_hoisted_modules<R: Reporter>(
+pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
     remove_orphans(opts.graph, opts.prev_graph);
@@ -155,7 +155,7 @@ pub fn link_hoisted_modules<R: Reporter>(
     opts.hierarchy
         .par_iter()
         .map(|(parent_dir, deps_hierarchy)| {
-            link_all_pkgs_in_order::<R>(deps_hierarchy, parent_dir, opts)
+            link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, opts)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -202,7 +202,7 @@ fn try_remove_dir(dir: &Path) -> io::Result<()> {
 /// sees the fully-populated package.
 ///
 /// [`IntoParallelRefIterator::par_iter`]: rayon::iter::IntoParallelRefIterator::par_iter
-fn link_all_pkgs_in_order<R: Reporter>(
+fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     hierarchy: &DepHierarchy,
     parent_dir: &Path,
     opts: &LinkHoistedModulesOpts<'_>,
@@ -218,8 +218,8 @@ fn link_all_pkgs_in_order<R: Reporter>(
                 .graph
                 .get(dir)
                 .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
-            import_node::<R>(node, opts)?;
-            link_all_pkgs_in_order::<R>(sub_hierarchy, dir, opts)
+            import_node::<Reporter>(node, opts)?;
+            link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -249,7 +249,7 @@ fn link_all_pkgs_in_order<R: Reporter>(
 /// `if (depNode.optional) return` on fetch failure). Otherwise
 /// calls [`import_indexed_dir()`] with `force: true,
 /// keep_modules_dir: true` — the hoisted-linker call shape.
-fn import_node<R: Reporter>(
+fn import_node<Reporter: self::Reporter>(
     node: &DependenciesGraphNode,
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
@@ -263,7 +263,7 @@ fn import_node<R: Reporter>(
         });
     };
 
-    import_indexed_dir::<R>(
+    import_indexed_dir::<Reporter>(
         opts.logged_methods,
         opts.import_method,
         &node.dir,

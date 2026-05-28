@@ -383,6 +383,30 @@ fn no_importer_message_uses_bracket_quoted_id() {
     );
 }
 
+/// Multi-element `removed` and `modified` buckets exercise the
+/// plural arm of `noun_verb_for` *and* the comma separator inside
+/// the per-bucket loops. The single-item display test above only
+/// hits the singular branch and the first-iteration of the loop.
+#[test]
+fn spec_diff_display_lists_plural_removed_and_modified_with_separators() {
+    let mut diff = super::SpecDiff::default();
+    diff.removed.insert("alpha".to_string(), "^1.0.0".to_string());
+    diff.removed.insert("beta".to_string(), "^2.0.0".to_string());
+    diff.modified.insert("gamma".to_string(), ("^3.0.0".to_string(), "^4.0.0".to_string()));
+    diff.modified.insert("delta".to_string(), ("^0.1.0".to_string(), "^0.2.0".to_string()));
+    let rendered = diff.to_string();
+    // Plural noun + plural verb for n>1 (`were`).
+    assert!(rendered.contains("2 dependencies were removed: "), "got: {rendered:?}");
+    // Comma separator inside the removed loop.
+    assert!(
+        rendered.contains("alpha@^1.0.0, beta@^2.0.0")
+            || rendered.contains("beta@^2.0.0, alpha@^1.0.0"),
+        "expected comma-joined removed entries, got: {rendered:?}",
+    );
+    // Plural noun + plural verb for n>1 `modified` (`are`).
+    assert!(rendered.contains("2 dependencies are mismatched:"), "got: {rendered:?}");
+}
+
 /// Pinpoint singular-vs-plural wording per bucket so the n==1 case
 /// doesn't silently regress.
 #[test]
@@ -567,8 +591,8 @@ fn check_settings_passes_when_both_sides_empty() {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
-    assert!(check_lockfile_settings(&lockfile, None).is_ok());
-    assert!(check_lockfile_settings(&lockfile, Some(&[])).is_ok());
+    assert!(check_lockfile_settings(&lockfile, None, None).is_ok());
+    assert!(check_lockfile_settings(&lockfile, None, Some(&[])).is_ok());
 }
 
 /// Order-insensitive compare — upstream sorts both arrays before
@@ -584,7 +608,7 @@ fn check_settings_passes_when_sets_match_regardless_of_order() {
     })
     .expect("parse lockfile with ignoredOptionalDependencies");
     let config_set = ["bar".to_string(), "foo".to_string()];
-    assert!(check_lockfile_settings(&lockfile, Some(&config_set)).is_ok());
+    assert!(check_lockfile_settings(&lockfile, None, Some(&config_set)).is_ok());
 }
 
 /// Set mismatch surfaces as `IgnoredOptionalDependenciesChanged`.
@@ -597,7 +621,7 @@ fn check_settings_returns_drift_when_sets_differ() {
     })
     .expect("parse lockfile with ignoredOptionalDependencies");
     let config_set = ["bar".to_string()];
-    let err = check_lockfile_settings(&lockfile, Some(&config_set))
+    let err = check_lockfile_settings(&lockfile, None, Some(&config_set))
         .expect_err("set drift must surface as IgnoredOptionalDependenciesChanged");
     assert_eq!(
         err,
@@ -617,13 +641,132 @@ fn check_settings_returns_drift_when_lockfile_has_set_but_config_does_not() {
         "  - foo"
     })
     .expect("parse lockfile with ignoredOptionalDependencies");
-    let err = check_lockfile_settings(&lockfile, None)
+    let err = check_lockfile_settings(&lockfile, None, None)
         .expect_err("removing a set in config while lockfile has it must surface drift");
     let StalenessReason::IgnoredOptionalDependenciesChanged { lockfile: l, config: c } = err else {
         panic!("expected IgnoredOptionalDependenciesChanged");
     };
     assert_eq!(l, vec!["foo".to_string()]);
     assert!(c.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// `overrides` drift — pacquet's lockfile-side mirror of upstream's
+// `getOutdatedLockfileSetting` overrides check
+// ---------------------------------------------------------------------------
+
+/// Both sides empty / absent → no drift. Mirrors upstream's
+/// `equals(lockfile.overrides ?? {}, overrides ?? {})` semantics: a
+/// missing key on either side is treated as the empty map.
+#[test]
+fn check_settings_passes_when_overrides_both_empty() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+    })
+    .expect("parse minimal lockfile");
+    assert!(check_lockfile_settings(&lockfile, None, None).is_ok());
+
+    let empty: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    assert!(check_lockfile_settings(&lockfile, Some(&empty), None).is_ok());
+}
+
+/// Identical maps pass regardless of key insertion order — the
+/// comparison normalizes through `BTreeMap`. Mirrors upstream's
+/// order-insensitive `equals` from Ramda.
+#[test]
+fn check_settings_passes_when_overrides_match_regardless_of_order() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "overrides:"
+        "  foo: 1.0.0"
+        "  bar: 2.0.0"
+    })
+    .expect("parse lockfile with overrides");
+    let mut config: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    config.insert("bar".to_string(), "2.0.0".to_string());
+    config.insert("foo".to_string(), "1.0.0".to_string());
+    assert!(check_lockfile_settings(&lockfile, Some(&config), None).is_ok());
+}
+
+/// Value mismatch on a shared key surfaces as `OverridesChanged`.
+#[test]
+fn check_settings_returns_drift_on_overrides_value_change() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "overrides:"
+        "  foo: 1.0.0"
+    })
+    .expect("parse lockfile with overrides");
+    let mut config: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    config.insert("foo".to_string(), "2.0.0".to_string());
+    let err = check_lockfile_settings(&lockfile, Some(&config), None)
+        .expect_err("changed override value must surface drift");
+    let StalenessReason::OverridesChanged { lockfile: l, config: c } = err else {
+        panic!("expected OverridesChanged");
+    };
+    assert_eq!(l.get("foo").map(String::as_str), Some("1.0.0"));
+    assert_eq!(c.get("foo").map(String::as_str), Some("2.0.0"));
+}
+
+/// Lockfile has an override that config no longer does → drift.
+#[test]
+fn check_settings_returns_drift_when_lockfile_has_overrides_but_config_does_not() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "overrides:"
+        "  foo: 1.0.0"
+    })
+    .expect("parse lockfile with overrides");
+    let err = check_lockfile_settings(&lockfile, None, None)
+        .expect_err("dropped override must surface drift");
+    let StalenessReason::OverridesChanged { lockfile: l, config: c } = err else {
+        panic!("expected OverridesChanged");
+    };
+    assert_eq!(l.get("foo").map(String::as_str), Some("1.0.0"));
+    assert!(c.is_empty());
+}
+
+/// Config has an override that lockfile doesn't → drift.
+#[test]
+fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+    })
+    .expect("parse minimal lockfile");
+    let mut config: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    config.insert("foo".to_string(), "1.0.0".to_string());
+    let err = check_lockfile_settings(&lockfile, Some(&config), None)
+        .expect_err("added override must surface drift");
+    let StalenessReason::OverridesChanged { lockfile: l, config: c } = err else {
+        panic!("expected OverridesChanged");
+    };
+    assert!(l.is_empty());
+    assert_eq!(c.get("foo").map(String::as_str), Some("1.0.0"));
+}
+
+/// `overrides` is checked before `ignoredOptionalDependencies` — when
+/// both have drifted, the overrides drift is the one reported, matching
+/// upstream's check ordering at
+/// <https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L56>.
+#[test]
+fn check_settings_reports_overrides_before_ignored_optional() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "overrides:"
+        "  foo: 1.0.0"
+        "ignoredOptionalDependencies:"
+        "  - bar"
+    })
+    .expect("parse lockfile");
+    let mut config: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    config.insert("foo".to_string(), "2.0.0".to_string());
+    let ignored: [String; 0] = [];
+    let err = check_lockfile_settings(&lockfile, Some(&config), Some(&ignored))
+        .expect_err("both drifted; expect OverridesChanged surfaced");
+    assert!(
+        matches!(err, StalenessReason::OverridesChanged { .. }),
+        "expected OverridesChanged first, got {err:?}",
+    );
 }
 
 /// Once `check_lockfile_settings` passes, `satisfies_package_manifest`

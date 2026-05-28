@@ -1,5 +1,58 @@
 # @pnpm/package-requester
 
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/config.package-is-installable@1100.0.7
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/fetching.fetcher-base@1100.1.6
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/fetching.pick-fetcher@1100.0.9
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/fetching.fetcher-base@1100.1.5
+  - @pnpm/fetching.pick-fetcher@1100.0.8
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/config.package-is-installable@1100.0.6
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/store.cafs@1100.1.6
+  - @pnpm/worker@1100.1.7
+
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [4a79336]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/fetching.pick-fetcher@1100.0.7
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/config.package-is-installable@1100.0.5
+  - @pnpm/worker@1100.1.6
+
 ## 1101.0.6
 
 ### Patch Changes

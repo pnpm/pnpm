@@ -7,7 +7,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, parsePackageManager, types as allTypes } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
-import { createResolver } from '@pnpm/installing.client'
+import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -80,12 +80,21 @@ export async function handler (
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
   globalInfo('Checking for updates...')
-  const { resolve } = createResolver({
+  const { resolve: baseResolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
-    strictPublishedByCheck: Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
+  // self-update has nowhere to "defer to" either — wrap the resolver
+  // under any policy that wants to reject violations up-front. Strict
+  // minimumReleaseAge keeps self-update from switching to an immature
+  // pnpm; `trustPolicy: 'no-downgrade'` keeps it from switching to a
+  // pnpm whose trust evidence weakened relative to the installed
+  // version.
+  const strictResolution =
+    (Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true) ||
+    opts.trustPolicy === 'no-downgrade'
+  const resolve = strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
   const pkgName = 'pnpm'
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we

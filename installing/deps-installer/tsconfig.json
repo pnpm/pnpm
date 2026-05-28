@@ -91,9 +91,6 @@
       "path": "../../deps/path"
     },
     {
-      "path": "../../engine/runtime/system-node-version"
-    },
-    {
       "path": "../../exec/lifecycle"
     },
     {
@@ -173,6 +170,9 @@
     },
     {
       "path": "../../testing/mock-agent"
+    },
+    {
+      "path": "../../testing/registry-mock"
     },
     {
       "path": "../../testing/temp-store"

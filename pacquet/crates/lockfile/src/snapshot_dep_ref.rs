@@ -6,7 +6,7 @@ use std::{borrow::Cow, str::FromStr};
 /// Value of a single entry in [`SnapshotEntry::dependencies`](crate::SnapshotEntry::dependencies)
 /// (or `optional_dependencies`).
 ///
-/// A snapshot dependency can be written in one of two forms:
+/// A snapshot dependency can be written in one of three forms:
 ///
 /// * A bare version with an optional peer-dependency suffix — the dependency
 ///   resolves to `<alias-name>@<version>` in the `snapshots:` map.
@@ -27,9 +27,24 @@ use std::{borrow::Cow, str::FromStr};
 ///       string-width-cjs: string-width@4.2.3
 ///   ```
 ///
-/// Detection mirrors pnpm's `refToRelative`: a reference is an alias when a
-/// package name appears before the version separator (either the first `@`
-/// occurs before any `(` and `:`, or the reference begins with `@`).
+/// * A `link:<path>` value — the dependency is a workspace sibling at
+///   `<path>` relative to the lockfile root. Pnpm writes this shape for
+///   injected workspace packages whose own dependencies resolve to other
+///   workspace projects (and for which `excludeLinksFromLockfile` is off);
+///   the dependency lives outside the virtual store and gets a direct
+///   directory symlink at install time.
+///
+///   ```yaml
+///   b@file:packages/b:
+///     dependencies:
+///       c: link:packages/c
+///   ```
+///
+/// Detection mirrors pnpm's `refToRelative`: a reference starting with
+/// `link:` short-circuits to the link variant (and `refToRelative` returns
+/// `null`); a reference is an alias when a package name appears before the
+/// version separator (either the first `@` occurs before any `(` and `:`,
+/// or the reference begins with `@`).
 ///
 /// Reference: <https://github.com/pnpm/pnpm/blob/1819226b51/deps/path/src/index.ts>
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -37,26 +52,46 @@ use std::{borrow::Cow, str::FromStr};
 pub enum SnapshotDepRef {
     Plain(PkgVerPeer),
     Alias(PkgNameVerPeer),
+    Link(String),
 }
 
 impl SnapshotDepRef {
     /// Resolve this reference to the `snapshots:` / `packages:` key it points
     /// to. `alias_name` is the key of the dependency entry (the name under
     /// which the package is linked into `node_modules`).
-    pub fn resolve(&self, alias_name: &PkgName) -> PkgNameVerPeer {
+    ///
+    /// Returns `None` for [`SnapshotDepRef::Link`] entries — `link:` deps
+    /// don't live in the virtual store and have no snapshot key. Mirrors
+    /// upstream's `refToRelative` returning `null` for `link:` references.
+    pub fn resolve(&self, alias_name: &PkgName) -> Option<PkgNameVerPeer> {
         match self {
             SnapshotDepRef::Plain(ver_peer) => {
-                PkgNameVerPeer::new(alias_name.clone(), ver_peer.clone())
+                Some(PkgNameVerPeer::new(alias_name.clone(), ver_peer.clone()))
             }
-            SnapshotDepRef::Alias(key) => key.clone(),
+            SnapshotDepRef::Alias(key) => Some(key.clone()),
+            SnapshotDepRef::Link(_) => None,
         }
     }
 
     /// Accessor for the version-with-peer part of this reference.
-    pub fn ver_peer(&self) -> &'_ PkgVerPeer {
+    ///
+    /// Returns `None` for [`SnapshotDepRef::Link`] entries — a `link:` dep
+    /// has no version slot.
+    pub fn ver_peer(&self) -> Option<&'_ PkgVerPeer> {
         match self {
-            SnapshotDepRef::Plain(ver_peer) => ver_peer,
-            SnapshotDepRef::Alias(key) => &key.suffix,
+            SnapshotDepRef::Plain(ver_peer) => Some(ver_peer),
+            SnapshotDepRef::Alias(key) => Some(&key.suffix),
+            SnapshotDepRef::Link(_) => None,
+        }
+    }
+
+    /// `Some(target)` when this reference is a `link:` workspace sibling;
+    /// `None` otherwise. The returned string is the path portion *without*
+    /// the `link:` prefix.
+    pub fn as_link_target(&self) -> Option<&'_ str> {
+        match self {
+            SnapshotDepRef::Plain(_) | SnapshotDepRef::Alias(_) => None,
+            SnapshotDepRef::Link(target) => Some(target.as_str()),
         }
     }
 }
@@ -66,6 +101,7 @@ impl std::fmt::Display for SnapshotDepRef {
         match self {
             SnapshotDepRef::Plain(ver_peer) => ver_peer.fmt(f),
             SnapshotDepRef::Alias(key) => key.fmt(f),
+            SnapshotDepRef::Link(target) => write!(f, "link:{target}"),
         }
     }
 }
@@ -97,6 +133,9 @@ pub enum ParseSnapshotDepRefError {
 impl FromStr for SnapshotDepRef {
     type Err = ParseSnapshotDepRefError;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if let Some(target) = value.strip_prefix("link:") {
+            return Ok(SnapshotDepRef::Link(target.to_string()));
+        }
         if looks_like_alias(value) {
             let key =
                 value.parse::<PkgNameVerPeer>().map_err(ParseSnapshotDepRefError::ParseAlias)?;

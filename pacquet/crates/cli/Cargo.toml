@@ -48,3 +48,6 @@ pretty_assertions = { workspace = true }
 serde_json        = { workspace = true }
 tempfile          = { workspace = true }
 walkdir           = { workspace = true }
+
+[lints]
+workspace = true

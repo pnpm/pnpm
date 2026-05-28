@@ -1,5 +1,37 @@
 # @pnpm/git-fetcher
 
+## 1101.0.10
+
+### Patch Changes
+
+- 90d1ce6: Reject git resolutions whose `commit` field is not a 40-character hexadecimal SHA before invoking `git`. A malicious lockfile could otherwise smuggle a value such as `--upload-pack=<command>` through `git fetch` / `git checkout`, which on SSH or local-file transports executes the supplied command.
+- Updated dependencies [aa6149d]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/exec.prepare-package@1100.0.14
+  - @pnpm/fetching.fetcher-base@1100.1.6
+
+## 1101.0.9
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.13
+
+## 1101.0.8
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.12
+- @pnpm/fetching.fetcher-base@1100.1.5
+- @pnpm/worker@1100.1.7
+
+## 1101.0.7
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.4
+- @pnpm/exec.prepare-package@1100.0.11
+- @pnpm/worker@1100.1.6
+
 ## 1101.0.6
 
 ### Patch Changes

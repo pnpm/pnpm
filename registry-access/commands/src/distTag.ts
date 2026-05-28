@@ -4,6 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
+import { setDistTag } from '@pnpm/registry-access.client'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
@@ -141,20 +142,15 @@ async function distTagAdd (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
-  const distTagUrl = getDistTagUrl(packageName, registryUrl, tag)
-  const response = await fetchFromRegistry(distTagUrl, {
-    authHeaderValue: authHeader,
-    method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      ...(otp ? { 'npm-otp': otp } : {}),
-    },
-    body: JSON.stringify(version),
+  await setDistTag({
+    packageName,
+    version,
+    distTag: tag,
+    registryUrl,
+    authHeader,
+    fetchFromRegistry,
+    otp,
   })
-
-  if (!response.ok) {
-    await throwRegistryError(response, `set dist-tag "${tag}" on`)
-  }
 
   return `+${tag}: ${packageName}@${version}`
 }
@@ -205,7 +201,7 @@ function getAuthHeaderForRegistry (
   configByUri: Record<string, RegistryConfig> | undefined,
   registryUrl: string
 ): string | undefined {
-  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {}, registryUrl)
+  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
   return getAuthHeader(registryUrl)
 }
 

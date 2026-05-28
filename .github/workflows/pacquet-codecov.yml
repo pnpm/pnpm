@@ -11,11 +11,13 @@ on:
     types: [opened, synchronize]
     paths:
       - 'pacquet/**/*.rs'
+      - 'registry/**/*.rs'
   push:
     branches:
       - main
     paths:
       - 'pacquet/**/*.rs'
+      - 'registry/**/*.rs'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,12 +38,12 @@ jobs:
         uses: ./.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
         with:
           tool: cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
         with:
           tool: cargo-nextest
 
@@ -64,7 +66,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@e1c4cd42111751368541a7cb5db3522bd1f846a4 # v2.78.0
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
         with:
           tool: just
 

@@ -101,15 +101,21 @@ impl<'a> GitFetcher<'a> {
     /// [`tokio::task::block_in_place`] for the git CLI invocations and
     /// the lifecycle-script-running prepare step. Returns the CAS file
     /// map for the prepared sub-directory.
-    pub async fn run<R: Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
-        tokio::task::block_in_place(|| self.run_sync::<R>())
+    pub async fn run<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
+        tokio::task::block_in_place(|| self.run_sync::<Reporter>())
     }
 
-    fn run_sync<R: Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
+    fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
+        if !is_valid_commit_hash(self.commit) {
+            return Err(GitFetcherError::InvalidCommit {
+                commit: self.commit.to_string(),
+                repo: self.repo.to_string(),
+            });
+        }
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
 
-        let git_bin = self.git_bin.unwrap_or(Path::new("git"));
+        let git_bin = self.git_bin.unwrap_or_else(|| Path::new("git"));
         if should_use_shallow(self.repo, self.git_shallow_hosts) {
             exec_git_with(git_bin, &["init"], Some(temp_location))?;
             exec_git_with(git_bin, &["remote", "add", "origin", self.repo], Some(temp_location))?;
@@ -152,7 +158,7 @@ impl<'a> GitFetcher<'a> {
             extra_env: &empty_env,
         };
         let PreparedPackage { pkg_dir, should_be_built } =
-            match prepare_package::<R>(&prepare_opts, temp_location, self.path) {
+            match prepare_package::<Reporter>(&prepare_opts, temp_location, self.path) {
                 Ok(p) => p,
                 Err(err) => {
                     return Err(wrap_prepare_error(self.repo, err));
@@ -224,6 +230,13 @@ fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError 
     // `Prepare { repo, source }` variant once we have observed real
     // chains in the install reporter.
     GitFetcherError::Prepare(err)
+}
+
+/// True iff `commit` is exactly a 40-character hexadecimal git SHA.
+/// Rejects everything else (short SHAs, ref names, option-shaped
+/// strings like `--upload-pack=…`) before the value reaches `git`.
+fn is_valid_commit_hash(commit: &str) -> bool {
+    commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// True iff `repo` parses to a host that pacquet should clone via the
@@ -323,7 +336,7 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
 /// messages. `init` / `clone` / `fetch` / `checkout` / `rev-parse` /
 /// `remote` are the only ones the fetcher invokes.
 fn static_operation_label(args: &[&str]) -> &'static str {
-    let first = args.iter().find(|a| !a.starts_with('-')).copied().unwrap_or("git");
+    let first = args.iter().find(|arg| !arg.starts_with('-')).copied().unwrap_or("git");
     match first {
         "init" => "init",
         "clone" => "clone",
