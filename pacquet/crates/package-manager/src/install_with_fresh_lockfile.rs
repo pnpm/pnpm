@@ -592,7 +592,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,
                 lockfile_dir: Some(lockfile_dir.to_path_buf()),
                 modules_dir: Some(importer_modules_dir),
-                peers_suffix_max_length: config.peers_suffix_max_length as usize,
+                peers_suffix_max_length: usize::try_from(config.peers_suffix_max_length)
+                    .unwrap_or(usize::MAX),
             };
             let importer_result = resolve_importer(
                 &*resolver,

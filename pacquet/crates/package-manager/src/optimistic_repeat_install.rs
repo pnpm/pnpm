@@ -274,7 +274,9 @@ pub(crate) fn current_settings(
             .as_ref()
             .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
         patched_dependencies: config.patched_dependencies.clone(),
-        peers_suffix_max_length: Some(config.peers_suffix_max_length as u32),
+        peers_suffix_max_length: Some(
+            u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),
+        ),
         prefer_workspace_packages: Some(config.prefer_workspace_packages),
         production: Some(included.dependencies),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
