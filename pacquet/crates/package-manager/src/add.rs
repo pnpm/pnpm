@@ -32,6 +32,10 @@ where
     /// `Install` run that follows the manifest mutation. See
     /// [`Install::supported_architectures`].
     pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    /// `--lockfile-only`: add the dependency to the manifest and write
+    /// `pnpm-lock.yaml`, but skip materializing `node_modules`. Forwarded
+    /// to the follow-up `Install` run. See [`Install::lockfile_only`].
+    pub lockfile_only: bool,
 }
 
 /// Error type of [`Add`].
@@ -65,6 +69,7 @@ where
             save_exact,
             resolved_packages,
             supported_architectures,
+            lockfile_only,
         } = self;
 
         let latest_version = PackageVersion::fetch_from_registry(
@@ -110,6 +115,7 @@ where
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
+            lockfile_only,
         }
         .run::<Reporter>()
         .await

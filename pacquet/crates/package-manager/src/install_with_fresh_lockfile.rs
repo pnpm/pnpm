@@ -157,6 +157,13 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// walker so its installability filter honors user-supplied
     /// accept lists. `None` when no architectures are configured.
     pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    /// When `true`, resolve the graph and write `pnpm-lock.yaml`, then
+    /// return — skipping the tarball prefetch, virtual-store
+    /// materialization, symlinks, hoisting, and bin linking. The store
+    /// stays untouched (no tarball is fetched), matching pnpm's
+    /// `dryRun: opts.lockfileOnly` resolve pass. See
+    /// [`crate::Install::lockfile_only`].
+    pub lockfile_only: bool,
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -365,6 +372,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             meta_cache,
             node_linker,
             supported_architectures,
+            lockfile_only,
         } = self;
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
@@ -542,18 +550,28 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // download's `pnpm:progress` emits route through the same
         // reporter the install pass uses. See
         // `prefetching_resolver.rs` for the full design rationale.
-        let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
-            inner_resolver,
-            PrefetchContext {
-                http_client: &http_client_arc,
-                mem_cache: &tarball_mem_cache,
-                store_index: store_index_ref,
-                store_index_writer: Some(&store_index_writer),
-                verified_files_cache: &verified_files_cache,
-                config,
-                requester,
-            },
-        ));
+        //
+        // Skipped entirely under `--lockfile-only`: that path writes only
+        // `pnpm-lock.yaml` and must not touch the store, so resolution
+        // runs through the bare chain with no background download.
+        // Mirrors pnpm's `dryRun: opts.lockfileOnly` at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1432>.
+        let resolver: Box<dyn Resolver> = if lockfile_only {
+            inner_resolver
+        } else {
+            Box::new(PrefetchingResolver::<Reporter>::new(
+                inner_resolver,
+                PrefetchContext {
+                    http_client: &http_client_arc,
+                    mem_cache: &tarball_mem_cache,
+                    store_index: store_index_ref,
+                    store_index_writer: Some(&store_index_writer),
+                    verified_files_cache: &verified_files_cache,
+                    config,
+                    requester,
+                },
+            ))
+        };
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)
         // for the resolve pass. Mirrors the verifier wiring in
@@ -747,6 +765,52 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         drop(meta_cache);
         drop(fetch_locker);
         drop(picked_manifest_cache);
+
+        // `--lockfile-only`: the graph is resolved, so build and write
+        // `pnpm-lock.yaml` and return before any materialization. No
+        // tarball was prefetched (the resolver ran without the
+        // `PrefetchingResolver` wrapper), so the store is untouched and
+        // there is no `node_modules`, `.modules.yaml`, or current
+        // lockfile — matching pnpm's lockfileOnly resolve pass.
+        if lockfile_only {
+            let built_lockfile = build_fresh_lockfile(
+                config,
+                &importer_manifests,
+                &merged_graph,
+                &direct_by_importer,
+            );
+            let wanted_lockfile = if config.lockfile {
+                built_lockfile
+                    .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
+                    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+                Some(built_lockfile)
+            } else {
+                None
+            };
+
+            // Close the store-index writer cleanly even though no rows
+            // were written, mirroring the drain at the tail of the
+            // materializing path.
+            drop(store_index_writer);
+            if let Err(error) = writer_task.await {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "store-index writer task failed during a lockfile-only install",
+                );
+            }
+
+            Reporter::emit(&LogEvent::Stage(StageLog {
+                level: LogLevel::Debug,
+                prefix: requester.to_string(),
+                stage: Stage::ImportingDone,
+            }));
+            return Ok(InstallWithFreshLockfileResult {
+                hoisted_dependencies: HoistedDependencies::new(),
+                hoisted_locations: BTreeMap::new(),
+                wanted_lockfile,
+            });
+        }
 
         // Warm-cache batched prefetch: collect every `(integrity,
         // pkg_id)` pair the resolver produced, run one batched SQL

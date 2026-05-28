@@ -80,6 +80,13 @@ pub struct InstallArgs {
     #[clap(long)]
     pub frozen_lockfile: bool,
 
+    /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is
+    /// updated. Resolution still runs, but nothing is fetched into the
+    /// store and no `node_modules` is created. Mirrors pnpm's
+    /// `--lockfile-only`.
+    #[clap(long = "lockfile-only")]
+    pub lockfile_only: bool,
+
     /// Force-enable `preferFrozenLockfile` for this invocation.
     /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
     /// Mirrors pnpm's `--prefer-frozen-lockfile`. Conflicts with
@@ -204,6 +211,7 @@ impl InstallArgs {
             dependency_options,
             supported_architectures,
             frozen_lockfile,
+            lockfile_only,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
             ignore_manifest_check,
@@ -280,6 +288,7 @@ impl InstallArgs {
             resolved_packages,
             supported_architectures,
             node_linker,
+            lockfile_only,
         }
         .run::<Reporter>()
         .await
