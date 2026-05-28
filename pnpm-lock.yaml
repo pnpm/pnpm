@@ -8184,6 +8184,9 @@ importers:
 
   registry-access/commands:
     dependencies:
+      '@inquirer/prompts':
+        specifier: 'catalog:'
+        version: 8.4.3(@types/node@25.9.1)
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
@@ -8220,9 +8223,6 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
-      enquirer:
-        specifier: 'catalog:'
-        version: 2.4.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

@@ -7,6 +7,7 @@
 "@pnpm/installing.deps-installer": minor
 "@pnpm/network.web-auth": minor
 "@pnpm/patching.commands": minor
+"@pnpm/registry-access.commands": minor
 "@pnpm/releasing.commands": minor
 "pnpm": minor
 ---

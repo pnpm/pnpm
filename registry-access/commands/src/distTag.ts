@@ -1,5 +1,6 @@
 import readline from 'node:readline'
 
+import { input } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
@@ -15,7 +16,6 @@ import {
 import npa from '@pnpm/npm-package-arg'
 import { setDistTag } from '@pnpm/registry-access.client'
 import type { Registries, RegistryConfig } from '@pnpm/types'
-import enquirer from 'enquirer'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
@@ -319,7 +319,7 @@ function createOtpContext (opts: CreateFetchFromRegistryOptions): OtpContext {
   return {
     Date,
     createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
-    enquirer,
+    enquirer: { input },
     fetch: createFetchFromRegistry(opts),
     globalInfo,
     globalWarn,
