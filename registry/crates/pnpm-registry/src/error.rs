@@ -32,15 +32,6 @@ pub enum RegistryError {
         filename: String,
     },
 
-    #[display(
-        "Access rule {value:?} is not recognized (expected $all, $authenticated, or $anonymous)"
-    )]
-    #[from(skip)]
-    InvalidAccessRule {
-        #[error(not(source))]
-        value: String,
-    },
-
     #[display("Package policy pattern {pattern:?} is invalid: {reason}")]
     #[from(skip)]
     InvalidPolicyPattern {
@@ -171,7 +162,6 @@ impl RegistryError {
             RegistryError::UpstreamStatus { .. } => StatusCode::BAD_GATEWAY,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
-            | RegistryError::InvalidAccessRule { .. }
             | RegistryError::InvalidPolicyPattern { .. }
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }

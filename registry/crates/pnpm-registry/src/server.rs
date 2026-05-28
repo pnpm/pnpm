@@ -17,7 +17,7 @@ use crate::cache::Cache;
 use crate::config::Config;
 use crate::error::RegistryError;
 use crate::package_name::PackageName;
-use crate::policy::{AccessRule, PackagePolicies};
+use crate::policy::Identity;
 use crate::publish::{
     PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
     stream_decode_verify_and_write,
@@ -1313,29 +1313,30 @@ fn enforce_access(
     package: &str,
     action: Action,
 ) -> Result<(), RegistryError> {
-    let policies: &PackagePolicies = &state.inner.config.policies;
-    let effective = policies.for_package(package);
-    let rule = match action {
+    let effective = state.inner.config.policies.for_package(package);
+    let list = match action {
         Action::Access => effective.access,
         Action::Publish => effective.publish,
     };
-    let authenticated = identify(
+    let identity = match identify(
         headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
         &state.inner.auth.users,
         &state.inner.auth.tokens,
-    );
-    match (rule, authenticated) {
-        (AccessRule::All, _) => Ok(()),
-        (AccessRule::Authenticated, Some(_)) => Ok(()),
-        (AccessRule::Authenticated, None) => {
+    ) {
+        Some(username) => Identity::User { username },
+        None => Identity::Anonymous,
+    };
+    if list.allows(&identity) {
+        return Ok(());
+    }
+    // Denied: an anonymous caller gets a chance to authenticate (401);
+    // an authenticated caller simply isn't in the allowed set (403).
+    match identity {
+        Identity::Anonymous => {
             Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
         }
-        (AccessRule::Anonymous, None) => Ok(()),
-        // `$anonymous` admits only unauthenticated callers; a valid
-        // identity falls outside that group, so it's forbidden rather
-        // than unauthenticated.
-        (AccessRule::Anonymous, Some(user)) => Err(RegistryError::Forbidden {
-            user,
+        Identity::User { username } => Err(RegistryError::Forbidden {
+            user: username,
             action: action.label(),
             resource: format!("package {package:?}"),
         }),

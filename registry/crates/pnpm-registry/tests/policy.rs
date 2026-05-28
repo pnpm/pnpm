@@ -95,3 +95,22 @@ async fn anonymous_rule_admits_anonymous_and_forbids_authenticated() {
     let token = add_user_and_get_token(&app, "alice", "secret").await;
     assert_eq!(status_of(app, get_auth("/@anon/x", &token)).await, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn username_in_access_list_grants_only_that_user() {
+    // verdaccio per-user access: `@team/*` is restricted to `alice`.
+    let (_dir, config) =
+        config_from_yaml("packages:\n  '@team/*':\n    access: alice\n  '**':\n    access: $all\n");
+    let app = router(config);
+
+    // Anonymous: no creds for a name-gated package → 401.
+    assert_eq!(status_of(app.clone(), get("/@team/x")).await, StatusCode::UNAUTHORIZED);
+
+    // A different authenticated user is not `alice` → 403.
+    let bob = add_user_and_get_token(&app, "bob", "secret").await;
+    assert_eq!(status_of(app.clone(), get_auth("/@team/x", &bob)).await, StatusCode::FORBIDDEN);
+
+    // `alice` is on the list → access granted (404 = allowed but absent).
+    let alice = add_user_and_get_token(&app, "alice", "secret").await;
+    assert_eq!(status_of(app, get_auth("/@team/x", &alice)).await, StatusCode::NOT_FOUND);
+}
