@@ -33,9 +33,9 @@
   },
   "dependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/store.index": "workspace:*"
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",

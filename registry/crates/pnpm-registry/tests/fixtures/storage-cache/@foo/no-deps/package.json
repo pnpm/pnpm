@@ -1,0 +1,37 @@
+{
+  "name": "@foo/no-deps",
+  "versions": {
+    "1.0.0": {
+      "name": "@foo/no-deps",
+      "version": "1.0.0",
+      "_nodeVersion": "25.6.1",
+      "_id": "@foo/no-deps@1.0.0",
+      "dist": {
+        "integrity": "sha512-kWRRJfY4VXCf5z5rAuW1aTktMn7dsGm8icltpL7r0IpseTf32r75htBPbbWQMA8yjDfqzXciloMalJLsLV2IHA==",
+        "shasum": "a1c3e0c08af5ec17f150b8b9f067bead3d64e472",
+        "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-1.0.0.tgz"
+      },
+      "contributors": []
+    }
+  },
+  "time": {
+    "modified": "2026-04-07T20:15:25.391Z",
+    "created": "2026-04-07T20:15:25.391Z",
+    "1.0.0": "2022-01-01T00:00:00.000Z"
+  },
+  "users": {},
+  "dist-tags": {
+    "latest": "1.0.0"
+  },
+  "_uplinks": {},
+  "_distfiles": {},
+  "_attachments": {
+    "no-deps-1.0.0.tgz": {
+      "shasum": "a1c3e0c08af5ec17f150b8b9f067bead3d64e472",
+      "version": "1.0.0"
+    }
+  },
+  "_rev": "3-718a019c1bdef06a",
+  "_id": "@foo/no-deps",
+  "readme": ""
+}

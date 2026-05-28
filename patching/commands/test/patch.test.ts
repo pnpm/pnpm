@@ -6,7 +6,7 @@ import { beforeAll, beforeEach, describe, expect, it, jest, test } from '@jest/g
 import { install } from '@pnpm/installing.commands'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patching.commands'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'

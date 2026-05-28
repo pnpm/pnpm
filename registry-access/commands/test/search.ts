@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 import { search } from '@pnpm/registry-access.commands'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { DEFAULT_OPTS } from '@pnpm/testing.command-defaults'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`

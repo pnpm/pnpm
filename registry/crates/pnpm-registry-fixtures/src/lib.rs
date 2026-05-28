@@ -37,6 +37,18 @@ pub fn packages_dir() -> PathBuf {
     workspace_root().join(PACKAGES_DIR)
 }
 
+/// Build verdaccio-shaped storage from the raw package fixtures in `packages`
+/// into `out`, replacing any existing contents. Used by the `pnpm-registry-prepare`
+/// binary so the JS test harness can serve the moved fixtures; pacquet's own
+/// tests use [`ensure_storage`] (process-global, cached) instead.
+pub fn build_storage_at(packages: &Path, out: &Path) {
+    if out.exists() {
+        fs::remove_dir_all(out).expect("clear existing registry fixture storage");
+    }
+    fs::create_dir_all(out).expect("create registry fixture storage dir");
+    build_storage(packages, out);
+}
+
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

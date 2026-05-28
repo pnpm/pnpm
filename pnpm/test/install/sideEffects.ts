@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { execPnpm } from '../utils/index.js'

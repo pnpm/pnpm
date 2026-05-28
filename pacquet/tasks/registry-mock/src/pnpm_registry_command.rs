@@ -45,14 +45,12 @@ fn pnpm_registry_binary() -> PathBuf {
 }
 
 /// Build a [`Command`] that spawns the `pnpm-registry` binary in
-/// proxy mode against `@pnpm/registry-mock`'s prepared storage
-/// directory, with `registry.npmjs.org` as the upstream.
+/// proxy mode against the storage built from the in-repo fixtures,
+/// with `registry.npmjs.org` as the upstream.
 ///
-/// This mirrors verdaccio's `'**': proxy: npmjs` setup in
-/// `@pnpm/registry-mock`'s `registry/config.yaml`: the storage
-/// holds the scoped fixture packages (`@foo`, `@pnpm.e2e`, …) and
-/// anything else (e.g. `is-positive`, `json-append`) is pulled
-/// from npmjs.org on demand.
+/// The storage holds the fixture packages (`@foo`, `@pnpm.e2e`, …)
+/// and anything else (e.g. extra npm packages the benchmark lockfile
+/// pulls) is fetched from npmjs.org on demand.
 ///
 /// `--packument-ttl-secs 31536000` (one year) keeps the fixture
 /// packuments authoritative across a test run: their on-disk

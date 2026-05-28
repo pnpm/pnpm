@@ -2676,6 +2676,7 @@ dependencies = [
  "clap",
  "home",
  "pipe-trait",
+ "pnpm-registry-fixtures",
  "reqwest",
  "serde",
  "serde_json",
@@ -3091,6 +3092,7 @@ name = "pnpm-registry-fixtures"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "clap",
  "flate2",
  "node-semver",
  "serde_json",

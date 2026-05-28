@@ -57,10 +57,10 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-access.commands": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/releasing.commands": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "execa": "catalog:"

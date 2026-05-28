@@ -11,9 +11,8 @@ import {
   UnexpectedVirtualStoreDirError,
 } from '@pnpm/installing.deps-installer'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'

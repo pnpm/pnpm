@@ -97,6 +97,9 @@
       "path": "../../store/path"
     },
     {
+      "path": "../../testing/registry-mock"
+    },
+    {
       "path": "../../testing/temp-store"
     },
     {

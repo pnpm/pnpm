@@ -10,7 +10,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { PackageManifest, ProjectRootDir } from '@pnpm/types'
 import existsSymlink from 'exists-link'

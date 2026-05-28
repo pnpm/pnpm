@@ -69,6 +69,21 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
+    # The test harness serves package fixtures through the in-repo
+    # `pnpm-registry`; `pnpm-registry-prepare` turns the raw fixtures under
+    # `registry/.fixtures/packages` into the storage the server reads.
+    - name: Install Rust
+      uses: ./.github/actions/rustup
+      with:
+        save-cache: ${{ github.ref_name == 'main' }}
+        shared-key: registry-prepare
+    - name: Build the registry fixture preparer
+      shell: bash
+      run: |
+        cargo build --locked --release -p pnpm-registry-fixtures --bin pnpm-registry-prepare
+        bin="$PWD/target/release/pnpm-registry-prepare"
+        [ -f "$bin.exe" ] && bin="$bin.exe"
+        echo "PNPM_REGISTRY_PREPARE_BIN=$bin" >> "$GITHUB_ENV"
     - name: Determine test scope
       id: test-scope
       shell: bash

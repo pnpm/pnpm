@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { store } from '@pnpm/store.commands'
 
 test('pnpm store add express@4.16.3', async () => {

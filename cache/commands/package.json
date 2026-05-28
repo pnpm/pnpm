@@ -49,7 +49,7 @@
     "@pnpm/cache.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@types/ramda": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"

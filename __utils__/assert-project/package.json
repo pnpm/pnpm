@@ -50,7 +50,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
     "isexe": "catalog:",

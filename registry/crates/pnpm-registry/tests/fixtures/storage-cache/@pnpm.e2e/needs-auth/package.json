@@ -1,0 +1,40 @@
+{
+  "name": "@pnpm.e2e/needs-auth",
+  "versions": {
+    "1.0.0": {
+      "name": "@pnpm.e2e/needs-auth",
+      "version": "1.0.0",
+      "bin": {
+        "hello-from-needs-auth": "./hello.js"
+      },
+      "_nodeVersion": "25.6.1",
+      "_id": "@pnpm.e2e/needs-auth@1.0.0",
+      "dist": {
+        "integrity": "sha512-zuPAalDjcCxuspMJ+6paTOgcMG80wxtoQwIV9DY88mvZCxlaoVGajSk8FhRO6Sm3PyqVw0PAcgoO9aQy8PEEdw==",
+        "shasum": "61233ec8c435028de080fddeb3a2a2b1a3a5daa5",
+        "tarball": "http://localhost:4873/@pnpm.e2e/needs-auth/-/@pnpm.e2e/needs-auth-1.0.0.tgz"
+      },
+      "contributors": []
+    }
+  },
+  "time": {
+    "modified": "2026-04-07T20:17:20.023Z",
+    "created": "2026-04-07T20:17:20.023Z",
+    "1.0.0": "2022-01-01T00:00:00.000Z"
+  },
+  "users": {},
+  "dist-tags": {
+    "latest": "1.0.0"
+  },
+  "_uplinks": {},
+  "_distfiles": {},
+  "_attachments": {
+    "needs-auth-1.0.0.tgz": {
+      "shasum": "61233ec8c435028de080fddeb3a2a2b1a3a5daa5",
+      "version": "1.0.0"
+    }
+  },
+  "_rev": "3-d93a0ce779d50a8a",
+  "_id": "@pnpm.e2e/needs-auth",
+  "readme": ""
+}

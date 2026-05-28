@@ -12,12 +12,17 @@ repository.workspace = true
 
 [dependencies]
 base64      = { workspace = true }
+clap        = { workspace = true }
 flate2      = { workspace = true }
 node-semver = { workspace = true }
 serde_json  = { workspace = true }
 sha2        = { workspace = true }
 tar         = { workspace = true }
 walkdir     = { workspace = true }
+
+[[bin]]
+name = "pnpm-registry-prepare"
+path = "src/bin/pnpm-registry-prepare.rs"
 
 [lints]
 workspace = true

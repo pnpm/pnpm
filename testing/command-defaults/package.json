@@ -32,7 +32,7 @@
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
-    "@pnpm/registry-mock": "catalog:"
+    "@pnpm/testing.registry-mock": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"

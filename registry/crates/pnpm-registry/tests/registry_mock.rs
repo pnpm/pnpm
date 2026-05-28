@@ -1,18 +1,16 @@
-//! End-to-end tests for static-serve mode, sourcing the storage
-//! directory from `@pnpm/registry-mock`'s installed copy in the
-//! workspace. `@pnpm/registry-mock`'s published npm tarball ships a
-//! prepared verdaccio `storage-cache/` (scoped packages under
-//! `@foo`, `@pnpm.e2e`, etc.); this exercise asserts that
-//! pnpm-registry serves it correctly without any upstream proxy.
+//! End-to-end tests for static-serve mode against a frozen
+//! verdaccio-shaped `storage-cache/` fixture committed under
+//! `tests/fixtures/`. The fixture (scoped packages under `@foo`,
+//! `@pnpm.e2e`) carries the rich publish metadata verdaccio emits
+//! (`_attachments`, `_nodeVersion`, `contributors`, …) so these
+//! tests assert that pnpm-registry serves and abbreviates that
+//! format correctly without any upstream proxy.
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::OnceLock;
 
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use pipe_trait::Pipe;
 use serde_json::Value;
 use tower::ServiceExt;
 
@@ -20,29 +18,8 @@ use pnpm_registry::{Config, router};
 
 const PUBLIC_URL: &str = "http://example.test";
 
-fn workspace_root() -> &'static Path {
-    static ROOT: OnceLock<PathBuf> = OnceLock::new();
-    ROOT.get_or_init(|| {
-        Command::new(env!("CARGO"))
-            .arg("locate-project")
-            .arg("--workspace")
-            .arg("--message-format=plain")
-            .output()
-            .expect("cargo locate-project")
-            .stdout
-            .pipe(String::from_utf8)
-            .expect("utf8 stdout")
-            .trim_end()
-            .pipe(Path::new)
-            .parent()
-            .expect("parent of root manifest")
-            .to_path_buf()
-    })
-}
-
 fn registry_mock_storage() -> PathBuf {
-    workspace_root()
-        .join("pacquet/tasks/registry-mock/node_modules/@pnpm/registry-mock/registry/storage-cache")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/storage-cache")
 }
 
 fn static_config(storage: PathBuf) -> Config {
@@ -61,7 +38,7 @@ async fn serves_scoped_packument_from_registry_mock_storage() {
     let storage = registry_mock_storage();
     assert!(
         storage.join("@foo/no-deps/package.json").exists(),
-        "registry-mock storage is not populated at {storage:?} — run `pnpm install` first",
+        "committed storage fixture missing at {storage:?}",
     );
 
     let app = router(static_config(storage));
@@ -86,7 +63,7 @@ async fn serves_scoped_packument_from_registry_mock_storage() {
     // through untouched.
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["shasum"],
-        "30909ad03bbccde8929f516e4644a62cf7f82785",
+        "a1c3e0c08af5ec17f150b8b9f067bead3d64e472",
     );
     assert!(doc["versions"]["1.0.0"]["dist"]["integrity"].as_str().unwrap().starts_with("sha512-"));
 }

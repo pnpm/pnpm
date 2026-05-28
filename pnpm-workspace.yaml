@@ -96,7 +96,6 @@ catalog:
   '@pnpm/os.env.path-extender': ^3.0.1
   '@pnpm/patch-package': 0.0.1
   '@pnpm/pnpr': 0.0.0-26052601
-  '@pnpm/registry-mock': 6.0.0
   '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
@@ -450,14 +449,6 @@ packageExtensions:
   '@babel/parser':
     peerDependencies:
       '@babel/types': '*'
-  # pnpm's test harness launches `pnpm-registry` (the in-tree Rust
-  # crate) instead of verdaccio, so `@pnpm/registry-mock`'s verdaccio
-  # peer is dead weight here. Mark it optional to keep pnpm from
-  # auto-installing verdaccio + its tree across the workspace.
-  '@pnpm/registry-mock':
-    peerDependenciesMeta:
-      verdaccio:
-        optional: true
   jest-circus:
     dependencies:
       slash: '3'
