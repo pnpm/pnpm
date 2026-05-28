@@ -1166,3 +1166,101 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
     assert!(packages.contains_key(&lodash_key));
     assert_eq!(packages.len(), 1, "only lodash lands in packages:");
 }
+
+/// Ported from upstream pnpm's
+/// [`links are not added to the lockfile when excludeLinksFromLockfile is true`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L27-L124)
+/// e2e test, narrowed to the lockfile-rendering side: a direct
+/// dependency whose manifest specifier is a bare `link:` path is
+/// omitted from the importer's `dependencies` and `specifiers` maps
+/// when [`GraphToLockfileOptions::exclude_links_from_lockfile`] is
+/// `true`, while a registry-resolved sibling is still recorded.
+#[test]
+fn external_link_direct_dep_omitted_from_importer_when_exclude_links_from_lockfile_true() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "is-positive": "1.0.0",
+            "external-1": "link:/abs/external-1",
+        },
+    }));
+
+    let link_node =
+        make_link_node("/abs/external-1", json!({ "name": "external-1", "version": "1.0.0" }));
+    let is_positive = make_node(
+        "is-positive",
+        "1.0.0",
+        json!({ "name": "is-positive", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(link_node.dep_path.clone(), link_node.clone());
+    graph.insert(is_positive.dep_path.clone(), is_positive);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("external-1".to_string(), link_node.dep_path);
+    direct.insert("is-positive".to_string(), DepPath::from("is-positive@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, true, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let deps = importer.dependencies.as_ref().expect("dependencies map");
+    assert!(
+        deps.contains_key(&PkgName::parse("is-positive").unwrap()),
+        "non-link direct dep is still recorded",
+    );
+    assert!(
+        !deps.contains_key(&PkgName::parse("external-1").unwrap()),
+        "link: direct dep is omitted from importer.dependencies",
+    );
+    let specifiers = importer.specifiers.as_ref().expect("specifiers map");
+    assert!(
+        !specifiers.contains_key("external-1"),
+        "link: direct dep is omitted from importer.specifiers",
+    );
+    assert!(
+        lockfile.settings.as_ref().expect("settings block").exclude_links_from_lockfile,
+        "the setting round-trips into the lockfile settings block",
+    );
+}
+
+/// Ported from upstream pnpm's
+/// [`links resolved from workspace protocol dependencies are not removed`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L245-L298)
+/// e2e test. A `workspace:` specifier resolves to a `link:` depPath
+/// just like a bare `link:` spec, but `excludeLinksFromLockfile` is
+/// scoped to the latter — workspace siblings stay in the importer
+/// entry so the lockfile keeps a complete description of the
+/// workspace graph.
+#[test]
+fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": { "shared": "workspace:*" },
+    }));
+
+    let link_node = make_link_node("../shared", json!({ "name": "shared", "version": "1.0.0" }));
+    let mut graph = DependenciesGraph::new();
+    graph.insert(link_node.dep_path.clone(), link_node.clone());
+
+    let mut direct = BTreeMap::new();
+    direct.insert("shared".to_string(), link_node.dep_path);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, true, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let deps = importer.dependencies.as_ref().expect("dependencies map");
+    let shared = deps.get(&PkgName::parse("shared").unwrap()).expect("shared entry");
+    assert_eq!(shared.specifier, "workspace:*");
+    match &shared.version {
+        ImporterDepVersion::Link(target) => assert_eq!(target, "../shared"),
+        other => panic!("expected Link(..), got {other:?}"),
+    }
+}

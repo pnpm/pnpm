@@ -132,6 +132,7 @@ pub struct WorkspaceSettings {
 
     pub auto_install_peers: Option<bool>,
     pub auto_install_peers_from_highest_match: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     /// `optimisticRepeatInstall` from `pnpm-workspace.yaml` /
     /// `~/.config/pnpm/config.yaml`. Defaults to `true` at the
     /// `Config` layer ([`Config::optimistic_repeat_install`]) to
@@ -408,6 +409,7 @@ impl WorkspaceSettings {
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
         self.auto_install_peers_from_highest_match = None;
+        self.exclude_links_from_lockfile = None;
         self.hoist_workspace_packages = None;
         self.link_workspace_packages = None;
         self.dedupe_peer_dependents = None;
@@ -501,6 +503,7 @@ impl WorkspaceSettings {
             lockfile, prefer_frozen_lockfile, offline, prefer_offline,
             lockfile_include_tarball_url,
             auto_install_peers, auto_install_peers_from_highest_match,
+            exclude_links_from_lockfile,
             optimistic_repeat_install,
             hoist_workspace_packages,
             hoisting_limits, external_dependencies,

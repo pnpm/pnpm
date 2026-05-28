@@ -92,6 +92,9 @@ fn default_opts() -> ResolveImporterOptions {
         patched_dependencies: None,
         base_opts: ResolveOptions::default(),
         catalogs: pacquet_catalogs_types::Catalogs::new(),
+        exclude_links_from_lockfile: false,
+        lockfile_dir: None,
+        modules_dir: None,
     }
 }
 

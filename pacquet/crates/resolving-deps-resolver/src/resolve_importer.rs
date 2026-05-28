@@ -96,6 +96,26 @@ pub struct ResolveImporterOptions {
     /// are not resolved through the catalog, matching upstream's
     /// [importer-only catalog scope](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L600).
     pub catalogs: Catalogs,
+
+    /// When `true`, `link:` direct deps whose target lives outside
+    /// the lockfile root are seeded into the peer-resolution parent
+    /// map with a remapped node id
+    /// (`link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`) so the
+    /// peer suffix stays stable across machines. Mirrors pnpm's
+    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244)
+    /// flow. The remap fires only when [`Self::lockfile_dir`] and
+    /// [`Self::modules_dir`] are both set.
+    pub exclude_links_from_lockfile: bool,
+
+    /// Absolute path of the directory `pnpm-lock.yaml` lives in.
+    /// Forwarded to [`crate::resolve_peers()`] for the
+    /// `excludeLinksFromLockfile` remap; the gate is no-op when `None`.
+    pub lockfile_dir: Option<std::path::PathBuf>,
+
+    /// Absolute path of the importer's `node_modules` directory.
+    /// Forwarded to [`crate::resolve_peers()`] for the
+    /// `excludeLinksFromLockfile` remap; the gate is no-op when `None`.
+    pub modules_dir: Option<std::path::PathBuf>,
 }
 
 /// Result of [`fn@resolve_importer`] — the fully-walked tree plus the
@@ -140,8 +160,17 @@ where
         patched_dependencies,
         base_opts,
         catalogs,
+        exclude_links_from_lockfile,
+        lockfile_dir,
+        modules_dir,
     } = opts;
-    let peer_opts = ResolvePeersOptions { dedupe_peers, ..ResolvePeersOptions::default() };
+    let peers_opts = || ResolvePeersOptions {
+        peers_suffix_max_length: 1000,
+        dedupe_peers,
+        exclude_links_from_lockfile,
+        lockfile_dir: lockfile_dir.clone(),
+        modules_dir: modules_dir.clone(),
+    };
 
     let ctx = TreeCtx::new(base_opts).with_patched_dependencies(patched_dependencies);
 
@@ -186,7 +215,7 @@ where
     loop {
         loop {
             let mut snapshot = ctx.snapshot(direct.clone());
-            let peers_result = resolve_peers(&mut snapshot, peer_opts);
+            let peers_result = resolve_peers(&mut snapshot, peers_opts());
 
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &peers_result.peer_dependency_issues.missing,
@@ -267,7 +296,7 @@ where
     }
 
     let mut resolved_tree = ctx.into_resolved_tree(direct);
-    let peers_result = resolve_peers(&mut resolved_tree, peer_opts);
+    let peers_result = resolve_peers(&mut resolved_tree, peers_opts());
     Ok(ResolveImporterResult { resolved_tree, peers_result })
 }
 

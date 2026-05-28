@@ -528,6 +528,15 @@ pub struct Config {
     #[default = true]
     pub auto_install_peers: bool,
 
+    /// When `true`, dependencies declared with the `link:` protocol
+    /// are excluded from `pnpm-lock.yaml`. Workspace-protocol
+    /// dependencies (`workspace:`), which also resolve to a link,
+    /// are still recorded. Mirrors pnpm's
+    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/config/reader/src/Config.ts#L71)
+    /// (default `false` per
+    /// [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/config/reader/src/index.ts#L144)).
+    pub exclude_links_from_lockfile: bool,
+
     /// When `true`, conflicting peer-dependency ranges from multiple
     /// consumers are merged with `||` (so the resolver may pick the
     /// highest version that satisfies any one of them) instead of

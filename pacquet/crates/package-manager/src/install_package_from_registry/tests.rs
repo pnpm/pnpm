@@ -46,6 +46,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         named_registries: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,
+        exclude_links_from_lockfile: false,
         hoist_workspace_packages: true,
         hoisting_limits: Default::default(),
         link_workspace_packages: Default::default(),
