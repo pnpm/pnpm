@@ -829,3 +829,151 @@ async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
         other => panic!("expected CatalogMisconfiguration, got {other:?}"),
     }
 }
+
+/// Build a [`ResolveResult`] for an `npm:`-aliased install. `local_alias`
+/// is the alias the importer uses in `node_modules/` (and in
+/// `parentPkgs`); `real_name`/`version` identify the resolved package.
+/// Mirrors the real npm-resolver's behaviour at
+/// [`npm_resolver.rs:288`](https://github.com/pnpm/pnpm/blob/2a0032edc0/pacquet/crates/resolving-npm-resolver/src/npm_resolver.rs#L288):
+/// the result carries the local alias, while `name_ver` and `id` point
+/// at the underlying package.
+fn aliased_fake_result(
+    local_alias: &str,
+    real_name: &str,
+    version: &str,
+    manifest: serde_json::Value,
+) -> ResolveResult {
+    let mut result = fake_result(real_name, version, manifest);
+    result.alias = Some(local_alias.to_string());
+    result
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/11999>.
+///
+/// The TypeScript fix (`installing/deps-resolver/src/resolvePeers.ts`)
+/// broadens which cycles `calculateDepPath` short-circuits. Pacquet's
+/// `resolve_peers` walks synchronously with an `in_progress` set, so
+/// the deadlock that hit pnpm does not occur here — but the scenario
+/// has to keep terminating with a graph entry for the aliased root and
+/// for each pair of mutually-peer-depending leaves.
+///
+/// Layout (from the upstream bug): an aliased install `a@npm:a-real`
+/// pulls in `b-real` and `c-real`. Each of those depends on one half
+/// of a mutual-peer pair (`x` ↔ `y`) and peer-depends on the aliased
+/// root (`a@npm:a-real`). The hoist loop auto-installs `x` and `y` at
+/// the importer level, where their cycle surfaces.
+#[tokio::test]
+async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
+    let mut table = HashMap::new();
+    // Root install: `a@npm:a-real@1.0.0`.
+    table.insert(
+        ("a".to_string(), "npm:a-real@1.0.0".to_string()),
+        aliased_fake_result(
+            "a",
+            "a-real",
+            "1.0.0",
+            serde_json::json!({
+                "name": "a-real",
+                "version": "1.0.0",
+                "dependencies": {
+                    "b": "npm:b-real@1.0.0",
+                    "c": "npm:c-real@1.0.0",
+                },
+            }),
+        ),
+    );
+    // `b@npm:b-real@1.0.0`: depends on `x`, peer-depends on the aliased
+    // root.
+    table.insert(
+        ("b".to_string(), "npm:b-real@1.0.0".to_string()),
+        aliased_fake_result(
+            "b",
+            "b-real",
+            "1.0.0",
+            serde_json::json!({
+                "name": "b-real",
+                "version": "1.0.0",
+                "dependencies": { "x": "1.0.0" },
+                "peerDependencies": { "a": "npm:a-real@1.0.0" },
+            }),
+        ),
+    );
+    // `c@npm:c-real@1.0.0`: depends on `y`, peer-depends on the aliased
+    // root.
+    table.insert(
+        ("c".to_string(), "npm:c-real@1.0.0".to_string()),
+        aliased_fake_result(
+            "c",
+            "c-real",
+            "1.0.0",
+            serde_json::json!({
+                "name": "c-real",
+                "version": "1.0.0",
+                "dependencies": { "y": "1.0.0" },
+                "peerDependencies": { "a": "npm:a-real@1.0.0" },
+            }),
+        ),
+    );
+    // `x` ↔ `y` mutual peer cycle.
+    table.insert(
+        ("x".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "x",
+            "1.0.0",
+            serde_json::json!({
+                "name": "x",
+                "version": "1.0.0",
+                "peerDependencies": { "y": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("y".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "y",
+            "1.0.0",
+            serde_json::json!({
+                "name": "y",
+                "version": "1.0.0",
+                "peerDependencies": { "x": "1.0.0" },
+            }),
+        ),
+    );
+
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "npm:a-real@1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"a"), "aliased root must surface as a direct dep: {direct:?}");
+    assert!(direct.contains(&"x"), "missing peer x must be auto-installed: {direct:?}");
+    assert!(direct.contains(&"y"), "missing peer y must be auto-installed: {direct:?}");
+
+    // The aliased root's dep path resolves to the real package id.
+    let a_dep_path = result
+        .peers_result
+        .direct_dependencies_by_alias
+        .get("a")
+        .expect("alias `a` must be in the result")
+        .to_string();
+    assert!(
+        a_dep_path.starts_with("a-real@1.0.0"),
+        "aliased dep path must start with the real package id, got {a_dep_path}",
+    );
+
+    // Both mutually-peer-depending leaves land in the graph.
+    let dep_paths: std::collections::HashSet<String> =
+        result.peers_result.graph.keys().map(ToString::to_string).collect();
+    assert!(
+        dep_paths.iter().any(|dp| dp.starts_with("x@1.0.0")),
+        "x must appear in the graph: {dep_paths:?}",
+    );
+    assert!(
+        dep_paths.iter().any(|dp| dp.starts_with("y@1.0.0")),
+        "y must appear in the graph: {dep_paths:?}",
+    );
+}
