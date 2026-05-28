@@ -443,20 +443,20 @@ mod tests {
         assert_eq!(substitute_env_vars("var: ${PNPR_TEST_VAR_1}", lookup), "var: hello");
         assert_eq!(
             substitute_env_vars("vars: ${PNPR_TEST_VAR_1} and ${PNPR_TEST_VAR_2}", lookup),
-            "vars: hello and world"
+            "vars: hello and world",
         );
         assert_eq!(substitute_env_vars("unset: ${PNPR_TEST_VAR_UNSET}", lookup), "unset: ");
         assert_eq!(
             substitute_env_vars("default: ${PNPR_TEST_VAR_UNSET:-default_val}", lookup),
-            "default: default_val"
+            "default: default_val",
         );
         assert_eq!(
             substitute_env_vars("default_set: ${PNPR_TEST_VAR_1:-default_val}", lookup),
-            "default_set: hello"
+            "default_set: hello",
         );
         assert_eq!(
             substitute_env_vars("malformed: ${PNPR_TEST_VAR_UNSET", lookup),
-            "malformed: ${PNPR_TEST_VAR_UNSET"
+            "malformed: ${PNPR_TEST_VAR_UNSET",
         );
     }
 
