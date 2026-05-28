@@ -28,8 +28,8 @@ use pacquet_graph_hasher::{
     format_global_virtual_store_path,
 };
 use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, SnapshotDepRef,
-    SnapshotEntry,
+    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgVerPeer,
+    SnapshotDepRef, SnapshotEntry, VersionPart,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -240,7 +240,7 @@ impl VirtualStoreLayout {
             );
             let metadata_key = snapshot_key.without_peer();
             let name = metadata_key.name.to_string();
-            let version = metadata_key.suffix.version().to_string();
+            let version = gvs_version_segment(&metadata_key.suffix);
             let suffix = format_global_virtual_store_path(&name, &version, &hex_digest);
             gvs_suffixes.insert(snapshot_key.clone(), suffix);
         }
@@ -286,6 +286,26 @@ impl VirtualStoreLayout {
             None => key.to_virtual_store_name(self.virtual_store_dir_max_length),
         };
         self.package_store_dir.join(suffix)
+    }
+}
+
+/// Version segment of a snapshot's global-virtual-store path. Mirrors
+/// pnpm's
+/// [`nameVerFromPkgSnapshot`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/utils/src/nameVerFromPkgSnapshot.ts#L12-L23)
+/// (`pkgSnapshot.version ?? pkgInfo.version`) feeding
+/// [`formatGlobalVirtualStorePath`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L283-L286).
+///
+/// An injected `file:` workspace dep carries no `version` field in the
+/// lockfile, and its depPath version is non-semver, so upstream's
+/// `nameVerFromPkgSnapshot` returns `undefined` and the template-literal
+/// `formatGlobalVirtualStorePath` stringifies it to the literal segment
+/// `undefined`. Emitting the raw `file:<path>` here instead would put a
+/// `:` (and embedded `/`) into the slot path — rejected on Windows with
+/// `ERROR_INVALID_NAME` and divergent from pnpm. See pnpm/pnpm#12038.
+fn gvs_version_segment(suffix: &PkgVerPeer) -> String {
+    match suffix.version() {
+        VersionPart::File(_) => "undefined".to_string(),
+        VersionPart::Semver(_) | VersionPart::NonSemver(_) => suffix.version().to_string(),
     }
 }
 
@@ -791,5 +811,18 @@ mod tests {
             "full_pkg_id must keep the patch-hash segment; got {:?}",
             node.full_pkg_id,
         );
+    }
+
+    /// The GVS version segment is the semver for a registry dep, and
+    /// the literal `undefined` for an injected `file:` directory dep —
+    /// mirroring pnpm's `nameVerFromPkgSnapshot` → `undefined` and
+    /// keeping the `:` out of the slot path. See pnpm/pnpm#12038.
+    #[test]
+    fn gvs_version_segment_renders_file_deps_as_undefined() {
+        let semver: PackageKey = "foo@1.2.3".parse().unwrap();
+        assert_eq!(super::gvs_version_segment(&semver.suffix), "1.2.3");
+
+        let file_dep: PackageKey = "b@file:packages/b".parse().unwrap();
+        assert_eq!(super::gvs_version_segment(&file_dep.suffix), "undefined");
     }
 }

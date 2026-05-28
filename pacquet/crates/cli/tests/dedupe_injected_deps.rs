@@ -8,6 +8,9 @@
 //! `file:<workspace>` back to `link:<rel>` once the dedupe pass
 //! recognizes the children-subset case.
 
+pub mod _utils;
+
+use _utils::enable_gvs_in_workspace_yaml;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
@@ -87,24 +90,15 @@ fn injected_leaf_workspace_dep_is_deduped_to_link() {
 /// `dedupeInjectedDeps: false` in `pnpm-workspace.yaml`: the injected
 /// snapshot stays as `file:packages/b` in the importer entry, the
 /// lockfile writer's [`ImporterDepVersion::File`] arm formats it, and
-/// the on-disk layout points at the virtual store slot instead of a
-/// `link:` sibling. Regression test for the writer panic on `file:`
-/// importer-level depPaths that the resolver-side dedupe used to hide.
-///
-/// Windows-skipped: pacquet's `create_virtual_store` pass does not
-/// materialise `file:<workspace>` snapshots into the virtual store
-/// yet (broader gap tracked under pnpm/pnpm#12009's
-/// `injectWorkspacePackages` line), so the symlink at
-/// `packages/a/node_modules/b` points at a non-existent target. Unix
-/// silently tolerates the broken link during the bin-link manifest
-/// walk; Windows is stricter and trips `ERROR_INVALID_NAME` reading
-/// through it with a mixed-separator path. The lockfile-writer
-/// regression this test guards is platform-independent, so the
-/// Linux + macOS coverage is enough until the materialise gap closes.
+/// `create_virtual_store` materialises the source project's contents
+/// into the (escaped) `b@file+packages+b` virtual-store slot so the
+/// per-importer symlink at `packages/a/node_modules/b` resolves to a
+/// real directory. Guards both the lockfile-writer regression on
+/// `file:` importer-level depPaths and the materialise step
+/// (pnpm/pnpm#12038).
 ///
 /// [`ImporterDepVersion::File`]: pacquet_lockfile::ImporterDepVersion::File
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "file:<workspace> materialisation not ported")]
 fn injected_workspace_dep_with_dedupe_off_writes_file_arm() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -157,6 +151,89 @@ fn injected_workspace_dep_with_dedupe_off_writes_file_arm() {
         !lockfile.contains("link:../b"),
         "pnpm-lock.yaml should not rewrite the injected dep to link:../b when dedupe is disabled:\n{lockfile}",
     );
+
+    let dep = workspace.join("packages/a/node_modules/b");
+    assert!(
+        is_symlink_or_junction(&dep).expect("query packages/a/node_modules/b"),
+        "packages/a/node_modules/b should be a symlink into the virtual store when dedupe is disabled",
+    );
+    assert!(
+        dep.join("package.json").is_file(),
+        "packages/a/node_modules/b should resolve to a materialised slot — create_virtual_store must copy packages/b's contents into the file: snapshot's virtual-store directory (pnpm/pnpm#12038)",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Same `dedupeInjectedDeps: false` fixture, but with the global
+/// virtual store enabled. The GVS slot path is
+/// `<store>/links/<scope>/<name>/<version>/<hash>`, and the `<version>`
+/// segment for a `file:` directory dep has no semver to fill it: pnpm's
+/// `nameVerFromPkgSnapshot` yields `undefined`, which its
+/// `formatGlobalVirtualStorePath` renders as the literal `undefined`
+/// segment. Pacquet must do the same — emitting the raw `file:packages/b`
+/// version would put a `:` (and an embedded `/`) into the slot path,
+/// which Windows rejects with `ERROR_INVALID_NAME`. Regression test for
+/// pnpm/pnpm#12038.
+#[test]
+fn injected_workspace_dep_with_dedupe_off_materialises_under_gvs() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    enable_gvs_in_workspace_yaml(
+        &workspace,
+        "packages:\n  - 'packages/*'\ndedupeInjectedDeps: false\n",
+    );
+
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "b": "workspace:*" },
+            "dependenciesMeta": { "b": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write packages/a/package.json");
+
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        serde_json::json!({ "name": "b", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let dep = workspace.join("packages/a/node_modules/b");
+    assert!(
+        is_symlink_or_junction(&dep).expect("query packages/a/node_modules/b"),
+        "packages/a/node_modules/b should be a symlink into the global virtual store",
+    );
+    assert!(
+        dep.join("package.json").is_file(),
+        "packages/a/node_modules/b should resolve to a materialised GVS slot (pnpm/pnpm#12038)",
+    );
+
+    // The slot path must not embed the raw `file:` version — that is
+    // the `ERROR_INVALID_NAME` shape on Windows the fix removes.
+    #[cfg(unix)]
+    {
+        let target = fs::read_link(&dep).expect("read packages/a/node_modules/b symlink");
+        assert!(
+            !target.to_string_lossy().contains("file:"),
+            "GVS slot path must not contain a `file:` segment with a colon; got {target:?}",
+        );
+    }
 
     drop((root, mock_instance));
 }
