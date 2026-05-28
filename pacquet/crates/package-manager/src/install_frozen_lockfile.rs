@@ -1206,7 +1206,7 @@ struct HoistedLinkerOutput {
 /// the dedupe pass in [`crate::SymlinkDirectDependencies`] (which
 /// runs before the on-disk hoist phase in pacquet's ordering) can
 /// fold publicly-hoisted aliases into root's target map. The on-disk
-/// hoist phase later consumes the same [`HoistResult`] instead of
+/// hoist phase later consumes the same [`crate::HoistResult`] instead of
 /// re-running the BFS.
 pub(crate) struct HoistPlan {
     pub(crate) graph: HashMap<PackageKey, crate::HoistGraphNode>,

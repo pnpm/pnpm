@@ -408,7 +408,11 @@ fn link_one_importer<Reporter: self::Reporter>(
     let entries: Vec<ResolvedEntry<'_>> = if let Some(root_targets) = dedupe_against {
         entries
             .into_iter()
-            .filter(|entry| root_targets.get(&entry.name_str).is_none_or(|t| t != &entry.target))
+            .filter(|entry| {
+                root_targets
+                    .get(&entry.name_str)
+                    .is_none_or(|root_target| root_target != &entry.target)
+            })
             .collect()
     } else {
         entries
