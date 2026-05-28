@@ -1,6 +1,9 @@
 use pacquet_network::{AuthHeaders, ThrottledClient};
+use std::time::Duration;
 
-use super::{FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata};
+use super::{
+    FetchFullMetadataOptions, FetchFullMetadataOutcome, MetadataRetryOpts, fetch_full_metadata,
+};
 
 /// Unwrap a [`FetchFullMetadataOutcome::Modified`], panicking on
 /// `NotModified`. Used by the success-path tests below where the
@@ -11,6 +14,19 @@ fn expect_modified(outcome: FetchFullMetadataOutcome) -> pacquet_registry::Packa
         FetchFullMetadataOutcome::NotModified => {
             panic!("expected Modified outcome, got NotModified")
         }
+    }
+}
+
+fn no_retry_opts() -> MetadataRetryOpts {
+    MetadataRetryOpts { retries: 0, ..Default::default() }
+}
+
+fn fast_retry_opts() -> MetadataRetryOpts {
+    MetadataRetryOpts {
+        retries: 1,
+        min_timeout: Duration::from_millis(1),
+        max_timeout: Duration::from_millis(1),
+        ..Default::default()
     }
 }
 
@@ -71,6 +87,7 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
         full_metadata: true,
         etag: None,
         modified: None,
+        retry_opts: no_retry_opts(),
     };
 
     let pkg =
@@ -103,6 +120,7 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
         full_metadata: true,
         etag: None,
         modified: None,
+        retry_opts: no_retry_opts(),
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
@@ -113,6 +131,53 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     let text = format!("{err:?}");
     assert!(text.contains("acme"), "error mentions the failing URL: {text}");
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_retries_transient_status() {
+    let mut server = mockito::Server::new_async().await;
+    let first = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let second = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: fast_retry_opts(),
+    };
+
+    let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("503 retries"));
+    assert_eq!(pkg.name, "acme");
+    first.assert_async().await;
+    second.assert_async().await;
 }
 
 /// Scoped names percent-encode the `/` between the `@scope` prefix
@@ -158,6 +223,7 @@ async fn fetch_full_metadata_encodes_scoped_name() {
         full_metadata: true,
         etag: None,
         modified: None,
+        retry_opts: no_retry_opts(),
     };
 
     let pkg = expect_modified(
@@ -193,6 +259,7 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
         full_metadata: true,
         etag: None,
         modified: None,
+        retry_opts: no_retry_opts(),
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("malformed JSON must surface");
@@ -233,6 +300,7 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
         full_metadata: true,
         etag: Some(r#"W/"fresh""#),
         modified: Some("Wed, 15 Jan 2025 12:00:00 GMT"),
+        retry_opts: no_retry_opts(),
     };
 
     let outcome = fetch_full_metadata("acme", &opts).await.expect("304 must succeed");

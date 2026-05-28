@@ -25,7 +25,10 @@ use reqwest::{StatusCode, header};
 
 use crate::{
     FetchMetadataError,
-    fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
+    fetch_full_metadata::{
+        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRetryOpts,
+        send_metadata_request_with_retry,
+    },
     mirror::{
         ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
         load_meta_headers_async, prepare_json_for_disk, save_meta,
@@ -56,6 +59,7 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// [`fetchAbbreviatedMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L47-L53)
     /// dispatch.
     pub full_metadata: bool,
+    pub(crate) retry_opts: MetadataRetryOpts,
 }
 
 /// Fetch the full registry metadata document for `pkg_name`, reusing
@@ -120,24 +124,23 @@ pub async fn fetch_full_metadata_cached(
 
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let mut request =
-        opts.http_client.acquire_for_url(&url).await.get(&url).header(header::ACCEPT, accept);
-    if let Some(value) = opts.auth_headers.for_url(&url) {
-        request = request.header(header::AUTHORIZATION, value);
-    }
-    if let Some(headers) = cache_headers.as_ref() {
-        if let Some(etag) = headers.etag.as_deref() {
-            request = request.header(header::IF_NONE_MATCH, etag);
+    let client = opts.http_client.acquire_for_url(&url).await;
+    let response = send_metadata_request_with_retry(&url, opts.retry_opts, || {
+        let mut request = client.get(&url).header(header::ACCEPT, accept);
+        if let Some(value) = opts.auth_headers.for_url(&url) {
+            request = request.header(header::AUTHORIZATION, value);
         }
-        if let Some(modified) = headers.modified.as_deref() {
-            request = request.header(header::IF_MODIFIED_SINCE, modified);
+        if let Some(headers) = cache_headers.as_ref() {
+            if let Some(etag) = headers.etag.as_deref() {
+                request = request.header(header::IF_NONE_MATCH, etag);
+            }
+            if let Some(modified) = headers.modified.as_deref() {
+                request = request.header(header::IF_MODIFIED_SINCE, modified);
+            }
         }
-    }
-
-    let response = request
-        .send()
-        .await
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+        request
+    })
+    .await?;
 
     if response.status() == StatusCode::NOT_MODIFIED {
         let Some(path) = mirror_path else {
@@ -153,9 +156,6 @@ pub async fn fetch_full_metadata_cached(
         });
     }
 
-    let response = response
-        .error_for_status()
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
     let etag = response
         .headers()
         .get(header::ETAG)

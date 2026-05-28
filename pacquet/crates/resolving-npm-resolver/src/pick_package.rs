@@ -602,6 +602,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         auth_headers: ctx.auth_headers,
         cache_dir: ctx.cache_dir,
         full_metadata,
+        retry_opts: Default::default(),
     };
 
     let fetch_result = fetch_full_metadata_cached(&spec.name, &fetch_opts).await;
@@ -1083,6 +1084,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         full_metadata: true,
         etag: meta.etag.as_deref(),
         modified: meta.modified.as_deref(),
+        retry_opts: Default::default(),
     };
     match fetch_full_metadata(&spec.name, &fetch_opts).await? {
         FetchFullMetadataOutcome::Modified(upgraded) => {
