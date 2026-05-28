@@ -87,6 +87,18 @@ where
     /// `linkHoistedModules` with a filtered `directDependenciesByImporterId`
     /// containing only `link:`-shaped entries.
     pub link_only: bool,
+
+    /// `<alias → resolved-target-path>` for every transitive that the
+    /// hoist pass will publicly hoist into the root's `node_modules/`.
+    /// Folded into the dedupe map alongside the root importer's direct
+    /// deps so a non-root importer's direct dep resolving to the same
+    /// target as a publicly-hoisted alias is also deduped — matching
+    /// pnpm where `linkDirectDepsAndDedupe` reads root's `node_modules/`
+    /// *after* the hoist pass already populated it. Pacquet's pipeline
+    /// runs hoist after this step, so the caller pre-computes the
+    /// hoist plan ([`crate::get_hoisted_dependencies`]) and threads
+    /// the public-side targets in here.
+    pub public_hoist_targets: Option<&'a BTreeMap<String, PathBuf>>,
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -144,6 +156,7 @@ where
             workspace_root,
             skipped,
             link_only,
+            public_hoist_targets,
         } = self;
 
         // Collect once so the same group order can drive every importer.
@@ -180,14 +193,29 @@ where
         let dedupe = config.dedupe_direct_deps && importers.contains_key(".") && keys.len() > 1;
         let root_targets: Option<BTreeMap<String, PathBuf>> = dedupe.then(|| {
             let root_project_dir = importer_root_dir(workspace_root, ".");
-            collect_resolved_targets(
+            let mut targets = collect_resolved_targets(
                 layout,
                 &importers["."],
                 &root_project_dir,
                 dependency_groups.iter().copied(),
                 skipped,
                 link_only,
-            )
+            );
+            // Fold publicly-hoisted aliases in alongside root's
+            // direct deps. Pnpm's `linkDirectDepsAndDedupe` reads
+            // root's `node_modules/` after the hoist pass populates
+            // it, so its dedupe naturally covers both kinds; pacquet
+            // runs hoist *after* this step, so the caller pre-computes
+            // the hoist plan and feeds the public-side targets here.
+            // Direct deps win on collision — a root direct dep won't
+            // be silently overwritten by a hoist plan entry that
+            // resolves to a different slot.
+            if let Some(extra) = public_hoist_targets {
+                for (alias, target) in extra {
+                    targets.entry(alias.clone()).or_insert_with(|| target.clone());
+                }
+            }
+            targets
         });
 
         for importer_id in keys {

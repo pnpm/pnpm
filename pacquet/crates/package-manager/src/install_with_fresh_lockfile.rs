@@ -876,6 +876,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             workspace_root: symlink_root,
             skipped: &empty_skipped,
             link_only: false,
+            // Fresh-install path does not run a hoist pass yet (see
+            // [`InstallWithFreshLockfile::run`] doc), so there are no
+            // publicly-hoisted aliases for the dedupe map to fold in.
+            public_hoist_targets: None,
         }
         .run::<Reporter>()
         .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
