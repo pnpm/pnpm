@@ -556,7 +556,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     cycles: string[][]
   ): Promise<void> {
     const cyclicPeerAliases = new Set<string>()
-    const pendingPeerAliases = new Set(pendingPeerNodes.map((p) => p.alias))
+    const pendingPeerAliases = new Set(pendingPeerNodes.map(({ alias }) => alias))
     for (const cycle of cycles) {
       // A cycle has to be short-circuited at this level whenever any of
       // its members is involved in the current resolution — either as
