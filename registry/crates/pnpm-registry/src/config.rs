@@ -270,7 +270,7 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> Result<Self, serde_saphyr::Error> {
-        let substituted = substitute_env_vars(raw);
+        let substituted = substitute_env_vars(raw, |k| std::env::var(k).ok());
         let file: ConfigFile = serde_saphyr::from_str(&substituted)?;
         let storage = resolve_relative(&file.storage, base_dir);
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
@@ -378,7 +378,7 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
 
 /// Scans the raw YAML config string and replaces `${VAR}` or `${VAR:-DEFAULT}`
 /// with the environment variable value, or the default, or empty string.
-fn substitute_env_vars(raw: &str) -> String {
+fn substitute_env_vars<F: Fn(&str) -> Option<String>>(raw: &str, lookup: F) -> String {
     let mut result = String::new();
     let mut chars = raw.char_indices().peekable();
     while let Some((_, c)) = chars.next() {
@@ -397,10 +397,10 @@ fn substitute_env_vars(raw: &str) -> String {
                 if let Some(pos) = var_content.find(":-") {
                     let name = &var_content[..pos];
                     let default = &var_content[pos + 2..];
-                    let val = std::env::var(name).unwrap_or_else(|_| default.to_string());
+                    let val = lookup(name).unwrap_or_else(|| default.to_string());
                     result.push_str(&val);
                 } else {
-                    let val = std::env::var(&var_content).unwrap_or_default();
+                    let val = lookup(&var_content).unwrap_or_default();
                     result.push_str(&val);
                 }
             } else {
@@ -419,6 +419,7 @@ mod tests {
     use super::{
         Config, DEFAULT_CONFIG_YAML, pattern_matches, resolve_relative, substitute_env_vars,
     };
+    use std::collections::HashMap;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::path::{Path, PathBuf};
 
@@ -428,30 +429,36 @@ mod tests {
 
     #[test]
     fn substitute_env_vars_works() {
-        unsafe {
-            std::env::set_var("PNPR_TEST_VAR_1", "hello");
-            std::env::set_var("PNPR_TEST_VAR_2", "world");
-            std::env::remove_var("PNPR_TEST_VAR_UNSET");
-        }
+        let mut vars = HashMap::new();
+        vars.insert("PNPR_TEST_VAR_1".to_string(), "hello".to_string());
+        vars.insert("PNPR_TEST_VAR_2".to_string(), "world".to_string());
 
-        assert_eq!(substitute_env_vars(""), "");
-        assert_eq!(substitute_env_vars("plain string"), "plain string");
-        assert_eq!(substitute_env_vars("var: ${PNPR_TEST_VAR_1}"), "var: hello");
+        let lookup = |k: &str| vars.get(k).cloned();
+
+        assert_eq!(substitute_env_vars("", lookup), "");
+        assert_eq!(substitute_env_vars("plain string", lookup), "plain string");
         assert_eq!(
-            substitute_env_vars("vars: ${PNPR_TEST_VAR_1} and ${PNPR_TEST_VAR_2}"),
+            substitute_env_vars("var: ${PNPR_TEST_VAR_1}", lookup),
+            "var: hello"
+        );
+        assert_eq!(
+            substitute_env_vars("vars: ${PNPR_TEST_VAR_1} and ${PNPR_TEST_VAR_2}", lookup),
             "vars: hello and world"
         );
-        assert_eq!(substitute_env_vars("unset: ${PNPR_TEST_VAR_UNSET}"), "unset: ");
         assert_eq!(
-            substitute_env_vars("default: ${PNPR_TEST_VAR_UNSET:-default_val}"),
+            substitute_env_vars("unset: ${PNPR_TEST_VAR_UNSET}", lookup),
+            "unset: "
+        );
+        assert_eq!(
+            substitute_env_vars("default: ${PNPR_TEST_VAR_UNSET:-default_val}", lookup),
             "default: default_val"
         );
         assert_eq!(
-            substitute_env_vars("default_set: ${PNPR_TEST_VAR_1:-default_val}"),
+            substitute_env_vars("default_set: ${PNPR_TEST_VAR_1:-default_val}", lookup),
             "default_set: hello"
         );
         assert_eq!(
-            substitute_env_vars("malformed: ${PNPR_TEST_VAR_UNSET"),
+            substitute_env_vars("malformed: ${PNPR_TEST_VAR_UNSET", lookup),
             "malformed: ${PNPR_TEST_VAR_UNSET"
         );
     }

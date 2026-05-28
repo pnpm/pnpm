@@ -1423,7 +1423,7 @@ async fn serve_healthz(State(_state): State<AppState>) -> Response {
 }
 
 async fn serve_readyz(State(state): State<AppState>) -> Response {
-    match std::fs::metadata(&state.inner.config.storage) {
+    match tokio::fs::metadata(&state.inner.config.storage).await {
         Ok(meta) if meta.is_dir() => (StatusCode::OK, "OK").into_response(),
         _ => {
             (StatusCode::SERVICE_UNAVAILABLE, "Storage directory is not accessible").into_response()
