@@ -154,7 +154,7 @@ async function distTagAdd (
   const authType = cliOtp ? 'legacy' : 'web'
 
   await withOtpHandling({
-    context: OTP_CONTEXT,
+    context: createOtpContext(opts),
     fetchOptions: WEB_AUTH_FETCH_OPTIONS,
     operation: (otp) => setDistTag({
       packageName,
@@ -201,7 +201,7 @@ async function distTagRm (
   const authType: 'web' | 'legacy' = cliOtp ? 'legacy' : 'web'
 
   await withOtpHandling({
-    context: OTP_CONTEXT,
+    context: createOtpContext(opts),
     fetchOptions: WEB_AUTH_FETCH_OPTIONS,
     operation: (otp) => deleteDistTag({
       authHeader,
@@ -246,7 +246,7 @@ async function deleteDistTag ({
   const body = await response.text()
   const action = `remove dist-tag "${tag}" from`
   if (response.status === 401) {
-    throw await toOtpOrUnauthorizedError(body, action)
+    throw parseAuthError(body, action)
   }
   if (response.status === 403) {
     throw new PnpmError('FORBIDDEN', `You do not have permission to ${action} this package. ${body}`)
@@ -254,7 +254,7 @@ async function deleteDistTag ({
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${body}`)
 }
 
-async function toOtpOrUnauthorizedError (body: string, action: string): Promise<Error> {
+function parseAuthError (body: string, action: string): Error {
   let parsed: unknown
   try {
     parsed = JSON.parse(body)
@@ -312,13 +312,18 @@ const WEB_AUTH_FETCH_OPTIONS: WebAuthFetchOptions = {
   method: 'GET',
 }
 
-const OTP_CONTEXT: OtpContext = {
-  Date,
-  createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
-  enquirer,
-  fetch: createFetchFromRegistry({}),
-  globalInfo,
-  globalWarn,
-  process,
-  setTimeout,
+// `withOtpHandling` polls `doneUrl` through `context.fetch`, so it must inherit
+// the command's proxy/TLS/`configByUri` config — otherwise the write succeeds
+// but the web-auth retry fails in custom-network environments.
+function createOtpContext (opts: CreateFetchFromRegistryOptions): OtpContext {
+  return {
+    Date,
+    createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
+    enquirer,
+    fetch: createFetchFromRegistry(opts),
+    globalInfo,
+    globalWarn,
+    process,
+    setTimeout,
+  }
 }
