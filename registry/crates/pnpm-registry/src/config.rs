@@ -540,6 +540,11 @@ fn build_policies(
             let access_rule = parse_access_rule(access.access.as_deref(), AccessRule::All)?;
             let publish_rule =
                 parse_access_rule(access.publish.as_deref(), AccessRule::Authenticated)?;
+            // `unpublish` folds into `publish` at enforcement time, but
+            // validate it here so an unknown token fails fast like the
+            // others instead of slipping through. (Defaults to the
+            // publish rule when absent, matching verdaccio.)
+            parse_access_rule(access.unpublish.as_deref(), publish_rule)?;
             PackagePolicy::new(pattern, access_rule, publish_rule)
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -1364,6 +1369,24 @@ uplinks: {}
 packages:
   'lodash':
     access: admin
+";
+        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(
+            matches!(err, super::RegistryError::InvalidAccessRule { .. }),
+            "expected InvalidAccessRule, got {err:?}",
+        );
+    }
+
+    #[test]
+    fn policy_unknown_unpublish_token_is_a_config_error() {
+        // `unpublish` folds into `publish` at enforcement, but it's
+        // still validated so a typo can't slip through unchecked.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages:
+  'lodash':
+    unpublish: bogus
 ";
         let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
         assert!(
