@@ -194,6 +194,29 @@ pub struct InstallArgs {
     /// field for why it has no consumption point on `install` yet.
     #[clap(long = "workspace-concurrency")]
     pub workspace_concurrency: Option<i32>,
+
+    /// Maximum number of concurrent network requests during install.
+    /// Mirrors pnpm's `--network-concurrency`; overrides the
+    /// `networkConcurrency` value resolved from `pnpm-workspace.yaml` /
+    /// global `config.yaml` / `PNPM_CONFIG_NETWORK_CONCURRENCY` for this
+    /// invocation. `None` (flag absent) leaves the config-resolved
+    /// value in place. Applied to
+    /// [`pacquet_config::Config::network_concurrency`] at the CLI
+    /// dispatch in [`crate::cli_args::CliArgs::run`].
+    #[clap(long = "network-concurrency")]
+    pub network_concurrency: Option<usize>,
+
+    /// Per-request network timeout in milliseconds. Mirrors pnpm's
+    /// `--fetch-timeout`; overrides `fetchTimeout` for this invocation.
+    /// Applied to [`pacquet_config::Config::fetch_timeout`].
+    #[clap(long = "fetch-timeout")]
+    pub fetch_timeout: Option<u64>,
+
+    /// `User-Agent` header sent on registry requests. Mirrors pnpm's
+    /// `--user-agent`; overrides `userAgent` for this invocation.
+    /// Applied to [`pacquet_config::Config::user_agent`].
+    #[clap(long = "user-agent")]
+    pub user_agent: Option<String>,
 }
 
 impl InstallArgs {
@@ -214,6 +237,9 @@ impl InstallArgs {
             trust_lockfile,
             update_checksums,
             workspace_concurrency: _,
+            network_concurrency: _,
+            fetch_timeout: _,
+            user_agent: _,
         } = self;
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`

@@ -21,7 +21,7 @@ use store::StoreCommand;
 #[derive(Debug, Parser)]
 #[clap(name = "pacquet")]
 #[clap(bin_name = "pacquet")]
-#[clap(version = "0.2.2")]
+#[clap(version = pacquet_config::PACQUET_VERSION)]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {
     #[clap(subcommand)]
@@ -30,6 +30,14 @@ pub struct CliArgs {
     /// Set working directory.
     #[clap(short = 'C', long, default_value = ".")]
     pub dir: PathBuf,
+
+    /// Path to a `.npmrc` to read auth settings from, overriding the
+    /// default `~/.npmrc`. Mirrors pnpm's `--npmrc-auth-file` (and its
+    /// `--userconfig` alias) and sets
+    /// [`pacquet_config::Config::npmrc_auth_file`], consumed when
+    /// `Config` resolves the user-level `.npmrc`.
+    #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
+    pub npmrc_auth_file: Option<PathBuf>,
 
     /// Run the command for every project in the workspace instead of
     /// only the project in `--dir`. Mirrors pnpm's global `-r` /
@@ -87,7 +95,7 @@ impl CliArgs {
     /// `Config` is loaded, mirroring pnpm 11's
     /// "CLI > yaml > .npmrc > defaults" precedence.
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
-        let CliArgs { command, dir, recursive, reporter } = self;
+        let CliArgs { command, dir, npmrc_auth_file, recursive, reporter } = self;
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
         // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
@@ -112,7 +120,10 @@ impl CliArgs {
         // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
         // for the pattern and rationale.
         let config = || -> miette::Result<&'static mut Config> {
-            Config::default()
+            // Seed `npmrc_auth_file` from the CLI flag before
+            // `current()` reads `.npmrc`, so the override redirects the
+            // user-level read. Mirrors pnpm's `--npmrc-auth-file`.
+            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
                 .current::<Host>(&dir)
                 .map(|mut cfg| {
                     config_overrides.apply(&mut cfg);
@@ -161,6 +172,19 @@ impl CliArgs {
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
                 cfg.workspace_concurrency =
                     args.resolve_workspace_concurrency(cfg.workspace_concurrency);
+                // Network overrides: a passed `--network-concurrency` /
+                // `--fetch-timeout` / `--user-agent` replaces the
+                // config-resolved value for this invocation, matching
+                // pnpm's "CLI wins" precedence.
+                if let Some(network_concurrency) = args.network_concurrency {
+                    cfg.network_concurrency = network_concurrency;
+                }
+                if let Some(fetch_timeout) = args.fetch_timeout {
+                    cfg.fetch_timeout = fetch_timeout;
+                }
+                if let Some(user_agent) = args.user_agent.clone() {
+                    cfg.user_agent = user_agent;
+                }
                 let require_lockfile = args.frozen_lockfile;
                 let state = State::init(manifest_path(), cfg, require_lockfile)
                     .wrap_err("initialize the state")?;

@@ -176,6 +176,9 @@ pub struct WorkspaceSettings {
     pub fetch_retry_factor: Option<u32>,
     pub fetch_retry_mintimeout: Option<u64>,
     pub fetch_retry_maxtimeout: Option<u64>,
+    pub network_concurrency: Option<usize>,
+    pub fetch_timeout: Option<u64>,
+    pub user_agent: Option<String>,
 
     /// Map of `name[@version]` → patch-file path (relative to the
     /// workspace dir or absolute). Read verbatim; relative-path
@@ -585,6 +588,7 @@ impl WorkspaceSettings {
             side_effects_cache, side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
+            network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
             git_shallow_hosts,
         }

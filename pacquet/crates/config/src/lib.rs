@@ -22,16 +22,17 @@ use std::{
 };
 
 pub use crate::defaults::{
-    available_parallelism, default_git_shallow_hosts, default_peers_suffix_max_length,
-    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency,
+    PACQUET_VERSION, available_parallelism, default_git_shallow_hosts,
+    default_peers_suffix_max_length, default_unsafe_perm, default_virtual_store_dir_max_length,
+    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
     default_enable_global_virtual_store, default_fetch_retries, default_fetch_retry_factor,
-    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_hoist_pattern,
-    default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-    default_registry, default_store_dir, default_virtual_store_dir,
+    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
+    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
+    default_public_hoist_pattern, default_registry, default_store_dir, default_user_agent,
+    default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta,
@@ -776,6 +777,36 @@ pub struct Config {
     #[default(_code = "default_fetch_retry_maxtimeout()")]
     pub fetch_retry_maxtimeout: u64,
 
+    /// Maximum number of concurrent network requests pacquet keeps
+    /// in flight during install — the size of the [`pacquet_network`]
+    /// semaphore. Mirrors pnpm's `networkConcurrency`; the default is
+    /// pnpm's `Math.min(64, Math.max(calcMaxWorkers() * 3, 16))`
+    /// formula, implemented by [`pacquet_network::default_network_concurrency`].
+    #[default(_code = "pacquet_network::default_network_concurrency()")]
+    pub network_concurrency: usize,
+
+    /// Per-request network timeout in milliseconds. Mirrors pnpm's
+    /// `fetchTimeout` (default `60000` — 60 s, see
+    /// [`pacquet_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
+    /// the response and connect deadline of the reqwest client.
+    #[default(_code = "default_fetch_timeout()")]
+    pub fetch_timeout: u64,
+
+    /// Value of the `User-Agent` header sent on every registry request.
+    /// Mirrors pnpm's `userAgent`; the default is pnpm's
+    /// `pnpm/<version> npm/? node/? <platform> <arch>` format (built by
+    /// `default_user_agent`).
+    #[default(_code = "default_user_agent()")]
+    pub user_agent: String,
+
+    /// Path to the user-level `.npmrc` to read auth from, overriding the
+    /// default `~/.npmrc`. Mirrors pnpm's `npmrcAuthFile` (and the
+    /// `--userconfig` alias). Resolved in [`Config::current`] from this
+    /// field (set by the CLI flag) then the `PNPM_CONFIG_NPMRC_AUTH_FILE`
+    /// / `PNPM_CONFIG_USERCONFIG` / `npm_config_userconfig` env vars.
+    /// `None` falls back to `~/.npmrc`.
+    pub npmrc_auth_file: Option<PathBuf>,
+
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`] when yaml was found, so
     /// later install-time code (notably [`resolve_and_group`] for
@@ -1289,9 +1320,38 @@ impl Config {
         // had a chance to override `registry`. Pnpm keys default-registry
         // creds at the final resolved URL, not the `.npmrc` literal — see
         // [`getAuthHeadersFromConfig`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
-        let auth_source = read_npmrc(start_dir)
-            .map(|text| (text, start_dir.to_path_buf()))
-            .or_else(|| Sys::home_dir().and_then(|dir| read_npmrc(&dir).map(|text| (text, dir))));
+        // Resolve the user-level `.npmrc` path. `npmrcAuthFile` (and its
+        // `--userconfig` alias) overrides the default `~/.npmrc`,
+        // matching pnpm's resolution order
+        // ([`config/reader/src/index.ts:230`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L230)):
+        // the `npmrc_auth_file` field (set from the CLI flag before
+        // `current()` runs) wins, then the `PNPM_CONFIG_*` / npm env
+        // vars. Global-yaml sourcing of the key is not yet supported —
+        // it would require reading the global config before the
+        // `.npmrc` read.
+        let user_npmrc_path = self.npmrc_auth_file.clone().or_else(|| {
+            Sys::var("PNPM_CONFIG_NPMRC_AUTH_FILE")
+                .or_else(|| Sys::var("pnpm_config_npmrc_auth_file"))
+                .or_else(|| Sys::var("PNPM_CONFIG_USERCONFIG"))
+                .or_else(|| Sys::var("npm_config_userconfig"))
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+        });
+        // A project-level `.npmrc` still takes precedence over the
+        // user-level file (pacquet reads one or the other, not pnpm's
+        // full merge); the override only redirects the user-level read.
+        let user_auth_source = match user_npmrc_path {
+            Some(path) => read_npmrc_file(&path).map(|text| {
+                let dir = path
+                    .parent()
+                    .map(|parent| parent.to_path_buf())
+                    .unwrap_or_else(|| path.clone());
+                (text, dir)
+            }),
+            None => Sys::home_dir().and_then(|dir| read_npmrc(&dir).map(|text| (text, dir))),
+        };
+        let auth_source =
+            read_npmrc(start_dir).map(|text| (text, start_dir.to_path_buf())).or(user_auth_source);
         let mut npmrc_auth = auth_source
             .map(|(text, dir)| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir))
             .unwrap_or_default();
@@ -1539,6 +1599,14 @@ fn read_npmrc(dir: &std::path::Path) -> Option<String> {
     fs::read_to_string(dir.join(".npmrc")).ok()
 }
 
+/// Read a `.npmrc` by explicit file path (as opposed to [`read_npmrc`],
+/// which joins `.npmrc` onto a directory). Used for the `npmrcAuthFile`
+/// override, which names the file directly. `None` on any read /
+/// UTF-8 failure, same best-effort behaviour as [`read_npmrc`].
+fn read_npmrc_file(path: &std::path::Path) -> Option<String> {
+    fs::read_to_string(path).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use std::{env, ffi::OsString, io, path::PathBuf};
@@ -1665,6 +1733,45 @@ mod tests {
         assert_eq!(value.fetch_retry_factor, 10);
         assert_eq!(value.fetch_retry_mintimeout, 10_000);
         assert_eq!(value.fetch_retry_maxtimeout, 60_000);
+    }
+
+    /// Network knobs default to pnpm's values: `networkConcurrency`
+    /// from the shared formula, `fetchTimeout` at 60 000 ms, a
+    /// `pnpm/…`-shaped `userAgent`, and no `npmrcAuthFile` override.
+    #[test]
+    pub fn network_settings_defaults_match_pnpm() {
+        let value = Config::new();
+        assert_eq!(value.network_concurrency, pacquet_network::default_network_concurrency());
+        assert_eq!(value.fetch_timeout, 60_000);
+        assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
+        assert_eq!(value.npmrc_auth_file, None);
+    }
+
+    /// `npmrcAuthFile` redirects the user-level `.npmrc` read: auth
+    /// from the pointed-at file reaches `auth_headers` even though the
+    /// file is neither at `~/.npmrc` (home resolves to `None` here) nor
+    /// in `start_dir`.
+    #[test]
+    pub fn npmrc_auth_file_override_supplies_auth() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("custom-npmrc");
+        fs::write(
+            &auth_file,
+            "registry=https://registry.example.com/\n\
+             //registry.example.com/:_authToken=secret-token\n",
+        )
+        .expect("write auth file");
+
+        let config = Config { npmrc_auth_file: Some(auth_file), ..Config::default() }
+            .current::<HostNoHome>(project.path())
+            .expect("load config");
+
+        assert_eq!(config.registry, "https://registry.example.com/");
+        assert_eq!(
+            config.auth_headers.for_url("https://registry.example.com/some-pkg").as_deref(),
+            Some("Bearer secret-token"),
+        );
     }
 
     /// `default_store_dir`'s `PNPM_HOME` branch, exercised through the
