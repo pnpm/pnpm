@@ -231,7 +231,7 @@ fn peers_suffix_max_length_serialized_when_set() {
     );
 
     let reparsed: Lockfile = serde_saphyr::from_str(&saved).expect("reparse lockfile");
-    assert_eq!(reparsed.settings.expect("settings present").peers_suffix_max_length, Some(10),);
+    assert_eq!(reparsed.settings.expect("settings present").peers_suffix_max_length, Some(10));
 }
 
 #[test]

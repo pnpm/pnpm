@@ -593,11 +593,11 @@ fn check_settings_passes_when_both_sides_empty() {
     .expect("parse minimal lockfile");
     assert!(
         check_lockfile_settings(&lockfile, None, None, crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH)
-            .is_ok()
+            .is_ok(),
     );
     assert!(
         check_lockfile_settings(&lockfile, None, Some(&[]), crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH)
-            .is_ok()
+            .is_ok(),
     );
 }
 
@@ -619,9 +619,9 @@ fn check_settings_passes_when_sets_match_regardless_of_order() {
             &lockfile,
             None,
             Some(&config_set),
-            crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH
+            crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
         )
-        .is_ok()
+        .is_ok(),
     );
 }
 
@@ -686,7 +686,7 @@ fn check_settings_passes_when_overrides_both_empty() {
     .expect("parse minimal lockfile");
     assert!(
         check_lockfile_settings(&lockfile, None, None, crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH)
-            .is_ok()
+            .is_ok(),
     );
 
     let empty: std::collections::HashMap<String, String> = std::collections::HashMap::new();
@@ -695,9 +695,9 @@ fn check_settings_passes_when_overrides_both_empty() {
             &lockfile,
             Some(&empty),
             None,
-            crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH
+            crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
         )
-        .is_ok()
+        .is_ok(),
     );
 }
 
@@ -721,9 +721,9 @@ fn check_settings_passes_when_overrides_match_regardless_of_order() {
             &lockfile,
             Some(&config),
             None,
-            crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH
+            crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
         )
-        .is_ok()
+        .is_ok(),
     );
 }
 
@@ -900,7 +900,7 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
     .expect("parse lockfile with settings");
     let err = check_lockfile_settings(&lockfile, None, None, 100)
         .expect_err("changed peersSuffixMaxLength must surface drift");
-    assert_eq!(err, StalenessReason::PeersSuffixMaxLengthChanged { lockfile: 10, config: 100 },);
+    assert_eq!(err, StalenessReason::PeersSuffixMaxLengthChanged { lockfile: 10, config: 100 });
 }
 
 /// Once `check_lockfile_settings` passes, `satisfies_package_manifest`
