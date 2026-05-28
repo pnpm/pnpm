@@ -137,7 +137,7 @@ fn dedupe_direct_deps_disabled_keeps_per_project_symlinks() {
     eprintln!("sibling_dep={sibling_dep:?} linked={sibling_dep_linked}");
     assert!(
         sibling_dep_linked,
-        "sibling direct-dep symlink should be kept when dedupeDirectDeps: false"
+        "sibling direct-dep symlink should be kept when dedupeDirectDeps: false",
     );
 
     drop((root, mock_instance));
@@ -211,7 +211,7 @@ fn dedupes_direct_deps_with_frozen_lockfile() {
     eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
     assert!(root_dep_linked, "frozen-lockfile install should re-link the root's direct dep");
     let dup_modules_exists_after_frozen = dup_modules.exists();
-    eprintln!("after frozen: dup_modules={dup_modules:?} exists={dup_modules_exists_after_frozen}",);
+    eprintln!("after frozen: dup_modules={dup_modules:?} exists={dup_modules_exists_after_frozen}");
     assert!(
         !dup_modules_exists_after_frozen,
         "frozen-lockfile install should keep packages/dup/node_modules absent",
