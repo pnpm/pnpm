@@ -14,7 +14,7 @@ mod hoist;
 mod hoisted_dep_graph;
 mod import_indexed_dir;
 mod install;
-mod install_frozen_lockfile;
+pub(crate) mod install_frozen_lockfile;
 mod install_package_by_snapshot;
 mod install_package_from_registry;
 mod install_with_fresh_lockfile;

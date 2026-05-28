@@ -378,41 +378,90 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
     drop((root, mock_instance));
 }
 
-mod known_failures {
-    //! Upstream cases that depend on pacquet's *fresh-install* path
-    //! running a hoist phase. Pacquet today only runs hoist inside
-    //! the frozen-lockfile install (see
-    //! [`pacquet_package_manager::InstallWithFreshLockfile::run`]'s
-    //! doc), so cases whose only install is a non-frozen one can't
-    //! observe the hoist → dedupe interaction yet — even after the
-    //! dedupe pass itself learned to fold publicly-hoisted aliases
-    //! in. Closing these requires porting hoist to the fresh-install
-    //! pipeline, a separate refactor.
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        known_failure::{KnownFailure, KnownResult},
-    };
+/// Mirrors pnpm's [`'shamefully-hoist + dedupe-direct-deps=true'`](https://github.com/pnpm/pnpm/blob/39101f5e37/pnpm/test/install/hoist.ts#L77):
+/// with `publicHoistPattern: ['*']` (the explicit form of
+/// `shamefullyHoist: true` — pacquet doesn't bridge the legacy flag to
+/// the pattern, see [`hoist::shamefully_hoist_legacy_publicly_hoists_everything`]),
+/// every transitive lands at the workspace root's `node_modules/`. A
+/// non-root importer's direct dep that also lands at root via hoist
+/// gets deduped from the importer.
+///
+/// Runs through pacquet's fresh-install path (single `pacquet install`,
+/// no `--frozen-lockfile`), exercising the hoist pass that fresh
+/// install now runs end-to-end.
+#[test]
+fn dedupe_under_shamefully_hoist() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fn fresh_install_does_not_hoist_yet() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet's fresh-install (non-frozen) path does not run a \
-             hoist phase yet, so a single fresh `pacquet install` cannot \
-             publicly hoist transitives to root, and the dedupe pass \
-             has nothing to dedupe against. The frozen-lockfile path \
-             does run hoist and is exercised by \
-             `dedupes_direct_dep_against_publicly_hoisted_root_dep`.",
-        ))
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str(
+        "packages:\n  - 'packages/*'\n\
+         shamefullyHoist: true\n\
+         hoistPattern: []\n\
+         publicHoistPattern:\n  - '*'\n",
+    );
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/project")).expect("mkdir packages/project");
+    fs::write(
+        workspace.join("packages/project/package.json"),
+        serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/foobar": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/project/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    // Root has every direct dep + every shamefully-hoisted transitive.
+    for alias in [
+        "@pnpm.e2e/pkg-with-1-dep",
+        "@pnpm.e2e/dep-of-pkg-with-1-dep",
+        "@pnpm.e2e/foobar",
+        "@pnpm.e2e/foo",
+    ] {
+        let entry = workspace.join("node_modules").join(alias);
+        assert!(
+            is_symlink_or_junction(&entry).expect("query root entry"),
+            "expected root/node_modules/{alias} to be a symlink",
+        );
     }
 
-    /// Upstream: [`pnpm/test/install/hoist.ts:77`](https://github.com/pnpm/pnpm/blob/39101f5e37/pnpm/test/install/hoist.ts#L77)
-    /// `'shamefully-hoist: applied to all the workspace projects when
-    /// set to true in the root pnpm-workspace.yaml file (with
-    /// dedupe-direct-deps=true)'`. The test runs a single
-    /// `pnpm install` (the fresh-install path), so even with the
-    /// dedupe-vs-hoist fix landed, pacquet wouldn't hoist `foobar`
-    /// to root on that path.
-    #[test]
-    fn dedupe_under_shamefully_hoist() {
-        allow_known_failure!(fresh_install_does_not_hoist_yet());
-    }
+    // Project has neither its direct dep `foobar` (deduped against the
+    // shamefully-hoisted root entry) nor its transitive `foo` (which
+    // never reaches the project's `node_modules/` to begin with —
+    // transitives only materialize via hoist).
+    let project_modules = workspace.join("packages/project/node_modules");
+    assert!(
+        !project_modules.join("@pnpm.e2e/foobar").exists(),
+        "project's foobar should be deduped against the shamefully-hoisted root entry",
+    );
+    assert!(
+        !project_modules.join("@pnpm.e2e/foo").exists(),
+        "transitive `foo` should only appear at root via hoist, not under project",
+    );
+
+    drop((root, mock_instance));
 }

@@ -1208,10 +1208,10 @@ struct HoistedLinkerOutput {
 /// fold publicly-hoisted aliases into root's target map. The on-disk
 /// hoist phase later consumes the same [`HoistResult`] instead of
 /// re-running the BFS.
-struct HoistPlan {
-    graph: HashMap<PackageKey, crate::HoistGraphNode>,
-    result: crate::HoistResult,
-    skipped: HashSet<PackageKey>,
+pub(crate) struct HoistPlan {
+    pub(crate) graph: HashMap<PackageKey, crate::HoistGraphNode>,
+    pub(crate) result: crate::HoistResult,
+    pub(crate) skipped: HashSet<PackageKey>,
 }
 
 /// Compute the in-memory hoist plan. Returns `None` when nothing
@@ -1219,7 +1219,7 @@ struct HoistPlan {
 /// install is going through the hoisted linker). Side-effect-free:
 /// the on-disk symlinks happen later in the pipeline. Same input
 /// gating as the legacy in-place block in [`InstallFrozenLockfile::run`].
-fn compute_hoist_plan(
+pub(crate) fn compute_hoist_plan(
     config: &Config,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -1284,7 +1284,7 @@ fn compute_hoist_plan(
 /// `<slot>/node_modules/<name>` shape that the on-disk hoist symlink
 /// will point at, so [`PathBuf`] equality with
 /// [`SymlinkDirectDependencies`]'s computed targets is exact.
-fn collect_public_hoist_targets(
+pub(crate) fn collect_public_hoist_targets(
     result: &crate::HoistResult,
     graph: &HashMap<PackageKey, crate::HoistGraphNode>,
     layout: &crate::VirtualStoreLayout,
