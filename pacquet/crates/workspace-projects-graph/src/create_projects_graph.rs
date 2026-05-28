@@ -211,9 +211,6 @@ fn resolve_by_name_version(
     unmatched: &mut Vec<Unmatched>,
 ) -> Option<PathBuf> {
     let candidates = lookups.by_name.get(dep_name)?;
-    if candidates.is_empty() {
-        return None;
-    }
 
     // Strict `linkWorkspacePackages: false` only rejects non-`workspace:`
     // specifiers, matching upstream's `linkWorkspacePackages === false &&

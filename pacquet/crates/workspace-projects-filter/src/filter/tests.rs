@@ -328,6 +328,46 @@ fn select_by_parent_dir_glob_and_exclude_by_pattern() {
 }
 
 #[test]
+fn select_by_parent_dir_then_name_pattern() {
+    // A single selector carrying both a directory and a name pattern: the
+    // directory narrows the candidate set, then the name pattern filters
+    // within it.
+    let graph = projects_graph();
+    let result = selected(
+        &graph,
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/packages")),
+            name_pattern: Some("*-0".to_string()),
+            ..Default::default()
+        }],
+    );
+    assert_eq!(result, ["/packages/project-0"]);
+}
+
+#[test]
+fn selector_without_name_dir_or_diff_is_unsupported() {
+    let graph = projects_graph();
+    let error = filter_workspace_projects(
+        &graph,
+        &[ProjectSelector { include_dependencies: true, ..Default::default() }],
+        &FilterWorkspaceProjectsOptions::default(),
+    )
+    .unwrap_err();
+    assert!(matches!(error, FilterError::UnsupportedSelector));
+}
+
+#[test]
+fn is_subdir_contract() {
+    use super::is_subdir;
+    // A relative child cannot be relativized against an absolute parent
+    // (`diff_paths` returns `None`), so it is not a subdirectory.
+    assert!(!is_subdir(Path::new("/abs/parent"), Path::new("relative/child")));
+    // A real descendant is a subdirectory; an equal path is not.
+    assert!(is_subdir(Path::new("/abs"), Path::new("/abs/child")));
+    assert!(!is_subdir(Path::new("/abs"), Path::new("/abs")));
+}
+
+#[test]
 fn diff_selector_is_unsupported() {
     let graph = projects_graph();
     let error = filter_workspace_projects(

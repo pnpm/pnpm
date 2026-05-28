@@ -135,6 +135,28 @@ fn path_style_workspace_spec_resolves_by_directory() {
 }
 
 #[test]
+fn current_dir_in_path_spec_is_collapsed() {
+    // `file:./b` joins onto the importer root; the `.` segment must be
+    // collapsed before the by-directory lookup, resolving to the sibling.
+    let projects = vec![
+        project("/ws", "a", "1.0.0", &[("b", "file:./b")]),
+        project("/ws/b", "b", "2.0.0", &[]),
+    ];
+    let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
+    assert_eq!(edges(&result.graph, "/ws"), vec!["/ws/b".to_string()]);
+    assert!(result.unmatched.is_empty());
+}
+
+#[test]
+fn windows_drive_prefixes_are_recognized_as_paths() {
+    use super::has_windows_drive_prefix;
+    assert!(has_windows_drive_prefix("C:/pkg"));
+    assert!(has_windows_drive_prefix(r"C:\pkg"));
+    assert!(!has_windows_drive_prefix("/abs/pkg"));
+    assert!(!has_windows_drive_prefix("1.0.0"));
+}
+
+#[test]
 fn strict_link_workspace_packages_rejects_plain_version() {
     let projects = vec![
         project("/ws/a", "a", "1.0.0", &[("b", "2.0.0")]),
