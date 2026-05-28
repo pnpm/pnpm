@@ -172,6 +172,12 @@ async fn get_packument_unscoped(
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Response {
+    if name == "healthz" {
+        return serve_healthz();
+    }
+    if name == "readyz" {
+        return serve_readyz(&state).await;
+    }
     serve_packument(&state, &headers, &name).await
 }
 
@@ -182,6 +188,9 @@ async fn get_two_segments(
 ) -> Response {
     if first == "-" && second == "whoami" {
         return private_no_cache(serve_whoami(&state, &headers));
+    }
+    if first == "-" && second == "ping" {
+        return serve_ping();
     }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
@@ -1409,4 +1418,21 @@ fn error_response(err: &RegistryError) -> Response {
     let status = err.status_code();
     tracing::error!(%err, %status, "request failed");
     (status, err.to_string()).into_response()
+}
+
+fn serve_ping() -> Response {
+    (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
+}
+
+fn serve_healthz() -> Response {
+    (StatusCode::OK, "OK").into_response()
+}
+
+async fn serve_readyz(state: &AppState) -> Response {
+    match std::fs::metadata(&state.inner.config.storage) {
+        Ok(meta) if meta.is_dir() => (StatusCode::OK, "OK").into_response(),
+        _ => {
+            (StatusCode::SERVICE_UNAVAILABLE, "Storage directory is not accessible").into_response()
+        }
+    }
 }

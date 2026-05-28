@@ -270,7 +270,8 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> Result<Self, serde_saphyr::Error> {
-        let file: ConfigFile = serde_saphyr::from_str(raw)?;
+        let substituted = substitute_env_vars(raw);
+        let file: ConfigFile = serde_saphyr::from_str(&substituted)?;
         let storage = resolve_relative(&file.storage, base_dir);
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
@@ -375,14 +376,84 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
     pattern == name
 }
 
+/// Scans the raw YAML config string and replaces `${VAR}` or `${VAR:-DEFAULT}`
+/// with the environment variable value, or the default, or empty string.
+fn substitute_env_vars(raw: &str) -> String {
+    let mut result = String::new();
+    let mut chars = raw.char_indices().peekable();
+    while let Some((_, c)) = chars.next() {
+        if c == '$' && chars.peek().map(|&(_, char_val)| char_val == '{').unwrap_or(false) {
+            chars.next(); // consume '{'
+            let mut var_content = String::new();
+            let mut found_close = false;
+            for (_, vc) in chars.by_ref() {
+                if vc == '}' {
+                    found_close = true;
+                    break;
+                }
+                var_content.push(vc);
+            }
+            if found_close {
+                if let Some(pos) = var_content.find(":-") {
+                    let name = &var_content[..pos];
+                    let default = &var_content[pos + 2..];
+                    let val = std::env::var(name).unwrap_or_else(|_| default.to_string());
+                    result.push_str(&val);
+                } else {
+                    let val = std::env::var(&var_content).unwrap_or_default();
+                    result.push_str(&val);
+                }
+            } else {
+                result.push_str("${");
+                result.push_str(&var_content);
+            }
+            continue;
+        }
+        result.push(c);
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Config, DEFAULT_CONFIG_YAML, pattern_matches, resolve_relative};
+    use super::{
+        Config, DEFAULT_CONFIG_YAML, pattern_matches, resolve_relative, substitute_env_vars,
+    };
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::path::{Path, PathBuf};
 
     fn listen() -> SocketAddr {
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
+    }
+
+    #[test]
+    fn substitute_env_vars_works() {
+        unsafe {
+            std::env::set_var("PNPR_TEST_VAR_1", "hello");
+            std::env::set_var("PNPR_TEST_VAR_2", "world");
+            std::env::remove_var("PNPR_TEST_VAR_UNSET");
+        }
+
+        assert_eq!(substitute_env_vars(""), "");
+        assert_eq!(substitute_env_vars("plain string"), "plain string");
+        assert_eq!(substitute_env_vars("var: ${PNPR_TEST_VAR_1}"), "var: hello");
+        assert_eq!(
+            substitute_env_vars("vars: ${PNPR_TEST_VAR_1} and ${PNPR_TEST_VAR_2}"),
+            "vars: hello and world"
+        );
+        assert_eq!(substitute_env_vars("unset: ${PNPR_TEST_VAR_UNSET}"), "unset: ");
+        assert_eq!(
+            substitute_env_vars("default: ${PNPR_TEST_VAR_UNSET:-default_val}"),
+            "default: default_val"
+        );
+        assert_eq!(
+            substitute_env_vars("default_set: ${PNPR_TEST_VAR_1:-default_val}"),
+            "default_set: hello"
+        );
+        assert_eq!(
+            substitute_env_vars("malformed: ${PNPR_TEST_VAR_UNSET"),
+            "malformed: ${PNPR_TEST_VAR_UNSET"
+        );
     }
 
     #[test]

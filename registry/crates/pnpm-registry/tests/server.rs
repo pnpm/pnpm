@@ -548,3 +548,53 @@ async fn await_no_tgz(dir: &std::path::Path, budget: Duration) -> bool {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
+
+#[tokio::test]
+async fn ping_endpoint_returns_json_empty_object() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    let app = router(config);
+
+    let response = app.oneshot(Request::get("/-/ping").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body_bytes = body_bytes(response.into_body()).await;
+    let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(body, json!({}));
+}
+
+#[tokio::test]
+async fn healthz_endpoint_returns_ok() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    let app = router(config);
+
+    let response =
+        app.oneshot(Request::get("/healthz").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(body, "OK");
+}
+
+#[tokio::test]
+async fn readyz_endpoint_returns_ok_when_storage_healthy() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    let app = router(config);
+
+    let response = app.oneshot(Request::get("/readyz").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(body, "OK");
+}
+
+#[tokio::test]
+async fn readyz_endpoint_returns_service_unavailable_when_storage_not_exists() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_for("http://upstream.invalid", tmp.path().join("non_existent_folder"));
+    let app = router(config);
+
+    let response = app.oneshot(Request::get("/readyz").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(body, "Storage directory is not accessible");
+}
