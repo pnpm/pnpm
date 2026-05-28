@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { addUser as setUser, type AddUserResult, setDistTag } from '@pnpm/registry-access.client'
