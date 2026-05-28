@@ -294,7 +294,7 @@ export async function pickPackage (
         }
       }
     }
-    if (opts.publishedBy) {
+    if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
       const mtime = await limit(async () => getFileMtime(pkgMirror))
       if (mtime != null && mtime >= opts.publishedBy) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))

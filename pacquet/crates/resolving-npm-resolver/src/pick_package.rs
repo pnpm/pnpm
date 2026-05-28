@@ -60,7 +60,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::version_policy::PackageVersionPolicy;
+use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::VersionSelectors;
@@ -563,7 +563,15 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 4. publishedBy mtime shortcut.
+    //
+    // Fully excluded packages (`minimumReleaseAgeExclude: ['pkg']`) treat
+    // minimumReleaseAge as disabled, so this shortcut must not bypass
+    // revalidation against potentially stale on-disk metadata.
     if let Some(published_by) = opts.published_by
+        && !matches!(
+            opts.published_by_exclude.map(|policy| policy.matches(&spec.name)),
+            Some(PolicyMatch::AnyVersion),
+        )
         && let Some(mtime) = pkg_mirror.as_deref().and_then(get_file_mtime)
         && mtime >= published_by
     {
@@ -1049,11 +1057,10 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     if meta.time.is_some() {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
-    if let Some(policy) = opts.published_by_exclude {
-        use pacquet_config::version_policy::PolicyMatch;
-        if matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion) {
-            return Ok(UpgradeOutcome { meta, upgraded: false });
-        }
+    if let Some(policy) = opts.published_by_exclude
+        && matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion)
+    {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     // Inclusive `<=` at the boundary: matches the per-version
     // `<=` filter in `filter_pkg_metadata_by_publish_date`. When
