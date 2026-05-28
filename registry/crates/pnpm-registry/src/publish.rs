@@ -298,7 +298,15 @@ fn merge_objects(existing: Option<&Value>, incoming: &Value) -> Value {
 pub fn now_iso() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-    let millis = since_epoch.as_millis() as i64;
+    iso_from_unix_millis(since_epoch.as_millis() as i64)
+}
+
+/// Format a unix-millis timestamp as an ISO-8601 / RFC-3339 string
+/// with millisecond precision. The token-listing endpoint surfaces
+/// `TokenRecord::created_at` (seconds since epoch) through this same
+/// helper so both `time.modified` on packuments and `created` on
+/// tokens render with identical shape.
+pub fn iso_from_unix_millis(millis: i64) -> String {
     // Civil-time conversion without pulling in `chrono`.
     // 86_400_000 ms in a day.
     let (days, ms_in_day) = (millis / 86_400_000, millis.rem_euclid(86_400_000));
