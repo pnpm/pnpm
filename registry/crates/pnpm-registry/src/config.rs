@@ -6,7 +6,8 @@ use indexmap::IndexMap;
 use pacquet_env_replace::{SystemEnv, env_replace_lossy};
 use serde::Deserialize;
 
-use crate::policy::PackagePolicies;
+use crate::error::RegistryError;
+use crate::policy::{AccessRule, PackagePolicies, PackagePolicy};
 
 /// The bundled verdaccio-shaped YAML config, mirrored from
 /// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
@@ -65,11 +66,13 @@ pub struct Config {
     /// re-fetched from the resolved uplink. Ignored when no uplink
     /// matches.
     pub packument_ttl: Duration,
-    /// Per-package access and publish rules. Defaults to
-    /// [`PackagePolicies::registry_mock_defaults`] so a vanilla
-    /// `Config::proxy` / `Config::static_serve` enforces the same
-    /// `@private/*` and `@pnpm.e2e/needs-auth` policies that
-    /// `@pnpm/registry-mock` did under verdaccio.
+    /// Per-package access and publish rules. [`Config::from_yaml`]
+    /// compiles these from the YAML `packages:` block (each entry's
+    /// `access` / `publish` tokens); the programmatic
+    /// [`Config::proxy`] / [`Config::static_serve`] constructors use
+    /// [`PackagePolicies::registry_mock_defaults`] instead, enforcing
+    /// the `@private/*` and `@pnpm.e2e/needs-auth` rules
+    /// `@pnpm/registry-mock` applied under verdaccio.
     pub policies: PackagePolicies,
     /// Where to read/write the htpasswd-format user file and the
     /// token database. Both stores are in-memory when their paths
@@ -226,9 +229,11 @@ pub struct UplinkConfig {
     pub url: String,
 }
 
-/// Per-package routing rules. `access` and `publish` are parsed for
-/// config compatibility but ignored (pnpm-registry is read-only and
-/// has no auth). `proxy` selects the [`UplinkConfig`] by name.
+/// Per-package routing and access rules. `access` / `publish` are
+/// verdaccio access tokens (`$all` / `$authenticated` / `$anonymous`)
+/// compiled into the [`PackagePolicies`] that gate reads and writes;
+/// `unpublish` is parsed but currently folded into `publish` at
+/// enforcement time. `proxy` selects the [`UplinkConfig`] by name.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct PackageAccess {
     pub access: Option<String>,
@@ -443,16 +448,18 @@ impl Config {
         base_dir: &Path,
         listen: SocketAddr,
         public_url: Option<String>,
-    ) -> Result<Self, serde_saphyr::Error> {
+    ) -> Result<Self, RegistryError> {
         let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
         if !unresolved.is_empty() {
             tracing::warn!(?unresolved, "config references unset environment variables");
         }
-        let file: ConfigFile = serde_saphyr::from_str(&substituted)?;
+        let file: ConfigFile = serde_saphyr::from_str(&substituted)
+            .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
         let storage = resolve_relative(&file.storage, base_dir);
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
+        let policies = build_policies(&file.packages)?;
         Ok(Self {
             listen,
             public_url,
@@ -460,12 +467,7 @@ impl Config {
             uplinks: file.uplinks,
             packages: file.packages,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            // Policies could be derived from `packages[*].{access,publish}`
-            // here, but the bundled `config.yaml` already matches the
-            // `registry_mock_defaults` set verbatim, and a YAML-driven
-            // policy wiring is out of scope for this rebase. Keep the
-            // hard-coded defaults — same as `proxy` / `static_serve`.
-            policies: PackagePolicies::registry_mock_defaults(),
+            policies,
             auth,
             logs,
         })
@@ -523,6 +525,34 @@ fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
     }
 }
 
+/// Compile the YAML `packages:` rules into the runtime
+/// [`PackagePolicies`], in declared order (first match wins). A
+/// missing `access` defaults to `$all`, a missing `publish` to
+/// `$authenticated` — the same safe fallback [`PackagePolicies`]
+/// applies to packages no rule matches. `unpublish` is parsed but
+/// not yet enforced separately (it folds into `publish`).
+fn build_policies(
+    packages: &IndexMap<String, PackageAccess>,
+) -> Result<PackagePolicies, RegistryError> {
+    let rules = packages
+        .iter()
+        .map(|(pattern, access)| {
+            let access_rule = parse_access_rule(access.access.as_deref(), AccessRule::All)?;
+            let publish_rule =
+                parse_access_rule(access.publish.as_deref(), AccessRule::Authenticated)?;
+            PackagePolicy::new(pattern, access_rule, publish_rule)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(PackagePolicies::new(rules))
+}
+
+fn parse_access_rule(
+    value: Option<&str>,
+    default: AccessRule,
+) -> Result<AccessRule, RegistryError> {
+    value.map_or(Ok(default), str::parse)
+}
+
 /// Join `config.yaml` onto a resolved config directory and keep the
 /// path only when it points at an existing file (so a directory or a
 /// missing entry falls back to the bundled config).
@@ -578,7 +608,7 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, config_file_in,
+        AccessRule, Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, config_file_in,
         pattern_matches, resolve_relative,
     };
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -1251,5 +1281,108 @@ log:
         // `type:` omitted entirely falls back to the supported stdout sink.
         assert_eq!(config.logs.sink, "stdout");
         assert!(config.logs.sink_is_supported());
+    }
+
+    // ----- policy wiring from YAML ------------------------------------------
+
+    #[test]
+    fn policies_are_derived_from_packages_block() {
+        // The `access` / `publish` tokens in each entry drive the
+        // runtime policy — not a hard-coded default set.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@secret/*':
+    access: $authenticated
+    publish: $authenticated
+  '**':
+    access: $all
+    publish: $authenticated
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        let secret = config.policies.for_package("@secret/thing");
+        assert_eq!(secret.access, AccessRule::Authenticated);
+        assert_eq!(secret.publish, AccessRule::Authenticated);
+        let public = config.policies.for_package("lodash");
+        assert_eq!(public.access, AccessRule::All);
+        assert_eq!(public.publish, AccessRule::Authenticated);
+    }
+
+    #[test]
+    fn policy_first_matching_rule_wins() {
+        // `@secret/*` is declared before the `**` catch-all, so it
+        // wins for a scoped package even though both match.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@secret/*':
+    access: $authenticated
+  '**':
+    access: $all
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.policies.for_package("@secret/x").access, AccessRule::Authenticated);
+        assert_eq!(config.policies.for_package("anything").access, AccessRule::All);
+    }
+
+    #[test]
+    fn policy_missing_access_and_publish_default_to_all_and_authenticated() {
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages:
+  'lodash': {}
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        let effective = config.policies.for_package("lodash");
+        assert_eq!(effective.access, AccessRule::All);
+        assert_eq!(effective.publish, AccessRule::Authenticated);
+    }
+
+    #[test]
+    fn policy_anonymous_token_is_wired() {
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@anon/*':
+    access: $anonymous
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.policies.for_package("@anon/x").access, AccessRule::Anonymous);
+    }
+
+    #[test]
+    fn policy_unknown_access_token_is_a_config_error() {
+        // Named groups aren't modeled yet — an unrecognized token must
+        // fail the parse rather than silently mis-enforce.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages:
+  'lodash':
+    access: admin
+";
+        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(
+            matches!(err, super::RegistryError::InvalidAccessRule { .. }),
+            "expected InvalidAccessRule, got {err:?}",
+        );
+    }
+
+    #[test]
+    fn bundled_default_config_enforces_its_protections() {
+        // Building from the bundled YAML must reproduce the
+        // registry-mock protections that used to be hard-coded.
+        let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
+        assert_eq!(
+            config.policies.for_package("@pnpm.e2e/needs-auth").access,
+            AccessRule::Authenticated,
+        );
+        assert_eq!(config.policies.for_package("@private/foo").access, AccessRule::Authenticated);
+        assert_eq!(config.policies.for_package("lodash").access, AccessRule::All);
+        assert_eq!(config.policies.for_package("lodash").publish, AccessRule::Authenticated);
     }
 }

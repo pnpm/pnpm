@@ -11,9 +11,9 @@ use wax::{Glob, Program};
 use crate::error::RegistryError;
 
 /// What identities are allowed to perform an action on a package.
-/// Mirrors the verdaccio tokens with the same names. The subset is
-/// minimal because `@pnpm/registry-mock` only ever uses these two —
-/// `$anonymous` and per-group rules aren't needed for any pnpm test.
+/// Mirrors verdaccio's built-in access tokens. Named groups and
+/// per-user membership are not modeled yet — only the three special
+/// groups every caller's identity is derived from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessRule {
     /// `$all` — anyone, authenticated or not.
@@ -21,6 +21,11 @@ pub enum AccessRule {
     /// `$authenticated` — any caller carrying a valid Bearer token
     /// or Basic auth header.
     Authenticated,
+    /// `$anonymous` — only callers *without* valid credentials.
+    /// Authenticated callers are not in this group, so a rule of
+    /// `$anonymous` denies them (matching verdaccio, where the
+    /// `$anonymous` group is absent from a logged-in user's groups).
+    Anonymous,
 }
 
 impl FromStr for AccessRule {
@@ -29,6 +34,7 @@ impl FromStr for AccessRule {
         match value {
             "$all" | "all" => Ok(AccessRule::All),
             "$authenticated" | "authenticated" => Ok(AccessRule::Authenticated),
+            "$anonymous" | "anonymous" => Ok(AccessRule::Anonymous),
             other => Err(RegistryError::InvalidAccessRule { value: other.to_string() }),
         }
     }
@@ -163,5 +169,28 @@ mod tests {
         let effective = policies.for_package("anything");
         assert_eq!(effective.access, AccessRule::All);
         assert_eq!(effective.publish, AccessRule::Authenticated);
+    }
+
+    #[test]
+    fn access_rule_parses_special_tokens_with_and_without_sigil() {
+        use super::AccessRule::{All, Anonymous, Authenticated};
+        for (token, expected) in [
+            ("$all", All),
+            ("all", All),
+            ("$authenticated", Authenticated),
+            ("authenticated", Authenticated),
+            ("$anonymous", Anonymous),
+            ("anonymous", Anonymous),
+        ] {
+            assert_eq!(token.parse::<AccessRule>().unwrap(), expected, "{token}");
+        }
+    }
+
+    #[test]
+    fn access_rule_rejects_unknown_token() {
+        // Named groups aren't modeled yet, so a group name (or typo)
+        // is a hard error rather than a silent mis-enforcement.
+        assert!("admin".parse::<AccessRule>().is_err());
+        assert!("$all $authenticated".parse::<AccessRule>().is_err());
     }
 }

@@ -32,7 +32,9 @@ pub enum RegistryError {
         filename: String,
     },
 
-    #[display("Access rule {value:?} is not recognized (expected $all or $authenticated)")]
+    #[display(
+        "Access rule {value:?} is not recognized (expected $all, $authenticated, or $anonymous)"
+    )]
     #[from(skip)]
     InvalidAccessRule {
         #[error(not(source))]
@@ -44,6 +46,15 @@ pub enum RegistryError {
     InvalidPolicyPattern {
         #[error(not(source))]
         pattern: String,
+        reason: String,
+    },
+
+    /// The YAML config could not be parsed. Startup-only — this never
+    /// surfaces over HTTP, but `Config` parsing shares this error type.
+    #[display("Invalid config: {reason}")]
+    #[from(skip)]
+    InvalidConfig {
+        #[error(not(source))]
         reason: String,
     },
 
@@ -162,6 +173,7 @@ impl RegistryError {
             | RegistryError::InvalidTarballName { .. }
             | RegistryError::InvalidAccessRule { .. }
             | RegistryError::InvalidPolicyPattern { .. }
+            | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
