@@ -859,6 +859,7 @@ async fn install_writes_workspace_state() {
     assert_eq!(settings.auto_install_peers, Some(true));
     assert_eq!(settings.dedupe_peer_dependents, Some(true));
     assert_eq!(settings.dedupe_peers, Some(false));
+    assert_eq!(settings.prefer_workspace_packages, Some(false));
     assert_eq!(settings.hoist_workspace_packages, Some(true));
     assert_eq!(settings.hoist_pattern.as_deref(), Some(&["*".to_string()][..]));
 

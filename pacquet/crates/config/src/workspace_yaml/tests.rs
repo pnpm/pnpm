@@ -15,6 +15,7 @@ registry: https://reg.example
 lockfile: false
 autoInstallPeers: true
 dedupePeers: true
+preferWorkspacePackages: true
 nodeLinker: hoisted
 packages:
   - packages/*
@@ -25,6 +26,7 @@ packages:
     assert_eq!(settings.lockfile, Some(false));
     assert_eq!(settings.auto_install_peers, Some(true));
     assert_eq!(settings.dedupe_peers, Some(true));
+    assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
 }
 
