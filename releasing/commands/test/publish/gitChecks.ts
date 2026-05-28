@@ -9,8 +9,21 @@ import { temporaryDirectory } from 'tempy'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('@inquirer/prompts', () => {
-  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
-  return { ...actual, confirm: jest.fn() }
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
 })
 const { confirm } = await import('@inquirer/prompts')
 const { publish } = await import('@pnpm/releasing.commands')

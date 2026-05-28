@@ -17,11 +17,19 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.unstable_mockModule('@inquirer/prompts', () => {
-  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
   return {
-    ...actual,
+    Separator,
     checkbox: jest.fn(),
     confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
     select: jest.fn(),
   }
 })

@@ -16,8 +16,21 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 })
 
 jest.unstable_mockModule('@inquirer/prompts', () => {
-  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
-  return { ...actual, confirm: jest.fn() }
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
 })
 
 const { run } = await import('@pnpm/exec.commands')

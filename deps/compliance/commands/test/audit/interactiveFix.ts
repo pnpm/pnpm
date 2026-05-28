@@ -10,8 +10,21 @@ import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
 jest.unstable_mockModule('@inquirer/prompts', () => {
-  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
-  return { ...actual, checkbox: jest.fn() }
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
 })
 const { checkbox, Separator } = await import('@inquirer/prompts')
 const { audit } = await import('@pnpm/deps.compliance.commands')
