@@ -654,6 +654,20 @@ pub struct Config {
     /// [`dedupe-peers`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/index.ts#L138).
     pub dedupe_peers: bool,
 
+    /// When `true`, a direct dependency of a non-root workspace
+    /// project is omitted from that project's `node_modules/` when
+    /// the workspace root resolves the same alias to the same target.
+    /// Drives both the linking step (which skips writing the
+    /// per-importer symlink) and bin linking (the deduped dep won't
+    /// reappear under the project's `node_modules/.bin`).
+    ///
+    /// Default `true`. Mirrors pnpm's
+    /// [`dedupeDirectDeps`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L243)
+    /// and the linker call site at
+    /// [`installing/deps-installer/src/install/link.ts:303`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/link.ts#L303).
+    #[default = true]
+    pub dedupe_direct_deps: bool,
+
     /// If this is enabled, commands will fail if there is a missing or invalid peer dependency in the tree.
     pub strict_peer_dependencies: bool,
 

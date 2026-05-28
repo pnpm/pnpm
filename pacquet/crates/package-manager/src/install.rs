@@ -1403,8 +1403,8 @@ fn build_projects_map(
 /// Records the projects pacquet just materialized plus the resolved
 /// settings the install used. Mirrors upstream's `createWorkspaceState`
 /// at <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/createWorkspaceState.ts>.
-/// Settings pacquet does not track yet (e.g. `dedupeDirectDeps`,
-/// `peersSuffixMaxLength`) are omitted; pnpm's `checkDepsStatus`
+/// Settings pacquet does not track yet (e.g. `peersSuffixMaxLength`)
+/// are omitted; pnpm's `checkDepsStatus`
 /// only iterates fields present in the serialized object, so an
 /// absent key is silently skipped rather than treated as a drift.
 fn build_workspace_state(
