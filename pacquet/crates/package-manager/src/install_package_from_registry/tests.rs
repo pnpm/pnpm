@@ -79,6 +79,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         supported_architectures: None,
         ignored_optional_dependencies: None,
         overrides: None,
+        package_extensions: None,
         cache_dir: tempdir().unwrap().keep(),
         minimum_release_age: None,
         minimum_release_age_exclude: None,

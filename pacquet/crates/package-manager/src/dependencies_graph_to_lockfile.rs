@@ -87,6 +87,13 @@ pub struct GraphToLockfileOptions<'a> {
     pub overrides: Option<HashMap<String, String>>,
     /// `ignoredOptionalDependencies` recorded the same way.
     pub ignored_optional_dependencies: Option<Vec<String>>,
+    /// `packageExtensionsChecksum` recorded the same way. Mirrors
+    /// upstream's
+    /// [`packageExtensionsChecksum`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L608)
+    /// assignment. `None` when no extensions are configured (matches
+    /// pnpm's `hashObjectNullableWithPrefix` short-circuit on empty
+    /// input).
+    pub package_extensions_checksum: Option<String>,
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
@@ -116,6 +123,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         peers_suffix_max_length,
         overrides,
         ignored_optional_dependencies,
+        package_extensions_checksum,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
@@ -138,6 +146,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
             peers_suffix_max_length,
         }),
         overrides: overrides.filter(|map| !map.is_empty()),
+        package_extensions_checksum,
         ignored_optional_dependencies: ignored_optional_dependencies
             .filter(|list| !list.is_empty()),
         importers,

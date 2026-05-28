@@ -908,6 +908,70 @@ fn omitting_overrides_keeps_default() {
     assert!(config.overrides.is_none());
 }
 
+/// `packageExtensions` parses as an ordered `selector → entry` map
+/// and applies onto [`Config::package_extensions`]. The entry uses
+/// camelCase field names so inner sections like
+/// `optionalDependencies` and `peerDependenciesMeta` round-trip
+/// through the deserializer.
+#[test]
+fn parses_package_extensions_from_yaml_and_applies() {
+    let yaml = r#"
+packageExtensions:
+  is-positive:
+    dependencies:
+      "@pnpm.e2e/bar": 100.1.0
+  "@scope/foo@^2":
+    peerDependencies:
+      react: ">=16"
+    peerDependenciesMeta:
+      react:
+        optional: true
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let extensions = settings.package_extensions.as_ref().expect("packageExtensions parsed");
+    let is_positive = extensions.get("is-positive").expect("is-positive entry");
+    assert_eq!(
+        is_positive
+            .dependencies
+            .as_ref()
+            .and_then(|map| map.get("@pnpm.e2e/bar"))
+            .map(String::as_str),
+        Some("100.1.0"),
+    );
+    let scoped = extensions.get("@scope/foo@^2").expect("scoped entry");
+    assert_eq!(
+        scoped.peer_dependencies.as_ref().and_then(|map| map.get("react")).map(String::as_str),
+        Some(">=16"),
+    );
+    let meta = scoped
+        .peer_dependencies_meta
+        .as_ref()
+        .and_then(|map| map.get("react"))
+        .expect("react peerDependenciesMeta entry");
+    assert_eq!(meta.optional, Some(true));
+
+    let mut config = Config::new();
+    assert!(config.package_extensions.is_none(), "default is None");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let applied = config.package_extensions.expect("package_extensions applied");
+    assert_eq!(applied.len(), 2);
+}
+
+/// An empty `packageExtensions:` map collapses to `None` on
+/// `Config`, mirroring the `overrides` behavior. Without this
+/// collapse, an empty `{}` would diverge from "no key set" at the
+/// workspace-state drift comparison.
+#[test]
+fn empty_package_extensions_map_collapses_to_none() {
+    let yaml = "packageExtensions: {}\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert!(settings.package_extensions.as_ref().is_some_and(indexmap::IndexMap::is_empty));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.package_extensions.is_none(), "empty map collapses to None");
+}
+
 /// `hoistingLimits` deserializes as a map keyed by importer
 /// locator (e.g. `'.@'`); inner value is a list of alias names.
 /// Mirrors upstream's [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10)

@@ -204,6 +204,18 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     InvalidNamedRegistry(#[error(source)] MergeNamedRegistriesError),
 
+    /// A `packageExtensions` selector's `@<range>` half failed to
+    /// parse as a `node-semver` range. Mirrors upstream's behavior —
+    /// pnpm hands the raw range to `semver.satisfies`, which throws
+    /// a `TypeError` on a malformed range; pacquet surfaces the same
+    /// failure mode earlier (install start, not first per-manifest
+    /// match) so the user sees the bad selector before any tarballs
+    /// are fetched.
+    #[diagnostic(transparent)]
+    InvalidPackageExtensionSelector(
+        #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
+    ),
+
     /// The first writer of a shared `(name, version)` slot dropped its
     /// completion signal without sending `true`. In practice this only
     /// fires when the first writer's task panicked / was cancelled
@@ -529,6 +541,23 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
             .map(Arc::new);
 
+        // Build the `packageExtensions` hook once per install. The
+        // closure captures an `Arc<PackageExtender>` so every importer
+        // and every concurrent resolve clones the same grouped-by-name
+        // lookup table. `None` when no extensions are configured so the
+        // resolver hot path skips the per-resolve dispatch.
+        //
+        // An invalid `@<range>` in any selector surfaces here, before
+        // the resolver runs — same intent as upstream's TypeError out
+        // of `semver.satisfies`, but lifted to install start so the
+        // user sees the bad selector before any tarballs are fetched.
+        let package_extensions_hook = match config.package_extensions.as_ref() {
+            Some(extensions) => crate::PackageExtender::new(extensions)
+                .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?
+                .into_manifest_hook(),
+            None => None,
+        };
+
         // Loop per workspace project. Each importer gets its own
         // resolve_importer call with its own `project_dir` so
         // `workspace:` / `link:` resolutions compute paths relative
@@ -595,6 +624,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 modules_dir: Some(importer_modules_dir),
                 peers_suffix_max_length: usize::try_from(config.peers_suffix_max_length)
                     .unwrap_or(usize::MAX),
+                manifest_hook: package_extensions_hook.clone(),
             };
             let importer_result = resolve_importer(
                 &*resolver,
@@ -1062,7 +1092,23 @@ fn build_fresh_lockfile(
             .as_ref()
             .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        package_extensions_checksum: compute_package_extensions_checksum(config),
     })
+}
+
+/// Hash `Config::package_extensions` into the prefixed sha256 string
+/// pnpm writes to `pnpm-lock.yaml#packageExtensionsChecksum`.
+/// Mirrors upstream's
+/// [`hashObjectNullableWithPrefix(opts.packageExtensions)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L545)
+/// call at install time. Returns `None` when no extensions are
+/// configured so the field is omitted from the on-disk lockfile, the
+/// same way pnpm omits `packageExtensionsChecksum` when the input is
+/// `undefined` or `{}`.
+fn compute_package_extensions_checksum(config: &Config) -> Option<String> {
+    let extensions =
+        config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
+    let value = serde_json::to_value(extensions).ok()?;
+    pacquet_graph_hasher::hash_object_nullable_with_prefix(&value)
 }
 
 /// [`Resolver`] adapter that delegates to a shared `Arc<dyn Resolver>`.
@@ -1091,5 +1137,77 @@ impl Resolver for ArcResolver {
         opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a> {
         self.0.resolve_latest(query, opts)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compute_package_extensions_checksum;
+    use pacquet_config::{Config, PackageExtension};
+    use pretty_assertions::assert_eq;
+
+    fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
+        let mut extensions = indexmap::IndexMap::new();
+        for (selector, deps) in entries {
+            let mut dependencies = std::collections::BTreeMap::new();
+            for (name, range) in *deps {
+                dependencies.insert((*name).to_string(), (*range).to_string());
+            }
+            extensions.insert(
+                (*selector).to_string(),
+                PackageExtension { dependencies: Some(dependencies), ..Default::default() },
+            );
+        }
+        let mut config = Config::new();
+        config.package_extensions = Some(extensions);
+        Box::new(config)
+    }
+
+    /// Ports `installing/.../packageExtensions.ts:103-153`
+    /// `packageExtensionsChecksum does not change regardless of keys
+    /// order` — two `Config::package_extensions` populated with the
+    /// same selectors and entries in a different declared order must
+    /// produce the same `sha256-…` lockfile checksum. Without the
+    /// sorted-keys hash, the order-sensitive `IndexMap` iteration
+    /// would flap the checksum and force a redundant full resolution
+    /// on every reorder.
+    #[test]
+    fn compute_checksum_is_order_invariant_across_outer_keys() {
+        let a = config_with_extensions(&[
+            ("is-odd", &[("is-number", "*")]),
+            ("is-even", &[("is-number", "*")]),
+        ]);
+        let b = config_with_extensions(&[
+            ("is-even", &[("is-number", "*")]),
+            ("is-odd", &[("is-number", "*")]),
+        ]);
+        let checksum_a = compute_package_extensions_checksum(&a);
+        let checksum_b = compute_package_extensions_checksum(&b);
+        assert!(checksum_a.is_some(), "configured extensions must hash to Some");
+        assert_eq!(checksum_a, checksum_b);
+    }
+
+    /// Empty / absent extensions round-trip to `None`, matching pnpm's
+    /// `hashObjectNullableWithPrefix(undefined) === undefined`
+    /// short-circuit. Without this, an absent `packageExtensions` and
+    /// a configured-but-empty one would write different lockfile
+    /// fields and the drift gate would fire on no-op installs.
+    #[test]
+    fn compute_checksum_is_none_when_extensions_absent() {
+        let config = Config::new();
+        assert_eq!(compute_package_extensions_checksum(&config), None);
+    }
+
+    /// `Some({})` (an explicitly empty map) also collapses to `None`,
+    /// mirroring pnpm's `if (!object || isEmpty(object)) return undefined`.
+    /// Without the empty-map guard, an explicit `packageExtensions: {}`
+    /// in pnpm-workspace.yaml — or an env-var-driven override clearing
+    /// a parent layer — would hash to a checksum while pnpm omits the
+    /// field, causing spurious drift on cross-tool installs.
+    #[test]
+    fn compute_checksum_is_none_for_explicit_empty_map() {
+        let mut config = Config::new();
+        config.package_extensions = Some(indexmap::IndexMap::new());
+        assert_eq!(compute_package_extensions_checksum(&config), None);
     }
 }

@@ -101,6 +101,22 @@ pub struct Lockfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overrides: Option<HashMap<String, String>>,
 
+    /// `packageExtensionsChecksum` recorded by the install that wrote
+    /// this lockfile. Top-level in the v9 wire shape, mirroring
+    /// upstream's
+    /// [`LockfileBase`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/types/src/index.ts#L22).
+    /// On a subsequent install, drift between this value and the
+    /// freshly-computed checksum of `Config::package_extensions` is
+    /// what [`crate::check_lockfile_settings`] flags as outdated,
+    /// matching upstream's
+    /// [`getOutdatedLockfileSetting.ts:53-55`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L53-L55)
+    /// gate. `None` when no `packageExtensions` were configured at
+    /// write time — upstream's `hashObjectNullableWithPrefix` short-
+    /// circuits to `undefined` on empty input, and pacquet does the
+    /// same so an empty `packageExtensions` round-trips identically.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package_extensions_checksum: Option<String>,
+
     /// `ignoredOptionalDependencies` recorded by the install that
     /// wrote this lockfile. Top-level in the v9 wire shape —
     /// **not** inside `settings` — mirroring upstream's

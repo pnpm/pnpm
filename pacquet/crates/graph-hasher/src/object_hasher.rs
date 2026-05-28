@@ -27,6 +27,31 @@ pub fn hash_object_without_sorting(value: &Value, encoding: HashEncoding) -> Str
     hash_object_with_encoding(value, encoding, /* sort */ false)
 }
 
+/// Mirrors `hashObjectNullableWithPrefix` at
+/// <https://github.com/pnpm/pnpm/blob/39101f5e37/crypto/object-hasher/src/index.ts#L44-L48>.
+/// Returns `None` when `value` is `undefined`-like (a null JSON value)
+/// or an empty object — matching upstream's
+/// `if (!object || isEmpty(object)) return undefined`. Otherwise hashes
+/// with sorted keys + sha256 + base64 and prefixes with `sha256-`,
+/// matching the wire shape pnpm writes to `pnpm-lock.yaml#packageExtensionsChecksum`.
+///
+/// Only `Object` is checked for emptiness; non-object, non-null
+/// inputs (Bool / Number / String / Array) are unreachable in
+/// practice for this caller (`packageExtensions` is always a map),
+/// but we hash them anyway rather than panic — pacquet's hasher
+/// already handles them.
+pub fn hash_object_nullable_with_prefix(value: &Value) -> Option<String> {
+    let is_nullish = match value {
+        Value::Null => true,
+        Value::Object(map) => map.is_empty(),
+        _ => false,
+    };
+    if is_nullish {
+        return None;
+    }
+    Some(format!("sha256-{}", hash_object(value)))
+}
+
 /// General form. `sort = true` sorts object keys before serialization
 /// (the `unorderedObjects` option upstream); `sort = false` preserves
 /// insertion order.

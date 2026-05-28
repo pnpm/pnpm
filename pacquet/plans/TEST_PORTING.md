@@ -377,7 +377,7 @@ Rust port notes:
 Primary tests:
 
 - [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:21` `using a global virtual store` verifies `node_modules/.pnpm/lock.yaml` exists after install and frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/packageExtensions.ts:16` `manifests are extended with fields specified by packageExtensions` verifies wanted lockfile checksum matches current lockfile, including after frozen install.
+- [x] `TypeScript repo: installing/deps-installer/test/install/packageExtensions.ts:16` `manifests are extended with fields specified by packageExtensions` — split into pacquet's `install::tests::fresh_install_applies_package_extensions_to_dependency_manifest` (verifies the extension lands in the lockfile's `packages` block AND `packageExtensionsChecksum` is written) and `install::tests::frozen_lockfile_errors_when_package_extensions_drift_from_lockfile` (frozen-install drift gate). Current-lockfile round-trip parity is covered by `current_lockfile`'s clone of `package_extensions_checksum`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:408` `dependency should not be added to current lockfile if it was not built successfully during headless install` verifies failed build does not update current lockfile.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies current lockfile package set matches wanted lockfile while skipped packages are tracked.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:208` `install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore` covers stale current-lockfile importers.
@@ -748,7 +748,8 @@ Tracks pnpm/pnpm#11940. Pacquet's port (`pacquet-package-manager::optimistic_rep
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:115` `returns upToDate: false when ignoredOptionalDependencies have changed` — `optimistic_repeat_install::tests::returns_skipped_when_ignored_optional_dependencies_drift`.
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:145` `returns upToDate: false when patchedDependencies have changed` — `optimistic_repeat_install::tests::returns_skipped_when_patched_dependencies_drift`.
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:205` `returns upToDate: false when allowBuilds have changed` — `optimistic_repeat_install::tests::returns_skipped_when_allow_builds_drift`.
-- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:85` `returns upToDate: false when packageExtensions have changed` and `:175` `returns upToDate: false when peersSuffixMaxLength has changed` — bundled as `optimistic_repeat_install::tests::returns_skipped_when_unported_pnpm_settings_present`. Pacquet doesn't yet read either yaml field into `Config`, but the field-by-field `PartialEq` on `WorkspaceStateSettings` still catches a previous install (or pnpm-written state) that recorded a value. Split into per-field tests once the yaml is read.
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:85` `returns upToDate: false when packageExtensions have changed` — split out as `optimistic_repeat_install::tests::returns_skipped_when_package_extensions_drift` once the yaml field landed in `Config`.
+- [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:175` `returns upToDate: false when peersSuffixMaxLength has changed` — still bundled under `returns_up_to_date_when_state_carries_unported_pnpm_settings`. Pacquet doesn't yet read `peersSuffixMaxLength` into `Config`; split out once it lands.
 
 ### Not yet ported
 

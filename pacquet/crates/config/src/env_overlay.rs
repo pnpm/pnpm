@@ -167,6 +167,7 @@ impl WorkspaceSettings {
         json_field!(supported_architectures, "SUPPORTED_ARCHITECTURES");
         json_field!(ignored_optional_dependencies, "IGNORED_OPTIONAL_DEPENDENCIES");
         json_field!(overrides, "OVERRIDES");
+        json_field!(package_extensions, "PACKAGE_EXTENSIONS");
         string_field!(cache_dir, "CACHE_DIR");
         json_field!(minimum_release_age, "MINIMUM_RELEASE_AGE");
         json_field!(minimum_release_age_exclude, "MINIMUM_RELEASE_AGE_EXCLUDE");

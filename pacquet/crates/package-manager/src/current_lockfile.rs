@@ -85,6 +85,7 @@ pub fn filter_lockfile_for_current(
         lockfile_version: lockfile.lockfile_version,
         settings: lockfile.settings.clone(),
         overrides: lockfile.overrides.clone(),
+        package_extensions_checksum: lockfile.package_extensions_checksum.clone(),
         // Preserve the wanted lockfile's `ignored_optional_dependencies`
         // verbatim — the current lockfile is a filtered view of the
         // wanted one, and a future drift check between this recorded

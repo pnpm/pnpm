@@ -327,6 +327,58 @@ pub struct WorkspaceSettings {
 
     /// `trustPolicyIgnoreAfter` from `pnpm-workspace.yaml`. Minutes.
     pub trust_policy_ignore_after: Option<u64>,
+
+    /// `packageExtensions` from `pnpm-workspace.yaml`: a
+    /// `selector → extension` map that augments dependency manifests
+    /// at install time. Outer key is a `name[@range]` selector; inner
+    /// value lists the extra `dependencies`, `optionalDependencies`,
+    /// `peerDependencies`, and `peerDependenciesMeta` entries to merge
+    /// onto every matching manifest before the resolver walks it.
+    ///
+    /// Mirrors upstream's
+    /// [`packageExtensions`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L145)
+    /// shape and its consumer
+    /// [`createPackageExtender`](https://github.com/pnpm/pnpm/blob/39101f5e37/hooks/read-package-hook/src/createPackageExtender.ts).
+    /// `IndexMap` keeps insertion order so the hash-and-checksum side
+    /// (a separate slice) can keep the same key ordering pnpm does.
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+}
+
+/// One `packageExtensions` entry: a subset of a manifest's dependency
+/// groups, merged onto every matching manifest at install time. The
+/// fields mirror pnpm's
+/// [`PackageExtension = Pick<BaseManifest, 'dependencies' |
+/// 'optionalDependencies' | 'peerDependencies' |
+/// 'peerDependenciesMeta'>`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L145).
+///
+/// Read directly from yaml — no validation here beyond serde's shape
+/// check. The hook
+/// (`pacquet_package_manager::PackageExtender`) merges these onto
+/// manifests, with the manifest's own fields taking precedence on
+/// conflict so the extension never overwrites a value the package
+/// already declared (mirrors upstream's `{ ...packageExtension[field],
+/// ...manifest[field] }` spread order).
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PackageExtension {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependencies: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub optional_dependencies: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_dependencies: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_dependencies_meta: Option<BTreeMap<String, PeerDependencyMeta>>,
+}
+
+/// `peerDependenciesMeta` entry shape: a single `optional` flag today.
+/// Mirrors upstream's
+/// [`PeerDependencyMeta`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/misc.ts).
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PeerDependencyMeta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub optional: Option<bool>,
 }
 
 /// Basename of the file pnpm reads; exported for test use.
@@ -433,6 +485,7 @@ impl WorkspaceSettings {
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
         self.overrides = None;
+        self.package_extensions = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -643,6 +696,13 @@ impl WorkspaceSettings {
         // here.
         if let Some(v) = self.overrides {
             config.overrides = (!v.is_empty()).then_some(v);
+        }
+        // Empty map collapses to `None` so the workspace-state drift
+        // check ignores it, mirroring the same shape `overrides` uses.
+        // An explicit later-layer `packageExtensions: {}` still clears
+        // a prior non-empty value rather than no-oping.
+        if let Some(v) = self.package_extensions {
+            config.package_extensions = (!v.is_empty()).then_some(v);
         }
         if let Some(v) = self.cache_dir {
             config.cache_dir = resolve(base_dir, &v);
