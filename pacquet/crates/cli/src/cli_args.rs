@@ -54,9 +54,16 @@ pub struct CliArgs {
 
     /// `--filter` / `-F` workspace selectors. Each occurrence adds one
     /// raw selector (`@scope/*`, `./pkg`, `foo...`, `!bar`, `{dir}`,
-    /// `[since]`, …). Stored into [`pacquet_config::Config::filter`];
+    /// `[since]`, ...). Stored into [`pacquet_config::Config::filter`];
     /// see that field for why the resolved selection is not yet
     /// consumed by `install`.
+    ///
+    /// As a global multi-value flag, occurrences collect only within one
+    /// side of the subcommand boundary: `pacquet -F a -F b install` and
+    /// `pacquet install -F a -F b` both yield `[a, b]`, but mixing sides
+    /// (`pacquet -F a install -F b`) keeps only the subcommand-side
+    /// occurrence. This is a clap limitation; pass all selectors on the
+    /// same side.
     #[clap(short = 'F', long, global = true)]
     pub filter: Vec<String>,
 

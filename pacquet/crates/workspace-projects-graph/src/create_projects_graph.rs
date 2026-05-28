@@ -60,7 +60,7 @@ pub struct CreateProjectsGraphResult<Pkg> {
 /// drives [`resolve_workspace_range`]); a local-path specifier
 /// (`file:` / `link:` / a relative or absolute path) resolves by
 /// directory; a plain semver version or range resolves by name +
-/// version; anything else (registry tag, git URL, `npm:` alias, …)
+/// version; anything else (registry tag, git URL, `npm:` alias, ...)
 /// contributes no edge.
 ///
 /// One deliberate divergence from upstream: pacquet classifies a
@@ -154,7 +154,7 @@ enum SpecKind<'a> {
     Directory(&'a str),
     /// A semver version or range, matched by name + version.
     VersionOrRange,
-    /// Neither (tag, git URL, `npm:` alias, …) — no edge.
+    /// Neither (tag, git URL, `npm:` alias, ...) — no edge.
     Skip,
 }
 

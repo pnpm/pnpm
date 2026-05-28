@@ -27,7 +27,7 @@ pub struct WorkspaceFilter {
 
 /// Outcome of a filter run: the selected projects (in selection order)
 /// and the selectors that matched nothing.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FilteredProjects {
     /// Selected project root directories, in upstream's
     /// `Object.keys(selectedProjectsGraph)` order.

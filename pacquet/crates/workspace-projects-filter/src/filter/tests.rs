@@ -15,6 +15,7 @@ struct TestPkg {
     name: Option<String>,
     version: Option<String>,
     deps: Vec<(String, String)>,
+    dev_deps: Vec<(String, String)>,
 }
 
 impl BaseProject for TestPkg {
@@ -30,8 +31,12 @@ impl GraphProject for TestPkg {
     fn manifest_version(&self) -> Option<&str> {
         self.version.as_deref()
     }
-    fn merged_dependencies(&self, _ignore_dev_deps: bool) -> Vec<(String, String)> {
-        self.deps.clone()
+    fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
+        let mut merged = self.deps.clone();
+        if !ignore_dev_deps {
+            merged.extend(self.dev_deps.iter().cloned());
+        }
+        merged
     }
 }
 
@@ -44,6 +49,7 @@ fn node(root: &str, name: &str, deps: &[&str]) -> (PathBuf, ProjectGraphNode<Tes
                 name: Some(name.to_string()),
                 version: Some("1.0.0".to_string()),
                 deps: Vec::new(),
+                dev_deps: Vec::new(),
             },
             dependencies: deps.iter().map(PathBuf::from).collect(),
         },
@@ -339,7 +345,12 @@ fn graph_project(root: &str, name: &str, deps: &[(&str, &str)]) -> TestPkg {
         name: Some(name.to_string()),
         version: Some("1.0.0".to_string()),
         deps: deps.iter().map(|(name, spec)| (name.to_string(), spec.to_string())).collect(),
+        dev_deps: Vec::new(),
     }
+}
+
+fn project_dirs(result: &crate::filter::FilteredProjects) -> Vec<String> {
+    result.selected_projects.iter().map(|path| path.to_string_lossy().into_owned()).collect()
 }
 
 #[test]
@@ -380,6 +391,84 @@ fn filter_projects_empty_filter_selects_everything() {
     let dirs: Vec<String> =
         result.selected_projects.iter().map(|path| path.to_string_lossy().into_owned()).collect();
     assert_eq!(dirs, ["/ws/a", "/ws/b"]);
+}
+
+#[test]
+fn filter_prod_follows_production_deps_only() {
+    // `a` depends on `b` only via devDependencies. `--filter-prod a...`
+    // builds the production-only graph (dev edges dropped), so it selects
+    // just `a`; the same selector without `follow_prod_deps_only` follows
+    // the dev edge to `b`.
+    let make_projects = || {
+        vec![
+            TestPkg {
+                root_dir: PathBuf::from("/ws/a"),
+                name: Some("a".to_string()),
+                version: Some("1.0.0".to_string()),
+                deps: Vec::new(),
+                dev_deps: vec![("b".to_string(), "workspace:*".to_string())],
+            },
+            graph_project("/ws/b", "b", &[]),
+        ]
+    };
+    let opts = FilterProjectsOptions {
+        prefix: PathBuf::from("/ws"),
+        link_workspace_packages: None,
+        use_glob_dir_filtering: false,
+    };
+
+    let prod = filter_projects(
+        make_projects(),
+        &[WorkspaceFilter { filter: "a...".to_string(), follow_prod_deps_only: true }],
+        &opts,
+    )
+    .unwrap();
+    assert_eq!(project_dirs(&prod), ["/ws/a"]);
+
+    let all = filter_projects(
+        make_projects(),
+        &[WorkspaceFilter { filter: "a...".to_string(), follow_prod_deps_only: false }],
+        &opts,
+    )
+    .unwrap();
+    assert_eq!(project_dirs(&all), ["/ws/a", "/ws/b"]);
+}
+
+#[test]
+fn filter_projects_unions_prod_selection_before_all_selection() {
+    // Mirrors upstream's `{ ...prodFiltered, ...filtered }` spread: the
+    // prod-graph selection is listed before the all-graph selection.
+    let projects = vec![graph_project("/ws/a", "a", &[]), graph_project("/ws/b", "b", &[])];
+    let result = filter_projects(
+        projects,
+        &[
+            WorkspaceFilter { filter: "b".to_string(), follow_prod_deps_only: true },
+            WorkspaceFilter { filter: "a".to_string(), follow_prod_deps_only: false },
+        ],
+        &FilterProjectsOptions {
+            prefix: PathBuf::from("/ws"),
+            link_workspace_packages: None,
+            use_glob_dir_filtering: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(project_dirs(&result), ["/ws/b", "/ws/a"]);
+}
+
+#[test]
+fn path_selector_with_no_match_is_reported_unmatched() {
+    let graph = projects_graph();
+    let result = filter_workspace_projects(
+        &graph,
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/does-not-exist")),
+            ..Default::default()
+        }],
+        &FilterWorkspaceProjectsOptions::default(),
+    )
+    .unwrap();
+    assert!(result.selected_projects.is_empty());
+    assert_eq!(result.unmatched_filters, ["/does-not-exist"]);
 }
 
 /// Ports of upstream `projects-filter` cases that require the git-diff

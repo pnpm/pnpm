@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 /// The optional fields map to upstream's `undefined`; the boolean
 /// fields default to `false`, matching how upstream's absent keys read
 /// as falsy.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ProjectSelector {
     /// The `<since>` ref from a `[<since>]` changed-packages selector.
     pub diff: Option<String>,
@@ -22,7 +22,7 @@ pub struct ProjectSelector {
     pub include_dependencies: bool,
     /// Leading `...`: also select the matched projects' dependents.
     pub include_dependents: bool,
-    /// Name glob (`@pnpm.e2e/*`, `foo`, …).
+    /// Name glob (`@pnpm.e2e/*`, `foo`, ...).
     pub name_pattern: Option<String>,
     /// Directory selector (`./pkg`, `{packages/*}`), resolved against
     /// the prefix.
@@ -114,7 +114,7 @@ struct SelectorParts<'a> {
 /// The name group `[^.][^{}[\]]*` is greedy and the whole expression is
 /// anchored, so the regex backtracks: a leading non-`.` char (including
 /// `{`, `}`, `[`, `]`) is absorbed into the name unless a shorter name
-/// lets the `{…}` / `[…]` groups consume the rest. This mirrors that by
+/// lets the `{...}` / `[...]` groups consume the rest. This mirrors that by
 /// trying every candidate name length from longest to shortest (then no
 /// name) and keeping the first decomposition that consumes the whole
 /// input.
@@ -158,7 +158,7 @@ fn name_candidate_lengths(input: &str) -> Vec<usize> {
     lengths
 }
 
-/// Match an optional `{…}` brace group then an optional `[…]` bracket
+/// Match an optional `{...}` brace group then an optional `[...]` bracket
 /// group against the whole of `rest`, returning their inner text.
 /// `None` unless the groups consume `rest` exactly, mirroring the
 /// anchored `(\{[^}]+\})?(\[[^\]]+\])?$` tail of the regex.

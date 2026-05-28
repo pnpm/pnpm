@@ -190,7 +190,7 @@ fn diff_with_dependencies_and_dependents() {
 
 // The upstream regex name group `[^.][^{}[\]]*` lets the name's first
 // char be a brace/bracket; the parser backtracks the greedy name to let
-// `{…}` / `[…]` match. These cases (malformed or unusual selectors) must
+// `{...}` / `[...]` match. These cases (malformed or unusual selectors) must
 // resolve the same way the regex does, including keeping `!`/`...`
 // modifiers that the name-fallback path would otherwise drop.
 

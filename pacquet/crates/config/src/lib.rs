@@ -992,7 +992,7 @@ pub struct Config {
     pub recursive: bool,
 
     /// `--filter` selectors. Each entry is one raw selector string
-    /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, …) before parsing.
+    /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, ...) before parsing.
     /// Mirrors pnpm's CLI-only
     /// [`filter`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L75)
     /// array: it is not a `.npmrc` / `pnpm-workspace.yaml` key, so the

@@ -12,7 +12,7 @@
 //! (`file:` / `link:` / a relative or absolute path) or by name plus a
 //! semver / `workspace:` version match against the sibling's manifest
 //! `version`. Specifiers that resolve to neither (registry tags, git
-//! URLs, `npm:` aliases, …) contribute no edge.
+//! URLs, `npm:` aliases, ...) contribute no edge.
 
 mod base_project;
 mod create_projects_graph;
