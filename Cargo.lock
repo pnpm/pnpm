@@ -2139,6 +2139,7 @@ dependencies = [
  "pipe-trait",
  "pretty_assertions",
  "rayon",
+ "serde-saphyr",
  "serde_json",
  "tempfile",
  "tokio",

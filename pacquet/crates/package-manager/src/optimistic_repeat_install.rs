@@ -203,6 +203,7 @@ fn settings_match(
         && recorded.hoist_pattern == live.hoist_pattern
         && recorded.hoist_workspace_packages == live.hoist_workspace_packages
         && recorded.ignored_optional_dependencies == live.ignored_optional_dependencies
+        && recorded.inject_workspace_packages == live.inject_workspace_packages
         && recorded.link_workspace_packages == live.link_workspace_packages
         && recorded.node_linker == live.node_linker
         && recorded.optional == live.optional
@@ -219,7 +220,6 @@ fn settings_match(
     //   dedupeDirectDeps
     //   dedupeInjectedDeps
     //   excludeLinksFromLockfile
-    //   injectWorkspacePackages
     //   minimumReleaseAge*          (pacquet supports it but doesn't
     //                                round-trip through workspace state
     //                                yet — separate follow-up).
@@ -264,6 +264,7 @@ pub(crate) fn current_settings(
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(
             config.link_workspace_packages,
         )),

@@ -157,7 +157,8 @@ where
 {
     let ctx = TreeCtx::new(opts.base_opts).with_patched_dependencies(opts.patched_dependencies);
     let optional_names = importer_optional_dependency_names(manifest);
-    let mut wanted: Vec<(String, String, bool)> = Vec::new();
+    let injected_names = importer_injected_dependency_names(manifest);
+    let mut wanted: Vec<WantedSpec> = Vec::new();
     for (name, range) in manifest.dependencies(dependency_groups) {
         if !crate::is_valid_dependency_alias(name) {
             return Err(ResolveDependencyTreeError::InvalidDependencyName {
@@ -166,7 +167,8 @@ where
             });
         }
         let optional = optional_names.contains(name);
-        wanted.push((name.to_string(), range.to_string(), optional));
+        let injected = injected_names.contains(name);
+        wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
     let direct = extend_tree(&ctx, resolver, wanted).await?;
     Ok(ctx.into_resolved_tree(direct))
@@ -182,6 +184,29 @@ where
 /// per-direct-dep value.
 pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
     manifest.dependencies([DependencyGroup::Optional]).map(|(name, _)| name.to_string()).collect()
+}
+
+/// Collect the names of the importer manifest's `dependenciesMeta` entries
+/// whose `injected` flag is `true`. Mirrors upstream's per-alias
+/// [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L73)
+/// thread — the per-dep opt-in that flips a workspace dep onto the
+/// hard-linked `file:` path even when the global
+/// `injectWorkspacePackages` is off. Only importer-level deps are
+/// consulted; the recursive walker does not inherit this from any
+/// resolved package's own `dependenciesMeta`, matching
+/// upstream's importer-only scope.
+pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
+    let Some(meta) =
+        manifest.value().get("dependenciesMeta").and_then(serde_json::Value::as_object)
+    else {
+        return HashSet::new();
+    };
+    meta.iter()
+        .filter(|(_, entry)| {
+            entry.get("injected").and_then(serde_json::Value::as_bool).unwrap_or(false)
+        })
+        .map(|(name, _)| name.clone())
+        .collect()
 }
 
 /// Cache key for [`TreeCtx::resolved_by_wanted`].
@@ -201,7 +226,27 @@ pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> 
 /// caller satisfy itself with a non-optional caller's abbreviated
 /// result, losing the `libc`/`cpu`/`os` filter inputs that mode
 /// supplies.
-type WantedKey = (Option<String>, Option<String>, Option<bool>);
+///
+/// `injected` is part of the key because the workspace branch of the
+/// npm resolver returns a `file:<path>` resolution when the dep is
+/// injected and a `link:<path>` resolution otherwise (see
+/// [`resolve_from_local_package`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)).
+/// Two importers asking for the same workspace dep with different
+/// `dependenciesMeta[*].injected` flags must take different cache
+/// slots.
+type WantedKey = (Option<String>, Option<String>, Option<bool>, Option<bool>);
+
+/// One spec carried through [`extend_tree`] and the importer-side
+/// orchestrator: `(alias, range, optional, injected)`. `injected`
+/// reflects the importer manifest's `dependenciesMeta[alias].injected`
+/// flag, threaded onto [`WantedDependency::injected`] so the workspace
+/// resolver branch picks the `file:` resolution shape for that one
+/// dep even when the global [`ResolveOptions::inject_workspace_packages`]
+/// is off. Hoisted-peer arms in
+/// [`fn@crate::resolve_importer::resolve_importer`] default this to
+/// `false` — peers picked up via auto-install don't carry per-dep
+/// meta from any manifest.
+pub(crate) type WantedSpec = (String, String, bool, bool);
 
 /// One entry in [`TreeCtx::children_specs_by_id`] —
 /// `(child_alias, child_range, child_optional)` triples extracted from
@@ -371,18 +416,30 @@ impl TreeCtx {
 pub async fn extend_tree<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
-    wanted: Vec<(String, String, bool)>,
+    wanted: Vec<WantedSpec>,
 ) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
     let results = wanted
         .into_iter()
-        .map(|(name, range, optional)| async move {
+        .map(|(name, range, optional, injected)| async move {
+            // `injected: Some(true)` only when the importer manifest's
+            // `dependenciesMeta[name].injected = true` opted this dep
+            // in. Otherwise leave it `None` — matches upstream's
+            // `injected: opts.dependenciesMeta[alias]?.injected` shape
+            // where an absent meta entry yields `undefined`, not
+            // `false`. The resolver OR's this with the global
+            // `inject_workspace_packages` flag, so `None` and
+            // `Some(false)` would produce identical behavior — but
+            // mirroring the upstream wire shape keeps the
+            // [`WantedKey`] cache buckets aligned across the two
+            // pacquet branches that surface `injected`.
             let wanted = WantedDependency {
                 alias: Some(name),
                 bare_specifier: Some(range),
                 optional: Some(optional),
+                injected: injected.then_some(true),
                 ..WantedDependency::default()
             };
             resolve_node(ctx, resolver, wanted, &[], 0, false).await
@@ -433,7 +490,7 @@ where
     // harmlessly (the entry holds an `Arc` to an equivalent
     // `ResolveResult`).
     let cache_key: WantedKey =
-        (wanted.alias.clone(), wanted.bare_specifier.clone(), wanted.optional);
+        (wanted.alias.clone(), wanted.bare_specifier.clone(), wanted.optional, wanted.injected);
     let cached = lock_recoverable(&ctx.resolved_by_wanted).get(&cache_key).map(Arc::clone);
     let result = match cached {
         Some(result) => result,
@@ -690,19 +747,19 @@ where
 /// A misconfigured entry surfaces immediately rather than masquerading
 /// as a `SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 pub(crate) fn resolve_catalog_specifiers(
-    specs: Vec<(String, String, bool)>,
+    specs: Vec<WantedSpec>,
     catalogs: &Catalogs,
-) -> Result<Vec<(String, String, bool)>, ResolveDependencyTreeError> {
+) -> Result<Vec<WantedSpec>, ResolveDependencyTreeError> {
     specs
         .into_iter()
-        .map(|(name, range, optional)| {
+        .map(|(name, range, optional, injected)| {
             let wanted =
                 CatalogWantedDependency { alias: name.clone(), bare_specifier: range.clone() };
             match resolve_from_catalog(catalogs, &wanted) {
                 CatalogResolutionResult::Found(found) => {
-                    Ok((name, found.resolution.specifier, optional))
+                    Ok((name, found.resolution.specifier, optional, injected))
                 }
-                CatalogResolutionResult::Unused => Ok((name, range, optional)),
+                CatalogResolutionResult::Unused => Ok((name, range, optional, injected)),
                 CatalogResolutionResult::Misconfiguration(misconfig) => {
                     Err(ResolveDependencyTreeError::CatalogMisconfiguration(misconfig.error))
                 }
@@ -739,15 +796,51 @@ async fn build_pkg_id_with_patch_hash(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> Result<String, ResolveDependencyTreeError> {
     let raw_id = result.id.as_str();
-    let (name, version) = match result.name_ver.as_ref() {
-        Some(name_ver) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
-        None => return Ok(raw_id.to_string()),
+    // `link:`-resolved workspace deps are short-circuited downstream
+    // by `id.starts_with("link:")` checks (see [`is_link`] in the
+    // tree walker and `importer_dep_version`'s
+    // `dep_path_str.strip_prefix("link:")` arm). Leaving the id
+    // unprefixed preserves those short-circuits — pnpm prefixes them
+    // too but routes them through a separate `isLinkedDependency`
+    // branch that pacquet hasn't ported yet.
+    //
+    // [`is_link`]: fn@resolve_node
+    if raw_id.starts_with("link:") {
+        return Ok(raw_id.to_string());
+    }
+    // Resolvers that learn the name from the fetched manifest (git,
+    // tarball, directory) leave `name_ver` unset. Upstream reads
+    // `pkg.name` from the manifest itself
+    // ([`resolveDependencies.ts:1502-1507`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1502-L1507))
+    // and prefixes the id regardless — so a `file:project-1` id
+    // becomes `project-1@file:project-1`. Skipping the prefix would
+    // leave `(` as the first paren-bearing character in the downstream
+    // depPath, which `PkgNameVerPeer`'s `@`-split parser can't recover
+    // from (it finds the `@` inside the peer suffix first).
+    let manifest_name = result
+        .manifest
+        .as_ref()
+        .and_then(|manifest| manifest.get("name"))
+        .and_then(serde_json::Value::as_str);
+    let (name, version) = match (result.name_ver.as_ref(), manifest_name) {
+        (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
+        (None, Some(name)) => (name.to_string(), String::new()),
+        (None, None) => return Ok(raw_id.to_string()),
     };
     let prefixed = if raw_id.starts_with(&format!("{name}@")) {
         raw_id.to_string()
     } else {
         format!("{name}@{raw_id}")
     };
+    // `patched_dependencies` keys carry a `name@version` shape, so
+    // entries that came in without a `name_ver` (file: / git: /
+    // tarball: resolutions whose name we just learned from the
+    // manifest above) can't match unless the manifest also surfaced
+    // a version. Bail out when version is empty so the patch lookup
+    // doesn't run a `name@""` query.
+    if version.is_empty() {
+        return Ok(prefixed);
+    }
     let Some(groups) = ctx.patched_dependencies.as_deref() else {
         return Ok(prefixed);
     };

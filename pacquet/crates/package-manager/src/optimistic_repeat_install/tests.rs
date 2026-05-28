@@ -295,6 +295,49 @@ fn returns_skipped_when_overrides_drift() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
+/// Drift in `injectWorkspacePackages` invalidates the cached state.
+/// Toggling the flag changes whether workspace resolutions land as
+/// `link:` symlinks or `file:` hard-linked copies, so the previous
+/// install's virtual store no longer matches what a fresh resolution
+/// would produce. Tracks pnpm/pnpm#12009 — the assertion lives here
+/// so the wiring stays in place.
+#[test]
+fn returns_skipped_when_inject_workspace_packages_drifts() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.inject_workspace_packages = true;
+    let config = config.leak();
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = config.modules_dir.clone();
+    stale_config.inject_workspace_packages = false;
+    let stale_settings =
+        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
 /// Drift in `ignoredOptionalDependencies` invalidates the cached
 /// state.
 ///
@@ -587,7 +630,6 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     settings.dedupe_direct_deps = Some(false);
     settings.dedupe_injected_deps = Some(true);
     settings.exclude_links_from_lockfile = Some(false);
-    settings.inject_workspace_packages = Some(true);
     settings.package_extensions =
         Some(serde_json::json!({"foo": {"peerDependencies": {"bar": "*"}}}));
     // `catalogs` is always ignored by pnpm itself; pacquet

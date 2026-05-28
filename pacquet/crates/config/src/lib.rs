@@ -606,6 +606,17 @@ pub struct Config {
     /// [`'link-workspace-packages': false`](https://github.com/pnpm/pnpm/blob/5353fcbf01/config/reader/src/index.ts#L174).
     pub link_workspace_packages: LinkWorkspacePackages,
 
+    /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
+    /// `true`, workspace-package resolutions materialize as `file:`
+    /// (hard-linked copies into the virtual store) instead of `link:`
+    /// symlinks back to the source. Per-dependency
+    /// `dependenciesMeta[*].injected = true` opts a single dep into
+    /// the same behavior even when this flag is `false`.
+    ///
+    /// Default `false`, matching pnpm's
+    /// [`'inject-workspace-packages': undefined`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L190).
+    pub inject_workspace_packages: bool,
+
     /// When `true`, prefer a workspace package over a registry pick
     /// even when the registry version is newer than the workspace
     /// one. Mirrors pnpm's

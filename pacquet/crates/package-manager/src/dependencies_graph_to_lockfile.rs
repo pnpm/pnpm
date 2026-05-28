@@ -68,6 +68,12 @@ pub struct GraphToLockfileOptions<'a> {
     /// shorthand.
     pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
+    /// `injectWorkspacePackages` recorded the same way. Mirrors
+    /// upstream's `lockfile.settings.injectWorkspacePackages`. `false`
+    /// is omitted on save via [`LockfileSettings`]'s serde
+    /// `skip_serializing_if`, matching
+    /// [`lockfileFormatConverters.ts:70-72`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L70-L72).
+    pub inject_workspace_packages: bool,
     /// `peersSuffixMaxLength` round-tripped into the lockfile's
     /// `settings.peersSuffixMaxLength` so a later install detects
     /// drift via `@pnpm/lockfile.settings-checker`. Pass `None` when
@@ -106,6 +112,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         auto_install_peers,
         dedupe_peers,
         exclude_links_from_lockfile,
+        inject_workspace_packages,
         peers_suffix_max_length,
         overrides,
         ignored_optional_dependencies,
@@ -127,6 +134,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
             auto_install_peers,
             dedupe_peers: dedupe_peers.then_some(true),
             exclude_links_from_lockfile,
+            inject_workspace_packages,
             peers_suffix_max_length,
         }),
         overrides: overrides.filter(|map| !map.is_empty()),

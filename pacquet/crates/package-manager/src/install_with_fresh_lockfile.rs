@@ -584,6 +584,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     // workspace when the names collide.
                     always_try_workspace_packages: config.link_workspace_packages
                         != LinkWorkspacePackages::Off,
+                    inject_workspace_packages: config.inject_workspace_packages,
                     prefer_workspace_packages: config.prefer_workspace_packages,
                     update_checksums,
                     ..ResolveOptions::default()
@@ -1052,6 +1053,7 @@ fn build_fresh_lockfile(
         auto_install_peers: config.auto_install_peers,
         dedupe_peers: config.dedupe_peers,
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+        inject_workspace_packages: config.inject_workspace_packages,
         peers_suffix_max_length: (config.peers_suffix_max_length
             != pacquet_config::default_peers_suffix_max_length())
         .then_some(config.peers_suffix_max_length),

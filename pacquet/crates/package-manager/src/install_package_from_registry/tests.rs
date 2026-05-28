@@ -51,6 +51,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         hoist_workspace_packages: true,
         hoisting_limits: Default::default(),
         link_workspace_packages: Default::default(),
+        inject_workspace_packages: false,
         prefer_workspace_packages: false,
         external_dependencies: Default::default(),
         dedupe_peer_dependents: false,
