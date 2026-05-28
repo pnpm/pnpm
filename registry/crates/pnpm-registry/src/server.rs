@@ -1295,6 +1295,15 @@ enum Action {
     Publish,
 }
 
+impl Action {
+    fn label(self) -> &'static str {
+        match self {
+            Action::Access => "access",
+            Action::Publish => "publish",
+        }
+    }
+}
+
 /// Resolve the caller and check the per-package rule. Returns
 /// `Ok(())` when the call is allowed; otherwise the appropriate
 /// `Unauthenticated` / `Forbidden` error.
@@ -1315,13 +1324,21 @@ fn enforce_access(
         &state.inner.auth.users,
         &state.inner.auth.tokens,
     );
-    match (rule, authenticated, action) {
-        (AccessRule::All, _, Action::Access) => Ok(()),
-        (AccessRule::All, _, _) => Ok(()),
-        (AccessRule::Authenticated, Some(_), _) => Ok(()),
-        (AccessRule::Authenticated, None, _) => {
+    match (rule, authenticated) {
+        (AccessRule::All, _) => Ok(()),
+        (AccessRule::Authenticated, Some(_)) => Ok(()),
+        (AccessRule::Authenticated, None) => {
             Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
         }
+        (AccessRule::Anonymous, None) => Ok(()),
+        // `$anonymous` admits only unauthenticated callers; a valid
+        // identity falls outside that group, so it's forbidden rather
+        // than unauthenticated.
+        (AccessRule::Anonymous, Some(user)) => Err(RegistryError::Forbidden {
+            user,
+            action: action.label(),
+            resource: format!("package {package:?}"),
+        }),
     }
 }
 
