@@ -460,9 +460,7 @@ impl TreeCtx {
     /// callers must set the hook before sharing the context.
     pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
         Arc::get_mut(&mut self.workspace)
-            .expect(
-                "with_manifest_hook called after the workspace ctx was shared via Arc::clone",
-            )
+            .expect("with_manifest_hook called after the workspace ctx was shared via Arc::clone")
             .manifest_hook = manifest_hook;
         self
     }

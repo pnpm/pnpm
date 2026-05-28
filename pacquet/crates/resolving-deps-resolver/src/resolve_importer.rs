@@ -192,9 +192,8 @@ where
     // not per-importer). Apply it before sharing the `Arc` —
     // `resolve_importer_with_workspace` reads through the shared ctx
     // and can't mutate it after the fact.
-    let workspace = Arc::new(
-        WorkspaceTreeCtx::default().with_manifest_hook(opts.manifest_hook.clone()),
-    );
+    let workspace =
+        Arc::new(WorkspaceTreeCtx::default().with_manifest_hook(opts.manifest_hook.clone()));
     resolve_importer_with_workspace(resolver, manifest, dependency_groups, opts, workspace).await
 }
 
