@@ -805,6 +805,80 @@ mod peers {
         );
     }
 
+    /// Transitive peer: `a` depends on `b`, `b` has peer `c`, importer
+    /// has direct `a` + `c`. Even though `a` has no peers itself, its
+    /// child `b` carries `c` as an external peer, so `a` propagates `c`
+    /// up to its own depPath suffix too. Both `a` and `b` land as
+    /// `…(c@1.0.0)`. Mirrors upstream's
+    /// [`'transitive peers use version-only suffixes'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/test/resolvePeers.ts#L758-L833).
+    ///
+    /// Pacquet's [`DepPath`] uses `name@version` for pure packages, so
+    /// the `dedupe_peers=true` vs `false` rendering of a pure peer is
+    /// byte-identical (both produce `(c@1.0.0)`). Upstream's pnpm uses
+    /// `c/1.0.0` for the dep-path form and so observes a difference;
+    /// the contract this test locks down is the transitive-peer
+    /// propagation itself, not the byte shape of the peer-id.
+    #[tokio::test]
+    async fn dedupe_peers_propagates_transitive_peer_to_parent() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("a".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "a",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "a",
+                    "version": "1.0.0",
+                    "dependencies": { "b": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("b".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "b",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "b",
+                    "version": "1.0.0",
+                    "peerDependencies": { "c": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("c".to_string(), "1.0.0".to_string()),
+            fake_result("c", "1.0.0", serde_json::json!({ "name": "c", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions { dedupe_peers: true, ..ResolvePeersOptions::default() },
+        );
+        let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "a@1.0.0(c@1.0.0)".to_string(),
+                "b@1.0.0(c@1.0.0)".to_string(),
+                "c@1.0.0".to_string(),
+            ],
+        );
+    }
+
     /// Shared fixture for the `dedupe_peers_*` pair: react@18 plus
     /// `@emotion/react@11` (peer: react) plus `@emotion/styled@11`
     /// (peers: react, @emotion/react). Mirrors upstream's
