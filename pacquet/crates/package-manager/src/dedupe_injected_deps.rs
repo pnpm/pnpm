@@ -16,6 +16,16 @@
 //! pacquet's resolver is single-importer, so the equivalent cross-
 //! importer pass lives at the install layer where every importer's
 //! result is already in scope.
+//!
+//! Pacquet's lockfile importer-version writer does not yet support
+//! `file:<workspace>` direct-dep entries — when an importer's
+//! `direct_dependencies_by_alias` still carries an injected workspace
+//! depPath after this pass, the lockfile writer panics in
+//! `importer_dep_version` (see `dependencies_graph_to_lockfile`). In
+//! practice this pass is what keeps the install from hitting that
+//! panic on every `dependenciesMeta.injected` workspace edge; with
+//! `dedupeInjectedDeps: false`, an injected workspace dep whose
+//! children don't subset still trips the writer.
 
 use std::{
     collections::{BTreeMap, HashSet},
@@ -25,7 +35,7 @@ use std::{
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph};
 
 /// Per-importer direct deps as emitted by [`resolve_importer`] and
-/// merged in [`crate::install_with_fresh_lockfile`].
+/// merged in pacquet's fresh-install path.
 ///
 /// [`resolve_importer`]: pacquet_resolving_deps_resolver::resolve_importer
 pub type DirectByImporter = BTreeMap<String, BTreeMap<String, DepPath>>;

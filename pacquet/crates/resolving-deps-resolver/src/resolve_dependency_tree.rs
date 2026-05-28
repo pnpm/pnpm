@@ -246,11 +246,11 @@ pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> 
 /// Cache key for [`TreeCtx::resolved_by_wanted`].
 ///
 /// The npm-shaped slice pacquet exposes today calls
-/// [`Resolver::resolve`] with only three [`WantedDependency`] fields
-/// populated — `alias`, `bare_specifier`, and `optional` (see the
-/// `WantedDependency` literals in [`extend_tree`] and the recursive
+/// [`Resolver::resolve`] with four [`WantedDependency`] fields
+/// populated — `alias`, `bare_specifier`, `optional`, and `injected` (see
+/// the `WantedDependency` literals in [`extend_tree`] and the recursive
 /// arm of [`fn@resolve_node`]). Anything else stays at `Default::default()`,
-/// so a tuple over those three fields uniquely identifies a wanted
+/// so a tuple over those four fields uniquely identifies a wanted
 /// dep across revisits.
 ///
 /// `optional` is part of the key because the npm resolver's
