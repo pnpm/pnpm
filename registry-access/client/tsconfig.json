@@ -14,6 +14,9 @@
     },
     {
       "path": "../../network/fetch"
+    },
+    {
+      "path": "../../network/web-auth"
     }
   ]
 }

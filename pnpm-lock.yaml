@@ -8171,6 +8171,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/network.web-auth':
+        specifier: workspace:*
+        version: link:../../network/web-auth
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
@@ -8199,6 +8202,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/network.web-auth':
+        specifier: workspace:*
+        version: link:../../network/web-auth
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
@@ -8214,6 +8220,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -8227,6 +8236,9 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../core/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
