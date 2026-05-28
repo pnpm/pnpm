@@ -1357,7 +1357,7 @@ packages:
     #[test]
     fn policy_unknown_access_token_is_a_config_error() {
         // Named groups aren't modeled yet — an unrecognized token must
-        // fail the parse rather than silently mis-enforce.
+        // fail the parse rather than silently enforce the wrong rule.
         let yaml = "\
 storage: ./s
 uplinks: {}

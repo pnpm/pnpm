@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn access_rule_rejects_unknown_token() {
         // Named groups aren't modeled yet, so a group name (or typo)
-        // is a hard error rather than a silent mis-enforcement.
+        // is a hard error rather than silently enforcing the wrong rule.
         assert!("admin".parse::<AccessRule>().is_err());
         assert!("$all $authenticated".parse::<AccessRule>().is_err());
     }
