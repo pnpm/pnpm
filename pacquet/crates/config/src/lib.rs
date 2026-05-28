@@ -1,7 +1,6 @@
 mod api;
 mod defaults;
 mod env_overlay;
-mod env_replace;
 pub mod matcher;
 mod npmrc_auth;
 mod store_path;

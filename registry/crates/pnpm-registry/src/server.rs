@@ -82,6 +82,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         .collect();
     let state = AppState { inner: Arc::new(AppInner { cache, upstreams, config, auth }) };
     Router::new()
+        .route("/-/ping", get(serve_ping))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -1409,4 +1410,8 @@ fn error_response(err: &RegistryError) -> Response {
     let status = err.status_code();
     tracing::error!(%err, %status, "request failed");
     (status, err.to_string()).into_response()
+}
+
+async fn serve_ping(State(_state): State<AppState>) -> Response {
+    (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
 }

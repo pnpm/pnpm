@@ -2170,6 +2170,7 @@ dependencies = [
  "libc",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-env-replace",
  "pacquet-network",
  "pacquet-package-is-installable",
  "pacquet-patching",
@@ -2311,6 +2312,13 @@ dependencies = [
  "serde_json",
  "ssri",
  "tokio",
+]
+
+[[package]]
+name = "pacquet-env-replace"
+version = "0.0.1"
+dependencies = [
+ "pretty_assertions",
 ]
 
 [[package]]
@@ -3050,6 +3058,7 @@ dependencies = [
  "indexmap",
  "miette 7.6.0",
  "mockito",
+ "pacquet-env-replace",
  "pacquet-network",
  "pipe-trait",
  "reqwest",

@@ -548,3 +548,16 @@ async fn await_no_tgz(dir: &std::path::Path, budget: Duration) -> bool {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
+
+#[tokio::test]
+async fn ping_endpoint_returns_json_empty_object() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    let app = router(config);
+
+    let response = app.oneshot(Request::get("/-/ping").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body_bytes = body_bytes(response.into_body()).await;
+    let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(body, json!({}));
+}

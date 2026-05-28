@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use indexmap::IndexMap;
+use pacquet_env_replace::{SystemEnv, env_replace_lossy};
 use serde::Deserialize;
 
 use crate::policy::PackagePolicies;
@@ -270,7 +271,11 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> Result<Self, serde_saphyr::Error> {
-        let file: ConfigFile = serde_saphyr::from_str(raw)?;
+        let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
+        if !unresolved.is_empty() {
+            tracing::warn!(?unresolved, "config references unset environment variables");
+        }
+        let file: ConfigFile = serde_saphyr::from_str(&substituted)?;
         let storage = resolve_relative(&file.storage, base_dir);
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
