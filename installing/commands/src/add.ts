@@ -42,6 +42,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'global',
     'hoist',
     'hoist-pattern',
+    'hoisting-limits',
     'https-proxy',
     'ignore-pnpmfile',
     'ignore-scripts',
