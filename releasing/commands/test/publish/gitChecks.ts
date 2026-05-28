@@ -8,7 +8,10 @@ import { temporaryDirectory } from 'tempy'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-jest.unstable_mockModule('@inquirer/prompts', () => ({ confirm: jest.fn() }))
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
+  return { ...actual, confirm: jest.fn() }
+})
 const { confirm } = await import('@inquirer/prompts')
 const { publish } = await import('@pnpm/releasing.commands')
 

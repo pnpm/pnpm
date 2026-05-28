@@ -14,7 +14,10 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-jest.unstable_mockModule('@inquirer/prompts', () => ({ checkbox: jest.fn(), confirm: jest.fn() }))
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
+  return { ...actual, checkbox: jest.fn(), confirm: jest.fn() }
+})
 const { checkbox, confirm } = await import('@inquirer/prompts')
 const { approveBuilds } = await import('@pnpm/building.commands')
 

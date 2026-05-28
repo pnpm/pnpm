@@ -16,11 +16,15 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-jest.unstable_mockModule('@inquirer/prompts', () => ({
-  checkbox: jest.fn(),
-  confirm: jest.fn(),
-  select: jest.fn(),
-}))
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  const actual = jest.requireActual('@inquirer/prompts') as typeof import('@inquirer/prompts')
+  return {
+    ...actual,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    select: jest.fn(),
+  }
+})
 
 const { checkbox: mockCheckboxFn, select, confirm: confirmPrompt } = await import('@inquirer/prompts')
 const { patch, patchCommit, patchRemove } = await import('@pnpm/patching.commands')
