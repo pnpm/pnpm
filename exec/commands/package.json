@@ -33,6 +33,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@inquirer/prompts": "catalog:",
     "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/building.commands": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
@@ -62,7 +63,6 @@
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",
-    "@inquirer/prompts": "catalog:",
     "execa": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",

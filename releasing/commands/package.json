@@ -32,6 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@inquirer/prompts": "catalog:",
     "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
@@ -68,7 +69,6 @@
     "chalk": "catalog:",
     "ci-info": "catalog:",
     "detect-libc": "catalog:",
-    "@inquirer/prompts": "catalog:",
     "execa": "catalog:",
     "libnpmpublish": "catalog:",
     "normalize-path": "catalog:",
