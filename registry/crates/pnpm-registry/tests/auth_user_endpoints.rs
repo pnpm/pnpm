@@ -378,20 +378,20 @@ async fn auth_endpoints_set_private_no_cache_headers() {
         let cache_control = response
             .headers()
             .get("cache-control")
-            .map(|v| v.to_str().unwrap().to_string())
+            .map(|value| value.to_str().unwrap().to_string())
             .unwrap_or_default();
         let vary = response
             .headers()
             .get("vary")
-            .map(|v| v.to_str().unwrap().to_string())
+            .map(|value| value.to_str().unwrap().to_string())
             .unwrap_or_default();
         assert_eq!(
             cache_control, "private, no-store",
-            "{path}: cache-control must lock the response to the caller"
+            "{path}: cache-control must lock the response to the caller",
         );
         assert_eq!(
             vary, "Authorization",
-            "{path}: Vary must include Authorization so shared caches partition by credentials"
+            "{path}: Vary must include Authorization so shared caches partition by credentials",
         );
     }
 }
