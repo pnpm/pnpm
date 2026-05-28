@@ -5,6 +5,9 @@
 //! assert that pnpm-registry rewrites tarball URLs and abbreviates that
 //! format correctly without any upstream proxy.
 
+// `#[path]` rather than the `tests/common/mod.rs` layout, which the
+// Perfectionist dylint forbids.
+#[path = "common/storage.rs"]
 mod common;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};

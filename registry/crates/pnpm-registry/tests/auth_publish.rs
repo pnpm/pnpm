@@ -1,6 +1,9 @@
 //! Integration tests for the auth, dist-tag, and publish endpoints.
 //! Static-mode (no upstream) to keep the tests hermetic.
 
+// `#[path]` rather than the `tests/common/mod.rs` layout, which the
+// Perfectionist dylint forbids.
+#[path = "common/storage.rs"]
 mod common;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
