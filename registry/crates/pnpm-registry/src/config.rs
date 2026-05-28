@@ -1003,8 +1003,8 @@ log:
 
     /// Helper: deserialize a YAML scalar into the requested enum.
     /// Lets us assert the variant mapping concisely.
-    fn parse_log_yaml<T: serde::de::DeserializeOwned>(yaml: &str) -> Result<T, String> {
-        serde_saphyr::from_str::<T>(yaml).map_err(|err| err.to_string())
+    fn parse_log_yaml<Target: serde::de::DeserializeOwned>(yaml: &str) -> Result<Target, String> {
+        serde_saphyr::from_str::<Target>(yaml).map_err(|err| err.to_string())
     }
 
     #[test]
@@ -1097,15 +1097,28 @@ log:
     fn resolve_cli_wins_over_default_path() {
         // Both paths exist. CLI must take priority — the auto-discovered
         // path is a *fallback*, not a merge target.
+        //
+        // Storage paths are derived from `tmp` so they're absolute on
+        // every OS (Windows needs a drive-letter prefix to satisfy
+        // `Path::is_absolute()`; a Unix-style `/a` is not absolute
+        // there and gets joined to the config file's parent dir).
         let tmp = tempfile::tempdir().unwrap();
-        let cli =
-            write_yaml(tmp.path(), "explicit.yml", "storage: /a\nuplinks: {}\npackages: {}\n");
-        let default =
-            write_yaml(tmp.path(), "default.yml", "storage: /b\nuplinks: {}\npackages: {}\n");
+        let cli_storage = tmp.path().join("from-cli");
+        let default_storage = tmp.path().join("from-default");
+        let cli = write_yaml(
+            tmp.path(),
+            "explicit.yml",
+            &format!("storage: {}\nuplinks: {{}}\npackages: {{}}\n", cli_storage.display()),
+        );
+        let default = write_yaml(
+            tmp.path(),
+            "default.yml",
+            &format!("storage: {}\nuplinks: {{}}\npackages: {{}}\n", default_storage.display()),
+        );
         let (config, source) = Config::resolve(Some(&cli), Some(&default), listen(), None).unwrap();
         assert_eq!(source, ConfigSource::Cli(cli));
         // Confirms the *content* came from the CLI file, not the default.
-        assert_eq!(config.storage, PathBuf::from("/a"));
+        assert_eq!(config.storage, cli_storage);
     }
 
     #[test]
