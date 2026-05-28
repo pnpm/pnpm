@@ -68,7 +68,7 @@ pub use hoist_peers::{
 pub use node_id::NodeId;
 pub use pacquet_deps_path::DepPath;
 pub use resolve_dependency_tree::{
-    ResolveDependencyTreeError, ResolveDependencyTreeOptions, TreeCtx, extend_tree,
+    ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions, TreeCtx, extend_tree,
     resolve_dependency_tree,
 };
 pub use resolve_importer::{

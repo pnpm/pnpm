@@ -44,7 +44,6 @@ use crate::{
 /// over the manifest's explicit dependencies plus their transitive
 /// children. The orchestrator extends the same tree with hoisted peers
 /// via [`extend_tree`].
-#[derive(Debug)]
 pub struct ResolveDependencyTreeOptions {
     pub base_opts: ResolveOptions,
     /// Configured `patchedDependencies`, grouped by package name. Threaded
@@ -55,7 +54,40 @@ pub struct ResolveDependencyTreeOptions {
     /// [`ctx.patchedDependencies`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L164)
     /// thread.
     pub patched_dependencies: Option<Arc<PatchGroupRecord>>,
+    /// Per-manifest `readPackageHook` applied to every resolved
+    /// package's manifest right after `Resolver::resolve` returns it
+    /// and before it lands in the wanted-dep cache. Today drives
+    /// `packageExtensions` (see
+    /// `pacquet_package_manager::PackageExtender`); will grow as
+    /// more upstream hooks land. Mirrors upstream's
+    /// [`ctx.readPackageHook`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1481-L1483)
+    /// dispatch in `resolveDependencies`. `None` when no hook is
+    /// configured.
+    pub manifest_hook: Option<ManifestHook>,
 }
+
+impl std::fmt::Debug for ResolveDependencyTreeOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolveDependencyTreeOptions")
+            .field("base_opts", &self.base_opts)
+            .field("patched_dependencies", &self.patched_dependencies)
+            .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
+            .finish()
+    }
+}
+
+/// Per-manifest mutation applied to every resolved package's
+/// manifest before downstream consumers (children walk, peer
+/// extraction, lockfile build) see it. Takes the `Arc<Value>` the
+/// resolver returned and yields either the same `Arc` (no-op) or a
+/// fresh `Arc` carrying a deep-cloned + extended manifest.
+///
+/// Mirrors upstream's
+/// [`ReadPackageHook`](https://github.com/pnpm/pnpm/blob/39101f5e37/hooks/types/src/index.ts)
+/// signature collapsed to the only field pacquet currently touches
+/// (the manifest). Threaded into [`TreeCtx`] so a single
+/// `Arc::clone` reaches every recursive call.
+pub type ManifestHook = Arc<dyn Fn(Arc<Value>) -> Arc<Value> + Send + Sync>;
 
 /// Error envelope returned by the tree walker.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -155,7 +187,9 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     Chain: Resolver + ?Sized,
 {
-    let ctx = TreeCtx::new(opts.base_opts).with_patched_dependencies(opts.patched_dependencies);
+    let ctx = TreeCtx::new(opts.base_opts)
+        .with_patched_dependencies(opts.patched_dependencies)
+        .with_manifest_hook(opts.manifest_hook);
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);
     let mut wanted: Vec<WantedSpec> = Vec::new();
@@ -306,6 +340,10 @@ pub struct TreeCtx {
     ///
     /// [`ChildEdge`]: crate::ChildEdge
     children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
+    /// `readPackageHook` applied to every resolved manifest before it
+    /// enters the wanted-dep cache. See [`ManifestHook`] for the
+    /// signature. `None` when no hook is configured.
+    manifest_hook: Option<ManifestHook>,
 }
 
 impl TreeCtx {
@@ -323,6 +361,7 @@ impl TreeCtx {
             resolved_by_wanted: Mutex::new(HashMap::new()),
             children_specs_by_id: Mutex::new(HashMap::new()),
             children_by_id: Mutex::new(HashMap::new()),
+            manifest_hook: None,
         }
     }
 
@@ -335,6 +374,14 @@ impl TreeCtx {
         patched_dependencies: Option<Arc<PatchGroupRecord>>,
     ) -> Self {
         self.patched_dependencies = patched_dependencies;
+        self
+    }
+
+    /// Attach a `readPackageHook` applied to every resolved manifest
+    /// before it enters the wanted-dep cache. See [`ManifestHook`] for
+    /// the signature.
+    pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
+        self.manifest_hook = manifest_hook;
         self
     }
 
@@ -495,15 +542,28 @@ where
     let result = match cached {
         Some(result) => result,
         None => {
-            let result =
+            let mut result =
                 resolver.resolve(&wanted, &ctx.base_opts).await.map_err(|err: ResolveError| {
                     ResolveDependencyTreeError::Resolve(err.to_string())
                 })?;
-            let Some(result) = result else {
+            let Some(result_inner) = result.as_mut() else {
                 return Err(ResolveDependencyTreeError::SpecNotSupported {
                     specifier: render_specifier(&wanted),
                 });
             };
+            // Apply the configured `readPackageHook` (today:
+            // `packageExtensions`) to the manifest fragment before
+            // anything downstream sees it. Mirrors upstream's
+            // [`ctx.readPackageHook(pkg)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1481-L1483)
+            // call at the resolveDependency seam. The hook clones the
+            // inner `Value` only when it modifies it, so unrelated
+            // manifests keep sharing the resolver's cached `Arc`.
+            if let Some(hook) = ctx.manifest_hook.as_ref()
+                && let Some(manifest) = result_inner.manifest.take()
+            {
+                result_inner.manifest = Some(hook(manifest));
+            }
+            let result = result.expect("Some-guarded above");
             // Wrap in `Arc` once so the cache, the per-id
             // `ResolvedPackage` envelope, and the later peer-resolved
             // graph node share one heap-allocated `ResolveResult`

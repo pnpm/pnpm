@@ -35,8 +35,8 @@ use crate::defaults::{
     default_registry, default_store_dir, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceSettings, workspace_root_or,
+    GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -927,6 +927,22 @@ pub struct Config {
     ///
     /// [`WorkspaceSettings::overrides`]: crate::workspace_yaml::WorkspaceSettings::overrides
     pub overrides: Option<IndexMap<String, String>>,
+
+    /// `packageExtensions` from `pnpm-workspace.yaml`. Maps a
+    /// `name[@range]` selector to a partial manifest fragment that
+    /// gets merged into every matching package's manifest at
+    /// resolution time. The package's own fields win on conflict
+    /// (`{ ...extension[field], ...manifest[field] }`), so an
+    /// extension can only *add* missing entries — it never overrides
+    /// a value the package already declares.
+    ///
+    /// Empty maps collapse to `None` (matches the `overrides` shape).
+    /// See [`WorkspaceSettings::package_extensions`] for the yaml
+    /// contract and
+    /// [`PackageExtension`] for the entry shape.
+    ///
+    /// [`WorkspaceSettings::package_extensions`]: crate::workspace_yaml::WorkspaceSettings::package_extensions
+    pub package_extensions: Option<IndexMap<String, workspace_yaml::PackageExtension>>,
 
     /// pnpm's packument cache directory. Used by the lockfile
     /// verification gate to memoize past results in

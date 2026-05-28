@@ -1053,13 +1053,22 @@ fn check_lockfile_freshness(
         .map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
 
     // Outdated-settings gate (umbrella #434 slice 7): check
-    // `ignoredOptionalDependencies` + `overrides` drift between the
-    // lockfile-recorded set and the current config before the
-    // per-importer specifier check. Mirrors upstream's
+    // `ignoredOptionalDependencies` + `overrides` +
+    // `packageExtensionsChecksum` drift between the lockfile-recorded
+    // values and the current config before the per-importer specifier
+    // check. Mirrors upstream's
     // [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
+    let package_extensions_checksum = config
+        .package_extensions
+        .as_ref()
+        .filter(|extensions| !extensions.is_empty())
+        .and_then(|extensions| serde_json::to_value(extensions).ok())
+        .as_ref()
+        .and_then(pacquet_graph_hasher::hash_object_nullable_with_prefix);
     pacquet_lockfile::check_lockfile_settings(
         lockfile,
         overrides_map.as_ref(),
+        package_extensions_checksum.as_deref(),
         config.ignored_optional_dependencies.as_deref(),
         config.inject_workspace_packages,
         config.peers_suffix_max_length,

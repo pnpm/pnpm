@@ -42,6 +42,7 @@ fn single_importer_opts<'a>(
         peers_suffix_max_length: None,
         overrides,
         ignored_optional_dependencies,
+        package_extensions_checksum: None,
     }
 }
 
@@ -209,6 +210,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
     });
     let on_settings = on.settings.as_ref().expect("settings written");
     assert_eq!(on_settings.dedupe_peers, Some(true));
@@ -230,6 +232,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
     });
     let off_settings = off.settings.as_ref().expect("settings written");
     assert_eq!(off_settings.dedupe_peers, None);
@@ -876,6 +879,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -999,6 +1003,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
     });
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -1151,6 +1156,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
     });
 
     // Importer a points at b via a link: ref carrying the relative

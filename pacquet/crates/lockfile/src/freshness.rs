@@ -123,6 +123,19 @@ pub enum StalenessReason {
         "`peersSuffixMaxLength` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
     PeersSuffixMaxLengthChanged { lockfile: u64, config: u64 },
+
+    /// The lockfile's `packageExtensionsChecksum` doesn't match the
+    /// checksum derived from the current install's
+    /// `Config::package_extensions`. Mirrors upstream's
+    /// [`getOutdatedLockfileSetting.ts:53-55`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L53-L55):
+    /// upstream returns `'packageExtensionsChecksum'` and
+    /// `needsFullResolution` flips on. Pacquet has no resolver, so the
+    /// matching action is to surface this as `OutdatedLockfile`. Both
+    /// values are the prefixed `sha256-…` strings the writer emits.
+    #[display(
+        "`packageExtensionsChecksum` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
+    )]
+    PackageExtensionsChecksumChanged { lockfile: Option<String>, config: Option<String> },
 }
 
 /// Per-bucket diff against the manifest's flat union of deps.
@@ -216,6 +229,7 @@ impl SpecDiff {
 pub fn check_lockfile_settings(
     lockfile: &Lockfile,
     overrides: Option<&HashMap<String, String>>,
+    package_extensions_checksum: Option<&str>,
     ignored_optional_dependencies: Option<&[String]>,
     inject_workspace_packages: bool,
     peers_suffix_max_length: u64,
@@ -238,6 +252,17 @@ pub fn check_lockfile_settings(
         return Err(StalenessReason::OverridesChanged {
             lockfile: lockfile_overrides,
             config: config_overrides,
+        });
+    }
+
+    // Upstream checks `packageExtensionsChecksum` next, before
+    // `ignoredOptionalDependencies`. The check is `!==` on the two
+    // optional strings: absent on both sides is equivalent (no
+    // extensions ever configured), and absent vs. present is drift.
+    if lockfile.package_extensions_checksum.as_deref() != package_extensions_checksum {
+        return Err(StalenessReason::PackageExtensionsChecksumChanged {
+            lockfile: lockfile.package_extensions_checksum.clone(),
+            config: package_extensions_checksum.map(str::to_string),
         });
     }
 

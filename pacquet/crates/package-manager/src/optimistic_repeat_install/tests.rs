@@ -552,6 +552,62 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
+/// Drift in `packageExtensions` invalidates the cached state.
+///
+/// Ports
+/// [`checkDepsStatus.test.ts:85-113`](https://github.com/pnpm/pnpm/blob/39101f5e37/deps/status/test/checkDepsStatus.test.ts#L85-L113)
+/// `returns upToDate: false when packageExtensions have changed`.
+#[test]
+fn returns_skipped_when_package_extensions_drift() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut deps = std::collections::BTreeMap::new();
+    deps.insert("dep-a".to_string(), "1.0.0".to_string());
+    let extension =
+        pacquet_config::PackageExtension { dependencies: Some(deps), ..Default::default() };
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let mut extensions = indexmap::IndexMap::new();
+    extensions.insert("foo".to_string(), extension);
+    config.package_extensions = Some(extensions);
+    let config = config.leak();
+
+    // Cached state recorded a different `dep-a` version for `foo`.
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = config.modules_dir.clone();
+    let mut deps = std::collections::BTreeMap::new();
+    deps.insert("dep-a".to_string(), "2.0.0".to_string());
+    let mut extensions = indexmap::IndexMap::new();
+    extensions.insert(
+        "foo".to_string(),
+        pacquet_config::PackageExtension { dependencies: Some(deps), ..Default::default() },
+    );
+    stale_config.package_extensions = Some(extensions);
+    let stale_settings =
+        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
 /// Drift in `allowBuilds` invalidates the cached state.
 ///
 /// Ports
@@ -630,8 +686,6 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     settings.dedupe_direct_deps = Some(false);
     settings.dedupe_injected_deps = Some(true);
     settings.exclude_links_from_lockfile = Some(false);
-    settings.package_extensions =
-        Some(serde_json::json!({"foo": {"peerDependencies": {"bar": "*"}}}));
     // `catalogs` is always ignored by pnpm itself; pacquet
     // mirrors that.
     settings.catalogs = Some(serde_json::json!({"default": {"react": "^18.0.0"}}));

@@ -87,6 +87,41 @@ fn omits_settings_that_are_none() {
     assert!(!serialized.contains("configDependencies"), "got: {serialized}");
 }
 
+/// Ports the `packageExtensions` block of
+/// [`createWorkspaceState.test.ts:39-70`](https://github.com/pnpm/pnpm/blob/39101f5e37/workspace/state/test/createWorkspaceState.test.ts#L39-L70):
+/// `packageExtensions` round-trips through `WorkspaceStateSettings`
+/// as a JSON object preserving the upstream wire shape (`<selector>:
+/// { dependencies: { … } }`). The drift gate in
+/// `optimistic_repeat_install::settings_match` reads this field, so
+/// the on-disk shape has to stay stable for the gate to be byte-
+/// comparable with pnpm's writer.
+#[test]
+fn package_extensions_round_trip() {
+    let extensions = serde_json::json!({
+        "bar": { "dependencies": { "baz": "2.0.0" } },
+    });
+    let state = WorkspaceState {
+        last_validated_timestamp: 0,
+        projects: BTreeMap::new(),
+        pnpmfiles: vec![],
+        filtered_install: false,
+        config_dependencies: None,
+        settings: WorkspaceStateSettings {
+            package_extensions: Some(extensions.clone()),
+            ..Default::default()
+        },
+    };
+
+    let tmp = tempdir().expect("create temp dir");
+    update_workspace_state(tmp.path(), &state).expect("write state");
+    let loaded = load_workspace_state(tmp.path()).expect("load state").expect("file present");
+    assert_eq!(loaded.settings.package_extensions.as_ref(), Some(&extensions));
+
+    // The serialized JSON must carry the camelCase upstream key.
+    let on_disk = std::fs::read_to_string(get_file_path(tmp.path())).expect("read state");
+    assert!(on_disk.contains(r#""packageExtensions""#), "got: {on_disk}");
+}
+
 #[test]
 fn node_linker_serializes_lowercase() {
     let value = serde_json::to_value(NodeLinker::Isolated).expect("serialize");

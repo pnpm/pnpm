@@ -1,4 +1,7 @@
-use crate::{HashEncoding, hash_object, hash_object_with_encoding, hash_object_without_sorting};
+use crate::{
+    HashEncoding, hash_object, hash_object_nullable_with_prefix, hash_object_with_encoding,
+    hash_object_without_sorting,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -147,6 +150,32 @@ fn hash_object_handles_null_bool_and_array_variants() {
     assert_eq!(array_hash, hash_object(&json!({ "v": [1, 2, 3] })));
     // Array element order matters: `[1,2,3]` and `[3,2,1]` differ.
     assert_ne!(array_hash, hash_object(&json!({ "v": [3, 2, 1] })));
+}
+
+/// Ports `hashObjectNullableWithPrefix` `creates a hash` from
+/// <https://github.com/pnpm/pnpm/blob/39101f5e37/crypto/object-hasher/test/index.ts#L30-L34>.
+/// The known-value branch pins the prefixed wire shape pnpm writes
+/// to `pnpm-lock.yaml#packageExtensionsChecksum`; the empty/None
+/// branches mirror upstream's `if (!object || isEmpty(object))`
+/// short-circuit.
+#[test]
+fn hash_object_nullable_with_prefix_known_value() {
+    assert_eq!(
+        hash_object_nullable_with_prefix(&json!({ "b": 1, "a": 2 })).as_deref(),
+        Some("sha256-48AVoXIXcTKcnHt8qVKp5vNw4gyOB5VfztHwtYBRcAQ="),
+    );
+    assert_eq!(hash_object_nullable_with_prefix(&json!({})), None);
+    assert_eq!(hash_object_nullable_with_prefix(&json!(null)), None);
+}
+
+/// Ports `hashObjectNullableWithPrefix` `sorts` from
+/// <https://github.com/pnpm/pnpm/blob/39101f5e37/crypto/object-hasher/test/index.ts#L35-L38>.
+#[test]
+fn hash_object_nullable_with_prefix_sorts() {
+    assert_eq!(
+        hash_object_nullable_with_prefix(&json!({ "b": 1, "a": 2 })),
+        hash_object_nullable_with_prefix(&json!({ "a": 2, "b": 1 })),
+    );
 }
 
 fn hex_decode(hex: &str) -> Vec<u8> {

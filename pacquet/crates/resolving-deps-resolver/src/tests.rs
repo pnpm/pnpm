@@ -116,6 +116,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -183,6 +184,7 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -266,6 +268,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -305,6 +308,7 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -347,6 +351,7 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -424,6 +429,7 @@ mod block_exotic_subdeps {
                     ..ResolveOptions::default()
                 },
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -464,6 +470,7 @@ mod block_exotic_subdeps {
                     ..ResolveOptions::default()
                 },
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -505,6 +512,7 @@ mod block_exotic_subdeps {
                     ..ResolveOptions::default()
                 },
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -548,6 +556,7 @@ mod block_exotic_subdeps {
                     ..ResolveOptions::default()
                 },
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -587,6 +596,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -637,6 +647,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -685,6 +696,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -736,6 +748,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -858,6 +871,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -935,6 +949,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -982,6 +997,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1077,6 +1093,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1170,6 +1187,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1275,6 +1293,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1342,6 +1361,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1450,6 +1470,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1556,6 +1577,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1664,6 +1686,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1751,6 +1774,7 @@ mod patched_dependencies {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
             },
         )
         .await
@@ -1797,6 +1821,7 @@ mod patched_dependencies {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
             },
         )
         .await
@@ -1829,6 +1854,7 @@ mod patched_dependencies {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
             },
         )
         .await
@@ -1877,6 +1903,7 @@ mod patched_dependencies {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
             },
         )
         .await
@@ -1945,6 +1972,7 @@ mod optional_propagation {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1998,6 +2026,7 @@ mod optional_propagation {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -2061,6 +2090,7 @@ mod optional_propagation {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -2112,6 +2142,7 @@ mod optional_propagation {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
