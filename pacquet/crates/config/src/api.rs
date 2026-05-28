@@ -23,9 +23,9 @@ use std::{
 
 /// Capability: read a process environment variable as a UTF-8 string.
 ///
-/// Defined in [`pacquet-env-replace`] and re-exported here so this crate's
-/// callers keep importing it from `pacquet_config` alongside the other
-/// capability traits. [`Host`] implements it for production code.
+/// Defined in the `pacquet-env-replace` crate and re-exported here so
+/// this crate's callers keep importing it from `pacquet_config` alongside
+/// the other capability traits. [`Host`] implements it for production code.
 pub use pacquet_env_replace::EnvVar;
 
 /// Capability: read a process environment variable as a raw
