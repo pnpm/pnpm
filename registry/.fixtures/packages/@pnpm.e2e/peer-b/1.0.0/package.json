@@ -1,1 +1,4 @@
-{"name":"@pnpm.e2e/peer-b","version":"1.0.0"}
+{
+  "name": "@pnpm.e2e/peer-b",
+  "version": "1.0.0"
+}

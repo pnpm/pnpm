@@ -1,1 +1,13 @@
-{"name":"@pnpm.e2e/generated-bins","version":"1.0.0","scripts":{"postinstall":"node generateBins"}}
+{
+  "name": "@pnpm.e2e/generated-bins",
+  "version": "1.0.0",
+  "files": [
+    "generateBins.js"
+  ],
+  "directories": {
+    "bin": "bin"
+  },
+  "scripts": {
+    "postinstall": "node generateBins"
+  }
+}

@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-console.log('peer')
+console.log('Hello world!')

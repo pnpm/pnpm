@@ -1,1 +1,1 @@
-require('is-positive')(1)
+require('is-positive')

@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-console.log('hello parent')
+console.log('Hello world from hello-world-js-bin-parent!')
