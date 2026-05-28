@@ -29,7 +29,7 @@ use pacquet_store_dir::StoreIndexWriter;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
 
@@ -613,6 +613,28 @@ where
             skipped.add_fetch_failed(key);
         }
 
+        // Pre-compute the hoist plan so the dedupe pass inside
+        // `SymlinkDirectDependencies` can fold publicly-hoisted aliases
+        // into root's target map — pacquet runs hoist *after*
+        // `SymlinkDirectDependencies`, so without this the dedupe map
+        // only sees root's direct deps and a non-root importer's
+        // direct dep that would land at root via public-hoist stays
+        // un-deduped. The full `HoistResult` is also threaded to the
+        // on-disk hoist pass below so the BFS isn't run twice.
+        let pre_hoist = compute_hoist_plan(
+            config,
+            snapshots,
+            packages,
+            importers,
+            &dependency_groups,
+            &skipped,
+            is_hoisted,
+        );
+        let public_hoist_targets: Option<BTreeMap<String, PathBuf>> =
+            pre_hoist.as_ref().map(|plan| {
+                collect_public_hoist_targets(&plan.result, &plan.graph, &layout, &plan.skipped)
+            });
+
         if !is_hoisted {
             SymlinkDirectDependencies {
                 config,
@@ -622,6 +644,7 @@ where
                 workspace_root,
                 skipped: &skipped,
                 link_only: false,
+                public_hoist_targets: public_hoist_targets.as_ref(),
             }
             .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
@@ -784,6 +807,10 @@ where
                 workspace_root,
                 skipped: &skipped,
                 link_only: true,
+                // Hoisted-linker path has no public-hoist virtual store
+                // to dedupe against; the real-directory tree is the
+                // hoist layout.
+                public_hoist_targets: None,
             }
             .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
@@ -846,142 +873,62 @@ where
         // when no `hoistPattern` / `publicHoistPattern` is
         // configured: see
         // [`installing/deps-restorer/src/index.ts:471-486`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L471-L486).
-        let hoisted_dependencies = match (snapshots, packages) {
-            _ if is_hoisted => HoistedDependencies::new(),
-            (Some(snaps), Some(pkgs))
-                if config.hoist_pattern.is_some() || config.public_hoist_pattern.is_some() =>
-            {
-                let private_pattern =
-                    create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
-                let public_pattern =
-                    create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
-                // Static fast-path: when both compiled matchers come
-                // from empty pattern lists (`Some([])`), there's no
-                // alias they could match, so the BFS would visit every
-                // node only to drop every child. Skip the
-                // graph-build + walk + symlink phases entirely. The
-                // `is_some() || is_some()` outer guard is satisfied
-                // by the field shape, but no work follows.
-                if private_pattern.is_empty() && public_pattern.is_empty() {
-                    BTreeMap::new()
-                } else {
-                    let graph = build_hoist_graph(snaps, pkgs);
-                    // Walk every importer's direct deps. Workspace
-                    // install (pnpm/pacquet#431) landed in #443, so
-                    // pacquet now installs every entry in
-                    // `Lockfile.importers` — not just the root. Hoist
-                    // visits each importer's direct deps so transitives
-                    // unique to a workspace project still get
-                    // privately hoisted into the shared
-                    // `<vs>/node_modules` and contribute to
-                    // `hoistedDependencies`.
-                    //
-                    // The `link:` workspace-sibling entries
-                    // [`build_direct_deps_by_importer`] sees are
-                    // skipped via [`pacquet_lockfile::ImporterDepVersion::as_regular`]
-                    // — they're not snapshots, and upstream handles
-                    // workspace-package hoisting via the separate
-                    // `hoistedWorkspacePackages` shape (out of scope
-                    // for this issue; tracked as a workspace follow-up).
-                    let direct_deps =
-                        build_direct_deps_by_importer(importers, dependency_groups.iter().copied());
-                    // Honor the same skip set the rest of the install
-                    // already respects. `SkippedSnapshots` is the
-                    // platform/engine-incompatible-optional filter
-                    // computed earlier in this function via
-                    // `compute_skipped_snapshots`. Skipping a
-                    // snapshot from the hoist pass means
-                    // (a) `<vs>/node_modules/<alias>` doesn't get
-                    // a symlink to a slot that was never extracted,
-                    // and (b) the alias slot isn't claimed in the
-                    // BFS — a non-skipped sibling at a deeper level
-                    // can still take the alias.
-                    //
-                    // `HoistInputs` takes `&HashSet<PackageKey>`;
-                    // build it once from the outer `SkippedSnapshots`
-                    // by cloning the small skip set (typically 0-100
-                    // entries). Changing `HoistInputs` to accept
-                    // `&SkippedSnapshots` directly would couple
-                    // `hoist.rs` to the `installability` module for
-                    // one `contains` call; the conversion is cheap
-                    // enough to keep the modules orthogonal.
-                    let hoist_skipped: HashSet<PackageKey> = skipped.iter().cloned().collect();
-                    let result = get_hoisted_dependencies(&crate::HoistInputs {
-                        graph: &graph,
-                        direct_deps_by_importer: &direct_deps,
-                        skipped: &hoist_skipped,
-                        private_pattern,
-                        public_pattern,
-                    });
-                    if let Some(result) = result {
-                        // Public-hoist target is the project's root
-                        // `node_modules` (= `config.modules_dir`).
-                        // Private-hoist target is the project-local
-                        // `<root>/node_modules/.pnpm/node_modules` —
-                        // pacquet's `config.virtual_store_dir` always
-                        // resolves there even with GVS enabled
-                        // (upstream's `virtualStoreDir` field is
-                        // mutated under GVS, but pacquet keeps
-                        // `virtual_store_dir` project-local and
-                        // routes the GVS-shared root through
-                        // `global_virtual_store_dir` instead — see
-                        // [`Config::apply_global_virtual_store_derivation`]).
-                        // The symlink *target* (under the slot dir)
-                        // does need to be GVS-aware, which the
-                        // `VirtualStoreLayout` handle below provides.
-                        let private_dir = config.virtual_store_dir.join("node_modules");
-                        let public_dir = config.modules_dir.clone();
-                        symlink_hoisted_dependencies(
-                            &result.hoisted_dependencies_by_node_id,
-                            &graph,
-                            &layout,
-                            &private_dir,
-                            &public_dir,
-                            &hoist_skipped,
-                        )
-                        .map_err(InstallFrozenLockfileError::HoistSymlink)?;
-                        // Private-side bins → `<vs>/node_modules/.bin`.
-                        // Reuses the rayon-parallel `link_direct_dep_bins`
-                        // (same shape — read each location's
-                        // `package.json`, fan out to
-                        // `link_bins_of_packages`).
-                        link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
-                            .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
-                        // Public-side bins → `<root>/node_modules/.bin`.
-                        // Upstream relies on the direct-deps bin pass
-                        // (which runs *after* hoist) picking up the
-                        // public-hoist symlinks. Pacquet's pipeline order
-                        // has `SymlinkDirectDependencies` running *before*
-                        // hoist, so the direct-deps bin pass has already
-                        // executed by the time public-hoist symlinks
-                        // exist. A second `link_direct_dep_bins` pass
-                        // here closes that gap. The function tolerates
-                        // already-linked shims (idempotent at the
-                        // `link_bins_of_packages` layer), so re-linking
-                        // direct-dep aliases that match a public-hoist
-                        // pattern is safe.
-                        // Stash the public-hoist alias list for
-                        // the post-`BuildModules` top-level bin
-                        // link. The previous in-place
-                        // `link_direct_dep_bins(&public_dir, ...)`
-                        // pass would have written shims with no
-                        // knowledge of direct-dep candidates, so a
-                        // hoisted bin could shadow a direct one
-                        // when the hoisted package's name was
-                        // lexically smaller. The post-build pass
-                        // re-links with the [`BinOrigin`] tier so
-                        // direct wins outright. Mirrors upstream's
-                        // [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
-                        // which runs after `buildModules`.
-                        publicly_hoisted_for_post_build =
-                            result.publicly_hoisted_aliases_with_bins.clone();
-                        result.hoisted_dependencies
-                    } else {
-                        BTreeMap::new()
-                    }
-                } // end of `else` for `private_pattern.is_empty() && public_pattern.is_empty()`
-            }
-            _ => BTreeMap::new(),
+        //
+        // The BFS itself ran upthread (`pre_hoist`) so the dedupe
+        // pass in `SymlinkDirectDependencies` could see public-hoist
+        // targets; here we consume the same plan to write the
+        // symlinks on disk and emit the per-side bin shims.
+        let hoisted_dependencies = if let Some(plan) = pre_hoist {
+            let HoistPlan { graph, result, skipped: hoist_skipped, .. } = plan;
+            // Public-hoist target is the project's root
+            // `node_modules` (= `config.modules_dir`).
+            // Private-hoist target is the project-local
+            // `<root>/node_modules/.pnpm/node_modules` —
+            // pacquet's `config.virtual_store_dir` always
+            // resolves there even with GVS enabled
+            // (upstream's `virtualStoreDir` field is
+            // mutated under GVS, but pacquet keeps
+            // `virtual_store_dir` project-local and
+            // routes the GVS-shared root through
+            // `global_virtual_store_dir` instead — see
+            // [`Config::apply_global_virtual_store_derivation`]).
+            // The symlink *target* (under the slot dir)
+            // does need to be GVS-aware, which the
+            // `VirtualStoreLayout` handle below provides.
+            let private_dir = config.virtual_store_dir.join("node_modules");
+            let public_dir = config.modules_dir.clone();
+            symlink_hoisted_dependencies(
+                &result.hoisted_dependencies_by_node_id,
+                &graph,
+                &layout,
+                &private_dir,
+                &public_dir,
+                &hoist_skipped,
+            )
+            .map_err(InstallFrozenLockfileError::HoistSymlink)?;
+            // Private-side bins → `<vs>/node_modules/.bin`.
+            // Reuses the rayon-parallel `link_direct_dep_bins`
+            // (same shape — read each location's
+            // `package.json`, fan out to
+            // `link_bins_of_packages`).
+            link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
+                .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
+            // Stash the public-hoist alias list for the
+            // post-`BuildModules` top-level bin link. The
+            // previous in-place `link_direct_dep_bins(&public_dir,
+            // ...)` pass would have written shims with no
+            // knowledge of direct-dep candidates, so a
+            // hoisted bin could shadow a direct one when the
+            // hoisted package's name was lexically smaller.
+            // The post-build pass re-links with the
+            // [`BinOrigin`] tier so direct wins outright.
+            // Mirrors upstream's
+            // [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
+            // which runs after `buildModules`.
+            publicly_hoisted_for_post_build = result.publicly_hoisted_aliases_with_bins;
+            result.hoisted_dependencies
+        } else {
+            BTreeMap::new()
         };
 
         // Mirrors upstream `link.ts:167-170`: `importing_done` fires once
@@ -1253,6 +1200,115 @@ struct HoistedLinkerOutput {
     /// graph. `None` for the isolated linker (the layout-based
     /// lookup in `BuildModules` is used instead).
     hoisted_pkg_root_by_key: Option<HashMap<PackageKey, std::path::PathBuf>>,
+}
+
+/// Pre-computed hoist plan threaded across the install pipeline so
+/// the dedupe pass in [`crate::SymlinkDirectDependencies`] (which
+/// runs before the on-disk hoist phase in pacquet's ordering) can
+/// fold publicly-hoisted aliases into root's target map. The on-disk
+/// hoist phase later consumes the same [`crate::HoistResult`] instead of
+/// re-running the BFS.
+pub(crate) struct HoistPlan {
+    pub(crate) graph: HashMap<PackageKey, crate::HoistGraphNode>,
+    pub(crate) result: crate::HoistResult,
+    pub(crate) skipped: HashSet<PackageKey>,
+}
+
+/// Compute the in-memory hoist plan. Returns `None` when nothing
+/// should be hoisted today (no patterns, no lockfile graph, or the
+/// install is going through the hoisted linker). Side-effect-free:
+/// the on-disk symlinks happen later in the pipeline. Same input
+/// gating as the legacy in-place block in [`InstallFrozenLockfile::run`].
+pub(crate) fn compute_hoist_plan(
+    config: &Config,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    importers: &HashMap<String, pacquet_lockfile::ProjectSnapshot>,
+    dependency_groups: &[pacquet_package_manifest::DependencyGroup],
+    skipped: &SkippedSnapshots,
+    is_hoisted: bool,
+) -> Option<HoistPlan> {
+    if is_hoisted {
+        return None;
+    }
+    if config.hoist_pattern.is_none() && config.public_hoist_pattern.is_none() {
+        return None;
+    }
+    let (snaps, pkgs) = match (snapshots, packages) {
+        (Some(snaps), Some(pkgs)) => (snaps, pkgs),
+        _ => return None,
+    };
+    let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
+    let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
+    // Static fast-path: when both compiled matchers come from empty
+    // pattern lists (`Some([])`), there's no alias they could match,
+    // so the BFS would visit every node only to drop every child.
+    // Skip the graph-build + walk entirely.
+    if private_pattern.is_empty() && public_pattern.is_empty() {
+        return None;
+    }
+    let graph = build_hoist_graph(snaps, pkgs);
+    // Walk every importer's direct deps so transitives unique to a
+    // workspace project still get privately hoisted into the shared
+    // `<vs>/node_modules` and contribute to `hoistedDependencies`.
+    // The `link:` workspace-sibling entries `build_direct_deps_by_importer`
+    // sees are skipped via [`pacquet_lockfile::ImporterDepVersion::as_regular`].
+    let direct_deps = build_direct_deps_by_importer(importers, dependency_groups.iter().copied());
+    // `HoistInputs` takes `&HashSet<PackageKey>`; build it once from
+    // the outer `SkippedSnapshots` by cloning the small skip set
+    // (typically 0-100 entries). Stored on [`HoistPlan`] so the
+    // later on-disk pass can reuse the exact same set the BFS saw.
+    let hoist_skipped: HashSet<PackageKey> = skipped.iter().cloned().collect();
+    let result = get_hoisted_dependencies(&crate::HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct_deps,
+        skipped: &hoist_skipped,
+        private_pattern,
+        public_pattern,
+    })?;
+    Some(HoistPlan { graph, result, skipped: hoist_skipped })
+}
+
+/// Build the `<alias → resolved-target-dir>` map for every publicly-
+/// hoisted entry that will land in root's `node_modules/`. Pacquet
+/// runs the dedupe pass before the on-disk hoist phase, so this map
+/// lets the dedupe see the aliases it would otherwise miss. Mirrors
+/// pnpm's `linkDirectDepsAndDedupe` semantics — when the upstream
+/// linker reads `<root>/node_modules/`, the public-hoist symlinks
+/// are already there because hoist ran first.
+///
+/// Skipped snapshots are dropped (their slot dir doesn't exist on
+/// disk), missing-in-graph entries are dropped, and only `Public`
+/// hoists contribute (private hoists land in the virtual store's
+/// own `node_modules`, not root's). The target path uses the same
+/// `<slot>/node_modules/<name>` shape that the on-disk hoist symlink
+/// will point at, so [`PathBuf`] equality with
+/// [`SymlinkDirectDependencies`]'s computed targets is exact.
+pub(crate) fn collect_public_hoist_targets(
+    result: &crate::HoistResult,
+    graph: &HashMap<PackageKey, crate::HoistGraphNode>,
+    layout: &crate::VirtualStoreLayout,
+    hoist_skipped: &HashSet<PackageKey>,
+) -> BTreeMap<String, PathBuf> {
+    let mut targets = BTreeMap::new();
+    for (node_id, alias_map) in &result.hoisted_dependencies_by_node_id {
+        if hoist_skipped.contains(node_id) {
+            continue;
+        }
+        let Some(node) = graph.get(node_id) else { continue };
+        let dep_dir = layout.slot_dir(node_id).join("node_modules").join(node.name.to_string());
+        for (alias, kind) in alias_map {
+            if !matches!(kind, pacquet_modules_yaml::HoistKind::Public) {
+                continue;
+            }
+            // First-wins: the BFS already chose one source per alias
+            // via its `hoisted_aliases` claim. Multiple entries with
+            // the same alias would be a hoister bug; preserve the
+            // first deterministically.
+            targets.entry(alias.clone()).or_insert_with(|| dep_dir.clone());
+        }
+    }
+    targets
 }
 
 /// Pull the leading major-version digits out of a semver string like

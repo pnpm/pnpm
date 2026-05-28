@@ -56,6 +56,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         external_dependencies: Default::default(),
         dedupe_peer_dependents: false,
         dedupe_peers: false,
+        dedupe_direct_deps: true,
         strict_peer_dependencies: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,

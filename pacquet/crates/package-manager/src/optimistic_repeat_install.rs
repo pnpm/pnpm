@@ -167,13 +167,13 @@ pub fn check_optimistic_repeat_install(
 ///
 /// Only the fields pacquet actively populates via [`current_settings`]
 /// participate in the comparison. Fields the upstream pnpm CLI writes
-/// but pacquet hasn't ported yet (e.g. `dedupeDirectDeps`,
-/// `excludeLinksFromLockfile`) are ignored — pacquet doesn't consume
-/// them during install, so a difference can't affect the materialised
-/// `node_modules`. Without this carve-out a cross-package-manager
-/// scenario (pnpm wrote the state, pacquet reads it next) would
-/// always reject the fast path because pnpm's defaults fill those
-/// fields while pacquet's `current_settings` leaves them `None`.
+/// but pacquet hasn't ported yet (e.g. `excludeLinksFromLockfile`) are
+/// ignored — pacquet doesn't consume them during install, so a
+/// difference can't affect the materialised `node_modules`. Without
+/// this carve-out a cross-package-manager scenario (pnpm wrote the
+/// state, pacquet reads it next) would always reject the fast path
+/// because pnpm's defaults fill those fields while pacquet's
+/// `current_settings` leaves them `None`.
 ///
 /// As each ported setting in pnpm/pnpm#12009 lands end-to-end and
 /// gets surfaced through `current_settings`, it joins the comparison
@@ -197,6 +197,7 @@ fn settings_match(
     let live = &current;
     allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref())
         && recorded.auto_install_peers == live.auto_install_peers
+        && recorded.dedupe_direct_deps == live.dedupe_direct_deps
         && recorded.dedupe_peer_dependents == live.dedupe_peer_dependents
         && recorded.dedupe_peers == live.dedupe_peers
         && recorded.dev == live.dev
@@ -221,7 +222,6 @@ fn settings_match(
     // each from this list once `current_settings` writes its value):
     //   catalogs                    (pnpm always ignores; see
     //                                ignoredSettings.add('catalogs'))
-    //   dedupeDirectDeps
     //   dedupeInjectedDeps
     //   excludeLinksFromLockfile
     //   minimumReleaseAge*          (pacquet supports it but doesn't
@@ -285,6 +285,7 @@ pub(crate) fn current_settings(
     WorkspaceStateSettings {
         allow_builds,
         auto_install_peers: Some(config.auto_install_peers),
+        dedupe_direct_deps: Some(config.dedupe_direct_deps),
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
         dedupe_peers: Some(config.dedupe_peers),
         dev: Some(included.dev_dependencies),

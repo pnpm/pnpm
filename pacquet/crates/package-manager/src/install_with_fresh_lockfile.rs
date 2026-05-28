@@ -161,6 +161,19 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     LinkBins(#[error(source)] LinkBinsError),
 
+    /// Surfaces a failure to create one of the hoist symlinks
+    /// (`<private_hoisted_modules_dir>/<alias>` or
+    /// `<public_hoisted_modules_dir>/<alias>`). EEXIST is
+    /// already swallowed by the hoist helper, so this only fires
+    /// on real I/O failures.
+    #[diagnostic(transparent)]
+    HoistSymlink(#[error(source)] crate::SymlinkPackageError),
+
+    /// Surfaces a failure to link bins of privately-hoisted aliases
+    /// into the virtual-store-local `<vs>/node_modules/.bin`.
+    #[diagnostic(transparent)]
+    HoistLinkBins(#[error(source)] LinkBinsError),
+
     #[diagnostic(transparent)]
     LinkVirtualStoreBins(#[error(source)] LinkVirtualStoreBinsError),
 
@@ -898,6 +911,31 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // (`.modules.yaml`, `LinkVirtualStoreBins`, etc.) already
         // writes.
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
+
+        // Pre-compute the hoist plan so the dedupe pass in
+        // `SymlinkDirectDependencies` can fold publicly-hoisted
+        // aliases into root's target map — same shape as the
+        // frozen-lockfile path. The `HoistResult` is reused for
+        // the on-disk hoist phase below, so the BFS runs once.
+        let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
+            config,
+            built_lockfile.snapshots.as_ref(),
+            built_lockfile.packages.as_ref(),
+            &built_lockfile.importers,
+            &dependency_groups,
+            &empty_skipped,
+            false,
+        );
+        let public_hoist_targets: Option<std::collections::BTreeMap<String, std::path::PathBuf>> =
+            pre_hoist.as_ref().map(|plan| {
+                crate::install_frozen_lockfile::collect_public_hoist_targets(
+                    &plan.result,
+                    &plan.graph,
+                    &layout,
+                    &plan.skipped,
+                )
+            });
+
         SymlinkDirectDependencies {
             config,
             layout: &layout,
@@ -906,9 +944,42 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             workspace_root: symlink_root,
             skipped: &empty_skipped,
             link_only: false,
+            public_hoist_targets: public_hoist_targets.as_ref(),
         }
         .run::<Reporter>()
         .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
+
+        // On-disk hoist phase. Mirrors the frozen-install block at
+        // `install_frozen_lockfile.rs`: symlink the publicly + privately
+        // hoisted aliases into their target dirs, then link private-side
+        // bins into `<vs>/node_modules/.bin`. Public-side bin precedence
+        // is handled implicitly by the per-importer `link_bins` pass below,
+        // which now walks both direct-dep and public-hoist symlinks in
+        // root's `node_modules/`.
+        let hoisted_dependencies = if let Some(plan) = pre_hoist {
+            let crate::install_frozen_lockfile::HoistPlan {
+                graph,
+                result,
+                skipped: hoist_skipped,
+                ..
+            } = plan;
+            let private_dir = config.virtual_store_dir.join("node_modules");
+            let public_dir = config.modules_dir.clone();
+            crate::symlink_hoisted_dependencies(
+                &result.hoisted_dependencies_by_node_id,
+                &graph,
+                &layout,
+                &private_dir,
+                &public_dir,
+                &hoist_skipped,
+            )
+            .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
+            crate::link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
+                .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
+            result.hoisted_dependencies
+        } else {
+            HoistedDependencies::new()
+        };
 
         // Link bins. Direct dependencies first (each importer's
         // `node_modules/.bin`) and then per-slot children inside the
@@ -1005,10 +1076,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             stage: Stage::ImportingDone,
         }));
 
-        Ok(InstallWithFreshLockfileResult {
-            hoisted_dependencies: BTreeMap::new(),
-            wanted_lockfile,
-        })
+        Ok(InstallWithFreshLockfileResult { hoisted_dependencies, wanted_lockfile })
     }
 }
 

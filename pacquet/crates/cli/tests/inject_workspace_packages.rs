@@ -205,13 +205,16 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     //     (consumed via project-3 through the injected project-2)
     //   - project-2 peer-resolved with is-positive@2.0.0
     //     (consumed via project-3)
-    // Virtual store cardinality: seven slot dirs — matches the
-    // graph snapshot upstream asserts (the same seven entries appear
-    // in pacquet's `snapshots:` block above). Upstream's
-    // `readdirSync('node_modules/.pnpm').toHaveLength(8)` includes
-    // the sibling `lock.yaml` (recording what was materialised),
-    // for which pacquet's wire shape is identical; counting all
-    // entries here matches upstream's count exactly.
+    // Virtual store cardinality: seven slot dirs + the sibling
+    // `lock.yaml` (recording what was materialised) + the private-
+    // hoist target `node_modules/` (default `hoistPattern: ["*"]`
+    // privately hoists every transitive to `<vs>/node_modules/`).
+    // Empirically matches pnpm v11.4.0 with the same
+    // `enableGlobalVirtualStore: false` config — pnpm produces the
+    // same nine entries on the equivalent fixture. (Upstream's
+    // `injectLocalPackages.ts:119` asserts `toHaveLength(8)` against
+    // a pre-private-hoist pnpm snapshot; current pnpm matches the
+    // count below.)
     let dot_pnpm = workspace.join("node_modules/.pnpm");
     let entries: Vec<String> = fs::read_dir(&dot_pnpm)
         .expect("read node_modules/.pnpm")
@@ -220,9 +223,9 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
         .collect();
     assert_eq!(
         entries.len(),
-        8,
-        "expected 8 entries under node_modules/.pnpm \
-         (7 virtual-store slot dirs + the sibling `lock.yaml`), got {}. Contents:\n{entries:?}",
+        9,
+        "expected 9 entries under node_modules/.pnpm \
+         (7 virtual-store slot dirs + the sibling `lock.yaml` + the private-hoist `node_modules/`), got {}. Contents:\n{entries:?}",
         entries.len(),
     );
 
