@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use pnpm_registry::{Config, LogConfig, LogFormat, serve};
+use pnpm_registry::{Config, ConfigSource, LogConfig, LogFormat, serve};
 
 #[derive(Debug, Parser)]
 #[command(name = "pnpm-registry", version, about = "pnpm-compatible npm registry server")]
@@ -38,58 +38,26 @@ struct Args {
     packument_ttl_secs: Option<u64>,
 }
 
-/// Where the config came from. Used after the subscriber is up to
-/// log the resolved path (or note that the bundled default applies).
-enum ConfigSource {
-    Cli(PathBuf),
-    DefaultPath(PathBuf),
-    Bundled,
-}
-
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     let args = Args::parse();
-    let (config, source) = load_config(&args)?;
-    init_logging(&config.logs);
-    log_config_source(&source);
-    serve(config).await.map_err(|err| miette::miette!("{err}"))
-}
-
-fn load_config(args: &Args) -> miette::Result<(Config, ConfigSource)> {
-    let (mut config, source) = match args.config.as_deref() {
-        Some(path) => {
-            let displayed = path.display();
-            let config = Config::from_yaml(path, args.listen, args.public_url.clone())
-                .map_err(|err| miette::miette!("load {displayed}: {err}"))?;
-            (config, ConfigSource::Cli(path.to_path_buf()))
-        }
-        None => match default_config_path() {
-            Some(path) => {
-                let displayed = path.display();
-                let config = Config::from_yaml(&path, args.listen, args.public_url.clone())
-                    .map_err(|err| miette::miette!("load {displayed}: {err}"))?;
-                (config, ConfigSource::DefaultPath(path))
-            }
-            None => (
-                Config::from_default_yaml(Path::new("."), args.listen, args.public_url.clone()),
-                ConfigSource::Bundled,
-            ),
-        },
-    };
-    if let Some(storage) = args.storage.clone() {
+    let auto_path = Config::auto_config_path(home::home_dir().as_deref());
+    let (mut config, source) = Config::resolve(
+        args.config.as_deref(),
+        auto_path.as_deref(),
+        args.listen,
+        args.public_url.clone(),
+    )
+    .map_err(|err| miette::miette!("{err}"))?;
+    if let Some(storage) = args.storage {
         config.storage = storage;
     }
     if let Some(ttl_secs) = args.packument_ttl_secs {
         config.packument_ttl = Duration::from_secs(ttl_secs);
     }
-    Ok((config, source))
-}
-
-/// `$HOME/.config/pnpm-registry/config.yaml` when it exists.
-/// Returns `None` if the file is absent or `HOME` is unset — the
-/// caller falls back to the bundled config in that case.
-fn default_config_path() -> Option<PathBuf> {
-    Config::auto_config_path(home::home_dir().as_deref())
+    init_logging(&config.logs);
+    log_config_source(&source);
+    serve(config).await.map_err(|err| miette::miette!("{err}"))
 }
 
 /// Install the `tracing-subscriber` for this process based on the

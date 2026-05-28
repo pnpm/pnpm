@@ -16,6 +16,21 @@ use crate::policy::PackagePolicies;
 /// routing applied.
 pub const DEFAULT_CONFIG_YAML: &str = include_str!("../config.yaml");
 
+/// Where the live [`Config`] came from. Returned alongside
+/// [`Config::resolve`] so the binary can log the resolved source
+/// (path or "bundled") after the tracing subscriber is up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfigSource {
+    /// User passed `-c` / `--config`.
+    Cli(PathBuf),
+    /// Loaded from the auto-discovered path
+    /// (`$HOME/.config/pnpm-registry/config.yaml`).
+    DefaultPath(PathBuf),
+    /// No file was found; the bundled [`DEFAULT_CONFIG_YAML`] was
+    /// used.
+    Bundled,
+}
+
 /// Runtime configuration for the pnpm registry server.
 ///
 /// The persisted (YAML) shape follows verdaccio's `config.yaml` —
@@ -373,6 +388,32 @@ impl Config {
         path.is_file().then_some(path)
     }
 
+    /// Pick the right config source in precedence order:
+    /// 1. `explicit` (the binary's `-c` / `--config` flag);
+    /// 2. `default_path` (typically [`Self::auto_config_path`]'s
+    ///    result);
+    /// 3. the bundled [`DEFAULT_CONFIG_YAML`].
+    ///
+    /// Returns the resolved [`Config`] alongside a [`ConfigSource`]
+    /// describing which branch fired so the binary can log it
+    /// after the subscriber is up.
+    pub fn resolve(
+        explicit: Option<&Path>,
+        default_path: Option<&Path>,
+        listen: SocketAddr,
+        public_url: Option<String>,
+    ) -> std::io::Result<(Self, ConfigSource)> {
+        if let Some(path) = explicit {
+            let config = Self::from_yaml(path, listen, public_url)?;
+            return Ok((config, ConfigSource::Cli(path.to_path_buf())));
+        }
+        if let Some(path) = default_path {
+            let config = Self::from_yaml(path, listen, public_url)?;
+            return Ok((config, ConfigSource::DefaultPath(path.to_path_buf())));
+        }
+        Ok((Self::from_default_yaml(Path::new("."), listen, public_url), ConfigSource::Bundled))
+    }
+
     fn from_yaml_str(
         raw: &str,
         base_dir: &Path,
@@ -501,7 +542,8 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        Config, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, pattern_matches, resolve_relative,
+        Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, pattern_matches,
+        resolve_relative,
     };
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::path::{Path, PathBuf};
@@ -1012,5 +1054,134 @@ log:
         assert!(parse_log_yaml::<LogLevel>("fatal").is_err());
         assert!(parse_log_yaml::<LogLevel>("silly").is_err());
         assert!(parse_log_yaml::<LogLevel>("verbose").is_err());
+    }
+
+    // ----- Config::resolve precedence ---------------------------------------
+
+    /// Helper: write a config file under a tempdir and hand back the
+    /// path. Tests use this to populate both the explicit `-c` arg
+    /// and the auto-discovered default path.
+    fn write_yaml(dir: &Path, name: &str, contents: &str) -> PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, contents).expect("write yaml fixture");
+        path
+    }
+
+    const MINIMAL_YAML: &str = "storage: ./s\nuplinks: {}\npackages: {}\n";
+
+    #[test]
+    fn resolve_bundled_when_no_path_supplied() {
+        let (config, source) = Config::resolve(None, None, listen(), None).unwrap();
+        assert_eq!(source, ConfigSource::Bundled);
+        // The bundled config has the `npmjs` uplink + `**` route.
+        assert!(config.uplinks.contains_key("npmjs"));
+    }
+
+    #[test]
+    fn resolve_default_path_when_only_default_supplied() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = write_yaml(tmp.path(), "config.yaml", MINIMAL_YAML);
+        let (_, source) = Config::resolve(None, Some(&path), listen(), None).unwrap();
+        assert_eq!(source, ConfigSource::DefaultPath(path));
+    }
+
+    #[test]
+    fn resolve_cli_when_only_cli_supplied() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = write_yaml(tmp.path(), "explicit.yml", MINIMAL_YAML);
+        let (_, source) = Config::resolve(Some(&path), None, listen(), None).unwrap();
+        assert_eq!(source, ConfigSource::Cli(path));
+    }
+
+    #[test]
+    fn resolve_cli_wins_over_default_path() {
+        // Both paths exist. CLI must take priority — the auto-discovered
+        // path is a *fallback*, not a merge target.
+        let tmp = tempfile::tempdir().unwrap();
+        let cli =
+            write_yaml(tmp.path(), "explicit.yml", "storage: /a\nuplinks: {}\npackages: {}\n");
+        let default =
+            write_yaml(tmp.path(), "default.yml", "storage: /b\nuplinks: {}\npackages: {}\n");
+        let (config, source) = Config::resolve(Some(&cli), Some(&default), listen(), None).unwrap();
+        assert_eq!(source, ConfigSource::Cli(cli));
+        // Confirms the *content* came from the CLI file, not the default.
+        assert_eq!(config.storage, PathBuf::from("/a"));
+    }
+
+    #[test]
+    fn resolve_propagates_missing_file_error_for_cli_path() {
+        let err = Config::resolve(Some(Path::new("/no/such/file.yml")), None, listen(), None)
+            .unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn resolve_propagates_parse_error_for_cli_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = write_yaml(tmp.path(), "broken.yml", "storage: [not, a, string\n");
+        let err = Config::resolve(Some(&path), None, listen(), None).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn resolve_propagates_missing_file_error_for_default_path() {
+        // Symmetric to the CLI case — a bad default path is just as
+        // fatal as a bad CLI path. (In practice callers only pass a
+        // default path that already passed `auto_config_path`'s
+        // `is_file()` check, so this is a defense-in-depth assertion.)
+        let err = Config::resolve(None, Some(Path::new("/no/such/file.yml")), listen(), None)
+            .unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn resolve_public_url_override_threads_through() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = write_yaml(tmp.path(), "config.yaml", MINIMAL_YAML);
+        let (config, _) =
+            Config::resolve(Some(&path), None, listen(), Some("http://override.test".to_string()))
+                .unwrap();
+        assert_eq!(config.public_url, "http://override.test");
+    }
+
+    #[test]
+    fn resolve_bundled_branch_honors_public_url_override() {
+        let (config, source) =
+            Config::resolve(None, None, listen(), Some("http://from-cli.test".to_string()))
+                .unwrap();
+        assert_eq!(source, ConfigSource::Bundled);
+        assert_eq!(config.public_url, "http://from-cli.test");
+    }
+
+    // ----- serde defaults ---------------------------------------------------
+
+    #[test]
+    fn yaml_with_no_storage_uses_default_storage_string() {
+        // `storage:` is absent entirely — `default_storage_string`
+        // supplies `"./storage"`, which `resolve_relative` then joins
+        // to the config-file's parent dir.
+        let yaml = "uplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+        assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./storage"));
+    }
+
+    #[test]
+    fn yaml_log_block_with_no_type_field_uses_default_log_type() {
+        // `type:` omitted but `format:` and `level:` present. The
+        // `default_log_type` serde default kicks in for the missing
+        // field; we don't otherwise care about its value at runtime,
+        // we just need the parse to succeed (and the runtime config
+        // to reflect the supplied format/level).
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  format: json
+  level: warn
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Json);
+        assert_eq!(config.logs.level, LogLevel::Warn);
     }
 }
