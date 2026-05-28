@@ -125,6 +125,28 @@ fn select_package_with_dependencies() {
 }
 
 #[test]
+fn shared_dependency_in_diamond_is_walked_once() {
+    // Diamond: `top` depends on `left` and `right`, both of which depend
+    // on `shared`. Walking `top`'s dependencies reaches `shared` twice;
+    // the second visit hits the `walked.contains` guard in
+    // `pick_subgraph` and is skipped, so `shared` is selected only once.
+    let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
+    for (key, value) in [
+        node("/top", "top", &["/left", "/right"]),
+        node("/left", "left", &["/shared"]),
+        node("/right", "right", &["/shared"]),
+        node("/shared", "shared", &[]),
+    ] {
+        graph.insert(key, value);
+    }
+    let result = selected(
+        &graph,
+        &[ProjectSelector { include_dependencies: true, ..selector(Some("top")) }],
+    );
+    assert_eq!(result, ["/top", "/left", "/shared", "/right"]);
+}
+
+#[test]
 fn select_package_with_dependencies_and_dependents() {
     let graph = projects_graph();
     let result = selected(
