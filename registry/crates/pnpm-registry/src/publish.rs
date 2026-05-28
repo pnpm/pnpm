@@ -62,14 +62,11 @@ pub fn extract_attachments(body: &mut Value) -> Result<Vec<PendingAttachment>, R
                 reason: "expected object".to_string(),
             });
         };
-        let data = match value_obj.remove("data") {
-            Some(Value::String(s)) => s,
-            _ => {
-                return Err(RegistryError::InvalidAttachment {
-                    filename,
-                    reason: "missing string field `data`".to_string(),
-                });
-            }
+        let Some(Value::String(data)) = value_obj.remove("data") else {
+            return Err(RegistryError::InvalidAttachment {
+                filename,
+                reason: "missing string field `data`".to_string(),
+            });
         };
         let declared_length = value_obj.get("length").and_then(Value::as_u64);
         out.push(PendingAttachment { filename, data, declared_length });
@@ -132,15 +129,15 @@ pub fn stream_decode_verify_and_write(
     let mut buf = vec![0u8; CHUNK_BYTES];
     let mut total: u64 = 0;
     loop {
-        let n = match decoder.read(&mut buf) {
+        let bytes_read = match decoder.read(&mut buf) {
             Ok(0) => break,
-            Ok(n) => n,
+            Ok(bytes_read) => bytes_read,
             Err(err) => {
                 let _ = std::fs::remove_file(dest);
                 return Err(invalid(format!("EINTEGRITY: base64 decode failed: {err}")));
             }
         };
-        let chunk = &buf[..n];
+        let chunk = &buf[..bytes_read];
         if let Err(err) = file.write_all(chunk) {
             let _ = std::fs::remove_file(dest);
             return Err(RegistryError::Io(err));
@@ -149,7 +146,7 @@ pub fn stream_decode_verify_and_write(
         if let Some(hasher) = shasum_hasher.as_mut() {
             hasher.input(chunk);
         }
-        total += n as u64;
+        total += bytes_read as u64;
     }
 
     if let Some(expected) = declared_length
