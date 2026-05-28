@@ -65,17 +65,19 @@ fn dedupes_direct_deps_against_workspace_root_by_default() {
 
     // Root still has the dep linked.
     let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
-    assert!(
-        is_symlink_or_junction(&root_dep).expect("query root symlink"),
-        "root node_modules direct-dep symlink missing",
-    );
+    let root_dep_linked = is_symlink_or_junction(&root_dep).expect("query root symlink");
+    eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
+    assert!(root_dep_linked, "root node_modules direct-dep symlink missing");
 
     // The deduped sibling has no node_modules at all — pnpm's
     // `linkDirectDepsAndDedupe` ends with `rimraf(project.modulesDir)`
     // when every dep was deduped. Pacquet achieves the same effect
     // by never creating the directory in the first place.
+    let dup_modules = workspace.join("packages/dup/node_modules");
+    let dup_modules_exists = dup_modules.exists();
+    eprintln!("dup_modules={dup_modules:?} exists={dup_modules_exists}");
     assert!(
-        !workspace.join("packages/dup/node_modules").exists(),
+        !dup_modules_exists,
         "packages/dup/node_modules should not exist when every direct dep is deduped against root",
     );
 
@@ -127,14 +129,15 @@ fn dedupe_direct_deps_disabled_keeps_per_project_symlinks() {
     pacquet.with_arg("install").assert().success();
 
     let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
-    assert!(
-        is_symlink_or_junction(&root_dep).expect("query root symlink"),
-        "root node_modules direct-dep symlink missing",
-    );
+    let root_dep_linked = is_symlink_or_junction(&root_dep).expect("query root symlink");
+    eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
+    assert!(root_dep_linked, "root node_modules direct-dep symlink missing");
     let sibling_dep = workspace.join("packages/dup/node_modules/@pnpm.e2e/hello-world-js-bin");
+    let sibling_dep_linked = is_symlink_or_junction(&sibling_dep).expect("query sibling symlink");
+    eprintln!("sibling_dep={sibling_dep:?} linked={sibling_dep_linked}");
     assert!(
-        is_symlink_or_junction(&sibling_dep).expect("query sibling symlink"),
-        "sibling direct-dep symlink should be kept when dedupeDirectDeps: false",
+        sibling_dep_linked,
+        "sibling direct-dep symlink should be kept when dedupeDirectDeps: false"
     );
 
     drop((root, mock_instance));
@@ -187,25 +190,30 @@ fn dedupes_direct_deps_with_frozen_lockfile() {
 
     // First install seeds the lockfile and node_modules.
     pacquet.with_arg("install").assert().success();
+    let dup_modules = workspace.join("packages/dup/node_modules");
+    let dup_modules_exists_after_seed = dup_modules.exists();
+    eprintln!("after seed: dup_modules={dup_modules:?} exists={dup_modules_exists_after_seed}");
     assert!(
-        !workspace.join("packages/dup/node_modules").exists(),
+        !dup_modules_exists_after_seed,
         "first install should already have skipped packages/dup/node_modules creation",
     );
 
     // Tear down node_modules so the frozen-lockfile install is a
     // pure replay (pnpm's test does the same via `rimrafSync`).
     fs_remove_dir_all(&workspace.join("node_modules"));
-    fs_remove_dir_all(&workspace.join("packages/dup/node_modules"));
+    fs_remove_dir_all(&dup_modules);
 
     pacquet_at(&workspace).with_arg("install").with_arg("--frozen-lockfile").assert().success();
 
+    let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+    let root_dep_linked =
+        is_symlink_or_junction(&root_dep).expect("query root symlink after frozen install");
+    eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
+    assert!(root_dep_linked, "frozen-lockfile install should re-link the root's direct dep");
+    let dup_modules_exists_after_frozen = dup_modules.exists();
+    eprintln!("after frozen: dup_modules={dup_modules:?} exists={dup_modules_exists_after_frozen}",);
     assert!(
-        is_symlink_or_junction(&workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin"))
-            .expect("query root symlink after frozen install"),
-        "frozen-lockfile install should re-link the root's direct dep",
-    );
-    assert!(
-        !workspace.join("packages/dup/node_modules").exists(),
+        !dup_modules_exists_after_frozen,
         "frozen-lockfile install should keep packages/dup/node_modules absent",
     );
 
@@ -276,15 +284,16 @@ fn dedupes_only_overlapping_direct_deps() {
 
     let mixed_modules = workspace.join("packages/mixed/node_modules");
     let shared = mixed_modules.join("@pnpm.e2e/hello-world-js-bin");
+    let shared_exists = shared.exists();
+    eprintln!("shared={shared:?} exists={shared_exists}");
     assert!(
-        !shared.exists(),
+        !shared_exists,
         "shared direct-dep should be deduped against root, but found {shared:?}",
     );
     let unique = mixed_modules.join("@pnpm.e2e/hello-world-js-bin-parent");
-    assert!(
-        is_symlink_or_junction(&unique).expect("query unique symlink"),
-        "unique direct-dep symlink missing under packages/mixed/node_modules",
-    );
+    let unique_linked = is_symlink_or_junction(&unique).expect("query unique symlink");
+    eprintln!("unique={unique:?} linked={unique_linked}");
+    assert!(unique_linked, "unique direct-dep symlink missing under packages/mixed/node_modules");
 
     drop((root, mock_instance));
 }
@@ -348,15 +357,18 @@ fn dedupes_link_deps_resolving_to_the_same_dir_via_different_segments() {
 
     pacquet.with_arg("install").assert().success();
 
-    assert!(
-        is_symlink_or_junction(&workspace.join("node_modules/shared")).expect("query root link"),
-        "root should have its link dep symlinked",
-    );
+    let root_link = workspace.join("node_modules/shared");
+    let root_link_linked = is_symlink_or_junction(&root_link).expect("query root link");
+    eprintln!("root_link={root_link:?} linked={root_link_linked}");
+    assert!(root_link_linked, "root should have its link dep symlinked");
     // Sibling's only direct dep was a `link:../shared` resolving to
     // the same dir root already linked at the alias `shared`; the
     // sibling should be deduped and have no `node_modules/` at all.
+    let sibling_modules = workspace.join("packages/sibling/node_modules");
+    let sibling_modules_exists = sibling_modules.exists();
+    eprintln!("sibling_modules={sibling_modules:?} exists={sibling_modules_exists}");
     assert!(
-        !workspace.join("packages/sibling/node_modules").exists(),
+        !sibling_modules_exists,
         "packages/sibling/node_modules should not exist: link:../shared deduped against root's link:packages/shared",
     );
 
@@ -432,20 +444,25 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
     pacquet_at(&workspace).with_arg("install").with_arg("--frozen-lockfile").assert().success();
 
     // Root has both direct + hoisted entries.
+    let root_direct = workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep");
+    let root_direct_linked = is_symlink_or_junction(&root_direct).expect("query root direct dep");
+    eprintln!("root_direct={root_direct:?} linked={root_direct_linked}");
+    assert!(root_direct_linked, "root should still have its direct dep symlinked");
+    let root_hoisted = workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    let root_hoisted_linked =
+        is_symlink_or_junction(&root_hoisted).expect("query root public-hoisted dep");
+    eprintln!("root_hoisted={root_hoisted:?} linked={root_hoisted_linked}");
     assert!(
-        is_symlink_or_junction(&workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep"))
-            .expect("query root direct dep"),
-        "root should still have its direct dep symlinked",
-    );
-    assert!(
-        is_symlink_or_junction(&workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep"))
-            .expect("query root public-hoisted dep"),
+        root_hoisted_linked,
         "publicHoistPattern should land the transitive at root/node_modules",
     );
     // Sibling has no node_modules because its only direct dep was
     // deduped against root's public-hoisted entry.
+    let dup_modules = workspace.join("packages/dup/node_modules");
+    let dup_modules_exists = dup_modules.exists();
+    eprintln!("dup_modules={dup_modules:?} exists={dup_modules_exists}");
     assert!(
-        !workspace.join("packages/dup/node_modules").exists(),
+        !dup_modules_exists,
         "packages/dup/node_modules should not exist: dep-of-pkg-with-1-dep deduped against publicly-hoisted root entry",
     );
 
@@ -517,10 +534,9 @@ fn dedupe_under_shamefully_hoist() {
         "@pnpm.e2e/foo",
     ] {
         let entry = workspace.join("node_modules").join(alias);
-        assert!(
-            is_symlink_or_junction(&entry).expect("query root entry"),
-            "expected root/node_modules/{alias} to be a symlink",
-        );
+        let entry_linked = is_symlink_or_junction(&entry).expect("query root entry");
+        eprintln!("entry={entry:?} linked={entry_linked}");
+        assert!(entry_linked, "expected root/node_modules/{alias} to be a symlink");
     }
 
     // Project has neither its direct dep `foobar` (deduped against the
@@ -528,12 +544,18 @@ fn dedupe_under_shamefully_hoist() {
     // never reaches the project's `node_modules/` to begin with —
     // transitives only materialize via hoist).
     let project_modules = workspace.join("packages/project/node_modules");
+    let project_foobar = project_modules.join("@pnpm.e2e/foobar");
+    let project_foobar_exists = project_foobar.exists();
+    eprintln!("project_foobar={project_foobar:?} exists={project_foobar_exists}");
     assert!(
-        !project_modules.join("@pnpm.e2e/foobar").exists(),
+        !project_foobar_exists,
         "project's foobar should be deduped against the shamefully-hoisted root entry",
     );
+    let project_foo = project_modules.join("@pnpm.e2e/foo");
+    let project_foo_exists = project_foo.exists();
+    eprintln!("project_foo={project_foo:?} exists={project_foo_exists}");
     assert!(
-        !project_modules.join("@pnpm.e2e/foo").exists(),
+        !project_foo_exists,
         "transitive `foo` should only appear at root via hoist, not under project",
     );
 
