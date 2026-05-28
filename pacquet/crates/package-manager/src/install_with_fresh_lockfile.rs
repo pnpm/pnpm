@@ -547,12 +547,18 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>,
         > = BTreeMap::new();
         let mut total_nodes = 0usize;
+        let modules_basename = config
+            .modules_dir
+            .file_name()
+            .map(std::ffi::OsStr::to_os_string)
+            .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
         for (importer_id, importer_manifest) in &importer_manifests {
             let project_dir = importer_manifest
                 .path()
                 .parent()
                 .expect("manifest path always has a parent dir")
                 .to_path_buf();
+            let importer_modules_dir = project_dir.join(&modules_basename);
             let importer_opts = ResolveImporterOptions {
                 auto_install_peers: config.auto_install_peers,
                 auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
@@ -582,6 +588,9 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     ..ResolveOptions::default()
                 },
                 catalogs: catalogs.clone(),
+                exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                lockfile_dir: Some(lockfile_dir.to_path_buf()),
+                modules_dir: Some(importer_modules_dir),
             };
             let importer_result = resolve_importer(
                 &*resolver,
@@ -1039,10 +1048,7 @@ fn build_fresh_lockfile(
         graph,
         auto_install_peers: config.auto_install_peers,
         dedupe_peers: config.dedupe_peers,
-        // `excludeLinksFromLockfile` isn't ported to pacquet's `Config`
-        // yet. Default to `false` — matches upstream's default and
-        // round-trips cleanly through `@pnpm/lockfile.settings-checker`.
-        exclude_links_from_lockfile: false,
+        exclude_links_from_lockfile: config.exclude_links_from_lockfile,
         overrides: config
             .overrides
             .as_ref()

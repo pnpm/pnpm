@@ -108,7 +108,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
     for (id, input) in &importer_inputs {
-        importers.insert(id.clone(), build_importer(input, graph));
+        importers.insert(id.clone(), build_importer(input, graph, exclude_links_from_lockfile));
     }
 
     Lockfile {
@@ -137,7 +137,20 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
 /// the manifest decides which dep group each alias lives under, and the
 /// resolver decides the resolved version (peer-suffixed when peers are
 /// involved, alias-prefixed when the alias and real name differ).
-fn build_importer(input: &ImporterLockfileInput<'_>, graph: &DependenciesGraph) -> ProjectSnapshot {
+///
+/// When `exclude_links_from_lockfile` is `true`, a `link:` direct
+/// dependency is omitted from the importer's `specifiers` and
+/// `dependencies` / `devDependencies` / `optionalDependencies` maps
+/// — unless its manifest specifier starts with `workspace:`, which
+/// still records the resolved workspace-sibling target so the
+/// lockfile stays a complete description of the workspace graph.
+/// Mirrors upstream's
+/// [exclude-link gate](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L449-L456).
+fn build_importer(
+    input: &ImporterLockfileInput<'_>,
+    graph: &DependenciesGraph,
+    exclude_links_from_lockfile: bool,
+) -> ProjectSnapshot {
     let manifest = input.manifest;
     let direct = &input.direct_dependencies_by_alias;
 
@@ -167,6 +180,9 @@ fn build_importer(input: &ImporterLockfileInput<'_>, graph: &DependenciesGraph) 
         // direct deps must be present in the graph — a missing entry
         // means the resolver dropped the edge, so skip.
         let version = if let Some(target) = dep_path.as_str().strip_prefix("link:") {
+            if exclude_links_from_lockfile && !specifier.starts_with("workspace:") {
+                continue;
+            }
             ImporterDepVersion::Link(target.to_string())
         } else {
             let Some(node) = graph.get(dep_path) else { continue };

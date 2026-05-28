@@ -138,6 +138,7 @@ impl WorkspaceSettings {
         string_field!(registry, "REGISTRY");
         json_field!(auto_install_peers, "AUTO_INSTALL_PEERS");
         json_field!(auto_install_peers_from_highest_match, "AUTO_INSTALL_PEERS_FROM_HIGHEST_MATCH");
+        json_field!(exclude_links_from_lockfile, "EXCLUDE_LINKS_FROM_LOCKFILE");
         json_field!(hoist_workspace_packages, "HOIST_WORKSPACE_PACKAGES");
         json_field!(hoisting_limits, "HOISTING_LIMITS");
         json_field!(external_dependencies, "EXTERNAL_DEPENDENCIES");

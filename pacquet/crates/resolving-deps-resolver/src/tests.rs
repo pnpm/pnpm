@@ -1596,6 +1596,108 @@ mod peers {
             "purePkgs short-circuit must leave the revisit's lazy children un-realized",
         );
     }
+
+    /// Ported from upstream pnpm's
+    /// [`path to external link is not added to the lockfile, when it resolves a peer dependency`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L224-L243)
+    /// e2e test, narrowed to the peer-resolution slice.
+    ///
+    /// Scenario: a registry package `abc` peer-depends on `peer-a`. The
+    /// importer also depends on `peer-a` via a bare `link:` to an
+    /// external directory (outside the lockfile root). With
+    /// `excludeLinksFromLockfile = true`, the link's parent-ref node
+    /// id gets remapped to `link:node_modules/peer-a`, the peer suffix
+    /// uses `link_path_to_peer_version("node_modules/peer-a") =
+    /// "node_modules+peer-a"`, and the snapshot child edge for the
+    /// peer points at the same `link:node_modules/peer-a` instead of
+    /// the original absolute path.
+    #[tokio::test]
+    async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
+        use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+        use pacquet_resolving_resolver_base::PkgResolutionId;
+
+        let link_id = "link:/abs/external";
+        let mut table = HashMap::new();
+        table.insert(
+            ("abc".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "abc",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "abc",
+                    "version": "1.0.0",
+                    "peerDependencies": { "peer-a": "*" },
+                }),
+            ),
+        );
+        // `link:` direct dep — the local resolver normally fills this
+        // shape; the tests stub it out directly. `name_ver = None`
+        // matches the local resolver's behavior (the package name is
+        // read from the manifest, not the id).
+        table.insert(
+            ("peer-a".to_string(), "link:/abs/external".to_string()),
+            pacquet_resolving_resolver_base::ResolveResult {
+                id: PkgResolutionId::from(link_id.to_string()),
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(
+                    serde_json::json!({ "name": "peer-a", "version": "1.0.0" }),
+                )),
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: "/abs/external".to_string(),
+                }),
+                resolved_via: "local-filesystem".to_string(),
+                normalized_bare_specifier: None,
+                alias: Some("peer-a".to_string()),
+                policy_violation: None,
+            },
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "abc": "1.0.0",
+            "peer-a": "link:/abs/external",
+        }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .expect("resolve tree");
+
+        let lockfile_dir = std::path::PathBuf::from("/tmp/lockfile-dir");
+        let modules_dir = lockfile_dir.join("node_modules");
+        let result = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                peers_suffix_max_length: 1000,
+                dedupe_peers: false,
+                exclude_links_from_lockfile: true,
+                lockfile_dir: Some(lockfile_dir),
+                modules_dir: Some(modules_dir),
+            },
+        );
+
+        let abc_dep_path =
+            result.direct_dependencies_by_alias.get("abc").cloned().expect("abc is a direct dep");
+        assert_eq!(
+            abc_dep_path,
+            DepPath::from("abc@1.0.0(peer-a@node_modules+peer-a)".to_string()),
+            "abc's peer suffix encodes `<modules_dir-relative>/<alias>` via link_path_to_peer_version",
+        );
+        let abc_node = result.graph.get(&abc_dep_path).expect("abc node in graph");
+        let peer_child =
+            abc_node.children.get("peer-a").expect("abc snapshot has a peer-a child edge");
+        assert_eq!(
+            peer_child,
+            &DepPath::from("link:node_modules/peer-a".to_string()),
+            "snapshot child ref reuses the remapped link node id verbatim",
+        );
+    }
 }
 
 mod patched_dependencies {
