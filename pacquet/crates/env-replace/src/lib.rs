@@ -1,4 +1,4 @@
-//! Environment-variable substitution in `.npmrc` values.
+//! Environment-variable substitution for pnpm-style `${VAR}` placeholders.
 //!
 //! Ports pnpm's [`@pnpm/config.env-replace`](https://github.com/pnpm/components/blob/9c2bd17/config/env-replace/env-replace.ts):
 //! occurrences of `${VAR}` (with optional `${VAR:-default}` fallback) are
@@ -22,12 +22,43 @@
 //!   pnpm's behaviour even though plain shell `${VAR:-default}` would
 //!   also use the default for the empty case.
 //!
-//! Production callers thread `Host` (which delegates to
-//! `std::env::var`) through the turbofish slot. Tests provide their
-//! own per-test unit struct, per the DI pattern from
+//! The env lookup is threaded through the [`EnvVar`] capability trait so
+//! callers can drive every branch (set, unset, empty) with local fakes
+//! instead of mutating the real process environment. Production callers
+//! thread [`SystemEnv`] (which delegates to `std::env::var`) through the
+//! turbofish slot; `pacquet-config` threads its broader `Host` provider
+//! instead, per the DI pattern from
 //! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
 
-use crate::api::EnvVar;
+/// Capability: read a process environment variable as a UTF-8 string.
+///
+/// `pnpm` resolves `${VAR}` placeholders inside `.npmrc` against the
+/// process environment in
+/// [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/loadNpmrcFiles.ts#L156-L162);
+/// the lookup is routed through this trait so unit tests can drive every
+/// branch (set, unset, empty) with local fakes instead of mutating the
+/// real process environment.
+pub trait EnvVar {
+    /// Return the value of the named environment variable, or `None`
+    /// when it is unset. Implementations should treat invalid UTF-8
+    /// as `None` to match `std::env::var`'s behaviour, which is what
+    /// pnpm itself observes via Node's `process.env`.
+    fn var(name: &str) -> Option<String>;
+}
+
+/// Production [`EnvVar`] provider: reads the real process environment via
+/// [`std::env::var`].
+///
+/// Consumers that don't have their own capability provider thread this
+/// through the turbofish slot (e.g. `env_replace_lossy::<SystemEnv>(raw)`).
+/// `pacquet-config` threads its own multi-capability `Host` instead.
+pub struct SystemEnv;
+
+impl EnvVar for SystemEnv {
+    fn var(name: &str) -> Option<String> {
+        std::env::var(name).ok()
+    }
+}
 
 /// Replace every `${VAR}` (or `${VAR:-default}`) placeholder in `text` with
 /// the value [`Sys::var`] returns. Placeholders that have no value and no
@@ -44,7 +75,7 @@ use crate::api::EnvVar;
 /// dropped to `""`.
 ///
 /// [`Sys::var`]: EnvVar::var
-pub(crate) fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
+pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
     let bytes = text.as_bytes();
     let mut output = String::with_capacity(text.len());
     let mut unresolved = Vec::new();

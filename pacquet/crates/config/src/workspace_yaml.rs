@@ -1,10 +1,11 @@
 use crate::{
     Config, LinkWorkspacePackages, NodeLinker, PackageImportMethod, ScriptsPrependNodePath,
-    TrustPolicy, api::EnvVar, env_replace::env_replace_lossy, resolve_child_concurrency,
+    TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
+use pacquet_env_replace::env_replace_lossy;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_store_dir::StoreDir;
 use pipe_trait::Pipe;

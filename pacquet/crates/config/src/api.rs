@@ -23,19 +23,10 @@ use std::{
 
 /// Capability: read a process environment variable as a UTF-8 string.
 ///
-/// `pnpm` resolves `${VAR}` placeholders inside `.npmrc` against the
-/// process environment in
-/// [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/loadNpmrcFiles.ts#L156-L162);
-/// pacquet routes that lookup through this trait so unit tests can
-/// drive every branch (set, unset, empty) with local fakes instead
-/// of mutating the real process environment.
-pub trait EnvVar {
-    /// Return the value of the named environment variable, or `None`
-    /// when it is unset. Implementations should treat invalid UTF-8
-    /// as `None` to match `std::env::var`'s behaviour, which is what
-    /// pnpm itself observes via Node's `process.env`.
-    fn var(name: &str) -> Option<String>;
-}
+/// Defined in [`pacquet-env-replace`] and re-exported here so this crate's
+/// callers keep importing it from `pacquet_config` alongside the other
+/// capability traits. [`Host`] implements it for production code.
+pub use pacquet_env_replace::EnvVar;
 
 /// Capability: read a process environment variable as a raw
 /// [`OsString`]. Used for env vars whose value is a filesystem path
