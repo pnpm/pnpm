@@ -437,18 +437,12 @@ mod tests {
 
         assert_eq!(substitute_env_vars("", lookup), "");
         assert_eq!(substitute_env_vars("plain string", lookup), "plain string");
-        assert_eq!(
-            substitute_env_vars("var: ${PNPR_TEST_VAR_1}", lookup),
-            "var: hello"
-        );
+        assert_eq!(substitute_env_vars("var: ${PNPR_TEST_VAR_1}", lookup), "var: hello");
         assert_eq!(
             substitute_env_vars("vars: ${PNPR_TEST_VAR_1} and ${PNPR_TEST_VAR_2}", lookup),
             "vars: hello and world"
         );
-        assert_eq!(
-            substitute_env_vars("unset: ${PNPR_TEST_VAR_UNSET}", lookup),
-            "unset: "
-        );
+        assert_eq!(substitute_env_vars("unset: ${PNPR_TEST_VAR_UNSET}", lookup), "unset: ");
         assert_eq!(
             substitute_env_vars("default: ${PNPR_TEST_VAR_UNSET:-default_val}", lookup),
             "default: default_val"
