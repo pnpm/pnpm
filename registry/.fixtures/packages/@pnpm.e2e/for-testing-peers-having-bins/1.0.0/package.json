@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/for-testing-peers-having-bins",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/pkg-with-peer-having-bin": "*",
+    "@pnpm.e2e/peer-with-bin": "*"
+  }
+}

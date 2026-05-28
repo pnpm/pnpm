@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/only-darwin-arm64",
+  "version": "1.0.0",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ]
+}

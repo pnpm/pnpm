@@ -1,0 +1,5 @@
+{
+  "name": "@foo/touch-file-one-bin",
+  "version": "1.0.0",
+  "bin": "cli.js"
+}

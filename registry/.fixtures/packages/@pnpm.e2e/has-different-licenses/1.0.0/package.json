@@ -1,0 +1,6 @@
+{
+  "name": "@pnpm.e2e/has-different-licenses",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": "Some Author"
+}

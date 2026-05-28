@@ -1049,7 +1049,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
 /// [`peerDependencies.ts:1181-1255`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/installing/deps-installer/test/install/peerDependencies.ts#L1181-L1255).
 #[tokio::test]
 async fn auto_install_peers_does_not_cascade_optional_peers() {
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
 
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
@@ -1146,7 +1146,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
 /// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/installing/deps-installer/test/install/peerDependencies.ts#L1257-L1323).
 #[tokio::test]
 async fn auto_install_peers_skips_meta_only_optional_peers() {
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
 
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
@@ -5567,7 +5567,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
 /// (which covers the negative direction).
 #[tokio::test]
 async fn optimistic_repeat_install_round_trips_on_single_project_install() {
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
 
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
@@ -5712,7 +5712,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
 /// [`crate::FreshnessCheckError::Stale`]).
 #[tokio::test]
 async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
 
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");

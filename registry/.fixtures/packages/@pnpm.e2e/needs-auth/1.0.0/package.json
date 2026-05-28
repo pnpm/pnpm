@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/needs-auth",
+  "version": "1.0.0",
+  "bin": {
+    "hello-from-needs-auth": "./hello.js"
+  }
+}

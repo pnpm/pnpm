@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm.e2e/only-linux-x64-musl",
+  "version": "1.0.0",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "musl"
+  ]
+}

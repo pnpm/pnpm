@@ -1,6 +1,6 @@
 use base64::{Engine, engine::general_purpose};
 use flate2::{Compression, write::GzEncoder};
-use node_semver::Version;
+use node_semver::{Range, Version};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256, Sha512};
 use std::{
@@ -179,7 +179,7 @@ impl PackageVersion {
             .and_then(Value::as_str)
             .expect("fixture package.json has string version")
             .to_string();
-        let tarball = build_tarball(root, package_dir);
+        let tarball = build_tarball(root, package_dir, &manifest);
         let integrity =
             format!("sha512-{}", general_purpose::STANDARD.encode(Sha512::digest(&tarball)));
         let tarball_name = format!("{}-{version}.tgz", tarball_basename(&name));
@@ -197,20 +197,114 @@ fn fixture_manifests(root: &Path) -> Vec<PathBuf> {
     fixture_files(root)
         .into_iter()
         .map(walkdir::DirEntry::into_path)
-        .filter(|path| path.file_name().is_some_and(|name| name == "package.json"))
+        .filter(|path| {
+            path.file_name().is_some_and(|name| name == "package.json")
+                && is_version_dir(path.parent())
+        })
         .collect()
 }
 
-fn build_tarball(root: &Path, package_dir: &Path) -> Vec<u8> {
+// A `package.json` is a package manifest only when it sits directly inside a
+// `<version>` directory. Nested manifests (bundled `node_modules`, file
+// dependencies like `has-local-dep/local-dep`) are package contents, not
+// separate packages.
+fn is_version_dir(dir: Option<&Path>) -> bool {
+    dir.and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| Version::parse(name).is_ok())
+}
+
+fn build_tarball(root: &Path, package_dir: &Path, manifest: &Value) -> Vec<u8> {
+    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
     let gzip = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(gzip);
     for entry in fixture_files(package_dir) {
         let relative = entry.path().strip_prefix(package_dir).expect("fixture entry under package");
         let path_in_archive = Path::new("package").join(relative);
-        append_file(&mut tar, root, entry.path(), &path_in_archive);
+        let content = fs::read(entry.path()).expect("read fixture file");
+        let mode = file_mode(root, entry.path(), &content).expect("read fixture file mode");
+        append_file(&mut tar, &path_in_archive, &content, mode);
+    }
+    // Files whose names differ only by case cannot coexist in a case-insensitive
+    // working tree (the default on macOS and Windows), so they are composed into
+    // the archive here instead of being committed as colliding fixture files.
+    for (relative, content) in in_memory_files(name) {
+        let path_in_archive = Path::new("package").join(relative);
+        append_file(&mut tar, &path_in_archive, content.as_bytes(), 0o644);
+    }
+    // `bundleDependencies` packages publish their resolved dependency tree inside
+    // the tarball's `node_modules`. registry-mock produces this with a
+    // `prepublishOnly` install; reproduce it here so `node_modules` (gitignored)
+    // never has to be committed.
+    for (relative, content, mode) in bundled_node_modules(root, manifest) {
+        let path_in_archive = Path::new("package").join(relative);
+        append_file(&mut tar, &path_in_archive, &content, mode);
     }
     let gzip = tar.into_inner().expect("finish tar archive");
     gzip.finish().expect("finish gzip archive")
+}
+
+fn in_memory_files(name: &str) -> &'static [(&'static str, &'static str)] {
+    match name {
+        "@pnpm.e2e/with-same-file-in-different-cases" => {
+            &[("Foo.js", "// Foo.js\n"), ("foo.js", "// foo.js\n")]
+        }
+        _ => &[],
+    }
+}
+
+fn bundled_node_modules(root: &Path, manifest: &Value) -> Vec<(PathBuf, Vec<u8>, u32)> {
+    let mut files = Vec::new();
+    for dep in bundled_dependency_names(manifest) {
+        let spec = manifest
+            .get("dependencies")
+            .and_then(|deps| deps.get(&dep))
+            .and_then(Value::as_str)
+            .unwrap_or("*");
+        let Some(version) = resolve_fixture_version(root, &dep, spec) else { continue };
+        let dep_dir = root.join(&dep).join(&version);
+        for entry in fixture_files(&dep_dir) {
+            let relative = entry
+                .path()
+                .strip_prefix(&dep_dir)
+                .expect("bundled dependency entry under dep dir");
+            let archive = Path::new("node_modules").join(&dep).join(relative);
+            let content = fs::read(entry.path()).expect("read bundled dependency file");
+            let mode =
+                file_mode(root, entry.path(), &content).expect("bundled dependency file mode");
+            files.push((archive, content, mode));
+        }
+    }
+    files
+}
+
+fn bundled_dependency_names(manifest: &Value) -> Vec<String> {
+    let bundled =
+        manifest.get("bundleDependencies").or_else(|| manifest.get("bundledDependencies"));
+    match bundled {
+        Some(Value::Bool(true)) => manifest
+            .get("dependencies")
+            .and_then(Value::as_object)
+            .map(|deps| deps.keys().cloned().collect())
+            .unwrap_or_default(),
+        Some(Value::Array(names)) => {
+            names.iter().filter_map(|name| name.as_str().map(String::from)).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn resolve_fixture_version(root: &Path, dep: &str, spec: &str) -> Option<String> {
+    let range = Range::parse(spec).ok()?;
+    let mut best: Option<(Version, String)> = None;
+    for entry in fs::read_dir(root.join(dep)).ok()? {
+        let raw = entry.ok()?.file_name().to_string_lossy().into_owned();
+        let Ok(version) = Version::parse(&raw) else { continue };
+        if range.satisfies(&version) && best.as_ref().is_none_or(|(best, _)| version > *best) {
+            best = Some((version, raw));
+        }
+    }
+    best.map(|(_, raw)| raw)
 }
 
 fn fixture_files(root: &Path) -> Vec<walkdir::DirEntry> {
@@ -225,16 +319,15 @@ fn fixture_files(root: &Path) -> Vec<walkdir::DirEntry> {
 
 fn append_file<Writer: Write>(
     tar: &mut tar::Builder<Writer>,
-    root: &Path,
-    source: &Path,
     path_in_archive: &Path,
+    content: &[u8],
+    mode: u32,
 ) {
-    let content = fs::read(source).expect("read fixture file");
     let mut header = tar::Header::new_gnu();
     header.set_size(content.len() as u64);
-    header.set_mode(file_mode(root, source, &content).expect("read fixture file mode"));
+    header.set_mode(mode);
     header.set_cksum();
-    tar.append_data(&mut header, path_in_archive, content.as_slice()).expect("append fixture file");
+    tar.append_data(&mut header, path_in_archive, content).expect("append fixture file");
 }
 
 fn file_mode(root: &Path, source: &Path, content: &[u8]) -> io::Result<u32> {
@@ -269,6 +362,20 @@ fn latest_version<'a>(versions: impl Iterator<Item = &'a String>) -> Option<Stri
 #[cfg(test)]
 mod tests {
     use super::{ensure_storage, latest_version, packages_dir};
+    use std::{collections::BTreeSet, path::Path};
+
+    fn tarball_entries(tarball: &Path) -> BTreeSet<String> {
+        let bytes = std::fs::read(tarball).expect("read fixture tarball");
+        let mut archive =
+            tar::Archive::new(flate2::read::GzDecoder::new(std::io::Cursor::new(bytes)));
+        archive
+            .entries()
+            .expect("read tar entries")
+            .map(|entry| {
+                entry.expect("read tar entry").path().expect("tar entry path").display().to_string()
+            })
+            .collect()
+    }
 
     #[test]
     fn latest_version_uses_semver_prerelease_order() {
@@ -283,5 +390,41 @@ mod tests {
         assert!(packages_dir().join("is-positive/1.0.0/package.json").exists());
         assert!(storage.join("is-positive/package.json").exists());
         assert!(storage.join("is-positive/is-positive-1.0.0.tgz").exists());
+    }
+
+    // Both case variants land in the tarball even though a case-insensitive
+    // working tree cannot hold `Foo.js` and `foo.js` side by side on disk.
+    #[test]
+    fn case_colliding_files_are_composed_in_memory() {
+        let storage = ensure_storage();
+        let entries = tarball_entries(&storage.join(
+            "@pnpm.e2e/with-same-file-in-different-cases/with-same-file-in-different-cases-1.0.0.tgz",
+        ));
+        assert!(entries.contains("package/Foo.js"), "{entries:?}");
+        assert!(entries.contains("package/foo.js"), "{entries:?}");
+    }
+
+    // `bundleDependencies` packages embed the resolved dependency in the
+    // tarball's `node_modules`, reproduced by the builder so the gitignored
+    // `node_modules` never needs to be committed.
+    #[test]
+    fn bundle_dependencies_embed_node_modules() {
+        let storage = ensure_storage();
+        let bundled =
+            tarball_entries(&storage.join(
+                "@pnpm.e2e/pkg-with-bundle-dependencies/pkg-with-bundle-dependencies-1.0.0.tgz",
+            ));
+        assert!(
+            bundled.contains("package/node_modules/@pnpm.e2e/hello-world-js-bin/package.json"),
+            "{bundled:?}",
+        );
+
+        let not_bundled = tarball_entries(&storage.join(
+            "@pnpm.e2e/pkg-with-bundle-dependencies-false/pkg-with-bundle-dependencies-false-1.0.0.tgz",
+        ));
+        assert!(
+            !not_bundled.iter().any(|entry| entry.contains("node_modules")),
+            "bundleDependencies:false must not embed node_modules: {not_bundled:?}",
+        );
     }
 }
