@@ -49,6 +49,15 @@ pub struct TarballWrite {
     final_path: PathBuf,
 }
 
+/// A reserved (tmp_path, final_path) pair for a tarball write. The
+/// publish flow writes the tarball to `tmp_path` inside a blocking
+/// task, then renames via [`Cache::finalize_tarball_slot`].
+#[derive(Debug)]
+pub struct TarballSlot {
+    pub tmp_path: PathBuf,
+    pub final_path: PathBuf,
+}
+
 impl TarballWrite {
     /// Sync the file to disk and rename it to its final cache path.
     pub async fn finalize(self) -> Result<()> {
@@ -146,6 +155,35 @@ impl Cache {
         let tmp_path = unique_tmp_path(&final_path);
         let file = fs::File::create(&tmp_path).await?;
         Ok(TarballWrite { file, tmp_path, final_path })
+    }
+
+    /// Reserve a tmp/final path pair for a tarball write without
+    /// opening the file. Used by the publish flow, which streams the
+    /// decode + hash + write through `std::fs` inside
+    /// `spawn_blocking` and only needs the paths.
+    pub async fn reserve_tarball_paths(
+        &self,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<TarballSlot> {
+        let final_path = self.tarball_path(name, filename);
+        if let Some(parent) = final_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        let tmp_path = unique_tmp_path(&final_path);
+        Ok(TarballSlot { tmp_path, final_path })
+    }
+
+    /// Atomically promote a tmp tarball written by the publish flow to
+    /// its final cache path. Mirrors what [`TarballWrite::finalize`]
+    /// does, minus the `sync_all` (the blocking task that wrote the
+    /// file already synced it).
+    pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
+        if let Some(parent) = slot.final_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        fs::rename(&slot.tmp_path, &slot.final_path).await?;
+        Ok(())
     }
 
     /// Remove the entire package directory. Returns `Ok(false)` if it

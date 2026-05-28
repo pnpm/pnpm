@@ -58,6 +58,15 @@ impl PackageName {
     /// libnpmpublish's `@scope/name-1.0.0.tgz` attachment lands on
     /// disk under the same path the GET endpoint serves.
     pub fn canonicalize_tarball_name(&self, filename: &str) -> Result<String, RegistryError> {
+        self.parse_tarball_name(filename).map(|(canonical, _)| canonical)
+    }
+
+    /// Like [`Self::canonicalize_tarball_name`] but also returns the
+    /// version segment extracted from the filename. The publish
+    /// handler uses the version to look up `versions[v].dist` and
+    /// verify the tarball's integrity against what the packument
+    /// declares.
+    pub fn parse_tarball_name(&self, filename: &str) -> Result<(String, String), RegistryError> {
         let invalid = || RegistryError::InvalidTarballName {
             package: self.raw.clone(),
             filename: filename.to_string(),
@@ -73,7 +82,7 @@ impl PackageName {
         if !is_safe_segment(version) {
             return Err(invalid());
         }
-        Ok(format!("{}-{}.tgz", self.basename, version))
+        Ok((format!("{}-{}.tgz", self.basename, version), version.to_string()))
     }
 }
 

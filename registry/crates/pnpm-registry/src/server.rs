@@ -16,7 +16,9 @@ use crate::config::Config;
 use crate::error::RegistryError;
 use crate::package_name::PackageName;
 use crate::policy::{AccessRule, PackagePolicies};
-use crate::publish::{extract_attachments, merge_manifest, now_iso};
+use crate::publish::{
+    PendingAttachment, extract_attachments, merge_manifest, now_iso, stream_decode_verify_and_write,
+};
 use crate::streaming;
 use crate::upstream::{
     FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
@@ -568,19 +570,28 @@ async fn publish_package(
         Err(err) => return error_response(&err),
     };
 
-    // Validate attachment filenames against the package name so a
-    // crafted payload can't write `../../etc/passwd.tgz`. The
-    // canonical name is what we actually persist — for scoped
-    // libnpmpublish bodies the wire form is `@scope/name-version.tgz`
+    // Resolve each attachment's canonical disk filename + matching
+    // `versions[v].dist` block. Attachment names that don't match the
+    // package (`bar-1.0.0.tgz` for `foo`) or that try to escape the
+    // package dir (`../../etc/passwd.tgz`) are rejected here, before
+    // any I/O. The canonical name is what we actually persist — for
+    // scoped libnpmpublish bodies the wire form is `@scope/name-version.tgz`
     // but on disk it lives at `<root>/@scope/name/name-version.tgz`,
     // matching what `serve_tarball` expects.
-    let mut canonical_attachments = Vec::with_capacity(attachments.len());
+    let mut prepared: Vec<(PendingAttachment, String, Value)> =
+        Vec::with_capacity(attachments.len());
     for attachment in attachments {
-        let canonical = match name.canonicalize_tarball_name(&attachment.filename) {
-            Ok(canonical) => canonical,
+        let (canonical, version) = match name.parse_tarball_name(&attachment.filename) {
+            Ok(parsed) => parsed,
             Err(err) => return error_response(&err),
         };
-        canonical_attachments.push((canonical, attachment.bytes));
+        let dist = incoming
+            .get("versions")
+            .and_then(|versions| versions.get(&version))
+            .and_then(|manifest| manifest.get("dist"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        prepared.push((attachment, canonical, dist));
     }
 
     // Seed the merge from whatever the upstream knows about the
@@ -609,17 +620,54 @@ async fn publish_package(
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
+    // `incoming` is no longer needed; drop it so the base64 strings
+    // inside go away as soon as `prepared` (which owns each one) is
+    // drained below.
+    drop(incoming);
 
-    // Write attachments first; if the packument write succeeds but
-    // we never wrote the tarball, the registry will 404 anyway.
-    // Doing tarballs first avoids the symmetric race where the
-    // packument advertises a tarball that isn't on disk yet.
-    for (filename, bytes) in canonical_attachments {
-        let tmp = match state.inner.cache.open_tarball_tmp(&name, &filename).await {
-            Ok(t) => t,
-            Err(err) => return error_response(&err),
+    // Stream-decode + verify + write each tarball. A mismatch — or a
+    // missing integrity field — short-circuits the publish with a
+    // 400; any tmp files written before the failure get removed
+    // along the way so a bad upload leaves no on-disk artifact.
+    //
+    // Tarballs are written before the packument so a successful
+    // packument write never advertises a tarball that's missing from
+    // disk.
+    let mut written_slots = Vec::with_capacity(prepared.len());
+    for (attachment, canonical, dist) in prepared {
+        let slot = match state.inner.cache.reserve_tarball_paths(&name, &canonical).await {
+            Ok(slot) => slot,
+            Err(err) => {
+                cleanup_tmp_slots(written_slots).await;
+                return error_response(&err);
+            }
         };
-        if let Err(err) = write_tarball_bytes(tmp, &bytes).await {
+        let PendingAttachment { filename, data, declared_length } = attachment;
+        let tmp_path = slot.tmp_path.clone();
+        let dist_for_task = (!dist.is_null()).then_some(dist);
+        let result = tokio::task::spawn_blocking(move || {
+            let dist_ref = dist_for_task.as_ref();
+            stream_decode_verify_and_write(&filename, &data, declared_length, dist_ref, &tmp_path)
+        })
+        .await;
+        match result {
+            Ok(Ok(_)) => written_slots.push(slot),
+            Ok(Err(err)) => {
+                cleanup_tmp_slots(written_slots).await;
+                return error_response(&err);
+            }
+            Err(join_err) => {
+                let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+                cleanup_tmp_slots(written_slots).await;
+                return error_response(&RegistryError::Io(std::io::Error::other(
+                    join_err.to_string(),
+                )));
+            }
+        }
+    }
+
+    for slot in written_slots {
+        if let Err(err) = state.inner.cache.finalize_tarball_slot(slot).await {
             return error_response(&err);
         }
     }
@@ -637,14 +685,14 @@ async fn publish_package(
         .expect("static-shape response always builds")
 }
 
-async fn write_tarball_bytes(
-    tmp: crate::cache::TarballWrite,
-    bytes: &[u8],
-) -> Result<(), RegistryError> {
-    use tokio::io::AsyncWriteExt;
-    let mut tmp = tmp;
-    tmp.file.write_all(bytes).await?;
-    tmp.finalize().await
+/// Remove every tmp tarball file that a partially-completed publish
+/// already wrote. Errors are swallowed: the caller is already
+/// returning an error response, and a leftover `*.tmp.*` file is
+/// harmless beyond a small amount of disk.
+async fn cleanup_tmp_slots(slots: Vec<crate::cache::TarballSlot>) {
+    for slot in slots {
+        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+    }
 }
 
 /// `GET /-/v1/search?text=...&size=...` — npm search v1 endpoint.
