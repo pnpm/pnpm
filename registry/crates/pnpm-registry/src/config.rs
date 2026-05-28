@@ -378,7 +378,10 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
 
 /// Scans the raw YAML config string and replaces `${VAR}` or `${VAR:-DEFAULT}`
 /// with the environment variable value, or the default, or empty string.
-fn substitute_env_vars<F: Fn(&str) -> Option<String>>(raw: &str, lookup: F) -> String {
+fn substitute_env_vars<LookupEnv: Fn(&str) -> Option<String>>(
+    raw: &str,
+    lookup: LookupEnv,
+) -> String {
     let mut result = String::new();
     let mut chars = raw.char_indices().peekable();
     while let Some((_, c)) = chars.next() {
