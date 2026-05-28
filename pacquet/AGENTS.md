@@ -377,9 +377,11 @@ are part of the public contract, not implementation detail. See
   reformat unrelated code.
 - Reference the upstream pnpm commit/PR you ported from, when applicable.
 - Run `just ready` before pushing.
-- The repo installs a pre-push hook via `just install-hooks` that runs
-  `rustfmt` and `taplo`. Make sure your environment can run cargo (the
-  hook needs it) before pushing.
+- The repo-wide husky `pre-push` hook runs `pacquet/scripts/pre-push-rust.sh`,
+  which checks `rustfmt`, `taplo`, `cargo doc` (with
+  `RUSTDOCFLAGS=-D warnings`), and `cargo dylint`. Make sure your environment
+  can run cargo (the hook needs it) before pushing; `cargo-dylint` is
+  detected at runtime and skipped with a warning if not installed.
 
 ### Commit messages
 

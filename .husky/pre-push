@@ -1,1 +1,1 @@
-pnpm run compile-only && pnpm run lint --quiet
+pnpm run compile-only && pnpm run lint --quiet && bash pacquet/scripts/pre-push-rust.sh
