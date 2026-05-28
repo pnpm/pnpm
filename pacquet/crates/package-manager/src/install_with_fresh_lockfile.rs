@@ -599,6 +599,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
+            manifest_hook: package_extensions_hook.clone(),
         };
         let modules_basename = config
             .modules_dir

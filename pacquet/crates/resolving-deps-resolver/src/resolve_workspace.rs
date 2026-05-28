@@ -24,8 +24,10 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::Resolver;
 
 use crate::{
+    resolve_dependency_tree::{ManifestHook, WorkspaceTreeCtx},
     resolve_importer::{
-        ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
+        ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
+        resolve_importer_with_workspace,
     },
     resolve_peers::{
         ImporterPeerInput, ResolvePeersOptions, WorkspaceResolvePeersResult,
@@ -56,17 +58,20 @@ pub struct WorkspaceResolveOptions {
     pub exclude_links_from_lockfile: bool,
     pub lockfile_dir: PathBuf,
     pub peers_suffix_max_length: usize,
+    /// `readPackageHook` applied to every resolved manifest before it
+    /// enters the wanted-dep cache. Workspace-wide (one hook per
+    /// install); the install layer typically threads
+    /// `packageExtensions` here. See [`ManifestHook`].
+    pub manifest_hook: Option<ManifestHook>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
 /// [`WorkspaceResolvePeersResult`] holds the cross-importer graph + the
-/// per-importer `direct_dependencies_by_alias` map; the per-importer
-/// resolved-tree slices are retained so callers that need the
-/// `policy_violations` / `applied_patches` sets can read them off the
-/// per-importer entries.
+/// per-importer `direct_dependencies_by_alias` map; `merged_tree`
+/// carries the shared `ResolvedTree` snapshot the workspace ctx
+/// produced after every importer's walk folded into the shared maps.
 pub struct ResolveWorkspaceResult {
     pub merged_tree: ResolvedTree,
-    pub per_importer_trees: Vec<ResolvedTree>,
     pub peers: WorkspaceResolvePeersResult,
 }
 
@@ -96,31 +101,41 @@ where
         exclude_links_from_lockfile,
         lockfile_dir,
         peers_suffix_max_length,
+        manifest_hook,
     } = opts;
-    let mut per_importer_trees: Vec<ResolvedTree> = Vec::with_capacity(importers.len());
+    let workspace = Arc::new(WorkspaceTreeCtx::default().with_manifest_hook(manifest_hook));
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
     for importer in importers {
         let importer_opts = per_importer_options(importer);
         let project_dir = importer_opts.base_opts.project_dir.clone();
         let modules_dir = importer_opts.modules_dir.clone();
-        let ResolveImporterResult { resolved_tree, .. } = resolve_importer(
+        let ResolveImporterResult { resolved_tree, .. } = resolve_importer_with_workspace(
             resolver,
             importer.manifest,
             dependency_groups.iter().copied(),
             importer_opts,
+            Arc::clone(&workspace),
         )
         .await?;
-        let direct = resolved_tree.direct.clone();
+        let direct = resolved_tree.direct;
         per_importer_inputs.push(ImporterPeerInput {
             id: importer.id.clone(),
             direct,
             root_dir: project_dir,
             modules_dir,
         });
-        per_importer_trees.push(resolved_tree);
     }
 
-    let mut merged_tree = merge_trees(&per_importer_trees);
+    // Reclaim the workspace ctx now that every per-importer
+    // `resolve_importer_with_workspace` call has dropped its
+    // `Arc<WorkspaceTreeCtx>`. The `try_unwrap` succeeds when this is
+    // the sole remaining `Arc` reference (the common case); the
+    // fallback snapshots out via the shared `Arc` for parity.
+    let mut merged_tree = match Arc::try_unwrap(workspace) {
+        Ok(ws) => ws.into_resolved_tree(Vec::new()),
+        Err(arc) => arc.snapshot(Vec::new()),
+    };
+
     let peer_opts = ResolvePeersOptions {
         peers_suffix_max_length,
         dedupe_peers,
@@ -139,38 +154,5 @@ where
         peer_opts,
     );
 
-    Ok(ResolveWorkspaceResult { merged_tree, per_importer_trees, peers })
-}
-
-/// Combine every importer's [`ResolvedTree`] into one shared tree the
-/// multi-importer peer walker walks against. Counter-allocated NodeIds
-/// are globally unique (see [`crate::NodeId::next`]); leaf NodeIds for
-/// the same package id unify naturally. The `optional` AND-fold across
-/// duplicate `ResolvedPackage` entries mirrors upstream's same fold
-/// inside `resolveDependencies`.
-fn merge_trees(trees: &[ResolvedTree]) -> ResolvedTree {
-    let mut merged = ResolvedTree::default();
-    for tree in trees {
-        for (id, pkg) in &tree.packages {
-            merged
-                .packages
-                .entry(id.clone())
-                .and_modify(|existing| existing.optional = existing.optional && pkg.optional)
-                .or_insert_with(|| pkg.clone());
-        }
-        for (node_id, node) in &tree.dependencies_tree {
-            merged.dependencies_tree.entry(node_id.clone()).or_insert_with(|| node.clone());
-        }
-        for name in &tree.all_peer_dep_names {
-            merged.all_peer_dep_names.insert(name.clone());
-        }
-        for key in &tree.applied_patches {
-            merged.applied_patches.insert(key.clone());
-        }
-        for (id, edges) in &tree.children_by_id {
-            merged.children_by_id.entry(id.clone()).or_insert_with(|| Arc::clone(edges));
-        }
-        merged.policy_violations.extend(tree.policy_violations.iter().cloned());
-    }
-    merged
+    Ok(ResolveWorkspaceResult { merged_tree, peers })
 }

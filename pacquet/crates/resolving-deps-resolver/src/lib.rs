@@ -45,13 +45,17 @@
 //!
 //! This is intentionally a thin slice of upstream:
 //!
-//! - **`TreeCtx` is per-importer.** `base_opts.project_dir` varies per
-//!   importer, so each [`fn@resolve_importer`] call still constructs
-//!   its own `TreeCtx` (the cross-importer cache it could otherwise
-//!   amortise is the resolved-pkgs map). The cross-importer cache that
-//!   matters most for the peer walk — `peersCache` + `purePkgs` —
-//!   already shares via the single workspace-wide
-//!   [`fn@resolve_peers_workspace`] call.
+//! - **Shared workspace ctx.** [`fn@resolve_workspace`] constructs one
+//!   [`WorkspaceTreeCtx`] and hands an `Arc::clone` to every per-importer
+//!   [`TreeCtx`], so the resolver's per-`pkgIdWithPatchHash` dedup
+//!   (`packages`, `resolved_by_wanted`, `children_specs_by_id`,
+//!   `children_by_id`) and the peer-walker seed sets
+//!   (`all_peer_dep_names`, `applied_patches`) carry across importers.
+//!   `base_opts.project_dir` stays per-importer on each [`TreeCtx`] so
+//!   transitive local-protocol resolutions keep the right anchor. The
+//!   downstream [`fn@resolve_peers_workspace`] then walks every
+//!   importer's direct deps through one Walker so `peersCache` +
+//!   `purePkgs` share the same way.
 //! - **No catalog / hook / lockfile-pinned-version bias.** The
 //!   resolver is fed each child's manifest range verbatim. Lockfile-
 //!   seeded preferred versions arrive via the orchestrator's
@@ -79,11 +83,12 @@ pub use hoist_peers::{
 pub use node_id::NodeId;
 pub use pacquet_deps_path::DepPath;
 pub use resolve_dependency_tree::{
-    ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions, TreeCtx, extend_tree,
-    resolve_dependency_tree,
+    ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions, TreeCtx,
+    WorkspaceTreeCtx, extend_tree, resolve_dependency_tree,
 };
 pub use resolve_importer::{
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
+    resolve_importer_with_workspace,
 };
 pub use resolve_peers::{
     ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult, WorkspaceResolvePeersResult,

@@ -473,13 +473,16 @@ fn link_one_importer<Reporter: self::Reporter>(
             ImporterDepVersion::Regular(ver) => Some(ver.version().to_string()),
             ImporterDepVersion::Alias(alias) => Some(alias.suffix.version().to_string()),
             ImporterDepVersion::Link(target) => Some(format!("link:{target}")),
+            ImporterDepVersion::File(target) => Some(format!("file:{target}")),
         };
         // For aliases, `real_name` is the resolved package's true
-        // name (different from the importer-map key). For
-        // `Regular` and `Link` deps, the two match.
+        // name (different from the importer-map key). For the
+        // other arms the two match.
         let real_name = match &spec.version {
             ImporterDepVersion::Alias(alias) => alias.name.to_string(),
-            ImporterDepVersion::Regular(_) | ImporterDepVersion::Link(_) => name.to_string(),
+            ImporterDepVersion::Regular(_)
+            | ImporterDepVersion::Link(_)
+            | ImporterDepVersion::File(_) => name.to_string(),
         };
         Reporter::emit(&LogEvent::Root(RootLog {
             level: LogLevel::Debug,
@@ -667,6 +670,18 @@ fn resolve_target_path(
                 project_dir.join(candidate)
             };
             pacquet_fs::lexical_normalize(&joined)
+        }
+        ImporterDepVersion::File(_) => {
+            // Injected workspace dep that didn't dedupe back to
+            // `link:` — the importer entry references a virtual-store
+            // slot keyed by `(importer_key, file:<payload>)`. Route
+            // through `resolved_key` so the layout's GVS-suffix map
+            // sees the same key the snapshot writer used.
+            let dep_key = spec
+                .version
+                .resolved_key(name)
+                .expect("File arm always produces a resolved_key");
+            layout.slot_dir(&dep_key).join("node_modules").join(name_str)
         }
     }
 }

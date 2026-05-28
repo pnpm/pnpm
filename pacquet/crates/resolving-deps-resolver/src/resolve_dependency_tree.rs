@@ -243,7 +243,7 @@ pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> 
         .collect()
 }
 
-/// Cache key for [`TreeCtx::resolved_by_wanted`].
+/// Cache key for [`WorkspaceTreeCtx`]'s `resolved_by_wanted` map.
 ///
 /// The npm-shaped slice pacquet exposes today calls
 /// [`Resolver::resolve`] with four [`WantedDependency`] fields
@@ -282,63 +282,35 @@ type WantedKey = (Option<String>, Option<String>, Option<bool>, Option<bool>);
 /// meta from any manifest.
 pub(crate) type WantedSpec = (String, String, bool, bool);
 
-/// One entry in [`TreeCtx::children_specs_by_id`] —
+/// One entry in [`WorkspaceTreeCtx`]'s `children_specs_by_id` map —
 /// `(child_alias, child_range, child_optional)` triples extracted from
 /// a resolved package's manifest's `dependencies` plus
 /// `optionalDependencies` sections.
 type ChildSpec = (String, String, bool);
 
-/// Mutable workspace for an in-flight tree walk. The orchestrator
-/// (`resolve_importer`) holds one of these across hoist iterations and
-/// extends it via [`extend_tree`] so newly-hoisted peer dependencies
-/// reuse the existing per-id dedup map instead of restarting the walk.
-pub struct TreeCtx {
-    base_opts: ResolveOptions,
+/// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
+/// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
+/// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,
+/// `children_specs_by_id`, `children_by_id`, `resolved_by_wanted`) and
+/// the peer-walker's seed sets (`all_peer_dep_names`,
+/// `applied_patches`, `policy_violations`) carry across importers.
+/// Mirrors the single shared `ctx` pnpm's
+/// [`resolveDependencyTree`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencyTree.ts#L180-L233)
+/// hands to every importer's hoist loop.
+///
+/// `dependencies_tree` (`NodeId → DependenciesTreeNode`) is keyed by
+/// per-occurrence NodeIds, which are unique even across importers, so
+/// every importer's walk contributes entries to one combined tree
+/// without colliding.
+pub struct WorkspaceTreeCtx {
     packages: Mutex<HashMap<String, ResolvedPackage>>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     all_peer_dep_names: Mutex<HashSet<String>>,
     policy_violations: Mutex<Vec<pacquet_resolving_resolver_base::ResolutionPolicyViolation>>,
-    /// Configured `patchedDependencies` (already grouped by name).
-    /// Shared by `Arc` so the lookup table doesn't get cloned per
-    /// recursive call. `None` when no patches are configured for this
-    /// install.
-    patched_dependencies: Option<Arc<PatchGroupRecord>>,
-    /// Keys of the `patchedDependencies` entries whose patch was
-    /// matched against at least one resolved package. Mirrors upstream's
-    /// `ctx.appliedPatches`.
     applied_patches: Mutex<HashSet<String>>,
-    /// Memoised [`Resolver::resolve`] results keyed by the parts of
-    /// [`WantedDependency`] the npm slice actually populates (see
-    /// [`WantedKey`]).
-    ///
-    /// pnpm's `resolveDependencies` carries the equivalent skip via the
-    /// [`isNew` gate](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1584) —
-    /// the second time a `pkgIdWithPatchHash` is reached, the walker
-    /// reuses the existing `resolvedPkgsById` envelope and never
-    /// re-enters the resolver chain. pacquet shortcuts at the layer
-    /// above that (the wanted-dep edge) because a `(name, range)`
-    /// pair that's already been resolved doesn't need
-    /// `pick_package`'s in-memory packument lookup, cache-key
-    /// formatting, or semver matching repeated. On the `alotta-files`
-    /// fixture this collapses the ~3 redundant `resolver.resolve()`
-    /// calls per package the tree walk used to drive into one.
     resolved_by_wanted:
         Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
-    /// Cached `extract_children` output keyed by `pkgIdWithPatchHash`.
-    /// First visit walks the manifest's `dependencies` /
-    /// `optionalDependencies`; subsequent visits clone the `Arc` and
-    /// skip the JSON traversal. Paired with [`Self::resolved_by_wanted`]
-    /// so a revisit's per-call CPU is two HashMap lookups and an
-    /// `Arc::clone`.
     children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
-    /// Per-`pkgIdWithPatchHash` cache of `(alias, child_pkg_id,
-    /// optional)` produced by the first walk. Threaded out via
-    /// [`ResolvedTree::children_by_id`] so the peer-resolver's
-    /// `realize_children` can expand a [`crate::TreeChildren::Lazy`]
-    /// node without re-running the resolver chain. See [`ChildEdge`]
-    /// for the field layout.
-    ///
-    /// [`ChildEdge`]: crate::ChildEdge
     children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
     /// `readPackageHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. See [`ManifestHook`] for the
@@ -346,17 +318,13 @@ pub struct TreeCtx {
     manifest_hook: Option<ManifestHook>,
 }
 
-impl TreeCtx {
-    /// Construct an empty context. Calls to [`extend_tree`] populate
-    /// `packages` / `dependencies_tree` / `all_peer_dep_names`.
-    pub fn new(base_opts: ResolveOptions) -> Self {
-        TreeCtx {
-            base_opts,
+impl Default for WorkspaceTreeCtx {
+    fn default() -> Self {
+        WorkspaceTreeCtx {
             packages: Mutex::new(HashMap::new()),
             dependencies_tree: Mutex::new(HashMap::new()),
             all_peer_dep_names: Mutex::new(HashSet::new()),
             policy_violations: Mutex::new(Vec::new()),
-            patched_dependencies: None,
             applied_patches: Mutex::new(HashSet::new()),
             resolved_by_wanted: Mutex::new(HashMap::new()),
             children_specs_by_id: Mutex::new(HashMap::new()),
@@ -364,17 +332,24 @@ impl TreeCtx {
             manifest_hook: None,
         }
     }
+}
 
-    /// Attach the install's `patchedDependencies` map. When `Some`,
-    /// the per-node walker looks every resolved `name@version` up via
-    /// [`get_patch_info`] and appends `(patch_hash=<hash>)` to the
-    /// `pkgIdWithPatchHash` on a match.
-    pub fn with_patched_dependencies(
-        mut self,
-        patched_dependencies: Option<Arc<PatchGroupRecord>>,
-    ) -> Self {
-        self.patched_dependencies = patched_dependencies;
-        self
+impl WorkspaceTreeCtx {
+    /// Snapshot the workspace context into a [`ResolvedTree`] without
+    /// consuming `self`. `direct` carries the combined direct-dep
+    /// envelopes the caller built up across importers; multi-importer
+    /// orchestration usually leaves this empty and threads per-importer
+    /// direct deps separately into [`fn@crate::resolve_peers_workspace`].
+    pub fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
+        ResolvedTree {
+            direct,
+            packages: lock_recoverable(&self.packages).clone(),
+            dependencies_tree: lock_recoverable(&self.dependencies_tree).clone(),
+            all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
+            policy_violations: lock_recoverable(&self.policy_violations).clone(),
+            applied_patches: lock_recoverable(&self.applied_patches).clone(),
+            children_by_id: lock_recoverable(&self.children_by_id).clone(),
+        }
     }
 
     /// Attach a `readPackageHook` applied to every resolved manifest
@@ -385,15 +360,12 @@ impl TreeCtx {
         self
     }
 
-    /// Take ownership of `self` and emit the final [`ResolvedTree`]
-    /// the peer-resolution stage consumes. The orchestrator passes its
-    /// cumulative [`DirectDep`] list (initial walk + each hoist
-    /// iteration's contributions) as `direct`.
+    /// Take ownership of `self` and emit the final [`ResolvedTree`].
+    /// Pacquet's single-importer path consumes the context via
+    /// [`TreeCtx::into_resolved_tree`], which routes through here once
+    /// the last `Arc<WorkspaceTreeCtx>` reference is the [`TreeCtx`]'s
+    /// own.
     pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
-        // `std::sync::Mutex::into_inner` returns `Result` to surface
-        // poisoning; recover from it the same way the per-acquire
-        // `lock_recoverable` helper does so a panic in an unrelated
-        // task doesn't escalate into a hard install failure here.
         ResolvedTree {
             direct,
             packages: self.packages.into_inner().unwrap_or_else(|err| err.into_inner()),
@@ -416,21 +388,107 @@ impl TreeCtx {
             children_by_id: self.children_by_id.into_inner().unwrap_or_else(|err| err.into_inner()),
         }
     }
+}
+
+/// Mutable workspace for an in-flight tree walk. The orchestrator
+/// (`resolve_importer`) holds one of these across hoist iterations and
+/// extends it via [`extend_tree`] so newly-hoisted peer dependencies
+/// reuse the existing per-id dedup map instead of restarting the walk.
+///
+/// The shared per-`pkgIdWithPatchHash` dedup maps live on
+/// [`WorkspaceTreeCtx`] behind an `Arc`. In single-importer mode this
+/// `Arc` is sole-owned by [`TreeCtx`]; in multi-importer mode
+/// `Arc::clone(&workspace)` is handed to every per-importer
+/// [`TreeCtx`] so importer N's tree walk reuses importer M's resolved
+/// envelopes via the shared maps.
+pub struct TreeCtx {
+    base_opts: ResolveOptions,
+    workspace: Arc<WorkspaceTreeCtx>,
+    /// Configured `patchedDependencies` (already grouped by name).
+    /// Shared by `Arc` so the lookup table doesn't get cloned per
+    /// recursive call. `None` when no patches are configured for this
+    /// install.
+    patched_dependencies: Option<Arc<PatchGroupRecord>>,
+}
+
+impl TreeCtx {
+    /// Construct a single-importer context with a fresh
+    /// [`WorkspaceTreeCtx`]. The multi-importer orchestrator uses
+    /// [`Self::with_workspace`] instead so per-importer contexts share
+    /// the same workspace ctx.
+    pub fn new(base_opts: ResolveOptions) -> Self {
+        TreeCtx {
+            base_opts,
+            workspace: Arc::new(WorkspaceTreeCtx::default()),
+            patched_dependencies: None,
+        }
+    }
+
+    /// Construct a per-importer context that shares its dedup maps
+    /// with `workspace`. The caller is responsible for keeping
+    /// `workspace` alive across importers (typically via
+    /// `Arc::clone(&workspace)`).
+    pub fn with_workspace(workspace: Arc<WorkspaceTreeCtx>, base_opts: ResolveOptions) -> Self {
+        TreeCtx { base_opts, workspace, patched_dependencies: None }
+    }
+
+    /// Borrow the shared workspace ctx so callers can hand the same
+    /// `Arc::clone` to the next per-importer [`TreeCtx`].
+    pub fn workspace(&self) -> &Arc<WorkspaceTreeCtx> {
+        &self.workspace
+    }
+
+    /// Attach the install's `patchedDependencies` map. When `Some`,
+    /// the per-node walker looks every resolved `name@version` up via
+    /// [`get_patch_info`] and appends `(patch_hash=<hash>)` to the
+    /// `pkgIdWithPatchHash` on a match.
+    pub fn with_patched_dependencies(
+        mut self,
+        patched_dependencies: Option<Arc<PatchGroupRecord>>,
+    ) -> Self {
+        self.patched_dependencies = patched_dependencies;
+        self
+    }
+
+    /// Attach a `readPackageHook` to the underlying [`WorkspaceTreeCtx`].
+    /// `manifest_hook` is workspace-wide (one hook per install), so this
+    /// passthrough relies on the workspace ctx being sole-owned —
+    /// `TreeCtx::new` always satisfies that, and the multi-importer
+    /// orchestrator [`fn@crate::resolve_workspace`] hands the hook in via
+    /// [`WorkspaceTreeCtx::with_manifest_hook`] before sharing the
+    /// `Arc`. Panics if the workspace ctx has already been cloned —
+    /// callers must set the hook before sharing the context.
+    pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
+        Arc::get_mut(&mut self.workspace)
+            .expect(
+                "with_manifest_hook called after the workspace ctx was shared via Arc::clone",
+            )
+            .manifest_hook = manifest_hook;
+        self
+    }
+
+    /// Take ownership of `self` and emit the final [`ResolvedTree`]
+    /// the peer-resolution stage consumes. The orchestrator passes its
+    /// cumulative [`DirectDep`] list (initial walk + each hoist
+    /// iteration's contributions) as `direct`.
+    ///
+    /// When the [`WorkspaceTreeCtx`] is sole-owned by this context
+    /// (single-importer install) the inner mutex contents move
+    /// directly into the [`ResolvedTree`]; otherwise the maps are
+    /// cloned out via [`WorkspaceTreeCtx::snapshot`].
+    pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
+        match Arc::try_unwrap(self.workspace) {
+            Ok(ws) => ws.into_resolved_tree(direct),
+            Err(arc) => arc.snapshot(direct),
+        }
+    }
 
     /// Build a snapshot of the current tree state without consuming
     /// `self`. The orchestrator's hoist loop snapshots after each
     /// [`extend_tree`] call to run [`fn@crate::resolve_peers`] over the
     /// growing tree and find missing peers to hoist next.
     pub fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
-        ResolvedTree {
-            direct,
-            packages: lock_recoverable(&self.packages).clone(),
-            dependencies_tree: lock_recoverable(&self.dependencies_tree).clone(),
-            all_peer_dep_names: lock_recoverable(&self.all_peer_dep_names).clone(),
-            policy_violations: lock_recoverable(&self.policy_violations).clone(),
-            applied_patches: lock_recoverable(&self.applied_patches).clone(),
-            children_by_id: lock_recoverable(&self.children_by_id).clone(),
-        }
+        self.workspace.snapshot(direct)
     }
 
     /// Iterate over every `(name, version)` pair the walk has resolved
@@ -438,7 +496,7 @@ impl TreeCtx {
     /// in sync — mirrors upstream's resolveDependency-time push at
     /// [`resolveDependencies.ts:1440`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1440).
     pub fn resolved_versions(&self) -> Vec<(String, String)> {
-        lock_recoverable(&self.packages)
+        lock_recoverable(&self.workspace.packages)
             .values()
             .filter_map(|pkg| {
                 let name_ver = pkg.result.name_ver.as_ref()?;
@@ -538,7 +596,8 @@ where
     // `ResolveResult`).
     let cache_key: WantedKey =
         (wanted.alias.clone(), wanted.bare_specifier.clone(), wanted.optional, wanted.injected);
-    let cached = lock_recoverable(&ctx.resolved_by_wanted).get(&cache_key).map(Arc::clone);
+    let cached =
+        lock_recoverable(&ctx.workspace.resolved_by_wanted).get(&cache_key).map(Arc::clone);
     let result = match cached {
         Some(result) => result,
         None => {
@@ -558,7 +617,7 @@ where
             // call at the resolveDependency seam. The hook clones the
             // inner `Value` only when it modifies it, so unrelated
             // manifests keep sharing the resolver's cached `Arc`.
-            if let Some(hook) = ctx.manifest_hook.as_ref()
+            if let Some(hook) = ctx.workspace.manifest_hook.as_ref()
                 && let Some(manifest) = result_inner.manifest.take()
             {
                 result_inner.manifest = Some(hook(manifest));
@@ -569,7 +628,7 @@ where
             // graph node share one heap-allocated `ResolveResult`
             // instead of cloning every `String` field per occurrence.
             let result = Arc::new(result);
-            lock_recoverable(&ctx.resolved_by_wanted)
+            lock_recoverable(&ctx.workspace.resolved_by_wanted)
                 .entry(cache_key)
                 .or_insert_with(|| Arc::clone(&result));
             result
@@ -577,7 +636,7 @@ where
     };
 
     if let Some(violation) = result.policy_violation.clone() {
-        lock_recoverable(&ctx.policy_violations).push(violation);
+        lock_recoverable(&ctx.workspace.policy_violations).push(violation);
     }
 
     if ctx.base_opts.block_exotic_subdeps
@@ -616,7 +675,7 @@ where
     // arm. The `is_revisit` flag flows into the children handling
     // below: a revisit can produce a [`TreeChildren::Lazy`] node
     // because the first visit already populated
-    // [`TreeCtx::children_by_id`] for this pkg, and revisits don't
+    // [`WorkspaceTreeCtx`]'s `children_by_id` for this pkg, and revisits don't
     // discover new transitive packages.
     // Leaves (no deps / optional deps / peers / peerDependenciesMeta)
     // reuse the package id as their `NodeId`, collapsing every parent
@@ -646,7 +705,7 @@ where
 
     let is_revisit;
     {
-        let mut packages = lock_recoverable(&ctx.packages);
+        let mut packages = lock_recoverable(&ctx.workspace.packages);
         match packages.get_mut(&id) {
             Some(existing) => {
                 existing.optional = existing.optional && current_is_optional;
@@ -658,7 +717,7 @@ where
                 // Collect peer names for the peer-resolution stage's
                 // `parentPkgs` filter (only peers count as parents).
                 {
-                    let mut all_peers = lock_recoverable(&ctx.all_peer_dep_names);
+                    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
                     for name in peer_dependencies.keys() {
                         all_peers.insert(name.clone());
                     }
@@ -709,14 +768,14 @@ where
         // a miss. The cache value is held by `Arc` so revisits clone the
         // refcount instead of the inner `Vec<(String, String, bool)>`.
         let child_specs = {
-            let cache = lock_recoverable(&ctx.children_specs_by_id);
+            let cache = lock_recoverable(&ctx.workspace.children_specs_by_id);
             cache.get(&id).map(Arc::clone)
         };
         let child_specs = match child_specs {
             Some(specs) => specs,
             None => {
                 let specs = Arc::new(extract_children(&result)?);
-                lock_recoverable(&ctx.children_specs_by_id)
+                lock_recoverable(&ctx.workspace.children_specs_by_id)
                     .entry(id.clone())
                     .or_insert_with(|| Arc::clone(&specs));
                 specs
@@ -765,7 +824,9 @@ where
             });
             realized.insert(dep.alias, dep.node_id);
         }
-        lock_recoverable(&ctx.children_by_id).entry(id.clone()).or_insert_with(|| Arc::new(by_id));
+        lock_recoverable(&ctx.workspace.children_by_id)
+            .entry(id.clone())
+            .or_insert_with(|| Arc::new(by_id));
         crate::resolved_tree::TreeChildren::Realized(realized)
     };
 
@@ -780,7 +841,7 @@ where
     // short-circuits them in `resolve_node`. Mirrors upstream's
     // `depth: -1` on the `isLinkedDependency` arm.
     let node_depth = if is_link { -1 } else { depth };
-    lock_recoverable(&ctx.dependencies_tree)
+    lock_recoverable(&ctx.workspace.dependencies_tree)
         .entry(node_id.clone())
         .and_modify(|node| {
             if node.depth > node_depth {
@@ -907,7 +968,7 @@ async fn build_pkg_id_with_patch_hash(
     let Some(patch) = get_patch_info(Some(groups), &name, &version)? else {
         return Ok(prefixed);
     };
-    lock_recoverable(&ctx.applied_patches).insert(patch.key.clone());
+    lock_recoverable(&ctx.workspace.applied_patches).insert(patch.key.clone());
     Ok(format!("{prefixed}(patch_hash={})", patch.hash))
 }
 
