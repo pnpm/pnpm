@@ -142,6 +142,7 @@ impl WorkspaceSettings {
         json_field!(hoisting_limits, "HOISTING_LIMITS");
         json_field!(external_dependencies, "EXTERNAL_DEPENDENCIES");
         json_field!(dedupe_peer_dependents, "DEDUPE_PEER_DEPENDENTS");
+        json_field!(dedupe_peers, "DEDUPE_PEERS");
         json_field!(strict_peer_dependencies, "STRICT_PEER_DEPENDENCIES");
         json_field!(resolve_peers_from_workspace_root, "RESOLVE_PEERS_FROM_WORKSPACE_ROOT");
         json_field!(block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");

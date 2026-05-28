@@ -36,6 +36,7 @@ fn single_importer_opts<'a>(
         importers,
         graph,
         auto_install_peers,
+        dedupe_peers: false,
         exclude_links_from_lockfile,
         overrides,
         ignored_optional_dependencies,
@@ -170,6 +171,64 @@ fn fresh_install_records_a_single_direct_dependency() {
     assert!(snapshot.dependencies.is_none());
     assert!(snapshot.optional_dependencies.is_none());
     assert!(snapshot.transitive_peer_dependencies.is_none());
+}
+
+/// `dedupePeers: true` round-trips through the lockfile's
+/// `settings:` block; `false` (the default) omits the key entirely.
+/// Mirrors upstream's
+/// [`dedupePeers: opts.dedupePeers || undefined`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L602)
+/// and the
+/// [`'dedupePeers: version-only peer suffixes' install test`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/peerDependencies.ts#L2064-L2093)
+/// `expect(lockfile.settings.dedupePeers).toBe(true)` assertion. The
+/// omission case ports the
+/// [`lockfile/fs/test/write.test.ts:106-140`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/test/write.test.ts#L106-L140)
+/// `'dedupePeers' in (written.settings ?? {})` assertion.
+#[test]
+fn dedupe_peers_round_trips_through_lockfile_settings() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+    }));
+    let graph = DependenciesGraph::new();
+    let direct = BTreeMap::new();
+
+    let mut importers = BTreeMap::new();
+    importers.insert(
+        ".".to_string(),
+        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct.clone() },
+    );
+    let on = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        importers,
+        graph: &graph,
+        auto_install_peers: false,
+        dedupe_peers: true,
+        exclude_links_from_lockfile: false,
+        overrides: None,
+        ignored_optional_dependencies: None,
+    });
+    let on_settings = on.settings.as_ref().expect("settings written");
+    assert_eq!(on_settings.dedupe_peers, Some(true));
+    let on_yaml = serde_saphyr::to_string(on_settings).unwrap();
+    assert!(on_yaml.contains("dedupePeers: true"), "yaml: {on_yaml}");
+
+    let mut importers = BTreeMap::new();
+    importers.insert(
+        ".".to_string(),
+        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
+    );
+    let off = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        importers,
+        graph: &graph,
+        auto_install_peers: false,
+        dedupe_peers: false,
+        exclude_links_from_lockfile: false,
+        overrides: None,
+        ignored_optional_dependencies: None,
+    });
+    let off_settings = off.settings.as_ref().expect("settings written");
+    assert_eq!(off_settings.dedupe_peers, None);
+    let off_yaml = serde_saphyr::to_string(off_settings).unwrap();
+    assert!(!off_yaml.contains("dedupePeers"), "yaml: {off_yaml}");
 }
 
 /// `dev` and `optional` direct dependencies land in their own importer
@@ -805,6 +864,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         importers,
         graph: &graph,
         auto_install_peers: false,
+        dedupe_peers: false,
         exclude_links_from_lockfile: false,
         overrides: None,
         ignored_optional_dependencies: None,
@@ -925,6 +985,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         importers,
         graph: &graph,
         auto_install_peers: false,
+        dedupe_peers: false,
         exclude_links_from_lockfile: false,
         overrides: None,
         ignored_optional_dependencies: None,
@@ -1074,6 +1135,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         importers,
         graph: &graph,
         auto_install_peers: false,
+        dedupe_peers: false,
         exclude_links_from_lockfile: false,
         overrides: None,
         ignored_optional_dependencies: None,

@@ -88,11 +88,18 @@ pub struct ResolvePeersOptions {
     /// suffix for its short hash. Mirrors upstream's
     /// `peersSuffixMaxLength` (default 1000).
     pub peers_suffix_max_length: usize,
+    /// When `true`, every resolved-peer slot in the depPath suffix
+    /// renders as `name@version` instead of the peer's own depPath,
+    /// collapsing recursive peer suffixes like
+    /// `(foo@1.0.0(bar@2.0.0))` into `(foo@1.0.0)`. Mirrors pnpm's
+    /// [`dedupePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L990-L997)
+    /// branch in `peerNodeIdToPeerId`.
+    pub dedupe_peers: bool,
 }
 
 impl Default for ResolvePeersOptions {
     fn default() -> Self {
-        ResolvePeersOptions { peers_suffix_max_length: 1000 }
+        ResolvePeersOptions { peers_suffix_max_length: 1000, dedupe_peers: false }
     }
 }
 
@@ -811,11 +818,23 @@ impl<'tree> Walker<'tree> {
         }
     }
 
-    /// Build the [`PeerId`] contribution for one resolved peer. If the
-    /// peer's depPath is already in `node_dep_paths`, use it (the
-    /// `DepPath` form). Otherwise (the cycle path), fall back to
-    /// `name@version` from the resolved package.
+    /// Build the [`PeerId`] contribution for one resolved peer.
+    ///
+    /// With `dedupe_peers` enabled, always emit `name@version` from the
+    /// resolved package so recursive peer suffixes collapse — mirrors
+    /// pnpm's
+    /// [`peerNodeIdToPeerId` `dedupePeers` branch](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L990-L997).
+    /// Otherwise, prefer the peer's already-computed depPath
+    /// (`DepPath`), falling back to `name@version` only for the cycle
+    /// case where the depPath isn't known yet.
     fn build_peer_id(&self, peer_node_id: &NodeId) -> PeerId {
+        if self.opts.dedupe_peers
+            && let Some(tree_node) = self.tree.dependencies_tree.get(peer_node_id)
+            && let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id)
+        {
+            let (name, version) = pkg_name_version(&pkg.result);
+            return PeerId::Pair { name, version };
+        }
         if let Some(dep_path) = self.node_dep_paths.get(peer_node_id) {
             return PeerId::DepPath(dep_path.clone());
         }

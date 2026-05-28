@@ -60,6 +60,13 @@ pub struct GraphToLockfileOptions<'a> {
     /// so a subsequent pnpm install can compare its own settings via
     /// `@pnpm/lockfile.settings-checker`'s `getOutdatedLockfileSetting`.
     pub auto_install_peers: bool,
+    /// When `true`, the resolver ran with `dedupePeers` on and the
+    /// lockfile records `dedupePeers: true` in its `settings:` block.
+    /// When `false`, the key is omitted from the lockfile, mirroring
+    /// pnpm's
+    /// [`opts.dedupePeers || undefined`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L602)
+    /// shorthand.
+    pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
     /// `overrides` recorded into the lockfile so a later install can
     /// detect drift. Mirrors upstream's `lockfile.overrides` field.
@@ -89,6 +96,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         importers: importer_inputs,
         graph,
         auto_install_peers,
+        dedupe_peers,
         exclude_links_from_lockfile,
         overrides,
         ignored_optional_dependencies,
@@ -106,7 +114,11 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
             .expect("lockfileVersion 9.0 is always compatible with MAJOR=9"),
-        settings: Some(LockfileSettings { auto_install_peers, exclude_links_from_lockfile }),
+        settings: Some(LockfileSettings {
+            auto_install_peers,
+            dedupe_peers: dedupe_peers.then_some(true),
+            exclude_links_from_lockfile,
+        }),
         overrides: overrides.filter(|map| !map.is_empty()),
         ignored_optional_dependencies: ignored_optional_dependencies
             .filter(|list| !list.is_empty()),

@@ -49,6 +49,15 @@ pub type PackageKey = PkgNameVerPeer;
 #[serde(rename_all = "camelCase")]
 pub struct LockfileSettings {
     pub auto_install_peers: bool,
+    /// Recorded as `Some(true)` when the install ran with
+    /// `dedupePeers` on, omitted otherwise. Mirrors pnpm's
+    /// [`dedupePeers: opts.dedupePeers || undefined`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L602)
+    /// — the lockfile only carries the key when the setting is
+    /// active, so a switch from the default off to on triggers the
+    /// `getOutdatedLockfileSetting('settings.dedupePeers')` branch on
+    /// the next install.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dedupe_peers: Option<bool>,
     pub exclude_links_from_lockfile: bool,
 }
 
