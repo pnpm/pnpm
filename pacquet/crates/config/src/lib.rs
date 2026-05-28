@@ -596,6 +596,15 @@ pub struct Config {
     #[default = true]
     pub dedupe_peer_dependents: bool,
 
+    /// When `true`, peer-dependency suffixes in `depPath`s use
+    /// version-only identifiers (`name@version`) instead of recursive
+    /// dep paths, eliminating nested suffixes like
+    /// `(foo@1.0.0(bar@2.0.0))`. Mirrors pnpm's
+    /// [`dedupePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L218).
+    /// Default `false`, matching pnpm's
+    /// [`dedupe-peers`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/index.ts#L138).
+    pub dedupe_peers: bool,
+
     /// If this is enabled, commands will fail if there is a missing or invalid peer dependency in the tree.
     pub strict_peer_dependencies: bool,
 

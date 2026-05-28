@@ -154,6 +154,7 @@ pub struct WorkspaceSettings {
     /// parity. Empty / missing → no externals.
     pub external_dependencies: Option<BTreeSet<String>>,
     pub dedupe_peer_dependents: Option<bool>,
+    pub dedupe_peers: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
@@ -410,6 +411,7 @@ impl WorkspaceSettings {
         self.hoist_workspace_packages = None;
         self.link_workspace_packages = None;
         self.dedupe_peer_dependents = None;
+        self.dedupe_peers = None;
         self.strict_peer_dependencies = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
@@ -502,7 +504,7 @@ impl WorkspaceSettings {
             optimistic_repeat_install,
             hoist_workspace_packages,
             hoisting_limits, external_dependencies,
-            dedupe_peer_dependents, strict_peer_dependencies,
+            dedupe_peer_dependents, dedupe_peers, strict_peer_dependencies,
             resolve_peers_from_workspace_root, verify_store_integrity,
             block_exotic_subdeps,
             link_workspace_packages,

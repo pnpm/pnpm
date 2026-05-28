@@ -755,6 +755,119 @@ mod peers {
         );
     }
 
+    /// `dedupePeers: true` collapses recursive peer suffixes into
+    /// version-only identifiers. Without `dedupePeers`, a peer whose
+    /// resolution already carries a peer suffix (e.g. `@emotion/react`
+    /// resolved its own `react` peer first) leaks its nested suffix
+    /// into the consumer's depPath:
+    /// `@emotion/styled@11.0.0(@emotion/react@11.0.0(react@18.0.0))(react@18.0.0)`.
+    /// With `dedupePeers` on, the peer-id is `name@version` instead, so
+    /// the consumer's suffix stays flat:
+    /// `@emotion/styled@11.0.0(@emotion/react@11.0.0)(react@18.0.0)`.
+    /// Ports upstream's
+    /// [`'uses version-only peer suffixes without nested dep paths'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/test/resolvePeers.ts#L679-L756).
+    #[tokio::test]
+    async fn dedupe_peers_collapses_nested_peer_suffixes() {
+        let result = resolve_emotion_fixture(ResolvePeersOptions {
+            dedupe_peers: true,
+            ..ResolvePeersOptions::default()
+        })
+        .await;
+        let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "@emotion/react@11.0.0(react@18.0.0)".to_string(),
+                "@emotion/styled@11.0.0(@emotion/react@11.0.0)(react@18.0.0)".to_string(),
+                "react@18.0.0".to_string(),
+            ],
+        );
+    }
+
+    /// Opposite of [`dedupe_peers_collapses_nested_peer_suffixes`] — the
+    /// same fixture under `dedupePeers: false` keeps the nested peer
+    /// suffix on `@emotion/styled`'s depPath, proving the dedupe
+    /// branch is the only thing flipping the rendering.
+    #[tokio::test]
+    async fn no_dedupe_peers_keeps_nested_peer_suffixes() {
+        let result = resolve_emotion_fixture(ResolvePeersOptions::default()).await;
+        let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "@emotion/react@11.0.0(react@18.0.0)".to_string(),
+                "@emotion/styled@11.0.0(@emotion/react@11.0.0(react@18.0.0))(react@18.0.0)"
+                    .to_string(),
+                "react@18.0.0".to_string(),
+            ],
+        );
+    }
+
+    /// Shared fixture for the `dedupe_peers_*` pair: react@18 plus
+    /// `@emotion/react@11` (peer: react) plus `@emotion/styled@11`
+    /// (peers: react, @emotion/react). Mirrors upstream's
+    /// `dedupePeers` test fixture at the linked commit above.
+    async fn resolve_emotion_fixture(
+        opts: ResolvePeersOptions,
+    ) -> crate::resolve_peers::ResolvePeersResult {
+        let mut table = HashMap::new();
+        table.insert(
+            ("react".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react",
+                "18.0.0",
+                serde_json::json!({ "name": "react", "version": "18.0.0" }),
+            ),
+        );
+        table.insert(
+            ("@emotion/react".to_string(), "11.0.0".to_string()),
+            fake_result(
+                "@emotion/react",
+                "11.0.0",
+                serde_json::json!({
+                    "name": "@emotion/react",
+                    "version": "11.0.0",
+                    "peerDependencies": { "react": ">=16" }
+                }),
+            ),
+        );
+        table.insert(
+            ("@emotion/styled".to_string(), "11.0.0".to_string()),
+            fake_result(
+                "@emotion/styled",
+                "11.0.0",
+                serde_json::json!({
+                    "name": "@emotion/styled",
+                    "version": "11.0.0",
+                    "peerDependencies": {
+                        "react": ">=16",
+                        "@emotion/react": ">=11"
+                    }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "react": "18.0.0",
+            "@emotion/react": "11.0.0",
+            "@emotion/styled": "11.0.0",
+        }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+            },
+        )
+        .await
+        .unwrap();
+        resolve_peers(&mut tree, opts)
+    }
+
     /// Regression test for the post-walk peer-edge patch. With manifest
     /// order `{ react-dom: …, react: … }`, react-dom is walked before
     /// react and the peer's depPath isn't known yet at the time

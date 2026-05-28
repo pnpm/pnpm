@@ -557,6 +557,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 auto_install_peers: config.auto_install_peers,
                 auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
                 resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+                dedupe_peers: config.dedupe_peers,
                 all_preferred_versions: all_preferred_versions.clone(),
                 patched_dependencies: patched_dependencies.clone(),
                 base_opts: ResolveOptions {
@@ -1037,6 +1038,7 @@ fn build_fresh_lockfile(
         importers,
         graph,
         auto_install_peers: config.auto_install_peers,
+        dedupe_peers: config.dedupe_peers,
         // `excludeLinksFromLockfile` isn't ported to pacquet's `Config`
         // yet. Default to `false` — matches upstream's default and
         // round-trips cleanly through `@pnpm/lockfile.settings-checker`.

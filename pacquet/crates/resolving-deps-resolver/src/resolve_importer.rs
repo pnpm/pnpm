@@ -67,6 +67,11 @@ pub struct ResolveImporterOptions {
     /// as the root.
     pub resolve_peers_from_workspace_root: bool,
 
+    /// Threaded into [`ResolvePeersOptions::dedupe_peers`] on every
+    /// `resolve_peers` invocation inside the auto-install-peers loop.
+    /// See the field doc on [`ResolvePeersOptions`] for the behavior.
+    pub dedupe_peers: bool,
+
     /// Seed for the preferred-versions tie-break table. The
     /// orchestrator extends this in place as packages are walked —
     /// each newly-resolved `name@version` lands as a plain
@@ -130,11 +135,13 @@ where
         auto_install_peers,
         auto_install_peers_from_highest_match,
         resolve_peers_from_workspace_root,
+        dedupe_peers,
         mut all_preferred_versions,
         patched_dependencies,
         base_opts,
         catalogs,
     } = opts;
+    let peer_opts = ResolvePeersOptions { dedupe_peers, ..ResolvePeersOptions::default() };
 
     let ctx = TreeCtx::new(base_opts).with_patched_dependencies(patched_dependencies);
 
@@ -179,7 +186,7 @@ where
     loop {
         loop {
             let mut snapshot = ctx.snapshot(direct.clone());
-            let peers_result = resolve_peers(&mut snapshot, ResolvePeersOptions::default());
+            let peers_result = resolve_peers(&mut snapshot, peer_opts);
 
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &peers_result.peer_dependency_issues.missing,
@@ -260,7 +267,7 @@ where
     }
 
     let mut resolved_tree = ctx.into_resolved_tree(direct);
-    let peers_result = resolve_peers(&mut resolved_tree, ResolvePeersOptions::default());
+    let peers_result = resolve_peers(&mut resolved_tree, peer_opts);
     Ok(ResolveImporterResult { resolved_tree, peers_result })
 }
 
