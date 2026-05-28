@@ -1,6 +1,7 @@
 import path from 'node:path'
 import readline from 'node:readline'
 
+import { input, password as passwordPrompt } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
@@ -16,7 +17,6 @@ import {
   withOtpHandling,
 } from '@pnpm/network.web-auth'
 import { addUser, AddUserHttpError, AddUserNoTokenError } from '@pnpm/registry-access.client'
-import enquirer from 'enquirer'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
 import { renderHelp } from 'render-help'
@@ -87,13 +87,8 @@ export interface LoginDate {
 }
 
 export interface LoginEnquirer {
-  prompt: (options: LoginEnquirerOptions) => Promise<Record<string, string>>
-}
-
-export interface LoginEnquirerOptions {
-  message: string
-  name: string
-  type: string
+  input: (options: { message: string }) => Promise<string>
+  password: (options: { message: string }) => Promise<string>
 }
 
 export interface LoginFetchResponse {
@@ -145,7 +140,7 @@ export const DEFAULT_CONTEXT: LoginContext = {
   Date,
   setTimeout,
   createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
-  enquirer,
+  enquirer: { input, password: passwordPrompt },
   fetch,
   globalInfo,
   globalWarn,
@@ -285,21 +280,19 @@ async function classicLogin ({
 }: ClassicLoginParams): Promise<string> {
   const { enquirer, fetch, globalInfo, globalWarn } = context
 
-  const { username } = await enquirer.prompt({
-    message: 'Username:',
-    name: 'username',
-    type: 'input',
-  })
-  const { password } = await enquirer.prompt({
-    message: 'Password:',
-    name: 'password',
-    type: 'password',
-  })
-  const { email } = await enquirer.prompt({
-    message: 'Email (this IS public):',
-    name: 'email',
-    type: 'input',
-  })
+  let username: string
+  let password: string
+  let email: string
+  try {
+    username = await enquirer.input({ message: 'Username:' })
+    password = await enquirer.password({ message: 'Password:' })
+    email = await enquirer.input({ message: 'Email (this IS public):' })
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'ExitPromptError') {
+      throw new PnpmError('LOGIN_CANCELED', 'Login canceled')
+    }
+    throw err
+  }
 
   if (!username || !password || !email) {
     throw new LoginMissingCredentialsError()

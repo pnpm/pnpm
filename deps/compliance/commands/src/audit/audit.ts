@@ -1,4 +1,5 @@
-import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli.utils'
+import { checkbox, Separator } from '@inquirer/prompts'
+import { docsUrl, interactivePromptPageSize, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
@@ -8,14 +9,13 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
-import enquirer from 'enquirer'
 import { pick, pickBy } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { createAuditNetworkOptions, loadAuditContext } from './auditContext.js'
 import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
-import { type AuditChoiceRow, getAuditFixChoices } from './getAuditFixChoices.js'
+import { getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
 import { auditSignatures } from './signatures.js'
 
@@ -463,71 +463,67 @@ function filterAdvisoriesForFix (
 }
 
 async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditReport> {
-  const choices = getAuditFixChoices(Object.values(auditReport.advisories))
-  if (choices.length === 0) {
+  const choiceGroups = getAuditFixChoices(Object.values(auditReport.advisories))
+  if (choiceGroups.length === 0) {
     return auditReport
   }
-  const { selectedVulnerabilities } = await enquirer.prompt({
-    choices,
-    footer: '\nEnter to start fixing. Ctrl-c to cancel.',
-    indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-      return ` ${choice.enabled ? '●' : '○'}`
-    },
-    message: 'Choose which vulnerabilities to fix ' +
-      `(Press ${chalk.cyan('<space>')} to select, ` +
-      `${chalk.cyan('<a>')} to toggle all, ` +
-      `${chalk.cyan('<i>')} to invert selection)`,
-    name: 'selectedVulnerabilities',
-    pointer: '❯',
-    result () {
-      return this.selected
-    },
-    format () {
-      if (!this.state.submitted || this.state.cancelled) return ''
 
-      if (Array.isArray(this.selected)) {
-        return this.selected
-          .filter((choice: AuditChoiceRow) => !/^\[.+\]$/.test(choice.name))
-          .map((choice: AuditChoiceRow) => this.styles.primary(choice.name)).join(', ')
+  const flatChoices: Array<Separator | { name: string; value: string; disabled?: boolean | string }> = []
+  for (const group of choiceGroups) {
+    flatChoices.push(new Separator(chalk.bold(`── ${group.message} ──`)))
+    for (const choice of group.choices) {
+      if (choice.disabled) {
+        flatChoices.push(new Separator(`  ${choice.message ?? choice.name}`))
+      } else {
+        flatChoices.push({
+          name: choice.message,
+          value: choice.value,
+        })
       }
-      return this.styles.primary(this.selected.name)
-    },
-    styles: {
-      dark: chalk.reset,
-      em: chalk.bgBlack.whiteBright,
-      success: chalk.reset,
-    },
-    type: 'multiselect',
-    validate (value: string[]) {
-      if (value.length === 0) {
-        return 'You must choose at least one vulnerability.'
-      }
-      return true
-    },
-    j () {
-      return this.down()
-    },
-    k () {
-      return this.up()
-    },
-    cancel () {
-      // By default, canceling the prompt via Ctrl+c throws an empty string.
-      // The custom cancel function prevents that behavior.
-      // Otherwise, pnpm CLI would print an error and confuse users.
-      // See related issue: https://github.com/enquirer/enquirer/issues/225
+    }
+  }
+
+  const message = 'Choose which vulnerabilities to fix ' +
+    `(Press ${chalk.cyan('<space>')} to select, ` +
+    `${chalk.cyan('<a>')} to toggle all, ` +
+    `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start fixing. Ctrl-c to cancel.`
+  let selectedKeys: string[]
+  try {
+    selectedKeys = await checkbox({
+      choices: flatChoices,
+      pageSize: interactivePromptPageSize(),
+      message,
+      required: true,
+      validate: (values) => {
+        if (values.length === 0) {
+          return 'You must choose at least one vulnerability.'
+        }
+        return true
+      },
+      theme: {
+        icon: { checked: '●', unchecked: '○', cursor: '❯' },
+        style: {
+          highlight: (text: string) => text,
+        },
+        keybindings: ['vim'],
+      },
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ExitPromptError') {
       globalInfo('Audit fix canceled')
       process.exit(0)
-    },
-  } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
+    throw err
+  }
 
-  const selectedKeys = new Set(
-    (selectedVulnerabilities as AuditChoiceRow[]).map((c) => c.value)
-  )
+  const selectedKeySet = new Set(selectedKeys)
   const selectedAdvisories = Object.fromEntries(
     Object.entries(auditReport.advisories)
       .filter(([, advisory]) =>
-        selectedKeys.has(`${advisory.module_name}@${advisory.vulnerable_versions}`)
+        selectedKeySet.has(`${advisory.module_name}@${advisory.vulnerable_versions}`)
       )
   )
   return { ...auditReport, advisories: selectedAdvisories }
 }
+
+

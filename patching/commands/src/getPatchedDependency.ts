@@ -1,12 +1,12 @@
 import path from 'node:path'
 
+import { confirm, select } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/resolving.parse-wanted-dependency'
-import enquirer from 'enquirer'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
@@ -30,28 +30,27 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
 
   dep.alias = dep.alias ?? rawDependency
   if (preferredVersions.length > 1) {
-    const { version, applyToAll } = await enquirer.prompt<{
-      version: string
-      applyToAll: boolean
-    }>([{
-      type: 'select',
-      name: 'version',
-      message: 'Choose which version to patch',
-      choices: preferredVersions.map(preferred => ({
-        name: preferred.version,
-        message: preferred.version,
-        value: preferred.gitTarballUrl ?? preferred.version,
-        hint: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
-      })),
-      result (selected) {
-        const selectedVersion = preferredVersions.find(preferred => preferred.version === selected)!
-        return selectedVersion.gitTarballUrl ?? selected
-      },
-    }, {
-      type: 'confirm',
-      name: 'applyToAll',
-      message: 'Apply this patch to all versions?',
-    }])
+    let version: string
+    let applyToAll: boolean
+    try {
+      version = await select({
+        message: 'Choose which version to patch',
+        choices: preferredVersions.map(preferred => ({
+          name: preferred.version,
+          value: preferred.gitTarballUrl ?? preferred.version,
+          description: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
+        })),
+        theme: { keybindings: ['vim'] },
+      })
+      applyToAll = await confirm({
+        message: 'Apply this patch to all versions?',
+      })
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'ExitPromptError') {
+        throw new PnpmError('PATCH_CANCELED', 'Canceled')
+      }
+      throw err
+    }
     return {
       ...dep,
       applyToAll,

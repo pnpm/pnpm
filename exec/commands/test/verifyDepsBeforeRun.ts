@@ -15,15 +15,29 @@ jest.unstable_mockModule('@pnpm/logger', () => {
   }
 })
 
-jest.unstable_mockModule('enquirer', () => ({
-  default: {
-    prompt: jest.fn(),
-  },
-}))
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
+})
 
 const { run } = await import('@pnpm/exec.commands')
-const { default: enquirer } = await import('enquirer')
+const { confirm } = await import('@inquirer/prompts')
 const { globalWarn } = await import('@pnpm/logger')
+
+const mockConfirm = jest.mocked(confirm)
 
 const rootProjectManifest = {
   name: 'root',
@@ -84,8 +98,7 @@ test('log a warning if verifyDepsBeforeRun is set to warn', async () => {
 test('prompt the user if verifyDepsBeforeRun is set to prompt', async () => {
   prepare(rootProjectManifest)
 
-  // Mock the user confirming the prompt
-  jest.mocked(enquirer.prompt).mockResolvedValue({ runInstall: true })
+  mockConfirm.mockResolvedValue(true)
 
   const originalIsTTY = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
@@ -96,14 +109,14 @@ test('prompt the user if verifyDepsBeforeRun is set to prompt', async () => {
     Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
   }
 
-  expect(enquirer.prompt).toHaveBeenCalledWith({
-    type: 'confirm',
-    name: 'runInstall',
-    message: expect.stringContaining(
-      'Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file'
-    ),
-    initial: true,
-  })
+  expect(mockConfirm).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: expect.stringContaining(
+        'Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file'
+      ),
+      default: true,
+    })
+  )
 
   expect(fs.existsSync(path.resolve('node_modules'))).toBeTruthy()
 })

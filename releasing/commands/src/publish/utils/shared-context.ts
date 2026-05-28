@@ -1,10 +1,10 @@
 import readline from 'node:readline'
 
+import { input } from '@inquirer/prompts'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import ciInfo from 'ci-info'
-import enquirer from 'enquirer'
 import { publish as _publish } from 'libnpmpublish'
 
 import type { AuthTokenContext } from '../oidc/authToken.js'
@@ -32,7 +32,7 @@ export const SHARED_CONTEXT: SharedContext = {
   Date,
   createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
   ciInfo,
-  enquirer,
+  enquirer: { input },
   fetch,
   globalInfo,
   globalWarn,

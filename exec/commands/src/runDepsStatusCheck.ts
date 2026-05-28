@@ -1,9 +1,9 @@
+import { confirm } from '@inquirer/prompts'
 import type { Config, VerifyDepsBeforeRun } from '@pnpm/config.reader'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { globalWarn } from '@pnpm/logger'
-import enquirer from 'enquirer'
 
 export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
   dir: string
@@ -35,22 +35,21 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
           hint: 'Run "pnpm install" before running scripts. The "verifyDepsBeforeRun: prompt" setting cannot prompt for confirmation in non-interactive environments.',
         })
       }
-      let confirmed: { runInstall: boolean }
+      let confirmed: boolean
       try {
-        confirmed = await enquirer.prompt<{ runInstall: boolean }>({
-          type: 'confirm',
-          name: 'runInstall',
+        confirmed = await confirm({
           message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
 
 Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?`,
-          initial: true,
+          default: true,
         })
-      } catch {
-      // User cancelled the prompt (e.g. Ctrl+C) — exit immediately
-      // so the caller doesn't proceed to run the script.
-        process.exit(1)
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          process.exit(1)
+        }
+        throw err
       }
-      if (confirmed.runInstall) {
+      if (confirmed) {
         install()
       }
       break
