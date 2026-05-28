@@ -336,6 +336,66 @@ async fn logout_requires_auth() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
+/// Every auth-endpoint response — success, 401, 403, 404 alike —
+/// must mark itself uncacheable so an intermediary HTTP cache that
+/// ignores `Vary` can't latch onto one user's identity and serve it
+/// to another.
+#[tokio::test]
+async fn auth_endpoints_set_private_no_cache_headers() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+
+    // Bob's key — used to drive the 403 cross-user revoke branch below.
+    let response =
+        app.clone().oneshot(get_with_bearer("/-/npm/v1/tokens", &bob_token)).await.unwrap();
+    let bob_key =
+        body_json(response.into_body()).await["objects"][0]["key"].as_str().unwrap().to_string();
+
+    // (request, authenticated-or-not, expected-status). Each entry
+    // exercises a branch that must still carry the privacy headers.
+    let cases: Vec<(Request<Body>, StatusCode)> = vec![
+        (get_with_bearer("/-/whoami", &alice_token), StatusCode::OK),
+        (Request::get("/-/whoami").body(Body::empty()).unwrap(), StatusCode::UNAUTHORIZED),
+        (get_with_bearer("/-/npm/v1/user", &alice_token), StatusCode::OK),
+        (get_with_bearer("/-/npm/v1/tokens", &alice_token), StatusCode::OK),
+        (
+            delete_with_bearer(&format!("/-/npm/v1/tokens/token/{bob_key}"), &alice_token),
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            delete_with_bearer(&format!("/-/npm/v1/tokens/token/{}", "0".repeat(64)), &alice_token),
+            StatusCode::NOT_FOUND,
+        ),
+        (delete_with_bearer("/-/user/token/not-real", &alice_token), StatusCode::NOT_FOUND),
+    ];
+
+    for (request, expected_status) in cases {
+        let path = request.uri().path().to_string();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), expected_status, "unexpected status for {path}");
+        let cache_control = response
+            .headers()
+            .get("cache-control")
+            .map(|v| v.to_str().unwrap().to_string())
+            .unwrap_or_default();
+        let vary = response
+            .headers()
+            .get("vary")
+            .map(|v| v.to_str().unwrap().to_string())
+            .unwrap_or_default();
+        assert_eq!(
+            cache_control, "private, no-store",
+            "{path}: cache-control must lock the response to the caller"
+        );
+        assert_eq!(
+            vary, "Authorization",
+            "{path}: Vary must include Authorization so shared caches partition by credentials"
+        );
+    }
+}
+
 /// Revocation must persist across a restart — once a token is
 /// revoked, reopening the SQLite store must not reload it.
 #[tokio::test]

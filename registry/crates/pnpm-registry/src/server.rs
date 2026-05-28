@@ -181,7 +181,7 @@ async fn get_two_segments(
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
     if first == "-" && second == "whoami" {
-        return serve_whoami(&state, &headers);
+        return private_no_cache(serve_whoami(&state, &headers));
     }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
@@ -237,10 +237,10 @@ async fn get_four_segments(
         return get_dist_tags(&state, &headers, &c).await;
     }
     if a == "-" && b == "npm" && c == "v1" && d == "user" {
-        return serve_profile(&state, &headers);
+        return private_no_cache(serve_profile(&state, &headers));
     }
     if a == "-" && b == "npm" && c == "v1" && d == "tokens" {
-        return list_tokens(&state, &headers);
+        return private_no_cache(list_tokens(&state, &headers));
     }
     not_found()
 }
@@ -347,7 +347,7 @@ async fn delete_four_segments(
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "user" && c == "token" {
-        return logout(&state, &headers, &d).await;
+        return private_no_cache(logout(&state, &headers, &d).await);
     }
     not_found()
 }
@@ -386,7 +386,7 @@ async fn delete_six_segments(
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "npm" && c == "v1" && d == "tokens" && e == "token" {
-        return revoke_token_by_key(&state, &headers, &f).await;
+        return private_no_cache(revoke_token_by_key(&state, &headers, &f).await);
     }
     if a.starts_with('@') && c == "-" && e == "-rev" {
         let _ = f; // revision token is unused
@@ -696,6 +696,21 @@ fn json_response(status: StatusCode, body: &Value) -> Response {
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+/// Mark a response as caller-scoped and uncacheable. The auth
+/// endpoints (whoami, profile, token list/revoke, logout) return
+/// per-user data keyed on the `Authorization` header, so a shared
+/// HTTP cache that ignored `Vary` could happily hand one user's
+/// identity to another. Applied to *every* branch of those handlers
+/// — success and error alike — so an intermediary can't latch onto
+/// a 401 either.
+fn private_no_cache(mut response: Response) -> Response {
+    use axum::http::HeaderValue;
+    let headers = response.headers_mut();
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    headers.insert(header::VARY, HeaderValue::from_static("Authorization"));
+    response
 }
 
 /// `PUT /:pkg` — publish a new version (or republish). Body is the

@@ -336,12 +336,17 @@ impl TokenStore {
     /// Remove a token by its key (the SHA-256 hex digest). Returns
     /// the deleted record so the caller can check ownership before
     /// committing the revocation in a higher layer.
+    ///
+    /// SQLite gets the `DELETE` *before* the in-memory map is mutated.
+    /// If the disk write fails, both views still hold the token and
+    /// the caller sees a 5xx — the opposite ordering would leave a
+    /// "revoked in memory but resurrected on restart" hole.
     pub async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let removed = {
-            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.remove(key)
+        let snapshot = {
+            let inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.tokens.get(key).cloned()
         };
-        let Some(record) = removed else {
+        let Some(record) = snapshot else {
             return Ok(None);
         };
         if let Some(path) = self.persist.clone() {
@@ -352,6 +357,10 @@ impl TokenStore {
                 Ok(())
             })
             .await??;
+        }
+        {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.tokens.remove(key);
         }
         Ok(Some(record))
     }
