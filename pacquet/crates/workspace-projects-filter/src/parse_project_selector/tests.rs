@@ -229,7 +229,7 @@ fn leading_brace_name_then_dir() {
 }
 
 #[test]
-fn unparseable_braces_fall_back_to_name() {
+fn unparsable_braces_fall_back_to_name() {
     assert_eq!(
         parse("foo}bar"),
         ProjectSelector { name_pattern: name("foo}bar"), ..Default::default() },

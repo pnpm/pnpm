@@ -14,7 +14,7 @@ pub trait BaseProject {
 }
 
 /// Extends [`BaseProject`] with the manifest fields
-/// [`create_projects_graph`](crate::create_projects_graph) needs to
+/// [`create_projects_graph`](crate::create_projects_graph()) needs to
 /// compute inter-project edges: the package `version` and its merged
 /// dependency specifiers.
 pub trait GraphProject: BaseProject {

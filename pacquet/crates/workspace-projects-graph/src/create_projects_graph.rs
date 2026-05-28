@@ -9,7 +9,7 @@ use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
 use std::{collections::HashMap, path::PathBuf};
 
-/// Options for [`create_projects_graph`]. Mirrors upstream's
+/// Options for [`create_projects_graph()`]. Mirrors upstream's
 /// `createProjectsGraph(projects, opts)` second argument.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CreateProjectsGraphOptions {
@@ -39,7 +39,7 @@ pub struct Unmatched {
     pub range: String,
 }
 
-/// Return value of [`create_projects_graph`]: the graph plus the list
+/// Return value of [`create_projects_graph()`]: the graph plus the list
 /// of dependencies that named a sibling but matched no version.
 #[derive(Debug, Clone)]
 pub struct CreateProjectsGraphResult<Pkg> {
@@ -82,13 +82,14 @@ where
     // Snapshot every field edge resolution reads before the projects are
     // moved into the graph nodes below, so the lookups own their data and
     // don't contend with the node-building move.
-    let node_keys: Vec<PathBuf> = projects.iter().map(|p| p.root_dir().to_path_buf()).collect();
+    let node_keys: Vec<PathBuf> =
+        projects.iter().map(|project| project.root_dir().to_path_buf()).collect();
     let names: Vec<Option<String>> =
-        projects.iter().map(|p| p.manifest_name().map(str::to_string)).collect();
+        projects.iter().map(|project| project.manifest_name().map(str::to_string)).collect();
     let versions: Vec<Option<String>> =
-        projects.iter().map(|p| p.manifest_version().map(str::to_string)).collect();
+        projects.iter().map(|project| project.manifest_version().map(str::to_string)).collect();
     let dependency_lists: Vec<Vec<(String, String)>> =
-        projects.iter().map(|p| p.merged_dependencies(opts.ignore_dev_deps)).collect();
+        projects.iter().map(|project| project.merged_dependencies(opts.ignore_dev_deps)).collect();
 
     let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
     for (index, name) in names.iter().enumerate() {
@@ -242,7 +243,8 @@ fn resolve_by_name_version(
         return Some(lookups.node_keys[index].clone());
     }
 
-    let owned_versions: Vec<String> = candidate_versions.iter().map(|&v| v.to_string()).collect();
+    let owned_versions: Vec<String> =
+        candidate_versions.iter().map(|&version| version.to_string()).collect();
     match resolve_workspace_range(raw_spec, &owned_versions) {
         None => {
             unmatched
@@ -259,7 +261,7 @@ fn resolve_by_name_version(
 }
 
 /// Classify a non-`workspace:` specifier into the three shapes
-/// [`create_projects_graph`] acts on. See the function's doc comment
+/// [`create_projects_graph()`] acts on. See the function's doc comment
 /// for why this is a focused check rather than a full
 /// `npm-package-arg` resolve.
 fn classify(spec: &str) -> SpecKind<'_> {
@@ -281,8 +283,8 @@ fn is_path_like(spec: &str) -> bool {
     matches!(spec, "." | "..")
         || spec.starts_with("./")
         || spec.starts_with("../")
-        || spec.starts_with(".\\")
-        || spec.starts_with("..\\")
+        || spec.starts_with(r".\")
+        || spec.starts_with(r"..\")
         || spec.starts_with('/')
         || spec.starts_with('\\')
         || spec.starts_with("~/")
@@ -294,7 +296,7 @@ fn has_windows_drive_prefix(spec: &str) -> bool {
     let mut chars = spec.chars();
     matches!(
         (chars.next(), chars.next(), chars.next()),
-        (Some(letter), Some(':'), Some('/' | '\\')) if letter.is_ascii_alphabetic()
+        (Some(letter), Some(':'), Some('/' | '\\')) if letter.is_ascii_alphabetic(),
     )
 }
 

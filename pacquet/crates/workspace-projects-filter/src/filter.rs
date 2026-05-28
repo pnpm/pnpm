@@ -50,7 +50,7 @@ pub struct FilterProjectsOptions {
     /// `prefix`).
     pub prefix: PathBuf,
     /// Tri-state `linkWorkspacePackages`, forwarded to
-    /// [`create_projects_graph`].
+    /// [`create_projects_graph()`].
     pub link_workspace_packages: Option<bool>,
     pub use_glob_dir_filtering: bool,
 }
