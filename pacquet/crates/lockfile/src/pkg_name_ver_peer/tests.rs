@@ -91,6 +91,16 @@ fn to_virtual_store_name() {
         "@babel/plugin-proposal-object-rest-spread@7.12.1(@babel/core@7.12.9)",
         "@babel+plugin-proposal-object-rest-spread@7.12.1_@babel+core@7.12.9",
     );
+
+    // `file:` resolution emitted by an injected workspace package.
+    // Without escaping `:`, the resulting directory name is invalid
+    // on NTFS / FAT (`ERROR_INVALID_NAME (123)`). Mirrors upstream's
+    // [`depPathToFilename` regex](https://github.com/pnpm/pnpm/blob/1819226b51/deps/path/src/index.ts#L170)
+    // which folds `[\\/:*?"<>|#]` into `+`.
+    case(
+        "project-1@file:project-1(is-positive@1.0.0)",
+        "project-1@file+project-1_is-positive@1.0.0",
+    );
 }
 
 #[test]

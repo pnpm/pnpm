@@ -156,7 +156,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
             .parse::<pacquet_lockfile::PkgName>()
             .unwrap_or_else(|err| panic!("parse PkgName {dep_name:?}: {err}"));
         let importer = parsed.importers.get(importer_id).unwrap_or_else(|| {
-            panic!("pnpm-lock.yaml missing `importers[{importer_id:?}]` block:\n{lockfile}",)
+            panic!("pnpm-lock.yaml missing `importers[{importer_id:?}]` block:\n{lockfile}")
         });
         let deps = importer.dependencies.as_ref().unwrap_or_else(|| {
             panic!(
@@ -213,10 +213,10 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // for which pacquet's wire shape is identical; counting all
     // entries here matches upstream's count exactly.
     let dot_pnpm = workspace.join("node_modules/.pnpm");
-    let entries: Vec<_> = fs::read_dir(&dot_pnpm)
+    let entries: Vec<String> = fs::read_dir(&dot_pnpm)
         .expect("read node_modules/.pnpm")
         .filter_map(Result::ok)
-        .map(|entry| entry.file_name())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect();
     assert_eq!(
         entries.len(),
@@ -224,6 +224,23 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
         "expected 8 entries under node_modules/.pnpm \
          (7 virtual-store slot dirs + the sibling `lock.yaml`), got {}. Contents:\n{entries:?}",
         entries.len(),
+    );
+
+    // (4) The virtual-store slot names must escape `:` to `+`,
+    // matching upstream's
+    // [`depPathToFilename` regex](https://github.com/pnpm/pnpm/blob/1819226b51/deps/path/src/index.ts#L170).
+    // Without the escape, Windows refuses the directory name with
+    // `ERROR_INVALID_NAME (123)`. Pin this here so a regression on
+    // the escape rule fails on every platform, not just NTFS.
+    assert!(
+        entries.iter().any(|name| name == "project-1@file+project-1_is-positive@1.0.0"),
+        "missing FS-safe virtual-store slot for project-1 × is-positive@1.0.0; \
+         entries: {entries:?}",
+    );
+    assert!(
+        entries.iter().all(|name| !name.contains("file:")),
+        "no virtual-store slot may contain an unescaped `:` — Windows refuses it; \
+         entries: {entries:?}",
     );
 
     drop((root, mock_instance));
