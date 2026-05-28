@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-fs                       = { workspace = true }
 pacquet-workspace-range-resolver = { workspace = true }
 pacquet-workspace-spec           = { workspace = true }
 

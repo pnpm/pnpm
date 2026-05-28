@@ -17,11 +17,10 @@
 mod base_project;
 mod create_projects_graph;
 mod graph;
-mod path_util;
 
 pub use base_project::{BaseProject, GraphProject};
 pub use create_projects_graph::{
     CreateProjectsGraphOptions, CreateProjectsGraphResult, Unmatched, create_projects_graph,
 };
 pub use graph::{ProjectGraph, ProjectGraphNode};
-pub use path_util::lexical_normalize;
+pub use pacquet_fs::lexical_normalize;

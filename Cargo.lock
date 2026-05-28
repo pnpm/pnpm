@@ -2952,6 +2952,7 @@ version = "0.0.1"
 dependencies = [
  "indexmap",
  "node-semver",
+ "pacquet-fs",
  "pacquet-workspace-range-resolver",
  "pacquet-workspace-spec",
 ]

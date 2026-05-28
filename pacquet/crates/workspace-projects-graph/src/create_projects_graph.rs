@@ -1,10 +1,10 @@
 use crate::{
     base_project::GraphProject,
     graph::{ProjectGraph, ProjectGraphNode},
-    path_util::lexical_normalize,
 };
 use indexmap::IndexMap;
 use node_semver::{Range, Version};
+use pacquet_fs::lexical_normalize;
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
 use std::{collections::HashMap, path::PathBuf};
