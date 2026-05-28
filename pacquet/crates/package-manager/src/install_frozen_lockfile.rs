@@ -1230,7 +1230,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         current_libc: pacquet_graph_hasher::host_libc().to_string(),
         supported_architectures: supported_architectures.cloned(),
         hoist_workspace_packages: config.hoist_workspace_packages,
-        hoisting_limits: config.hoisting_limits.clone(),
+        hoisting_limits: crate::get_hoisting_limits(&lockfile.importers, config.hoisting_limits),
         external_dependencies: config.external_dependencies.clone(),
     };
     let walker_result = lockfile_to_hoisted_dep_graph(lockfile, current_lockfile, &walker_opts)

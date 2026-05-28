@@ -129,6 +129,34 @@ fn installing_with_hoisted_node_linker_and_no_lockfile() {
     drop((root, mock_instance));
 }
 
+/// Upstream: [`install.ts:229` "hoistingLimits should prevent packages to be hoisted"](https://github.com/pnpm/pnpm/blob/89812a9353/installing/deps-installer/test/hoistedNodeLinker/install.ts#L229).
+///
+/// `hoistingLimits: dependencies` borders each direct dependency, so
+/// `send`'s transitive `ms` stays nested under `send` instead of
+/// hoisting to the root.
+#[test]
+fn hoisting_limits_prevents_hoisting() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "send": "0.17.2" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nhoistingLimits: dependencies\n");
+
+    pacquet.with_args(["install"]).assert().success();
+
+    assert!(
+        !workspace.join("node_modules/ms").exists(),
+        "ms should not be hoisted to the root when send's deps are bordered",
+    );
+    assert!(
+        workspace.join("node_modules/send/node_modules/ms").exists(),
+        "ms should stay nested under send",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Upstream: [`install.ts:247` "externalDependencies should prevent package from being hoisted to the root"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L247).
 ///
 /// `externalDependencies: [ms]` reserves the root `ms` slot for an
@@ -211,20 +239,6 @@ mod known_failures {
         ))
     }
 
-    fn real_hoist_hoisting_limits_semantics() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "The fresh path threads `hoistingLimits` into the walker the \
-             same way `externalDependencies` is (which is covered above), \
-             so the plumbing this PR adds works. But the end-to-end \
-             assertion exposes a `real-hoist` parity gap unrelated to the \
-             fresh-path enablement: upstream's `@yarnpkg/nm` hoister treats \
-             a name in `hoistingLimits` as a subtree *border* (its \
-             descendants stay nested), whereas pacquet's `real-hoist` \
-             blocks the *named* package itself. Reconciling that semantics \
-             is a separate parity item.",
-        ))
-    }
-
     /// Upstream: [`install.ts:61` "overwriting (is-positive@3.0.0 with is-positive@latest)"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L61).
     #[test]
     fn overwriting_is_positive_with_latest() {
@@ -264,16 +278,6 @@ mod known_failures {
     #[test]
     fn package_that_is_peer_dependency_of_itself() {
         allow_known_failure!(manifest_mutation_via_pnpm_add());
-    }
-
-    /// Upstream: [`install.ts:229` "hoistingLimits should prevent packages to be hoisted"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L229).
-    /// The fresh path threads the config correctly (see the passing
-    /// `external_dependencies_prevents_hoisting_to_root`); this case is
-    /// blocked on a `real-hoist` hoisting-limits semantics divergence,
-    /// not on the fresh-path enablement.
-    #[test]
-    fn hoisting_limits_prevents_hoisting() {
-        allow_known_failure!(real_hoist_hoisting_limits_semantics());
     }
 
     /// Upstream: [`install.ts:187` "run pre/postinstall scripts. bin files should be linked in a hoisted node_modules"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L187).

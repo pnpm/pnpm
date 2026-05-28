@@ -55,6 +55,32 @@ pub enum NodeLinker {
     Pnp,
 }
 
+/// Controls how far dependencies are hoisted under
+/// `nodeLinker: hoisted`, mirroring yarn's `nmHoistingLimits`.
+///
+/// Given workspace package `A` → `B` → `C`:
+/// - [`HoistingLimits::None`] (default): hoist as far as possible
+///   (`/node_modules/B`, `/node_modules/C`).
+/// - [`HoistingLimits::Workspaces`]: hoist only as far as each
+///   workspace package (`/packages/A/node_modules/{B,C}`).
+/// - [`HoistingLimits::Dependencies`]: hoist only up to each
+///   workspace package's direct dependencies
+///   (`/packages/A/node_modules/B/node_modules/C`).
+///
+/// Mirrors pnpm's
+/// [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10).
+/// No effect under `nodeLinker: isolated`. The user-facing mode is
+/// translated into the per-locator border map the hoister consumes
+/// by `crate::get_hoisting_limits` in `pacquet-package-manager`.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HoistingLimits {
+    #[default]
+    None,
+    Workspaces,
+    Dependencies,
+}
+
 /// Supply-chain trust policy applied to lockfile entries.
 ///
 /// Mirrors pnpm's
@@ -581,21 +607,15 @@ pub struct Config {
     /// Per-importer block-list of package aliases that may NOT be
     /// hoisted past that importer's slot. Outer key is the
     /// importer locator (e.g. `'.@'` for the root project, or the
-    /// percent-encoded importer id with the `@` slot suffix);
-    /// inner set is the alias names whose hoisting is bordered.
-    ///
-    /// Programmatic-only upstream — pnpm exposes it through the
-    /// embedded API and Bit CLI rather than `pnpm-workspace.yaml`,
-    /// because the ergonomics of the locator-keyed map don't
-    /// translate cleanly to a yaml setting. Pacquet exposes it
-    /// via `HoistOpts::hoisting_limits` (in `pacquet-real-hoist`)
-    /// and reads the same yaml shape (`hoistingLimits: { ".@": [...] }`)
-    /// for parity.
-    ///
-    /// Default empty (no aliases bordered). Mirrors upstream's
-    /// [`hoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10).
-    /// No effect under `nodeLinker: isolated`.
-    pub hoisting_limits: BTreeMap<String, BTreeSet<String>>,
+    /// `hoistingLimits` from `pnpm-workspace.yaml`. Controls how far
+    /// dependencies are hoisted under `nodeLinker: hoisted`. See
+    /// [`HoistingLimits`] for the `none` / `workspaces` /
+    /// `dependencies` semantics. Default [`HoistingLimits::None`]
+    /// (hoist as far as possible). Translated into the hoister's
+    /// per-locator border map by `crate::get_hoisting_limits` in
+    /// `pacquet-package-manager`. No effect under
+    /// `nodeLinker: isolated`.
+    pub hoisting_limits: HoistingLimits,
 
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Controls
     /// whether the npm resolver consults the workspace map when
