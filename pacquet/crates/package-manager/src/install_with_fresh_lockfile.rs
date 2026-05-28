@@ -817,6 +817,41 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         let peers_suffix_max_length =
             usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
         let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
+
+        // Call preResolution hook before resolution starts (mirrors pnpm's behavior in install/index.ts)
+        if let Some(ref hook) = pnpmfile_hook {
+            let wanted_lockfile_json = wanted_lockfile
+                .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
+                .unwrap_or_else(|| serde_json::json!({}));
+            let current_lockfile_json =
+                Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
+                    .ok()
+                    .flatten()
+                    .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
+                    .unwrap_or_else(|| serde_json::json!({}));
+            let registries = serde_json::json!({ "default": config.registry });
+            let ctx = pacquet_hooks::PreResolutionHookContext {
+                wanted_lockfile: wanted_lockfile_json,
+                current_lockfile: current_lockfile_json,
+                exists_current_lockfile: wanted_lockfile.is_some(),
+                exists_non_empty_wanted_lockfile: wanted_lockfile
+                    .as_ref()
+                    .map(|lf| !lf.snapshots.as_ref().map(|s| s.is_empty()).unwrap_or(true))
+                    .unwrap_or(false),
+                lockfile_dir: lockfile_dir.to_string_lossy().to_string(),
+                store_dir: config.store_dir.display().to_string(),
+                registries,
+            };
+            hook.pre_resolution(
+                ctx,
+                pacquet_hooks::PreResolutionHookLogger {
+                    info: Arc::new(|_| {}),
+                    warn: Arc::new(|_| {}),
+                },
+            )
+            .await;
+        }
+
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
             dedupe_peers: config.dedupe_peers,
             dedupe_injected_deps: config.dedupe_injected_deps,

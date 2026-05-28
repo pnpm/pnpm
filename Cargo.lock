@@ -2487,6 +2487,7 @@ name = "pacquet-hooks"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "derive_more",
  "serde_json",
  "tempfile",
  "tokio",

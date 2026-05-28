@@ -8,7 +8,7 @@ pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
 
     for name in candidates {
         let path = root.join(name);
-        if path.exists() {
+        if path.is_file() {
             return Some(path);
         }
     }
