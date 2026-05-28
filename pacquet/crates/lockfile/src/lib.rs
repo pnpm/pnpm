@@ -45,6 +45,14 @@ use std::collections::HashMap;
 /// Example: `react-dom@17.0.2(react@17.0.2)`.
 pub type PackageKey = PkgNameVerPeer;
 
+/// Default `peersSuffixMaxLength` an unset `settings.peersSuffixMaxLength`
+/// in the lockfile decays to. Matches pnpm's
+/// [`createPeerDepGraphHash` parameter default](https://github.com/pnpm/pnpm/blob/39101f5e37/deps/path/src/index.ts#L197)
+/// and the `1000` filter at
+/// [`lockfileFormatConverters.ts`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L67-L69)
+/// that strips the field on serialization when it equals this value.
+pub const DEFAULT_PEERS_SUFFIX_MAX_LENGTH: u64 = 1000;
+
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LockfileSettings {
@@ -59,6 +67,12 @@ pub struct LockfileSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_peers: Option<bool>,
     pub exclude_links_from_lockfile: bool,
+    /// Cap that drove this lockfile's peer-suffix rendering. Omitted
+    /// from the serialized file when it equals the default ([`DEFAULT_PEERS_SUFFIX_MAX_LENGTH`])
+    /// so existing lockfiles round-trip byte-for-byte; mirrors upstream's
+    /// strip at <https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L67-L69>.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peers_suffix_max_length: Option<u64>,
 }
 
 /// A pnpm v9 lockfile.

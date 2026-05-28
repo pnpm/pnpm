@@ -116,6 +116,12 @@ pub struct ResolveImporterOptions {
     /// Forwarded to [`crate::resolve_peers()`] for the
     /// `excludeLinksFromLockfile` remap; the gate is no-op when `None`.
     pub modules_dir: Option<std::path::PathBuf>,
+
+    /// Cap on the rendered peer-suffix before the suffix is replaced
+    /// with a short hash. Threaded into [`fn@resolve_peers`] via
+    /// [`ResolvePeersOptions`]. Mirrors upstream's
+    /// `peersSuffixMaxLength` (default 1000).
+    pub peers_suffix_max_length: usize,
 }
 
 /// Result of [`fn@resolve_importer`] — the fully-walked tree plus the
@@ -163,9 +169,10 @@ where
         exclude_links_from_lockfile,
         lockfile_dir,
         modules_dir,
+        peers_suffix_max_length,
     } = opts;
     let peers_opts = || ResolvePeersOptions {
-        peers_suffix_max_length: 1000,
+        peers_suffix_max_length,
         dedupe_peers,
         exclude_links_from_lockfile,
         lockfile_dir: lockfile_dir.clone(),

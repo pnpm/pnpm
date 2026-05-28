@@ -167,9 +167,9 @@ pub fn check_optimistic_repeat_install(
 ///
 /// Only the fields pacquet actively populates via [`current_settings`]
 /// participate in the comparison. Fields the upstream pnpm CLI writes
-/// but pacquet hasn't ported yet (e.g. `peersSuffixMaxLength`,
-/// `dedupeDirectDeps`) are ignored — pacquet doesn't consume them
-/// during install, so a difference can't affect the materialised
+/// but pacquet hasn't ported yet (e.g. `dedupeDirectDeps`,
+/// `excludeLinksFromLockfile`) are ignored — pacquet doesn't consume
+/// them during install, so a difference can't affect the materialised
 /// `node_modules`. Without this carve-out a cross-package-manager
 /// scenario (pnpm wrote the state, pacquet reads it next) would
 /// always reject the fast path because pnpm's defaults fill those
@@ -208,6 +208,7 @@ fn settings_match(
         && recorded.optional == live.optional
         && recorded.overrides == live.overrides
         && recorded.patched_dependencies == live.patched_dependencies
+        && recorded.peers_suffix_max_length == live.peers_suffix_max_length
         && recorded.prefer_workspace_packages == live.prefer_workspace_packages
         && recorded.production == live.production
         && recorded.public_hoist_pattern == live.public_hoist_pattern
@@ -223,7 +224,6 @@ fn settings_match(
     //                                round-trip through workspace state
     //                                yet — separate follow-up).
     //   packageExtensions
-    //   peersSuffixMaxLength
     //   trustPolicy*                (same situation as minimumReleaseAge)
     //   workspacePackagePatterns    (already covered via
     //                                pnpm-workspace.yaml `packages:`)
@@ -274,6 +274,9 @@ pub(crate) fn current_settings(
             .as_ref()
             .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
         patched_dependencies: config.patched_dependencies.clone(),
+        peers_suffix_max_length: Some(
+            u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),
+        ),
         prefer_workspace_packages: Some(config.prefer_workspace_packages),
         production: Some(included.dependencies),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
