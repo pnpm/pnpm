@@ -23,8 +23,8 @@ pub const DEFAULT_CONFIG_YAML: &str = include_str!("../config.yaml");
 pub enum ConfigSource {
     /// User passed `-c` / `--config`.
     Cli(PathBuf),
-    /// Loaded from the auto-discovered path
-    /// (`$HOME/.config/pnpm-registry/config.yaml`).
+    /// Loaded from the auto-discovered global config (the `pnpr`
+    /// config dir; see [`Config::auto_config_path`]).
     DefaultPath(PathBuf),
     /// No file was found; the bundled [`DEFAULT_CONFIG_YAML`] was
     /// used.
@@ -392,19 +392,24 @@ impl Config {
             .expect("bundled DEFAULT_CONFIG_YAML must always parse")
     }
 
-    /// Resolve the auto-discovery path for a config file. Returns
-    /// `Some(<home>/.config/pnpm-registry/config.yaml)` when both
-    /// `home` is provided **and** that file exists; returns `None`
-    /// otherwise. Callers (typically the binary's `main`) then fall
-    /// back to [`Self::from_default_yaml`] for the bundled config.
+    /// Resolve the auto-discovery path for the global `config.yaml`,
+    /// reading the process environment. Returns the path only when it
+    /// exists as a file; otherwise `None`, so the caller falls back to
+    /// [`Self::from_default_yaml`] for the bundled config.
     ///
-    /// The function takes `home` as a parameter rather than calling
-    /// `home::home_dir()` directly so tests can drive it with a
-    /// `TempDir` without racing on the global `$HOME` env var.
-    pub fn auto_config_path(home: Option<&Path>) -> Option<PathBuf> {
-        let home = home?;
-        let path = home.join(".config").join("pnpm-registry").join("config.yaml");
-        path.is_file().then_some(path)
+    /// The directory follows pnpm's own global-config-dir rules (via
+    /// the shared [`pacquet_config_dir::config_dir`]) under a `pnpr`
+    /// leaf, so an operator who knows where `pnpm config` looks knows
+    /// where pnpr looks too.
+    pub fn auto_config_path() -> Option<PathBuf> {
+        let dir = pacquet_config_dir::config_dir(
+            "pnpr",
+            std::env::consts::OS,
+            std::env::var("XDG_CONFIG_HOME").ok().as_deref(),
+            std::env::var("LOCALAPPDATA").ok().as_deref(),
+            home::home_dir,
+        );
+        config_file_in(dir)
     }
 
     /// Pick the right config source in precedence order:
@@ -518,6 +523,14 @@ fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
     }
 }
 
+/// Join `config.yaml` onto a resolved config directory and keep the
+/// path only when it points at an existing file (so a directory or a
+/// missing entry falls back to the bundled config).
+fn config_file_in(dir: Option<PathBuf>) -> Option<PathBuf> {
+    let path = dir?.join("config.yaml");
+    path.is_file().then_some(path)
+}
+
 /// `tokens.db` next to the htpasswd file. The sibling layout lets an
 /// operator lock the auth directory down with a single chmod and
 /// stops the tokens file from leaking into a `storage` directory
@@ -565,8 +578,8 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, pattern_matches,
-        resolve_relative,
+        Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, config_file_in,
+        pattern_matches, resolve_relative,
     };
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::path::{Path, PathBuf};
@@ -968,44 +981,41 @@ log:
         }
     }
 
-    // ----- auto_config_path -------------------------------------------------
+    // ----- config_file_in (existence gating) --------------------------------
 
     #[test]
-    fn auto_config_path_returns_none_when_home_is_none() {
-        assert!(Config::auto_config_path(None).is_none());
+    fn config_file_in_returns_none_for_none_dir() {
+        assert!(config_file_in(None).is_none());
     }
 
     #[test]
-    fn auto_config_path_returns_none_when_file_is_missing() {
-        // A fresh tempdir has no `.config/pnpm-registry/config.yaml`.
-        let home = tempfile::tempdir().unwrap();
-        assert!(Config::auto_config_path(Some(home.path())).is_none());
+    fn config_file_in_returns_none_when_file_is_missing() {
+        // A fresh tempdir has no `config.yaml`.
+        let dir = tempfile::tempdir().unwrap();
+        assert!(config_file_in(Some(dir.path().to_path_buf())).is_none());
     }
 
     #[test]
-    fn auto_config_path_returns_path_when_file_exists() {
-        let home = tempfile::tempdir().unwrap();
-        let dir = home.path().join(".config").join("pnpm-registry");
-        std::fs::create_dir_all(&dir).unwrap();
-        let expected = dir.join("config.yaml");
+    fn config_file_in_returns_path_when_file_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let expected = dir.path().join("config.yaml");
         std::fs::write(&expected, "storage: ./s\nuplinks: {}\npackages: {}\n").unwrap();
-        let resolved = Config::auto_config_path(Some(home.path())).expect("file is present");
+        let resolved = config_file_in(Some(dir.path().to_path_buf())).expect("file is present");
         assert_eq!(resolved, expected);
     }
 
     #[test]
-    fn auto_config_path_rejects_a_directory_at_the_target() {
-        // If the path exists but is a directory (or symlink to one,
-        // etc.), `is_file()` returns false. Auto-discovery should
+    fn config_file_in_rejects_a_directory_at_the_target() {
+        // If `config.yaml` exists but is a directory (or symlink to
+        // one, etc.), `is_file()` returns false. Auto-discovery should
         // bail rather than try to read it.
-        let home = tempfile::tempdir().unwrap();
-        let target = home.path().join(".config").join("pnpm-registry").join("config.yaml");
-        std::fs::create_dir_all(&target).unwrap();
-        assert!(Config::auto_config_path(Some(home.path())).is_none());
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("config.yaml")).unwrap();
+        assert!(config_file_in(Some(dir.path().to_path_buf())).is_none());
     }
 
     #[test]
-    fn auto_config_path_resolved_file_round_trips_through_from_yaml() {
+    fn config_file_in_resolved_file_round_trips_through_from_yaml() {
         // The whole point of returning a path is that `from_yaml` can
         // load it. This is the end-to-end happy path for the
         // auto-discovery flow.
@@ -1015,10 +1025,8 @@ log:
         // (Windows requires a drive-letter prefix to satisfy
         // `Path::is_absolute()`; a Unix-style "/tmp/auto" is not
         // absolute there and gets joined to the config's parent dir).
-        let home = tempfile::tempdir().unwrap();
-        let dir = home.path().join(".config").join("pnpm-registry");
-        std::fs::create_dir_all(&dir).unwrap();
-        let storage = home.path().join("registry-storage");
+        let dir = tempfile::tempdir().unwrap();
+        let storage = dir.path().join("registry-storage");
         let yaml = format!(
             "\
 storage: {storage}
@@ -1034,8 +1042,8 @@ log:
 ",
             storage = storage.display(),
         );
-        std::fs::write(dir.join("config.yaml"), yaml).unwrap();
-        let path = Config::auto_config_path(Some(home.path())).unwrap();
+        std::fs::write(dir.path().join("config.yaml"), yaml).unwrap();
+        let path = config_file_in(Some(dir.path().to_path_buf())).unwrap();
         let config = Config::from_yaml(&path, listen(), None).unwrap();
         assert_eq!(config.storage, storage);
         assert_eq!(config.logs.format, LogFormat::Json);
@@ -1184,7 +1192,7 @@ log:
     fn resolve_propagates_missing_file_error_for_default_path() {
         // Symmetric to the CLI case — a bad default path is just as
         // fatal as a bad CLI path. (In practice callers only pass a
-        // default path that already passed `auto_config_path`'s
+        // default path that already passed `config_file_in`'s
         // `is_file()` check, so this is a defense-in-depth assertion.)
         let err = Config::resolve(None, Some(Path::new("/no/such/file.yml")), listen(), None)
             .unwrap_err();

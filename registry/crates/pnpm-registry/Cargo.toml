@@ -19,6 +19,7 @@ name = "pnpm-registry"
 path = "src/main.rs"
 
 [dependencies]
+pacquet-config-dir  = { workspace = true }
 pacquet-env-replace = { workspace = true }
 pacquet-network     = { workspace = true }
 axum                = { workspace = true }

@@ -11,8 +11,9 @@ use pnpm_registry::{Config, ConfigSource, LogConfig, LogFormat, serve};
 #[command(name = "pnpm-registry", version, about = "pnpm-compatible npm registry server")]
 struct Args {
     /// Path to a verdaccio-shaped YAML config (storage, uplinks,
-    /// packages, log). When omitted, `~/.config/pnpm-registry/config.yaml`
-    /// is used if it exists, otherwise the bundled default config.
+    /// packages, log). When omitted, the global `config.yaml` in
+    /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
+    /// used if it exists, otherwise the bundled default config.
     #[arg(short = 'c', long)]
     config: Option<PathBuf>,
 
@@ -41,7 +42,7 @@ struct Args {
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     let args = Args::parse();
-    let auto_path = Config::auto_config_path(home::home_dir().as_deref());
+    let auto_path = Config::auto_config_path();
     let (mut config, source) = Config::resolve(
         args.config.as_deref(),
         auto_path.as_deref(),

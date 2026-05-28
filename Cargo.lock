@@ -2170,6 +2170,7 @@ dependencies = [
  "libc",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-config-dir",
  "pacquet-env-replace",
  "pacquet-network",
  "pacquet-package-is-installable",
@@ -2185,6 +2186,10 @@ dependencies = [
  "tempfile",
  "tracing",
 ]
+
+[[package]]
+name = "pacquet-config-dir"
+version = "0.0.1"
 
 [[package]]
 name = "pacquet-config-parse-overrides"
@@ -3059,6 +3064,7 @@ dependencies = [
  "indexmap",
  "miette 7.6.0",
  "mockito",
+ "pacquet-config-dir",
  "pacquet-env-replace",
  "pacquet-network",
  "pipe-trait",
