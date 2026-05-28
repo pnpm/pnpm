@@ -24,6 +24,6 @@ Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes 
 - `pnpm login`: Credential prompts updated
 - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
 
-**Known limitation:** Vim-style `j`/`k` navigation keys are no longer available in interactive prompts. Use arrow keys instead.
+Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
 
 **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.

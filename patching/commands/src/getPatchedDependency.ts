@@ -40,6 +40,7 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
           value: preferred.gitTarballUrl ?? preferred.version,
           description: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
         })),
+        theme: { keybindings: ['vim'] },
       })
       applyToAll = await confirm({
         message: 'Apply this patch to all versions?',

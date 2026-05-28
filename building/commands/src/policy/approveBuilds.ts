@@ -137,6 +137,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
           style: {
             highlight: chalk.bgBlack.whiteBright,
           },
+          keybindings: ['vim'],
         },
       })
       buildPackages = buildPackagesValues

@@ -505,6 +505,7 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
         style: {
           highlight: (text: string) => text,
         },
+        keybindings: ['vim'],
       },
     })
   } catch (err) {

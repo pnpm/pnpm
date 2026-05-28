@@ -265,6 +265,7 @@ async function interactiveUpdate (
         style: {
           highlight: (text: string) => text,
         },
+        keybindings: ['vim'],
       },
     })
   } catch (err) {

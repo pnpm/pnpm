@@ -48,6 +48,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
           validate: (values) => {
             return values.length === 0 ? 'Select at least one option.' : true
           },
+          theme: { keybindings: ['vim'] },
         })
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'ExitPromptError') {
