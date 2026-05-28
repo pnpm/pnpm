@@ -97,12 +97,21 @@ fn build_dedupe_map(
 /// Return the workspace project id (lockfile importer key) this node
 /// is an injected reference to, or `None` if it isn't a `file:`
 /// pointing at a known workspace project.
+///
+/// The resolver's `pkg.id` for a `file:<path>` workspace pick is
+/// emitted as `<name>@file:<path>` once the manifest name is in scope
+/// (see `build_pkg_id_with_patch_hash`) and as the bare `file:<path>`
+/// before that — accept both shapes.
 fn injected_workspace_target(
     node: &crate::dependencies_graph::DependenciesGraphNode,
     workspace_project_ids: &HashSet<String>,
 ) -> Option<String> {
-    let id = node.resolved_package_id.strip_prefix("file:")?;
-    workspace_project_ids.contains(id).then(|| id.to_string())
+    let raw = node.resolved_package_id.as_str();
+    let path = raw.strip_prefix("file:").or_else(|| {
+        let after_at = raw.split_once('@').map(|(_, rest)| rest)?;
+        after_at.strip_prefix("file:")
+    })?;
+    workspace_project_ids.contains(path).then(|| path.to_string())
 }
 
 fn apply_dedupe_map(

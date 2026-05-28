@@ -84,16 +84,16 @@ pub struct ResolveWorkspaceResult {
 /// exclude-links-from-lockfile, etc.). The closure shape mirrors how
 /// pnpm constructs `ImporterToResolve` per project inside
 /// [`resolveDependencyTree`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencyTree.ts#L236).
-pub async fn resolve_workspace<'a, R, F>(
-    resolver: &R,
+pub async fn resolve_workspace<'a, Chain, BuildImporterOptions>(
+    resolver: &Chain,
     importers: &[WorkspaceImporter<'a>],
     dependency_groups: &[DependencyGroup],
     opts: WorkspaceResolveOptions,
-    mut per_importer_options: F,
+    mut per_importer_options: BuildImporterOptions,
 ) -> Result<ResolveWorkspaceResult, ResolveImporterError>
 where
-    R: Resolver + ?Sized,
-    F: FnMut(&WorkspaceImporter<'a>) -> ResolveImporterOptions,
+    Chain: Resolver + ?Sized,
+    BuildImporterOptions: FnMut(&WorkspaceImporter<'a>) -> ResolveImporterOptions,
 {
     let WorkspaceResolveOptions {
         dedupe_peers,
