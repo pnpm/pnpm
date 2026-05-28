@@ -397,7 +397,7 @@ pub struct Config {
     /// Cap on the rendered peer-suffix length before the suffix is
     /// replaced with a short hash. Mirrors upstream
     /// `Config.peersSuffixMaxLength` and is threaded into
-    /// [`pacquet_deps_path::create_peer_dep_graph_hash`] — when the
+    /// `pacquet_deps_path::create_peer_dep_graph_hash` — when the
     /// flattened `(peer@ver)(peer@ver)…` string exceeds this many
     /// bytes, pnpm and pacquet swap it for a 32-char sha256 hash so
     /// virtual-store paths stay under the OS component-name limit.
