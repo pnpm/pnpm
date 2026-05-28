@@ -61,6 +61,10 @@ pub struct Config {
     /// are `None`, matching the original `@pnpm/registry-mock` mode
     /// where every restart wipes accounts.
     pub auth: AuthConfig,
+    /// Format and level for the `tracing-subscriber` the binary
+    /// installs at startup. Sourced from the first entry of the
+    /// YAML `logs:` list. Defaults to pretty/info.
+    pub logs: LogConfig,
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -115,6 +119,72 @@ impl MaxUsers {
     }
 }
 
+/// Runtime logging configuration. Mirrors the first entry of the
+/// YAML `logs:` list (verdaccio's shape). Drives the
+/// `tracing-subscriber` init in the binary: format selects
+/// human-readable vs NDJSON, level seeds the default `EnvFilter`.
+///
+/// Only `type: stdout` is supported — file sinks and multiple-sink
+/// fan-out are future work. The full list is parsed from YAML so
+/// nothing breaks when a verdaccio user copies their config in;
+/// extra entries beyond the first are dropped.
+#[derive(Debug, Clone)]
+pub struct LogConfig {
+    pub format: LogFormat,
+    pub level: LogLevel,
+}
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self { format: LogFormat::Pretty, level: LogLevel::default() }
+    }
+}
+
+/// Wire format for log records. `Pretty` is human-readable with
+/// colors when stdout is a TTY; `Json` is NDJSON (one JSON object
+/// per record) suitable for log shippers — the same shape pino
+/// emits.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogFormat {
+    #[default]
+    Pretty,
+    Json,
+}
+
+/// Severity threshold. Maps onto `tracing::Level` plus a synthetic
+/// `Http` mid-tier (between info and debug) that mirrors what
+/// verdaccio and pino call "the request-log level."
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Trace,
+    Debug,
+    Http,
+    #[default]
+    Info,
+    Warn,
+    Error,
+}
+
+impl LogLevel {
+    /// Convert to an `EnvFilter` directive string. `http` is not a
+    /// tracing level, so we expand it to `info` for the framework
+    /// plus a `pnpm_registry::access=info` target so the per-request
+    /// access log surfaces even when the rest of the crate is
+    /// quieter.
+    pub fn as_filter_directive(self) -> &'static str {
+        match self {
+            LogLevel::Trace => "trace",
+            LogLevel::Debug => "debug",
+            LogLevel::Http => "info,pnpm_registry::access=info",
+            LogLevel::Info => "info",
+            LogLevel::Warn => "warn",
+            LogLevel::Error => "error",
+        }
+    }
+}
+
 /// Verdaccio-shaped uplink declaration. Only `url` is honored —
 /// other fields verdaccio supports (auth headers, timeouts, agent
 /// options) are not implemented yet.
@@ -150,6 +220,27 @@ struct ConfigFile {
     packages: IndexMap<String, PackageAccess>,
     #[serde(default)]
     auth: AuthFile,
+    /// Verdaccio 6+ shape: `log:` is a single object at the top
+    /// level, not a list. The older `logs:` list shape is
+    /// intentionally not accepted.
+    #[serde(default)]
+    log: Option<LogEntryFile>,
+}
+
+/// The YAML `log:` object. Mirrors verdaccio 6's logger config.
+#[derive(Debug, Deserialize)]
+struct LogEntryFile {
+    #[serde(default = "default_log_type")]
+    #[allow(dead_code)] // file/syslog sinks are future work
+    r#type: String,
+    #[serde(default)]
+    format: Option<LogFormat>,
+    #[serde(default)]
+    level: Option<LogLevel>,
+}
+
+fn default_log_type() -> String {
+    "stdout".to_string()
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -206,6 +297,7 @@ impl Config {
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
+            logs: LogConfig::default(),
         }
     }
 
@@ -221,6 +313,7 @@ impl Config {
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
+            logs: LogConfig::default(),
         }
     }
 
@@ -265,6 +358,21 @@ impl Config {
             .expect("bundled DEFAULT_CONFIG_YAML must always parse")
     }
 
+    /// Resolve the auto-discovery path for a config file. Returns
+    /// `Some(<home>/.config/pnpm-registry/config.yaml)` when both
+    /// `home` is provided **and** that file exists; returns `None`
+    /// otherwise. Callers (typically the binary's `main`) then fall
+    /// back to [`Self::from_default_yaml`] for the bundled config.
+    ///
+    /// The function takes `home` as a parameter rather than calling
+    /// `home::home_dir()` directly so tests can drive it with a
+    /// `TempDir` without racing on the global `$HOME` env var.
+    pub fn auto_config_path(home: Option<&Path>) -> Option<PathBuf> {
+        let home = home?;
+        let path = home.join(".config").join("pnpm-registry").join("config.yaml");
+        path.is_file().then_some(path)
+    }
+
     fn from_yaml_str(
         raw: &str,
         base_dir: &Path,
@@ -279,6 +387,7 @@ impl Config {
         let storage = resolve_relative(&file.storage, base_dir);
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
+        let logs = build_log_config(file.log.as_ref());
         Ok(Self {
             listen,
             public_url,
@@ -293,6 +402,7 @@ impl Config {
             // hard-coded defaults — same as `proxy` / `static_serve`.
             policies: PackagePolicies::registry_mock_defaults(),
             auth,
+            logs,
         })
     }
 
@@ -334,6 +444,14 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
         },
         tokens: TokensConfig { file: tokens_file },
     }
+}
+
+/// Lift the YAML `log:` object's `format` / `level` onto runtime
+/// defaults. Missing block = default pretty/info config; missing
+/// individual fields fall back to their `Default` impls.
+fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
+    let Some(entry) = entry else { return LogConfig::default() };
+    LogConfig { format: entry.format.unwrap_or_default(), level: entry.level.unwrap_or_default() }
 }
 
 /// `tokens.db` next to the htpasswd file. The sibling layout lets an
@@ -382,7 +500,9 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, DEFAULT_CONFIG_YAML, pattern_matches, resolve_relative};
+    use super::{
+        Config, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, pattern_matches, resolve_relative,
+    };
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::path::{Path, PathBuf};
 
@@ -668,5 +788,222 @@ packages: {}
 ";
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
         assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Limited(5));
+    }
+
+    #[test]
+    fn logs_default_when_yaml_omits_block() {
+        let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Pretty);
+        assert_eq!(config.logs.level, LogLevel::Info);
+    }
+
+    #[test]
+    fn log_pretty_and_level_picked_from_singular_block() {
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  type: stdout
+  format: pretty
+  level: warn
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Pretty);
+        assert_eq!(config.logs.level, LogLevel::Warn);
+    }
+
+    #[test]
+    fn log_json_format_parses() {
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  type: stdout
+  format: json
+  level: debug
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Json);
+        assert_eq!(config.logs.level, LogLevel::Debug);
+    }
+
+    #[test]
+    fn log_legacy_plural_list_is_ignored() {
+        // Verdaccio 4/5 used `logs:` as a list. We only honor the
+        // verdaccio-6 `log:` (singular) shape, so the older spelling
+        // is silently dropped and defaults apply.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+logs:
+  - type: stdout
+    format: json
+    level: error
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Pretty);
+        assert_eq!(config.logs.level, LogLevel::Info);
+    }
+
+    #[test]
+    fn log_missing_fields_fall_back_to_defaults() {
+        // Only `type:` is given. Format and level default individually.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  type: stdout
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.format, LogFormat::Pretty);
+        assert_eq!(config.logs.level, LogLevel::Info);
+    }
+
+    #[test]
+    fn log_level_filter_directives_are_valid() {
+        // Each LogLevel must map to a directive string that
+        // `EnvFilter::new` accepts at runtime — guards against typos.
+        for level in [
+            LogLevel::Trace,
+            LogLevel::Debug,
+            LogLevel::Http,
+            LogLevel::Info,
+            LogLevel::Warn,
+            LogLevel::Error,
+        ] {
+            let directive = level.as_filter_directive();
+            tracing_subscriber::EnvFilter::try_new(directive)
+                .unwrap_or_else(|err| panic!("{level:?} -> `{directive}`: {err}"));
+        }
+    }
+
+    // ----- auto_config_path -------------------------------------------------
+
+    #[test]
+    fn auto_config_path_returns_none_when_home_is_none() {
+        assert!(Config::auto_config_path(None).is_none());
+    }
+
+    #[test]
+    fn auto_config_path_returns_none_when_file_is_missing() {
+        // A fresh tempdir has no `.config/pnpm-registry/config.yaml`.
+        let home = tempfile::tempdir().unwrap();
+        assert!(Config::auto_config_path(Some(home.path())).is_none());
+    }
+
+    #[test]
+    fn auto_config_path_returns_path_when_file_exists() {
+        let home = tempfile::tempdir().unwrap();
+        let dir = home.path().join(".config").join("pnpm-registry");
+        std::fs::create_dir_all(&dir).unwrap();
+        let expected = dir.join("config.yaml");
+        std::fs::write(&expected, "storage: ./s\nuplinks: {}\npackages: {}\n").unwrap();
+        let resolved = Config::auto_config_path(Some(home.path())).expect("file is present");
+        assert_eq!(resolved, expected);
+    }
+
+    #[test]
+    fn auto_config_path_rejects_a_directory_at_the_target() {
+        // If the path exists but is a directory (or symlink to one,
+        // etc.), `is_file()` returns false. Auto-discovery should
+        // bail rather than try to read it.
+        let home = tempfile::tempdir().unwrap();
+        let target = home.path().join(".config").join("pnpm-registry").join("config.yaml");
+        std::fs::create_dir_all(&target).unwrap();
+        assert!(Config::auto_config_path(Some(home.path())).is_none());
+    }
+
+    #[test]
+    fn auto_config_path_resolved_file_round_trips_through_from_yaml() {
+        // The whole point of returning a path is that `from_yaml` can
+        // load it. This is the end-to-end happy path for the
+        // auto-discovery flow.
+        let home = tempfile::tempdir().unwrap();
+        let dir = home.path().join(".config").join("pnpm-registry");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("config.yaml"),
+            "\
+storage: /tmp/auto
+uplinks:
+  npmjs: { url: https://registry.npmjs.org/ }
+packages:
+  '**':
+    proxy: npmjs
+log:
+  type: stdout
+  format: json
+  level: info
+",
+        )
+        .unwrap();
+        let path = Config::auto_config_path(Some(home.path())).unwrap();
+        let config = Config::from_yaml(&path, listen(), None).unwrap();
+        assert_eq!(config.storage, PathBuf::from("/tmp/auto"));
+        assert_eq!(config.logs.format, LogFormat::Json);
+        assert_eq!(config.logs.level, LogLevel::Info);
+        assert_eq!(config.resolve_uplink("lodash").unwrap().0, "npmjs");
+    }
+
+    // ----- LogFormat / LogLevel serde behavior ------------------------------
+
+    /// Helper: deserialize a YAML scalar into the requested enum.
+    /// Lets us assert the variant mapping concisely.
+    fn parse_log_yaml<T: serde::de::DeserializeOwned>(yaml: &str) -> Result<T, String> {
+        serde_saphyr::from_str::<T>(yaml).map_err(|err| err.to_string())
+    }
+
+    #[test]
+    fn log_format_accepts_each_known_variant() {
+        assert_eq!(parse_log_yaml::<LogFormat>("pretty").unwrap(), LogFormat::Pretty);
+        assert_eq!(parse_log_yaml::<LogFormat>("json").unwrap(), LogFormat::Json);
+    }
+
+    #[test]
+    fn log_format_rejects_unknown_variant() {
+        // `format: xml` (or anything else) should fail parsing
+        // rather than silently fall back. Matches verdaccio: an
+        // unknown enum value is a typo, not a request for a default.
+        let err = parse_log_yaml::<LogFormat>("xml").unwrap_err();
+        assert!(err.contains("xml") || err.to_lowercase().contains("unknown"));
+    }
+
+    #[test]
+    fn log_format_is_case_sensitive() {
+        // `rename_all = "lowercase"` means we accept only lowercase
+        // tokens; pino is case-sensitive too.
+        assert!(parse_log_yaml::<LogFormat>("Pretty").is_err());
+        assert!(parse_log_yaml::<LogFormat>("JSON").is_err());
+    }
+
+    #[test]
+    fn log_level_accepts_each_known_variant() {
+        let pairs: &[(&str, LogLevel)] = &[
+            ("trace", LogLevel::Trace),
+            ("debug", LogLevel::Debug),
+            ("http", LogLevel::Http),
+            ("info", LogLevel::Info),
+            ("warn", LogLevel::Warn),
+            ("error", LogLevel::Error),
+        ];
+        for (yaml, expected) in pairs {
+            let parsed: LogLevel = parse_log_yaml(yaml).unwrap();
+            assert_eq!(parsed, *expected, "{yaml}");
+        }
+    }
+
+    #[test]
+    fn log_level_rejects_unknown_variant() {
+        // `fatal` (pino has it) and `silly` (npm's logger had it)
+        // are not in our set — we want a hard error, not a silent
+        // fallback.
+        assert!(parse_log_yaml::<LogLevel>("fatal").is_err());
+        assert!(parse_log_yaml::<LogLevel>("silly").is_err());
+        assert!(parse_log_yaml::<LogLevel>("verbose").is_err());
     }
 }
