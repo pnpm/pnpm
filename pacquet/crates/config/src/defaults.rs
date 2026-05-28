@@ -242,6 +242,19 @@ pub fn default_virtual_store_dir_max_length() -> u64 {
     120
 }
 
+/// Default `peersSuffixMaxLength` matching pnpm's fallback at
+/// <https://github.com/pnpm/pnpm/blob/39101f5e37/deps/path/src/index.ts#L197>
+/// (parameter default on `createPeerDepGraphHash`).
+///
+/// Kept as a free function (not a re-export of
+/// `pacquet_lockfile::DEFAULT_PEERS_SUFFIX_MAX_LENGTH`) so
+/// `pacquet-config` doesn't pull in the lockfile crate just for one
+/// integer. Both copies must agree; the lockfile side carries the
+/// same upstream link.
+pub fn default_peers_suffix_max_length() -> u64 {
+    1000
+}
+
 pub fn default_fetch_retries() -> u32 {
     2
 }

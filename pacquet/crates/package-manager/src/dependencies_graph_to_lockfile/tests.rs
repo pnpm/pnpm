@@ -38,6 +38,7 @@ fn single_importer_opts<'a>(
         auto_install_peers,
         dedupe_peers: false,
         exclude_links_from_lockfile,
+        peers_suffix_max_length: None,
         overrides,
         ignored_optional_dependencies,
     }
@@ -203,6 +204,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         auto_install_peers: false,
         dedupe_peers: true,
         exclude_links_from_lockfile: false,
+        peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
     });
@@ -222,6 +224,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         auto_install_peers: false,
         dedupe_peers: false,
         exclude_links_from_lockfile: false,
+        peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
     });
@@ -866,6 +869,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         auto_install_peers: false,
         dedupe_peers: false,
         exclude_links_from_lockfile: false,
+        peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
     });
@@ -987,6 +991,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         auto_install_peers: false,
         dedupe_peers: false,
         exclude_links_from_lockfile: false,
+        peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
     });
@@ -1137,6 +1142,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         auto_install_peers: false,
         dedupe_peers: false,
         exclude_links_from_lockfile: false,
+        peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
     });

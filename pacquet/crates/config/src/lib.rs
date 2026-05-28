@@ -23,9 +23,9 @@ use std::{
 };
 
 pub use crate::defaults::{
-    available_parallelism, default_git_shallow_hosts, default_unsafe_perm,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
-    resolve_child_concurrency,
+    available_parallelism, default_git_shallow_hosts, default_peers_suffix_max_length,
+    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
+    is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
@@ -393,6 +393,25 @@ pub struct Config {
     /// Default value is 120.
     #[default(_code = "default_virtual_store_dir_max_length()")]
     pub virtual_store_dir_max_length: u64,
+
+    /// Cap on the rendered peer-suffix length before the suffix is
+    /// replaced with a short hash. Mirrors upstream
+    /// `Config.peersSuffixMaxLength` and is threaded into
+    /// [`pacquet_deps_path::create_peer_dep_graph_hash`] — when the
+    /// flattened `(peer@ver)(peer@ver)…` string exceeds this many
+    /// bytes, pnpm and pacquet swap it for a 32-char sha256 hash so
+    /// virtual-store paths stay under the OS component-name limit.
+    ///
+    /// Configurable via `peersSuffixMaxLength` in
+    /// `pnpm-workspace.yaml`, global `config.yaml`, or
+    /// `PNPM_CONFIG_PEERS_SUFFIX_MAX_LENGTH`. The same value is
+    /// persisted into the lockfile's `settings.peersSuffixMaxLength`
+    /// (omitted when it equals the default) so subsequent installs
+    /// pick the user's pick.
+    ///
+    /// Default value is 1000.
+    #[default(_code = "default_peers_suffix_max_length()")]
+    pub peers_suffix_max_length: u64,
 
     /// When set to false, pnpm won't read or generate a pnpm-lock.yaml file.
     ///
@@ -2573,5 +2592,61 @@ mod tests {
             config.virtual_store_dir_max_length, 50,
             "env var must win over pnpm-workspace.yaml",
         );
+    }
+
+    /// `peersSuffixMaxLength` defaults to 1000 — same value pnpm
+    /// uses for `createPeerDepGraphHash`'s `maxLength` parameter when
+    /// nothing is configured.
+    #[test]
+    pub fn peers_suffix_max_length_defaults_to_1000() {
+        let tmp = tempdir().unwrap();
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+        assert_eq!(config.peers_suffix_max_length, 1000);
+    }
+
+    /// `peersSuffixMaxLength` in `pnpm-workspace.yaml` overrides the
+    /// default. Mirrors pnpm's
+    /// [`peersSuffixMaxLength`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L256)
+    /// config-reader entry.
+    #[test]
+    pub fn peers_suffix_max_length_from_workspace_yaml() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), "peersSuffixMaxLength: 10\n")
+            .expect("write to pnpm-workspace.yaml");
+        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        assert_eq!(config.peers_suffix_max_length, 10);
+    }
+
+    /// `PNPM_CONFIG_PEERS_SUFFIX_MAX_LENGTH` overrides the yaml value,
+    /// matching the reader cascade priority (env > yaml > default).
+    #[test]
+    pub fn peers_suffix_max_length_env_var_overrides_yaml() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("pnpm-workspace.yaml"), "peersSuffixMaxLength: 10\n")
+            .expect("write to pnpm-workspace.yaml");
+
+        struct HostWithEnvOverride;
+        impl EnvVar for HostWithEnvOverride {
+            fn var(name: &str) -> Option<String> {
+                if name == "PNPM_CONFIG_PEERS_SUFFIX_MAX_LENGTH" {
+                    return Some("25".to_owned());
+                }
+                safe_host_var(name)
+            }
+        }
+        impl EnvVarOs for HostWithEnvOverride {
+            fn var_os(_: &str) -> Option<OsString> {
+                None
+            }
+        }
+        impl GetHomeDir for HostWithEnvOverride {
+            fn home_dir() -> Option<PathBuf> {
+                None
+            }
+        }
+        inert_link_probe!(HostWithEnvOverride);
+
+        let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
+        assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml",);
     }
 }

@@ -68,6 +68,14 @@ pub struct GraphToLockfileOptions<'a> {
     /// shorthand.
     pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
+    /// `peersSuffixMaxLength` round-tripped into the lockfile's
+    /// `settings.peersSuffixMaxLength` so a later install detects
+    /// drift via `@pnpm/lockfile.settings-checker`. Pass `None` when
+    /// the value equals upstream's default (1000) so the field is
+    /// stripped from the serialized lockfile, matching upstream's
+    /// [`convertToLockfileFile`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L67-L69)
+    /// strip-on-default behavior.
+    pub peers_suffix_max_length: Option<u64>,
     /// `overrides` recorded into the lockfile so a later install can
     /// detect drift. Mirrors upstream's `lockfile.overrides` field.
     pub overrides: Option<HashMap<String, String>>,
@@ -98,6 +106,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         auto_install_peers,
         dedupe_peers,
         exclude_links_from_lockfile,
+        peers_suffix_max_length,
         overrides,
         ignored_optional_dependencies,
     } = opts;
@@ -118,6 +127,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
             auto_install_peers,
             dedupe_peers: dedupe_peers.then_some(true),
             exclude_links_from_lockfile,
+            peers_suffix_max_length,
         }),
         overrides: overrides.filter(|map| !map.is_empty()),
         ignored_optional_dependencies: ignored_optional_dependencies

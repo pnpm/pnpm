@@ -99,6 +99,17 @@ pub enum StalenessReason {
         "`overrides` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
     OverridesChanged { lockfile: BTreeMap<String, String>, config: BTreeMap<String, String> },
+
+    /// `settings.peersSuffixMaxLength` in the lockfile differs from
+    /// the value the current install would use. Mirrors upstream's
+    /// [`getOutdatedLockfileSetting.ts`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts):
+    /// an unset field in the lockfile is treated as the default
+    /// (1000), so drift is "recorded value (or default) doesn't equal
+    /// the current config's value".
+    #[display(
+        "`peersSuffixMaxLength` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    PeersSuffixMaxLengthChanged { lockfile: u64, config: u64 },
 }
 
 /// Per-bucket diff against the manifest's flat union of deps.
@@ -193,6 +204,7 @@ pub fn check_lockfile_settings(
     lockfile: &Lockfile,
     overrides: Option<&HashMap<String, String>>,
     ignored_optional_dependencies: Option<&[String]>,
+    peers_suffix_max_length: u64,
 ) -> Result<(), StalenessReason> {
     // Upstream checks `overrides` before `ignoredOptionalDependencies`,
     // so an install that changed both surfaces the overrides drift
@@ -230,6 +242,23 @@ pub fn check_lockfile_settings(
             config: config_set,
         });
     }
+
+    // An unset `peersSuffixMaxLength` in the lockfile means the writer
+    // used the default (1000) — pnpm strips the field on serialization
+    // when it equals the default. So drift here is "lockfile's
+    // recorded-or-default value != current config's value".
+    let lockfile_peers_suffix_max_length = lockfile
+        .settings
+        .as_ref()
+        .and_then(|s| s.peers_suffix_max_length)
+        .unwrap_or(crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH);
+    if lockfile_peers_suffix_max_length != peers_suffix_max_length {
+        return Err(StalenessReason::PeersSuffixMaxLengthChanged {
+            lockfile: lockfile_peers_suffix_max_length,
+            config: peers_suffix_max_length,
+        });
+    }
+
     Ok(())
 }
 

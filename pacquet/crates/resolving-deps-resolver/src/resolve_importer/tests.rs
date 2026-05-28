@@ -95,6 +95,7 @@ fn default_opts() -> ResolveImporterOptions {
         exclude_links_from_lockfile: false,
         lockfile_dir: None,
         modules_dir: None,
+        peers_suffix_max_length: 1000,
     }
 }
 

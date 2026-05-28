@@ -1061,6 +1061,7 @@ fn check_lockfile_freshness(
         lockfile,
         overrides_map.as_ref(),
         config.ignored_optional_dependencies.as_deref(),
+        config.peers_suffix_max_length,
     )
     .map_err(FreshnessCheckError::Stale)?;
 

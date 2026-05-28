@@ -161,6 +161,79 @@ fn workspace_lockfile_with_link_dep_round_trips() {
     assert_eq!(original, reparsed);
 }
 
+/// `peersSuffixMaxLength` is serialized into `settings:` only when set
+/// to a non-default value. Lockfiles written by the default install
+/// must round-trip without the field, matching pnpm's
+/// [`convertToLockfileFile`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L67-L69)
+/// strip-on-default.
+#[test]
+fn peers_suffix_max_length_omitted_from_settings_when_unset() {
+    use crate::LockfileSettings;
+
+    let lockfile = Lockfile {
+        lockfile_version: crate::LockfileVersion::<9>::try_from(crate::ComVer::new(9, 0))
+            .expect("v9 is compatible with major=9"),
+        settings: Some(LockfileSettings {
+            auto_install_peers: true,
+            dedupe_peers: None,
+            exclude_links_from_lockfile: false,
+            peers_suffix_max_length: None,
+        }),
+        overrides: None,
+        ignored_optional_dependencies: None,
+        importers: Default::default(),
+        packages: None,
+        snapshots: None,
+    };
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+    let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
+
+    assert!(
+        !saved.contains("peersSuffixMaxLength"),
+        "default peersSuffixMaxLength must be omitted from serialized lockfile:\n{saved}",
+    );
+}
+
+/// A non-default `peersSuffixMaxLength` is serialized into `settings:`
+/// so a subsequent install detects drift through
+/// [`crate::check_lockfile_settings`].
+#[test]
+fn peers_suffix_max_length_serialized_when_set() {
+    use crate::LockfileSettings;
+
+    let lockfile = Lockfile {
+        lockfile_version: crate::LockfileVersion::<9>::try_from(crate::ComVer::new(9, 0))
+            .expect("v9 is compatible with major=9"),
+        settings: Some(LockfileSettings {
+            auto_install_peers: true,
+            dedupe_peers: None,
+            exclude_links_from_lockfile: false,
+            peers_suffix_max_length: Some(10),
+        }),
+        overrides: None,
+        ignored_optional_dependencies: None,
+        importers: Default::default(),
+        packages: None,
+        snapshots: None,
+    };
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+    let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
+
+    assert!(
+        saved.contains("peersSuffixMaxLength: 10"),
+        "non-default peersSuffixMaxLength must be serialized:\n{saved}",
+    );
+
+    let reparsed: Lockfile = serde_saphyr::from_str(&saved).expect("reparse lockfile");
+    assert_eq!(reparsed.settings.expect("settings present").peers_suffix_max_length, Some(10),);
+}
+
 #[test]
 fn save_fails_with_wrapped_io_error_when_path_is_invalid() {
     let empty_lockfile: Lockfile =
