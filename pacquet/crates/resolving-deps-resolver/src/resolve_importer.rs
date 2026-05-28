@@ -17,8 +17,11 @@
 //!    preferred version already in scope, and extend the tree with
 //!    those. Re-enter the inner loop if any landed.
 //!
-//! Single-importer slice; multi-importer support waits on pacquet's
-//! workspace work.
+//! Per-importer slice. The workspace-wide orchestrator
+//! [`fn@crate::resolve_workspace`] loops this function for every
+//! importer, then runs a single multi-importer
+//! [`fn@crate::resolve_peers_workspace`] pass that shares the peer
+//! walker's caches across importers and applies `dedupeInjectedDeps`.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;

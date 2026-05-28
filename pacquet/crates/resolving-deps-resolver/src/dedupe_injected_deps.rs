@@ -1,43 +1,36 @@
 //! Port of pnpm's
 //! [`dedupeInjectedDeps`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/dedupeInjectedDeps.ts).
 //!
-//! Runs after the per-importer resolve passes have merged into one
-//! [`DependenciesGraph`]. Each importer's direct deps map is scanned
-//! for entries whose resolved id starts with `file:` and points at
-//! another workspace project; if that injected snapshot's children
-//! turn out to be a subset of the target project's own direct deps,
-//! the importer's entry is rewritten to `link:<rel>` so the install
-//! pass materializes it as a symlink instead of a copy. Snapshots
-//! that become unreachable after the rewrite are pruned from the
-//! graph so they don't surface in the lockfile.
-//!
-//! Pnpm runs this transformation inside
-//! [`resolvePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L178);
-//! pacquet's resolver is single-importer, so the equivalent cross-
-//! importer pass lives at the install layer where every importer's
-//! result is already in scope.
+//! Runs at the tail of the multi-importer [`fn@crate::resolve_peers`]
+//! pass. Each importer's direct deps map is scanned for entries whose
+//! resolved id starts with `file:` and points at another workspace
+//! project; if that injected snapshot's children turn out to be a
+//! subset of the target project's own direct deps, the importer's
+//! entry is rewritten to `link:<rel>` so the install pass
+//! materializes it as a symlink instead of a copy. Snapshots that
+//! become unreachable after the rewrite are pruned from the graph so
+//! they don't surface in the lockfile.
 //!
 //! Pacquet's lockfile importer-version writer does not yet support
 //! `file:<workspace>` direct-dep entries — when an importer's
 //! `direct_dependencies_by_alias` still carries an injected workspace
 //! depPath after this pass, the lockfile writer panics in
-//! `importer_dep_version` (see `dependencies_graph_to_lockfile`). In
-//! practice this pass is what keeps the install from hitting that
-//! panic on every `dependenciesMeta.injected` workspace edge; with
-//! `dedupeInjectedDeps: false`, an injected workspace dep whose
-//! children don't subset still trips the writer.
+//! `importer_dep_version`. In practice this pass is what keeps the
+//! install from hitting that panic on every `dependenciesMeta.injected`
+//! workspace edge; with `dedupeInjectedDeps: false`, an injected
+//! workspace dep whose children don't subset still trips the writer.
 
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
 };
 
-use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph};
+use pacquet_deps_path::DepPath;
 
-/// Per-importer direct deps as emitted by [`resolve_importer`] and
-/// merged in pacquet's fresh-install path.
-///
-/// [`resolve_importer`]: pacquet_resolving_deps_resolver::resolve_importer
+use crate::dependencies_graph::DependenciesGraph;
+
+/// Per-importer direct deps map keyed by lockfile importer id (`"."`
+/// for the root, POSIX-relative path for siblings).
 pub type DirectByImporter = BTreeMap<String, BTreeMap<String, DepPath>>;
 
 /// Dedupe injected workspace deps across importers, mutating both
@@ -105,7 +98,7 @@ fn build_dedupe_map(
 /// is an injected reference to, or `None` if it isn't a `file:`
 /// pointing at a known workspace project.
 fn injected_workspace_target(
-    node: &pacquet_resolving_deps_resolver::DependenciesGraphNode,
+    node: &crate::dependencies_graph::DependenciesGraphNode,
     workspace_project_ids: &HashSet<String>,
 ) -> Option<String> {
     let id = node.resolved_package_id.strip_prefix("file:")?;
@@ -180,8 +173,9 @@ fn prune_unreachable(graph: &mut DependenciesGraph, direct_by_importer: &DirectB
 #[cfg(test)]
 mod tests {
     use super::{DirectByImporter, dedupe_injected_deps};
+    use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
+    use pacquet_deps_path::DepPath;
     use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-    use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
     use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
     use std::collections::{BTreeMap, HashSet};
     use std::path::PathBuf;

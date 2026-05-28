@@ -21,7 +21,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
-    ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions, resolve_importer,
+    ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
 };
 use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
@@ -65,8 +65,9 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 /// drives this path whenever no `--frozen-lockfile` was requested.
 ///
 /// **Brief overview for each package:**
-/// * Resolve the dependency through the [`NpmResolver`] chain
-///   ([`resolve_importer`] builds the full tree and hoists peers first).
+/// * Resolve every importer's dependency through the [`NpmResolver`] chain
+///   (`resolve_workspace` builds the per-importer trees, runs the
+///   cross-importer peer pass, and applies `dedupeInjectedDeps`).
 /// * Fetch a tarball of each resolved package and extract it into the
 ///   store directory.
 /// * Import (by reflink, hardlink, or copy) the files from the store
@@ -582,116 +583,95 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // iteration: one shared resolution context, per-importer
         // direct-deps slices.
         let phase_start = std::time::Instant::now();
-        let mut merged_graph: pacquet_resolving_deps_resolver::DependenciesGraph =
-            std::collections::HashMap::new();
-        let mut direct_by_importer: BTreeMap<
-            String,
-            BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>,
-        > = BTreeMap::new();
-        let mut importer_root_dirs: BTreeMap<String, std::path::PathBuf> = BTreeMap::new();
-        let mut total_nodes = 0usize;
+        let workspace_importers: Vec<pacquet_resolving_deps_resolver::WorkspaceImporter<'_>> =
+            importer_manifests
+                .iter()
+                .map(|(id, manifest)| pacquet_resolving_deps_resolver::WorkspaceImporter {
+                    id: id.clone(),
+                    manifest,
+                })
+                .collect();
+        let peers_suffix_max_length =
+            usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
+        let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
+            dedupe_peers: config.dedupe_peers,
+            dedupe_injected_deps: config.dedupe_injected_deps,
+            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+            lockfile_dir: lockfile_dir.to_path_buf(),
+            peers_suffix_max_length,
+        };
         let modules_basename = config
             .modules_dir
             .file_name()
             .map(std::ffi::OsStr::to_os_string)
             .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
-        for (importer_id, importer_manifest) in &importer_manifests {
-            let project_dir = importer_manifest
-                .path()
-                .parent()
-                .expect("manifest path always has a parent dir")
-                .to_path_buf();
-            let importer_modules_dir = project_dir.join(&modules_basename);
-            importer_root_dirs.insert(importer_id.clone(), project_dir.clone());
-            let importer_opts = ResolveImporterOptions {
-                auto_install_peers: config.auto_install_peers,
-                auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
-                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
-                dedupe_peers: config.dedupe_peers,
-                all_preferred_versions: all_preferred_versions.clone(),
-                patched_dependencies: patched_dependencies.clone(),
-                base_opts: ResolveOptions {
-                    default_tag: Some("latest".to_string()),
-                    published_by,
-                    published_by_exclude: published_by_exclude.clone(),
-                    project_dir,
-                    lockfile_dir: lockfile_dir.to_path_buf(),
-                    workspace_packages: workspace_packages.clone(),
-                    block_exotic_subdeps: config.block_exotic_subdeps,
-                    // Pacquet's deps-resolver doesn't thread per-call
-                    // depth into the resolver yet, so the
-                    // `linkWorkspacePackages: true` (direct-only) and
-                    // `"deep"` arms both collapse onto a flag that
-                    // applies at every depth. Matches pnpm's behavior
-                    // for `"deep"`; the (rare) `true`-only case may
-                    // resolve a transitive registry dep through the
-                    // workspace when the names collide.
-                    always_try_workspace_packages: config.link_workspace_packages
-                        != LinkWorkspacePackages::Off,
-                    inject_workspace_packages: config.inject_workspace_packages,
-                    prefer_workspace_packages: config.prefer_workspace_packages,
-                    update_checksums,
-                    ..ResolveOptions::default()
-                },
-                catalogs: catalogs.clone(),
-                exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-                lockfile_dir: Some(lockfile_dir.to_path_buf()),
-                modules_dir: Some(importer_modules_dir),
-                peers_suffix_max_length: usize::try_from(config.peers_suffix_max_length)
-                    .unwrap_or(usize::MAX),
-                manifest_hook: package_extensions_hook.clone(),
-            };
-            let importer_result = resolve_importer(
-                &*resolver,
-                importer_manifest,
-                dependency_groups.iter().copied(),
-                importer_opts,
-            )
-            .await
-            .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
-            total_nodes += importer_result.peers_result.graph.len();
-            // Merge this importer's per-id graph into the shared
-            // graph; identical depPaths collapse onto the existing
-            // entry. Two importers depending on the same package
-            // version produce equivalent nodes by construction of the
-            // (deterministic) resolver, so a first-writer-wins merge
-            // is safe.
-            for (key, node) in importer_result.peers_result.graph {
-                merged_graph.entry(key).or_insert(node);
-            }
-            direct_by_importer.insert(
-                importer_id.clone(),
-                importer_result.peers_result.direct_dependencies_by_alias,
+        let workspace_result = pacquet_resolving_deps_resolver::resolve_workspace(
+            &*resolver,
+            &workspace_importers,
+            &dependency_groups,
+            workspace_opts,
+            |importer| {
+                let project_dir = importer
+                    .manifest
+                    .path()
+                    .parent()
+                    .expect("manifest path always has a parent dir")
+                    .to_path_buf();
+                let importer_modules_dir = project_dir.join(&modules_basename);
+                ResolveImporterOptions {
+                    auto_install_peers: config.auto_install_peers,
+                    auto_install_peers_from_highest_match: config
+                        .auto_install_peers_from_highest_match,
+                    resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+                    dedupe_peers: config.dedupe_peers,
+                    all_preferred_versions: all_preferred_versions.clone(),
+                    patched_dependencies: patched_dependencies.clone(),
+                    base_opts: ResolveOptions {
+                        default_tag: Some("latest".to_string()),
+                        published_by,
+                        published_by_exclude: published_by_exclude.clone(),
+                        project_dir,
+                        lockfile_dir: lockfile_dir.to_path_buf(),
+                        workspace_packages: workspace_packages.clone(),
+                        block_exotic_subdeps: config.block_exotic_subdeps,
+                        always_try_workspace_packages: config.link_workspace_packages
+                            != LinkWorkspacePackages::Off,
+                        inject_workspace_packages: config.inject_workspace_packages,
+                        prefer_workspace_packages: config.prefer_workspace_packages,
+                        update_checksums,
+                        ..ResolveOptions::default()
+                    },
+                    catalogs: catalogs.clone(),
+                    exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                    lockfile_dir: Some(lockfile_dir.to_path_buf()),
+                    modules_dir: Some(importer_modules_dir),
+                    peers_suffix_max_length,
+                    manifest_hook: package_extensions_hook.clone(),
+                }
+            },
+        )
+        .await
+        .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
+        let total_nodes = workspace_result.peers.graph.len();
+        for (importer_id, issues) in &workspace_result.peers.peer_dependency_issues_by_importer {
+            tracing::warn!(
+                target: "pacquet::install",
+                importer_id = %importer_id,
+                missing = issues.missing.len(),
+                bad = issues.bad.len(),
+                "Peer dependency issues detected (issue renderer not ported yet)",
             );
-            if !importer_result.peers_result.peer_dependency_issues.missing.is_empty()
-                || !importer_result.peers_result.peer_dependency_issues.bad.is_empty()
-            {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    importer_id = %importer_id,
-                    missing = importer_result.peers_result.peer_dependency_issues.missing.len(),
-                    bad = importer_result.peers_result.peer_dependency_issues.bad.len(),
-                    "Peer dependency issues detected (issue renderer not ported yet)",
-                );
-            }
         }
+        let merged_graph = workspace_result.peers.graph;
+        let direct_by_importer = workspace_result.peers.direct_dependencies_by_importer;
         tracing::info!(
             target: "pacquet::install::phase",
-            phase = "resolve_importer",
+            phase = "resolve_workspace",
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             importers = importer_manifests.len(),
             nodes = total_nodes,
             "phase complete",
         );
-
-        if config.dedupe_injected_deps {
-            crate::dedupe_injected_deps::dedupe_injected_deps(
-                &mut merged_graph,
-                &mut direct_by_importer,
-                &importer_root_dirs,
-                lockfile_dir,
-            );
-        }
 
         // Drop the resolver (and its packument cache) before the
         // install pass. Dropping `resolver` releases the
