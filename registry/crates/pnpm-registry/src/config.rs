@@ -77,8 +77,8 @@ pub struct Config {
     /// where every restart wipes accounts.
     pub auth: AuthConfig,
     /// Format and level for the `tracing-subscriber` the binary
-    /// installs at startup. Sourced from the first entry of the
-    /// YAML `logs:` list. Defaults to pretty/info.
+    /// installs at startup. Sourced from the YAML `log:` object
+    /// (Verdaccio 6+ shape). Defaults to pretty/info.
     pub logs: LogConfig,
 }
 
@@ -134,24 +134,42 @@ impl MaxUsers {
     }
 }
 
-/// Runtime logging configuration. Mirrors the first entry of the
-/// YAML `logs:` list (verdaccio's shape). Drives the
-/// `tracing-subscriber` init in the binary: format selects
-/// human-readable vs NDJSON, level seeds the default `EnvFilter`.
+/// Runtime logging configuration. Mirrors the YAML `log:` object
+/// (Verdaccio 6+ shape). Drives the `tracing-subscriber` init in the
+/// binary: format selects human-readable vs NDJSON, level seeds the
+/// default `EnvFilter`.
 ///
-/// Only `type: stdout` is supported — file sinks and multiple-sink
-/// fan-out are future work. The full list is parsed from YAML so
-/// nothing breaks when a verdaccio user copies their config in;
-/// extra entries beyond the first are dropped.
+/// Only `type: stdout` is honored — file and syslog sinks are future
+/// work. An unsupported `type:` still parses (so a verdaccio config
+/// can be copied in untouched) but is ignored at runtime, with a
+/// warning logged once the subscriber is up.
 #[derive(Debug, Clone)]
 pub struct LogConfig {
     pub format: LogFormat,
     pub level: LogLevel,
+    /// The configured sink (`log.type`). Only [`Self::STDOUT_SINK`]
+    /// is implemented; any other value is recorded here so the binary
+    /// can warn about it at startup.
+    pub sink: String,
+}
+
+impl LogConfig {
+    /// The single sink pnpm-registry actually writes to.
+    pub const STDOUT_SINK: &'static str = "stdout";
+
+    /// Whether the configured sink is one the server implements.
+    pub fn sink_is_supported(&self) -> bool {
+        self.sink == Self::STDOUT_SINK
+    }
 }
 
 impl Default for LogConfig {
     fn default() -> Self {
-        Self { format: LogFormat::Pretty, level: LogLevel::default() }
+        Self {
+            format: LogFormat::Pretty,
+            level: LogLevel::default(),
+            sink: Self::STDOUT_SINK.to_string(),
+        }
     }
 }
 
@@ -246,7 +264,6 @@ struct ConfigFile {
 #[derive(Debug, Deserialize)]
 struct LogEntryFile {
     #[serde(default = "default_log_type")]
-    #[allow(dead_code)] // file/syslog sinks are future work
     r#type: String,
     #[serde(default)]
     format: Option<LogFormat>,
@@ -255,7 +272,7 @@ struct LogEntryFile {
 }
 
 fn default_log_type() -> String {
-    "stdout".to_string()
+    LogConfig::STDOUT_SINK.to_string()
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -345,7 +362,9 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> std::io::Result<Self> {
-        let raw = std::fs::read_to_string(path)?;
+        let raw = std::fs::read_to_string(path).map_err(|err| {
+            std::io::Error::new(err.kind(), format!("read {}: {err}", path.display()))
+        })?;
         let base = path.parent().unwrap_or_else(|| Path::new("."));
         Self::from_yaml_str(&raw, base, listen, public_url).map_err(|err| {
             std::io::Error::new(
@@ -492,7 +511,11 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
 /// individual fields fall back to their `Default` impls.
 fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
     let Some(entry) = entry else { return LogConfig::default() };
-    LogConfig { format: entry.format.unwrap_or_default(), level: entry.level.unwrap_or_default() }
+    LogConfig {
+        format: entry.format.unwrap_or_default(),
+        level: entry.level.unwrap_or_default(),
+        sink: entry.r#type.clone(),
+    }
 }
 
 /// `tokens.db` next to the htpasswd file. The sibling layout lets an
@@ -838,6 +861,27 @@ packages: {}
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
         assert_eq!(config.logs.format, LogFormat::Pretty);
         assert_eq!(config.logs.level, LogLevel::Info);
+        assert_eq!(config.logs.sink, "stdout");
+        assert!(config.logs.sink_is_supported());
+    }
+
+    #[test]
+    fn log_unsupported_sink_type_is_recorded_but_flagged_unsupported() {
+        // `type: file` parses (verdaccio compatibility) but is not a
+        // sink the server implements, so `sink_is_supported` is false
+        // and the binary warns at startup. Format/level still apply.
+        let yaml = "\
+storage: ./s
+uplinks: {}
+packages: {}
+log:
+  type: file
+  format: json
+";
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        assert_eq!(config.logs.sink, "file");
+        assert!(!config.logs.sink_is_supported());
+        assert_eq!(config.logs.format, LogFormat::Json);
     }
 
     #[test]
@@ -1196,5 +1240,8 @@ log:
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
         assert_eq!(config.logs.format, LogFormat::Json);
         assert_eq!(config.logs.level, LogLevel::Warn);
+        // `type:` omitted entirely falls back to the supported stdout sink.
+        assert_eq!(config.logs.sink, "stdout");
+        assert!(config.logs.sink_is_supported());
     }
 }

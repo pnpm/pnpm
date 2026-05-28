@@ -1,16 +1,16 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::Router;
 use axum::body::Body;
-use axum::extract::{DefaultBodyLimit, OriginalUri, Path, State};
+use axum::extract::{DefaultBodyLimit, OriginalUri, Path, Request, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get};
 use indexmap::IndexMap;
 use serde_json::{Value, json};
-use tower_http::LatencyUnit;
-use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
-use tracing::Level;
+use tower_http::trace::TraceLayer;
+use tracing::Span;
 
 use crate::auth::{AuthState, UpsertOutcome, identify};
 use crate::cache::Cache;
@@ -103,18 +103,32 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // One structured access record per HTTP request: a span
         // carrying method + URI plus a single `finished processing
         // request` event on the response with status and latency.
-        // `on_request(())` / `on_failure(())` suppress tower-http's
-        // default emissions so each request produces exactly one
-        // record. The format and level are picked up from the
-        // subscriber installed in `main.rs` (driven by the YAML
-        // `logs:` block — pretty or NDJSON).
+        // Both the span and the event use the `pnpm_registry::access`
+        // target so `LogLevel::Http`'s filter directive can scope to
+        // them. `on_request(())` / `on_failure(())` suppress
+        // tower-http's default emissions so each request produces
+        // exactly one record. The format and level are picked up from
+        // the subscriber installed in `main.rs` (driven by the YAML
+        // `log:` block — pretty or NDJSON).
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .make_span_with(|request: &Request<Body>| {
+                    tracing::info_span!(
+                        target: "pnpm_registry::access",
+                        "request",
+                        method = %request.method(),
+                        uri = %request.uri(),
+                    )
+                })
                 .on_request(())
-                .on_response(
-                    DefaultOnResponse::new().level(Level::INFO).latency_unit(LatencyUnit::Millis),
-                )
+                .on_response(|response: &Response<Body>, latency: Duration, _span: &Span| {
+                    tracing::info!(
+                        target: "pnpm_registry::access",
+                        status = response.status().as_u16(),
+                        latency_ms = latency.as_millis() as u64,
+                        "finished processing request",
+                    );
+                })
                 .on_failure(()),
         )
         .with_state(state)

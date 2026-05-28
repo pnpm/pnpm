@@ -70,8 +70,18 @@ fn init_logging(logs: &LogConfig) {
         .unwrap_or_else(|_| EnvFilter::new(logs.level.as_filter_directive()));
     let builder = tracing_subscriber::fmt().with_env_filter(filter);
     match logs.format {
-        LogFormat::Json => builder.json().with_current_span(false).with_span_list(false).init(),
+        // `with_current_span(true)` keeps the per-request span's
+        // `method`/`uri` fields attached to the single access event;
+        // `with_span_list(false)` drops the redundant entered-span
+        // array so each JSON line stays one flat access record.
+        LogFormat::Json => builder.json().with_current_span(true).with_span_list(false).init(),
         LogFormat::Pretty => builder.compact().init(),
+    }
+    if !logs.sink_is_supported() {
+        tracing::warn!(
+            sink = %logs.sink,
+            "unsupported `log.type`; only `stdout` is implemented — logging to stdout",
+        );
     }
 }
 
