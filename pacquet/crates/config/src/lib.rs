@@ -587,6 +587,16 @@ pub struct Config {
     /// [`'link-workspace-packages': false`](https://github.com/pnpm/pnpm/blob/5353fcbf01/config/reader/src/index.ts#L174).
     pub link_workspace_packages: LinkWorkspacePackages,
 
+    /// When `true`, prefer a workspace package over a registry pick
+    /// even when the registry version is newer than the workspace
+    /// one. Mirrors pnpm's
+    /// [`preferWorkspacePackages`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L191).
+    /// Consumed by the npm resolver's
+    /// [registry-pick + workspace shadow](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L550-L582).
+    /// Default `false`, matching pnpm's
+    /// [`'prefer-workspace-packages': false`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L183).
+    pub prefer_workspace_packages: bool,
+
     /// Name slots reserved at the root for an external linker
     /// (the Bit CLI is the only known consumer upstream). Any
     /// dependency whose alias matches one of these names is

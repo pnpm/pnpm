@@ -208,6 +208,7 @@ fn settings_match(
         && recorded.optional == live.optional
         && recorded.overrides == live.overrides
         && recorded.patched_dependencies == live.patched_dependencies
+        && recorded.prefer_workspace_packages == live.prefer_workspace_packages
         && recorded.production == live.production
         && recorded.public_hoist_pattern == live.public_hoist_pattern
     // Deliberately *not* compared (tracked at pnpm/pnpm#12009 — drop
@@ -223,7 +224,6 @@ fn settings_match(
     //                                yet — separate follow-up).
     //   packageExtensions
     //   peersSuffixMaxLength
-    //   preferWorkspacePackages
     //   trustPolicy*                (same situation as minimumReleaseAge)
     //   workspacePackagePatterns    (already covered via
     //                                pnpm-workspace.yaml `packages:`)
@@ -274,6 +274,7 @@ pub(crate) fn current_settings(
             .as_ref()
             .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
         patched_dependencies: config.patched_dependencies.clone(),
+        prefer_workspace_packages: Some(config.prefer_workspace_packages),
         production: Some(included.dependencies),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         ..Default::default()

@@ -156,6 +156,7 @@ pub struct WorkspaceSettings {
     pub external_dependencies: Option<BTreeSet<String>>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
+    pub prefer_workspace_packages: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
@@ -414,6 +415,7 @@ impl WorkspaceSettings {
         self.link_workspace_packages = None;
         self.dedupe_peer_dependents = None;
         self.dedupe_peers = None;
+        self.prefer_workspace_packages = None;
         self.strict_peer_dependencies = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
@@ -511,6 +513,7 @@ impl WorkspaceSettings {
             resolve_peers_from_workspace_root, verify_store_integrity,
             block_exotic_subdeps,
             link_workspace_packages,
+            prefer_workspace_packages,
             side_effects_cache, side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
