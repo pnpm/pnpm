@@ -2647,6 +2647,6 @@ mod tests {
         inert_link_probe!(HostWithEnvOverride);
 
         let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
-        assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml",);
+        assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml");
     }
 }
