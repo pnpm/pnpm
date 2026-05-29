@@ -823,17 +823,19 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             let wanted_lockfile_json = wanted_lockfile
                 .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
                 .unwrap_or_else(|| serde_json::json!({}));
-            let current_lockfile_json =
+            let current_lockfile =
                 Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
                     .ok()
-                    .flatten()
-                    .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
-                    .unwrap_or_else(|| serde_json::json!({}));
+                    .flatten();
+            let exists_current_lockfile = current_lockfile.is_some();
+            let current_lockfile_json = current_lockfile
+                .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
+                .unwrap_or_else(|| serde_json::json!({}));
             let registries = serde_json::json!({ "default": config.registry });
             let ctx = pacquet_hooks::PreResolutionHookContext {
                 wanted_lockfile: wanted_lockfile_json,
                 current_lockfile: current_lockfile_json,
-                exists_current_lockfile: wanted_lockfile.is_some(),
+                exists_current_lockfile,
                 exists_non_empty_wanted_lockfile: wanted_lockfile
                     .as_ref()
                     .map(|lf| !lf.snapshots.as_ref().map(|s| s.is_empty()).unwrap_or(true))
