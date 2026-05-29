@@ -30,7 +30,7 @@ export interface PackageInRegistry extends PackageManifest {
     name?: string
     email?: string
     approver?: {
-      name: string
+      name?: string
       email?: string
     }
     trustedPublisher?: {
