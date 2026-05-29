@@ -1597,7 +1597,7 @@ fn build_workspace_state(
         // `false` so pnpm doesn't treat the install as partial and
         // skip the cache.
         filtered_install: false,
-        config_dependencies: None,
+        config_dependencies: config.config_dependencies.clone(),
         // Settings construction is shared with
         // `optimistic_repeat_install::current_settings` so the
         // freshness check sees the same byte shape this writer

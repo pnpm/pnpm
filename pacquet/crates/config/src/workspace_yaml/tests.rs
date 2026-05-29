@@ -4,6 +4,7 @@ use crate::{
     ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
@@ -324,6 +325,65 @@ patchedDependencies:
     assert_eq!(config.workspace_dir.as_deref(), Some(base));
     let map = config.patched_dependencies.expect("present");
     assert_eq!(map.get("lodash@4.17.21").map(String::as_str), Some("patches/lodash@4.17.21.patch"));
+}
+
+/// `configDependencies` is a map of package name → version-with-integrity
+/// spec. pacquet records it into the workspace-state file so pnpm's
+/// `checkDepsStatus` doesn't treat the install as stale on the next
+/// `pnpm run` / `pnpm node`. Guards the camelCase rename, optionality,
+/// and `apply_to` wiring.
+#[test]
+fn parses_config_dependencies_from_yaml_and_applies() {
+    let yaml = r#"
+configDependencies:
+  "@pnpm/pacquet": 0.2.2-14
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let expected = settings.config_dependencies.clone();
+    assert_eq!(
+        expected.as_ref().and_then(|m| m.get("@pnpm/pacquet")),
+        Some(&ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string())),
+    );
+
+    let mut config = Config::new();
+    assert!(config.config_dependencies.is_none(), "default is None");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.config_dependencies, expected);
+}
+
+/// pnpm's `configDependencies` value can also be the `{ tarball?, integrity }`
+/// object form. It must parse (not error) and round-trip, otherwise an
+/// upstream-supported manifest becomes a hard config-load failure.
+#[test]
+fn parses_object_form_config_dependencies() {
+    let yaml = r#"
+configDependencies:
+  "@scope/dep":
+    integrity: sha512-abc
+    tarball: https://example.test/dep.tgz
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let map = settings.config_dependencies.expect("field present");
+    assert_eq!(
+        map.get("@scope/dep"),
+        Some(&ConfigDependency::Detailed(ConfigDependencyDetail {
+            integrity: "sha512-abc".to_string(),
+            tarball: Some("https://example.test/dep.tgz".to_string()),
+        })),
+    );
+}
+
+/// `configDependencies` is workspace-only: it must not be honored from
+/// the global `config.yaml`, matching pnpm's `isConfigFileKey` filter.
+#[test]
+fn config_dependencies_cleared_as_workspace_only_field() {
+    let yaml = r#"
+configDependencies:
+  "@pnpm/pacquet": 0.2.2-14
+"#;
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.config_dependencies.is_none());
 }
 
 /// `allowBuilds` is a map of `name[@version]` → bool. Same camelCase

@@ -8,6 +8,7 @@ use miette::Diagnostic;
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
 use serde::{Deserialize, Deserializer};
 use std::{
@@ -204,6 +205,17 @@ pub struct WorkspaceSettings {
     ///
     /// [`BTreeMap`]: std::collections::BTreeMap
     pub patched_dependencies: Option<IndexMap<String, String>>,
+
+    /// `configDependencies` from `pnpm-workspace.yaml`: package name →
+    /// version-with-integrity spec. pnpm records this verbatim in the
+    /// workspace-state file so that `checkDepsStatus` can detect when a
+    /// config dependency changed and force a reinstall. Pacquet must
+    /// write the same value back (see
+    /// [`build_workspace_state`](../../package-manager/src/install.rs)),
+    /// otherwise pnpm reads a missing `configDependencies` on the next
+    /// `pnpm run` / `pnpm node`, compares it against the live config,
+    /// and reinstalls on every invocation.
+    pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
 
     /// Map of `name[@version]` → `true` / `false`. Drives pnpm 11's
     /// default-deny build policy: a package's lifecycle scripts only
@@ -550,6 +562,7 @@ impl WorkspaceSettings {
         self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
+        self.config_dependencies = None;
         self.allow_builds = None;
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
@@ -715,6 +728,9 @@ impl WorkspaceSettings {
         config.workspace_dir = Some(base_dir.to_path_buf());
         if let Some(v) = self.patched_dependencies {
             config.patched_dependencies = Some(v);
+        }
+        if let Some(v) = self.config_dependencies {
+            config.config_dependencies = Some(v);
         }
         if let Some(v) = self.allow_builds {
             config.allow_builds = v;

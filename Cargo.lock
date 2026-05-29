@@ -2179,6 +2179,7 @@ dependencies = [
  "pacquet-patching",
  "pacquet-store-dir",
  "pacquet-testing-utils",
+ "pacquet-workspace-state",
  "pipe-trait",
  "pretty_assertions",
  "serde",

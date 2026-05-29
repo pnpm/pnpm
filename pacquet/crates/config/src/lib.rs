@@ -12,6 +12,7 @@ pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProb
 use indexmap::IndexMap;
 use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
 use serde::Deserialize;
 use smart_default::SmartDefault;
@@ -894,6 +895,15 @@ pub struct Config {
     /// only — see upstream's
     /// [`addSettingsFromWorkspaceManifestToConfig`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L803-L831).
     pub patched_dependencies: Option<IndexMap<String, String>>,
+
+    /// Raw `configDependencies` from `pnpm-workspace.yaml`: package
+    /// name → version-with-integrity spec. Recorded verbatim in the
+    /// workspace-state file so pnpm's `checkDepsStatus` sees the same
+    /// value it holds in the live config and doesn't treat the install
+    /// as stale. See [`WorkspaceSettings::config_dependencies`].
+    ///
+    /// [`WorkspaceSettings::config_dependencies`]: crate::workspace_yaml::WorkspaceSettings::config_dependencies
+    pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
 
     /// `pnpm.allowBuilds` from `pnpm-workspace.yaml`: package names
     /// (or `name@version` keys) that are allowed to run lifecycle

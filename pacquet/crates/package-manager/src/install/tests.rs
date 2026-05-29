@@ -900,6 +900,8 @@ mod build_workspace_state_tests {
     use pacquet_config::Config;
     use pacquet_modules_yaml::IncludedDependencies;
     use pacquet_package_manifest::PackageManifest;
+    use pacquet_workspace_state::ConfigDependency;
+    use std::collections::BTreeMap;
     use std::path::PathBuf;
     use tempfile::tempdir;
 
@@ -964,6 +966,28 @@ mod build_workspace_state_tests {
             assert_eq!(entry.version.as_deref(), Some("1.0.0"));
             assert!(packages.contains(&entry.name.as_deref().unwrap_or_default(),));
         }
+    }
+
+    /// pnpm's `createWorkspaceState` records `configDependencies`
+    /// verbatim. When pacquet is the install engine for a project that
+    /// declares one (the `@pnpm/pacquet` configDependency itself), the
+    /// written state must carry the same map — otherwise pnpm's
+    /// `checkDepsStatus` reads a missing value, treats the install as
+    /// stale, and reinstalls on every `pnpm run` / `pnpm node`.
+    #[test]
+    fn records_config_dependencies_from_config() {
+        let mut config = Config::new();
+        config.config_dependencies = Some(BTreeMap::from([(
+            "@pnpm/pacquet".to_string(),
+            ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string()),
+        )]));
+        let state = build_workspace_state(
+            &config,
+            pacquet_config::NodeLinker::default(),
+            IncludedDependencies::default(),
+            &[],
+        );
+        assert_eq!(state.config_dependencies, config.config_dependencies);
     }
 }
 
