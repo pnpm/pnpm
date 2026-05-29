@@ -2,7 +2,7 @@ import type { ChildProcess as NodeChildProcess, StdioOptions } from 'node:child_
 import path from 'node:path'
 
 import type { Config } from '@pnpm/config.reader'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import crossSpawn from 'cross-spawn'
 import isWindows from 'is-windows'
 import { readYamlFileSync } from 'read-yaml-file'

@@ -52,7 +52,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/agent.client": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "cross-env": "catalog:",
     "pnpm-agent": "workspace:*"
   },

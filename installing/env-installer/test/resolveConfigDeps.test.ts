@@ -4,7 +4,7 @@ import { expect, test } from '@jest/globals'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
 import { readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { readYamlFileSync } from 'read-yaml-file'
 

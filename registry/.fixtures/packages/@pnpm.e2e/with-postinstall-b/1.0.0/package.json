@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/with-postinstall-b",
+  "version": "1.0.0",
+  "dependencies": {
+    "json-append": "^1.1.1"
+  },
+  "scripts": {
+    "postinstall": "node -e \"process.stdout.write(Number(new Date()).toString())\" | json-append output.json"
+  }
+}

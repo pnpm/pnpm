@@ -1,7 +1,7 @@
 import { expect, test } from '@jest/globals'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/registry-mock'
+import { getIntegrity } from '@pnpm/testing.registry-mock'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'

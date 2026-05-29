@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm/xyz-parent-parent-with-xyz",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm/xyz-parent": "1.0.0",
+    "@pnpm/x": "1.0.0",
+    "@pnpm/y": "1.0.0",
+    "@pnpm/z": "1.0.0"
+  }
+}

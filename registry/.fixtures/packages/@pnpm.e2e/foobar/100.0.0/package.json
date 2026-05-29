@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/foobar",
+  "version": "100.0.0",
+  "dependencies": {
+    "@pnpm.e2e/foo": "^100.0.0"
+  },
+  "optionalDependencies": {
+    "@pnpm.e2e/bar": "^100.0.0"
+  }
+}

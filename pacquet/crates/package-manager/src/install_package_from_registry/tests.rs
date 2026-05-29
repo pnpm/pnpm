@@ -2,7 +2,6 @@ use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
 use pacquet_config::Config;
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_network::ThrottledClient;
-use pacquet_registry_mock::AutoMockInstance;
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
@@ -10,6 +9,7 @@ use pacquet_resolving_npm_resolver::{
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pacquet_testing_utils::registry::TestRegistry;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use std::{
@@ -144,7 +144,7 @@ async fn resolve_via_mock(
 
 #[tokio::test]
 pub async fn should_install_package_from_pre_resolved_result() {
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
     let store_dir = tempdir().unwrap();
     let modules_dir = tempdir().unwrap();
     let virtual_store_dir = tempdir().unwrap();
@@ -227,7 +227,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         }
     }
 
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
     let store_dir = tempdir().unwrap();
     let modules_dir = tempdir().unwrap();
     let second_parent_dir = tempdir().unwrap();
@@ -343,7 +343,7 @@ async fn install_emits_progress_sequence() {
         }
     }
 
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
 
     let store_dir = tempdir().unwrap();
     let modules_dir = tempdir().unwrap();

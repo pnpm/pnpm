@@ -1,49 +1,26 @@
-//! End-to-end tests for static-serve mode, sourcing the storage
-//! directory from `@pnpm/registry-mock`'s installed copy in the
-//! workspace. `@pnpm/registry-mock`'s published npm tarball ships a
-//! prepared verdaccio `storage-cache/` (scoped packages under
-//! `@foo`, `@pnpm.e2e`, etc.); this exercise asserts that
-//! pnpm-registry serves it correctly without any upstream proxy.
+//! End-to-end tests for static-serve mode against a synthetic
+//! verdaccio-shaped storage built in a `TempDir` (see `common`). The
+//! packuments carry the rich publish metadata verdaccio/npm emit
+//! (`_attachments`, `_nodeVersion`, `contributors`, …) so these tests
+//! assert that pnpm-registry rewrites tarball URLs and abbreviates that
+//! format correctly without any upstream proxy.
+
+// `#[path]` rather than the `tests/common/mod.rs` layout, which the
+// Perfectionist dylint forbids.
+#[path = "common/storage.rs"]
+mod common;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::OnceLock;
+use std::path::PathBuf;
 
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode};
-use pipe_trait::Pipe;
 use serde_json::Value;
 use tower::ServiceExt;
 
 use pnpm_registry::{Config, router};
 
 const PUBLIC_URL: &str = "http://example.test";
-
-fn workspace_root() -> &'static Path {
-    static ROOT: OnceLock<PathBuf> = OnceLock::new();
-    ROOT.get_or_init(|| {
-        Command::new(env!("CARGO"))
-            .arg("locate-project")
-            .arg("--workspace")
-            .arg("--message-format=plain")
-            .output()
-            .expect("cargo locate-project")
-            .stdout
-            .pipe(String::from_utf8)
-            .expect("utf8 stdout")
-            .trim_end()
-            .pipe(Path::new)
-            .parent()
-            .expect("parent of root manifest")
-            .to_path_buf()
-    })
-}
-
-fn registry_mock_storage() -> PathBuf {
-    workspace_root()
-        .join("pacquet/tasks/registry-mock/node_modules/@pnpm/registry-mock/registry/storage-cache")
-}
 
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
@@ -57,14 +34,9 @@ async fn body_bytes(body: Body) -> Vec<u8> {
 }
 
 #[tokio::test]
-async fn serves_scoped_packument_from_registry_mock_storage() {
-    let storage = registry_mock_storage();
-    assert!(
-        storage.join("@foo/no-deps/package.json").exists(),
-        "registry-mock storage is not populated at {storage:?} — run `pnpm install` first",
-    );
-
-    let app = router(static_config(storage));
+async fn serves_scoped_packument_from_storage() {
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response =
         app.oneshot(Request::get("/@foo/no-deps").body(Body::empty()).unwrap()).await.unwrap();
@@ -86,18 +58,18 @@ async fn serves_scoped_packument_from_registry_mock_storage() {
     // through untouched.
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["shasum"],
-        "30909ad03bbccde8929f516e4644a62cf7f82785",
+        "a1c3e0c08af5ec17f150b8b9f067bead3d64e472",
     );
     assert!(doc["versions"]["1.0.0"]["dist"]["integrity"].as_str().unwrap().starts_with("sha512-"));
 }
 
 #[tokio::test]
-async fn serves_scoped_tarball_from_registry_mock_storage() {
-    let storage = registry_mock_storage();
-    let on_disk = storage.join("@foo/no-deps/no-deps-1.0.0.tgz");
-    let expected_bytes = std::fs::read(&on_disk).expect("registry-mock tarball");
+async fn serves_scoped_tarball_from_storage() {
+    let storage = common::build_storage();
+    let on_disk = storage.path().join("@foo/no-deps/no-deps-1.0.0.tgz");
+    let expected_bytes = std::fs::read(&on_disk).expect("fixture tarball");
 
-    let app = router(static_config(storage));
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/@foo/no-deps/-/no-deps-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -110,7 +82,8 @@ async fn serves_scoped_tarball_from_registry_mock_storage() {
 
 #[tokio::test]
 async fn static_mode_returns_404_for_unknown_package() {
-    let app = router(static_config(registry_mock_storage()));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/@foo/this-package-does-not-exist").body(Body::empty()).unwrap())
@@ -121,8 +94,8 @@ async fn static_mode_returns_404_for_unknown_package() {
 
 #[tokio::test]
 async fn abbreviated_accept_header_strips_packument() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
         .oneshot(
@@ -177,8 +150,8 @@ async fn abbreviated_accept_header_strips_packument() {
 
 #[tokio::test]
 async fn full_packument_served_when_accept_does_not_request_abbreviated() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
         .oneshot(
@@ -203,8 +176,8 @@ async fn full_packument_served_when_accept_does_not_request_abbreviated() {
 
 #[tokio::test]
 async fn serves_version_manifest_by_dist_tag() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/@foo/no-deps/latest").body(Body::empty()).unwrap())
@@ -226,8 +199,8 @@ async fn serves_version_manifest_by_dist_tag() {
 
 #[tokio::test]
 async fn serves_version_manifest_by_literal_version() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/@foo/no-deps/1.0.0").body(Body::empty()).unwrap())
@@ -241,8 +214,8 @@ async fn serves_version_manifest_by_literal_version() {
 
 #[tokio::test]
 async fn version_manifest_returns_404_for_unknown_version() {
-    let storage = registry_mock_storage();
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/@foo/no-deps/99.0.0").body(Body::empty()).unwrap())
@@ -253,7 +226,8 @@ async fn version_manifest_returns_404_for_unknown_version() {
 
 #[tokio::test]
 async fn static_mode_returns_404_for_unknown_tarball() {
-    let app = router(static_config(registry_mock_storage()));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/@foo/no-deps/-/no-deps-99.0.0.tgz").body(Body::empty()).unwrap())

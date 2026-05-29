@@ -1,6 +1,10 @@
-//! Integration tests for the auth, dist-tag, and publish endpoints
-//! added to support migrating `@pnpm/registry-mock` off verdaccio.
+//! Integration tests for the auth, dist-tag, and publish endpoints.
 //! Static-mode (no upstream) to keep the tests hermetic.
+
+// `#[path]` rather than the `tests/common/mod.rs` layout, which the
+// Perfectionist dylint forbids.
+#[path = "common/storage.rs"]
+mod common;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
@@ -95,26 +99,10 @@ async fn adduser_rejects_wrong_password_for_existing_user() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// Use the registry-mock storage to verify that the auth policy
-/// gates `@pnpm.e2e/needs-auth` correctly.
-fn registry_mock_storage() -> Option<PathBuf> {
-    std::env::current_dir().ok()?.ancestors().find_map(|dir| {
-        let candidate = dir.join(
-            "pacquet/tasks/registry-mock/node_modules/@pnpm/registry-mock/registry/storage-cache",
-        );
-        candidate.exists().then_some(candidate)
-    })
-}
-
 #[tokio::test]
 async fn anonymous_request_to_protected_package_returns_401() {
-    let Some(storage) = registry_mock_storage() else {
-        // Storage not populated — skip silently. `static_mode_returns_404_for_unknown_package`
-        // in the sibling test file already covers static-mode plumbing without depending on
-        // the fixtures, so we don't lose anything if the fixture is absent.
-        return;
-    };
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     // The fixture publishes @pnpm.e2e/needs-auth — but our access
     // policy still requires auth for it because the package name
     // matches the `@pnpm.e2e/needs-auth` policy rule.
@@ -127,10 +115,8 @@ async fn anonymous_request_to_protected_package_returns_401() {
 
 #[tokio::test]
 async fn bearer_token_grants_access_to_protected_package() {
-    let Some(storage) = registry_mock_storage() else {
-        return;
-    };
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let response = app
@@ -147,10 +133,8 @@ async fn bearer_token_grants_access_to_protected_package() {
 
 #[tokio::test]
 async fn basic_auth_grants_access_to_protected_package() {
-    let Some(storage) = registry_mock_storage() else {
-        return;
-    };
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
 
     let basic = BASE64.encode(b"alice:secret");
@@ -724,29 +708,25 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
 
 #[tokio::test]
 async fn search_finds_packages_by_substring_in_local_storage() {
-    let Some(storage) = registry_mock_storage() else {
-        return;
-    };
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=is-positive&size=20").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/v1/search?text=no-deps&size=20").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     let objects = body["objects"].as_array().expect("objects is array");
-    assert!(!objects.is_empty(), "expected is-positive to match the registry-mock fixture");
+    assert!(!objects.is_empty(), "expected no-deps to match the storage fixture");
     let names: Vec<&str> =
         objects.iter().map(|object| object["package"]["name"].as_str().unwrap()).collect();
-    assert!(names.iter().any(|n| n.contains("is-positive")), "got names: {names:?}");
+    assert!(names.iter().any(|n| n.contains("no-deps")), "got names: {names:?}");
 }
 
 #[tokio::test]
 async fn search_filters_protected_packages_for_anonymous_callers() {
-    let Some(storage) = registry_mock_storage() else {
-        return;
-    };
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
 
     // Anonymous: `@pnpm.e2e/needs-auth` matches the access policy
     // for $authenticated, so search shouldn't surface it.
@@ -796,10 +776,8 @@ async fn search_filters_protected_packages_for_anonymous_callers() {
 
 #[tokio::test]
 async fn search_returns_empty_for_made_up_query() {
-    let Some(storage) = registry_mock_storage() else {
-        return;
-    };
-    let app = router(static_config(storage));
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
     let response = app
         .oneshot(
             Request::get("/-/v1/search?text=zzz-does-not-exist-99999&size=20")

@@ -136,7 +136,6 @@
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.path": "workspace:*",

@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/pkg-with-failing-postinstall",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node this-does-not-exist.js"
+  }
+}

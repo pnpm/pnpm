@@ -52,6 +52,9 @@
       "path": "../../testing/mock-agent"
     },
     {
+      "path": "../../testing/registry-mock"
+    },
+    {
       "path": "../client"
     }
   ]

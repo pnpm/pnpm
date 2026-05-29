@@ -1,0 +1,20 @@
+{
+  "name": "@pnpm.e2e/pre-and-postinstall-scripts-example",
+  "version": "1.0.0",
+  "description": "A package that creates files by pre- and postinstall scripts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "node create generated-by-prepare",
+    "preinstall": "hello-world-js-bin && node create generated-by-preinstall",
+    "install": "echo Hi",
+    "postinstall": "hello-world-js-bin && node create generated-by-postinstall"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm/tree/master/test/packages/postinstall-example"
+  },
+  "dependencies": {
+    "@pnpm.e2e/hello-world-js-bin": "1.0.0"
+  }
+}

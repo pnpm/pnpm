@@ -1,0 +1,16 @@
+{
+  "name": "@pnpm.e2e/has-bin-and-needs-build",
+  "version": "1.0.0",
+  "bin": "./bin.js",
+  "files": [
+    "postinstall.js",
+    "_bin.js"
+  ],
+  "dependencies": {
+    "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+    "@pnpm.e2e/install-script-example": "1.0.0"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  }
+}

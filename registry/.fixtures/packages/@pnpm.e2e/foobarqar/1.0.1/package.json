@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm.e2e/foobarqar",
+  "version": "1.0.1",
+  "dependencies": {
+    "@pnpm.e2e/foo": "^100.0.0",
+    "@pnpm.e2e/bar": "100.0.0",
+    "@pnpm.e2e/qar": "100.0.0"
+  }
+}

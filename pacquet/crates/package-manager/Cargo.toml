@@ -69,7 +69,6 @@ tracing         = { workspace = true }
 miette          = { workspace = true }
 
 [dev-dependencies]
-pacquet-registry-mock = { workspace = true }
 pacquet-testing-utils = { workspace = true }
 
 node-semver       = { workspace = true }

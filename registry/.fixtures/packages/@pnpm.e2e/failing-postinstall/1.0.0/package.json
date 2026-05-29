@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/failing-postinstall",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "echo hello && echo world && exit 1"
+  }
+}

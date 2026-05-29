@@ -70,7 +70,8 @@ pacquet-workspace-state                   = { path = "pacquet/crates/workspace-s
 pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpm-registry = { path = "registry/crates/pnpm-registry", version = "0.0.1" }
+pnpm-registry          = { path = "registry/crates/pnpm-registry", version = "0.0.1" }
+pnpm-registry-fixtures = { path = "registry/crates/pnpm-registry-fixtures", version = "0.0.1" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
@@ -85,6 +86,7 @@ clap = { version = "4", features = ["derive", "string"] }
 command-extra = { version = "1.0.0" }
 base64 = { version = "0.22.1" }
 bcrypt = { version = "0.17.1" }
+bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 dashmap = { version = "6.1.0" }
 derive_more = { version = "2.1.1", features = ["full"] }
@@ -97,6 +99,7 @@ indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.14.0" }
 futures-util = { version = "0.3.32" }
+flate2 = { version = "1.1.9" }
 gethostname = { version = "1" }
 getrandom = { version = "0.3.4" }
 miette = { version = "7.6.0", features = ["fancy"] }

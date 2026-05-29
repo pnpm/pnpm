@@ -3,7 +3,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { add, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { temporaryDirectory } from 'tempy'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`

@@ -73,6 +73,9 @@
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
+      "path": "../../testing/registry-mock"
+    },
+    {
       "path": "../cafs"
     },
     {

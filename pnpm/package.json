@@ -117,7 +117,6 @@
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-access.commands": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/releasing.commands": "workspace:*",
     "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",

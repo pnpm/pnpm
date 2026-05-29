@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals'
 // First run downloads packages from registry-mock — slow on Windows CI
 jest.setTimeout(600_000)
 import { fetchFromPnpmRegistry } from '@pnpm/agent.client'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreIndex } from '@pnpm/store.index'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { DepPath, ProjectId } from '@pnpm/types'
 import { createRegistryServer } from 'pnpm-agent'
 

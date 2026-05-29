@@ -136,12 +136,12 @@ fn should_install_index_files() {
     drop((root, mock_instance)); // cleanup
 }
 
-// Ignored on CI: the test drives the mocked verdaccio with hundreds of
+// Ignored on CI: the test drives the registry fixture with hundreds of
 // concurrent tarball fetches and reliably reports ConnectionAborted (Windows) /
 // ConnectionReset (macOS) / ConnectionClosed (Ubuntu) on hosted runners. Run
-// manually with `just registry-mock launch` + `cargo test --test install -- --ignored
+// manually with `cargo test --test install -- --ignored
 // frozen_lockfile_should_be_able_to_handle_big_lockfile`.
-#[ignore = "flaky on CI: mocked verdaccio drops connections under concurrent load"]
+#[ignore = "flaky on CI: registry fixture drops connections under concurrent load"]
 #[test]
 fn frozen_lockfile_should_be_able_to_handle_big_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

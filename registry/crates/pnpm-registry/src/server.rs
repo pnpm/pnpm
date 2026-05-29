@@ -148,6 +148,24 @@ pub async fn serve(config: Config) -> crate::error::Result<()> {
     Ok(())
 }
 
+/// Serve on an already-bound listener.
+///
+/// Test harnesses can bind to `127.0.0.1:0`, read the OS-assigned
+/// address, and then hand that listener here without a bind/drop/rebind
+/// race.
+pub async fn serve_listener(
+    config: Config,
+    listener: tokio::net::TcpListener,
+) -> crate::error::Result<()> {
+    let listen = listener.local_addr()?;
+    let app = router(config);
+    tracing::info!(%listen, "pnpm-registry listening");
+    axum::serve(NodelayTcpListener(listener), app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+    Ok(())
+}
+
 /// Wraps [`tokio::net::TcpListener`] to disable Nagle's algorithm on
 /// every accepted socket.
 ///

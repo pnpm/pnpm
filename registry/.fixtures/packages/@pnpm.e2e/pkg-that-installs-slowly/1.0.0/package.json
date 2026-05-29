@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/pkg-that-installs-slowly",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  }
+}

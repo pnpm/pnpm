@@ -4,9 +4,9 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { add, install, prune } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { symlinkDirSync } from 'symlink-dir'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`

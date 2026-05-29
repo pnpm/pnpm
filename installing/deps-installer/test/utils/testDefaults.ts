@@ -1,8 +1,8 @@
 import type { CustomResolver } from '@pnpm/hooks.types'
 import type { InstallOptions } from '@pnpm/installing.deps-installer'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import type { Registries } from '@pnpm/types'
 

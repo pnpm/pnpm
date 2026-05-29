@@ -3,8 +3,7 @@
   "version": "1100.0.0",
   "private": true,
   "devDependencies": {
-    "@pnpm-private/pacquet-registry-mock-launcher": "workspace:*",
-    "@pnpm/registry-mock": "catalog:"
+    "@pnpm-private/pacquet-registry-mock-launcher": "workspace:*"
   },
   "keywords": [
     "pnpm",

@@ -72,7 +72,6 @@
     "@pnpm/deps.inspection.commands": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/testing.registry-mock": "workspace:*",

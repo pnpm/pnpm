@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm.e2e/for-legacy-pnpm",
+  "version": "1.0.0",
+  "publishConfig": {
+    "engines": {
+      "pnpm": "0.1.0"
+    }
+  }
+}

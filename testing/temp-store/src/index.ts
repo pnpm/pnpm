@@ -1,11 +1,11 @@
 import * as path from 'node:path'
 
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { createPackageStore, type CreatePackageStoreOptions } from '@pnpm/store.controller'
 import type { StoreController } from '@pnpm/store.controller-types'
 import { StoreIndex } from '@pnpm/store.index'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 

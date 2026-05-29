@@ -37,6 +37,9 @@
       "path": "../../store/index"
     },
     {
+      "path": "../../testing/registry-mock"
+    },
+    {
       "path": "../client"
     }
   ]
