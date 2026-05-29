@@ -89,7 +89,7 @@ pub fn build_resolution_verifiers(
     registries.insert("default".to_string(), config.registry.clone());
 
     let opts = CreateNpmResolutionVerifierOptions {
-        minimum_release_age: config.minimum_release_age,
+        minimum_release_age: config.resolved_minimum_release_age(),
         minimum_release_age_exclude: min_age_exclude,
         minimum_release_age_exclude_patterns: config
             .minimum_release_age_exclude

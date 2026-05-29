@@ -26,6 +26,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
@@ -44,8 +45,7 @@ use crate::{
     },
     resolve_dependency_tree::{
         ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
-        importer_injected_dependency_names, importer_optional_dependency_names,
-        resolve_catalog_specifiers,
+        importer_direct_wanted_specs,
     },
     resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
     resolved_tree::ResolvedTree,
@@ -93,6 +93,24 @@ pub struct ResolveImporterOptions {
     pub patched_dependencies: Option<Arc<PatchGroupRecord>>,
 
     pub base_opts: ResolveOptions,
+
+    /// When `true`, the importer's direct dependencies are resolved to
+    /// their lowest satisfying version (`resolutionMode: time-based` /
+    /// `lowest-direct`). Transitive deps are always picked highest.
+    /// Mirrors pnpm's
+    /// [`pickLowestVersion`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470)
+    /// for importer deps.
+    pub pick_lowest_direct: bool,
+
+    /// Publish-date cutoff applied to transitive dependencies. Under
+    /// `resolutionMode: time-based` this is the workspace-wide cutoff
+    /// derived from the resolved direct deps (the multi-importer
+    /// orchestrator [`fn@crate::resolve_workspace`] computes it and
+    /// overrides this field); otherwise it should equal
+    /// `base_opts.published_by` (the `minimumReleaseAge` cutoff) so
+    /// subdep resolution is unchanged. Direct deps always use
+    /// `base_opts.published_by`, never this value.
+    pub subdep_published_by: Option<DateTime<Utc>>,
 
     /// Catalogs parsed from `pnpm-workspace.yaml`. Applied only to the
     /// importer's direct dependencies; transitive `catalog:` entries
@@ -145,6 +163,8 @@ impl std::fmt::Debug for ResolveImporterOptions {
             .field("all_preferred_versions", &self.all_preferred_versions)
             .field("patched_dependencies", &self.patched_dependencies)
             .field("base_opts", &self.base_opts)
+            .field("pick_lowest_direct", &self.pick_lowest_direct)
+            .field("subdep_published_by", &self.subdep_published_by)
             .field("catalogs", &self.catalogs)
             .field("exclude_links_from_lockfile", &self.exclude_links_from_lockfile)
             .field("lockfile_dir", &self.lockfile_dir)
@@ -222,6 +242,8 @@ where
         mut all_preferred_versions,
         patched_dependencies,
         base_opts,
+        pick_lowest_direct,
+        subdep_published_by,
         catalogs,
         exclude_links_from_lockfile,
         lockfile_dir,
@@ -242,47 +264,11 @@ where
     };
 
     let ctx = TreeCtx::with_workspace(workspace, base_opts)
-        .with_patched_dependencies(patched_dependencies);
+        .with_patched_dependencies(patched_dependencies)
+        .with_resolution_mode(pick_lowest_direct, subdep_published_by);
 
-    // Mirrors upstream's
-    // [`getAllDependenciesFromManifest({ autoInstallPeers })`](https://github.com/pnpm/pnpm/blob/097983fbca/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts):
-    // when auto-install-peers is on, the importer's own
-    // `peerDependencies` are walked as regular direct deps too, so the
-    // version the importer pinned wins over whatever a deeply-nested
-    // consumer asks for via the hoist loop.
-    let mut groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
-    if auto_install_peers && !groups.contains(&DependencyGroup::Peer) {
-        groups.push(DependencyGroup::Peer);
-    }
-    // `optionalDependencies` wins over the other groups when an alias
-    // appears in more than one — same precedence as upstream's
-    // [`getWantedDependenciesFromGivenSet`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L57-L72).
-    // Pre-compute the optional name set so the walker can tag each
-    // direct dep with the right `wanted.optional` flag for the
-    // `ResolvedPackage.optional` propagation.
-    let optional_names = importer_optional_dependency_names(manifest);
-    // `dependenciesMeta[name].injected = true` opts a single direct
-    // dep into the hard-linked `file:` resolution shape even when the
-    // global `injectWorkspacePackages` flag is off. Mirrors upstream's
-    // [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L73)
-    // — importer-level only; the recursive walker does not inherit
-    // this from any resolved package's own `dependenciesMeta`.
-    let injected_names = importer_injected_dependency_names(manifest);
-    let mut initial_wanted: Vec<WantedSpec> = Vec::new();
-    for (name, range) in manifest.dependencies(groups) {
-        if !crate::is_valid_dependency_alias(name) {
-            return Err(ResolveImporterError::Resolve(
-                ResolveDependencyTreeError::InvalidDependencyName {
-                    parent: "The current package".to_string(),
-                    alias: name.to_string(),
-                },
-            ));
-        }
-        let optional = optional_names.contains(name);
-        let injected = injected_names.contains(name);
-        initial_wanted.push((name.to_string(), range.to_string(), optional, injected));
-    }
-    let initial_wanted = resolve_catalog_specifiers(initial_wanted, &catalogs)?;
+    let initial_wanted =
+        importer_direct_wanted_specs(manifest, dependency_groups, auto_install_peers, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 

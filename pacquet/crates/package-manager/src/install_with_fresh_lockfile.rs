@@ -11,7 +11,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
-use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
+use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, TrustPolicy};
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
@@ -417,6 +417,19 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         let named_registry_aliases: std::collections::HashSet<String> =
             merged_named_registries.keys().cloned().collect();
 
+        // `resolutionMode` derivations. `time_based` and
+        // `pick_lowest_direct` steer the deps-resolver's per-depth
+        // version pick; `full_metadata` forces the npm resolver to
+        // fetch per-version `time` fields so the time-based cutoff (and
+        // the no-downgrade trust check) have publication dates to work
+        // with. Mirrors pnpm's
+        // [`fullMetadata`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/connection-manager/src/createNewStoreController.ts#L69-L74)
+        // expression: `(time-based || no-downgrade) && !registrySupportsTimeField`.
+        let time_based = config.resolution_mode == ResolutionMode::TimeBased;
+        let pick_lowest_direct = config.resolution_mode.picks_lowest_direct();
+        let full_metadata = (time_based || config.trust_policy == TrustPolicy::NoDowngrade)
+            && !config.registry_supports_time_field;
+
         // One per-cache-key packument fetch serializer shared between
         // the npm and named-registry resolvers. Ports upstream's
         // [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L42-L44):
@@ -444,14 +457,14 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             offline: config.offline,
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-            // Default to abbreviated metadata at resolve time and let
-            // [`pick_package`] upgrade per-call when `published_by` or
-            // `optional` demand it. Mirrors upstream's
-            // [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175)
-            // default. Pacquet's `Config` doesn't surface a
-            // `fullMetadata` knob; if one lands later, thread it
-            // here.
-            full_metadata: false,
+            // Abbreviated metadata at resolve time unless `time-based`
+            // resolution or the `no-downgrade` trust policy needs the
+            // per-version `time` field (and the registry doesn't serve
+            // it in abbreviated form). When `false`, [`pick_package`]
+            // still upgrades per-call where `published_by` / `optional`
+            // demand it. Mirrors upstream's
+            // [`fullMetadata`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/connection-manager/src/createNewStoreController.ts#L69-L74).
+            full_metadata,
         });
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
@@ -486,7 +499,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             // Same rationale as `NpmResolver.full_metadata` above.
-            full_metadata: false,
+            full_metadata,
         };
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:
@@ -584,7 +597,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // wall-clock subtraction. On overflow we leave the policy
         // inactive for this install — better than silently producing
         // a cutoff in the wrong direction.
-        let published_by = config.minimum_release_age.and_then(|minutes| {
+        let published_by = config.resolved_minimum_release_age().and_then(|minutes| {
             let duration = chrono::Duration::try_minutes(i64::try_from(minutes).ok()?)?;
             chrono::Utc::now().checked_sub_signed(duration)
         });
@@ -670,6 +683,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
             manifest_hook: package_extensions_hook.clone(),
+            pick_lowest_direct,
+            time_based,
         };
         let modules_basename = config
             .modules_dir
@@ -697,6 +712,15 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     dedupe_peers: config.dedupe_peers,
                     all_preferred_versions: all_preferred_versions.clone(),
                     patched_dependencies: patched_dependencies.clone(),
+                    // `pick_lowest_direct` / `subdep_published_by` are
+                    // authoritative from `resolve_workspace` (it computes
+                    // the workspace-wide time-based cutoff and overrides
+                    // both per importer); the values here just satisfy
+                    // the struct. `subdep_published_by` defaults to the
+                    // `minimumReleaseAge` cutoff so non-time-based modes
+                    // leave subdep resolution unchanged.
+                    pick_lowest_direct,
+                    subdep_published_by: published_by,
                     base_opts: ResolveOptions {
                         default_tag: Some("latest".to_string()),
                         published_by,

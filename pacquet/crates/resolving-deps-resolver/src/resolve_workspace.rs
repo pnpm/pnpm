@@ -20,11 +20,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::Resolver;
+use pacquet_resolving_resolver_base::{Resolver, WantedDependency};
 
 use crate::{
-    resolve_dependency_tree::{ManifestHook, WorkspaceTreeCtx},
+    resolve_dependency_tree::{ManifestHook, WorkspaceTreeCtx, importer_direct_wanted_specs},
     resolve_importer::{
         ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
         resolve_importer_with_workspace,
@@ -63,6 +64,21 @@ pub struct WorkspaceResolveOptions {
     /// install); the install layer typically threads
     /// `packageExtensions` here. See [`ManifestHook`].
     pub manifest_hook: Option<ManifestHook>,
+
+    /// When `true`, every importer's direct dependencies are resolved
+    /// to their lowest satisfying version (`resolutionMode: time-based`
+    /// / `lowest-direct`). Threaded onto each
+    /// [`ResolveImporterOptions::pick_lowest_direct`].
+    pub pick_lowest_direct: bool,
+
+    /// When `true` (`resolutionMode: time-based`), a pre-pass resolves
+    /// every importer's direct deps to find the newest publication
+    /// date, then constrains all transitive deps to versions published
+    /// no later than that (plus a one-hour delta), clamped by any
+    /// `minimumReleaseAge` cutoff. Mirrors pnpm's
+    /// [`getPublishedByDate`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L506-L517)
+    /// step.
+    pub time_based: bool,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -102,11 +118,39 @@ where
         lockfile_dir,
         peers_suffix_max_length,
         manifest_hook,
+        pick_lowest_direct,
+        time_based,
     } = opts;
     let workspace = Arc::new(WorkspaceTreeCtx::default().with_manifest_hook(manifest_hook));
+
+    // Build every importer's options up front so the `time-based`
+    // pre-pass and the resolve loop see the same per-importer wiring.
+    let importer_opts: Vec<ResolveImporterOptions> =
+        importers.iter().map(&mut per_importer_options).collect();
+
+    // The `minimumReleaseAge` cutoff is set uniformly on every
+    // importer's `base_opts.published_by` by the install layer; it is
+    // pnpm's `maximumPublishedBy`, the upper bound on the time-based
+    // cutoff.
+    let maximum_published_by = importer_opts.first().and_then(|opts| opts.base_opts.published_by);
+    let subdep_published_by = if time_based {
+        compute_time_based_cutoff(
+            resolver,
+            importers,
+            &importer_opts,
+            dependency_groups,
+            pick_lowest_direct,
+            maximum_published_by,
+        )
+        .await
+    } else {
+        maximum_published_by
+    };
+
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
-    for importer in importers {
-        let importer_opts = per_importer_options(importer);
+    for (importer, mut importer_opts) in importers.iter().zip(importer_opts) {
+        importer_opts.pick_lowest_direct = pick_lowest_direct;
+        importer_opts.subdep_published_by = subdep_published_by;
         let project_dir = importer_opts.base_opts.project_dir.clone();
         let modules_dir = importer_opts.modules_dir.clone();
         let ResolveImporterResult { resolved_tree, .. } = resolve_importer_with_workspace(
@@ -156,3 +200,70 @@ where
 
     Ok(ResolveWorkspaceResult { merged_tree, peers })
 }
+
+/// Resolve every importer's direct dependencies and derive the
+/// `time-based` publish-date cutoff for transitive deps: the newest
+/// direct-dep publication date plus a one-hour delta, clamped by the
+/// `minimumReleaseAge` cutoff (`maximum_published_by`).
+///
+/// Mirrors pnpm's
+/// [`getPublishedByDate` + clamp](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L506-L517).
+/// Direct deps are resolved with the importer-level options (lowest
+/// pick under `minimumReleaseAge`); only their `published_at` is read,
+/// so the throwaway resolves warm the resolver's packument cache for
+/// the real walk that follows. Resolver errors are ignored here — the
+/// real walk surfaces them.
+async fn compute_time_based_cutoff<Chain>(
+    resolver: &Chain,
+    importers: &[WorkspaceImporter<'_>],
+    importer_opts: &[ResolveImporterOptions],
+    dependency_groups: &[DependencyGroup],
+    pick_lowest_direct: bool,
+    maximum_published_by: Option<DateTime<Utc>>,
+) -> Option<DateTime<Utc>>
+where
+    Chain: Resolver + ?Sized,
+{
+    let mut newest: Option<DateTime<Utc>> = None;
+    for (importer, opts) in importers.iter().zip(importer_opts) {
+        let Ok(specs) = importer_direct_wanted_specs(
+            importer.manifest,
+            dependency_groups.iter().copied(),
+            opts.auto_install_peers,
+            &opts.catalogs,
+        ) else {
+            continue;
+        };
+        let mut direct_opts = opts.base_opts.clone();
+        direct_opts.pick_lowest_version = pick_lowest_direct;
+        for (alias, bare_specifier, optional, injected) in specs {
+            let wanted = WantedDependency {
+                alias: Some(alias),
+                bare_specifier: Some(bare_specifier),
+                optional: Some(optional),
+                injected: injected.then_some(true),
+                ..WantedDependency::default()
+            };
+            if let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await
+                && let Some(published_at) = result.published_at.as_deref()
+                && let Ok(parsed) = DateTime::parse_from_rfc3339(published_at)
+            {
+                let parsed = parsed.with_timezone(&Utc);
+                newest = Some(newest.map_or(parsed, |current| current.max(parsed)));
+            }
+        }
+    }
+
+    // publishedBy = newest + 1h, clamped to the minimumReleaseAge
+    // cutoff. When no direct dep carried a publish date, fall back to
+    // the cutoff alone (which may itself be `None`).
+    let candidate = newest.and_then(|date| date.checked_add_signed(Duration::hours(1)));
+    match (candidate, maximum_published_by) {
+        (Some(candidate), Some(maximum)) => Some(candidate.min(maximum)),
+        (Some(candidate), None) => Some(candidate),
+        (None, maximum) => maximum,
+    }
+}
+
+#[cfg(test)]
+mod tests;

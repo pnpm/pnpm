@@ -35,7 +35,8 @@ use crate::defaults::{
 };
 pub use workspace_yaml::{
     GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, workspace_root_or,
+    PeerDependencyRules, UpdateConfig, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    workspace_root_or,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -236,6 +237,48 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
             }
         }
         deserializer.deserialize_any(V)
+    }
+}
+
+/// How the resolver picks a version for a direct dependency when more
+/// than one satisfies the wanted range.
+///
+/// Mirrors pnpm's
+/// [`resolutionMode`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts#L135)
+/// (`'highest' | 'time-based' | 'lowest-direct'`). Defaults to
+/// [`ResolutionMode::Highest`], matching pnpm's
+/// [`'resolution-mode': 'highest'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L188).
+///
+/// Only direct dependencies are affected by the lowest-version pick;
+/// subdependencies are always picked highest. Under
+/// [`ResolutionMode::TimeBased`] the resolver additionally constrains
+/// subdependencies to versions published no later than the newest
+/// resolved direct dependency (plus a one-hour delta).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ResolutionMode {
+    /// Pick the highest version that satisfies the range, everywhere.
+    #[default]
+    Highest,
+
+    /// Resolve direct dependencies to their lowest satisfying version,
+    /// then resolve subdependencies from versions published before the
+    /// last direct dependency was published.
+    TimeBased,
+
+    /// Resolve direct dependencies to their lowest satisfying version;
+    /// subdependencies are unconstrained (picked highest).
+    LowestDirect,
+}
+
+impl ResolutionMode {
+    /// Whether direct dependencies are resolved to their lowest
+    /// satisfying version. True for both [`Self::TimeBased`] and
+    /// [`Self::LowestDirect`]. Mirrors pnpm's
+    /// [`pickLowestVersion`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470)
+    /// computation.
+    pub fn picks_lowest_direct(self) -> bool {
+        matches!(self, ResolutionMode::TimeBased | ResolutionMode::LowestDirect)
     }
 }
 
@@ -1086,6 +1129,66 @@ pub struct Config {
     /// [`trustPolicyIgnoreAfter`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L272).
     pub trust_policy_ignore_after: Option<u64>,
 
+    /// How direct dependencies pick a version when several satisfy the
+    /// wanted range, and whether subdependencies are constrained by
+    /// publication date. See [`ResolutionMode`]. Default
+    /// [`ResolutionMode::Highest`], matching pnpm's
+    /// [`'resolution-mode': 'highest'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L188).
+    pub resolution_mode: ResolutionMode,
+
+    /// Whether the configured registry returns the per-version `time`
+    /// field in its *abbreviated* metadata. When `false` (the default),
+    /// [`ResolutionMode::TimeBased`] resolution (and the
+    /// [`TrustPolicy::NoDowngrade`] check) must fetch full metadata to
+    /// obtain publication dates. Setting this to `true` for a registry
+    /// that includes `time` in abbreviated metadata (Verdaccio 5.15.1+)
+    /// avoids the slower full-metadata fetch. Mirrors pnpm's
+    /// [`registrySupportsTimeField`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts#L136)
+    /// (default
+    /// [`false`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L212)).
+    pub registry_supports_time_field: bool,
+
+    /// `name → semver-range` map of deprecated package versions whose
+    /// deprecation warning should be suppressed. A deprecated package
+    /// is reported unless its name has an entry here whose range the
+    /// resolved version satisfies. Mirrors pnpm's
+    /// [`allowedDeprecatedVersions`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L153)
+    /// and its consumer at
+    /// [`resolveDependencies.ts:1593-1606`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1593-L1606).
+    ///
+    /// Parsed and stored for parity with pnpm's config surface. Pacquet
+    /// does not yet emit deprecation warnings during resolution, so
+    /// there is nothing for the allow-list to suppress today; the field
+    /// is consumed once that warning path lands.
+    pub allowed_deprecated_versions: BTreeMap<String, String>,
+
+    /// `updateConfig` from `pnpm-workspace.yaml`. Today only its
+    /// `ignoreDependencies` field is modeled — the list of dependency
+    /// name patterns `pnpm update` skips. Mirrors pnpm's
+    /// [`updateConfig`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L193-L195)
+    /// and its consumer in
+    /// [`installing/commands/src/update`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/commands/src/update/index.ts#L212).
+    ///
+    /// Parsed and stored for parity with pnpm's config surface. Pacquet
+    /// has no `update` / `outdated` command yet, so the ignore list has
+    /// no consumer today; it is honored once that command lands.
+    pub update_config: workspace_yaml::UpdateConfig,
+
+    /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
+    /// applied when reporting peer-dependency issues. See
+    /// [`PeerDependencyRules`]. Mirrors pnpm's
+    /// [`peerDependencyRules`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L147-L151)
+    /// and its consumer
+    /// [`reportPeerDependencyIssues`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/reportPeerDependencyIssues.ts).
+    ///
+    /// Parsed and stored for parity with pnpm's config surface. Pacquet
+    /// resolves peers but does not yet have a missing/bad peer-issue
+    /// reporting pass, so these rules have no consumer today; they are
+    /// applied once that pass lands.
+    ///
+    /// [`PeerDependencyRules`]: crate::workspace_yaml::PeerDependencyRules
+    pub peer_dependency_rules: workspace_yaml::PeerDependencyRules,
+
     /// Per-registry `Authorization` header lookup, populated from
     /// `.npmrc` auth keys (`_auth`, `_authToken`, `username`/`_password`,
     /// scoped variants). Threaded through the network and tarball
@@ -1117,6 +1220,21 @@ impl Config {
     /// resolver and the `explicitlySetKeys` mechanism alongside it.
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
         self.minimum_release_age_strict.unwrap_or(false)
+    }
+
+    /// Effective [`Self::minimum_release_age`], with `Some(0)` treated
+    /// as "disabled" (`None`).
+    ///
+    /// Mirrors pnpm's falsy check
+    /// ([`opts.minimumReleaseAge ? ... : undefined`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/version-policy/src/index.ts#L48-L57)):
+    /// `minimumReleaseAge: 0` disables the maturity cutoff. Disabling it
+    /// is also what makes `resolutionMode: lowest-direct` / `time-based`
+    /// observable for direct dependencies — while a cutoff is active the
+    /// picker always prefers the highest mature version, overriding the
+    /// lowest-version pick (matching pnpm's
+    /// [`pickRespectingMinReleaseAge`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/resolving/npm-resolver/src/pickPackage.ts#L119-L132)).
+    pub fn resolved_minimum_release_age(&self) -> Option<u64> {
+        self.minimum_release_age.filter(|&minutes| minutes > 0)
     }
 
     /// Whether the install should consult the side-effects cache.
@@ -2718,5 +2836,20 @@ mod tests {
 
         let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
         assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml");
+    }
+
+    /// `minimumReleaseAge: 0` disables the maturity cutoff (returns
+    /// `None`), matching pnpm's falsy check; any positive value passes
+    /// through, and the built-in default (1440) is non-zero.
+    #[test]
+    fn resolved_minimum_release_age_treats_zero_as_disabled() {
+        let mut config = Config::new();
+        assert_eq!(config.resolved_minimum_release_age(), Some(1440), "default is 1 day");
+        config.minimum_release_age = Some(0);
+        assert_eq!(config.resolved_minimum_release_age(), None, "0 disables the cutoff");
+        config.minimum_release_age = Some(60);
+        assert_eq!(config.resolved_minimum_release_age(), Some(60));
+        config.minimum_release_age = None;
+        assert_eq!(config.resolved_minimum_release_age(), None);
     }
 }

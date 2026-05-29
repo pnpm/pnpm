@@ -91,6 +91,8 @@ fn default_opts() -> ResolveImporterOptions {
         all_preferred_versions: PreferredVersions::new(),
         patched_dependencies: None,
         base_opts: ResolveOptions::default(),
+        pick_lowest_direct: false,
+        subdep_published_by: None,
         catalogs: pacquet_catalogs_types::Catalogs::new(),
         exclude_links_from_lockfile: false,
         lockfile_dir: None,
@@ -982,4 +984,149 @@ async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
         dep_paths.iter().any(|dp| dp.starts_with("y@1.0.0")),
         "y must appear in the graph: {dep_paths:?}",
     );
+}
+
+/// `resolutionMode` orchestration tests: assert the deps-resolver hands
+/// the npm resolver the right per-depth [`ResolveOptions`]
+/// (`pick_lowest_version`, `published_by`) for each mode. These cover
+/// the wiring in [`TreeCtx::with_resolution_mode`] +
+/// [`resolve_node`](crate::resolve_dependency_tree); the version pick
+/// itself lives in the npm picker (tested there).
+mod resolution_mode {
+    use super::{StubResolver, default_opts, fake_manifest, fake_result};
+    use crate::resolve_importer;
+    use chrono::{DateTime, TimeZone, Utc};
+    use pacquet_package_manifest::DependencyGroup;
+    use pacquet_resolving_resolver_base::{
+        ResolveFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    };
+    use pretty_assertions::assert_eq;
+    use std::{collections::HashMap, sync::Mutex};
+
+    /// The `(pick_lowest_version, published_by)` pair recorded per alias.
+    type RecordedOpts = (bool, Option<DateTime<Utc>>);
+
+    /// Resolver that records the [`RecordedOpts`] each `(alias, range)`
+    /// query was resolved with, so a test can assert the depth-specific
+    /// options the tree walker built.
+    struct RecordingResolver {
+        inner: StubResolver,
+        seen: Mutex<HashMap<String, RecordedOpts>>,
+    }
+
+    impl RecordingResolver {
+        fn new(table: HashMap<(String, String), ResolveResult>) -> Self {
+            RecordingResolver {
+                inner: StubResolver { table, calls: Mutex::new(Vec::new()) },
+                seen: Mutex::new(HashMap::new()),
+            }
+        }
+
+        fn opts_for(&self, alias: &str) -> RecordedOpts {
+            *self.seen.lock().unwrap().get(alias).expect("alias was resolved")
+        }
+    }
+
+    impl Resolver for RecordingResolver {
+        fn resolve<'a>(
+            &'a self,
+            wanted: &'a WantedDependency,
+            opts: &'a ResolveOptions,
+        ) -> ResolveFuture<'a> {
+            if let Some(alias) = wanted.alias.clone() {
+                self.seen
+                    .lock()
+                    .unwrap()
+                    .insert(alias, (opts.pick_lowest_version, opts.published_by));
+            }
+            self.inner.resolve(wanted, opts)
+        }
+
+        fn resolve_latest<'a>(
+            &'a self,
+            query: &'a pacquet_resolving_resolver_base::LatestQuery,
+            opts: &'a ResolveOptions,
+        ) -> pacquet_resolving_resolver_base::ResolveLatestFuture<'a> {
+            self.inner.resolve_latest(query, opts)
+        }
+    }
+
+    fn one_dep_one_subdep_table() -> HashMap<(String, String), ResolveResult> {
+        let mut table = HashMap::new();
+        table.insert(
+            ("direct".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "direct",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "direct",
+                    "version": "1.0.0",
+                    "dependencies": { "sub": "^2.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("sub".to_string(), "^2.0.0".to_string()),
+            fake_result("sub", "2.0.0", serde_json::json!({ "name": "sub", "version": "2.0.0" })),
+        );
+        table
+    }
+
+    /// `highest` (the default): both direct and transitive deps are
+    /// picked highest, with the same `minimumReleaseAge` cutoff applied
+    /// uniformly.
+    #[tokio::test]
+    async fn highest_mode_picks_highest_everywhere() {
+        let resolver = RecordingResolver::new(one_dep_one_subdep_table());
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
+        let maximum = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        let mut opts = default_opts();
+        opts.base_opts.published_by = Some(maximum);
+        opts.pick_lowest_direct = false;
+        opts.subdep_published_by = Some(maximum);
+
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+        assert_eq!(resolver.opts_for("direct"), (false, Some(maximum)));
+        assert_eq!(resolver.opts_for("sub"), (false, Some(maximum)));
+    }
+
+    /// `lowest-direct`: direct deps pick lowest, transitive deps pick
+    /// highest, and there is no extra publish-date cutoff beyond
+    /// `minimumReleaseAge` (here unset).
+    #[tokio::test]
+    async fn lowest_direct_mode_picks_lowest_only_for_direct_deps() {
+        let resolver = RecordingResolver::new(one_dep_one_subdep_table());
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
+        let mut opts = default_opts();
+        opts.pick_lowest_direct = true;
+        opts.subdep_published_by = None;
+
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+        assert_eq!(resolver.opts_for("direct"), (true, None));
+        assert_eq!(resolver.opts_for("sub"), (false, None));
+    }
+
+    /// `time-based`: direct deps pick lowest under the
+    /// `minimumReleaseAge` cutoff; transitive deps pick highest but are
+    /// constrained to the computed publish-date cutoff. The cutoff
+    /// itself is computed workspace-wide in `resolve_workspace`; here we
+    /// pass it in directly to assert the depth-specific threading.
+    #[tokio::test]
+    async fn time_based_mode_threads_cutoff_to_subdeps_only() {
+        let resolver = RecordingResolver::new(one_dep_one_subdep_table());
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
+        let maximum = Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap();
+        let cutoff = Utc.with_ymd_and_hms(2024, 3, 1, 0, 0, 0).unwrap();
+        let mut opts = default_opts();
+        opts.base_opts.published_by = Some(maximum);
+        opts.pick_lowest_direct = true;
+        opts.subdep_published_by = Some(cutoff);
+
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+        assert_eq!(resolver.opts_for("direct"), (true, Some(maximum)));
+        assert_eq!(resolver.opts_for("sub"), (false, Some(cutoff)));
+    }
 }
