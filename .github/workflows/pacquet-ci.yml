@@ -145,7 +145,7 @@ jobs:
 
       - uses: crate-ci/typos@5374cbf686e897b15713110e233094e2874de7ef # v1.46.1
         with:
-          files: pacquet registry
+          files: pacquet pnpr
 
   deny:
     name: Cargo Deny
