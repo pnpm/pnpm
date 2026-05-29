@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tempfile::TempDir;
 
-use pacquet_hooks::{finder, PnpmfileHooks};
+use pacquet_hooks::{PnpmfileHooks, finder};
 
 #[test]
 fn test_find_pnpmfile_uses_mjs() {

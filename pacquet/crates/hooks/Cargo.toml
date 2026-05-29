@@ -1,10 +1,17 @@
 [package]
-name    = "pacquet-hooks"
-version = "0.1.0"
-edition = "2021"
+name                  = "pacquet-hooks"
+version               = "0.1.0"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
 
 [dependencies]
-serde_json  = "1.0"
+serde_json  = { workspace = true }
 async-trait = "0.1"
 tokio       = { workspace = true, features = ["rt", "process", "time", "io-util"] }
 derive_more = { workspace = true }
@@ -12,3 +19,6 @@ derive_more = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio    = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

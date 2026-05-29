@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 pub struct NodeJsHooks {
     pub file: PathBuf,
@@ -27,10 +27,10 @@ pub enum HookError {
 impl NodeJsHooks {
     async fn call_node(&self, func: &str, args: Value) -> Result<Value, HookError> {
         let payload = serde_json::to_string(&args)
-            .map_err(|e| HookError::HookFailed(func.to_string(), e.to_string()))?;
+            .map_err(|err| HookError::HookFailed(func.to_string(), err.to_string()))?;
         let file_path = self.file.to_string_lossy();
         let file_path_escaped = serde_json::to_string(&file_path)
-            .map_err(|e| HookError::HookFailed(func.to_string(), e.to_string()))?;
+            .map_err(|err| HookError::HookFailed(func.to_string(), err.to_string()))?;
 
         let wrapper = if file_path.ends_with(".mjs") {
             format!(
@@ -40,7 +40,7 @@ impl NodeJsHooks {
   console.log(JSON.stringify(res));
 }})();
 "#,
-                file_path_escaped = file_path_escaped
+                file_path_escaped = file_path_escaped,
             )
         } else {
             format!(
@@ -50,7 +50,7 @@ impl NodeJsHooks {
   console.log(JSON.stringify(res));
 }})();
 "#,
-                file_path_escaped = file_path_escaped
+                file_path_escaped = file_path_escaped,
             )
         };
 
@@ -60,7 +60,7 @@ impl NodeJsHooks {
         )
         .await
         .map_err(|_| HookError::Timeout(func.to_string()))?
-        .map_err(|e| HookError::ExecutionFailed(e.to_string()))?;
+        .map_err(|err| HookError::ExecutionFailed(err.to_string()))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -75,7 +75,7 @@ impl NodeJsHooks {
         }
 
         serde_json::from_str(stdout)
-            .map_err(|e| HookError::HookFailed(func.to_string(), e.to_string()))
+            .map_err(|err| HookError::HookFailed(func.to_string(), err.to_string()))
     }
 
     async fn call_node_void(
@@ -106,7 +106,7 @@ impl NodeJsHooks {
   await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
 }})();
 "#,
-                file_path_escaped = file_path_escaped
+                file_path_escaped = file_path_escaped,
             )
         } else {
             format!(
@@ -120,7 +120,7 @@ impl NodeJsHooks {
   await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
 }})();
 "#,
-                file_path_escaped = file_path_escaped
+                file_path_escaped = file_path_escaped,
             )
         };
 
@@ -138,11 +138,11 @@ impl NodeJsHooks {
             }
         };
 
-        if let Some(mut stdin) = child.stdin.take() {
-            if stdin.write_all(ctx_payload.as_bytes()).await.is_err() {
-                let _ = child.kill().await;
-                return;
-            }
+        if let Some(mut stdin) = child.stdin.take()
+            && stdin.write_all(ctx_payload.as_bytes()).await.is_err()
+        {
+            let _ = child.kill().await;
+            return;
         }
 
         let output = match timeout(HOOK_TIMEOUT, child.wait_with_output()).await {
@@ -170,8 +170,8 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         match self.call_node("readPackage", pkg).await {
             Ok(v) if v.is_null() => None,
             Ok(v) => Some(Arc::new(v)),
-            Err(e) => {
-                (ctx.log)(format!("pnpmfile hook readPackage failed: {}", e));
+            Err(err) => {
+                (ctx.log)(format!("pnpmfile hook readPackage failed: {}", err));
                 None
             }
         }
@@ -180,8 +180,8 @@ impl crate::PnpmfileHooks for NodeJsHooks {
     async fn after_all_resolved(&self, lockfile: Value, ctx: crate::HookContext) -> Option<Value> {
         match self.call_node("afterAllResolved", lockfile).await {
             Ok(v) => Some(v),
-            Err(e) => {
-                (ctx.log)(format!("pnpmfile hook afterAllResolved failed: {}", e));
+            Err(err) => {
+                (ctx.log)(format!("pnpmfile hook afterAllResolved failed: {}", err));
                 None
             }
         }
@@ -208,8 +208,8 @@ impl crate::PnpmfileHooks for NodeJsHooks {
     async fn filter_log(&self, log: Value, ctx: crate::HookContext) -> bool {
         match self.call_node("filterLog", log).await {
             Ok(v) => v.as_bool().unwrap_or(true),
-            Err(e) => {
-                (ctx.log)(format!("pnpmfile hook filterLog failed: {}", e));
+            Err(err) => {
+                (ctx.log)(format!("pnpmfile hook filterLog failed: {}", err));
                 true
             }
         }
