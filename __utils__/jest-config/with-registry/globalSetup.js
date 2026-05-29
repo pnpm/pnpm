@@ -36,7 +36,6 @@ export default async () => {
     [
       '--listen', `127.0.0.1:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
       '--storage', storage,
-      '--upstream', process.env.PNPM_REGISTRY_MOCK_UPLINK ?? 'https://registry.npmjs.org',
       '--public-url', `http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
       // A one-year TTL so the fixture packuments (whose `time` is a fixed
       // placeholder) never look stale and never trigger a re-fetch to

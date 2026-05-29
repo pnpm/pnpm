@@ -1,8 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { createFetchFromRegistry } from '@pnpm/network.fetch'
-import { addUser as setUser, type AddUserResult, setDistTag } from '@pnpm/registry-access.client'
+import type { AddUserResult } from '@pnpm/registry-access.client'
 
 export const REGISTRY_MOCK_PORT = process.env.PNPM_REGISTRY_MOCK_PORT ?? '4873'
 
@@ -17,22 +16,27 @@ const AUTH_HEADER = `Basic ${Buffer.from(
   `${REGISTRY_MOCK_CREDENTIALS.username}:${REGISTRY_MOCK_CREDENTIALS.password}`
 ).toString('base64')}`
 
-const fetchFromRegistry = createFetchFromRegistry({})
-
 export interface AddDistTagOptions {
   package: string
   version: string
   distTag: string
 }
 
+// `@pnpm/network.fetch` and `@pnpm/registry-access.client` are imported lazily
+// because they transitively load `@pnpm/core-loggers`/`@pnpm/logger`. This module
+// is imported (for the constants/getIntegrity) by test helpers that other tests
+// pull in statically before calling `jest.unstable_mockModule('@pnpm/logger')`,
+// so eagerly loading the logger here would defeat that mock.
 export async function addDistTag (opts: AddDistTagOptions): Promise<void> {
+  const { createFetchFromRegistry } = await import('@pnpm/network.fetch')
+  const { setDistTag } = await import('@pnpm/registry-access.client')
   await setDistTag({
     packageName: opts.package,
     version: opts.version,
     distTag: opts.distTag,
     registryUrl: REGISTRY_URL,
     authHeader: AUTH_HEADER,
-    fetchFromRegistry,
+    fetchFromRegistry: createFetchFromRegistry({}),
   })
 }
 
@@ -43,12 +47,14 @@ export interface AddUserOptions {
 }
 
 export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
+  const { createFetchFromRegistry } = await import('@pnpm/network.fetch')
+  const { addUser: setUser } = await import('@pnpm/registry-access.client')
   return setUser({
     username: opts.username,
     password: opts.password,
     email: opts.email,
     registryUrl: REGISTRY_URL,
-    fetch: fetchFromRegistry,
+    fetch: createFetchFromRegistry({}),
   })
 }
 
