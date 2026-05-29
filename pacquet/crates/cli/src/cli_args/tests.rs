@@ -62,3 +62,14 @@ fn filter_flag_is_global_and_parses_before_subcommand() {
     assert_eq!(parsed.filter, ["@scope/*"]);
     assert!(matches!(parsed.command, CliCommand::Install(_)));
 }
+
+/// Occurrences of a global repeatable flag collect within one side of
+/// the subcommand boundary, but mixing sides keeps only the
+/// subcommand-side occurrence — a clap limitation the `filter` field
+/// docs warn about. Locks that behavior so the doc claim stays honest.
+#[test]
+fn filter_flag_split_across_subcommand_keeps_only_subcommand_side() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "-F", "a", "install", "-F", "b"])
+        .expect("parses split -F");
+    assert_eq!(parsed.filter, ["b"], "global-side `a` is dropped");
+}

@@ -46,3 +46,12 @@ fn multiple_stars_in_one_segment_backtrack() {
     assert!(is_match("/a/foo-bar-baz", "/a/foo-*-baz"));
     assert!(!is_match("/a/foo-bar", "/a/foo-*-baz"));
 }
+
+#[test]
+fn backslash_separators_are_normalized_in_both_candidate_and_pattern() {
+    // A Windows `ProjectRootDir` rendered with backslashes still matches
+    // a `/`-separated pattern, and vice versa.
+    assert!(is_match(r"C:\packages\project-0", "C:/packages/*"));
+    assert!(is_match("C:/packages/project-0", r"C:\packages\*"));
+    assert!(is_match(r"C:\packages\project-0\", r"C:\packages\*"));
+}

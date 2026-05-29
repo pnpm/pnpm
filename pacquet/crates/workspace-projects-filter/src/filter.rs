@@ -70,11 +70,15 @@ pub enum FilterError {
     UnsupportedDiffSelector,
 
     /// A selector resolved to neither a name pattern, a directory, nor a
-    /// diff. Mirrors upstream's `throw new Error('Unsupported project
-    /// selector')`.
-    #[display("Unsupported project selector")]
+    /// diff. Mirrors upstream's `Unsupported project selector:
+    /// ${JSON.stringify(selector)}`, including the offending selector so
+    /// CLI input is debuggable.
+    #[display("Unsupported project selector: {selector}")]
     #[diagnostic(code(pacquet_workspace_projects_filter::unsupported_selector))]
-    UnsupportedSelector,
+    UnsupportedSelector {
+        #[error(not(source))]
+        selector: String,
+    },
 }
 
 /// Filter a pre-built [`ProjectGraph`] by `project_selectors`.
@@ -173,7 +177,7 @@ where
         }
 
         let Some(entry_projects) = entry_projects else {
-            return Err(FilterError::UnsupportedSelector);
+            return Err(FilterError::UnsupportedSelector { selector: format!("{selector:?}") });
         };
 
         if entry_projects.is_empty() {

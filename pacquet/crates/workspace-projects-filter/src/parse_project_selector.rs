@@ -33,7 +33,7 @@ pub struct ProjectSelector {
 }
 
 /// Parse one raw `--filter` selector string against `prefix` (the
-/// directory directory-selectors resolve relative to).
+/// directory that directory-selectors resolve relative to).
 ///
 /// Port of upstream's
 /// [`parseProjectSelector`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/parseProjectSelector.ts#L14-L61).

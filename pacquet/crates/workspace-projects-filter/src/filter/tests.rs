@@ -375,7 +375,7 @@ fn selector_without_name_dir_or_diff_is_unsupported() {
         &FilterWorkspaceProjectsOptions::default(),
     )
     .unwrap_err();
-    assert!(matches!(error, FilterError::UnsupportedSelector));
+    assert!(matches!(error, FilterError::UnsupportedSelector { .. }));
 }
 
 #[test]

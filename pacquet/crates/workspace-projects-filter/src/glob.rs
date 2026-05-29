@@ -5,19 +5,31 @@
 //! Only the two wildcards directory filters rely on are supported: `*`
 //! matches any run of characters within a single path segment, and `**`
 //! matches any number of whole segments (including zero). Both the
-//! pattern and the candidate have a trailing `/` stripped (upstream's
-//! `format`), and the pattern's backslashes are normalized to `/`
-//! (upstream's `replace(/\\/g, '/')`).
+//! pattern and the candidate are normalized the same way before
+//! matching: backslashes become `/` and a trailing `/` is stripped.
+//! This mirrors upstream's pattern `replace(/\\/g, '/')` together with
+//! micromatch's separator handling, which treats `\` in the candidate
+//! as a path separator too — so a Windows `ProjectRootDir` rendered with
+//! backslashes by `PathBuf::to_string_lossy()` still matches.
 
 /// Whether `candidate` matches the directory glob `pattern`.
 pub fn is_match(candidate: &str, pattern: &str) -> bool {
-    let pattern = pattern.replace('\\', "/");
-    let pattern = pattern.strip_suffix('/').unwrap_or(&pattern);
-    let candidate = candidate.strip_suffix('/').unwrap_or(candidate);
+    let pattern = normalize(pattern);
+    let candidate = normalize(candidate);
 
     let pattern_segments: Vec<&str> = pattern.split('/').collect();
     let candidate_segments: Vec<&str> = candidate.split('/').collect();
     match_segments(&pattern_segments, &candidate_segments)
+}
+
+/// Normalize a glob pattern or candidate path: backslashes to `/`, then
+/// a single trailing `/` stripped.
+fn normalize(path: &str) -> String {
+    let path = path.replace('\\', "/");
+    match path.strip_suffix('/') {
+        Some(stripped) => stripped.to_string(),
+        None => path,
+    }
 }
 
 fn match_segments(pattern: &[&str], candidate: &[&str]) -> bool {
