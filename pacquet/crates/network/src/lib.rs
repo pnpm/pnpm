@@ -24,7 +24,7 @@ use tokio::sync::{Semaphore, SemaphorePermit};
 ///
 /// Production installs override this with the value resolved by
 /// `pacquet-config` (`userAgent`, defaulting to pnpm's
-/// `pnpm/<version> npm/? node/? <platform> <arch>` format — see
+/// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format — see
 /// `config/reader/src/index.ts`). The `pnpm` token is preserved in
 /// that default so any UA-keyed allow / rate-limit rule that lets pnpm
 /// through also lets pacquet through.
