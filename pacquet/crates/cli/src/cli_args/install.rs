@@ -277,6 +277,10 @@ impl InstallArgs {
             skip_runtimes,
             trust_lockfile,
             update_checksums,
+            // `pacquet install` is always a full install (it takes no
+            // package arguments), so the project's own lifecycle
+            // scripts run. `pacquet add` sets this to `false`.
+            is_full_install: true,
             resolved_packages,
             supported_architectures,
             node_linker,

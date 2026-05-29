@@ -107,6 +107,11 @@ where
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
+            // `pacquet add` is a partial install (pnpm's
+            // `mutation: 'installSome'`), so the root project's own
+            // lifecycle scripts must not run — mirroring pnpm's
+            // `mutation === 'install'` filter.
+            is_full_install: false,
             resolved_packages,
             supported_architectures,
             node_linker: config.node_linker,
