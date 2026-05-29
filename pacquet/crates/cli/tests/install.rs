@@ -641,3 +641,70 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// `resolutionMode: highest` (the default) resolves a direct dependency
+/// to the highest version satisfying its range. `@pnpm.e2e/foo`
+/// publishes `100.0.0` and `100.1.0`; `^100.0.0` therefore lands on
+/// `100.1.0`.
+#[test]
+fn resolution_mode_highest_picks_highest_direct_version() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    assert!(
+        pnpm_dir.join("@pnpm.e2e+foo@100.1.0").exists(),
+        "highest mode must resolve ^100.0.0 to 100.1.0",
+    );
+    assert!(!pnpm_dir.join("@pnpm.e2e+foo@100.0.0").exists());
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// `resolutionMode: lowest-direct` resolves a direct dependency to the
+/// lowest version satisfying its range. With `@pnpm.e2e/foo` at
+/// `100.0.0` / `100.1.0`, `^100.0.0` lands on `100.0.0` — the opposite
+/// of the default. Proves the setting flows from `pnpm-workspace.yaml`
+/// through the config layer into the resolver's version pick.
+///
+/// `minimumReleaseAge: 0` disables the maturity cutoff for this test:
+/// while a cutoff is active the picker prefers the highest mature
+/// version regardless of `resolutionMode`, so the lowest-version pick
+/// would be masked (matching pnpm's `pickRespectingMinReleaseAge`).
+#[test]
+fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing.push_str("resolutionMode: lowest-direct\nminimumReleaseAge: 0\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    assert!(
+        pnpm_dir.join("@pnpm.e2e+foo@100.0.0").exists(),
+        "lowest-direct mode must resolve ^100.0.0 to 100.0.0",
+    );
+    assert!(!pnpm_dir.join("@pnpm.e2e+foo@100.1.0").exists());
+
+    drop((root, mock_instance)); // cleanup
+}

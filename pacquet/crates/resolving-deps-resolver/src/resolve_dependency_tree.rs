@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use async_recursion::async_recursion;
+use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
@@ -243,6 +244,48 @@ pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> 
         .collect()
 }
 
+/// Build the importer's direct-dependency wanted specs: the manifest's
+/// `dependencies` (plus, when `auto_install_peers`, its own
+/// `peerDependencies`) tagged with the right `optional` / `injected`
+/// flags and with `catalog:` specifiers resolved.
+///
+/// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
+/// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
+/// (which only needs the resolved direct-dep publish dates), so both
+/// see the identical direct-dep set. Mirrors the importer-dep
+/// computation pnpm runs once in
+/// [`getAllDependenciesFromManifest`](https://github.com/pnpm/pnpm/blob/097983fbca/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts)
+/// before resolving an importer's deps.
+pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
+    manifest: &PackageManifest,
+    dependency_groups: DependencyGroupList,
+    auto_install_peers: bool,
+    catalogs: &Catalogs,
+) -> Result<Vec<WantedSpec>, ResolveDependencyTreeError>
+where
+    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+{
+    let mut groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
+    if auto_install_peers && !groups.contains(&DependencyGroup::Peer) {
+        groups.push(DependencyGroup::Peer);
+    }
+    let optional_names = importer_optional_dependency_names(manifest);
+    let injected_names = importer_injected_dependency_names(manifest);
+    let mut wanted: Vec<WantedSpec> = Vec::new();
+    for (name, range) in manifest.dependencies(groups) {
+        if !crate::is_valid_dependency_alias(name) {
+            return Err(ResolveDependencyTreeError::InvalidDependencyName {
+                parent: "The current package".to_string(),
+                alias: name.to_string(),
+            });
+        }
+        let optional = optional_names.contains(name);
+        let injected = injected_names.contains(name);
+        wanted.push((name.to_string(), range.to_string(), optional, injected));
+    }
+    resolve_catalog_specifiers(wanted, catalogs)
+}
+
 /// Cache key for [`WorkspaceTreeCtx`]'s `resolved_by_wanted` map.
 ///
 /// The npm-shaped slice pacquet exposes today calls
@@ -268,7 +311,19 @@ pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> 
 /// Two importers asking for the same workspace dep with different
 /// `dependenciesMeta[*].injected` flags must take different cache
 /// slots.
-type WantedKey = (Option<String>, Option<String>, Option<bool>, Option<bool>);
+///
+/// `pick_lowest_version` and `published_by` are part of the key because
+/// `resolutionMode` makes the version pick depend on them: under
+/// `time-based` / `lowest-direct` a direct dependency is resolved
+/// lowest while a transitive one is resolved highest, and under
+/// `time-based` transitive deps carry a publish-date cutoff a direct
+/// dep does not. The same wanted spec (`react@^18`) can therefore
+/// resolve to a different version as a direct vs. transitive dep, so
+/// the two occurrences must take different cache slots. In `highest`
+/// mode (the default) every occurrence shares the same pair, so the
+/// dedup is unchanged.
+type WantedKey =
+    (Option<String>, Option<String>, Option<bool>, Option<bool>, bool, Option<DateTime<Utc>>);
 
 /// One spec carried through [`extend_tree`] and the importer-side
 /// orchestrator: `(alias, range, optional, injected)`. `injected`
@@ -403,6 +458,17 @@ impl WorkspaceTreeCtx {
 /// envelopes via the shared maps.
 pub struct TreeCtx {
     base_opts: ResolveOptions,
+    /// [`ResolveOptions`] handed to the resolver for importer-level
+    /// (direct) dependencies — `depth == 0`. Differs from `base_opts`
+    /// only in `pick_lowest_version`, which is set under
+    /// `resolutionMode: time-based` / `lowest-direct`. Built once per
+    /// importer by [`Self::with_resolution_mode`].
+    direct_opts: ResolveOptions,
+    /// [`ResolveOptions`] handed to the resolver for transitive
+    /// dependencies — `depth > 0`. Always picks highest; carries the
+    /// `time-based` publish-date cutoff in `published_by`. Built once
+    /// per importer by [`Self::with_resolution_mode`].
+    subdep_opts: ResolveOptions,
     workspace: Arc<WorkspaceTreeCtx>,
     /// Configured `patchedDependencies` (already grouped by name).
     /// Shared by `Arc` so the lookup table doesn't get cloned per
@@ -418,6 +484,8 @@ impl TreeCtx {
     /// the same workspace ctx.
     pub fn new(base_opts: ResolveOptions) -> Self {
         TreeCtx {
+            direct_opts: base_opts.clone(),
+            subdep_opts: base_opts.clone(),
             base_opts,
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
@@ -429,7 +497,47 @@ impl TreeCtx {
     /// `workspace` alive across importers (typically via
     /// `Arc::clone(&workspace)`).
     pub fn with_workspace(workspace: Arc<WorkspaceTreeCtx>, base_opts: ResolveOptions) -> Self {
-        TreeCtx { base_opts, workspace, patched_dependencies: None }
+        TreeCtx {
+            direct_opts: base_opts.clone(),
+            subdep_opts: base_opts.clone(),
+            base_opts,
+            workspace,
+            patched_dependencies: None,
+        }
+    }
+
+    /// Derive the depth-specific resolve options from `resolutionMode`.
+    ///
+    /// - `pick_lowest_direct` — resolve direct dependencies to their
+    ///   lowest satisfying version (`time-based` / `lowest-direct`).
+    /// - `subdep_published_by` — the publish-date cutoff applied to
+    ///   transitive dependencies. Under `time-based` this is the
+    ///   workspace-wide cutoff computed from the resolved direct deps
+    ///   (clamped by `minimumReleaseAge`); otherwise it is just
+    ///   `base_opts.published_by` (the `minimumReleaseAge` cutoff),
+    ///   leaving subdep resolution unchanged.
+    ///
+    /// Mirrors pnpm's split between the importer-dep pick
+    /// ([`resolveDependenciesOfImporters`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470))
+    /// and the subdep pick (always highest, constrained by the computed
+    /// `publishedBy`).
+    pub fn with_resolution_mode(
+        mut self,
+        pick_lowest_direct: bool,
+        subdep_published_by: Option<DateTime<Utc>>,
+    ) -> Self {
+        self.direct_opts.pick_lowest_version = pick_lowest_direct;
+        self.subdep_opts.pick_lowest_version = false;
+        self.subdep_opts.published_by = subdep_published_by;
+        self
+    }
+
+    /// The [`ResolveOptions`] to hand the resolver for a node at the
+    /// given `depth`: importer-level deps (`depth == 0`) use
+    /// [`Self::direct_opts`]; everything below uses
+    /// [`Self::subdep_opts`].
+    fn opts_for_depth(&self, depth: i32) -> &ResolveOptions {
+        if depth == 0 { &self.direct_opts } else { &self.subdep_opts }
     }
 
     /// Borrow the shared workspace ctx so callers can hand the same
@@ -592,15 +700,25 @@ where
     // matching, and the second to finish loses the `insert` race
     // harmlessly (the entry holds an `Arc` to an equivalent
     // `ResolveResult`).
-    let cache_key: WantedKey =
-        (wanted.alias.clone(), wanted.bare_specifier.clone(), wanted.optional, wanted.injected);
+    // `resolutionMode` makes the version pick depend on whether this is
+    // a direct (`depth == 0`) or transitive dep, so the cache key and
+    // the resolver call both key off the depth-specific options.
+    let opts = ctx.opts_for_depth(depth);
+    let cache_key: WantedKey = (
+        wanted.alias.clone(),
+        wanted.bare_specifier.clone(),
+        wanted.optional,
+        wanted.injected,
+        opts.pick_lowest_version,
+        opts.published_by,
+    );
     let cached =
         lock_recoverable(&ctx.workspace.resolved_by_wanted).get(&cache_key).map(Arc::clone);
     let result = match cached {
         Some(result) => result,
         None => {
             let mut result =
-                resolver.resolve(&wanted, &ctx.base_opts).await.map_err(|err: ResolveError| {
+                resolver.resolve(&wanted, opts).await.map_err(|err: ResolveError| {
                     ResolveDependencyTreeError::Resolve(err.to_string())
                 })?;
             let Some(result_inner) = result.as_mut() else {

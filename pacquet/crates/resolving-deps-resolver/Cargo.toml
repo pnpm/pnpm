@@ -22,6 +22,7 @@ pacquet-resolving-parse-wanted-dependency = { workspace = true }
 pacquet-resolving-resolver-base           = { workspace = true }
 
 async-recursion = { workspace = true }
+chrono          = { workspace = true }
 derive_more     = { workspace = true }
 futures-util    = { workspace = true }
 miette          = { workspace = true }

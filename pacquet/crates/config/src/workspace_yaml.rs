@@ -1,5 +1,5 @@
 use crate::{
-    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod,
+    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod, ResolutionMode,
     ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
@@ -344,6 +344,62 @@ pub struct WorkspaceSettings {
     /// `IndexMap` keeps insertion order so the hash-and-checksum side
     /// (a separate slice) can keep the same key ordering pnpm does.
     pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+
+    /// `resolutionMode` from `pnpm-workspace.yaml`. See
+    /// [`ResolutionMode`].
+    pub resolution_mode: Option<ResolutionMode>,
+
+    /// `registrySupportsTimeField` from `pnpm-workspace.yaml`. See
+    /// [`Config::registry_supports_time_field`].
+    ///
+    /// [`Config::registry_supports_time_field`]: crate::Config::registry_supports_time_field
+    pub registry_supports_time_field: Option<bool>,
+
+    /// `allowedDeprecatedVersions` from `pnpm-workspace.yaml`. See
+    /// [`Config::allowed_deprecated_versions`].
+    ///
+    /// [`Config::allowed_deprecated_versions`]: crate::Config::allowed_deprecated_versions
+    pub allowed_deprecated_versions: Option<BTreeMap<String, String>>,
+
+    /// `updateConfig` from `pnpm-workspace.yaml`. See [`UpdateConfig`].
+    pub update_config: Option<UpdateConfig>,
+
+    /// `peerDependencyRules` from `pnpm-workspace.yaml`. See
+    /// [`PeerDependencyRules`].
+    pub peer_dependency_rules: Option<PeerDependencyRules>,
+}
+
+/// `updateConfig` entry: settings that tune `pnpm update`. Today only
+/// `ignoreDependencies` is modeled. Mirrors pnpm's
+/// [`updateConfig`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L193-L195)
+/// shape.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdateConfig {
+    /// Dependency-name patterns `pnpm update` skips. `createMatcher`
+    /// glob/negation patterns upstream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_dependencies: Option<Vec<String>>,
+}
+
+/// `peerDependencyRules` entry: customizations applied when reporting
+/// peer-dependency issues. Mirrors pnpm's
+/// [`PeerDependencyRules`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L147-L151).
+///
+/// - `ignoreMissing` / `allowAny` are `createMatcher` glob/negation
+///   pattern lists (matched against the peer package name).
+/// - `allowedVersions` maps a peer selector (`name`, or the override
+///   form `parent>name` / `parent@range>name`) to an extra semver range
+///   that should be accepted.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PeerDependencyRules {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_missing: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_any: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_versions: Option<BTreeMap<String, String>>,
 }
 
 /// One `packageExtensions` entry: a subset of a manifest's dependency
@@ -586,6 +642,8 @@ impl WorkspaceSettings {
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             enable_global_virtual_store,
             git_shallow_hosts,
+            resolution_mode, registry_supports_time_field,
+            allowed_deprecated_versions, update_config, peer_dependency_rules,
         }
 
         // `hoist_pattern` and `public_hoist_pattern` carry the

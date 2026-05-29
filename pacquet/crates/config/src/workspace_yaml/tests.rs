@@ -1,7 +1,7 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, ScriptsPrependNodePath, TrustPolicy,
-    api::EnvVar,
+    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, ResolutionMode,
+    ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
 use pipe_trait::Pipe;
@@ -1103,4 +1103,116 @@ fn trust_policy_yaml_values_round_trip() {
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.trust_policy, TrustPolicy::Off, "default stays off when key is absent");
+}
+
+/// `resolutionMode` accepts the three upstream string values; an
+/// absent key leaves the [`ResolutionMode::Highest`] default in place.
+#[test]
+fn resolution_mode_yaml_values_round_trip() {
+    for (yaml, expected) in [
+        ("resolutionMode: highest\n", ResolutionMode::Highest),
+        ("resolutionMode: time-based\n", ResolutionMode::TimeBased),
+        ("resolutionMode: lowest-direct\n", ResolutionMode::LowestDirect),
+    ] {
+        let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        assert_eq!(settings.resolution_mode, Some(expected));
+        let mut config = Config::new();
+        settings.apply_to(&mut config, Path::new("/irrelevant"));
+        assert_eq!(config.resolution_mode, expected);
+    }
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str("").unwrap();
+    assert!(settings.resolution_mode.is_none());
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.resolution_mode,
+        ResolutionMode::Highest,
+        "default stays highest when the key is absent",
+    );
+}
+
+/// `registrySupportsTimeField` is a camelCase boolean; default `false`.
+#[test]
+fn parses_registry_supports_time_field_from_yaml_and_applies() {
+    let yaml = "registrySupportsTimeField: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.registry_supports_time_field, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.registry_supports_time_field, "the default is `false`");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.registry_supports_time_field, "yaml override wins");
+}
+
+/// `allowedDeprecatedVersions` is a `name → semver-range` map parsed
+/// from camelCase yaml and applied verbatim onto `Config`.
+#[test]
+fn parses_allowed_deprecated_versions_from_yaml_and_applies() {
+    let yaml = r#"
+allowedDeprecatedVersions:
+  request: "^2.88.0"
+  lodash: "<5.0.0"
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    assert!(config.allowed_deprecated_versions.is_empty(), "default is empty");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.allowed_deprecated_versions.get("request").map(String::as_str),
+        Some("^2.88.0"),
+    );
+    assert_eq!(
+        config.allowed_deprecated_versions.get("lodash").map(String::as_str),
+        Some("<5.0.0"),
+    );
+}
+
+/// `updateConfig.ignoreDependencies` parses from the nested camelCase
+/// shape and lands on `Config.update_config`.
+#[test]
+fn parses_update_config_ignore_dependencies_from_yaml_and_applies() {
+    let yaml = r#"
+updateConfig:
+  ignoreDependencies:
+    - "@pnpm.e2e/foo"
+    - "@pnpm.e2e/bar"
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    assert!(config.update_config.ignore_dependencies.is_none(), "default is unset");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.update_config.ignore_dependencies.as_deref(),
+        Some(&["@pnpm.e2e/foo".to_string(), "@pnpm.e2e/bar".to_string()][..]),
+    );
+}
+
+/// `peerDependencyRules` parses its three sub-fields from camelCase
+/// yaml and lands on `Config.peer_dependency_rules`.
+#[test]
+fn parses_peer_dependency_rules_from_yaml_and_applies() {
+    let yaml = r#"
+peerDependencyRules:
+  ignoreMissing:
+    - ajv
+  allowAny:
+    - react
+  allowedVersions:
+    bbb: "2"
+    "xxx>@foo/bar": "2"
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    assert_eq!(config.peer_dependency_rules, Default::default(), "default is empty");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let rules = &config.peer_dependency_rules;
+    assert_eq!(rules.ignore_missing.as_deref(), Some(&["ajv".to_string()][..]));
+    assert_eq!(rules.allow_any.as_deref(), Some(&["react".to_string()][..]));
+    let allowed = rules.allowed_versions.as_ref().expect("allowedVersions set");
+    assert_eq!(allowed.get("bbb").map(String::as_str), Some("2"));
+    assert_eq!(allowed.get("xxx>@foo/bar").map(String::as_str), Some("2"));
 }
