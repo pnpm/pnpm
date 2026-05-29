@@ -51,6 +51,18 @@ async fn main() -> miette::Result<()> {
     )
     .map_err(|err| miette::miette!("{err}"))?;
     if let Some(storage) = args.storage {
+        // The bundled config anchors auth state (htpasswd, tokens.db) next to the
+        // config, which for the bundled default is the current directory. When a
+        // caller serves from an explicit --storage dir (tests, benchmarks), keep
+        // that state inside it so runs never write auth files into the working tree.
+        if matches!(source, ConfigSource::Bundled) {
+            if config.auth.htpasswd.file.is_some() {
+                config.auth.htpasswd.file = Some(storage.join("htpasswd"));
+            }
+            if config.auth.tokens.file.is_some() {
+                config.auth.tokens.file = Some(storage.join("tokens.db"));
+            }
+        }
         config.storage = storage;
     }
     if let Some(ttl_secs) = args.packument_ttl_secs {
