@@ -24,15 +24,12 @@
 //!   registry fetch when the lockfile-pinned tarball is already in the
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   restoring the fast path is a separate item.
-//! - **Trust-policy enforcement.** The resolver-side
-//!   `failIfTrustDowngraded` call is wired through the verifier crate
-//!   only; the resolver path doesn't enforce it yet.
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pacquet_config::version_policy::PackageVersionPolicy;
+use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
@@ -52,6 +49,7 @@ use crate::{
         resolve_from_local_package, try_resolve_from_workspace,
         try_resolve_from_workspace_packages,
     },
+    trust_checks::{TrustCheckOptions, fail_if_trust_downgraded},
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
@@ -263,6 +261,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 return Err(err);
             }
         };
+
+        // Resolver-time `trustPolicy='no-downgrade'` gate. Runs on the
+        // registry pick before the workspace shadow, matching upstream's
+        // [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
+        // call site. A downgrade is a hard error that aborts the
+        // install, so it propagates as a `ResolveError` rather than the
+        // soft [`ResolveResult::policy_violation`] used for
+        // `minimumReleaseAge`.
+        fail_if_trust_downgraded_for_pick(opts, &picked)?;
 
         // Registry pick succeeded — prefer the workspace copy when it
         // matches (or is newer, or `preferWorkspacePackages` is on).
@@ -618,6 +625,30 @@ pub(crate) fn build_resolve_result(
         alias: alias.map(str::to_string),
         policy_violation,
     })
+}
+
+/// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.
+/// No-op unless the policy is `NoDowngrade`. When active, runs
+/// [`fail_if_trust_downgraded`] against the picked version using the
+/// full packument the picker fetched (forced to full metadata under
+/// this policy by the install layer) and propagates a downgrade as a
+/// hard [`ResolveError`]. Mirrors upstream's resolver-time
+/// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
+/// call.
+fn fail_if_trust_downgraded_for_pick(
+    opts: &ResolveOptions,
+    picked: &PickedFromRegistry,
+) -> Result<(), ResolveError> {
+    if opts.trust_policy != Some(TrustPolicy::NoDowngrade) {
+        return Ok(());
+    }
+    let trust_opts = TrustCheckOptions {
+        trust_policy_exclude: opts.trust_policy_exclude.as_ref(),
+        trust_policy_ignore_after_minutes: opts.trust_policy_ignore_after,
+        now: None,
+    };
+    fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
+        .map_err(|err| Box::new(err) as ResolveError)
 }
 
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry

@@ -5,9 +5,10 @@ import semver from 'semver'
 
 import { assertMetaHasTime } from './pickPackageFromMeta.js'
 
-type TrustEvidence = 'provenance' | 'trustedPublisher'
+type TrustEvidence = 'provenance' | 'trustedPublisher' | 'stagedPublish'
 
 const TRUST_RANK = {
+  stagedPublish: 3,
   trustedPublisher: 2,
   provenance: 1,
 } as const satisfies Record<TrustEvidence, number>
@@ -81,6 +82,7 @@ export function failIfTrustDowngraded (
 
 function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): string {
   switch (trustEvidence) {
+    case 'stagedPublish': return 'staged publish'
     case 'trustedPublisher': return 'trusted publisher'
     case 'provenance': return 'provenance attestation'
     default: return 'no trust evidence'
@@ -107,16 +109,21 @@ function detectStrongestTrustEvidenceBeforeDate (
     const trustEvidence = getTrustEvidence(manifest)
     if (!trustEvidence) continue
 
-    if (trustEvidence === 'trustedPublisher') {
-      return 'trustedPublisher'
+    if (best === undefined || TRUST_RANK[trustEvidence] > TRUST_RANK[best]) {
+      best = trustEvidence
+      if (best === 'stagedPublish') {
+        return best
+      }
     }
-    best ||= 'provenance'
   }
 
   return best
 }
 
 export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {
+  if (manifest._npmUser?.approver) {
+    return 'stagedPublish'
+  }
   if (manifest._npmUser?.trustedPublisher && manifest.dist?.attestations?.provenance) {
     return 'trustedPublisher'
   }

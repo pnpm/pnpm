@@ -29,6 +29,10 @@ export interface PackageInRegistry extends PackageManifest {
   _npmUser?: {
     name?: string
     email?: string
+    approver?: {
+      name?: string
+      email?: string
+    }
     trustedPublisher?: {
       id: string
       oidcConfigId: string

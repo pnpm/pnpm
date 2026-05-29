@@ -191,9 +191,9 @@ pub struct PeerDependencyMeta {
 }
 
 /// `_npmUser` field on a per-version manifest. The verifier reads
-/// `trusted_publisher` to assign the higher of the two trust ranks
-/// (`trustedPublisher` > `provenance` > none). `name` / `email` are
-/// kept for round-trip parity.
+/// `approver` and `trusted_publisher` to assign the trust rank
+/// (`stagedPublish` > `trustedPublisher` > `provenance` > none).
+/// `name` / `email` are kept for round-trip parity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NpmUser {
@@ -202,7 +202,22 @@ pub struct NpmUser {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approver: Option<Approver>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trusted_publisher: Option<TrustedPublisher>,
+}
+
+/// `_npmUser.approver` record on a per-version manifest. Its presence
+/// marks a staged publish — one that required a 2FA publish approval,
+/// the strongest trust signal. The verifier only checks for the
+/// field's presence; `name` / `email` are kept for round-trip parity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Approver {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
 }
 
 /// OIDC trusted-publisher record on `_npmUser.trustedPublisher`.

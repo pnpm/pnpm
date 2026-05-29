@@ -577,8 +577,10 @@ where
         // <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/index.ts#L355-L383>.
         // `lockfile.is_none()` (writable-lockfile path) skips the
         // gate entirely — fresh local resolution is already filtered
-        // by the resolver's per-version gate (when pacquet's
-        // resolver lands). `trust_lockfile` (the OR of yaml's
+        // by the resolver's per-version gate (`minimumReleaseAge` via
+        // `ResolveResult::policy_violation`, `trustPolicy='no-downgrade'`
+        // via the npm resolver's `fail_if_trust_downgraded_for_pick`).
+        // `trust_lockfile` (the OR of yaml's
         // `trustLockfile` and the `--trust-lockfile` CLI flag,
         // resolved in [`crate::cli_args::install::InstallArgs::run`])
         // is the opt-out for environments where the install can
