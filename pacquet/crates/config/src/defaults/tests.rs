@@ -438,14 +438,14 @@ fn fetch_timeout_default_matches_pnpm() {
 }
 
 /// The default `User-Agent` mirrors pnpm's
-/// `pnpm/<version> npm/? node/? <platform> <arch>` format. The exact
+/// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format. The exact
 /// platform / arch depend on where the test runs, so assert the
-/// `pnpm/<version> npm/? node/? ` prefix and the two trailing
+/// `pnpm/pacquet-<version> npm/? node/? ` prefix and the two trailing
 /// space-separated tokens.
 #[test]
 fn user_agent_default_matches_pnpm_format() {
     let ua = default_user_agent();
-    let prefix = format!("pnpm/{PACQUET_VERSION} npm/? node/? ");
+    let prefix = format!("pnpm/pacquet-{PACQUET_VERSION} npm/? node/? ");
     assert!(ua.starts_with(&prefix), "user-agent {ua:?} must start with {prefix:?}");
     let tail: Vec<&str> = ua[prefix.len()..].split(' ').collect();
     assert_eq!(tail.len(), 2, "expected `<platform> <arch>` tail, got {ua:?}");

@@ -269,13 +269,14 @@ pub fn default_fetch_timeout() -> u64 {
 /// Default `User-Agent`, mirroring pnpm v11's
 /// [`config/reader/src/index.ts:293`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L293)
 /// format `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
-/// pacquet has no embedded Node runtime, so the `node/` segment is the
-/// `?` placeholder pnpm already uses for `npm/`. Platform and arch use
-/// Node's naming via [`pacquet_detect_libc::host_platform`] /
-/// [`pacquet_detect_libc::host_arch`].
+/// The `name/version` segment is `pnpm/pacquet-<version>` so registries can
+/// tell pacquet's traffic apart from the TypeScript pnpm CLI. pacquet has no
+/// embedded Node runtime, so the `node/` segment is the `?` placeholder pnpm
+/// already uses for `npm/`. Platform and arch use Node's naming via
+/// [`pacquet_detect_libc::host_platform`] / [`pacquet_detect_libc::host_arch`].
 pub fn default_user_agent() -> String {
     format!(
-        "pnpm/{PACQUET_VERSION} npm/? node/? {} {}",
+        "pnpm/pacquet-{PACQUET_VERSION} npm/? node/? {} {}",
         pacquet_detect_libc::host_platform(),
         pacquet_detect_libc::host_arch(),
     )
