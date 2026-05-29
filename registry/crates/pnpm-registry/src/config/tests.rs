@@ -115,18 +115,18 @@ fn from_yaml_str_ignores_unknown_sections() {
 storage: ./s
 auth:
   htpasswd:
-file: ./htpasswd
+    file: ./htpasswd
 web:
   enable: false
 plugins: ../node_modules
 secret: hunter2
 uplinks:
   npmjs:
-url: https://registry.npmjs.org/
+    url: https://registry.npmjs.org/
 packages:
   '**':
-access: $all
-proxy: npmjs
+    access: $all
+    proxy: npmjs
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let (name, uplink) = config.resolve_uplink("anything").expect("** -> npmjs");
@@ -145,9 +145,9 @@ uplinks:
   npmjs:  { url: https://registry.npmjs.org/ }
 packages:
   '@private/*':
-proxy: mirror
+    proxy: mirror
   '**':
-proxy: npmjs
+    proxy: npmjs
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.resolve_uplink("@private/foo").unwrap().0, "mirror");
@@ -165,9 +165,9 @@ uplinks:
   npmjs: { url: https://registry.npmjs.org/ }
 packages:
   '@private/*':
-access: $authenticated
+    access: $authenticated
   '**':
-proxy: npmjs
+    proxy: npmjs
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.resolve_uplink("@private/foo").is_none());
@@ -228,7 +228,7 @@ fn auth_block_resolves_htpasswd_relative_to_config_dir() {
 storage: ./s
 auth:
   htpasswd:
-file: ./htpasswd
+    file: ./htpasswd
 uplinks: {}
 packages: {}
 ";
@@ -253,9 +253,9 @@ fn auth_tokens_file_explicit_override_wins_over_sibling_default() {
 storage: ./s
 auth:
   htpasswd:
-file: ./htpasswd
+    file: ./htpasswd
   tokens:
-file: /var/lib/pnpr/tokens.sqlite
+    file: /var/lib/pnpr/tokens.sqlite
 uplinks: {}
 packages: {}
 ";
@@ -269,8 +269,8 @@ fn auth_max_users_negative_one_means_disabled() {
 storage: ./s
 auth:
   htpasswd:
-file: ./htpasswd
-max_users: -1
+    file: ./htpasswd
+    max_users: -1
 uplinks: {}
 packages: {}
 ";
@@ -284,8 +284,8 @@ fn auth_max_users_positive_is_a_hard_cap() {
 storage: ./s
 auth:
   htpasswd:
-file: ./htpasswd
-max_users: 5
+    file: ./htpasswd
+    max_users: 5
 uplinks: {}
 packages: {}
 ";
@@ -365,8 +365,8 @@ uplinks: {}
 packages: {}
 logs:
   - type: stdout
-format: json
-level: error
+    format: json
+    level: error
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.logs.format, LogFormat::Pretty);
@@ -459,7 +459,7 @@ uplinks:
   npmjs: {{ url: https://registry.npmjs.org/ }}
 packages:
   '**':
-proxy: npmjs
+    proxy: npmjs
 log:
   type: stdout
   format: json
@@ -688,11 +688,11 @@ storage: ./s
 uplinks: {}
 packages:
   '@secret/*':
-access: $authenticated
-publish: $authenticated
+    access: $authenticated
+    publish: $authenticated
   '**':
-access: $all
-publish: $authenticated
+    access: $all
+    publish: $authenticated
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let secret = config.policies.for_package("@secret/thing");
@@ -712,9 +712,9 @@ storage: ./s
 uplinks: {}
 packages:
   '@secret/*':
-access: $authenticated
+    access: $authenticated
   '**':
-access: $all
+    access: $all
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(!config.policies.for_package("@secret/x").access.allows(&Identity::Anonymous));
@@ -743,7 +743,7 @@ storage: ./s
 uplinks: {}
 packages:
   '@anon/*':
-access: $anonymous
+    access: $anonymous
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let anon = config.policies.for_package("@anon/x");
@@ -760,8 +760,8 @@ storage: ./s
 uplinks: {}
 packages:
   '@team/*':
-access: alice bob
-publish: alice
+    access: alice bob
+    publish: alice
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let team = config.policies.for_package("@team/x");
@@ -782,14 +782,14 @@ storage: ./s
 uplinks: {}
 packages:
   '@team/*':
-access: alice bob
+    access: alice bob
 ";
     let as_sequence = "\
 storage: ./s
 uplinks: {}
 packages:
   '@team/*':
-access: [alice, bob]
+    access: [alice, bob]
 ";
     for yaml in [as_string, as_sequence] {
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
