@@ -85,7 +85,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: false
 
       - name: Cache pnpm
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
