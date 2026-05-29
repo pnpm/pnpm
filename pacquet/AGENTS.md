@@ -188,11 +188,11 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 - Tests live alongside the code they exercise (standard Cargo layout) plus
   integration tests under each crate's `tests/`. Shared pacquet fixtures live
   under `crates/testing-utils/src/fixtures/`; registry package fixtures live
-  under `../registry/.fixtures/packages/`.
+  under `../pnpr/.fixtures/packages/`.
 - Snapshot tests use `insta`. When an intentional change alters a snapshot,
   review the diff carefully, then accept with `cargo insta review`. Never
   accept snapshot changes blindly.
-- Tests that need the mocked registry start `pnpm-registry` through
+- Tests that need the mocked registry start `pnpr` through
   `pacquet-testing-utils`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
 - When porting behavior from pnpm, port the relevant pnpm tests too (as Rust

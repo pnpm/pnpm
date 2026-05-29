@@ -2686,7 +2686,7 @@ dependencies = [
  "clap",
  "home",
  "pipe-trait",
- "pnpm-registry-fixtures",
+ "pnpr-fixtures",
  "reqwest",
  "serde",
  "serde_json",
@@ -2918,8 +2918,8 @@ dependencies = [
  "assert_cmd",
  "command-extra",
  "junction",
- "pnpm-registry",
- "pnpm-registry-fixtures",
+ "pnpr",
+ "pnpr-fixtures",
  "tempfile",
  "text-block-macros",
  "tokio",
@@ -3088,7 +3088,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnpm-registry"
+name = "pnpr"
 version = "0.0.1"
 dependencies = [
  "axum",
@@ -3123,7 +3123,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnpm-registry-fixtures"
+name = "pnpr-fixtures"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",

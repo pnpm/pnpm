@@ -6,7 +6,7 @@ talk to it. Proxies packages from a configured upstream like
 npmjs.org and serves them with its own auth and access controls.
 
 Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under
-[`registry/`](https://github.com/pnpm/pnpm/tree/main/registry).
+[`pnpr/`](https://github.com/pnpm/pnpm/tree/main/pnpr).
 
 ## Install
 

@@ -1,7 +1,7 @@
 name: Release @pnpm/pnpr
 
 # Manual-trigger only. Type the version to publish — the workflow patches
-# registry/npm/pnpr/package.json with it before generating per-platform
+# pnpr/npm/pnpr/package.json with it before generating per-platform
 # packages and publishing. No git tag is created and no GitHub release
 # asset is uploaded; npm is the authoritative artifact store.
 on:
@@ -82,8 +82,8 @@ jobs:
             exit 1
           fi
 
-      - name: Inject version into registry/crates/pnpm-registry/Cargo.toml
-        # `pnpm-registry --version` reads CARGO_PKG_VERSION via clap's
+      - name: Inject version into pnpr/crates/pnpr/Cargo.toml
+        # `pnpr --version` reads CARGO_PKG_VERSION via clap's
         # derive `version` attribute. Patch the crate's `version = "..."`
         # field so the binary built for the matrix leg reports the
         # version we're about to publish.
@@ -91,23 +91,23 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          file=registry/crates/pnpm-registry/Cargo.toml
+          file=pnpr/crates/pnpr/Cargo.toml
           perl -i -pe 's/^(version\s*=\s*)"[^"]*"/$1"$ENV{VERSION}"/' "$file"
           grep -E '^version\s*=\s*"'"$VERSION"'"' "$file"
 
       - name: Build with cross
-        run: cross build -p pnpm-registry --bin pnpm-registry --release --target=${{ matrix.target }}
+        run: cross build -p pnpr --bin pnpr --release --target=${{ matrix.target }}
 
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
-      # The Rust crate is `pnpm-registry`, but the npm wrapper exposes
-      # the command as `pnpr` — rename here so the archive that
-      # generate-packages.mjs picks up is already named `pnpr-<target>`.
+      # Rename the binary to include the target triple so the archive
+      # that generate-packages.mjs picks up is already named
+      # `pnpr-<target>`.
       - name: Archive Binary
         if: runner.os == 'Windows'
         shell: bash
         run: |
           BIN_NAME=pnpr-${{ matrix.code-target }}
-          mv target/${{ matrix.target }}/release/pnpm-registry.exe $BIN_NAME.exe
+          mv target/${{ matrix.target }}/release/pnpr.exe $BIN_NAME.exe
           7z a $BIN_NAME.zip $BIN_NAME.exe
 
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
@@ -115,7 +115,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           BIN_NAME=pnpr-${{ matrix.code-target }}
-          mv target/${{ matrix.target }}/release/pnpm-registry $BIN_NAME
+          mv target/${{ matrix.target }}/release/pnpr $BIN_NAME
           tar czf $BIN_NAME.tar.gz $BIN_NAME
 
       - name: Attest build provenance
@@ -155,7 +155,7 @@ jobs:
             exit 1
           fi
 
-      - name: Inject version into registry/npm/pnpr/package.json
+      - name: Inject version into pnpr/npm/pnpr/package.json
         # The committed package.json has no `version` field; the version comes
         # from the workflow_dispatch input. Patching it here means
         # generate-packages.mjs (which copies the version into each
@@ -164,9 +164,9 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          jq --arg v "$VERSION" '.version = $v' registry/npm/pnpr/package.json > registry/npm/pnpr/package.json.tmp
-          mv registry/npm/pnpr/package.json.tmp registry/npm/pnpr/package.json
-          cat registry/npm/pnpr/package.json
+          jq --arg v "$VERSION" '.version = $v' pnpr/npm/pnpr/package.json > pnpr/npm/pnpr/package.json.tmp
+          mv pnpr/npm/pnpr/package.json.tmp pnpr/npm/pnpr/package.json
+          cat pnpr/npm/pnpr/package.json
 
       - name: Install pnpm and Node
         uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
@@ -190,9 +190,9 @@ jobs:
 
       - name: Generate npm packages
         run: |
-          node registry/npm/pnpr/scripts/generate-packages.mjs
-          cat registry/npm/pnpr/package.json
-          for package in registry/npm/pnpr*; do cat $package/package.json ; echo ; done
+          node pnpr/npm/pnpr/scripts/generate-packages.mjs
+          cat pnpr/npm/pnpr/package.json
+          for package in pnpr/npm/pnpr*; do cat $package/package.json ; echo ; done
 
       - name: Publish npm packages as latest
         # Auth is via npm's trusted publishing: `id-token: write` above grants
@@ -201,6 +201,6 @@ jobs:
         # token to a provenance attestation on each tarball.
         # The trailing slash on $package/ changes it to publishing the directory.
         run: |
-          for package in registry/npm/pnpr*; do
+          for package in pnpr/npm/pnpr*; do
             pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
           done

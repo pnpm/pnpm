@@ -1,6 +1,6 @@
 use crate::{
     PreparedRegistryInfo, RegistryAnchor, RegistryInfo, pick_port::pick_unused_port,
-    pnpm_registry_command, port_to_url::port_to_url,
+    pnpr_command, port_to_url::port_to_url,
 };
 use pipe_trait::Pipe;
 use reqwest::Client;
@@ -13,7 +13,7 @@ use tokio::time::{Duration, sleep};
 
 /// Handler of a mocked registry server instance.
 ///
-/// The internal `pnpm-registry` process is terminated on [drop](Drop).
+/// The internal `pnpr` process is terminated on [drop](Drop).
 #[derive(Debug)]
 pub struct MockInstance {
     pub(crate) process: Child,
@@ -25,7 +25,7 @@ impl Drop for MockInstance {
         let pid = process.id();
         let _ = process.kill();
         let _ = process.wait();
-        eprintln!("info: Terminated pnpm-registry pid {pid}");
+        eprintln!("info: Terminated pnpr pid {pid}");
     }
 }
 
@@ -81,15 +81,15 @@ impl<'a> MockInstanceOptions<'a> {
         });
         // Storage is built from the in-repo fixtures (see
         // `registry_mock_storage`) and seeded into runtime storage by
-        // `pnpm_registry_command`. pnpm-registry runs in proxy mode
+        // `pnpr_command`. pnpr runs in proxy mode
         // against npmjs.org so off-fixture packages fall through to
-        // npm; see `pnpm_registry_command` for the rationale.
-        let process = pnpm_registry_command(port)
+        // npm; see `pnpr_command` for the rationale.
+        let process = pnpr_command(port)
             .stdin(Stdio::null())
             .stdout(stdout)
             .stderr(stderr)
             .spawn()
-            .expect("spawn pnpm-registry");
+            .expect("spawn pnpr");
 
         self.wait_for_registry().await;
 
@@ -102,7 +102,7 @@ impl<'a> MockInstanceOptions<'a> {
             eprintln!("info: {port} is already available");
             None
         } else {
-            eprintln!("info: spawning pnpm-registry...");
+            eprintln!("info: spawning pnpr...");
             self.spawn().await.pipe(Some)
         }
     }

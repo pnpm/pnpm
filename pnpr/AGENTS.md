@@ -1,6 +1,6 @@
-# AGENTS.md (registry)
+# AGENTS.md (pnpr)
 
-Guidance for AI coding agents working in `registry/`.
+Guidance for AI coding agents working in `pnpr/`.
 
 **Read [`../AGENTS.md`](../AGENTS.md) first.** It covers the monorepo-wide
 conventions: GitHub PR workflow, signing agent-authored content, conventional
@@ -8,7 +8,7 @@ commit messages, code-reuse philosophy, and "never ignore test failures."
 
 ## What this project is
 
-`registry/` is a pnpm-compatible npm registry server written in Rust —
+`pnpr/` is a pnpm-compatible npm registry server written in Rust —
 roughly the role [verdaccio](https://verdaccio.org/) plays in the JS
 ecosystem. It is a **sibling** of `pacquet/`, not part of it.
 
@@ -21,7 +21,7 @@ the `Cargo.lock` stays unified.
 
 - **`pacquet/`** is a *port* of the pnpm CLI. Its cardinal rule is
   "match pnpm exactly" — see [`../pacquet/AGENTS.md`](../pacquet/AGENTS.md).
-- **`registry/`** has no pnpm-CLI counterpart to mirror. It is a new
+- **`pnpr/`** has no pnpm-CLI counterpart to mirror. It is a new
   server. Behavior here is designed, not ported.
 
 That means the "match upstream pnpm" discipline that governs `pacquet/`
@@ -34,21 +34,21 @@ registry protocol that pnpm (and npm, yarn, etc.) clients speak.
 Mirrors `pacquet/`:
 
 ```text
-registry/
+pnpr/
   AGENTS.md
   crates/
-    pnpm-registry/          -> package "pnpm-registry"
+    pnpr/          -> package "pnpr"
       Cargo.toml
       README.md
       src/
         lib.rs              -> library API
-        main.rs             -> binary entry point (ships the `pnpm-registry` binary)
+        main.rs             -> binary entry point (ships the `pnpr` binary)
     # future sibling crates land here, see "New registry-only crates" below
 ```
 
 The Rust workspace itself, `rust-toolchain.toml`, `justfile`, and
 `Cargo.lock` live at the **repo root** — run `cargo` and `just` from there.
-`registry/crates/*` is wired into the root workspace `members`.
+`pnpr/crates/*` is wired into the root workspace `members`.
 
 ## Code reuse
 
@@ -71,14 +71,14 @@ drive-by during feature work.
 
 When the registry needs its own crate (logic that isn't shared with the
 pnpm port and doesn't fit in `pacquet/`), put it under
-`registry/crates/<short-name>/` and name the package
-`pnpm-registry-<short-name>` in its `Cargo.toml`. The
-`registry/crates/*` glob in the root workspace `members` picks it up
+`pnpr/crates/<short-name>/` and name the package
+`pnpr-<short-name>` in its `Cargo.toml`. The
+`pnpr/crates/*` glob in the root workspace `members` picks it up
 automatically; just add the new crate to `[workspace.dependencies]` at
-the root with the `pnpm-registry-` prefix so other crates can use
+the root with the `pnpr-` prefix so other crates can use
 `{ workspace = true }`.
 
-Use the `pnpm-registry-` prefix exclusively for registry-only crates.
+Use the `pnpr-` prefix exclusively for registry-only crates.
 Don't reach for `pacquet-` to name something new on the registry side.
 
 ## Dependencies
@@ -97,8 +97,8 @@ for Rust-level conventions — imports, naming, ownership, error handling,
 test layout. They are written for pacquet but apply to any Rust code in
 this workspace.
 
-Commit messages use Conventional Commits with `registry` as the scope
-(`feat(registry): ...`, `fix(registry): ...`).
+Commit messages use Conventional Commits with `pnpr` as the scope
+(`feat(pnpr): ...`, `fix(pnpr): ...`).
 
 Run the same checks pacquet does before declaring work done:
 

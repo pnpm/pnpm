@@ -15,8 +15,8 @@ use std::{
 };
 use walkdir::WalkDir;
 
-const PACKAGES_DIR: &str = "registry/.fixtures/packages";
-const GENERATED_DIR: &str = "pnpm-registry-fixtures";
+const PACKAGES_DIR: &str = "pnpr/.fixtures/packages";
+const GENERATED_DIR: &str = "pnpr-fixtures";
 const COMPLETE_FILE: &str = ".complete";
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -38,7 +38,7 @@ pub fn packages_dir() -> PathBuf {
 }
 
 /// Build verdaccio-shaped storage from the raw package fixtures in `packages`
-/// into `out`, replacing any existing contents. Used by the `pnpm-registry-prepare`
+/// into `out`, replacing any existing contents. Used by the `pnpr-prepare`
 /// binary so the JS test harness can serve the moved fixtures; pacquet's own
 /// tests use [`ensure_storage`] (process-global, cached) instead.
 pub fn build_storage_at(packages: &Path, out: &Path) {
@@ -53,7 +53,7 @@ fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(3)
-        .expect("registry fixture crate lives under registry/crates")
+        .expect("registry fixture crate lives under pnpr/crates")
         .to_path_buf()
 }
 

@@ -2,7 +2,7 @@
 //! verdaccio-shaped storage built in a `TempDir` (see `common`). The
 //! packuments carry the rich publish metadata verdaccio/npm emit
 //! (`_attachments`, `_nodeVersion`, `contributors`, …) so these tests
-//! assert that pnpm-registry rewrites tarball URLs and abbreviates that
+//! assert that pnpr rewrites tarball URLs and abbreviates that
 //! format correctly without any upstream proxy.
 
 // `#[path]` rather than the `tests/common/mod.rs` layout, which the
@@ -18,7 +18,7 @@ use axum::http::{Request, StatusCode};
 use serde_json::Value;
 use tower::ServiceExt;
 
-use pnpm_registry::{Config, router};
+use pnpr::{Config, router};
 
 const PUBLIC_URL: &str = "http://example.test";
 

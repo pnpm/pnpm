@@ -11,7 +11,7 @@ use crate::policy::{AccessList, PackagePolicies, PackagePolicy};
 
 /// The bundled verdaccio-shaped YAML config, mirrored from
 /// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
-/// pull this in directly when they need pnpm-registry's defaults
+/// pull this in directly when they need pnpr's defaults
 /// (uplinks, package routing) without reading a file from disk —
 /// e.g. test mocks that want to run with the standard `**` -> `npmjs`
 /// routing applied.
@@ -36,7 +36,7 @@ pub enum ConfigSource {
 ///
 /// The persisted (YAML) shape follows verdaccio's `config.yaml` —
 /// `storage`, `uplinks`, `packages` — restricted to the subset
-/// pnpm-registry implements (no web UI, auth, plugins, or logs
+/// pnpr implements (no web UI, auth, plugins, or logs
 /// routing).
 ///
 /// Runtime-only fields (`listen`, `public_url`, `packument_ttl`)
@@ -157,7 +157,7 @@ pub struct LogConfig {
 }
 
 impl LogConfig {
-    /// The single sink pnpm-registry actually writes to.
+    /// The single sink pnpr actually writes to.
     pub const STDOUT_SINK: &'static str = "stdout";
 
     /// Whether the configured sink is one the server implements.
@@ -206,14 +206,14 @@ pub enum LogLevel {
 impl LogLevel {
     /// Convert to an `EnvFilter` directive string. `http` is not a
     /// tracing level, so we expand it to `info` for the framework
-    /// plus a `pnpm_registry::access=info` target so the per-request
+    /// plus a `pnpr::access=info` target so the per-request
     /// access log surfaces even when the rest of the crate is
     /// quieter.
     pub fn as_filter_directive(self) -> &'static str {
         match self {
             LogLevel::Trace => "trace",
             LogLevel::Debug => "debug",
-            LogLevel::Http => "info,pnpm_registry::access=info",
+            LogLevel::Http => "info,pnpr::access=info",
             LogLevel::Info => "info",
             LogLevel::Warn => "warn",
             LogLevel::Error => "error",
@@ -268,7 +268,7 @@ impl AccessSpec {
 }
 
 /// Disk shape of the YAML file. Fields verdaccio supports but
-/// pnpm-registry doesn't (`auth`, `web`, `plugins`, `middlewares`,
+/// pnpr doesn't (`auth`, `web`, `plugins`, `middlewares`,
 /// `logs`, `secret`) are accepted and silently dropped via
 /// `#[serde(default)]` on the fields we care about plus
 /// `#[serde(deny_unknown_fields)]` *not* being set — so the same
