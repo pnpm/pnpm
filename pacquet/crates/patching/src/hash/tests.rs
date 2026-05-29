@@ -36,13 +36,14 @@ fn crlf_normalizes_to_lf() {
 #[test]
 fn maps_keys_to_hashes() {
     let dir = tempdir().unwrap();
-    let a = dir.path().join("a.patch");
-    let b = dir.path().join("b.patch");
-    fs::write(&a, b"hello\n").unwrap();
-    fs::write(&b, b"world\n").unwrap();
+    let patch_a = dir.path().join("a.patch");
+    let patch_b = dir.path().join("b.patch");
+    fs::write(&patch_a, b"hello\n").unwrap();
+    fs::write(&patch_b, b"world\n").unwrap();
 
     let hashes =
-        calc_patch_hashes(vec![("foo@1.0.0".to_string(), a), ("bar".to_string(), b)]).unwrap();
+        calc_patch_hashes(vec![("foo@1.0.0".to_string(), patch_a), ("bar".to_string(), patch_b)])
+            .unwrap();
 
     assert_eq!(hashes.get("foo@1.0.0").unwrap(), HELLO_SHA256_HEX);
     assert_eq!(

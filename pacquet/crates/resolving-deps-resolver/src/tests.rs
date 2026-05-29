@@ -1443,13 +1443,13 @@ mod peers {
         // leaf (children_by_id entry is empty AND peer_dependencies
         // is empty) and collapse the revisit onto `NodeId::Leaf`.
         let manifestless = {
-            let mut r = fake_result(
+            let mut result = fake_result(
                 "manifestless",
                 "1.0.0",
                 serde_json::json!({ "name": "manifestless", "version": "1.0.0" }),
             );
-            r.manifest = None;
-            r
+            result.manifest = None;
+            result
         };
         table.insert(("manifestless".to_string(), "^1.0.0".to_string()), manifestless);
         table.insert(

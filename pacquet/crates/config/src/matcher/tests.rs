@@ -15,144 +15,145 @@ fn pats<const N: usize>(patterns: [&str; N]) -> Vec<String> {
 /// [`config/matcher/test/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/test/index.ts#L4-L48).
 #[test]
 fn matcher_boolean_semantics() {
-    let m = create_matcher(&pats(["*"]));
-    assert!(m.matches("@eslint/plugin-foo"));
-    assert!(m.matches("express"));
+    let matcher = create_matcher(&pats(["*"]));
+    assert!(matcher.matches("@eslint/plugin-foo"));
+    assert!(matcher.matches("express"));
 
-    let m = create_matcher(&pats(["eslint-*"]));
-    assert!(m.matches("eslint-plugin-foo"));
-    assert!(!m.matches("express"));
+    let matcher = create_matcher(&pats(["eslint-*"]));
+    assert!(matcher.matches("eslint-plugin-foo"));
+    assert!(!matcher.matches("express"));
 
-    let m = create_matcher(&pats(["*plugin*"]));
-    assert!(m.matches("@eslint/plugin-foo"));
-    assert!(!m.matches("express"));
+    let matcher = create_matcher(&pats(["*plugin*"]));
+    assert!(matcher.matches("@eslint/plugin-foo"));
+    assert!(!matcher.matches("express"));
 
-    let m = create_matcher(&pats(["a*c"]));
-    assert!(m.matches("abc"));
+    let matcher = create_matcher(&pats(["a*c"]));
+    assert!(matcher.matches("abc"));
 
-    let m = create_matcher(&pats(["*-positive"]));
-    assert!(m.matches("is-positive"));
+    let matcher = create_matcher(&pats(["*-positive"]));
+    assert!(matcher.matches("is-positive"));
 
-    let m = create_matcher(&pats(["foo", "bar"]));
-    assert!(m.matches("foo"));
-    assert!(m.matches("bar"));
-    assert!(!m.matches("express"));
+    let matcher = create_matcher(&pats(["foo", "bar"]));
+    assert!(matcher.matches("foo"));
+    assert!(matcher.matches("bar"));
+    assert!(!matcher.matches("express"));
 
-    let m = create_matcher(&pats(["eslint-*", "!eslint-plugin-bar"]));
-    assert!(m.matches("eslint-plugin-foo"));
-    assert!(!m.matches("eslint-plugin-bar"));
+    let matcher = create_matcher(&pats(["eslint-*", "!eslint-plugin-bar"]));
+    assert!(matcher.matches("eslint-plugin-foo"));
+    assert!(!matcher.matches("eslint-plugin-bar"));
 
-    let m = create_matcher(&pats(["!eslint-plugin-bar", "eslint-*"]));
-    assert!(m.matches("eslint-plugin-foo"));
+    let matcher = create_matcher(&pats(["!eslint-plugin-bar", "eslint-*"]));
+    assert!(matcher.matches("eslint-plugin-foo"));
     // Upstream returns `1` (the include matched, after the ignore
     // missed) — boolean-side that's "matched".
-    assert!(m.matches("eslint-plugin-bar"));
+    assert!(matcher.matches("eslint-plugin-bar"));
 
-    let m = create_matcher(&pats(["eslint-*", "!eslint-plugin-*", "eslint-plugin-bar"]));
-    assert!(m.matches("eslint-config-foo"));
-    assert!(!m.matches("eslint-plugin-foo"));
-    assert!(m.matches("eslint-plugin-bar"));
+    let matcher = create_matcher(&pats(["eslint-*", "!eslint-plugin-*", "eslint-plugin-bar"]));
+    assert!(matcher.matches("eslint-config-foo"));
+    assert!(!matcher.matches("eslint-plugin-foo"));
+    assert!(matcher.matches("eslint-plugin-bar"));
 }
 
 /// Direct port of upstream's `createMatcherWithIndex()` test at
 /// [`config/matcher/test/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/test/index.ts#L50-L107).
 #[test]
 fn matcher_with_index_semantics() {
-    let m = create_matcher_with_index(&pats(["*"]));
-    assert_eq!(m.matches("@eslint/plugin-foo"), Some(0));
-    assert_eq!(m.matches("express"), Some(0));
+    let matcher = create_matcher_with_index(&pats(["*"]));
+    assert_eq!(matcher.matches("@eslint/plugin-foo"), Some(0));
+    assert_eq!(matcher.matches("express"), Some(0));
 
-    let m = create_matcher_with_index(&pats(["eslint-*"]));
-    assert_eq!(m.matches("eslint-plugin-foo"), Some(0));
-    assert_eq!(m.matches("express"), None);
+    let matcher = create_matcher_with_index(&pats(["eslint-*"]));
+    assert_eq!(matcher.matches("eslint-plugin-foo"), Some(0));
+    assert_eq!(matcher.matches("express"), None);
 
-    let m = create_matcher_with_index(&pats(["*plugin*"]));
-    assert_eq!(m.matches("@eslint/plugin-foo"), Some(0));
-    assert_eq!(m.matches("express"), None);
+    let matcher = create_matcher_with_index(&pats(["*plugin*"]));
+    assert_eq!(matcher.matches("@eslint/plugin-foo"), Some(0));
+    assert_eq!(matcher.matches("express"), None);
 
-    let m = create_matcher_with_index(&pats(["a*c"]));
-    assert_eq!(m.matches("abc"), Some(0));
+    let matcher = create_matcher_with_index(&pats(["a*c"]));
+    assert_eq!(matcher.matches("abc"), Some(0));
 
-    let m = create_matcher_with_index(&pats(["*-positive"]));
-    assert_eq!(m.matches("is-positive"), Some(0));
+    let matcher = create_matcher_with_index(&pats(["*-positive"]));
+    assert_eq!(matcher.matches("is-positive"), Some(0));
 
-    let m = create_matcher_with_index(&pats(["foo", "bar"]));
-    assert_eq!(m.matches("foo"), Some(0));
-    assert_eq!(m.matches("bar"), Some(1));
-    assert_eq!(m.matches("express"), None);
+    let matcher = create_matcher_with_index(&pats(["foo", "bar"]));
+    assert_eq!(matcher.matches("foo"), Some(0));
+    assert_eq!(matcher.matches("bar"), Some(1));
+    assert_eq!(matcher.matches("express"), None);
 
-    let m = create_matcher_with_index(&pats(["eslint-*", "!eslint-plugin-bar"]));
-    assert_eq!(m.matches("eslint-plugin-foo"), Some(0));
-    assert_eq!(m.matches("eslint-plugin-bar"), None);
+    let matcher = create_matcher_with_index(&pats(["eslint-*", "!eslint-plugin-bar"]));
+    assert_eq!(matcher.matches("eslint-plugin-foo"), Some(0));
+    assert_eq!(matcher.matches("eslint-plugin-bar"), None);
 
-    let m = create_matcher_with_index(&pats(["!eslint-plugin-bar", "eslint-*"]));
-    assert_eq!(m.matches("eslint-plugin-foo"), Some(1));
-    assert_eq!(m.matches("eslint-plugin-bar"), Some(1));
+    let matcher = create_matcher_with_index(&pats(["!eslint-plugin-bar", "eslint-*"]));
+    assert_eq!(matcher.matches("eslint-plugin-foo"), Some(1));
+    assert_eq!(matcher.matches("eslint-plugin-bar"), Some(1));
 
-    let m = create_matcher_with_index(&pats(["eslint-*", "!eslint-plugin-*", "eslint-plugin-bar"]));
-    assert_eq!(m.matches("eslint-config-foo"), Some(0));
-    assert_eq!(m.matches("eslint-plugin-foo"), None);
-    assert_eq!(m.matches("eslint-plugin-bar"), Some(2));
+    let matcher =
+        create_matcher_with_index(&pats(["eslint-*", "!eslint-plugin-*", "eslint-plugin-bar"]));
+    assert_eq!(matcher.matches("eslint-config-foo"), Some(0));
+    assert_eq!(matcher.matches("eslint-plugin-foo"), None);
+    assert_eq!(matcher.matches("eslint-plugin-bar"), Some(2));
 
-    let m = create_matcher_with_index(&pats(["!@pnpm.e2e/peer-*"]));
-    assert_eq!(m.matches("@pnpm.e2e/foo"), Some(0));
+    let matcher = create_matcher_with_index(&pats(["!@pnpm.e2e/peer-*"]));
+    assert_eq!(matcher.matches("@pnpm.e2e/foo"), Some(0));
 
-    let m = create_matcher_with_index(&pats(["!foo", "!bar"]));
-    assert_eq!(m.matches("foo"), None);
-    assert_eq!(m.matches("bar"), None);
-    assert_eq!(m.matches("baz"), Some(0));
+    let matcher = create_matcher_with_index(&pats(["!foo", "!bar"]));
+    assert_eq!(matcher.matches("foo"), None);
+    assert_eq!(matcher.matches("bar"), None);
+    assert_eq!(matcher.matches("baz"), Some(0));
 
-    let m = create_matcher_with_index(&pats(["!foo", "!bar", "qar"]));
-    assert_eq!(m.matches("foo"), None);
-    assert_eq!(m.matches("bar"), None);
-    assert_eq!(m.matches("baz"), None);
+    let matcher = create_matcher_with_index(&pats(["!foo", "!bar", "qar"]));
+    assert_eq!(matcher.matches("foo"), None);
+    assert_eq!(matcher.matches("bar"), None);
+    assert_eq!(matcher.matches("baz"), None);
 }
 
 /// Empty list never matches — upstream's `case 0` of
 /// `createMatcherWithIndex`.
 #[test]
 fn empty_pattern_list_never_matches() {
-    let m = create_matcher(&[]);
-    assert!(!m.matches("anything"));
-    let m = create_matcher_with_index(&[]);
-    assert_eq!(m.matches("anything"), None);
+    let matcher = create_matcher(&[]);
+    assert!(!matcher.matches("anything"));
+    let matcher = create_matcher_with_index(&[]);
+    assert_eq!(matcher.matches("anything"), None);
 }
 
 /// Pattern characters that are regex-special in upstream get
 /// escaped before compilation, so they match literally here too.
 #[test]
 fn regex_special_chars_are_literal() {
-    let m = create_matcher(&pats(["a.b"]));
-    assert!(m.matches("a.b"));
-    assert!(!m.matches("axb"));
+    let matcher = create_matcher(&pats(["a.b"]));
+    assert!(matcher.matches("a.b"));
+    assert!(!matcher.matches("axb"));
 
-    let m = create_matcher(&pats(["a?b"]));
-    assert!(m.matches("a?b"));
-    assert!(!m.matches("axb"));
+    let matcher = create_matcher(&pats(["a?b"]));
+    assert!(matcher.matches("a?b"));
+    assert!(!matcher.matches("axb"));
 
-    let m = create_matcher(&pats(["(foo)"]));
-    assert!(m.matches("(foo)"));
-    assert!(!m.matches("foo"));
+    let matcher = create_matcher(&pats(["(foo)"]));
+    assert!(matcher.matches("(foo)"));
+    assert!(!matcher.matches("foo"));
 }
 
 /// `*` matches the empty string — pattern `a*b` accepts `ab`.
 #[test]
 fn star_matches_empty() {
-    let m = create_matcher(&pats(["a*b"]));
-    assert!(m.matches("ab"));
-    assert!(m.matches("axb"));
-    assert!(m.matches("axxxb"));
+    let matcher = create_matcher(&pats(["a*b"]));
+    assert!(matcher.matches("ab"));
+    assert!(matcher.matches("axb"));
+    assert!(matcher.matches("axxxb"));
 }
 
 /// Triple-segment patterns find segments greedily but in order.
 #[test]
 fn multi_segment_glob_in_order() {
-    let m = create_matcher(&pats(["a*b*c"]));
-    assert!(m.matches("abc"));
-    assert!(m.matches("axxbxxc"));
-    assert!(!m.matches("acb"));
+    let matcher = create_matcher(&pats(["a*b*c"]));
+    assert!(matcher.matches("abc"));
+    assert!(matcher.matches("axxbxxc"));
+    assert!(!matcher.matches("acb"));
     // Last segment must be the suffix — `c` not at end fails.
-    assert!(!m.matches("axbcx"));
+    assert!(!matcher.matches("axbcx"));
 }
 
 /// `is_empty` is the static fast-path check callers use to skip

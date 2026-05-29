@@ -60,9 +60,9 @@ fn tls_error_invalid_client_identity_includes_reason_in_display() {
 
 #[test]
 fn per_registry_tls_default_is_empty() {
-    let m = PerRegistryTls::default();
-    assert!(m.is_empty());
-    assert!(m.pick_for_url("https://example.com/").is_none());
+    let tls_map = PerRegistryTls::default();
+    assert!(tls_map.is_empty());
+    assert!(tls_map.pick_for_url("https://example.com/").is_none());
 }
 
 #[test]
@@ -72,12 +72,12 @@ fn per_registry_from_map_drops_empty_entries() {
     // either. Otherwise the lookup would return a hit that yields
     // an all-`None` override — defeating the point of falling back
     // to top-level fields.
-    let m = build_map(&[
+    let tls_map = build_map(&[
         ("//keep.example/", registry_with(Some("ca"), None, None)),
         ("//drop.example/", RegistryTls::default()),
     ]);
-    assert!(m.get("//keep.example/").is_some(), "non-empty entry survived");
-    assert!(m.get("//drop.example/").is_none(), "empty entry was dropped");
+    assert!(tls_map.get("//keep.example/").is_some(), "non-empty entry survived");
+    assert!(tls_map.get("//drop.example/").is_none(), "empty entry was dropped");
 }
 
 #[test]
@@ -86,31 +86,34 @@ fn pick_for_url_exact_match_wins() {
     // before nerf-darting kicks in. This lets a user pin a specific
     // tarball URL's TLS without affecting the rest of the registry.
     let exact = "https://registry.example.com/pkg/-/pkg-1.0.0.tgz";
-    let m = build_map(&[
+    let tls_map = build_map(&[
         (exact, registry_with(Some("exact-ca"), None, None)),
         ("//registry.example.com/", registry_with(Some("registry-ca"), None, None)),
     ]);
-    assert_eq!(m.pick_for_url(exact), Some(exact));
+    assert_eq!(tls_map.pick_for_url(exact), Some(exact));
 }
 
 #[test]
 fn pick_for_url_nerf_dart_match() {
     // Step 2: with no exact match, the nerf-darted URL hits the
     // `//host/` key.
-    let m = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
-    assert_eq!(m.pick_for_url("https://registry.example.com/pkg"), Some("//registry.example.com/"));
+    let tls_map = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
+    assert_eq!(
+        tls_map.pick_for_url("https://registry.example.com/pkg"),
+        Some("//registry.example.com/"),
+    );
 }
 
 #[test]
 fn pick_for_url_shorter_path_prefix() {
     // Step 4: a `//host/scope/` key matches any URL under that
     // path, mirroring pnpm's nerf-dart prefix walk.
-    let m = build_map(&[(
+    let tls_map = build_map(&[(
         "//registry.example.com/scope/",
         registry_with(Some("scope-ca"), None, None),
     )]);
     assert_eq!(
-        m.pick_for_url("https://registry.example.com/scope/pkg/-/pkg-1.tgz"),
+        tls_map.pick_for_url("https://registry.example.com/scope/pkg/-/pkg-1.tgz"),
         Some("//registry.example.com/scope/"),
     );
 }
@@ -120,24 +123,25 @@ fn pick_for_url_strips_port_on_retry() {
     // Steps 3 + 5: a `//host/` key matches a URL that carries an
     // explicit port. The port-strip retry walks back through the
     // earlier steps.
-    let m = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
+    let tls_map = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
     assert_eq!(
-        m.pick_for_url("https://registry.example.com:8443/pkg"),
+        tls_map.pick_for_url("https://registry.example.com:8443/pkg"),
         Some("//registry.example.com/"),
     );
 }
 
 #[test]
 fn pick_for_url_misses_when_host_differs() {
-    let m = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
-    assert_eq!(m.pick_for_url("https://other.example.org/pkg"), None);
+    let tls_map = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
+    assert_eq!(tls_map.pick_for_url("https://other.example.org/pkg"), None);
 }
 
 #[test]
 fn pick_for_url_misses_when_path_doesnt_share_prefix() {
     // `//host/foo/` shouldn't match a URL under `/bar/`.
-    let m = build_map(&[("//registry.example.com/foo/", registry_with(Some("ca"), None, None))]);
-    assert_eq!(m.pick_for_url("https://registry.example.com/bar/pkg"), None);
+    let tls_map =
+        build_map(&[("//registry.example.com/foo/", registry_with(Some("ca"), None, None))]);
+    assert_eq!(tls_map.pick_for_url("https://registry.example.com/bar/pkg"), None);
 }
 
 #[test]

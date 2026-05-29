@@ -82,7 +82,7 @@ fn make_lockfile_data(
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     for (n, v, deps, has_bin) in rows {
-        let k = key(n, v);
+        let pkg_key = key(n, v);
         let mut dep_map: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
         for (alias, dep_name, dep_ver) in *deps {
             let dep_alias = name(alias);
@@ -98,8 +98,8 @@ fn make_lockfile_data(
             dependencies: if dep_map.is_empty() { None } else { Some(dep_map) },
             ..Default::default()
         };
-        snapshots.insert(k.clone(), snapshot);
-        packages.insert(k, metadata(*has_bin));
+        snapshots.insert(pkg_key.clone(), snapshot);
+        packages.insert(pkg_key, metadata(*has_bin));
     }
     (snapshots, packages)
 }
@@ -533,10 +533,10 @@ fn build_hoist_graph_walks_dependencies() {
 /// Helper: extract the (alias, kind) pairs at a given snapshot key
 /// for assertion purposes. Sorted for stable comparison.
 fn kinds_for(map: &HoistedDependencies, key: &str) -> Vec<(String, HoistKind)> {
-    let mut v: Vec<_> = map
+    let mut pairs: Vec<_> = map
         .get(key)
-        .map(|inner| inner.iter().map(|(k, v)| (k.clone(), *v)).collect())
+        .map(|inner| inner.iter().map(|(pkg_key, v)| (pkg_key.clone(), *v)).collect())
         .unwrap_or_default();
-    v.sort_by(|a, b| a.0.cmp(&b.0));
-    v
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    pairs
 }

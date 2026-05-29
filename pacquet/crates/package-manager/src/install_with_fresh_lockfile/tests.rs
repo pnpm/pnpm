@@ -29,16 +29,16 @@ fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
 /// on every reorder.
 #[test]
 fn compute_checksum_is_order_invariant_across_outer_keys() {
-    let a = config_with_extensions(&[
+    let config_a = config_with_extensions(&[
         ("is-odd", &[("is-number", "*")]),
         ("is-even", &[("is-number", "*")]),
     ]);
-    let b = config_with_extensions(&[
+    let config_b = config_with_extensions(&[
         ("is-even", &[("is-number", "*")]),
         ("is-odd", &[("is-number", "*")]),
     ]);
-    let checksum_a = compute_package_extensions_checksum(&a);
-    let checksum_b = compute_package_extensions_checksum(&b);
+    let checksum_a = compute_package_extensions_checksum(&config_a);
+    let checksum_b = compute_package_extensions_checksum(&config_b);
     assert!(checksum_a.is_some(), "configured extensions must hash to Some");
     assert_eq!(checksum_a, checksum_b);
 }

@@ -122,9 +122,9 @@ async fn tokens_round_trip() {
 #[tokio::test]
 async fn tokens_are_unique_per_issue() {
     let tokens = TokenStore::in_memory();
-    let a = tokens.issue("alice").await.unwrap();
-    let b = tokens.issue("alice").await.unwrap();
-    assert_ne!(a, b, "every call to issue() should mint a fresh token");
+    let token_a = tokens.issue("alice").await.unwrap();
+    let token_b = tokens.issue("alice").await.unwrap();
+    assert_ne!(token_a, token_b, "every call to issue() should mint a fresh token");
 }
 
 #[tokio::test]

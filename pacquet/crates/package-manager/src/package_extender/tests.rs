@@ -202,9 +202,9 @@ fn checksum_order_invariance_outer_keys() {
         "is-odd".to_string(),
         PackageExtension {
             peer_dependencies: Some({
-                let mut m = BTreeMap::new();
-                m.insert("is-number".to_string(), "*".to_string());
-                m
+                let mut extensions = BTreeMap::new();
+                extensions.insert("is-number".to_string(), "*".to_string());
+                extensions
             }),
             ..Default::default()
         },
@@ -213,9 +213,9 @@ fn checksum_order_invariance_outer_keys() {
         "is-even".to_string(),
         PackageExtension {
             peer_dependencies: Some({
-                let mut m = BTreeMap::new();
-                m.insert("is-number".to_string(), "*".to_string());
-                m
+                let mut extensions = BTreeMap::new();
+                extensions.insert("is-number".to_string(), "*".to_string());
+                extensions
             }),
             ..Default::default()
         },

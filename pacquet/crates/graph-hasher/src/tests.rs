@@ -87,15 +87,15 @@ fn hash_object_empty_object_is_stable() {
 /// hash identically.
 #[test]
 fn hash_object_dep_state_shape_sorts_nested_keys() {
-    let a = hash_object(&json!({
+    let first = hash_object(&json!({
         "id": "foo@1.0.0:sha512-AAA",
         "deps": { "b": "h-b", "a": "h-a" },
     }));
-    let b = hash_object(&json!({
+    let second = hash_object(&json!({
         "deps": { "a": "h-a", "b": "h-b" },
         "id": "foo@1.0.0:sha512-AAA",
     }));
-    assert_eq!(a, b);
+    assert_eq!(first, second);
 }
 
 /// Non-ASCII string lengths must be counted in UTF-16 code units
@@ -134,13 +134,13 @@ fn hash_object_handles_null_bool_and_array_variants() {
     // across variants would mean the discriminator prefixes were
     // lost.
     let all = [&null_hash, &true_hash, &false_hash, &array_hash];
-    for a in all {
-        assert!(!a.is_empty());
+    for first in all {
+        assert!(!first.is_empty());
     }
-    for (i, a) in all.iter().enumerate() {
-        for (j, b) in all.iter().enumerate() {
+    for (i, first) in all.iter().enumerate() {
+        for (j, second) in all.iter().enumerate() {
             if i != j {
-                assert_ne!(a, b, "variant prefixes must distinguish hashes");
+                assert_ne!(first, second, "variant prefixes must distinguish hashes");
             }
         }
     }

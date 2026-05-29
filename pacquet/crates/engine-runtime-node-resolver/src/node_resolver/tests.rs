@@ -61,22 +61,24 @@ async fn offline_raises_no_offline_nodejs_resolution() {
 /// unrecognised `.pkg` reject case).
 #[test]
 fn parses_node_file_names() {
-    let v = "22.0.0";
-    let linux = parse_node_file_name("node-v22.0.0-linux-x64.tar.gz", v).expect("linux glibc");
+    let version = "22.0.0";
+    let linux =
+        parse_node_file_name("node-v22.0.0-linux-x64.tar.gz", version).expect("linux glibc");
     assert_eq!(linux.platform, "linux");
     assert_eq!(linux.arch, "x64");
     assert!(!linux.is_musl);
 
-    let musl = parse_node_file_name("node-v22.0.0-linux-x64-musl.tar.gz", v).expect("linux musl");
+    let musl =
+        parse_node_file_name("node-v22.0.0-linux-x64-musl.tar.gz", version).expect("linux musl");
     assert_eq!(musl.platform, "linux");
     assert_eq!(musl.arch, "x64");
     assert!(musl.is_musl);
 
-    let windows = parse_node_file_name("node-v22.0.0-win-x64.zip", v).expect("windows");
+    let windows = parse_node_file_name("node-v22.0.0-win-x64.zip", version).expect("windows");
     assert_eq!(windows.platform, "win");
     assert_eq!(windows.arch, "x64");
     assert!(!windows.is_musl);
 
-    assert!(parse_node_file_name("node-v22.0.0.pkg", v).is_none());
-    assert!(parse_node_file_name("node-v22.0.0-headers.tar.gz", v).is_none());
+    assert!(parse_node_file_name("node-v22.0.0.pkg", version).is_none());
+    assert!(parse_node_file_name("node-v22.0.0-headers.tar.gz", version).is_none());
 }

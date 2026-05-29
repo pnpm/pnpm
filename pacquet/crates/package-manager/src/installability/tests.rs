@@ -576,21 +576,21 @@ fn fetch_failed_and_optional_excluded_are_symmetric() {
     // Order A: fetch_failed first, then optional_excluded — the
     // second insert no-ops; the entry stays in fetch_failed.
     let key: PackageKey = "weird-overlap@1.0.0".parse().unwrap();
-    let mut a = SkippedSnapshots::new();
-    a.add_fetch_failed(key.clone());
-    a.add_optional_excluded(key.clone());
-    assert_eq!(a.len(), 1);
-    assert_eq!(a.iter().count(), 1);
-    assert!(a.contains(&key));
+    let mut skipped_a = SkippedSnapshots::new();
+    skipped_a.add_fetch_failed(key.clone());
+    skipped_a.add_optional_excluded(key.clone());
+    assert_eq!(skipped_a.len(), 1);
+    assert_eq!(skipped_a.iter().count(), 1);
+    assert!(skipped_a.contains(&key));
 
     // Order B: optional_excluded first, then fetch_failed — the
     // second insert must also no-op (Copilot PR #485 review:
     // `add_fetch_failed` needs the symmetric guard so callers
     // can't corrupt the skip set by reversing the order).
-    let mut b = SkippedSnapshots::new();
-    b.add_optional_excluded(key.clone());
-    b.add_fetch_failed(key.clone());
-    assert_eq!(b.len(), 1);
-    assert_eq!(b.iter().count(), 1);
-    assert!(b.contains(&key));
+    let mut skipped_b = SkippedSnapshots::new();
+    skipped_b.add_optional_excluded(key.clone());
+    skipped_b.add_fetch_failed(key.clone());
+    assert_eq!(skipped_b.len(), 1);
+    assert_eq!(skipped_b.iter().count(), 1);
+    assert!(skipped_b.contains(&key));
 }

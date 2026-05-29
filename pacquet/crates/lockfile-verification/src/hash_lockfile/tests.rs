@@ -40,10 +40,10 @@ fn parse(yaml: &str) -> Lockfile {
 #[test]
 fn hash_is_stable_across_calls() {
     let lockfile = parse(LOCKFILE_YAML);
-    let a = hash_lockfile(&lockfile);
-    let b = hash_lockfile(&lockfile);
-    assert_eq!(a, b);
-    assert_eq!(a.len(), 64, "sha256 hex digest is 64 chars");
+    let first = hash_lockfile(&lockfile);
+    let second = hash_lockfile(&lockfile);
+    assert_eq!(first, second);
+    assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
 }
 
 /// Lockfiles that parse to the same logical content but were

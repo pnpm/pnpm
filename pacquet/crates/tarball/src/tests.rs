@@ -875,8 +875,8 @@ fn extract_rejects_parent_dir_component_in_entry_path() {
         let raw = header.as_mut_bytes();
         let name = b"package/../evil.txt";
         raw[..name.len()].copy_from_slice(name);
-        for b in &mut raw[name.len()..100] {
-            *b = 0;
+        for result_b in &mut raw[name.len()..100] {
+            *result_b = 0;
         }
         header.set_cksum();
         builder.append(&header, &b"evil!"[..]).expect("append entry");
@@ -1762,15 +1762,15 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     .expect("run_with_mem_cache deadlocked on owner-error path");
 
     let (a_result, b_result) = join;
-    let a = a_result.expect("task_a join");
-    let b = b_result.expect("task_b join");
+    let result_a = a_result.expect("task_a join");
+    let result_b = b_result.expect("task_b join");
 
     // Both must surface an error — exact variant depends on which
     // task drove the network fetch (gets HttpStatus 404) and which
     // parked on Notify (gets SiblingFetchFailed). Pin only the
     // "both errored, neither hung" invariant.
-    assert!(a.is_err(), "task_a must surface the 404 (or sibling failure)");
-    assert!(b.is_err(), "task_b must surface the 404 (or sibling failure)");
+    assert!(result_a.is_err(), "task_a must surface the 404 (or sibling failure)");
+    assert!(result_b.is_err(), "task_b must surface the 404 (or sibling failure)");
 
     drop(store_dir_keep);
 }
@@ -1855,7 +1855,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
             _ => None,
         })
         .collect();
-    let attempts: Vec<u32> = started.iter().map(|(a, _)| *a).collect();
+    let attempts: Vec<u32> = started.iter().map(|(result_a, _)| *result_a).collect();
     assert_eq!(attempts, vec![1, 2], "started must fire once per attempt; got {captured:?}");
     // Both attempts have a response head (mockito sends Content-Length
     // for `with_body(...)` and `with_status(503)` likewise), so both

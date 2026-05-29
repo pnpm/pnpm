@@ -144,11 +144,11 @@ fn original_path_is_appended_last() {
     let wd = Path::new("/proj");
     let extra: Vec<PathBuf> = vec![];
     let sys_path = {
-        let mut s = OsString::new();
-        s.push("/usr/local/bin");
-        s.push(SEP.to_string());
-        s.push("/usr/bin");
-        s
+        let mut text = OsString::new();
+        text.push("/usr/local/bin");
+        text.push(SEP.to_string());
+        text.push("/usr/bin");
+        text
     };
     let path = extend_path(wd, Some(&sys_path), None, &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
@@ -194,9 +194,9 @@ fn separator_in_path_component_does_not_drop_other_entries() {
         ScriptsPrependNodePath::Never,
         None,
     );
-    let s = path.to_string_lossy();
-    assert!(s.contains("/proj/node_modules/.bin"), "wd .bin must survive: {s:?}");
-    assert!(s.contains("/tmp/a:b/.bin"), "the weird extra path must survive verbatim: {s:?}");
+    let text = path.to_string_lossy();
+    assert!(text.contains("/proj/node_modules/.bin"), "wd .bin must survive: {text:?}");
+    assert!(text.contains("/tmp/a:b/.bin"), "the weird extra path must survive verbatim: {text:?}");
 }
 
 /// Tri-state: `Never` and `WarnOnly` both skip the actual prepend

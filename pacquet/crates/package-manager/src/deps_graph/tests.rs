@@ -160,30 +160,30 @@ fn subgraph_with_empty_roots_is_empty() {
 /// `calc_dep_state` recursion's reach.
 #[test]
 fn subgraph_walks_forward_closure() {
-    let a = key("a", "1.0.0");
-    let b = key("b", "1.0.0");
-    let c = key("c", "1.0.0");
-    let d = key("d", "1.0.0"); // unrelated
+    let key_a = key("a", "1.0.0");
+    let key_b = key("b", "1.0.0");
+    let key_c = key("c", "1.0.0");
+    let key_d = key("d", "1.0.0"); // unrelated
     let a_deps = HashMap::from([(name("b"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let b_deps = HashMap::from([(name("c"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let snapshots = HashMap::from([
-        (a.clone(), SnapshotEntry { dependencies: Some(a_deps), ..Default::default() }),
-        (b.clone(), SnapshotEntry { dependencies: Some(b_deps), ..Default::default() }),
-        (c.clone(), SnapshotEntry::default()),
-        (d.clone(), SnapshotEntry::default()),
+        (key_a.clone(), SnapshotEntry { dependencies: Some(a_deps), ..Default::default() }),
+        (key_b.clone(), SnapshotEntry { dependencies: Some(b_deps), ..Default::default() }),
+        (key_c.clone(), SnapshotEntry::default()),
+        (key_d.clone(), SnapshotEntry::default()),
     ]);
     let packages = HashMap::from([
-        (a.clone(), registry_metadata()),
-        (b.clone(), registry_metadata()),
-        (c.clone(), registry_metadata()),
-        (d.clone(), registry_metadata()),
+        (key_a.clone(), registry_metadata()),
+        (key_b.clone(), registry_metadata()),
+        (key_c.clone(), registry_metadata()),
+        (key_d.clone(), registry_metadata()),
     ]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(a.clone()));
-    assert!(graph.contains_key(&a));
-    assert!(graph.contains_key(&b), "b is in a's closure");
-    assert!(graph.contains_key(&c), "c is in a's closure via b");
-    assert!(!graph.contains_key(&d), "d is unrelated; must not be included");
+    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
+    assert!(graph.contains_key(&key_a));
+    assert!(graph.contains_key(&key_b), "b is in a's closure");
+    assert!(graph.contains_key(&key_c), "c is in a's closure via b");
+    assert!(!graph.contains_key(&key_d), "d is unrelated; must not be included");
 }
 
 /// `build_deps_subgraph` terminates on a dependency cycle —
@@ -191,19 +191,19 @@ fn subgraph_walks_forward_closure() {
 /// re-visits.
 #[test]
 fn subgraph_terminates_on_cycle() {
-    let a = key("a", "1.0.0");
-    let b = key("b", "1.0.0");
+    let key_a = key("a", "1.0.0");
+    let key_b = key("b", "1.0.0");
     let a_deps = HashMap::from([(name("b"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let b_deps = HashMap::from([(name("a"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let snapshots = HashMap::from([
-        (a.clone(), SnapshotEntry { dependencies: Some(a_deps), ..Default::default() }),
-        (b.clone(), SnapshotEntry { dependencies: Some(b_deps), ..Default::default() }),
+        (key_a.clone(), SnapshotEntry { dependencies: Some(a_deps), ..Default::default() }),
+        (key_b.clone(), SnapshotEntry { dependencies: Some(b_deps), ..Default::default() }),
     ]);
     let packages =
-        HashMap::from([(a.clone(), registry_metadata()), (b.clone(), registry_metadata())]);
+        HashMap::from([(key_a.clone(), registry_metadata()), (key_b.clone(), registry_metadata())]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(a.clone()));
+    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
     assert_eq!(graph.len(), 2);
-    assert!(graph.contains_key(&a));
-    assert!(graph.contains_key(&b));
+    assert!(graph.contains_key(&key_a));
+    assert!(graph.contains_key(&key_b));
 }

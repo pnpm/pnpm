@@ -17,12 +17,12 @@ struct FakeProbe {
 }
 impl GitProbe for FakeProbe {
     fn https_head_ok<'a>(&'a self, _url: &'a str) -> ProbeFuture<'a> {
-        let v = self.head_ok;
-        Box::pin(async move { v })
+        let enabled = self.head_ok;
+        Box::pin(async move { enabled })
     }
     fn ls_remote_exit_code<'a>(&'a self, _repo: &'a str) -> ProbeFuture<'a> {
-        let v = self.ls_ok;
-        Box::pin(async move { v })
+        let enabled = self.ls_ok;
+        Box::pin(async move { enabled })
     }
 }
 

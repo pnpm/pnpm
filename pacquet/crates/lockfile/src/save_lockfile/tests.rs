@@ -413,8 +413,8 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .filter(|name| {
-            let s = name.to_string_lossy();
-            s != Lockfile::CURRENT_FILE_NAME
+            let name_str = name.to_string_lossy();
+            name_str != Lockfile::CURRENT_FILE_NAME
         })
         .collect();
     assert!(leftovers.is_empty(), "temp file should have been cleaned up, found: {leftovers:?}");

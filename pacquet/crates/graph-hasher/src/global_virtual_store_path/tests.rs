@@ -30,7 +30,7 @@ fn identical_leaves_hash_identically() {
     let mut cache_b = HashMap::new();
     let mut br_a = HashMap::new();
     let mut br_b = HashMap::new();
-    let a = calc_graph_node_hash(
+    let first = calc_graph_node_hash(
         &graph,
         &mut cache_a,
         &"leaf@1.0.0".to_string(),
@@ -38,7 +38,7 @@ fn identical_leaves_hash_identically() {
         None,
         &mut br_a,
     );
-    let b = calc_graph_node_hash(
+    let second = calc_graph_node_hash(
         &graph,
         &mut cache_b,
         &"leaf@1.0.0".to_string(),
@@ -46,8 +46,8 @@ fn identical_leaves_hash_identically() {
         None,
         &mut br_b,
     );
-    assert_eq!(a, b, "deterministic for same input");
-    assert_eq!(a.len(), 64, "sha256 hex digest is 64 chars");
+    assert_eq!(first, second, "deterministic for same input");
+    assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
 }
 
 /// Different engines produce different hashes when the engine

@@ -57,16 +57,16 @@ fn parses_plain_https_dot_git_to_direct() {
 
 #[test]
 fn parse_git_params_splits_semver_path_committish() {
-    let p = parse_git_params(Some("semver:^1.0.0"));
-    assert_eq!(p.git_range.as_deref(), Some("^1.0.0"));
-    assert!(p.git_committish.is_none());
+    let params = parse_git_params(Some("semver:^1.0.0"));
+    assert_eq!(params.git_range.as_deref(), Some("^1.0.0"));
+    assert!(params.git_committish.is_none());
 
-    let p = parse_git_params(Some("path:/sub"));
-    assert_eq!(p.path.as_deref(), Some("/sub"));
+    let params = parse_git_params(Some("path:/sub"));
+    assert_eq!(params.path.as_deref(), Some("/sub"));
 
-    let p = parse_git_params(Some("beta&path:/packages/x"));
-    assert_eq!(p.git_committish.as_deref(), Some("beta"));
-    assert_eq!(p.path.as_deref(), Some("/packages/x"));
+    let params = parse_git_params(Some("beta&path:/packages/x"));
+    assert_eq!(params.git_committish.as_deref(), Some("beta"));
+    assert_eq!(params.path.as_deref(), Some("/packages/x"));
 }
 
 #[test]

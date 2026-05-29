@@ -412,9 +412,9 @@ fn read_head_filled_accumulates_short_reads_from_fake() {
     struct ShortReader;
     impl FsReadHead for ShortReader {
         fn read_head(_: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
-            let i = CALL_COUNT.fetch_add(1, Ordering::Relaxed);
-            if i < LAST_OFFSETS.len() {
-                LAST_OFFSETS[i].store(offset as usize, Ordering::Relaxed);
+            let call_index = CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            if call_index < LAST_OFFSETS.len() {
+                LAST_OFFSETS[call_index].store(offset as usize, Ordering::Relaxed);
             }
             let off = offset as usize;
             if off >= PAYLOAD.len() {

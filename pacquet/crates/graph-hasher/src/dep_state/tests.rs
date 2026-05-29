@@ -92,9 +92,9 @@ fn cache_makes_repeat_calls_byte_equal() {
         patch_file_hash: None,
         include_dep_graph_hash: true,
     };
-    let a = calc_dep_state(&graph, &mut cache, &"leaf@1.0.0".to_string(), &opts);
-    let b = calc_dep_state(&graph, &mut cache, &"leaf@1.0.0".to_string(), &opts);
-    assert_eq!(a, b);
+    let first = calc_dep_state(&graph, &mut cache, &"leaf@1.0.0".to_string(), &opts);
+    let second = calc_dep_state(&graph, &mut cache, &"leaf@1.0.0".to_string(), &opts);
+    assert_eq!(first, second);
     assert_eq!(cache.len(), 1, "cache must hold exactly the one leaf entry");
 }
 

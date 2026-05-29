@@ -127,8 +127,8 @@ fn one_transitive_dep_hoists_to_root() {
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b"], "both a and b sit at root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    assert!(a.dependencies.borrow().is_empty(), "a's b moved to root: {a:#?}");
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    assert!(dep_a.dependencies.borrow().is_empty(), "a's b moved to root: {dep_a:#?}");
 }
 
 /// Diamond dependency `root → {a, c}` with both `a → b@1` and
@@ -179,10 +179,10 @@ fn diamond_dep_hoists_once_to_root() {
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b", "c"], "diamond flattens at root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
-    assert!(a.dependencies.borrow().is_empty(), "a stripped of its b: {a:#?}");
-    assert!(c.dependencies.borrow().is_empty(), "c stripped of its b: {c:#?}");
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
+    assert!(dep_a.dependencies.borrow().is_empty(), "a stripped of its b: {dep_a:#?}");
+    assert!(dep_c.dependencies.borrow().is_empty(), "c stripped of its b: {dep_c:#?}");
 
     // Walk the whole result graph and collect every distinct
     // allocation whose `name == "b"`. The wrapper deduped a@1's b
@@ -268,8 +268,8 @@ fn version_conflict_keeps_loser_at_parent() {
     assert!(b_refs.contains("b@1.0.0"), "first DFS visitor wins root slot: {b_refs:?}");
     assert_eq!(b_refs.len(), 1, "no other reference accumulated yet: {b_refs:?}");
     // `c`'s `b@2` remains under `c`.
-    let c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
-    let c_kids = c.dependencies.borrow();
+    let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
+    let c_kids = dep_c.dependencies.borrow();
     assert_eq!(c_kids.len(), 1, "c kept its conflicting b@2");
     let b_under_c_refs = c_kids[0].0.references.borrow();
     assert!(b_under_c_refs.contains("b@2.0.0"), "loser stays under c: {b_under_c_refs:?}");
@@ -805,8 +805,8 @@ fn hoisting_limits_border_keeps_descendants_nested() {
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a"], "border node a sits at root; b did not flatten: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let a_deps = a.dependencies.borrow();
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let a_deps = dep_a.dependencies.borrow();
     let a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
     assert_eq!(a_names, ["b"], "b stays nested under the border a: {a_names:?}");
 }
@@ -862,8 +862,8 @@ fn hoisting_limits_border_keeps_all_descendants_nested() {
     // Only the border node `a` sits at root; all of its deps stay
     // nested beneath it.
     assert_eq!(names, ["a"], "only the border a sits at root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let a_deps = a.dependencies.borrow();
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let a_deps = dep_a.dependencies.borrow();
     let mut a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
     a_names.sort();
     assert_eq!(
@@ -962,12 +962,12 @@ fn self_dependency_does_not_loop() {
     let root_children = result.dependencies.borrow();
     let names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     assert_eq!(names, ["a"], "single a at root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     // The self-edge is dedup'd by the wrapper's identity cache to
     // the same Rc as the root's `a`. During hoist, the back-edge
     // to root is skipped; the self-edge under a is dedup'd as
     // SameNode (a is at root via the same Rc) and stripped.
-    assert!(a.dependencies.borrow().is_empty(), "self-edge stripped: {a:#?}");
+    assert!(dep_a.dependencies.borrow().is_empty(), "self-edge stripped: {dep_a:#?}");
 }
 
 /// Basic two-node cycle: `a → b → a`. Both packages share the
@@ -1018,10 +1018,10 @@ fn basic_cyclic_dependency_terminates() {
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b"], "both a and b flatten to root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let b = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
-    assert!(a.dependencies.borrow().is_empty(), "a's b hoisted away: {a:#?}");
-    assert!(b.dependencies.borrow().is_empty(), "b's back-edge to a stripped: {b:#?}");
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_b = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
+    assert!(dep_a.dependencies.borrow().is_empty(), "a's b hoisted away: {dep_a:#?}");
+    assert!(dep_b.dependencies.borrow().is_empty(), "b's back-edge to a stripped: {dep_b:#?}");
 }
 
 /// A lockfile with importers beyond `.` (a workspace) is now

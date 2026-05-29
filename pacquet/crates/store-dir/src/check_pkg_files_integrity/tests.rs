@@ -16,9 +16,9 @@ use tempfile::tempdir;
 fn plant_cafs_file(store_dir: &StoreDir, digest: &str, mode: u32, content: &[u8]) -> PathBuf {
     let path = store_dir.cas_file_path_by_mode(digest, mode).expect("valid digest");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    let mut f = fs::File::create(&path).unwrap();
-    f.write_all(content).unwrap();
-    f.sync_all().ok();
+    let mut file = fs::File::create(&path).unwrap();
+    file.write_all(content).unwrap();
+    file.sync_all().ok();
     path
 }
 
