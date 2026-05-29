@@ -158,6 +158,9 @@ impl WorkspaceSettings {
         json_field!(fetch_retry_factor, "FETCH_RETRY_FACTOR");
         json_field!(fetch_retry_mintimeout, "FETCH_RETRY_MINTIMEOUT");
         json_field!(fetch_retry_maxtimeout, "FETCH_RETRY_MAXTIMEOUT");
+        json_field!(network_concurrency, "NETWORK_CONCURRENCY");
+        json_field!(fetch_timeout, "FETCH_TIMEOUT");
+        string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
@@ -296,6 +299,28 @@ mod tests {
             WorkspaceSettings::from_pnpm_config_env::<EnvNegative>().workspace_concurrency,
             Some(-2),
         );
+    }
+
+    /// The network knobs read from `PNPM_CONFIG_*`:
+    /// `networkConcurrency` / `fetchTimeout` parse as JSON numbers,
+    /// `userAgent` as a raw string.
+    #[test]
+    fn network_settings_parse_from_env() {
+        struct EnvNetwork;
+        impl EnvVar for EnvNetwork {
+            fn var(name: &str) -> Option<String> {
+                match name {
+                    "PNPM_CONFIG_NETWORK_CONCURRENCY" => Some("12".to_owned()),
+                    "PNPM_CONFIG_FETCH_TIMEOUT" => Some("90000".to_owned()),
+                    "PNPM_CONFIG_USER_AGENT" => Some("custom-ua/1.0".to_owned()),
+                    _ => None,
+                }
+            }
+        }
+        let settings = WorkspaceSettings::from_pnpm_config_env::<EnvNetwork>();
+        assert_eq!(settings.network_concurrency, Some(12));
+        assert_eq!(settings.fetch_timeout, Some(90_000));
+        assert_eq!(settings.user_agent.as_deref(), Some("custom-ua/1.0"));
     }
 
     /// Tri-state arrays (used by `hoist_pattern` /

@@ -256,6 +256,31 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
     60_000
 }
 
+/// pacquet's user-facing release version — the same value
+/// `pacquet --version` prints. Single source of truth so the CLI
+/// version string and the default `User-Agent` (`default_user_agent`)
+/// can't drift apart.
+pub const PACQUET_VERSION: &str = "0.2.2";
+
+pub fn default_fetch_timeout() -> u64 {
+    pacquet_network::DEFAULT_FETCH_TIMEOUT_MS
+}
+
+/// Default `User-Agent`, mirroring pnpm v11's
+/// [`config/reader/src/index.ts:293`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L293)
+/// format `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
+/// pacquet has no embedded Node runtime, so the `node/` segment is the
+/// `?` placeholder pnpm already uses for `npm/`. Platform and arch use
+/// Node's naming via [`pacquet_detect_libc::host_platform`] /
+/// [`pacquet_detect_libc::host_arch`].
+pub fn default_user_agent() -> String {
+    format!(
+        "pnpm/{PACQUET_VERSION} npm/? node/? {} {}",
+        pacquet_detect_libc::host_platform(),
+        pacquet_detect_libc::host_arch(),
+    )
+}
+
 /// Default `childConcurrency` matching upstream's
 /// [`getDefaultWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L21-L23):
 /// `min(4, availableParallelism())`. Read at runtime so `cargo test`

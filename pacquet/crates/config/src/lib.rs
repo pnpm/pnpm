@@ -22,16 +22,17 @@ use std::{
 };
 
 pub use crate::defaults::{
-    available_parallelism, default_git_shallow_hosts, default_peers_suffix_max_length,
-    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency,
+    PACQUET_VERSION, available_parallelism, default_git_shallow_hosts,
+    default_peers_suffix_max_length, default_unsafe_perm, default_virtual_store_dir_max_length,
+    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
     default_enable_global_virtual_store, default_fetch_retries, default_fetch_retry_factor,
-    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_hoist_pattern,
-    default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-    default_registry, default_store_dir, default_virtual_store_dir,
+    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
+    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
+    default_public_hoist_pattern, default_registry, default_store_dir, default_user_agent,
+    default_virtual_store_dir,
 };
 pub use workspace_yaml::{
     GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta,
@@ -839,6 +840,36 @@ pub struct Config {
     #[default(_code = "default_fetch_retry_maxtimeout()")]
     pub fetch_retry_maxtimeout: u64,
 
+    /// Maximum number of concurrent network requests pacquet keeps
+    /// in flight during install — the size of the [`pacquet_network`]
+    /// semaphore. Mirrors pnpm's `networkConcurrency`; the default is
+    /// pnpm's `Math.min(64, Math.max(calcMaxWorkers() * 3, 16))`
+    /// formula, implemented by [`pacquet_network::default_network_concurrency`].
+    #[default(_code = "pacquet_network::default_network_concurrency()")]
+    pub network_concurrency: usize,
+
+    /// Per-request network timeout in milliseconds. Mirrors pnpm's
+    /// `fetchTimeout` (default `60000` — 60 s, see
+    /// [`pacquet_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
+    /// the response and connect deadline of the reqwest client.
+    #[default(_code = "default_fetch_timeout()")]
+    pub fetch_timeout: u64,
+
+    /// Value of the `User-Agent` header sent on every registry request.
+    /// Mirrors pnpm's `userAgent`; the default is pnpm's
+    /// `pnpm/<version> npm/? node/? <platform> <arch>` format (built by
+    /// `default_user_agent`).
+    #[default(_code = "default_user_agent()")]
+    pub user_agent: String,
+
+    /// Path to the user-level `.npmrc` to read auth from, overriding the
+    /// default `~/.npmrc`. Mirrors pnpm's `npmrcAuthFile` (and the
+    /// `--userconfig` alias). Resolved in [`Config::current`] from this
+    /// field (set by the CLI flag) then the `PNPM_CONFIG_NPMRC_AUTH_FILE`
+    /// / `PNPM_CONFIG_USERCONFIG` / `npm_config_userconfig` env vars.
+    /// `None` falls back to `~/.npmrc`.
+    pub npmrc_auth_file: Option<PathBuf>,
+
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`] when yaml was found, so
     /// later install-time code (notably [`resolve_and_group`] for
@@ -1421,18 +1452,77 @@ impl Config {
         // only the auth/network subset. Everything else is intentionally
         // ignored.
         //
-        // Two-phase apply: write the resolved `registry` (and emit any
-        // ${VAR}-substitution warnings) *before* layering
-        // `pnpm-workspace.yaml`, then build `auth_headers` *after* yaml has
-        // had a chance to override `registry`. Pnpm keys default-registry
-        // creds at the final resolved URL, not the `.npmrc` literal — see
-        // [`getAuthHeadersFromConfig`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
-        let auth_source = read_npmrc(start_dir)
-            .map(|text| (text, start_dir.to_path_buf()))
-            .or_else(|| Sys::home_dir().and_then(|dir| read_npmrc(&dir).map(|text| (text, dir))));
-        let mut npmrc_auth = auth_source
-            .map(|(text, dir)| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir))
-            .unwrap_or_default();
+        // pnpm reads several `.npmrc` sources and merges them
+        // (`user < auth.ini < workspace`), pinning each file's *unscoped*
+        // credentials to that file's own registry *before* the merge so
+        // a higher-priority file (or `pnpm-workspace.yaml`) can never
+        // pull them to a different host. See
+        // [`NpmrcAuth::rescope_unscoped`] and pnpm's
+        // [`loadNpmrcConfig`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts).
+        //
+        // The global `config.yaml` is loaded up front: its `npmrcAuthFile`
+        // participates in the user-level path resolution below, and its
+        // directory is where `auth.ini` lives.
+        let global_config_dir = default_config_dir::<Sys>();
+        let global_settings =
+            global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
+
+        // Resolve the user-level `.npmrc` path. Precedence (pnpm's
+        // [`index.ts:230`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L230)):
+        // the `npmrc_auth_file` field (CLI `--npmrc-auth-file` /
+        // `--userconfig`) > `PNPM_CONFIG_NPMRC_AUTH_FILE` >
+        // `PNPM_CONFIG_USERCONFIG` > global `config.yaml`'s `npmrcAuthFile`
+        // > `npm_config_userconfig`. Each env var is empty-filtered
+        // individually (pnpm's `value !== ''`).
+        let user_npmrc_path = self.npmrc_auth_file.clone().or_else(|| {
+            read_pnpm_env::<Sys>("npmrc_auth_file", "NPMRC_AUTH_FILE")
+                .or_else(|| read_pnpm_env::<Sys>("userconfig", "USERCONFIG"))
+                .map(PathBuf::from)
+                .or_else(|| {
+                    global_settings
+                        .as_ref()
+                        .and_then(|settings| settings.npmrc_auth_file.clone())
+                        .map(PathBuf::from)
+                })
+                .or_else(|| read_npm_env::<Sys>("userconfig", "USERCONFIG").map(PathBuf::from))
+        });
+
+        // Build the merge sources in priority order (high → low):
+        // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
+        // parsed and rescoped independently before being folded together.
+        let parse_source = |text: String, dir: PathBuf, label: &str| {
+            let mut auth = crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir);
+            auth.rescope_unscoped(label);
+            auth
+        };
+        let project_source = read_npmrc(start_dir)
+            .map(|text| parse_source(text, start_dir.to_path_buf(), "<project>/.npmrc"));
+        let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
+            read_npmrc_file(&dir.join("auth.ini"))
+                .map(|text| parse_source(text, dir.to_path_buf(), "auth.ini"))
+        });
+        let user_source = match &user_npmrc_path {
+            Some(path) => read_npmrc_file(path).map(|text| {
+                // Relative `cafile`/`certfile` entries resolve against
+                // the file's directory; for a bare filename (no parent)
+                // that's the empty path — i.e. the process cwd — never
+                // the file itself.
+                let dir = path.parent().map(|parent| parent.to_path_buf()).unwrap_or_default();
+                parse_source(text, dir, "<user>/.npmrc")
+            }),
+            None => Sys::home_dir()
+                .and_then(|dir| read_npmrc(&dir).map(|text| parse_source(text, dir, "~/.npmrc"))),
+        };
+
+        // Fold high-priority-first: the first present source is the
+        // base, each lower source fills the gaps it left
+        // ([`NpmrcAuth::merge_under`]).
+        let mut sources = [project_source, auth_ini_source, user_source].into_iter().flatten();
+        let mut npmrc_auth = sources.next().unwrap_or_default();
+        for lower in sources {
+            npmrc_auth.merge_under(lower);
+        }
+
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
         // is found — because the env-var fallback in pnpm's
@@ -1479,9 +1569,6 @@ impl Config {
         // must fire only when the user has *not* pinned a path. See
         // [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        let global_config_dir = default_config_dir::<Sys>();
-        let global_settings =
-            global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
         if let Some(mut global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
@@ -1613,10 +1700,11 @@ impl Config {
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
 
-        // Now that `registry` has been finalised (yaml may have
-        // overridden the `.npmrc` value), build the per-URI auth
-        // header lookup so default-registry creds key at the final
-        // URL.
+        // Build the per-URI auth-header lookup. Credentials were already
+        // pinned to their source file's registry by `rescope_unscoped`,
+        // so this is independent of the final `config.registry` (which
+        // yaml may have overridden) — the security boundary holds even
+        // when the workspace points the default registry elsewhere.
         npmrc_auth.build_auth_headers(&mut self);
 
         // Re-resolve `store_dir` against the project's volume when no
@@ -1675,6 +1763,33 @@ impl Config {
 /// behaviour as pnpm. The caller decides which keys to honour.
 fn read_npmrc(dir: &std::path::Path) -> Option<String> {
     fs::read_to_string(dir.join(".npmrc")).ok()
+}
+
+/// Read a `.npmrc` by explicit file path (as opposed to [`read_npmrc`],
+/// which joins `.npmrc` onto a directory). Used for the `npmrcAuthFile`
+/// override, which names the file directly. `None` on any read /
+/// UTF-8 failure, same best-effort behaviour as [`read_npmrc`].
+fn read_npmrc_file(path: &std::path::Path) -> Option<String> {
+    fs::read_to_string(path).ok()
+}
+
+/// Port of pnpm's `readEnvVar`: read `pnpm_config_<lower>`, falling
+/// back to `PNPM_CONFIG_<UPPER>`, treating an empty value as unset.
+/// Used for the env vars that have to be resolved before `.npmrc` is
+/// loaded (they decide *which* user-level `.npmrc` gets read).
+fn read_pnpm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
+    Sys::var(&format!("pnpm_config_{lower}"))
+        .or_else(|| Sys::var(&format!("PNPM_CONFIG_{upper}")))
+        .filter(|value| !value.is_empty())
+}
+
+/// Port of pnpm's `readNpmEnvVar`: the `npm_config_<key>` / `NPM_CONFIG_<KEY>`
+/// compatibility shim, so an `npm_config_userconfig` / `NPM_CONFIG_USERCONFIG`
+/// pointing at a custom `.npmrc` (e.g. `actions/setup-node`) keeps working.
+fn read_npm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
+    Sys::var(&format!("npm_config_{lower}"))
+        .or_else(|| Sys::var(&format!("NPM_CONFIG_{upper}")))
+        .filter(|value| !value.is_empty())
 }
 
 #[cfg(test)]
@@ -1803,6 +1918,387 @@ mod tests {
         assert_eq!(value.fetch_retry_factor, 10);
         assert_eq!(value.fetch_retry_mintimeout, 10_000);
         assert_eq!(value.fetch_retry_maxtimeout, 60_000);
+    }
+
+    /// Network knobs default to pnpm's values: `networkConcurrency`
+    /// from the shared formula, `fetchTimeout` at 60 000 ms, a
+    /// `pnpm/…`-shaped `userAgent`, and no `npmrcAuthFile` override.
+    #[test]
+    pub fn network_settings_defaults_match_pnpm() {
+        let value = Config::new();
+        assert_eq!(value.network_concurrency, pacquet_network::default_network_concurrency());
+        assert_eq!(value.fetch_timeout, 60_000);
+        assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
+        assert_eq!(value.npmrc_auth_file, None);
+    }
+
+    /// `npmrcAuthFile` redirects the user-level `.npmrc` read: auth
+    /// from the pointed-at file reaches `auth_headers` even though the
+    /// file is neither at `~/.npmrc` (home resolves to `None` here) nor
+    /// in `start_dir`.
+    #[test]
+    pub fn npmrc_auth_file_override_supplies_auth() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("custom-npmrc");
+        fs::write(
+            &auth_file,
+            "registry=https://registry.example.com/\n\
+             //registry.example.com/:_authToken=secret-token\n",
+        )
+        .expect("write auth file");
+
+        let config = Config { npmrc_auth_file: Some(auth_file), ..Config::default() }
+            .current::<HostNoHome>(project.path())
+            .expect("load config");
+
+        assert_eq!(config.registry, "https://registry.example.com/");
+        assert_eq!(
+            config.auth_headers.for_url("https://registry.example.com/some-pkg").as_deref(),
+            Some("Bearer secret-token"),
+        );
+    }
+
+    thread_local! {
+        /// Per-thread fake environment for the `npmrcAuthFile` env-var
+        /// resolution tests, set via [`set_fake_env`]. Lets a single
+        /// `Sys` fake ([`FakeEnv`]) serve every precedence test without
+        /// mutating the real process environment (no `set_var` / no
+        /// `EnvGuard` lock). `cargo test` runs each test on its own
+        /// thread, so the maps don't collide.
+        static FAKE_ENV: std::cell::RefCell<std::collections::HashMap<String, String>> =
+            std::cell::RefCell::new(std::collections::HashMap::new());
+    }
+
+    fn set_fake_env(pairs: &[(&str, &str)]) {
+        FAKE_ENV.with(|map| {
+            let mut map = map.borrow_mut();
+            map.clear();
+            for (key, value) in pairs {
+                map.insert((*key).to_string(), (*value).to_string());
+            }
+        });
+    }
+
+    /// `Sys` fake whose env reads come from the thread-local
+    /// [`FAKE_ENV`] (and nothing else), with no home dir. Isolates the
+    /// `npmrcAuthFile` env-resolution from the developer's real shell.
+    struct FakeEnv;
+    impl EnvVar for FakeEnv {
+        fn var(name: &str) -> Option<String> {
+            FAKE_ENV.with(|map| map.borrow().get(name).cloned())
+        }
+    }
+    impl EnvVarOs for FakeEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for FakeEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(FakeEnv);
+
+    /// Write a `.npmrc` that declares its own registry plus an unscoped
+    /// `_authToken`, so the token pins to that registry — the shape the
+    /// precedence assertions check the winning file by.
+    fn write_registry_auth_file(path: &Path, registry: &str, token: &str) {
+        fs::write(path, format!("registry={registry}\n_authToken={token}\n"))
+            .expect("write auth file");
+    }
+
+    fn load_with_fake_env(start_dir: &Path) -> Config {
+        Config::default().current::<FakeEnv>(start_dir).expect("load config")
+    }
+
+    /// `PNPM_CONFIG_NPMRC_AUTH_FILE` (uppercase) resolves the user-level
+    /// `.npmrc`. Mirrors pnpm's `readEnvVar(env, 'npmrc_auth_file')`.
+    #[test]
+    pub fn npmrc_auth_file_from_pnpm_config_env() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("ci-npmrc");
+        write_registry_auth_file(&auth_file, "https://ci.example.com/", "ci-token");
+
+        set_fake_env(&[("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap())]);
+        let config = load_with_fake_env(project.path());
+
+        assert_eq!(config.registry, "https://ci.example.com/");
+        assert_eq!(
+            config.auth_headers.for_url("https://ci.example.com/pkg").as_deref(),
+            Some("Bearer ci-token"),
+        );
+    }
+
+    /// The lowercase `pnpm_config_npmrc_auth_file` is honoured too —
+    /// pnpm's `readEnvVar` accepts both cases.
+    #[test]
+    pub fn npmrc_auth_file_from_lowercase_pnpm_config_env() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("ci-npmrc");
+        write_registry_auth_file(&auth_file, "https://ci.example.com/", "ci-token");
+
+        set_fake_env(&[("pnpm_config_npmrc_auth_file", auth_file.to_str().unwrap())]);
+        let config = load_with_fake_env(project.path());
+
+        assert_eq!(
+            config.auth_headers.for_url("https://ci.example.com/pkg").as_deref(),
+            Some("Bearer ci-token"),
+        );
+    }
+
+    /// An exported-but-empty `PNPM_CONFIG_NPMRC_AUTH_FILE` must fall
+    /// through to `PNPM_CONFIG_USERCONFIG` rather than short-circuiting
+    /// the resolution, matching pnpm's per-variable `value !== ''`
+    /// filter.
+    #[test]
+    pub fn npmrc_auth_file_empty_env_falls_through_to_userconfig() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("user-npmrc");
+        write_registry_auth_file(&auth_file, "https://user.example.com/", "user-token");
+
+        set_fake_env(&[
+            ("PNPM_CONFIG_NPMRC_AUTH_FILE", ""),
+            ("PNPM_CONFIG_USERCONFIG", auth_file.to_str().unwrap()),
+        ]);
+        let config = load_with_fake_env(project.path());
+
+        assert_eq!(
+            config.auth_headers.for_url("https://user.example.com/pkg").as_deref(),
+            Some("Bearer user-token"),
+        );
+    }
+
+    /// `npmrc_auth_file` outranks `userconfig` (pnpm resolves
+    /// `readEnvVar('npmrc_auth_file')` before `readEnvVar('userconfig')`).
+    #[test]
+    pub fn npmrc_auth_file_outranks_userconfig() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("auth-file");
+        let userconfig = auth.path().join("userconfig");
+        write_registry_auth_file(&auth_file, "https://authfile.example.com/", "authfile-token");
+        write_registry_auth_file(
+            &userconfig,
+            "https://userconfig.example.com/",
+            "userconfig-token",
+        );
+
+        set_fake_env(&[
+            ("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap()),
+            ("PNPM_CONFIG_USERCONFIG", userconfig.to_str().unwrap()),
+        ]);
+        let config = load_with_fake_env(project.path());
+
+        assert_eq!(config.registry, "https://authfile.example.com/");
+        assert_eq!(
+            config.auth_headers.for_url("https://authfile.example.com/pkg").as_deref(),
+            Some("Bearer authfile-token"),
+        );
+    }
+
+    /// `npm_config_userconfig` is honoured as a low-priority npm
+    /// compatibility fallback (e.g. `actions/setup-node`), and a
+    /// `PNPM_CONFIG_*` value outranks it.
+    #[test]
+    pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let npm_file = auth.path().join("npm-userconfig");
+        write_registry_auth_file(&npm_file, "https://npm.example.com/", "npm-token");
+
+        // Compat fallback alone resolves.
+        set_fake_env(&[("npm_config_userconfig", npm_file.to_str().unwrap())]);
+        let config = load_with_fake_env(project.path());
+        assert_eq!(
+            config.auth_headers.for_url("https://npm.example.com/pkg").as_deref(),
+            Some("Bearer npm-token"),
+        );
+
+        // A pnpm-native value wins over the npm compat fallback.
+        let pnpm_file = auth.path().join("pnpm-userconfig");
+        write_registry_auth_file(&pnpm_file, "https://pnpm.example.com/", "pnpm-token");
+        set_fake_env(&[
+            ("PNPM_CONFIG_USERCONFIG", pnpm_file.to_str().unwrap()),
+            ("npm_config_userconfig", npm_file.to_str().unwrap()),
+        ]);
+        let config = load_with_fake_env(project.path());
+        assert_eq!(
+            config.auth_headers.for_url("https://pnpm.example.com/pkg").as_deref(),
+            Some("Bearer pnpm-token"),
+        );
+    }
+
+    fn write_file(path: &Path, contents: &str) {
+        fs::write(path, contents).expect("write file");
+    }
+
+    /// Load `Config` with a project `.npmrc` in `start_dir` plus a
+    /// user-level file pointed at by `npmrcAuthFile`. Home resolves to
+    /// `None` ([`HostNoHome`]) so only these two files participate —
+    /// the multi-file merge + per-file rescoping under test.
+    fn load_with_project_and_user(project_npmrc: &str, user_file: PathBuf) -> Config {
+        let project = tempdir().expect("project tempdir");
+        write_file(&project.path().join(".npmrc"), project_npmrc);
+        Config { npmrc_auth_file: Some(user_file), ..Config::default() }
+            .current::<HostNoHome>(project.path())
+            .expect("load config")
+    }
+
+    /// An unscoped `_authToken` in the user-level file pins to *that
+    /// file's* registry, never the workspace registry — even when the
+    /// project `.npmrc` overrides the default registry to something else.
+    /// This is the credential-isolation boundary ported from pnpm.
+    #[test]
+    pub fn user_auth_token_pins_to_its_own_file_registry() {
+        let auth = tempdir().expect("auth tempdir");
+        let user_file = auth.path().join("user-npmrc");
+        write_file(&user_file, "registry=https://trusted.example.com/\n_authToken=user-secret\n");
+
+        let config =
+            load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
+
+        assert_eq!(config.registry, "https://attacker.example.com/", "project registry wins");
+        assert_eq!(
+            config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
+            Some("Bearer user-secret"),
+        );
+        assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+    }
+
+    /// `_auth` (basic) is pinned the same way.
+    #[test]
+    pub fn user_basic_auth_pins_to_its_own_file_registry() {
+        let auth = tempdir().expect("auth tempdir");
+        let user_file = auth.path().join("user-npmrc");
+        // base64("user:pass")
+        write_file(&user_file, "registry=https://trusted.example.com/\n_auth=dXNlcjpwYXNz\n");
+
+        let config =
+            load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
+
+        assert_eq!(
+            config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
+            Some("Basic dXNlcjpwYXNz"),
+        );
+        assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+    }
+
+    /// `username` + `_password` are pinned the same way.
+    #[test]
+    pub fn user_username_password_pins_to_its_own_file_registry() {
+        let auth = tempdir().expect("auth tempdir");
+        let user_file = auth.path().join("user-npmrc");
+        // _password is base64("pass")
+        write_file(
+            &user_file,
+            "registry=https://trusted.example.com/\nusername=alice\n_password=cGFzcw==\n",
+        );
+
+        let config =
+            load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
+
+        let expected = format!("Basic {}", pacquet_network::base64_encode("alice:pass"));
+        assert_eq!(
+            config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
+            Some(expected.as_str()),
+        );
+        assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+    }
+
+    /// A workspace `.npmrc`'s own unscoped credential pins to the
+    /// workspace registry (the project file is the highest-priority
+    /// source, and its creds scope to its own registry).
+    #[test]
+    pub fn workspace_unscoped_creds_pin_to_workspace_registry() {
+        let project = tempdir().expect("project tempdir");
+        write_file(
+            &project.path().join(".npmrc"),
+            "registry=https://workspace.example.com/\n_authToken=workspace-token\n",
+        );
+        let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+        assert_eq!(
+            config.auth_headers.for_url("https://workspace.example.com/pkg").as_deref(),
+            Some("Bearer workspace-token"),
+        );
+    }
+
+    /// Explicitly URL-scoped credentials pass through unchanged — they
+    /// are never rescoped, so they stay on exactly the registry the user
+    /// wrote, regardless of a workspace registry override.
+    #[test]
+    pub fn explicit_url_scoped_creds_pass_through() {
+        let auth = tempdir().expect("auth tempdir");
+        let user_file = auth.path().join("user-npmrc");
+        write_file(
+            &user_file,
+            "registry=https://trusted.example.com/\n//trusted.example.com/:_authToken=user-secret\n",
+        );
+
+        let config =
+            load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
+
+        assert_eq!(
+            config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
+            Some("Bearer user-secret"),
+        );
+        assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+    }
+
+    /// Unscoped inline `cert`/`key` pin to the file's registry as
+    /// per-registry TLS, never to the workspace registry or the global
+    /// client identity.
+    #[test]
+    pub fn user_cert_key_pin_to_its_own_file_registry() {
+        let auth = tempdir().expect("auth tempdir");
+        let user_file = auth.path().join("user-npmrc");
+        write_file(
+            &user_file,
+            "registry=https://trusted.example.com/\ncert=cert-pem\nkey=key-pem\n",
+        );
+
+        let config =
+            load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
+
+        assert_eq!(config.tls.cert, None, "cert is rescoped, not a global identity");
+        assert_eq!(config.tls.key, None);
+        let scoped =
+            config.tls_by_uri.get("//trusted.example.com/").expect("cert/key pinned to trusted");
+        assert_eq!(scoped.cert.as_deref(), Some("cert-pem"));
+        assert_eq!(scoped.key.as_deref(), Some("key-pem"));
+        assert!(config.tls_by_uri.get("//attacker.example.com/").is_none());
+    }
+
+    /// `auth.ini` (in the global config dir) with no `registry=` of its
+    /// own falls back to the npmjs default for its unscoped creds — it
+    /// does not borrow the user file's or workspace's registry.
+    #[test]
+    pub fn auth_ini_without_registry_falls_back_to_npmjs_default() {
+        let project = tempdir().expect("project tempdir");
+        write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
+        let config_home = tempdir().expect("config-home tempdir");
+        let pnpm_dir = config_home.path().join("pnpm");
+        fs::create_dir_all(&pnpm_dir).expect("create pnpm config dir");
+        write_file(&pnpm_dir.join("auth.ini"), "_authToken=auth-ini-secret\n");
+        let auth = tempdir().expect("auth tempdir");
+        let user_file = auth.path().join("user-npmrc");
+        write_file(&user_file, "registry=https://trusted.example.com/\n");
+
+        set_fake_env(&[("XDG_CONFIG_HOME", config_home.path().to_str().unwrap())]);
+        let config = Config { npmrc_auth_file: Some(user_file), ..Config::default() }
+            .current::<FakeEnv>(project.path())
+            .expect("load config");
+
+        assert_eq!(
+            config.auth_headers.for_url("https://registry.npmjs.org/pkg").as_deref(),
+            Some("Bearer auth-ini-secret"),
+        );
+        assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+        assert_eq!(config.auth_headers.for_url("https://trusted.example.com/pkg"), None);
     }
 
     /// `default_store_dir`'s `PNPM_HOME` branch, exercised through the

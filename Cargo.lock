@@ -2171,6 +2171,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pacquet-config-dir",
+ "pacquet-detect-libc",
  "pacquet-env-replace",
  "pacquet-network",
  "pacquet-package-is-installable",

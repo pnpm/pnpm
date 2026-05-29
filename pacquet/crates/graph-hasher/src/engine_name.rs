@@ -1,3 +1,5 @@
+pub use pacquet_detect_libc::{host_arch, host_platform};
+
 /// Compute pnpm's `ENGINE_NAME` string — the same value pnpm uses
 /// as the side-effects cache key prefix.
 ///
@@ -88,42 +90,6 @@ fn parse_node_version_output(stdout: &str) -> Option<u32> {
     let after_v = stdout.strip_prefix('v').unwrap_or(stdout);
     let major = after_v.split('.').next()?;
     major.parse().ok()
-}
-
-/// Map `std::env::consts::OS` to Node's `process.platform` naming.
-/// Node uses `darwin` / `linux` / `win32` / `freebsd` / `openbsd` /
-/// `sunos` / `aix` / `android`. Rust uses `macos` / `linux` /
-/// `windows` / `freebsd` / `openbsd` / `solaris` / `aix` /
-/// `android`. Only `macos`, `windows`, and `solaris` differ.
-pub fn host_platform() -> &'static str {
-    match std::env::consts::OS {
-        "macos" => "darwin",
-        "windows" => "win32",
-        "solaris" => "sunos",
-        other => other,
-    }
-}
-
-/// Map `std::env::consts::ARCH` to Node's `process.arch` naming.
-/// Node uses `x64` / `arm64` / `ia32` / `arm` / `s390x` / `ppc64`
-/// / `ppc64` (LE, same string) / `loong64` / `riscv64`. Rust uses
-/// `x86_64` / `aarch64` / `x86` / `arm` / `s390x` / `powerpc64` /
-/// `powerpc64le` / `loongarch64` / `riscv64`. Mappings below mirror
-/// what Node itself emits on each target — anything left as
-/// passthrough (e.g. `arm`, `s390x`, `riscv64`) already matches
-/// between the two naming schemes.
-pub fn host_arch() -> &'static str {
-    match std::env::consts::ARCH {
-        "x86_64" => "x64",
-        "aarch64" => "arm64",
-        "x86" => "ia32",
-        // Node calls big-endian and little-endian POWER both
-        // `ppc64`; only big-endian gets `endianness === 'BE'` to
-        // distinguish them. Rust's two arch values both map here.
-        "powerpc64" | "powerpc64le" => "ppc64",
-        "loongarch64" => "loong64",
-        other => other,
-    }
 }
 
 /// Host libc implementation string. Three return values matching

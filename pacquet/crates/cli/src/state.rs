@@ -2,7 +2,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_lockfile::{LoadLockfileError, Lockfile};
-use pacquet_network::{ForInstallsError, ThrottledClient};
+use pacquet_network::{ForInstallsError, NetworkSettings, ThrottledClient};
 use pacquet_package_manager::ResolvedPackages;
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use pacquet_tarball::MemCache;
@@ -71,8 +71,17 @@ impl State {
             lockfile: call_load_lockfile(should_load, Lockfile::load_from_current_dir)
                 .map_err(InitStateError::Lockfile)?,
             http_client: std::sync::Arc::new(
-                ThrottledClient::for_installs(&config.proxy, &config.tls, &config.tls_by_uri)
-                    .map_err(InitStateError::Network)?,
+                ThrottledClient::for_installs(
+                    &config.proxy,
+                    &config.tls,
+                    &config.tls_by_uri,
+                    &NetworkSettings {
+                        network_concurrency: config.network_concurrency,
+                        fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
+                        user_agent: config.user_agent.clone(),
+                    },
+                )
+                .map_err(InitStateError::Network)?,
             ),
             tarball_mem_cache: Arc::new(MemCache::new()),
             resolved_packages: ResolvedPackages::new(),

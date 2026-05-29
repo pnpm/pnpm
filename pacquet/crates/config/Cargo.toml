@@ -12,6 +12,7 @@ repository.workspace  = true
 
 [dependencies]
 pacquet-config-dir             = { workspace = true }
+pacquet-detect-libc            = { workspace = true }
 pacquet-env-replace            = { workspace = true }
 pacquet-network                = { workspace = true }
 pacquet-package-is-installable = { workspace = true }
