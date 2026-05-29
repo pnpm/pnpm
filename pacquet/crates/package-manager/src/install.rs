@@ -137,6 +137,19 @@ where
     /// Used today for the `.modules.yaml.nodeLinker` write and
     /// (in Slice 6) for the install-pipeline branch.
     pub node_linker: pacquet_config::NodeLinker,
+    /// When `true`, resolve dependencies and (re)write `pnpm-lock.yaml`
+    /// but skip every materialization step: no tarball is fetched into
+    /// the store, no `node_modules` is linked, and neither
+    /// `.modules.yaml` nor the current lockfile
+    /// (`<virtual_store_dir>/lock.yaml`) nor the workspace-state file
+    /// is written. Surfaced as `--lockfile-only` on the CLI. A pure
+    /// per-invocation flag (no `pnpm-workspace.yaml` / `config.yaml`
+    /// counterpart — upstream lists `lockfile-only` in `excludedPnpmKeys`),
+    /// so it is threaded straight from the CLI like
+    /// [`Self::frozen_lockfile`]. Mirrors pnpm's
+    /// [`lockfileOnly`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L170)
+    /// (`like npm's --package-lock-only`).
+    pub lockfile_only: bool,
 }
 
 /// Error type of [`Install`].
@@ -276,6 +289,18 @@ pub enum InstallError {
     /// [`config/parse-overrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts).
     #[diagnostic(transparent)]
     InvalidOverrides(#[error(source)] pacquet_config_parse_overrides::ParseOverridesError),
+
+    /// `--lockfile-only` was requested together with `lockfile: false`
+    /// (pnpm's `useLockfile: false`). There is nothing left to do — the
+    /// only output `--lockfile-only` produces is the lockfile, and that
+    /// write is disabled — so the combination is a user-config conflict
+    /// rather than a silent no-op. Mirrors pnpm's
+    /// `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE` thrown
+    /// from
+    /// <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/extendInstallOptions.ts#L410-L415>.
+    #[display("Cannot generate a pnpm-lock.yaml because lockfile is set to false")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE))]
+    ConfigConflictLockfileOnlyWithNoLockfile,
 }
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
@@ -302,7 +327,17 @@ where
             update_checksums,
             supported_architectures,
             node_linker,
+            lockfile_only,
         } = self;
+
+        // `--lockfile-only` with `lockfile: false` (pnpm's
+        // `useLockfile: false`) is a config conflict: the only output the
+        // flag produces is the lockfile, and that write is disabled.
+        // Fail fast rather than run a resolve that writes nothing.
+        // Mirrors pnpm's `extendInstallOptions` guard.
+        if lockfile_only && !config.lockfile {
+            return Err(InstallError::ConfigConflictLockfileOnlyWithNoLockfile);
+        }
 
         // Resolve the effective `preferFrozenLockfile` for the
         // dispatch: a per-invocation CLI flag wins over
@@ -674,6 +709,36 @@ where
             false
         };
 
+        // `--lockfile-only`: resolve and (re)write `pnpm-lock.yaml`, then
+        // stop — never materialize `node_modules`, `.modules.yaml`, the
+        // current lockfile, or the workspace-state file. Mirrors pnpm's
+        // lockfileOnly short-circuits: the frozen / up-to-date path writes
+        // the wanted lockfile and returns at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L979-L986>,
+        // and the fresh-resolve path skips `linkPackages` at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1543>.
+        if lockfile_only && take_frozen_path {
+            // Frozen (`--frozen-lockfile`) or auto-frozen
+            // (`preferFrozenLockfile`) + `--lockfile-only`: the freshness
+            // gate folded into `take_frozen_path` already validated the
+            // on-disk lockfile (a stale one surfaced `OutdatedLockfile`).
+            // Re-persist it so a brand-new project still lands a file, then
+            // return without touching `node_modules`.
+            let lockfile = lockfile.expect("frozen dispatch verified lockfile is present");
+            if config.lockfile {
+                lockfile
+                    .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                    .map_err(InstallError::SaveWantedLockfile)?;
+            }
+            Reporter::emit(&LogEvent::Stage(StageLog {
+                level: LogLevel::Debug,
+                prefix: prefix.clone(),
+                stage: Stage::ImportingDone,
+            }));
+            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+            return Ok(());
+        }
+
         // No-op short-circuit. When the frozen-lockfile dispatch is
         // eligible, the on-disk `.modules.yaml` agrees with the current
         // config, and `<virtual_store_dir>/lock.yaml` is byte-equal to
@@ -768,7 +833,13 @@ where
             //   [`installing/deps-installer/src/install/index.ts:1374-1387`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L1374-L1387)
             //   filter. Without it, runtime archives get fetched +
             //   materialized despite the opt-out.
-            if skip_runtimes {
+            //
+            // Bypassed under `--lockfile-only`: that path writes only
+            // `pnpm-lock.yaml` and never materializes, so the runtime
+            // filter is irrelevant to its output. Mirrors pnpm gating its
+            // lockfileOnly-specific handling on `!opts.lockfileOnly` at
+            // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1957>.
+            if !lockfile_only && skip_runtimes {
                 return Err(InstallError::UnsupportedFreshInstallSkipRuntimes);
             }
 
@@ -842,6 +913,7 @@ where
                 wanted_lockfile: lockfile,
                 node_linker,
                 supported_architectures: supported_architectures.as_ref(),
+                lockfile_only,
             }
             .run::<Reporter>()
             .await
@@ -856,6 +928,21 @@ where
         };
 
         tracing::info!(target: "pacquet::install", "Complete all");
+
+        // Fresh-resolve `--lockfile-only` already wrote `pnpm-lock.yaml` and
+        // emitted `importing_done` inside `InstallWithFreshLockfile::run`.
+        // Skip `.modules.yaml`, the current lockfile, and the
+        // workspace-state file: there is no `node_modules` to describe, and
+        // writing the workspace-state file would make the next install's
+        // up-to-date check believe materialization happened. Mirrors pnpm
+        // writing only the wanted lockfile at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1784>
+        // and skipping `updateWorkspaceState` when `lockfileOnly` at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/commands/src/installDeps.ts#L515>.
+        if lockfile_only {
+            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+            return Ok(());
+        }
 
         // `Stage::ImportingDone` is emitted inside the install paths
         // (`InstallFrozenLockfile` between symlink and build, and
