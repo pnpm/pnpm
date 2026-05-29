@@ -286,22 +286,6 @@ fn prefix_git_args() -> &'static [&'static str] {
     }
 }
 
-/// Run `git` with `args` (prefixed with [`prefix_git_args`]) and
-/// capture stdout. Returns `Err(GitFetcherError::GitNotFound)` when
-/// the binary is missing so callers can produce a friendly install
-/// hint, and `Err(GitFetcherError::GitExec { stderr, … })` for non-
-/// zero exit codes.
-///
-/// Resolves `git` through `PATH` — convenience wrapper around
-/// [`exec_git_with`] for fixture-setup helpers and ad-hoc tests
-/// that don't need to override the binary location. Test-only
-/// because the only non-test caller now passes a `git_bin` override
-/// through `GitFetcher::run_sync`'s [`exec_git_with`] call.
-#[cfg(test)]
-fn exec_git(args: &[&str], cwd: Option<&Path>) -> Result<String, GitFetcherError> {
-    exec_git_with(Path::new("git"), args, cwd)
-}
-
 /// `exec_git` with an explicit binary path. The fetcher uses this so
 /// a test-injected shim (via [`GitFetcher::git_bin`]) is resolved at
 /// the call site instead of through `PATH`, keeping the shim's

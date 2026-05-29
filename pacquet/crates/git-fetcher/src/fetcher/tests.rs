@@ -1,4 +1,4 @@
-use super::{GitFetcher, exec_git, extract_host, is_valid_commit_hash, should_use_shallow};
+use super::{GitFetcher, exec_git_with, extract_host, is_valid_commit_hash, should_use_shallow};
 use crate::error::GitFetcherError;
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
@@ -10,6 +10,13 @@ use std::{
     path::{Path, PathBuf},
 };
 use tempfile::tempdir;
+
+/// Run `git` (resolved through `PATH`) with `args` and capture stdout —
+/// a convenience wrapper around [`exec_git_with`] for fixture setup that
+/// does not need to override the binary location.
+fn exec_git(args: &[&str], cwd: Option<&Path>) -> Result<String, GitFetcherError> {
+    exec_git_with(Path::new("git"), args, cwd)
+}
 
 /// Build a bare repo whose manifest declares a `prepare` script. The
 /// script is whatever the caller passes — typically a `node -e '…'`

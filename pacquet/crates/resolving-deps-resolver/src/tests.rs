@@ -572,8 +572,10 @@ mod peers {
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
-    use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
-    use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
+    use crate::{
+        resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree},
+        resolve_peers::{ResolvePeersOptions, resolve_peers},
+    };
     use pacquet_deps_path::DepPath;
 
     /// A pure leaf — no peer dependencies — should land in the graph
@@ -1733,10 +1735,12 @@ mod patched_dependencies {
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
-    use crate::resolve_dependency_tree::{
-        ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+    use crate::{
+        resolve_dependency_tree::{
+            ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+        },
+        resolve_peers::{ResolvePeersOptions, resolve_peers},
     };
-    use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
     use pacquet_deps_path::DepPath;
 
     fn exact_group(version: &str, key: &str, hash: &str) -> PatchGroup {

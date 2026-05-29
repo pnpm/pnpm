@@ -51,6 +51,12 @@ enable = ["derive_ordering"]
 ["perfectionist::import_granularity"]
 style = "crate"
 
+# zkochan prefers every unit test to live in an external file (shorter
+# production files, less churn). Flag any inline test item, not just the
+# ones over a line budget.
+["perfectionist::unit_test_file_layout"]
+inline_style = "external_only"
+
 ["perfectionist::derive_ordering"]
 style = "prefix_then_alphabetical"
 prefix = [
