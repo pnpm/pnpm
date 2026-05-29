@@ -22,22 +22,24 @@ mod diff;
 mod protocol;
 mod resolve;
 
-use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::{
+    io::Write as _,
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
 
 use crate::config::Config as RegistryConfig;
 
-use axum::body::{Body, Bytes};
-use axum::http::{StatusCode, header};
-use axum::response::Response;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
-use flate2::Compression;
-use flate2::write::GzEncoder;
+use axum::{
+    body::{Body, Bytes},
+    http::{StatusCode, header},
+    response::Response,
+};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use flate2::{Compression, write::GzEncoder};
 use pacquet_config::Config as PacquetConfig;
 use pacquet_network::ThrottledClient;
 use pacquet_store_dir::{StoreDir, StoreIndex};
-use std::io::Write as _;
 
 use self::protocol::{FilesRequest, InstallRequest, is_valid_sha512_hex};
 

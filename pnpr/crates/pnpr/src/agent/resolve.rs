@@ -6,9 +6,10 @@
 //! the packages that aren't cached yet. The store index that results
 //! is the source of truth the [`super::diff`] pass reads.
 
-use std::collections::HashSet;
-use std::sync::Arc;
-use std::sync::atomic::AtomicU8;
+use std::{
+    collections::HashSet,
+    sync::{Arc, atomic::AtomicU8},
+};
 
 use dashmap::DashMap;
 use pacquet_config::{Config, NodeLinker};

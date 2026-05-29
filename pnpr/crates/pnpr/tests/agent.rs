@@ -4,11 +4,15 @@
 //! by the broader install suite; these tests exercise the network-free
 //! `/v1/files` binary framing end to end through the axum router.
 
-use std::io::Read as _;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::{
+    io::Read as _,
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+};
 
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
 use flate2::read::GzDecoder;
 use pacquet_store_dir::StoreDir;
 use pnpr::{Config, router};
