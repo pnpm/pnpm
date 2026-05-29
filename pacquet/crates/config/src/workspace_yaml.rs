@@ -179,6 +179,12 @@ pub struct WorkspaceSettings {
     pub network_concurrency: Option<usize>,
     pub fetch_timeout: Option<u64>,
     pub user_agent: Option<String>,
+    /// `npmrcAuthFile` is read only from the global `config.yaml`
+    /// (consumed by [`crate::Config::current`] to choose the user-level
+    /// `.npmrc`); it is deliberately *not* in the `apply!` list, so a
+    /// project `pnpm-workspace.yaml` declaring it is a no-op — matching
+    /// pnpm, which sources the key from the global manifest only.
+    pub npmrc_auth_file: Option<String>,
 
     /// Map of `name[@version]` → patch-file path (relative to the
     /// workspace dir or absolute). Read verbatim; relative-path
