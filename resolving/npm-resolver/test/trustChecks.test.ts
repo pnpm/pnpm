@@ -114,6 +114,35 @@ describe('getTrustEvidence', () => {
     }
     expect(getTrustEvidence(manifest)).toBe('stagedPublish')
   })
+
+  test('returns stagedPublish when both approver and trustedPublisher exist', () => {
+    const manifest: PackageInRegistry = {
+      name: 'foo',
+      version: '1.0.0',
+      _npmUser: {
+        name: 'test-approver',
+        email: 'user@example.com',
+        approver: {
+          name: 'test-approver',
+          email: 'user@example.com',
+        },
+        trustedPublisher: {
+          id: 'test-provider',
+          oidcConfigId: 'oidc:test-config-123',
+        },
+      },
+      dist: {
+        shasum: 'abc123',
+        tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
+        attestations: {
+          provenance: {
+            predicateType: 'https://slsa.dev/provenance/v1',
+          },
+        },
+      },
+    }
+    expect(getTrustEvidence(manifest)).toBe('stagedPublish')
+  })
 })
 
 describe('failIfTrustDowngraded', () => {
@@ -422,7 +451,7 @@ describe('failIfTrustDowngraded', () => {
           version: '2.0.0',
           _npmUser: {
             name: 'test-publisher',
-            email: 'approver@example.com',
+            email: 'publisher@example.com',
             trustedPublisher: {
               id: 'test-provider',
               oidcConfigId: 'oidc:test-config-123',
@@ -448,7 +477,6 @@ describe('failIfTrustDowngraded', () => {
       failIfTrustDowngraded(meta, '2.0.0')
     }).toThrow('High-risk trust downgrade')
   })
-
 
   test('succeeds when maintaining same trust level', () => {
     const meta: PackageMetaWithTime = {
