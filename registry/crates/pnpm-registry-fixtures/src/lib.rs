@@ -268,6 +268,12 @@ fn build_tarball(root: &Path, package_dir: &Path, manifest: &Value) -> Vec<u8> {
         let path_in_archive = Path::new("package").join(relative);
         append_file(&mut tar, &path_in_archive, content.as_bytes(), 0o644);
     }
+    // pnpm's `publish` copies the workspace-root LICENSE into every package that
+    // doesn't ship its own; registry-mock published these fixtures that way, so
+    // reproduce the injected LICENSE here.
+    if should_inject_root_license(name) && !package_dir.join("LICENSE").exists() {
+        append_file(&mut tar, Path::new("package/LICENSE"), INJECTED_LICENSE.as_bytes(), 0o644);
+    }
     // `bundleDependencies` packages publish their resolved dependency tree inside
     // the tarball's `node_modules`. registry-mock produces this with a
     // `prepublishOnly` install; reproduce it here so `node_modules` (gitignored)
@@ -278,6 +284,23 @@ fn build_tarball(root: &Path, package_dir: &Path, manifest: &Value) -> Vec<u8> {
     }
     let gzip = tar.into_inner().expect("finish tar archive");
     gzip.finish().expect("finish gzip archive")
+}
+
+const INJECTED_LICENSE: &str = include_str!("../../../../LICENSE");
+
+// The bundle-dependency fixtures publish via a `prepublishOnly` install that
+// turns each into a self-contained workspace with no root LICENSE to copy, and
+// a couple of special fixtures were likewise published without one. Everything
+// else receives the injected root LICENSE, matching the registry-mock tarballs.
+fn should_inject_root_license(name: &str) -> bool {
+    !matches!(
+        name,
+        "@pnpm.e2e/pkg-with-bundle-dependencies"
+            | "@pnpm.e2e/pkg-with-bundle-dependencies-true"
+            | "@pnpm.e2e/pkg-with-bundle-dependencies-false"
+            | "@pnpm.e2e/pkg-with-bundled-dependencies"
+            | "@pnpm.e2e/pkg-with-accidentally-published-catalog-protocol",
+    )
 }
 
 fn in_memory_files(name: &str) -> &'static [(&'static str, &'static str)] {
@@ -462,5 +485,19 @@ mod tests {
             !not_bundled.iter().any(|entry| entry.contains("node_modules")),
             "bundleDependencies:false must not embed node_modules: {not_bundled:?}",
         );
+    }
+
+    // pnpm publish copies the root LICENSE into each package, except the
+    // self-contained-workspace fixtures that ship without one.
+    #[test]
+    fn root_license_is_injected_except_for_self_contained_workspaces() {
+        let storage = ensure_storage();
+        let abc = tarball_entries(&storage.join("@pnpm.e2e/abc/abc-1.0.0.tgz"));
+        assert!(abc.contains("package/LICENSE"), "{abc:?}");
+
+        let bundled = tarball_entries(&storage.join(
+            "@pnpm.e2e/pkg-with-bundled-dependencies/pkg-with-bundled-dependencies-1.0.0.tgz",
+        ));
+        assert!(!bundled.contains("package/LICENSE"), "{bundled:?}");
     }
 }
