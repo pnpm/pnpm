@@ -435,7 +435,7 @@ impl NpmrcAuth {
             .unwrap_or_else(|| DEFAULT_REGISTRY.to_string());
         let key = pacquet_network::nerf_dart(&registry);
         if key.is_empty() {
-            // Unparseable registry (e.g. an unresolved `${VAR}`). Drop
+            // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
             // the unscoped material rather than risk sending it to the
             // wrong host — matching pnpm's catch branch.
             self.default_creds = RawCreds::default();
