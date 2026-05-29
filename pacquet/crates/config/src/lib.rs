@@ -1325,16 +1325,17 @@ impl Config {
         // matching pnpm's resolution order
         // ([`config/reader/src/index.ts:230`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L230)):
         // the `npmrc_auth_file` field (set from the CLI flag before
-        // `current()` runs) wins, then the `PNPM_CONFIG_*` / npm env
-        // vars. Global-yaml sourcing of the key is not yet supported —
-        // it would require reading the global config before the
-        // `.npmrc` read.
+        // `current()` runs) wins, then the env vars. Each env var is
+        // empty-filtered individually so an exported-but-empty value
+        // falls through to the next source, matching pnpm's `readEnvVar`
+        // / `readNpmEnvVar` (`value !== ''`). pnpm consults its global
+        // `config.yaml` `npmrcAuthFile` between `PNPM_CONFIG_USERCONFIG`
+        // and `npm_config_userconfig`; pacquet does not source that key
+        // from global config yet, so that one step is skipped.
         let user_npmrc_path = self.npmrc_auth_file.clone().or_else(|| {
-            Sys::var("PNPM_CONFIG_NPMRC_AUTH_FILE")
-                .or_else(|| Sys::var("pnpm_config_npmrc_auth_file"))
-                .or_else(|| Sys::var("PNPM_CONFIG_USERCONFIG"))
-                .or_else(|| Sys::var("npm_config_userconfig"))
-                .filter(|value| !value.is_empty())
+            read_pnpm_env::<Sys>("npmrc_auth_file", "NPMRC_AUTH_FILE")
+                .or_else(|| read_pnpm_env::<Sys>("userconfig", "USERCONFIG"))
+                .or_else(|| read_npm_env::<Sys>("userconfig", "USERCONFIG"))
                 .map(PathBuf::from)
         });
         // A project-level `.npmrc` still takes precedence over the
@@ -1607,6 +1608,25 @@ fn read_npmrc_file(path: &std::path::Path) -> Option<String> {
     fs::read_to_string(path).ok()
 }
 
+/// Port of pnpm's `readEnvVar`: read `pnpm_config_<lower>`, falling
+/// back to `PNPM_CONFIG_<UPPER>`, treating an empty value as unset.
+/// Used for the env vars that have to be resolved before `.npmrc` is
+/// loaded (they decide *which* user-level `.npmrc` gets read).
+fn read_pnpm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
+    Sys::var(&format!("pnpm_config_{lower}"))
+        .or_else(|| Sys::var(&format!("PNPM_CONFIG_{upper}")))
+        .filter(|value| !value.is_empty())
+}
+
+/// Port of pnpm's `readNpmEnvVar`: the `npm_config_<key>` / `NPM_CONFIG_<KEY>`
+/// compatibility shim, so an `npm_config_userconfig` / `NPM_CONFIG_USERCONFIG`
+/// pointing at a custom `.npmrc` (e.g. `actions/setup-node`) keeps working.
+fn read_npm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
+    Sys::var(&format!("npm_config_{lower}"))
+        .or_else(|| Sys::var(&format!("NPM_CONFIG_{upper}")))
+        .filter(|value| !value.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use std::{env, ffi::OsString, io, path::PathBuf};
@@ -1771,6 +1791,180 @@ mod tests {
         assert_eq!(
             config.auth_headers.for_url("https://registry.example.com/some-pkg").as_deref(),
             Some("Bearer secret-token"),
+        );
+    }
+
+    thread_local! {
+        /// Per-thread fake environment for the `npmrcAuthFile` env-var
+        /// resolution tests, set via [`set_fake_env`]. Lets a single
+        /// `Sys` fake ([`FakeEnv`]) serve every precedence test without
+        /// mutating the real process environment (no `set_var` / no
+        /// `EnvGuard` lock). `cargo test` runs each test on its own
+        /// thread, so the maps don't collide.
+        static FAKE_ENV: std::cell::RefCell<std::collections::HashMap<String, String>> =
+            std::cell::RefCell::new(std::collections::HashMap::new());
+    }
+
+    fn set_fake_env(pairs: &[(&str, &str)]) {
+        FAKE_ENV.with(|map| {
+            let mut map = map.borrow_mut();
+            map.clear();
+            for (key, value) in pairs {
+                map.insert((*key).to_string(), (*value).to_string());
+            }
+        });
+    }
+
+    /// `Sys` fake whose env reads come from the thread-local
+    /// [`FAKE_ENV`] (and nothing else), with no home dir. Isolates the
+    /// `npmrcAuthFile` env-resolution from the developer's real shell.
+    struct FakeEnv;
+    impl EnvVar for FakeEnv {
+        fn var(name: &str) -> Option<String> {
+            FAKE_ENV.with(|map| map.borrow().get(name).cloned())
+        }
+    }
+    impl EnvVarOs for FakeEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for FakeEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(FakeEnv);
+
+    /// Write a `.npmrc` that declares its own registry plus an unscoped
+    /// `_authToken`, so the token pins to that registry — the shape the
+    /// precedence assertions check the winning file by.
+    fn write_registry_auth_file(path: &Path, registry: &str, token: &str) {
+        fs::write(path, format!("registry={registry}\n_authToken={token}\n"))
+            .expect("write auth file");
+    }
+
+    fn load_with_fake_env(start_dir: &Path) -> Config {
+        Config::default().current::<FakeEnv>(start_dir).expect("load config")
+    }
+
+    /// `PNPM_CONFIG_NPMRC_AUTH_FILE` (uppercase) resolves the user-level
+    /// `.npmrc`. Mirrors pnpm's `readEnvVar(env, 'npmrc_auth_file')`.
+    #[test]
+    pub fn npmrc_auth_file_from_pnpm_config_env() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("ci-npmrc");
+        write_registry_auth_file(&auth_file, "https://ci.example.com/", "ci-token");
+
+        set_fake_env(&[("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap())]);
+        let config = load_with_fake_env(project.path());
+
+        assert_eq!(config.registry, "https://ci.example.com/");
+        assert_eq!(
+            config.auth_headers.for_url("https://ci.example.com/pkg").as_deref(),
+            Some("Bearer ci-token"),
+        );
+    }
+
+    /// The lowercase `pnpm_config_npmrc_auth_file` is honoured too —
+    /// pnpm's `readEnvVar` accepts both cases.
+    #[test]
+    pub fn npmrc_auth_file_from_lowercase_pnpm_config_env() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("ci-npmrc");
+        write_registry_auth_file(&auth_file, "https://ci.example.com/", "ci-token");
+
+        set_fake_env(&[("pnpm_config_npmrc_auth_file", auth_file.to_str().unwrap())]);
+        let config = load_with_fake_env(project.path());
+
+        assert_eq!(
+            config.auth_headers.for_url("https://ci.example.com/pkg").as_deref(),
+            Some("Bearer ci-token"),
+        );
+    }
+
+    /// An exported-but-empty `PNPM_CONFIG_NPMRC_AUTH_FILE` must fall
+    /// through to `PNPM_CONFIG_USERCONFIG` rather than short-circuiting
+    /// the resolution, matching pnpm's per-variable `value !== ''`
+    /// filter.
+    #[test]
+    pub fn npmrc_auth_file_empty_env_falls_through_to_userconfig() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("user-npmrc");
+        write_registry_auth_file(&auth_file, "https://user.example.com/", "user-token");
+
+        set_fake_env(&[
+            ("PNPM_CONFIG_NPMRC_AUTH_FILE", ""),
+            ("PNPM_CONFIG_USERCONFIG", auth_file.to_str().unwrap()),
+        ]);
+        let config = load_with_fake_env(project.path());
+
+        assert_eq!(
+            config.auth_headers.for_url("https://user.example.com/pkg").as_deref(),
+            Some("Bearer user-token"),
+        );
+    }
+
+    /// `npmrc_auth_file` outranks `userconfig` (pnpm resolves
+    /// `readEnvVar('npmrc_auth_file')` before `readEnvVar('userconfig')`).
+    #[test]
+    pub fn npmrc_auth_file_outranks_userconfig() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let auth_file = auth.path().join("auth-file");
+        let userconfig = auth.path().join("userconfig");
+        write_registry_auth_file(&auth_file, "https://authfile.example.com/", "authfile-token");
+        write_registry_auth_file(
+            &userconfig,
+            "https://userconfig.example.com/",
+            "userconfig-token",
+        );
+
+        set_fake_env(&[
+            ("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap()),
+            ("PNPM_CONFIG_USERCONFIG", userconfig.to_str().unwrap()),
+        ]);
+        let config = load_with_fake_env(project.path());
+
+        assert_eq!(config.registry, "https://authfile.example.com/");
+        assert_eq!(
+            config.auth_headers.for_url("https://authfile.example.com/pkg").as_deref(),
+            Some("Bearer authfile-token"),
+        );
+    }
+
+    /// `npm_config_userconfig` is honoured as a low-priority npm
+    /// compatibility fallback (e.g. `actions/setup-node`), and a
+    /// `PNPM_CONFIG_*` value outranks it.
+    #[test]
+    pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
+        let project = tempdir().expect("project tempdir");
+        let auth = tempdir().expect("auth tempdir");
+        let npm_file = auth.path().join("npm-userconfig");
+        write_registry_auth_file(&npm_file, "https://npm.example.com/", "npm-token");
+
+        // Compat fallback alone resolves.
+        set_fake_env(&[("npm_config_userconfig", npm_file.to_str().unwrap())]);
+        let config = load_with_fake_env(project.path());
+        assert_eq!(
+            config.auth_headers.for_url("https://npm.example.com/pkg").as_deref(),
+            Some("Bearer npm-token"),
+        );
+
+        // A pnpm-native value wins over the npm compat fallback.
+        let pnpm_file = auth.path().join("pnpm-userconfig");
+        write_registry_auth_file(&pnpm_file, "https://pnpm.example.com/", "pnpm-token");
+        set_fake_env(&[
+            ("PNPM_CONFIG_USERCONFIG", pnpm_file.to_str().unwrap()),
+            ("npm_config_userconfig", npm_file.to_str().unwrap()),
+        ]);
+        let config = load_with_fake_env(project.path());
+        assert_eq!(
+            config.auth_headers.for_url("https://pnpm.example.com/pkg").as_deref(),
+            Some("Bearer pnpm-token"),
         );
     }
 
