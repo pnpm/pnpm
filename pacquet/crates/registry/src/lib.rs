@@ -6,7 +6,7 @@ mod package_version;
 pub use package::Package;
 pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
 pub use package_tag::PackageTag;
-pub use package_version::{NpmUser, PackageVersion, TrustedPublisher};
+pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;

@@ -9,21 +9,26 @@ enum Evidence {
     None,
     Provenance,
     TrustedPublisher,
+    StagedPublish,
 }
 
 /// Build a JSON object for a single version with the trust-evidence
-/// shape the verifier reads (`_npmUser.trustedPublisher` or
-/// `dist.attestations.provenance`). A `TrustedPublisher` fixture
-/// includes both fields: per `get_trust_evidence`, the publisher
-/// flag only outranks plain provenance when the version also ships a
-/// provenance attestation.
+/// shape the verifier reads (`_npmUser.approver`,
+/// `_npmUser.trustedPublisher`, or `dist.attestations.provenance`). A
+/// `TrustedPublisher` fixture includes both fields: per
+/// `get_trust_evidence`, the publisher flag only outranks plain
+/// provenance when the version also ships a provenance attestation. A
+/// `StagedPublish` fixture carries an `approver`, the strongest signal.
 fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Value {
     let mut dist = serde_json::json!({
         "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
         "shasum": "0000000000000000000000000000000000000000",
         "tarball": format!("https://registry/{name}-{version}.tgz")
     });
-    if matches!(evidence, Evidence::Provenance | Evidence::TrustedPublisher) {
+    if matches!(
+        evidence,
+        Evidence::Provenance | Evidence::TrustedPublisher | Evidence::StagedPublish
+    ) {
         dist["attestations"] = serde_json::json!({
             "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
         });
@@ -37,6 +42,11 @@ fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Va
     if matches!(evidence, Evidence::TrustedPublisher) {
         version_obj["_npmUser"] = serde_json::json!({
             "trustedPublisher": { "id": "github", "oidcConfigId": "release" }
+        });
+    }
+    if matches!(evidence, Evidence::StagedPublish) {
+        version_obj["_npmUser"] = serde_json::json!({
+            "approver": { "name": "approver", "email": "approver@example.com" }
         });
     }
     version_obj
@@ -84,6 +94,23 @@ fn trusted_publisher_to_provenance_downgrade_fails() {
     );
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("trusted-publisher → provenance is a downgrade");
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}
+
+/// Earlier version had `stagedPublish` (an approver), current version
+/// has only `trustedPublisher` → DOWNGRADE. Staged publish outranks a
+/// trusted publisher.
+#[test]
+fn staged_publish_to_trusted_publisher_downgrade_fails() {
+    let meta = make_package(
+        "acme",
+        &[
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::StagedPublish),
+            ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::TrustedPublisher),
+        ],
+    );
+    let err = fail_if_trust_downgraded(&meta, "2.0.0", &TrustCheckOptions::default())
+        .expect_err("staged-publish → trusted-publisher is a downgrade");
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
@@ -353,6 +380,24 @@ mod get_trust_evidence {
             get_trust_evidence(&parse(version)),
             Some(TrustEvidence::TrustedPublisher)
         ));
+    }
+
+    /// `_npmUser.approver` ranks as `StagedPublish`, the strongest
+    /// evidence.
+    #[test]
+    fn approver_ranks_as_staged_publish() {
+        let version = version_json("acme", "1.0.0", Evidence::StagedPublish);
+        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
+    }
+
+    /// `_npmUser.approver` wins even when `trustedPublisher` and
+    /// provenance are also present — staged publish takes priority.
+    #[test]
+    fn approver_outranks_trusted_publisher() {
+        let mut version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
+        version["_npmUser"]["approver"] =
+            serde_json::json!({ "name": "approver", "email": "approver@example.com" });
+        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
     }
 
     /// `dist.attestations.provenance` alone ranks as `Provenance`.
