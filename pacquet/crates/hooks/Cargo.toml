@@ -1,0 +1,13 @@
+[package]
+name = "pacquet-hooks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde_json = "1.0"
+async-trait = "0.1"
+tokio = { workspace = true, features = ["full", "rt-multi-thread"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

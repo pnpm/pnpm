@@ -15,6 +15,7 @@ use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, 
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
+use pacquet_hooks::finder;
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -815,6 +816,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 .collect();
         let peers_suffix_max_length =
             usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
+        let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
             dedupe_peers: config.dedupe_peers,
             dedupe_injected_deps: config.dedupe_injected_deps,
@@ -822,6 +824,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
             manifest_hook: package_extensions_hook.clone(),
+            pnpmfile_hook,
             pick_lowest_direct,
             time_based,
             // Hand the resolver the prior lockfile so it can reuse
@@ -914,7 +917,9 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     lockfile_dir: Some(lockfile_dir.to_path_buf()),
                     modules_dir: Some(importer_modules_dir),
                     peers_suffix_max_length,
+                    catalog_server: false,
                     manifest_hook: package_extensions_hook.clone(),
+                    pnpmfile_hook: None,
                 }
             },
         )

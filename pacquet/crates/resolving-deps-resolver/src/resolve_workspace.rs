@@ -89,6 +89,11 @@ pub struct WorkspaceResolveOptions {
     /// Which dependencies `pacquet update` excludes from lockfile-
     /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
     pub update_reuse_scope: UpdateReuseScope,
+
+    /// `pnpmfileHook` applied to every resolved manifest before it
+    /// enters the wanted-dep cache. Workspace-wide (one hook per
+    /// install); wraps `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
+    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -128,6 +133,7 @@ where
         lockfile_dir,
         peers_suffix_max_length,
         manifest_hook,
+        pnpmfile_hook,
         pick_lowest_direct,
         time_based,
         wanted_lockfile,
@@ -137,7 +143,8 @@ where
         WorkspaceTreeCtx::default()
             .with_manifest_hook(manifest_hook)
             .with_wanted_lockfile(wanted_lockfile)
-            .with_update_reuse_scope(update_reuse_scope),
+            .with_update_reuse_scope(update_reuse_scope)
+            .with_pnpmfile_hook(pnpmfile_hook),
     );
 
     // Build every importer's options up front so the `time-based`
