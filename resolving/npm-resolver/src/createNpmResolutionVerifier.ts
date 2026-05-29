@@ -453,10 +453,20 @@ function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
   // carrying through. `_npmUser` is similarly narrowed to just
   // `trustedPublisher` — the only sub-field the trust check inspects — so
   // we don't keep maintainer name/email PII resident in the cache.
+  const approver = manifest._npmUser?.approver
   const trustedPublisher = manifest._npmUser?.trustedPublisher
   const provenance = manifest.dist?.attestations?.provenance
+  let npmUser: PackageInRegistry['_npmUser'] = undefined;
+  if (approver) {
+    npmUser ||= {}
+    npmUser.approver = approver
+  }
+  if (trustedPublisher) {
+    npmUser ||= {}
+    npmUser.trustedPublisher = trustedPublisher
+  }
   return {
-    _npmUser: trustedPublisher != null ? { trustedPublisher } : undefined,
+    _npmUser: npmUser,
     dist: provenance != null
       ? { attestations: { provenance } }
       : undefined,
