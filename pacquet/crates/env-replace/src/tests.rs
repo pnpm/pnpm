@@ -147,26 +147,26 @@ fn backslash_count_uses_source_not_output_buffer() {
         fn var(name: &str) -> Option<String> {
             match name {
                 "A" => Some(r"x\".to_owned()),
-                    "B" => Some("should-not-expand".to_owned()),
-                    _ => None,
-                }
+                "B" => Some("should-not-expand".to_owned()),
+                _ => None,
             }
         }
-        // Single literal `\` between `${A}` and `${B}`. Must escape `${B}`.
-        assert_eq!(replace_clean::<Env>(r"${A}\${B}"), r"x\${B}");
     }
+    // Single literal `\` between `${A}` and `${B}`. Must escape `${B}`.
+    assert_eq!(replace_clean::<Env>(r"${A}\${B}"), r"x\${B}");
+}
 
-    #[test]
-    fn placeholder_inside_url() {
-        // The actual .npmrc shape pnpm users hit.
-        struct EnvWithToken;
-        impl EnvVar for EnvWithToken {
-            fn var(name: &str) -> Option<String> {
-                (name == "NPM_TOKEN").then(|| "secret".to_owned())
-            }
+#[test]
+fn placeholder_inside_url() {
+    // The actual .npmrc shape pnpm users hit.
+    struct EnvWithToken;
+    impl EnvVar for EnvWithToken {
+        fn var(name: &str) -> Option<String> {
+            (name == "NPM_TOKEN").then(|| "secret".to_owned())
         }
-        assert_eq!(
-            replace_clean::<EnvWithToken>("//registry.npmjs.org/:_authToken=${NPM_TOKEN}"),
+    }
+    assert_eq!(
+        replace_clean::<EnvWithToken>("//registry.npmjs.org/:_authToken=${NPM_TOKEN}"),
         "//registry.npmjs.org/:_authToken=secret",
     );
 }
