@@ -25,5 +25,5 @@ pub use config::{
     LogLevel, MaxUsers, PackageAccess, TokensConfig, UplinkConfig,
 };
 pub use error::{RegistryError, Result};
-pub use policy::{AccessRule, PackagePolicies, PackagePolicy};
+pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};
 pub use server::{router, router_with_auth, serve};

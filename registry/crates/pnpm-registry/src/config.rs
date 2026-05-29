@@ -7,7 +7,7 @@ use pacquet_env_replace::{SystemEnv, env_replace_lossy};
 use serde::Deserialize;
 
 use crate::error::RegistryError;
-use crate::policy::{AccessRule, PackagePolicies, PackagePolicy};
+use crate::policy::{AccessList, PackagePolicies, PackagePolicy};
 
 /// The bundled verdaccio-shaped YAML config, mirrored from
 /// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
@@ -230,16 +230,41 @@ pub struct UplinkConfig {
 }
 
 /// Per-package routing and access rules. `access` / `publish` are
-/// verdaccio access tokens (`$all` / `$authenticated` / `$anonymous`)
-/// compiled into the [`PackagePolicies`] that gate reads and writes;
+/// verdaccio permission lists (built-in groups like `$all` /
+/// `$authenticated` / `$anonymous`, plus usernames / group names),
+/// compiled into the [`PackagePolicies`] that gate reads and writes.
 /// `unpublish` is parsed but currently folded into `publish` at
 /// enforcement time. `proxy` selects the [`UplinkConfig`] by name.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct PackageAccess {
-    pub access: Option<String>,
-    pub publish: Option<String>,
-    pub unpublish: Option<String>,
+    pub access: Option<AccessSpec>,
+    pub publish: Option<AccessSpec>,
+    pub unpublish: Option<AccessSpec>,
     pub proxy: Option<String>,
+}
+
+/// A YAML permission value. Verdaccio accepts either a single
+/// space-separated string (`access: $authenticated admin`) or a
+/// sequence (`access: [$authenticated, admin]`); both normalize to the
+/// same token list.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum AccessSpec {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl AccessSpec {
+    fn to_access_list(&self) -> AccessList {
+        match self {
+            AccessSpec::One(spec) => AccessList::parse(spec),
+            // Each element may itself be space-separated; flatten so
+            // `[a b, c]` and `[a, b, c]` agree.
+            AccessSpec::Many(items) => {
+                AccessList::from_tokens(items.iter().flat_map(|item| item.split_whitespace()))
+            }
+        }
+    }
 }
 
 /// Disk shape of the YAML file. Fields verdaccio supports but
@@ -529,33 +554,28 @@ fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
 /// [`PackagePolicies`], in declared order (first match wins). A
 /// missing `access` defaults to `$all`, a missing `publish` to
 /// `$authenticated` — the same safe fallback [`PackagePolicies`]
-/// applies to packages no rule matches. `unpublish` is parsed but
-/// not yet enforced separately (it folds into `publish`).
+/// applies to packages no rule matches. `unpublish` is parsed for
+/// config compatibility but not yet enforced separately (it folds
+/// into `publish`). Errors only on an invalid glob pattern — any
+/// token string is a valid group/username, as in verdaccio.
 fn build_policies(
     packages: &IndexMap<String, PackageAccess>,
 ) -> Result<PackagePolicies, RegistryError> {
     let rules = packages
         .iter()
         .map(|(pattern, access)| {
-            let access_rule = parse_access_rule(access.access.as_deref(), AccessRule::All)?;
-            let publish_rule =
-                parse_access_rule(access.publish.as_deref(), AccessRule::Authenticated)?;
-            // `unpublish` folds into `publish` at enforcement time, but
-            // validate it here so an unknown token fails fast like the
-            // others instead of slipping through. (Defaults to the
-            // publish rule when absent, matching verdaccio.)
-            parse_access_rule(access.unpublish.as_deref(), publish_rule)?;
-            PackagePolicy::new(pattern, access_rule, publish_rule)
+            let access_list = access
+                .access
+                .as_ref()
+                .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
+            let publish_list = access
+                .publish
+                .as_ref()
+                .map_or_else(|| AccessList::parse("$authenticated"), AccessSpec::to_access_list);
+            PackagePolicy::new(pattern, access_list, publish_list)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(PackagePolicies::new(rules))
-}
-
-fn parse_access_rule(
-    value: Option<&str>,
-    default: AccessRule,
-) -> Result<AccessRule, RegistryError> {
-    value.map_or(Ok(default), str::parse)
 }
 
 /// Join `config.yaml` onto a resolved config directory and keep the
@@ -613,11 +633,16 @@ fn pattern_matches(pattern: &str, name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        AccessRule, Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, config_file_in,
+        Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, config_file_in,
         pattern_matches, resolve_relative,
     };
+    use crate::policy::Identity;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
     use std::path::{Path, PathBuf};
+
+    fn user(name: &str) -> Identity {
+        Identity::User { username: name.to_string() }
+    }
 
     fn listen() -> SocketAddr {
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
@@ -1307,11 +1332,11 @@ packages:
 ";
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
         let secret = config.policies.for_package("@secret/thing");
-        assert_eq!(secret.access, AccessRule::Authenticated);
-        assert_eq!(secret.publish, AccessRule::Authenticated);
+        assert!(!secret.access.allows(&Identity::Anonymous));
+        assert!(secret.access.allows(&user("alice")));
         let public = config.policies.for_package("lodash");
-        assert_eq!(public.access, AccessRule::All);
-        assert_eq!(public.publish, AccessRule::Authenticated);
+        assert!(public.access.allows(&Identity::Anonymous));
+        assert!(!public.publish.allows(&Identity::Anonymous));
     }
 
     #[test]
@@ -1328,8 +1353,8 @@ packages:
     access: $all
 ";
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-        assert_eq!(config.policies.for_package("@secret/x").access, AccessRule::Authenticated);
-        assert_eq!(config.policies.for_package("anything").access, AccessRule::All);
+        assert!(!config.policies.for_package("@secret/x").access.allows(&Identity::Anonymous));
+        assert!(config.policies.for_package("anything").access.allows(&Identity::Anonymous));
     }
 
     #[test]
@@ -1342,8 +1367,9 @@ packages:
 ";
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
         let effective = config.policies.for_package("lodash");
-        assert_eq!(effective.access, AccessRule::All);
-        assert_eq!(effective.publish, AccessRule::Authenticated);
+        assert!(effective.access.allows(&Identity::Anonymous));
+        assert!(!effective.publish.allows(&Identity::Anonymous));
+        assert!(effective.publish.allows(&user("alice")));
     }
 
     #[test]
@@ -1356,43 +1382,58 @@ packages:
     access: $anonymous
 ";
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-        assert_eq!(config.policies.for_package("@anon/x").access, AccessRule::Anonymous);
+        let anon = config.policies.for_package("@anon/x");
+        assert!(anon.access.allows(&Identity::Anonymous));
+        assert!(!anon.access.allows(&user("alice")));
     }
 
     #[test]
-    fn policy_unknown_access_token_is_a_config_error() {
-        // Named groups aren't modeled yet — an unrecognized token must
-        // fail the parse rather than silently enforce the wrong rule.
+    fn policy_usernames_grant_per_user_access() {
+        // Bare names are usernames/groups (verdaccio-style), no longer
+        // a config error.
         let yaml = "\
 storage: ./s
 uplinks: {}
 packages:
-  'lodash':
-    access: admin
+  '@team/*':
+    access: alice bob
+    publish: alice
 ";
-        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
-        assert!(
-            matches!(err, super::RegistryError::InvalidAccessRule { .. }),
-            "expected InvalidAccessRule, got {err:?}",
-        );
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        let team = config.policies.for_package("@team/x");
+        assert!(team.access.allows(&user("alice")));
+        assert!(team.access.allows(&user("bob")));
+        assert!(!team.access.allows(&user("carol")));
+        assert!(!team.access.allows(&Identity::Anonymous));
+        assert!(team.publish.allows(&user("alice")));
+        assert!(!team.publish.allows(&user("bob")));
     }
 
     #[test]
-    fn policy_unknown_unpublish_token_is_a_config_error() {
-        // `unpublish` folds into `publish` at enforcement, but it's
-        // still validated so a typo can't slip through unchecked.
-        let yaml = "\
+    fn policy_access_list_accepts_string_and_sequence_forms() {
+        // verdaccio accepts both a space-separated string and a YAML
+        // sequence; they must compile to the same token list.
+        let as_string = "\
 storage: ./s
 uplinks: {}
 packages:
-  'lodash':
-    unpublish: bogus
+  '@team/*':
+    access: alice bob
 ";
-        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
-        assert!(
-            matches!(err, super::RegistryError::InvalidAccessRule { .. }),
-            "expected InvalidAccessRule, got {err:?}",
-        );
+        let as_sequence = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    access: [alice, bob]
+";
+        for yaml in [as_string, as_sequence] {
+            let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+            let access = config.policies.for_package("@team/x").access;
+            assert!(access.allows(&user("alice")), "{yaml}");
+            assert!(access.allows(&user("bob")), "{yaml}");
+            assert!(!access.allows(&user("carol")), "{yaml}");
+        }
     }
 
     #[test]
@@ -1400,12 +1441,12 @@ packages:
         // Building from the bundled YAML must reproduce the
         // registry-mock protections that used to be hard-coded.
         let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-        assert_eq!(
-            config.policies.for_package("@pnpm.e2e/needs-auth").access,
-            AccessRule::Authenticated,
-        );
-        assert_eq!(config.policies.for_package("@private/foo").access, AccessRule::Authenticated);
-        assert_eq!(config.policies.for_package("lodash").access, AccessRule::All);
-        assert_eq!(config.policies.for_package("lodash").publish, AccessRule::Authenticated);
+        let needs_auth = config.policies.for_package("@pnpm.e2e/needs-auth");
+        assert!(!needs_auth.access.allows(&Identity::Anonymous));
+        assert!(needs_auth.access.allows(&user("alice")));
+        assert!(!config.policies.for_package("@private/foo").access.allows(&Identity::Anonymous));
+        let public = config.policies.for_package("lodash");
+        assert!(public.access.allows(&Identity::Anonymous));
+        assert!(!public.publish.allows(&Identity::Anonymous));
     }
 }
