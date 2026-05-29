@@ -1,5 +1,12 @@
 # @pnpm/mount-modules
 
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+  - @pnpm/config.reader@1101.5.0
+
 ## 1100.0.17
 
 ### Patch Changes

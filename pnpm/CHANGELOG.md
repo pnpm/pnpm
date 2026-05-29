@@ -1,5 +1,39 @@
 # pnpm
 
+## 11.5.0
+
+### Minor Changes
+
+- Added a new `hoistingLimits` setting for `nodeLinker: hoisted` installs, mirroring yarn's `nmHoistingLimits`. It accepts `none` (the default — hoist as far as possible), `workspaces` (hoist only as far as each workspace package), or `dependencies` (hoist only up to each workspace package's direct dependencies). Originally proposed in [#6468](https://github.com/pnpm/pnpm/pull/6468), closing [#6457](https://github.com/pnpm/pnpm/issues/6457).
+- Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+- Staged publishes are now recognized in the trust scale. When a package version's registry metadata carries an `approver` field, it is treated as the strongest trust evidence (ranked above trusted publishers and provenance attestations), since staged publishes require 2FA publish approvals. This prevents false-positive trust downgrade errors when moving from a staged publish to a lower trust level [#11887](https://github.com/pnpm/pnpm/issues/11887).
+
+### Patch Changes
+
+- Fix pnpm hanging during peer resolution when an aliased install pulls in transitive packages with mutual peer cycles at different depths in the dependency tree (for example, `pnpm i nuxt@npm:nuxt-nightly@5x`). Cycles whose members hit the `findHit` cache instead of running their own `calculateDepPath` are now short-circuited by sibling resolutions at the level where the cycle is detected, so the cached path promises no longer deadlock. [#11999](https://github.com/pnpm/pnpm/issues/11999).
+- Fix `pnpm dist-tag add` and `pnpm dist-tag rm` against npmjs.org failing without `--otp` with `[ERR_PNPM_UNAUTHORIZED] You must be logged in to set dist-tag … "You must provide a one-time pass. Upgrade your client to npm@latest in order to use 2FA."`. pnpm now sends `npm-auth-type: web` on dist-tag writes and surfaces the resulting OTP challenge through the existing browser-based 2FA flow (the same `withOtpHandling` helper used by `pnpm publish`), so the browser opens, the user authenticates, and the dist-tag is set on retry. `--otp=<code>` continues to work via the classic flow.
+- Fix `minimumReleaseAgeExclude` handling in npm resolution fast paths so excluded packages do not get pinned to stale versions. Excludes are honored consistently during `publishedBy` metadata selection and cache-mtime shortcuts.
+- Fix the `integrity` field being dropped from the lockfile entry of a remote (non-registry) https-tarball dependency when an unrelated package is installed afterwards. URL/tarball resolvers do not return an integrity (it is only known after the tarball is downloaded), so when such a dependency was reused from the lockfile without being re-fetched, its integrity was lost. It is now carried over from the existing resolution. With pnpm's lockfile-integrity hardening, the missing integrity made subsequent `--frozen-lockfile` installs fail with `ERR_PNPM_MISSING_TARBALL_INTEGRITY`. [#12001](https://github.com/pnpm/pnpm/issues/12001).
+- Skip dependency re-resolution when `pnpm-lock.yaml` is missing but `node_modules/.pnpm/lock.yaml` exists and still satisfies the manifest. `pnpm install` now reuses the materialized snapshot to regenerate `pnpm-lock.yaml` instead of walking the registry to rebuild it from scratch, turning the cache+node_modules variation into a near-no-op for users who deleted the lockfile but kept the install [#11993](https://github.com/pnpm/pnpm/issues/11993).
+
+  `--frozen-lockfile` still refuses to proceed when `pnpm-lock.yaml` is absent — the regenerated lockfile must be committed, so failing loudly is the correct behavior for CI.
+
 ## 11.4.0
 
 ### Minor Changes

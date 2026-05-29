@@ -1,5 +1,16 @@
 # @pnpm/global.commands
 
+## 1100.0.23
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.deps-installer@1101.6.0
+  - @pnpm/store.connection-manager@1100.2.5
+
 ## 1100.0.22
 
 ### Patch Changes
