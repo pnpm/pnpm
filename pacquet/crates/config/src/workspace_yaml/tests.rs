@@ -4,6 +4,7 @@ use crate::{
     ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
@@ -338,15 +339,37 @@ configDependencies:
   "@pnpm/pacquet": 0.2.2-14
 "#;
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let map = settings.config_dependencies.clone().expect("field present");
-    assert_eq!(map.get("@pnpm/pacquet").map(String::as_str), Some("0.2.2-14"));
+    let expected = settings.config_dependencies.clone();
+    assert_eq!(
+        expected.as_ref().and_then(|m| m.get("@pnpm/pacquet")),
+        Some(&ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string())),
+    );
 
     let mut config = Config::new();
     assert!(config.config_dependencies.is_none(), "default is None");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.config_dependencies, expected);
+}
+
+/// pnpm's `configDependencies` value can also be the `{ tarball?, integrity }`
+/// object form. It must parse (not error) and round-trip, otherwise an
+/// upstream-supported manifest becomes a hard config-load failure.
+#[test]
+fn parses_object_form_config_dependencies() {
+    let yaml = r#"
+configDependencies:
+  "@scope/dep":
+    integrity: sha512-abc
+    tarball: https://example.test/dep.tgz
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let map = settings.config_dependencies.expect("field present");
     assert_eq!(
-        config.config_dependencies.expect("present").get("@pnpm/pacquet").map(String::as_str),
-        Some("0.2.2-14")
+        map.get("@scope/dep"),
+        Some(&ConfigDependency::Detailed(ConfigDependencyDetail {
+            integrity: "sha512-abc".to_string(),
+            tarball: Some("https://example.test/dep.tgz".to_string()),
+        })),
     );
 }
 

@@ -12,6 +12,7 @@ pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProb
 use indexmap::IndexMap;
 use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
 use serde::Deserialize;
 use smart_default::SmartDefault;
@@ -902,7 +903,7 @@ pub struct Config {
     /// as stale. See [`WorkspaceSettings::config_dependencies`].
     ///
     /// [`WorkspaceSettings::config_dependencies`]: crate::workspace_yaml::WorkspaceSettings::config_dependencies
-    pub config_dependencies: Option<BTreeMap<String, String>>,
+    pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
 
     /// `pnpm.allowBuilds` from `pnpm-workspace.yaml`: package names
     /// (or `name@version` keys) that are allowed to run lifecycle

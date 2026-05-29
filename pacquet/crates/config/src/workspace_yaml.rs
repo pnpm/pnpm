@@ -8,6 +8,7 @@ use miette::Diagnostic;
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
 use serde::{Deserialize, Deserializer};
 use std::{
@@ -214,10 +215,7 @@ pub struct WorkspaceSettings {
     /// otherwise pnpm reads a missing `configDependencies` on the next
     /// `pnpm run` / `pnpm node`, compares it against the live config,
     /// and reinstalls on every invocation.
-    ///
-    /// Only the `VersionWithIntegrity` string form is modeled; pnpm's
-    /// `{ tarball?, integrity }` object form is not yet supported.
-    pub config_dependencies: Option<BTreeMap<String, String>>,
+    pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
 
     /// Map of `name[@version]` → `true` / `false`. Drives pnpm 11's
     /// default-deny build policy: a package's lifecycle scripts only

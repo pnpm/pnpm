@@ -900,6 +900,7 @@ mod build_workspace_state_tests {
     use pacquet_config::Config;
     use pacquet_modules_yaml::IncludedDependencies;
     use pacquet_package_manifest::PackageManifest;
+    use pacquet_workspace_state::ConfigDependency;
     use std::collections::BTreeMap;
     use std::path::PathBuf;
     use tempfile::tempdir;
@@ -976,8 +977,10 @@ mod build_workspace_state_tests {
     #[test]
     fn records_config_dependencies_from_config() {
         let mut config = Config::new();
-        config.config_dependencies =
-            Some(BTreeMap::from([("@pnpm/pacquet".to_string(), "0.2.2-14".to_string())]));
+        config.config_dependencies = Some(BTreeMap::from([(
+            "@pnpm/pacquet".to_string(),
+            ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string()),
+        )]));
         let state = build_workspace_state(
             &config,
             pacquet_config::NodeLinker::default(),
