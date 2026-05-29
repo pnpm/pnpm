@@ -1,6 +1,6 @@
 use crate::{
-    PreparedRegistryInfo, RegistryAnchor, RegistryInfo, pick_port::pick_unused_port,
-    pnpr_command, port_to_url::port_to_url,
+    PreparedRegistryInfo, RegistryAnchor, RegistryInfo, pick_port::pick_unused_port, pnpr_command,
+    port_to_url::port_to_url,
 };
 use pipe_trait::Pipe;
 use reqwest::Client;
