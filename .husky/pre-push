@@ -1,6 +1,4 @@
 #!/usr/bin/env sh
-[ -n "$SKIP_GIT_HOOKS" ] && exit 0
-
 remote="$1"
 zero=$(git hash-object --stdin </dev/null | tr '0-9a-f' '0')
 
