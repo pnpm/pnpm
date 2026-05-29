@@ -214,9 +214,8 @@ async function resolveAndFetch (
   // https://github.com/pnpm/pnpm/issues/12001
   if (
     !updated &&
-    newIntegrity == null &&
     typeof previousIntegrity === 'string' &&
-    !('type' in resolution) &&
+    !resolution.type &&
     !(resolution as TarballResolution).integrity
   ) {
     (resolution as TarballResolution).integrity = previousIntegrity
