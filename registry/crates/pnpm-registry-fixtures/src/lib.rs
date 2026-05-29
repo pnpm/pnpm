@@ -158,12 +158,30 @@ impl Package {
 
     fn times(&self) -> Value {
         let mut times = Map::new();
-        times.insert("created".to_string(), json!("2020-01-01T00:00:00.000Z"));
-        times.insert("modified".to_string(), json!("2020-01-01T00:00:00.000Z"));
+        times.insert("created".to_string(), json!(DEFAULT_PUBLISH_TIME));
+        times.insert("modified".to_string(), json!(DEFAULT_PUBLISH_TIME));
         for version in self.versions.keys() {
-            times.insert(version.clone(), json!("2020-01-01T00:00:00.000Z"));
+            times.insert(version.clone(), json!(version_publish_time(&self.name, version)));
         }
         Value::Object(times)
+    }
+}
+
+// Most fixtures share one old timestamp so `minimumReleaseAge` checks treat them
+// as long-published. Packages exercised by time-based resolution tests carry
+// distinct per-version times that encode their relative publish order.
+const DEFAULT_PUBLISH_TIME: &str = "2022-01-01T00:00:00.000Z";
+
+fn version_publish_time(name: &str, version: &str) -> &'static str {
+    match (name, version) {
+        ("@pnpm.e2e/bravo", "1.0.0") => "2022-04-01T20:17:46.770Z",
+        ("@pnpm.e2e/romeo", "1.0.0") => "2022-01-01T20:17:46.770Z",
+        ("@pnpm.e2e/bravo-dep", "1.0.0") => "2022-02-01T20:17:46.770Z",
+        ("@pnpm.e2e/bravo-dep", "1.0.1") => "2022-02-22T20:17:46.770Z",
+        ("@pnpm.e2e/bravo-dep", "1.1.0") => "2022-05-01T20:17:46.770Z",
+        ("@pnpm.e2e/romeo-dep", "1.0.0") => "2022-03-01T20:17:46.770Z",
+        ("@pnpm.e2e/romeo-dep", "1.1.0") => "2022-07-01T20:17:46.770Z",
+        _ => DEFAULT_PUBLISH_TIME,
     }
 }
 
@@ -197,10 +215,16 @@ impl PackageVersion {
         let tarball_name = format!("{}-{version}.tgz", tarball_basename(&name));
         let tarball_url = format!("http://example.test/{name}/-/{tarball_name}");
         let mut packument_manifest = manifest;
-        packument_manifest
-            .as_object_mut()
-            .expect("fixture package.json is an object")
+        let manifest_object =
+            packument_manifest.as_object_mut().expect("fixture package.json is an object");
+        manifest_object
             .insert("dist".to_string(), json!({ "tarball": tarball_url, "integrity": integrity }));
+        // Verdaccio's abbreviated metadata exposes `bundleDependencies` (no "d"),
+        // and that is the key pnpm reads, so mirror `bundledDependencies` onto it
+        // when only the longer spelling is present in the fixture manifest.
+        if let Some(bundled) = manifest_object.get("bundledDependencies").cloned() {
+            manifest_object.entry("bundleDependencies").or_insert(bundled);
+        }
         Self { name, version, packument_manifest, tarball_name, tarball }
     }
 }

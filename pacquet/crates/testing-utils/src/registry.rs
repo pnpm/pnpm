@@ -45,7 +45,7 @@ impl TestRegistryInstance {
         // the npm uplink — matching how registry-mock served pacquet's tests.
         let mut config = Config::proxy(listen, storage.to_path_buf());
         config.public_url = url.trim_end_matches('/').to_string();
-        // A long TTL keeps the fixture packuments (fixed placeholder `time`)
+        // A long TTL keeps the fixture packuments (whose `time` values are static)
         // from being treated as stale and refetched from the uplink.
         config.packument_ttl = std::time::Duration::from_secs(31_536_000);
         thread::Builder::new()
