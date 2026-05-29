@@ -44,10 +44,12 @@ pub struct PackageBinSource {
     /// transitive's bin. Defaults to [`BinOrigin::Direct`] —
     /// constructions via [`PackageBinSource::new`] don't have to
     /// supply the field, and existing call sites that don't yet
-    /// distinguish keep the pre-[#342](https://github.com/pnpm/pacquet/issues/342) ownership/lexical-only
+    /// distinguish keep the pre-[#342] ownership/lexical-only
     /// behavior. Pacquet's hoist + hoisted-linker passes use
     /// [`PackageBinSource::with_origin`] to tag transitive
     /// candidates as [`BinOrigin::Hoisted`].
+    ///
+    /// [#342]: https://github.com/pnpm/pacquet/issues/342
     pub origin: BinOrigin,
 }
 

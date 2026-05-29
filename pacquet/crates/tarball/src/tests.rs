@@ -985,7 +985,9 @@ fn retry_opts_delay_does_not_overflow() {
 /// which doesn't apply to registry tarballs). Every other failure
 /// — arbitrary 4xx, 5xx, network reset, integrity mismatch, gzip
 /// or tar parse error — falls through to `op.retry(error)` and is
-/// retried. Diverging here was the original bug behind [#259](https://github.com/pnpm/pacquet/issues/259).
+/// retried. Diverging here was the original bug behind [#259].
+///
+/// [#259]: https://github.com/pnpm/pacquet/issues/259
 #[test]
 fn retry_classification_matches_pnpm_policy() {
     let url = "https://example.test/pkg.tgz".to_string();
@@ -1862,7 +1864,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     // `started` events must carry a populated `size`. Pinning this
     // here so the previous regression — emit-before-send leaving
     // `size` always-`null` — can't sneak back in (Copilot review on
-    // #372).
+    // <https://github.com/pnpm/pacquet/pull/372>).
     for (attempt, size) in &started {
         assert!(size.is_some(), "attempt {attempt} should expose Content-Length, got null");
     }

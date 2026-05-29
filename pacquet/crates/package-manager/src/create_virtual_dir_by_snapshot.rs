@@ -144,7 +144,7 @@ impl<'a> CreateVirtualDirBySnapshot<'a> {
         // a non-degraded environment (`Auto`/`CloneOrCopy` → `clone`,
         // explicit settings as-is). Refining to per-package resolution
         // would require threading the resolved method back from
-        // `link_file`; tracked under #347.
+        // `link_file`; tracked under <https://github.com/pnpm/pacquet/issues/347>.
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Imported {

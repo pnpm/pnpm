@@ -342,7 +342,7 @@ mod known_failures {
 
         // TODO: assert the `pnpm:ignored-scripts` reporter event lists
         // `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0` here. Pacquet
-        // does not emit that channel yet (see issue #397).
+        // does not emit that channel yet (see issue <https://github.com/pnpm/pacquet/issues/397>).
 
         eprintln!(
             "Re-running install with explicit denial of pre-and-postinstall-scripts-example...",

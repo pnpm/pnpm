@@ -22,7 +22,7 @@ pub async fn main() -> miette::Result<()> {
     // `pacquet --help` / `--version` (and any clap parse error) exit
     // without spinning up worker threads. `clap::Parser::parse` calls
     // `std::process::exit` on those paths, so we never reach
-    // `configure_rayon_pool` for them (Copilot review on #292).
+    // `configure_rayon_pool` for them (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
     let args = CliArgs::parse_from(argv);
     configure_rayon_pool();
     args.run(&config_overrides).await
@@ -43,7 +43,7 @@ pub async fn main() -> miette::Result<()> {
 /// limits in containers and CI runners are respected — `num_cpus`
 /// reports the host's logical CPU count, which on a quota-limited
 /// runner can spin up far more rayon threads than the kernel will
-/// actually schedule onto our cores (Copilot review on [#292](https://github.com/pnpm/pacquet/pull/292)).
+/// actually schedule onto our cores (Copilot review on [#292]).
 ///
 /// **Floor of 4 threads is intentional.** A 1-2-CPU CI runner left
 /// at `2 × parallelism` would be capped to 2-4 rayon threads, and
@@ -62,6 +62,8 @@ pub async fn main() -> miette::Result<()> {
 /// override only when nothing else has been configured). Best-effort:
 /// if another part of the binary already initialised the pool, leave
 /// it alone.
+///
+/// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn configure_rayon_pool() {
     if std::env::var_os("RAYON_NUM_THREADS").is_some() {
         return;

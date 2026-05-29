@@ -987,7 +987,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // warm snapshot at once, which closes the ~94% wall-time gap
         // to pnpm on the full-resolution-warm scenario without
         // regressing the cold-cache or frozen-lockfile paths. See
-        // #11866 for the architectural diagnosis and the bench data.
+        // <https://github.com/pnpm/pnpm/issues/11866> for the architectural diagnosis and the bench data.
         //
         // The fresh-lockfile path has no installability check yet
         // (the resolver's `PackageVersion` deserializer doesn't carry
@@ -1093,7 +1093,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     config,
                     lockfile: &built_lockfile,
                     // No previous-install `<virtual_store_dir>/lock.yaml`
-                    // is threaded into the fresh path yet (#11871), so the
+                    // is threaded into the fresh path yet (<https://github.com/pnpm/pnpm/issues/11871>), so the
                     // walker runs without an orphan diff.
                     current_lockfile: None,
                     layout: &layout,

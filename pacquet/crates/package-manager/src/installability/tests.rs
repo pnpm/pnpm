@@ -584,7 +584,7 @@ fn fetch_failed_and_optional_excluded_are_symmetric() {
     assert!(skipped_a.contains(&key));
 
     // Order B: optional_excluded first, then fetch_failed — the
-    // second insert must also no-op (Copilot PR #485 review:
+    // second insert must also no-op (Copilot PR <https://github.com/pnpm/pacquet/pull/485> review:
     // `add_fetch_failed` needs the symmetric guard so callers
     // can't corrupt the skip set by reversing the order).
     let mut skipped_b = SkippedSnapshots::new();

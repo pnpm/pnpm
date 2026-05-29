@@ -148,7 +148,7 @@ fn tarball_bitbucket() {
 
 #[test]
 fn tarball_gitlab_uses_archive_path() {
-    // Regression for pnpm #11533: the tarball must not embed
+    // Regression for pnpm <https://github.com/pnpm/pnpm/issues/11533>: the tarball must not embed
     // `%2F`. The `/-/archive/<ref>/<project>-<ref>.tar.gz` form
     // doesn't.
     let mut hosted = HostedGit::from_url("gitlab:pnpmjs/git-resolver").expect("ok");

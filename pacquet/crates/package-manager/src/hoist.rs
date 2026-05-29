@@ -108,10 +108,12 @@ pub fn build_hoist_graph(
 /// [`DirectDependenciesByImporterId`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L23-L25).
 ///
 /// Outer key is the importer id (`"."` for the root project; workspace
-/// projects extend this in [#431](https://github.com/pnpm/pacquet/issues/431)). Inner map is alias → snapshot key,
+/// projects extend this in [#431]). Inner map is alias → snapshot key,
 /// preserving npm-alias semantics — the alias is the directory name
 /// linked under the project's `node_modules`, and the snapshot key
 /// resolves where the link points.
+///
+/// [#431]: https://github.com/pnpm/pacquet/issues/431
 pub type DirectDepsByImporter = HashMap<String, HashMap<String, PackageKey>>;
 
 /// Build a [`DirectDepsByImporter`] from the lockfile's `importers:`
@@ -128,13 +130,15 @@ pub type DirectDepsByImporter = HashMap<String, HashMap<String, PackageKey>>;
 /// rather than the lockfile's full `&HashMap` so the caller can
 /// restrict the input to the importer set actually being installed.
 /// Today the frozen-lockfile call site passes the full `importers`
-/// map — workspace install (pnpm/pacquet#431) landed in [#443](https://github.com/pnpm/pacquet/pull/443) and
+/// map — workspace install (pnpm/pacquet#431) landed in [#443] and
 /// pacquet now installs every entry — so the iterator-shaped
 /// signature lets future selected-projects (`--filter`) installs
 /// pass a filtered iterator without touching this function. The
 /// `link:` workspace-sibling entries are skipped via
 /// [`pacquet_lockfile::ImporterDepVersion::as_regular`] inside the
 /// loop.
+///
+/// [#443]: https://github.com/pnpm/pacquet/pull/443
 pub fn build_direct_deps_by_importer<'a, Iter>(
     importers: Iter,
     dependency_groups: impl IntoIterator<Item = pacquet_package_manifest::DependencyGroup> + Clone,
@@ -155,7 +159,7 @@ where
                 // in the snapshot graph and aren't candidates for the
                 // private/public hoist (upstream handles them via the
                 // separate `hoistedWorkspacePackages` shape, which is
-                // out of scope for this issue per #431). For aliased
+                // out of scope for this issue per <https://github.com/pnpm/pacquet/issues/431>). For aliased
                 // deps, [`ImporterDepVersion::resolved_key`] returns
                 // the alias's own (name, suffix), matching the
                 // snapshot key under which the package lives.

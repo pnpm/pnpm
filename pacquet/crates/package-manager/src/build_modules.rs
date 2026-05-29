@@ -793,13 +793,15 @@ fn build_one_snapshot<Reporter: self::Reporter>(
 /// — `slot_dir(key)` — or the GVS lookup misses, falls through to the
 /// legacy flat-name path, and points at a directory that
 /// [`crate::CreateVirtualDirBySnapshot`] never created.
-/// `slot_dir(key.without_peer())` was the pre-[#432](https://github.com/pnpm/pacquet/issues/432) spelling and
+/// `slot_dir(key.without_peer())` was the pre-[#432] spelling and
 /// silently dropped lifecycle scripts for peer-resolved snapshots
 /// — never use it here.
 ///
 /// The package-name segment still comes from the peer-stripped key,
 /// because the slot's `node_modules/<pkg>` is keyed by the bare
 /// package name regardless of peer context.
+///
+/// [#432]: https://github.com/pnpm/pacquet/issues/432
 fn virtual_store_dir_for_key(layout: &crate::VirtualStoreLayout, key: &PackageKey) -> PathBuf {
     let bare_key = key.without_peer();
     let key_str = bare_key.to_string();

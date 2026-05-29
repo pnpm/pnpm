@@ -23,7 +23,7 @@
 //!
 //! - The GitLab tarball template emits `/-/archive/<ref>/<project>-<ref>.tar.gz`
 //!   directly, matching pnpm's [`gitlabTarballTemplate`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L137-L140)
-//!   override (fix [#11533](https://github.com/pnpm/pnpm/issues/11533)). Upstream hosted-git-info still emits the
+//!   override (fix [#11533]). Upstream hosted-git-info still emits the
 //!   `/api/v4/projects/<user>%2F<project>/repository/archive.tar.gz`
 //!   form; pacquet ports the pnpm override, not the raw template.
 //! - The `gist` host is not implemented. pnpm's test suite never
@@ -31,6 +31,8 @@
 //! - `browse` / `bugs` / `docs` / `file` / `git` templates are not
 //!   implemented — only `https` / `ssh` / `sshurl` / `tarball` /
 //!   `shortcut` are used by the resolver.
+//!
+//! [#11533]: https://github.com/pnpm/pnpm/issues/11533
 
 use std::fmt::{self, Write};
 

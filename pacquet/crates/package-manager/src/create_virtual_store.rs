@@ -222,7 +222,7 @@ impl<'a> CreateVirtualStore<'a> {
         // per snapshot. Every `InstallPackageBySnapshot` performs a cache
         // lookup against this index before falling through to the network;
         // on a 1352-package lockfile the per-snapshot reopen accounted for
-        // ~1.3 s of wall time even with a fully populated store (see #260).
+        // ~1.3 s of wall time even with a fully populated store (see <https://github.com/pnpm/pacquet/issues/260>).
         // A `None` here means the store has no `index.db` yet (first install
         // against an empty store), in which case every lookup would miss —
         // so we keep the handle `Option`al and short-circuit.
@@ -303,14 +303,14 @@ impl<'a> CreateVirtualStore<'a> {
         // so skipping them here matches the per-snapshot path's check.
         // [`snapshot_cache_key`] is the shared key-derivation helper —
         // a future change to the resolution-type handling or key
-        // shape stays in one place (Copilot review on #292).
+        // shape stays in one place (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
         //
         // Walk `snapshots` once, stash the per-snapshot cache key
         // alongside its `(snapshot_key, snapshot)` tuple, and reuse
         // the stashed key for both the prefetch input and the
         // warm/cold partition below. A separate pass to recompute
         // each key would re-allocate two strings per snapshot for
-        // nothing (Copilot follow-up review on #292).
+        // nothing (Copilot follow-up review on <https://github.com/pnpm/pacquet/pull/292>).
         //
         // Lockfiles with peer-dependency variants of the same package
         // (e.g. `react-dom@17.0.2(react@17.0.2)` plus
@@ -336,7 +336,7 @@ impl<'a> CreateVirtualStore<'a> {
         //    supposed to be installed, so there are no store-index
         //    rows to keep alive.
         //
-        // 2. **Current-lockfile skip (main #442)** — the previous
+        // 2. **Current-lockfile skip (main <https://github.com/pnpm/pacquet/pull/442>)** — the previous
         //    install also installed this snapshot (`current_snapshots`)
         //    with the same dependency wiring + integrity, AND its
         //    virtual-store slot still exists on disk. Mirrors
@@ -431,7 +431,7 @@ impl<'a> CreateVirtualStore<'a> {
         //   land in `side_effects_maps_by_snapshot` so
         //   [`crate::BuildModules`]'s `is_built` gate can skip
         //   re-running build scripts on warm reinstalls (review on
-        //   #442 — without this, allowed-build packages re-execute
+        //   <https://github.com/pnpm/pacquet/pull/442> — without this, allowed-build packages re-execute
         //   their scripts every install, costing seconds on the
         //   warm-reinstall path).
         type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, Option<String>);
@@ -551,7 +551,7 @@ impl<'a> CreateVirtualStore<'a> {
         // explicit alias, so the warm tuple's third field stays bound
         // to whatever value type `pacquet_tarball::PrefetchedCasPaths`
         // exposes. A future change there propagates here without a
-        // local alias drifting (Copilot review on #292).
+        // local alias drifting (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
         let mut warm = Vec::with_capacity(snapshot_entries.len());
         let mut cold: Vec<(&PackageKey, &SnapshotEntry)> = Vec::new();
         // Build a `metadata_key -> manifest` lookup from the prefetched
@@ -652,7 +652,7 @@ impl<'a> CreateVirtualStore<'a> {
             // `current_thread` we fall back to a plain inline call,
             // matching how the rest of the test suite already runs
             // sync work directly on the test thread (Copilot review on
-            // #292).
+            // <https://github.com/pnpm/pacquet/pull/292>).
             //
             // Hoisted skips this batch entirely: no virtual-store slot
             // gets written, so there's no per-snapshot link work to
@@ -877,7 +877,7 @@ impl<'a> CreateVirtualStore<'a> {
 ///   fail on anyway — missing metadata, missing tarball integrity, or
 ///   a directory / git resolution this build doesn't support yet —
 ///   so the orchestrator can short-circuit *before* the warm rayon
-///   batch runs (Copilot review on [#292](https://github.com/pnpm/pacquet/pull/292)). The previous shape collapsed
+///   batch runs (Copilot review on [#292]). The previous shape collapsed
 ///   these into `None` and shoved them into the cold batch, which
 ///   meant a malformed lockfile would do up to ~6 s of warm-batch
 ///   linking before the actual error fired.
@@ -891,6 +891,8 @@ impl<'a> CreateVirtualStore<'a> {
 /// the resolution-type handling or key shape stays in one place.
 /// A drift between the two loops would silently misclassify warm
 /// entries as cold and quietly halve install speed.
+///
+/// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn snapshot_cache_key(
     snapshot_key: &PackageKey,
     packages: &HashMap<PackageKey, PackageMetadata>,

@@ -199,7 +199,7 @@ impl WorkEnv {
         // the source's HEAD (e.g. tip of `main` when the runner is on
         // a PR branch that's behind `main`) won't end up in the
         // bench-repo and the subsequent `git checkout <sha>` panics
-        // with `unable to read tree`. See PR #321 comment
+        // with `unable to read tree`. See PR <https://github.com/pnpm/pacquet/pull/321> comment
         // <https://github.com/pnpm/pacquet/pull/321#issuecomment-4326141435>.
         let commit = WorkEnv::resolve_revision(repository, revision);
         eprintln!("Resolved {revision:?} to {commit}");
@@ -263,7 +263,7 @@ impl WorkEnv {
         // primes the store. Wiping once upfront makes the warmup the
         // priming run no matter what state the work-env was in. For
         // cold-cache scenarios this is redundant with the per-iteration
-        // wipe but harmless (Copilot review on #296).
+        // wipe but harmless (Copilot review on <https://github.com/pnpm/pacquet/pull/296>).
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
             for name in ["node_modules", "store-dir"] {
                 let path = dir.join(name);
@@ -331,8 +331,10 @@ impl WorkEnv {
 
 /// Fetch `commit` into `revision_repo`, creating it if missing, and
 /// check the commit out. Shared between the pacquet and pnpm build
-/// paths — both follow the same fetch-by-SHA discipline that PR [#321](https://github.com/pnpm/pacquet/pull/321)
+/// paths — both follow the same fetch-by-SHA discipline that PR [#321]
 /// established for pacquet revisions.
+///
+/// [#321]: https://github.com/pnpm/pacquet/pull/321
 fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
     // Three entry states for `revision_repo`:
     //   1. doesn't exist          → clone (HEAD set by clone, worktree empty)

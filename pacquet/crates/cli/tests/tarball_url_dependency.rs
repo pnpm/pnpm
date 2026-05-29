@@ -14,11 +14,13 @@
 //! URL does *not* start with the configured registry. A registry-host
 //! tarball URL is parsed by the npm resolver instead (see
 //! `parse_bare_specifier`), so it carries the registry's integrity from
-//! metadata and never exercises the reuse path [#12001](https://github.com/pnpm/pnpm/issues/12001) is about.
+//! metadata and never exercises the reuse path [#12001] is about.
 //!
 //! Pacquet doesn't support remote (non-registry) https-tarball *direct
 //! dependencies* end to end yet, so the scenario below is a
 //! [`known_failures`] entry. See that module for the exact gap.
+//!
+//! [#12001]: https://github.com/pnpm/pnpm/issues/12001
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -80,7 +82,7 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     });
 
     // Install an unrelated package. This rewrites the lockfile while the
-    // tarball dependency is reused — the exact #12001 trigger.
+    // tarball dependency is reused — the exact <https://github.com/pnpm/pnpm/issues/12001> trigger.
     fs::write(
         &manifest_path,
         serde_json::json!({
@@ -102,7 +104,7 @@ fn remote_tarball_integrity_survives_unrelated_install() {
         "the tarball dependency's integrity must be preserved verbatim:\n{lockfile}",
     );
 
-    // The frozen install is the symptom #12001 reports: it fails closed
+    // The frozen install is the symptom <https://github.com/pnpm/pnpm/issues/12001> reports: it fails closed
     // when the tarball entry has lost its integrity.
     pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
@@ -123,10 +125,12 @@ mod known_failures {
     /// resolution), so `dependencies_graph_to_lockfile` panics with
     /// `MissingSuffix` building the importer dep path. Until the
     /// resolve-time tarball-manifest fetch (and the integrity it
-    /// computes) lands, pnpm [#12001](https://github.com/pnpm/pnpm/issues/12001)'s integrity-preservation-on-reuse
+    /// computes) lands, pnpm [#12001]'s integrity-preservation-on-reuse
     /// isn't reachable here. Registry-host tarball URLs take the npm
     /// resolver path instead and already carry integrity from metadata.
     /// Tracked in <https://github.com/pnpm/pnpm/issues/12053>.
+    ///
+    /// [#12001]: https://github.com/pnpm/pnpm/issues/12001
     pub fn external_tarball_dependency_unsupported() -> KnownResult<()> {
         Err(KnownFailure::new(
             "remote non-registry https-tarball direct dependencies are unsupported",

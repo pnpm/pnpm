@@ -356,7 +356,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     drop((dir, mock_instance));
 }
 
-/// Issue [#312](https://github.com/pnpm/pacquet/issues/312), unversioned variant: `"foo": "npm:bar"` (no `@<range>`)
+/// Issue [#312], unversioned variant: `"foo": "npm:bar"` (no `@<range>`)
 /// must default to `latest` without panicking. `resolve_registry_dependency`
 /// turns `"npm:bar"` into `("bar", "latest")`; the previous code then
 /// fed `"latest"` to `package.pinned_version()` which panics because
@@ -366,6 +366,8 @@ async fn npm_alias_dependency_installs_under_alias_key() {
 ///
 /// We use the same scoped test package as the pinned-version test above
 /// but omit the `@1.0.0` suffix to trigger the default-to-`latest` path.
+///
+/// [#312]: https://github.com/pnpm/pacquet/issues/312
 #[tokio::test]
 async fn unversioned_npm_alias_defaults_to_latest() {
     let mock_instance = TestRegistry::start();
@@ -1263,8 +1265,10 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
 /// integrity is bogus on purpose. Pacquet enforces tarball integrity
 /// on the install path, so any test that lets the install reach the
 /// fetch site would fail — meaning a successful install with this
-/// fixture is *proof* that the per-snapshot skip path (issue [#433](https://github.com/pnpm/pacquet/issues/433)
+/// fixture is *proof* that the per-snapshot skip path (issue [#433]
 /// section B) short-circuited the fetch entirely.
+///
+/// [#433]: https://github.com/pnpm/pacquet/issues/433
 const PARTIAL_INSTALL_LOCKFILE: &str = text_block! {
     "lockfileVersion: '9.0'"
     "importers:"
@@ -1307,7 +1311,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
     let manifest_path = dir.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
-    // check (#447) rejects any drift between the on-disk manifest and
+    // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -1400,7 +1404,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     let manifest_path = dir.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
-    // check (#447) rejects any drift between the on-disk manifest and
+    // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -1509,7 +1513,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
     let manifest_path = dir.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match the fixture lockfile below — the freshness
-    // check (#447) rejects any drift between the on-disk manifest and
+    // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -1667,7 +1671,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     let manifest_path = dir.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
-    // check (#447) rejects any drift between the on-disk manifest and
+    // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -1752,7 +1756,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     drop(dir);
 }
 
-/// Issue [#447](https://github.com/pnpm/pacquet/issues/447): a `--frozen-lockfile` install where the on-disk
+/// Issue [#447]: a `--frozen-lockfile` install where the on-disk
 /// `package.json` has drifted from the lockfile importer entry must
 /// fail with `OutdatedLockfile` *before* any fetch or link work
 /// starts. Mirrors upstream's `ERR_PNPM_OUTDATED_LOCKFILE` thrown
@@ -1765,6 +1769,8 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 /// fire, the install reaches the fetch site and errors with a
 /// network / integrity failure — distinguishable from the early
 /// `OutdatedLockfile` we expect.
+///
+/// [#447]: https://github.com/pnpm/pacquet/issues/447
 #[tokio::test]
 async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
     let dir = tempdir().unwrap();
@@ -2879,7 +2885,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     let manifest_path = dir.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // Manifest must match the lockfile importer entry so the
-    // freshness check (#447) doesn't reject the install before we
+    // freshness check (<https://github.com/pnpm/pacquet/issues/447>) doesn't reject the install before we
     // reach the fetch site.
     manifest.add_dependency("broken-pkg", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
@@ -3350,7 +3356,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
 }
 
 /// Wiring proof for the new `nodeLinker: hoisted` install branch
-/// (umbrella [#438](https://github.com/pnpm/pacquet/issues/438) slice 6). Empty lockfile drives the cheapest
+/// (umbrella [#438] slice 6). Empty lockfile drives the cheapest
 /// successful install path:
 ///
 /// 1. `Install::run` dispatches into `InstallFrozenLockfile::run`.
@@ -3373,6 +3379,8 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
 /// composes with the existing pipeline phases. End-to-end coverage
 /// against the registry-mock with a real package is left to a
 /// follow-up CLI integration test.
+///
+/// [#438]: https://github.com/pnpm/pacquet/issues/438
 #[tokio::test]
 async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
     let dir = tempdir().unwrap();
@@ -3536,7 +3544,9 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
 /// before any network fetch, so the bogus URL on the variant is
 /// never read — the test stays hermetic.
 ///
-/// Closes the variant-mismatch checkbox of [#437](https://github.com/pnpm/pacquet/issues/437) slice F.
+/// Closes the variant-mismatch checkbox of [#437] slice F.
+///
+/// [#437]: https://github.com/pnpm/pacquet/issues/437
 #[tokio::test]
 async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     let dir = tempdir().unwrap();
@@ -3558,7 +3568,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
 
     // Lockfile with a runtime entry whose variants only target a
     // platform we're not running on. `runtime:22.0.0` is preserved
-    // through `PkgVerPeer`'s `Prefix::Runtime` (#511 / #512); the
+    // through `PkgVerPeer`'s `Prefix::Runtime` (<https://github.com/pnpm/pacquet/issues/511> / <https://github.com/pnpm/pacquet/pull/512>); the
     // depPath round-trips correctly through pacquet's parser.
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"
@@ -3634,7 +3644,9 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
 /// never runs and the unmatchable-platform variant doesn't fail
 /// the install.
 ///
-/// Closes the `--no-runtime` checkbox of [#437](https://github.com/pnpm/pacquet/issues/437) slice F.
+/// Closes the `--no-runtime` checkbox of [#437] slice F.
+///
+/// [#437]: https://github.com/pnpm/pacquet/issues/437
 #[tokio::test]
 async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     let dir = tempdir().unwrap();

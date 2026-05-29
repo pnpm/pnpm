@@ -1009,12 +1009,12 @@ where
         // a manifest failure can't leave a fresh current-lockfile
         // pointing at incomplete install state — the next frozen
         // reinstall would otherwise diff against a graph that never
-        // finished committing (review on #442).
+        // finished committing (review on <https://github.com/pnpm/pacquet/pull/442>).
         //
-        // Workspace installs (#431) ship every importer's section of
+        // Workspace installs (<https://github.com/pnpm/pacquet/issues/431>) ship every importer's section of
         // the wanted lockfile unchanged because the install fans out
         // across all of them. Once `--filter` lands (Stage 2 of
-        // #299), this needs to narrow to the filtered lockfile
+        // <https://github.com/pnpm/pacquet/issues/299>), this needs to narrow to the filtered lockfile
         // (selected importers × engine filter) so the saved current
         // lockfile reflects only what was actually materialized.
         if frozen_lockfile && let Some(lockfile) = lockfile {
@@ -1137,7 +1137,7 @@ fn check_lockfile_freshness(
     catalogs: &Catalogs,
     ignore_manifest_check: bool,
 ) -> Result<(), FreshnessCheckError> {
-    // Pacquet has only one importer today (#431 tracks workspaces),
+    // Pacquet has only one importer today (<https://github.com/pnpm/pacquet/issues/431> tracks workspaces),
     // so the root project is the only thing to verify; once
     // workspaces land this becomes a per-project loop over
     // `lockfile.importers`.
@@ -1164,7 +1164,7 @@ fn check_lockfile_freshness(
         .as_deref()
         .map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
 
-    // Outdated-settings gate (umbrella #434 slice 7): check
+    // Outdated-settings gate (umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7): check
     // `ignoredOptionalDependencies` + `overrides` +
     // `packageExtensionsChecksum` drift between the lockfile-recorded
     // values and the current config before the per-importer specifier
@@ -1597,7 +1597,7 @@ fn build_workspace_state(
         // pnpm's `patchesOrHooksAreModified` doesn't trip on a missing
         // field.
         pnpmfiles: Vec::new(),
-        // Pacquet has no `--filter` yet (issue #299 stage 2). Hard-code
+        // Pacquet has no `--filter` yet (issue <https://github.com/pnpm/pacquet/issues/299> stage 2). Hard-code
         // `false` so pnpm doesn't treat the install as partial and
         // skip the cache.
         filtered_install: false,

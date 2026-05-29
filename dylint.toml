@@ -56,6 +56,11 @@ style = "crate"
 ["perfectionist::unit_test_file_layout"]
 inline_style = "external_only"
 
+# Don't rely on the doc-comment-only default: a bare `#NNN` is just as
+# ambiguous in a plain `//` comment, so lint those too.
+["perfectionist::bare_issue_reference"]
+include_plain_comments = true
+
 ["perfectionist::derive_ordering"]
 style = "prefix_then_alphabetical"
 prefix = [

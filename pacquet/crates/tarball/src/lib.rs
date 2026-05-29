@@ -36,9 +36,11 @@ use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 /// fires hundreds of these at once on a 1352-snapshot install, which
 /// thrashes small CI runners. Past "Download completed" a 2-CPU GitHub
 /// Actions runner wedged between decompress-close and `Checksum verified`
-/// on [#269](https://github.com/pnpm/pacquet/pull/269) until the step timeout. `num_cpus * 2` (floor 4) keeps enough
+/// on [#269] until the step timeout. `num_cpus * 2` (floor 4) keeps enough
 /// work in flight to overlap per-file FS writes with SHA on another task
 /// without oversubscribing the cores.
+///
+/// [#269]: https://github.com/pnpm/pacquet/pull/269
 fn post_download_semaphore() -> &'static Semaphore {
     static SEM: OnceLock<Semaphore> = OnceLock::new();
     SEM.get_or_init(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)))
@@ -903,7 +905,7 @@ fn extract_zip_entries(
 /// The previous pacquet implementation unconditionally ran a
 /// `symlink_metadata` per referenced file and rejected any non-regular
 /// dirent outright. That cost a stat syscall per file on every warm
-/// install ([#260](https://github.com/pnpm/pacquet/issues/260)) and still diverged from pnpm: the upstream
+/// install ([#260]) and still diverged from pnpm: the upstream
 /// [`checkPkgFilesIntegrity`][1] catches corruption via the content hash
 /// and doesn't gate on dirent type.
 ///
@@ -918,6 +920,8 @@ fn extract_zip_entries(
 /// per-file map (each entry is a `HashMap<String, PathBuf>` with up
 /// to ~hundred entries, and Copilot reasonably flagged the deep clone
 /// as a hot-path cost).
+///
+/// [#260]: https://github.com/pnpm/pacquet/issues/260
 pub type PrefetchedCasPaths = HashMap<String, Arc<HashMap<String, PathBuf>>>;
 
 /// Bundled package manifests recovered from the SQLite store index,
@@ -976,7 +980,7 @@ pub struct PrefetchResult {
 /// `cache_key → Arc<cas_paths>` map the per-snapshot futures can hit
 /// synchronously.
 ///
-/// **Locking shape (per Copilot review on [#292](https://github.com/pnpm/pacquet/pull/292)):** the SQLite mutex
+/// **Locking shape (per Copilot review on [#292]):** the SQLite mutex
 /// is held only for the SELECT loop. Integrity checks (`fs::metadata`
 /// per file, optional re-hash) happen after the guard drops, so a
 /// concurrent reader on the same `SharedReadonlyStoreIndex` doesn't
@@ -998,6 +1002,8 @@ pub struct PrefetchResult {
 /// just don't appear in the result. The caller then falls through
 /// to [`DownloadTarballToStore::run_without_mem_cache`] for those
 /// keys, which still has its own cache check as a backstop.
+///
+/// [#292]: https://github.com/pnpm/pacquet/pull/292
 pub async fn prefetch_cas_paths(
     index: Option<SharedReadonlyStoreIndex>,
     store_dir: &'static StoreDir,
@@ -1023,7 +1029,7 @@ pub async fn prefetch_cas_paths(
         // One batched `SELECT ... WHERE key IN (?, ?, ...)` per
         // `GET_MANY_CHUNK` (see `StoreIndex::get_many_raw`)
         // collapses what used to be N round-trips into one — see
-        // #294 for the cold-cache regression the per-key loop
+        // <https://github.com/pnpm/pacquet/issues/294> for the cold-cache regression the per-key loop
         // introduced when every key missed.
         let raw: Vec<(String, Vec<u8>)> = {
             let Ok(guard) = index.lock() else {
@@ -1211,9 +1217,11 @@ pub struct DownloadTarballToStore<'a> {
     /// `Connection::open` and a handful of WAL commits instead of the old
     /// "open + PRAGMA + insert + drop" per tarball (which ballooned
     /// tokio's blocking pool to 500+ threads on a 1352-snapshot install —
-    /// see [#263](https://github.com/pnpm/pacquet/issues/263)). `None` degrades to "skip index row", matching the read
+    /// see [#263]). `None` degrades to "skip index row", matching the read
     /// side's stance: install still succeeds, the next install misses on
     /// this cache key and re-downloads.
+    ///
+    /// [#263]: https://github.com/pnpm/pacquet/issues/263
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     /// Mirrors pnpm's `verify-store-integrity` / `verifyStoreIntegrity`
     /// setting. When `true` (pnpm's default) each cached CAFS file is
@@ -1224,7 +1232,9 @@ pub struct DownloadTarballToStore<'a> {
     /// the next integrity-full install. Whether that translates into a
     /// wall-time win depends on the workload; the per-snapshot stat
     /// isn't the bottleneck on the benchmarks this repo tracks (see
-    /// [#273](https://github.com/pnpm/pacquet/issues/273)), but cutting the syscall count is still correct.
+    /// [#273]), but cutting the syscall count is still correct.
+    ///
+    /// [#273]: https://github.com/pnpm/pacquet/issues/273
     pub verify_store_integrity: bool,
     /// Install-scoped dedup cache shared across every cached-tarball
     /// lookup. Ports pnpm's `verifiedFilesCache: Set<string>`: a CAFS
@@ -1266,7 +1276,9 @@ pub struct DownloadTarballToStore<'a> {
     /// `fetching/tarball-fetcher/src/remoteTarballFetcher.ts`): every
     /// failure retries except HTTP 401, 403, 404 — including arbitrary
     /// 4xx / 5xx, network resets, timeouts, mid-stream body errors,
-    /// integrity mismatches, and gzip / tar parse failures ([#259](https://github.com/pnpm/pacquet/issues/259)).
+    /// integrity mismatches, and gzip / tar parse failures ([#259]).
+    ///
+    /// [#259]: https://github.com/pnpm/pacquet/issues/259
     pub retry_opts: RetryOpts,
     /// Per-package archive-entry filter applied during CAS extraction.
     /// Receives the entry's path *after* the top-level
@@ -1404,9 +1416,11 @@ fn is_transient_error(err: &TarballError) -> bool {
 /// Permits are acquired *inside* this function so a backoff sleep
 /// between attempts doesn't keep one parked. The network permit is
 /// held from `connect + send` through body streaming (matching pnpm's
-/// pQueue and [#281](https://github.com/pnpm/pacquet/pull/281)'s EMFILE fix), then dropped before the
+/// pQueue and [#281]'s EMFILE fix), then dropped before the
 /// `post_download_semaphore` permit gates the CPU-bound checksum +
 /// decode + extract step.
+///
+/// [#281]: https://github.com/pnpm/pacquet/pull/281
 #[expect(
     clippy::too_many_arguments,
     reason = "arg count is set by upstream pnpm's fetcher signature"
@@ -1978,7 +1992,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // Before hitting the network, check the SQLite store index: if the
         // tarball is already in the CAFS we can reuse its per-file paths
         // and skip the download entirely. This is the payoff of the v11
-        // store migration (#244) — pnpm and pacquet share `index.db`, so a
+        // store migration (<https://github.com/pnpm/pacquet/issues/244>) — pnpm and pacquet share `index.db`, so a
         // previous install of the same (integrity, pkg_id) pair leaves an
         // entry we can read back here.
         //
@@ -2060,7 +2074,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // `addFilesFromTarball` side, so a flaky transfer that survives
         // TCP framing but fails the SHA-512 hash or trips gzip / tar
         // parsing recovers via re-fetch instead of aborting the install
-        // (#259). Only HTTP 401 / 403 / 404 fail fast — see
+        // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
         // [`is_transient_error`].
         let (cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
             http_client,
@@ -2077,7 +2091,7 @@ impl<'a> DownloadTarballToStore<'a> {
         .await?;
 
         // Hand the per-tarball files index off to the shared writer task
-        // from #265 *after* the retry loop returns, so transient failures
+        // from <https://github.com/pnpm/pacquet/pull/265> *after* the retry loop returns, so transient failures
         // don't queue a half-built row that a successful retry would
         // duplicate. `queue` is a non-blocking `UnboundedSender::send`;
         // the writer task owns one connection and batches whatever it

@@ -1,7 +1,9 @@
-//! Acceptance tests for issue [#11974](https://github.com/pnpm/pnpm/issues/11974) — pnpr must keep user
+//! Acceptance tests for issue [#11974] — pnpr must keep user
 //! accounts and bearer tokens across process restarts so an
 //! operator can run it as a hosted registry without losing every
 //! account on the next container redeploy.
+//!
+//! [#11974]: https://github.com/pnpm/pnpm/issues/11974
 
 use axum::{
     body::{Body, to_bytes},
