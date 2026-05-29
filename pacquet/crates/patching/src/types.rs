@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 /// Information about one configured patch.
 ///

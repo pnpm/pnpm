@@ -1,6 +1,8 @@
-use crate::group::{PatchInput, PatchNonSemverRangeError, group_patched_dependencies};
-use crate::hash::{CalcPatchHashError, create_hex_hash_from_file};
-use crate::types::PatchGroupRecord;
+use crate::{
+    group::{PatchInput, PatchNonSemverRangeError, group_patched_dependencies},
+    hash::{CalcPatchHashError, create_hex_hash_from_file},
+    types::PatchGroupRecord,
+};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;

@@ -42,7 +42,7 @@ pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 /// just push `(key, value)` onto an unbounded channel. A single
 /// [`spawn_blocking`][tokio::task::spawn_blocking] task drains the channel,
 /// collects each non-blocking burst into a batch (capped at 256 entries —
-/// see `MAX_BATCH_SIZE`), and flushes it with one `BEGIN IMMEDIATE` …
+/// see `MAX_BATCH_SIZE`), and flushes it with one `BEGIN IMMEDIATE` ...
 /// `COMMIT`. That turns the per-snapshot `Connection::open` + 7-PRAGMA +
 /// solo-INSERT pattern into one open + N transactions, amortizes the WAL
 /// commit fsync across the batch, and leaves tokio's blocking pool alone
@@ -593,7 +593,7 @@ impl StoreIndex {
     /// Insert-or-replace a batch of rows in a single transaction.
     ///
     /// Matches pnpm's `setRawMany` (see `store/index/src/index.ts`): one
-    /// `BEGIN IMMEDIATE` … `COMMIT` around the inserts, which amortizes the
+    /// `BEGIN IMMEDIATE` ... `COMMIT` around the inserts, which amortizes the
     /// WAL commit fsync across the whole batch. At 1352 snapshots that
     /// turns 1352 per-row fsyncs into ⌈1352/batch_size⌉ — on APFS this is
     /// the single biggest lever for `pacquet install` wall time (#263).

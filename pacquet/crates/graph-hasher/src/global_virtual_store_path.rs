@@ -19,13 +19,11 @@
 
 use crate::{
     HashEncoding,
-    dep_state::{calc_dep_graph_hash, transitively_requires_build},
+    dep_state::{DepsGraphNode, DepsStateCache, calc_dep_graph_hash, transitively_requires_build},
     hash_object_without_sorting,
 };
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
-
-use crate::dep_state::{DepsGraphNode, DepsStateCache};
 
 /// Compute the hex digest that uniquely identifies one snapshot's
 /// position in the global virtual store. Mirrors

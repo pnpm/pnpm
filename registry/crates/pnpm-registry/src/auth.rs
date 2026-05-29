@@ -17,19 +17,22 @@
 //! and persist on every write. Reads (the hot path for
 //! `enforce_access`) never touch disk.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
+use crate::{
+    config::{AuthConfig, MaxUsers},
+    error::{RegistryError, Result},
+};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
-
-use crate::config::{AuthConfig, MaxUsers};
-use crate::error::{RegistryError, Result};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 /// Bundle of the user store and the token store. Built once at
 /// startup so the rest of the server doesn't have to know whether

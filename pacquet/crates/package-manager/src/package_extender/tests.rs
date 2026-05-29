@@ -3,8 +3,7 @@ use indexmap::IndexMap;
 use pacquet_config::{PackageExtension, PeerDependencyMeta};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 fn extension(deps: &[(&str, &str)]) -> PackageExtension {
     let mut dependencies = BTreeMap::new();

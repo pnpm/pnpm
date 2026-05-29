@@ -552,7 +552,7 @@ fn is_node_bin_name(shim_path: &Path) -> bool {
 ///   a stale shim in place.
 /// - **Windows** hardlinks `target_path` to `<shim_path>.exe`, falling
 ///   back to `fs::copy` on hardlink failure (cross-device, ACL deny,
-///   …). The source must end in `.exe`; otherwise pnpm falls through
+///   ...). The source must end in `.exe`; otherwise pnpm falls through
 ///   to the cmd-shim path and so do we.
 ///
 /// `remove_file` rather than `Sys::write`-style truncation is
@@ -598,7 +598,7 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
 /// Remove an existing dirent at `path`, swallowing `NotFound`. Used by
 /// [`link_node_bin`] to clear any prior shim / symlink / hardlink
 /// before laying down the new one. Any other IO error (PermissionDenied,
-/// EROFS, AppArmor deny, …) surfaces as [`LinkBinsError::RemoveStaleBin`]
+/// EROFS, AppArmor deny, ...) surfaces as [`LinkBinsError::RemoveStaleBin`]
 /// so a real failure isn't hidden behind a silent skip.
 fn remove_stale_bin(path: &Path) -> Result<(), LinkBinsError> {
     match std::fs::remove_file(path) {

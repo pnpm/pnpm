@@ -14,14 +14,13 @@
 //! the `@pnpm/registry-mock` fixture (a few dozen packages) and the
 //! test queries that exercise it.
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
-
+use crate::{error::Result, publish::now_iso};
 use serde_json::{Map, Value, json};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 use tokio::fs;
-
-use crate::error::Result;
-use crate::publish::now_iso;
 
 /// Parse the `text` query parameter out of a `/-/v1/search?...`
 /// query string. npm clients always send `text=...`; we accept

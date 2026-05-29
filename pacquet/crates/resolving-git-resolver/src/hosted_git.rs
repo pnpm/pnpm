@@ -11,7 +11,7 @@
 //!   shorthand, `gitlab:…`, `bitbucket:…`), full HTTPS/SSH URLs pointed
 //!   at the matching domains, and the `git+ssh:` / `git+https:` / `ssh:` /
 //!   `git:` / `http:` / `https:` protocol families. Anything else
-//!   (Gitea, self-hosted, generic git+file, …) returns `None` so the
+//!   (Gitea, self-hosted, generic git+file, ...) returns `None` so the
 //!   caller can fall back to the protocol-prefix dispatch in
 //!   [`crate::parse_bare_specifier()`].
 //! - The output exposes the URL templates the resolver consumes —
@@ -148,7 +148,7 @@ impl HostedGit {
     ///
     /// Returns `None` when the input names a host pacquet doesn't
     /// recognise (Gitea, self-hosted GitLab, a generic
-    /// `git+file://…`, …), the project is missing, or the URL parses
+    /// `git+file://…`, ...), the project is missing, or the URL parses
     /// to an unsupported shape (e.g. a bitbucket `/get/…` archive
     /// URL — upstream's `extract` returns undefined for those and
     /// pacquet mirrors it).

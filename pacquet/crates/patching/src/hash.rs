@@ -1,9 +1,11 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
-use std::{fs, io};
+use std::{
+    collections::BTreeMap,
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 /// Error reading a patch file from disk during hashing.
 #[derive(Debug, Display, Error, Diagnostic)]

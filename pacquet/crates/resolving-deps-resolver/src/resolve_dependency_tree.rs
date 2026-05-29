@@ -1,6 +1,3 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::{Arc, Mutex, MutexGuard};
-
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
@@ -16,10 +13,14 @@ use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{ResolveError, ResolveOptions, Resolver, WantedDependency};
 use pipe_trait::Pipe;
 use serde_json::Value;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 /// Acquire a [`Mutex`] guard, recovering from poisoning the same way
 /// the rest of pacquet does (`build_modules.rs`, `pick_package.rs`,
-/// …). The mutexes guarded by this helper hold short HashMap /
+/// ...). The mutexes guarded by this helper hold short HashMap /
 /// HashSet inserts with no invariants that survive a panic, so the
 /// install can keep going after the unrelated panic that poisoned
 /// the lock — better than escalating into a hard install-wide
@@ -123,7 +124,7 @@ pub enum ResolveDependencyTreeError {
     PatchKeyConflict(#[error(source)] PatchKeyConflictError),
 
     /// A transitive dependency was resolved through an exotic
-    /// protocol (git, tarball, file, …) while `block_exotic_subdeps`
+    /// protocol (git, tarball, file, ...) while `block_exotic_subdeps`
     /// is on. Mirrors pnpm's
     /// [`EXOTIC_SUBDEP`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts#L1420-L1434).
     #[display(

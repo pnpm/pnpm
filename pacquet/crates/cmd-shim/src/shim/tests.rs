@@ -3,8 +3,10 @@ use super::{
     is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes, read_head_filled,
     relative_target, search_script_runtime,
 };
-use crate::capabilities::{FsReadHead, Host};
-use crate::path_util::lexical_normalize;
+use crate::{
+    capabilities::{FsReadHead, Host},
+    path_util::lexical_normalize,
+};
 use std::{
     io,
     path::{Path, PathBuf},

@@ -9,7 +9,7 @@
 //! declares, with any per-test scenario data stored in a `static`
 //! inside the test fn.
 //!
-//! Trait names keep their domain prefix (`Env*`, `Get*`, …) so a
+//! Trait names keep their domain prefix (`Env*`, `Get*`, ...) so a
 //! reader can identify which side effect a generic bound belongs to
 //! without chasing definitions. See the
 //! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
@@ -84,7 +84,7 @@ pub trait GetCurrentDir {
 ///
 /// "Linkable" means
 /// [`std::fs::hard_link`] returns `Ok(())`; everything else (EXDEV,
-/// EACCES, EPERM, ENOSPC, missing parent dir, …) is treated as "not
+/// EACCES, EPERM, ENOSPC, missing parent dir, ...) is treated as "not
 /// linkable" and the caller falls through to the next branch.
 /// Mirrors pnpm's
 /// [`canLink`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L3-L18)

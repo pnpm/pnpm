@@ -5,9 +5,7 @@
 //! cutoff onto transitive-dep resolution while direct deps keep the
 //! `minimumReleaseAge` cutoff.
 
-use std::collections::HashMap;
-use std::str::FromStr;
-use std::sync::Mutex;
+use std::{collections::HashMap, str::FromStr, sync::Mutex};
 
 use chrono::{DateTime, TimeZone, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};

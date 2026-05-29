@@ -1,11 +1,7 @@
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::time::Duration;
-
 use clap::Parser;
-use tracing_subscriber::EnvFilter;
-
 use pnpm_registry::{Config, ConfigSource, LogConfig, LogFormat, serve};
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
 #[command(name = "pnpm-registry", version, about = "pnpm-compatible npm registry server")]

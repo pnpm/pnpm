@@ -1,13 +1,15 @@
-use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
-
+use crate::{
+    error::RegistryError,
+    policy::{AccessList, PackagePolicies, PackagePolicy},
+};
 use indexmap::IndexMap;
 use pacquet_env_replace::{SystemEnv, env_replace_lossy};
 use serde::Deserialize;
-
-use crate::error::RegistryError;
-use crate::policy::{AccessList, PackagePolicies, PackagePolicy};
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 /// The bundled verdaccio-shaped YAML config, mirrored from
 /// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
@@ -637,8 +639,10 @@ mod tests {
         pattern_matches, resolve_relative,
     };
     use crate::policy::Identity;
-    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-    use std::path::{Path, PathBuf};
+    use std::{
+        net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+        path::{Path, PathBuf},
+    };
 
     fn user(name: &str) -> Identity {
         Identity::User { username: name.to_string() }

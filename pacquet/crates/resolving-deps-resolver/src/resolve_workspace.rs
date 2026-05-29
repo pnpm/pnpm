@@ -17,13 +17,6 @@
 //! at a time. The peer-walker share captures the hot path; the
 //! resolved-pkgs share is a follow-up perf win.
 
-use std::path::PathBuf;
-use std::sync::Arc;
-
-use chrono::{DateTime, Duration, Utc};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{Resolver, WantedDependency};
-
 use crate::{
     resolve_dependency_tree::{ManifestHook, WorkspaceTreeCtx, importer_direct_wanted_specs},
     resolve_importer::{
@@ -36,6 +29,10 @@ use crate::{
     },
     resolved_tree::ResolvedTree,
 };
+use chrono::{DateTime, Duration, Utc};
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_resolving_resolver_base::{Resolver, WantedDependency};
+use std::{path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {

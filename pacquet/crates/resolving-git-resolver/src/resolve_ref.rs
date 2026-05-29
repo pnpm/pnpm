@@ -283,13 +283,11 @@ fn resolve_v_tags(tags: &BTreeSet<String>, range: &Range) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use super::{
         GitCommandRunner, GitResolveRefError, GitRunError, looks_like_version_tag, parse_ls_remote,
         resolve_ref,
     };
-    use std::{future::Future, pin::Pin};
+    use std::{future::Future, pin::Pin, sync::Mutex};
 
     struct Stub {
         result: Result<String, String>,

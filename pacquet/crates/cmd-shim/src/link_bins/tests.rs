@@ -363,7 +363,10 @@ fn link_bins_propagates_create_bin_dir_error_via_di() {
     impl FsWalkFiles for FailingCreateDir {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }
@@ -434,7 +437,10 @@ fn link_bins_propagates_write_shim_error_via_di() {
     impl FsWalkFiles for FailingWrite {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }
@@ -501,7 +507,10 @@ fn link_bins_propagates_chmod_error_via_di() {
     impl FsWalkFiles for FailingChmod {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }
@@ -576,7 +585,10 @@ fn link_bins_propagates_target_chmod_error_via_di() {
     impl FsWalkFiles for FailingTargetChmod {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }
@@ -647,7 +659,10 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
     impl FsWalkFiles for NotFoundTargetChmod {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }
@@ -717,7 +732,10 @@ fn link_bins_propagates_probe_shim_source_error_via_di() {
     impl FsWalkFiles for FailingProbe {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }
@@ -786,7 +804,10 @@ fn link_bins_propagates_read_manifest_error_via_di() {
     impl FsWalkFiles for DenyManifestRead {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }
@@ -894,7 +915,10 @@ fn link_bins_propagates_modules_dir_read_error_via_di() {
     impl FsWalkFiles for FailingModulesRead {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }

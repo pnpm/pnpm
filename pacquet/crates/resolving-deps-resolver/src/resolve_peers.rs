@@ -41,13 +41,6 @@
 //!   the peer-id, which is what upstream's cycle resolution converges
 //!   on anyway.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
-use node_semver::{Range, Version};
-use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
-
 use crate::{
     dedupe_injected_deps::dedupe_injected_deps,
     dependencies_graph::{
@@ -59,7 +52,14 @@ use crate::{
         DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
     },
 };
+use node_semver::{Range, Version};
+use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
 use pacquet_resolving_resolver_base::ResolveResult;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Pull `(name, version)` out of a `ResolveResult` the peer-resolution
 /// stage can hash and compare on.

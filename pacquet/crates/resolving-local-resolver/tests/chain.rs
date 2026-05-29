@@ -3,13 +3,11 @@
 //! same way upstream's local resolver composes into pnpm's
 //! [`createResolver`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/default-resolver/src/index.ts#L97-L173).
 
-use std::fs;
-use std::path::PathBuf;
-
 use pacquet_lockfile::LockfileResolution;
 use pacquet_resolving_default_resolver::{DefaultResolver, SpecNotSupportedByAnyResolverError};
 use pacquet_resolving_local_resolver::{LocalResolver, LocalResolverContext};
 use pacquet_resolving_resolver_base::{ResolveOptions, WantedDependency};
+use std::{fs, path::PathBuf};
 use tempfile::TempDir;
 
 fn setup_project() -> (TempDir, PathBuf) {

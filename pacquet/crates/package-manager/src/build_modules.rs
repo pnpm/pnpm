@@ -1,6 +1,8 @@
-use crate::SkippedSnapshots;
-use crate::build_sequence::build_sequence;
-use crate::version_policy::{VersionPolicyError, expand_package_version_specs};
+use crate::{
+    SkippedSnapshots,
+    build_sequence::build_sequence,
+    version_policy::{VersionPolicyError, expand_package_version_specs},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
@@ -486,7 +488,10 @@ impl<'a> BuildModules<'a> {
 /// dispatch can call it once per chunk member. The body is the same
 /// as the pre-#12 sequential loop — `continue`s become `return Ok(())`
 /// here.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"
+)]
 fn build_one_snapshot<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     snapshots: &HashMap<PackageKey, SnapshotEntry>,

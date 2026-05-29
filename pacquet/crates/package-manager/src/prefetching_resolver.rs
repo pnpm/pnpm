@@ -23,8 +23,10 @@
 //! prefetch is still in flight). Errors are surfaced to the install
 //! path as `TarballError::SiblingFetchFailed`.
 
-use crate::install_package_from_registry::{extract_tarball, manifest_unpacked_size};
-use crate::retry_config::retry_opts_from_config;
+use crate::{
+    install_package_from_registry::{extract_tarball, manifest_unpacked_size},
+    retry_config::retry_opts_from_config,
+};
 use dashmap::DashSet;
 use pacquet_config::Config;
 use pacquet_network::{AuthHeaders, ThrottledClient};

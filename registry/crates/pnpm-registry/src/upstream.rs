@@ -1,11 +1,11 @@
-use std::sync::Arc;
-
+use crate::{
+    error::{RegistryError, Result},
+    package_name::PackageName,
+};
 use pacquet_network::ThrottledClient;
 use reqwest::StatusCode;
 use serde_json::Value;
-
-use crate::error::{RegistryError, Result};
-use crate::package_name::PackageName;
+use std::sync::Arc;
 
 /// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
 /// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,

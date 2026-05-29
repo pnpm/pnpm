@@ -17,10 +17,8 @@
 //! material, silently ignores a missing `cafile`, and consults no
 //! environment variables. Pacquet mirrors each of those choices.
 
-use std::collections::HashMap;
-use std::net::IpAddr;
-
 use crate::auth::nerf_dart;
+use std::{collections::HashMap, net::IpAddr};
 
 /// Resolved TLS + local-address configuration.
 ///

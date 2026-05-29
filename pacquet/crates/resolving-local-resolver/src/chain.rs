@@ -12,16 +12,17 @@
 //! `./foo` or `foo.tgz`). [`LocalResolver`] is the combined form
 //! kept for tests and one-off chains that don't need the split.
 
+use crate::{
+    local_resolver::{
+        LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, resolve_from_local_path,
+        resolve_from_local_scheme, resolve_latest_from_local,
+    },
+    parse_bare_specifier::WantedLocalDependency,
+};
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, UpdateBehavior, WantedDependency,
 };
-
-use crate::local_resolver::{
-    LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, resolve_from_local_path,
-    resolve_from_local_scheme, resolve_latest_from_local,
-};
-use crate::parse_bare_specifier::WantedLocalDependency;
 
 /// `Resolver` for the local-scheme branch (`link:` / `file:` /
 /// `workspace:`). Sits between the tarball resolver and the runtime

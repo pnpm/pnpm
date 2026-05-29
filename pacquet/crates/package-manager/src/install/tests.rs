@@ -12,8 +12,10 @@ use pacquet_reporter::{
     StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pacquet_store_dir::STORE_VERSION;
-use pacquet_testing_utils::fs::{get_all_folders, is_symlink_or_junction};
-use pacquet_testing_utils::registry::TestRegistry;
+use pacquet_testing_utils::{
+    fs::{get_all_folders, is_symlink_or_junction},
+    registry::TestRegistry,
+};
 use pacquet_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
@@ -901,8 +903,7 @@ mod build_workspace_state_tests {
     use pacquet_modules_yaml::IncludedDependencies;
     use pacquet_package_manifest::PackageManifest;
     use pacquet_workspace_state::ConfigDependency;
-    use std::collections::BTreeMap;
-    use std::path::PathBuf;
+    use std::{collections::BTreeMap, path::PathBuf};
     use tempfile::tempdir;
 
     fn write_manifest(dir: &std::path::Path, name: &str, version: &str) -> PackageManifest {

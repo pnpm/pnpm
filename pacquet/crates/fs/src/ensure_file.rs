@@ -514,7 +514,10 @@ fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
 /// permanent (mount-point conflicts). So on non-Windows the
 /// classifier is disabled and any `rename` error propagates
 /// immediately.
-fn is_transient_rename_error(#[cfg_attr(not(windows), allow(unused))] error: &io::Error) -> bool {
+fn is_transient_rename_error(
+    #[cfg_attr(not(windows), allow(unused, reason = "only inspected in the Windows branch below"))]
+    error: &io::Error,
+) -> bool {
     #[cfg(windows)]
     {
         matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)

@@ -1,13 +1,14 @@
-use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime};
-
-use tokio::fs;
-use tokio::io::AsyncWriteExt;
-
-use crate::error::{RegistryError, Result};
-use crate::package_name::PackageName;
+use crate::{
+    error::{RegistryError, Result},
+    package_name::PackageName,
+};
+use std::{
+    io::ErrorKind,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
+    time::{Duration, SystemTime},
+};
+use tokio::{fs, io::AsyncWriteExt};
 
 const PACKUMENT_FILE: &str = "package.json";
 

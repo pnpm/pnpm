@@ -1,5 +1,7 @@
-use crate::SkippedSnapshots;
-use crate::graph_sequencer::{GraphSequencerResult, graph_sequencer};
+use crate::{
+    SkippedSnapshots,
+    graph_sequencer::{GraphSequencerResult, graph_sequencer},
+};
 use pacquet_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
 use pacquet_patching::ExtendedPatchInfo;
 use std::collections::{HashMap, HashSet};

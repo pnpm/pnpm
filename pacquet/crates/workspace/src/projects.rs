@@ -124,7 +124,7 @@ pub fn find_workspace_projects_no_check(
     // fallback fires only on `None`, not on `Some(vec![])` — an explicit
     // empty array means "enumerate only the workspace root" (which is
     // unconditionally added below per upstream's
-    // https://github.com/pnpm/pnpm/issues/1986 rule).
+    // <https://github.com/pnpm/pnpm/issues/1986> rule).
     let default_patterns = [".".to_string(), "**".to_string()];
     let patterns: &[String] = match opts.patterns.as_deref() {
         Some(p) => p,

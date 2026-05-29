@@ -369,8 +369,7 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
 }
 
 mod block_exotic_subdeps {
-    use std::collections::HashMap;
-    use std::sync::Mutex;
+    use std::{collections::HashMap, sync::Mutex};
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_resolving_resolver_base::ResolveOptions;
@@ -566,8 +565,7 @@ mod block_exotic_subdeps {
 }
 
 mod peers {
-    use std::collections::HashMap;
-    use std::sync::Mutex;
+    use std::{collections::HashMap, sync::Mutex};
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_resolving_resolver_base::ResolveOptions;
@@ -1724,8 +1722,10 @@ mod peers {
 }
 
 mod patched_dependencies {
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};

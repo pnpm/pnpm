@@ -4,15 +4,16 @@
 //! Each `#[tokio::test]` mirrors one upstream `test(...)` block; the
 //! upstream test name is preserved in the Rust function name.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_resolving_local_resolver::{
     LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
     WantedLocalDependency, resolve_from_local_path, resolve_from_local_scheme,
 };
 use pacquet_resolving_resolver_base::PkgResolutionId;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::TempDir;
 
 /// Set up a `<tmp>/inner/` directory with a package.json carrying the

@@ -1,6 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::str::FromStr;
-
+use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
@@ -11,9 +9,11 @@ use pacquet_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, 
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use serde_json::json;
 use ssri::Integrity;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    str::FromStr,
+};
 use tempfile::TempDir;
-
-use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
 
 /// Build a single-importer [`GraphToLockfileOptions`] under the root key
 /// (`"."`). Every existing test exercises the single-importer shape;

@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
+use crate::{Config, api::EnvVar};
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
-
-use crate::{Config, api::EnvVar};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Subset of `.npmrc` keys pacquet honours for registry / auth setup.
 ///

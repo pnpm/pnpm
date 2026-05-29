@@ -9,19 +9,17 @@
 //! it inside [`tokio::task::spawn_blocking`] without blocking the
 //! async runtime, and so these helpers stay easy to unit-test.
 
-use std::collections::BTreeMap;
-use std::fmt::Write as FmtWrite;
-use std::fs::File;
-use std::io::{Cursor, Read, Write};
-use std::path::Path;
-
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
-use base64::read::DecoderReader;
+use crate::error::RegistryError;
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64, read::DecoderReader};
 use serde_json::{Map, Value};
 use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
-
-use crate::error::RegistryError;
+use std::{
+    collections::BTreeMap,
+    fmt::Write as FmtWrite,
+    fs::File,
+    io::{Cursor, Read, Write},
+    path::Path,
+};
 
 /// Per-tarball metadata pulled out of an `_attachments` entry. We
 /// hold the base64 payload as an owned `String` rather than decoding
@@ -331,18 +329,15 @@ pub fn iso_from_unix_millis(millis: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
-    use base64::Engine;
-    use base64::engine::general_purpose::STANDARD as BASE64;
-    use serde_json::{Value, json};
-    use ssri::{Algorithm, IntegrityOpts};
-    use tempfile::TempDir;
-
     use super::{
         extract_attachments, merge_manifest, now_iso, sha1_hex_from_integrity_opts,
         stream_decode_verify_and_write,
     };
+    use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+    use serde_json::{Value, json};
+    use ssri::{Algorithm, IntegrityOpts};
+    use std::path::PathBuf;
+    use tempfile::TempDir;
 
     fn sri_sha512(bytes: &[u8]) -> String {
         let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);

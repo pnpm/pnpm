@@ -5,8 +5,8 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256, Sha512};
 use std::{
     collections::{BTreeMap, HashMap},
-    env, fs, io,
-    io::Write,
+    env, fs,
+    io::{self, Write},
     path::{Path, PathBuf},
     sync::{
         OnceLock,

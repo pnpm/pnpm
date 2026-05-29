@@ -5,7 +5,10 @@ use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::StoreDir;
 #[cfg(unix)]
 use pacquet_testing_utils::env_guard::EnvGuard;
-use std::{fs, path::Path, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::tempdir;
 
 /// Build a bare repo whose manifest declares a `prepare` script. The

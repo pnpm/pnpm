@@ -1,18 +1,15 @@
 //! Unit tests for [`crate::installability::compute_skipped_snapshots`].
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-
+use crate::installability::{
+    InstallabilityHost, SkippedSnapshots, any_installability_constraint, compute_skipped_snapshots,
+};
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgNameVerPeer, SnapshotEntry,
     TarballResolution,
 };
 use pacquet_reporter::{LogEvent, Reporter, SkippedOptionalPackage, SkippedOptionalReason};
 use pretty_assertions::assert_eq;
-
-use crate::installability::{
-    InstallabilityHost, SkippedSnapshots, any_installability_constraint, compute_skipped_snapshots,
-};
+use std::{cell::RefCell, collections::HashMap};
 
 // Thread-local recording so the cargo-default parallel test runner
 // can fan out without tests polluting each other's event stream.

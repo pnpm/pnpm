@@ -3,19 +3,21 @@
 //! operator can run it as a hosted registry without losing every
 //! account on the next container redeploy.
 
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::path::PathBuf;
-use std::process::Command;
-
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
-use serde_json::{Value, json};
-use tempfile::TempDir;
-use tower::ServiceExt;
-
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
 use pnpm_registry::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router_with_auth,
 };
+use serde_json::{Value, json};
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::PathBuf,
+    process::Command,
+};
+use tempfile::TempDir;
+use tower::ServiceExt;
 
 fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))

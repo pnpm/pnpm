@@ -3,7 +3,7 @@ use pacquet_store_dir::StoreDir;
 use std::{env, path::PathBuf};
 
 #[cfg(windows)]
-use std::{path::Component, path::Path};
+use std::path::{Component, Path};
 
 pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
@@ -113,7 +113,7 @@ where
         return default_store_dir_windows(&home_dir, &current_dir).into();
     }
 
-    // https://doc.rust-lang.org/std/env/consts/constant.OS.html
+    // <https://doc.rust-lang.org/std/env/consts/constant.OS.html>
     match env::consts::OS {
         "linux" => home_dir.join(".local/share/pnpm/store").into(),
         "macos" => home_dir.join("Library/pnpm/store").into(),

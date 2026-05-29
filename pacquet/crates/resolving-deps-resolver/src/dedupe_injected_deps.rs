@@ -186,8 +186,10 @@ mod tests {
     use pacquet_deps_path::DepPath;
     use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
     use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-    use std::collections::{BTreeMap, HashSet};
-    use std::path::PathBuf;
+    use std::{
+        collections::{BTreeMap, HashSet},
+        path::PathBuf,
+    };
 
     fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraphNode {
         DependenciesGraphNode {

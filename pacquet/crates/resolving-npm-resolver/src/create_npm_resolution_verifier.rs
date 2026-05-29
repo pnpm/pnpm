@@ -716,7 +716,7 @@ impl NpmResolutionVerifier {
             // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
             // cap (see [#11860]).
             //
-            // [#11860]: https://github.com/pnpm/pnpm/issues/11860
+            // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
             self.fetch_full_meta(registry, name)
                 .await
                 .map(|meta| project_trust_meta(&meta))

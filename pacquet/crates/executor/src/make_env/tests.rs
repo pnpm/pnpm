@@ -230,7 +230,7 @@ fn stamp_package_recurses_into_kept_buckets() {
     assert_eq!(env.get("npm_package_bin_foo").map(String::as_str), Some("./bin/foo.js"));
 }
 
-/// Array indices become numeric keys (`bin[0]`, `bin[1]`, …) — JS
+/// Array indices become numeric keys (`bin[0]`, `bin[1]`, ...) — JS
 /// iterates `for (i in array)` as strings, and the recursion handles
 /// it the same way as object keys.
 #[test]

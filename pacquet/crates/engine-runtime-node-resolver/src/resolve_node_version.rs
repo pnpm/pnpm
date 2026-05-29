@@ -8,7 +8,7 @@
 //! - `latest` — the first entry in the index (the newest published
 //!   build on that channel).
 //! - `lts` — the newest entry tagged with any LTS codename.
-//! - An LTS codename (`argon`, `iron`, …) — `*` within that codename.
+//! - An LTS codename (`argon`, `iron`, ...) — `*` within that codename.
 //! - A semver range — pick the `max_satisfying` version.
 
 use std::sync::Arc;

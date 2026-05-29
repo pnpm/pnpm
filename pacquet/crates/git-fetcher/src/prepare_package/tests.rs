@@ -16,8 +16,8 @@ use tempfile::tempdir;
 /// allocation per test isn't necessary when every site wants the same
 /// value.
 fn empty_env() -> &'static HashMap<String, String> {
-    static M: OnceLock<HashMap<String, String>> = OnceLock::new();
-    M.get_or_init(HashMap::new)
+    static EMPTY_ENV: OnceLock<HashMap<String, String>> = OnceLock::new();
+    EMPTY_ENV.get_or_init(HashMap::new)
 }
 
 fn write_manifest(dir: &Path, manifest: &serde_json::Value) {

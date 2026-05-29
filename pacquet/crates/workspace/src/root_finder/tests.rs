@@ -5,8 +5,7 @@ use super::{
 };
 use crate::{WORKSPACE_MANIFEST_FILENAME, api::EnvVarOs};
 use pretty_assertions::assert_eq;
-use std::ffi::OsString;
-use std::fs;
+use std::{ffi::OsString, fs};
 use tempfile::TempDir;
 
 /// `pnpm-workspace.yaml` exists at the start dir → returns that dir.

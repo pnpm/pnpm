@@ -186,7 +186,7 @@ pub struct VariationsResolution {
 /// `libc`'s tri-state encodes pnpm's `string | null | undefined` shape:
 ///
 /// - `None` — the host's libc constraint is irrelevant (macOS, Windows,
-///   BSD, …). Matches a variant whose `libc` is `None` (the default
+///   BSD, ...). Matches a variant whose `libc` is `None` (the default
 ///   build); a `libc: "musl"` variant is rejected since `musl` is a
 ///   non-default, non-interchangeable artifact.
 /// - `Some("glibc")` — Linux with glibc. Same matching rule as `None`:

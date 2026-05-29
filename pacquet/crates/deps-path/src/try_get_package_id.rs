@@ -10,7 +10,7 @@ use crate::suffix_index::index_of_dep_path_suffix;
 ///    [`crate::remove_suffix`] uses.
 /// 2. When the trimmed result contains a `:`, drop the leading
 ///    `<name>@` prefix so the returned id is the bare resolution id
-///    (a tarball URL, a git URL, …). Pnpm keeps the prefix for
+///    (a tarball URL, a git URL, ...). Pnpm keeps the prefix for
 ///    `runtime:` engine entries — those carry their name in the
 ///    pkgId by design.
 ///

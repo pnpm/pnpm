@@ -644,8 +644,8 @@ fn extract_tarball_entries(
         // publisher's fault and downstream code can fall back to
         // disk reads).
         //
-        // [pnpm/pnpm@4750fd370c]: https://github.com/pnpm/pnpm/blob/4750fd370c/worker/src/start.ts#L218
-        // [`addFilesFromTarball`]: https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43
+        // [pnpm/pnpm@4750fd370c]: <https://github.com/pnpm/pnpm/blob/4750fd370c/worker/src/start.ts#L218>
+        // [`addFilesFromTarball`]: <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43>
         if cleaned_entry_path == "package.json" {
             match serde_json::from_slice::<serde_json::Value>(&buffer) {
                 Ok(parsed) => pkg_files_idx.manifest = normalize_bundled_manifest(&parsed),
@@ -1668,7 +1668,10 @@ fn emit_progress_found_in_store<Reporter: self::Reporter>(package_id: &str, requ
 // hinting, store_dir + retry_opts are install-scoped, and
 // ignore_file_pattern is the per-fetch archive filter. Bundling
 // into a struct would just push the same fields into a wrapper.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
+)]
 async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
@@ -2113,7 +2116,10 @@ impl<'a> DownloadTarballToStore<'a> {
 /// `addFilesFromDir` does on each tempdir file).
 // 8 arguments — over the default clippy threshold, but each is
 // distinct (see the matching note on `fetch_and_extract_zip_with_retry`).
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
+)]
 #[expect(
     clippy::too_many_arguments,
     reason = "arg count is set by upstream pnpm's fetcher signature"

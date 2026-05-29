@@ -1,9 +1,9 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::Arc;
-
-use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
-
 use crate::node_id::NodeId;
+use pacquet_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    sync::Arc,
+};
 
 /// Per-occurrence tree carried by [`ResolvedTree::dependencies_tree`].
 /// Mirrors upstream's
@@ -118,7 +118,7 @@ pub struct ResolvedPackage {
     /// the peer-resolution pass does when it carves
     /// `DependenciesGraphNode`s out of the resolved tree) is an
     /// `Arc::clone` instead of a deep copy of every `String` field
-    /// on `ResolveResult` (id, alias, resolved_via, name_ver, …).
+    /// on `ResolveResult` (id, alias, resolved_via, name_ver, ...).
     pub result: std::sync::Arc<ResolveResult>,
     /// `peerDependencies` from the package's manifest, with names that
     /// also appear in the package's own `dependencies` /

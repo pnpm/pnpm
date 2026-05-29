@@ -115,7 +115,7 @@ fn virtual_store_walk_orders_deepest_first() {
 /// `extra_bin_paths` slot in after the .bin walk and after node-gyp.
 /// Upstream order at lib/extendPath.js:6-19:
 ///   `pathArr = [...extraBinPaths]` then unshift node-gyp, then
-///   unshift each .bin → final order [bins…, nodeGyp, …extraBinPaths].
+///   unshift each .bin → final order [bins..., nodeGyp, ...extraBinPaths].
 #[test]
 fn extra_bin_paths_come_after_bins_and_node_gyp() {
     let wd = Path::new("/proj");

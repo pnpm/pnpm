@@ -1,5 +1,7 @@
-use crate::get_patch_info::{PatchKeyConflictError, get_patch_info};
-use crate::types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
+use crate::{
+    get_patch_info::{PatchKeyConflictError, get_patch_info},
+    types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord},
+};
 use pretty_assertions::assert_eq;
 
 const ZERO_HASH: &str = "00000000000000000000000000000000";

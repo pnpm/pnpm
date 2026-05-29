@@ -1,5 +1,7 @@
-use crate::group::{PatchInput, group_patched_dependencies};
-use crate::types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem};
+use crate::{
+    group::{PatchInput, group_patched_dependencies},
+    types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem},
+};
 use pretty_assertions::assert_eq;
 
 const ZERO_HASH: &str = "00000000000000000000000000000000";

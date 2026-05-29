@@ -34,8 +34,7 @@ use node_semver::{Range, Version};
 use pacquet_config::PackageExtension;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Map, Value};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 /// Returned by [`PackageExtender::new`] when a selector's
 /// `@<range>` half fails to parse as a `node-semver` range. Mirrors

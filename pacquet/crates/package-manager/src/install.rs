@@ -1,5 +1,3 @@
-use std::{collections::BTreeMap, path::Path, sync::Arc, sync::atomic::AtomicU8, time::SystemTime};
-
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, ResolvedPackages,
@@ -37,6 +35,12 @@ use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_state::{
     ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{Arc, atomic::AtomicU8},
+    time::SystemTime,
 };
 
 /// This subroutine does everything `pacquet install` is supposed to do.
@@ -89,7 +93,7 @@ where
     /// CLI's `configDependencies` delegation path, where pnpm has
     /// just resolved and written the lockfile but hasn't yet written
     /// the updated manifest. Settings-drift checks (`overrides`,
-    /// `ignoredOptionalDependencies`, …) still run — they don't
+    /// `ignoredOptionalDependencies`, ...) still run — they don't
     /// inspect the manifest and the bug this flag addresses is
     /// specifically the per-dep specifier mismatch from
     /// <https://github.com/pnpm/pnpm/issues/11797>.
@@ -388,7 +392,7 @@ where
         // any ancestor, matching upstream's single-project behavior.
         // Closes pnpm/pacquet#357.
         //
-        // [bunyan]: https://github.com/trentm/node-bunyan
+        // [bunyan]: <https://github.com/trentm/node-bunyan>
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
@@ -586,7 +590,7 @@ where
         // is the opt-out for environments where the install can
         // treat the on-disk lockfile as already-trusted (see [#11860]).
         //
-        // [#11860]: https://github.com/pnpm/pnpm/issues/11860
+        // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
         // One per-install packument cache shared with both the
         // lockfile-verifier (below) and the resolver in
         // `install_with_fresh_lockfile` (further down). The

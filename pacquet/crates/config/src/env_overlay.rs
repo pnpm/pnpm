@@ -41,7 +41,7 @@ fn parse_json<Target: DeserializeOwned>(value: &str) -> Option<Target> {
 
 /// Parse `value` as JSON; if that fails, retry with `value` wrapped as
 /// a JSON string. Used for enum fields whose serde representation is a
-/// bare identifier (`hoisted`, `warn-only`, `no-downgrade`, …) — the
+/// bare identifier (`hoisted`, `warn-only`, `no-downgrade`, ...) — the
 /// raw env var value isn't valid JSON on its own but becomes valid
 /// once quoted.
 fn parse_json_or_string<Target: DeserializeOwned>(value: &str) -> Option<Target> {

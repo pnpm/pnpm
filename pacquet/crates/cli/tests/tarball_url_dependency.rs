@@ -22,11 +22,12 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
-
 use known_failures::external_tarball_dependency_unsupported;
-use pacquet_testing_utils::allow_known_failure;
+use pacquet_testing_utils::{
+    allow_known_failure,
+    bin::{AddMockedRegistry, CommandTempCwd},
+};
+use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)

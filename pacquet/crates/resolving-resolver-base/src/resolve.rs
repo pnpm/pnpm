@@ -234,7 +234,7 @@ pub struct ResolveOptions {
     /// resolution. Mirrors upstream's `dryRun` flag at the resolver
     /// boundary.
     pub dry_run: bool,
-    /// When `true`, reject exotic (git, tarball, file, …) dependencies
+    /// When `true`, reject exotic (git, tarball, file, ...) dependencies
     /// appearing anywhere below the importer. Direct dependencies are
     /// still allowed; only transitive deps are gated. The check
     /// consults [`ResolveResult::resolved_via`] against the closed set
@@ -283,7 +283,7 @@ pub struct ResolveResult {
     pub name_ver: Option<PkgNameVer>,
     /// `latest` tag at the moment of resolution. Filled by the npm
     /// resolver; absent for protocols that have no notion of latest
-    /// (git, file, link, …).
+    /// (git, file, link, ...).
     pub latest: Option<String>,
     /// ISO-8601 publish timestamp. Filled by the npm resolver when
     /// available; consulted by the `minimumReleaseAge` verifier.
@@ -300,7 +300,7 @@ pub struct ResolveResult {
     /// tarball/registry/directory/git/binary/variations.
     pub resolution: LockfileResolution,
     /// Provenance tag (`"npm-registry"`, `"git-repository"`,
-    /// `"local-tarball"`, …). Used by deps-installer logs and by
+    /// `"local-tarball"`, ...). Used by deps-installer logs and by
     /// `@pnpm/cli.default-reporter`.
     pub resolved_via: String,
     /// Resolver's normalized echo of the bare specifier (e.g. `"^4"`

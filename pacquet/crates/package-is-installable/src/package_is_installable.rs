@@ -1,16 +1,17 @@
 //! Port of `packageIsInstallable` from
 //! <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/index.ts>.
 
+use crate::{
+    check_engine::{
+        Engine, InvalidNodeVersionError, UnsupportedEngineError, WantedEngine, check_engine,
+    },
+    check_platform::{
+        SupportedArchitectures, UnsupportedPlatformError, WantedPlatformRef, check_platform,
+    },
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use serde::Serialize;
-
-use crate::check_engine::{
-    Engine, InvalidNodeVersionError, UnsupportedEngineError, WantedEngine, check_engine,
-};
-use crate::check_platform::{
-    SupportedArchitectures, UnsupportedPlatformError, WantedPlatformRef, check_platform,
-};
 
 /// Inputs from a package manifest (or lockfile metadata row) that
 /// drive the installability check.

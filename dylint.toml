@@ -8,13 +8,13 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.15" },
+    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.17" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
-# heuristic cannot peer through. The built-in allow list in rc.14 already
-# covers `concat!`, `json!`, and the `assert_*_snapshot!` family, so they
-# do not need to be repeated here.
+# heuristic cannot peer through. The built-in allow list already covers
+# `concat!`, `json!`, the `assert_*_snapshot!` family, and `assert_op_expr`,
+# so they do not need to be repeated here.
 ["perfectionist::macro_argument_binding"]
 ignore = [
     # `pacquet_testing_utils::allow_known_failure!` binds its argument
@@ -42,9 +42,14 @@ ignore = [
 
 [perfectionist]
 enable = ["derive_ordering"]
-disable = [
-  { name = "arc_rc_clone", reason = "`arc_rc_clone` is enforced by `clippy::clone_on_ref_ptr` instead" },
-]
+
+# The codebase uses crate-granularity imports (one `use` per crate root,
+# with shared prefixes collapsed into nested braces) — the style the
+# commented `imports_granularity = "Crate"` in `rustfmt.toml` documents as
+# the project's intent. perfectionist's default `module` style would flag
+# every such import, so pin the rule to the style the code actually follows.
+["perfectionist::import_granularity"]
+style = "crate"
 
 ["perfectionist::derive_ordering"]
 style = "prefix_then_alphabetical"

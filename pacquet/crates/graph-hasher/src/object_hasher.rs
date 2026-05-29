@@ -1,6 +1,5 @@
 use crate::HashEncoding;
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 

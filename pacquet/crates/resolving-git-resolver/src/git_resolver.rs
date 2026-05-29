@@ -175,15 +175,18 @@ fn is_ssh(spec: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-    use std::{future::Future, pin::Pin};
-
+    use super::{GitProbe, GitResolver};
+    use crate::{
+        parse_bare_specifier::ProbeFuture,
+        resolve_ref::{GitCommandRunner, GitRunError},
+    };
     use pacquet_lockfile::LockfileResolution;
     use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-
-    use super::{GitProbe, GitResolver};
-    use crate::parse_bare_specifier::ProbeFuture;
-    use crate::resolve_ref::{GitCommandRunner, GitRunError};
+    use std::{
+        future::Future,
+        pin::Pin,
+        sync::{Arc, Mutex},
+    };
 
     struct FakeProbe {
         head_ok: bool,

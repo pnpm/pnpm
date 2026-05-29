@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 mod api;
 mod defaults;
 mod env_overlay;
@@ -574,7 +577,7 @@ pub struct Config {
 
     /// User-defined named-registry aliases from
     /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
-    /// (`gh`, `work`, …) to the registry URL its `<alias>:` specifiers
+    /// (`gh`, `work`, ...) to the registry URL its `<alias>:` specifiers
     /// resolve against. Empty by default — the resolver layer merges
     /// these on top of pnpm's built-in defaults (today: `gh:` →
     /// GitHub Packages) and rejects malformed URLs at construction
@@ -752,7 +755,7 @@ pub struct Config {
     #[default = true]
     pub resolve_peers_from_workspace_root: bool,
 
-    /// When `true`, reject exotic (git, tarball, file, …) dependencies
+    /// When `true`, reject exotic (git, tarball, file, ...) dependencies
     /// reached transitively from the importer. Direct deps remain
     /// allowed. Mirrors pnpm's
     /// [`blockExoticSubdeps`](https://github.com/pnpm/pnpm/blob/df990fdb51/config/reader/src/Config.ts#L222).
@@ -1819,11 +1822,6 @@ fn read_npm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::{env, ffi::OsString, io, path::PathBuf};
-
-    use pretty_assertions::assert_eq;
-    use tempfile::tempdir;
-
     use super::{
         Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, NodeLinker,
         PackageImportMethod, fs,
@@ -1831,7 +1829,14 @@ mod tests {
     use crate::defaults::default_store_dir;
     use pacquet_store_dir::StoreDir;
     use pacquet_testing_utils::env_guard::EnvGuard;
-    use std::path::Path;
+    use pretty_assertions::assert_eq;
+    use std::{
+        env,
+        ffi::OsString,
+        io,
+        path::{Path, PathBuf},
+    };
+    use tempfile::tempdir;
 
     /// `Config::current` requires `Sys: LinkProbe` so the late-stage
     /// `store_dir` resolver (port of pnpm's `storePathRelativeToHome`)

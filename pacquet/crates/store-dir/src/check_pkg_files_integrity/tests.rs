@@ -2,8 +2,8 @@ use super::{VerifiedFilesCache, build_file_maps_from_index, check_pkg_files_inte
 use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
 use pretty_assertions::assert_eq;
 use sha2::{Digest, Sha512};
-use std::collections::HashMap;
 use std::{
+    collections::HashMap,
     fs,
     io::Write,
     path::PathBuf,
