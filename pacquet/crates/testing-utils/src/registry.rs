@@ -40,8 +40,14 @@ impl TestRegistryInstance {
 
         let url = format!("http://{listen}/");
         let storage = pnpm_registry_fixtures::ensure_storage();
-        let mut config = Config::static_serve(listen, storage.to_path_buf());
+        // Proxy mode: `@pnpm.e2e` fixtures are served from local storage, while
+        // real npm packages (`is-positive`, `is-negative`, …) fall through to
+        // the npm uplink — matching how registry-mock served pacquet's tests.
+        let mut config = Config::proxy(listen, storage.to_path_buf());
         config.public_url = url.trim_end_matches('/').to_string();
+        // A long TTL keeps the fixture packuments (fixed placeholder `time`)
+        // from being treated as stale and refetched from the uplink.
+        config.packument_ttl = std::time::Duration::from_secs(31_536_000);
         thread::Builder::new()
             .name("pacquet-test-registry".to_string())
             .spawn(move || run_registry(config, listener))

@@ -399,9 +399,9 @@ mod tests {
     #[test]
     fn ensure_storage_generates_packuments_and_tarballs() {
         let storage = ensure_storage();
-        assert!(packages_dir().join("is-positive/1.0.0/package.json").exists());
-        assert!(storage.join("is-positive/package.json").exists());
-        assert!(storage.join("is-positive/is-positive-1.0.0.tgz").exists());
+        assert!(packages_dir().join("@pnpm.e2e/abc/1.0.0/package.json").exists());
+        assert!(storage.join("@pnpm.e2e/abc/package.json").exists());
+        assert!(storage.join("@pnpm.e2e/abc/abc-1.0.0.tgz").exists());
     }
 
     // Both case variants land in the tarball even though a case-insensitive
