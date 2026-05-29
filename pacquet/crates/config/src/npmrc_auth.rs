@@ -442,7 +442,7 @@ impl NpmrcAuth {
             self.cert = None;
             self.key = None;
             self.warnings.push(format!(
-                "Unscoped per-registry settings in {source_label:?} were ignored because the registry URL could not be parsed."
+                "Unscoped per-registry settings in {source_label:?} were ignored because the registry URL could not be parsed.",
             ));
             return;
         }
