@@ -443,7 +443,7 @@ describe('failIfTrustDowngraded', () => {
         '1.0.0': '2025-01-01T00:00:00.000Z',
         '2.0.0': '2025-02-01T00:00:00.000Z',
       },
-    };
+    }
     expect(() => {
       failIfTrustDowngraded(meta, '2.0.0')
     }).toThrow('High-risk trust downgrade')
