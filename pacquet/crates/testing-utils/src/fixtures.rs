@@ -6,7 +6,7 @@ pub const BIG_MANIFEST: &str = include_str!("fixtures/big/package.json");
 // bug (KSXGitHub/perfectionist) is fixed.
 #[cfg_attr(
     dylint_lib = "perfectionist",
-    allow(
+    expect(
         perfectionist::bare_url,
         reason = "false positive on a URL inside include_str!-ed YAML data; rewriting the fixture would corrupt it"
     )

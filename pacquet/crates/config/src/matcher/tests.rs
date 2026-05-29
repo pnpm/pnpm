@@ -2,7 +2,7 @@ use super::{create_matcher, create_matcher_with_index};
 
 #[cfg_attr(
     dylint_lib = "perfectionist",
-    allow(
+    expect(
         perfectionist::single_letter_const_generic,
         reason = "`N` is the idiomatic const-generic array-length name, matching `[T; N]`"
     )

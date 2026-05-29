@@ -14,7 +14,7 @@ use pretty_assertions::assert_eq;
 // already minimal, so suppress the false positive.
 #[cfg_attr(
     dylint_lib = "perfectionist",
-    allow(
+    expect(
         perfectionist::import_granularity,
         reason = "`resolve_importer` is both a module and a re-exported fn; the value- and type-namespace entries cannot be merged via `self`"
     )

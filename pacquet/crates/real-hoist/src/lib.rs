@@ -252,7 +252,7 @@ impl<Inner> std::ops::Deref for RcByPtr<Inner> {
 
 #[cfg_attr(
     dylint_lib = "perfectionist",
-    allow(
+    expect(
         perfectionist::single_letter_generic,
         reason = "`T` is the idiomatic name for this wrapper's single type parameter; was exempt before rc.16 removed the short-impl exemption"
     )

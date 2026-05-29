@@ -26,7 +26,7 @@ use tempfile::tempdir;
 /// Panics on any parse failure — test inputs must be valid.
 #[cfg_attr(
     dylint_lib = "perfectionist",
-    allow(
+    expect(
         perfectionist::single_letter_const_generic,
         reason = "`N` is the idiomatic const-generic array-length name, matching `[T; N]`"
     )
