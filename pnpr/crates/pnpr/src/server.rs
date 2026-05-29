@@ -21,7 +21,7 @@ use axum::{
     extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{delete, get},
+    routing::{delete, get, post},
 };
 use indexmap::IndexMap;
 use serde_json::{Value, json};
@@ -57,6 +57,10 @@ struct AppInner {
     upstreams: IndexMap<String, Upstream>,
     config: Config,
     auth: AuthState,
+    /// Lazily-built pacquet runtime backing the `/v1/install` and
+    /// `/v1/files` agent endpoints. Built on first agent request so
+    /// servers that never receive one pay nothing.
+    agent_runtime: std::sync::OnceLock<crate::agent::AgentRuntime>,
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
@@ -84,9 +88,21 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         .iter()
         .map(|(name, uplink)| (name.clone(), Upstream::new(uplink.url.clone())))
         .collect();
-    let state = AppState { inner: Arc::new(AppInner { cache, upstreams, config, auth }) };
+    let state = AppState {
+        inner: Arc::new(AppInner {
+            cache,
+            upstreams,
+            config,
+            auth,
+            agent_runtime: std::sync::OnceLock::new(),
+        }),
+    };
     Router::new()
         .route("/-/ping", get(serve_ping))
+        // pnpm-agent fast path: opt-in, versioned endpoints layered on
+        // the registry core. Non-pnpm clients never touch these.
+        .route("/v1/install", post(serve_agent_install))
+        .route("/v1/files", post(serve_agent_files))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -1484,4 +1500,16 @@ fn error_response(err: &RegistryError) -> Response {
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
+}
+
+async fn serve_agent_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime =
+        crate::agent::AgentRuntime::get_or_init(&state.inner.agent_runtime, &state.inner.config);
+    crate::agent::handle_install(runtime, body).await
+}
+
+async fn serve_agent_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime =
+        crate::agent::AgentRuntime::get_or_init(&state.inner.agent_runtime, &state.inner.config);
+    crate::agent::handle_files(runtime, body).await
 }

@@ -53,6 +53,15 @@ impl Lockfile {
         Self::load_from_path(&file_path)
     }
 
+    /// Load the wanted lockfile (`<dir>/pnpm-lock.yaml`). Mirrors
+    /// upstream's `readWantedLockfile(dir)` — a directory-addressed
+    /// loader for callers that resolve into a directory other than the
+    /// process's current one. Returns `Ok(None)` when the file is
+    /// absent, same as [`Self::load_from_current_dir`].
+    pub fn load_wanted_from_dir(dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        Self::load_from_path(&dir.join(Lockfile::FILE_NAME))
+    }
+
     fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let content = match fs::read_to_string(file_path) {
             Ok(content) => content,

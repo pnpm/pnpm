@@ -7,6 +7,7 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
+mod agent;
 mod auth;
 mod cache;
 mod config;
