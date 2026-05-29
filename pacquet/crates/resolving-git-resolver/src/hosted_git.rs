@@ -23,7 +23,7 @@
 //!
 //! - The GitLab tarball template emits `/-/archive/<ref>/<project>-<ref>.tar.gz`
 //!   directly, matching pnpm's [`gitlabTarballTemplate`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L137-L140)
-//!   override (fix #11533). Upstream hosted-git-info still emits the
+//!   override (fix [#11533](https://github.com/pnpm/pnpm/issues/11533)). Upstream hosted-git-info still emits the
 //!   `/api/v4/projects/<user>%2F<project>/repository/archive.tar.gz`
 //!   form; pacquet ports the pnpm override, not the raw template.
 //! - The `gist` host is not implemented. pnpm's test suite never
@@ -322,7 +322,7 @@ impl HostedGit {
     /// `/-/archive/<ref>/<project>-<ref>.tar.gz` shape pnpm overrides
     /// the upstream template with at
     /// [parseBareSpecifier.ts:137-140](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L137-L140)
-    /// (fix #11533).
+    /// (fix [#11533](https://github.com/pnpm/pnpm/issues/11533)).
     ///
     /// Returns `None` when no committish is set — every supported host
     /// uses an explicit ref or the literal `HEAD` / `master` placeholder

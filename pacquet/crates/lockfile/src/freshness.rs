@@ -214,7 +214,7 @@ impl SpecDiff {
 /// Verify that lockfile-level settings the install pipeline reads
 /// from `pnpm-workspace.yaml` haven't drifted since the lockfile
 /// was written. Today this covers `overrides` and
-/// `ignoredOptionalDependencies` (umbrella #434 slice 7); the
+/// `ignoredOptionalDependencies` (umbrella [#434](https://github.com/pnpm/pacquet/issues/434) slice 7); the
 /// variants below will grow as more upstream settings land
 /// (`catalogs`, `patchedDependencies`, `pnpmfileChecksum`, etc.).
 ///
@@ -323,7 +323,7 @@ pub fn check_lockfile_settings(
 /// describing the first detected mismatch otherwise.
 ///
 /// Single-importer only today (pacquet doesn't have workspace support
-/// — see #431). Callers thread the root importer entry directly.
+/// — see [#431](https://github.com/pnpm/pacquet/issues/431)). Callers thread the root importer entry directly.
 ///
 /// What is checked (in order, short-circuiting on the first failure):
 ///
@@ -341,7 +341,7 @@ pub fn check_lockfile_settings(
 /// Scoped to what pacquet supports today: no catalogs (#?), no
 /// `auto-install-peers` pre-pass (pacquet has no separate
 /// auto-install-peers mode), no `excludeLinksFromLockfile` (`link:`
-/// resolutions aren't supported yet — #431 territory), and no
+/// resolutions aren't supported yet — [#431](https://github.com/pnpm/pacquet/issues/431) territory), and no
 /// version-range-satisfies check (covered in pnpm's
 /// `localTarballDepsAreUpToDate` for file: / tarball deps; out of
 /// scope here).

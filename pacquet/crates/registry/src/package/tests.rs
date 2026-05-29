@@ -399,7 +399,7 @@ fn package_deserializes_without_time_field() {
 /// manifest, so a single malformed historical entry would otherwise
 /// fail the whole deserialization and surface as
 /// `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` for an unrelated
-/// version pinned in the lockfile (issue #11829). Non-string entries
+/// version pinned in the lockfile (issue [#11829](https://github.com/pnpm/pnpm/issues/11829)). Non-string entries
 /// must be silently dropped, matching pnpm's JS-side tolerance.
 #[test]
 fn package_tolerates_object_valued_dependency_entries() {

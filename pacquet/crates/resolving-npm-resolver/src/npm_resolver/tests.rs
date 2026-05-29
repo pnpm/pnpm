@@ -695,7 +695,7 @@ fn workspace_resolve_options(packages: WorkspacePackages) -> ResolveOptions {
 }
 
 /// Ports pnpm's [`index.ts#L1442-L1491`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1442-L1491);
-/// this is the case behind #11929 (babylon's `@dev/build-tools`
+/// this is the case behind [#11929](https://github.com/pnpm/pnpm/issues/11929) (babylon's `@dev/build-tools`
 /// isn't on npm, so bare-semver must resolve via the workspace).
 #[tokio::test]
 async fn falls_back_to_workspace_when_registry_returns_404() {

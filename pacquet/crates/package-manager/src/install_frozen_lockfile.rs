@@ -138,7 +138,7 @@ where
     /// placeholder today; an install request with `Pnp` reaches
     /// the isolated linker in this branch (no PnP code path
     /// exists yet). Upstream's `nodeLinker: 'pnp'` is also
-    /// out-of-scope for #438; tracked separately.
+    /// out-of-scope for [#438](https://github.com/pnpm/pacquet/issues/438); tracked separately.
     pub node_linker: NodeLinker,
 }
 

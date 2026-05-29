@@ -937,7 +937,7 @@ pub fn single_project_anchors_modules_at_cwd() {
 /// `SymlinkDirectDependencies` writes land under the env-var
 /// path, producing two `node_modules` layouts for the same
 /// install. Matches the consistency guarantee Copilot flagged
-/// during PR #443 review.
+/// during PR [#443](https://github.com/pnpm/pacquet/pull/443) review.
 ///
 /// Exercises the [`EnvVarOs`] DI seam: a per-test fake returns the
 /// `env_workspace` path for the `NPM_CONFIG_WORKSPACE_DIR` lookup.

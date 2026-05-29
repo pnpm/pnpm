@@ -370,7 +370,7 @@ fn dependencies_meta_mismatch_returns_dependencies_meta_mismatch() {
 
 /// `NoImporter` message renders with `importers["."]`-style
 /// formatting, not `importers."."` (the previous `{:?}` debug-
-/// format output). Caught in Copilot review on #450 — debug-format
+/// format output). Caught in Copilot review on [#450](https://github.com/pnpm/pacquet/pull/450) — debug-format
 /// quoting reads poorly for short keys like `.`.
 #[test]
 fn no_importer_message_uses_bracket_quoted_id() {
@@ -1270,7 +1270,7 @@ fn ignored_optional_dependencies_round_trips_through_yaml() {
 /// [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts)
 /// iterates `optionalDependencies` keys and deletes from
 /// `optionalDependencies` + `dependencies` only, never touching
-/// `devDependencies`. Regression for CodeRabbit review on PR #507.
+/// `devDependencies`. Regression for CodeRabbit review on PR [#507](https://github.com/pnpm/pacquet/pull/507).
 ///
 /// Fixture: same name `foo` in both `optionalDependencies` and
 /// `devDependencies` on the manifest; lockfile has `foo` only in

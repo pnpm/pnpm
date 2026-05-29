@@ -112,7 +112,7 @@ fn node_linker_invalid_value_rejected() {
 
 /// `--ignore-manifest-check` parses to `true`. Absent → `false`.
 /// Surfaced for the pnpm CLI `configDependencies` delegation path
-/// (issue #11797); see the field doc on `InstallArgs::ignore_manifest_check`.
+/// (issue [#11797](https://github.com/pnpm/pnpm/issues/11797)); see the field doc on `InstallArgs::ignore_manifest_check`.
 #[test]
 fn ignore_manifest_check_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");

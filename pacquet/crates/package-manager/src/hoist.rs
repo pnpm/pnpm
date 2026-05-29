@@ -108,7 +108,7 @@ pub fn build_hoist_graph(
 /// [`DirectDependenciesByImporterId`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L23-L25).
 ///
 /// Outer key is the importer id (`"."` for the root project; workspace
-/// projects extend this in #431). Inner map is alias → snapshot key,
+/// projects extend this in [#431](https://github.com/pnpm/pacquet/issues/431)). Inner map is alias → snapshot key,
 /// preserving npm-alias semantics — the alias is the directory name
 /// linked under the project's `node_modules`, and the snapshot key
 /// resolves where the link points.
@@ -128,7 +128,7 @@ pub type DirectDepsByImporter = HashMap<String, HashMap<String, PackageKey>>;
 /// rather than the lockfile's full `&HashMap` so the caller can
 /// restrict the input to the importer set actually being installed.
 /// Today the frozen-lockfile call site passes the full `importers`
-/// map — workspace install (pnpm/pacquet#431) landed in #443 and
+/// map — workspace install (pnpm/pacquet#431) landed in [#443](https://github.com/pnpm/pacquet/pull/443) and
 /// pacquet now installs every entry — so the iterator-shaped
 /// signature lets future selected-projects (`--filter`) installs
 /// pass a filtered iterator without touching this function. The

@@ -14,7 +14,7 @@
 //! URL does *not* start with the configured registry. A registry-host
 //! tarball URL is parsed by the npm resolver instead (see
 //! `parse_bare_specifier`), so it carries the registry's integrity from
-//! metadata and never exercises the reuse path #12001 is about.
+//! metadata and never exercises the reuse path [#12001](https://github.com/pnpm/pnpm/issues/12001) is about.
 //!
 //! Pacquet doesn't support remote (non-registry) https-tarball *direct
 //! dependencies* end to end yet, so the scenario below is a
@@ -35,7 +35,7 @@ fn pacquet_at(workspace: &Path) -> Command {
 
 /// The `integrity:` recorded for a `packages:` entry, e.g.
 /// `is-positive@1.0.0`. `None` when the entry is absent or carries no
-/// integrity (the #12001 regression).
+/// integrity (the [#12001](https://github.com/pnpm/pnpm/issues/12001) regression).
 fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
     let header = format!("{package_key}:");
     lockfile
@@ -123,7 +123,7 @@ mod known_failures {
     /// resolution), so `dependencies_graph_to_lockfile` panics with
     /// `MissingSuffix` building the importer dep path. Until the
     /// resolve-time tarball-manifest fetch (and the integrity it
-    /// computes) lands, pnpm #12001's integrity-preservation-on-reuse
+    /// computes) lands, pnpm [#12001](https://github.com/pnpm/pnpm/issues/12001)'s integrity-preservation-on-reuse
     /// isn't reachable here. Registry-host tarball URLs take the npm
     /// resolver path instead and already carry integrity from metadata.
     /// Tracked in <https://github.com/pnpm/pnpm/issues/12053>.

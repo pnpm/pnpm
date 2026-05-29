@@ -21,7 +21,7 @@
 //!
 //! Out of scope (tracked as upstream parity follow-ups):
 //!
-//! - `engines` / `os` / `cpu` installability filtering. Issue #431
+//! - `engines` / `os` / `cpu` installability filtering. Issue [#431](https://github.com/pnpm/pacquet/issues/431)
 //!   explicitly defers this.
 //! - The `resolutions`-on-non-root warning. Single-line emission that
 //!   can land when the reporter side is in place.
@@ -102,7 +102,7 @@ pub enum FindWorkspaceProjectsError {
 /// [`findWorkspaceProjects`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts)
 /// except for the per-project `packageIsInstallable` /
 /// `checkNonRootProjectManifest` validations, which are explicitly
-/// deferred by #431. When validation lands, this entry point grows
+/// deferred by [#431](https://github.com/pnpm/pacquet/issues/431). When validation lands, this entry point grows
 /// the filter; today it's a thin wrapper over
 /// [`find_workspace_projects_no_check`].
 pub fn find_workspace_projects(

@@ -985,7 +985,7 @@ fn retry_opts_delay_does_not_overflow() {
 /// which doesn't apply to registry tarballs). Every other failure
 /// — arbitrary 4xx, 5xx, network reset, integrity mismatch, gzip
 /// or tar parse error — falls through to `op.retry(error)` and is
-/// retried. Diverging here was the original bug behind #259.
+/// retried. Diverging here was the original bug behind [#259](https://github.com/pnpm/pacquet/issues/259).
 #[test]
 fn retry_classification_matches_pnpm_policy() {
     let url = "https://example.test/pkg.tgz".to_string();
@@ -1043,7 +1043,7 @@ fn fast_retry_opts() -> RetryOpts {
 /// retry returns 200 with the real fastify-error tarball. The
 /// retry loop must drive the full pipeline — network → integrity
 /// → extract — to completion on the second attempt, which is the
-/// core fix for #259.
+/// core fix for [#259](https://github.com/pnpm/pacquet/issues/259).
 #[tokio::test]
 async fn retries_then_succeeds_on_transient_5xx() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -2310,7 +2310,7 @@ fn extract_zip_rejects_parent_dir_component() {
 /// directory either way (the CAS write path is gated on file
 /// entries), but rejecting outright keeps the "no unsafe entry
 /// accepted" contract intact for tooling that inspects the error
-/// code (Caught by CodeRabbit on #472).
+/// code (Caught by CodeRabbit on [#472](https://github.com/pnpm/pacquet/pull/472)).
 #[test]
 fn extract_zip_rejects_directory_entry_with_parent_component() {
     let (tempdir, store_path) = tempdir_with_leaked_path();

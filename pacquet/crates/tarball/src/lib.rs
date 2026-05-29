@@ -36,7 +36,7 @@ use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 /// fires hundreds of these at once on a 1352-snapshot install, which
 /// thrashes small CI runners. Past "Download completed" a 2-CPU GitHub
 /// Actions runner wedged between decompress-close and `Checksum verified`
-/// on #269 until the step timeout. `num_cpus * 2` (floor 4) keeps enough
+/// on [#269](https://github.com/pnpm/pacquet/pull/269) until the step timeout. `num_cpus * 2` (floor 4) keeps enough
 /// work in flight to overlap per-file FS writes with SHA on another task
 /// without oversubscribing the cores.
 fn post_download_semaphore() -> &'static Semaphore {
@@ -903,7 +903,7 @@ fn extract_zip_entries(
 /// The previous pacquet implementation unconditionally ran a
 /// `symlink_metadata` per referenced file and rejected any non-regular
 /// dirent outright. That cost a stat syscall per file on every warm
-/// install (#260) and still diverged from pnpm: the upstream
+/// install ([#260](https://github.com/pnpm/pacquet/issues/260)) and still diverged from pnpm: the upstream
 /// [`checkPkgFilesIntegrity`][1] catches corruption via the content hash
 /// and doesn't gate on dirent type.
 ///
@@ -976,7 +976,7 @@ pub struct PrefetchResult {
 /// `cache_key → Arc<cas_paths>` map the per-snapshot futures can hit
 /// synchronously.
 ///
-/// **Locking shape (per Copilot review on #292):** the SQLite mutex
+/// **Locking shape (per Copilot review on [#292](https://github.com/pnpm/pacquet/pull/292)):** the SQLite mutex
 /// is held only for the SELECT loop. Integrity checks (`fs::metadata`
 /// per file, optional re-hash) happen after the guard drops, so a
 /// concurrent reader on the same `SharedReadonlyStoreIndex` doesn't
@@ -1211,7 +1211,7 @@ pub struct DownloadTarballToStore<'a> {
     /// `Connection::open` and a handful of WAL commits instead of the old
     /// "open + PRAGMA + insert + drop" per tarball (which ballooned
     /// tokio's blocking pool to 500+ threads on a 1352-snapshot install —
-    /// see #263). `None` degrades to "skip index row", matching the read
+    /// see [#263](https://github.com/pnpm/pacquet/issues/263)). `None` degrades to "skip index row", matching the read
     /// side's stance: install still succeeds, the next install misses on
     /// this cache key and re-downloads.
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
@@ -1224,7 +1224,7 @@ pub struct DownloadTarballToStore<'a> {
     /// the next integrity-full install. Whether that translates into a
     /// wall-time win depends on the workload; the per-snapshot stat
     /// isn't the bottleneck on the benchmarks this repo tracks (see
-    /// #273), but cutting the syscall count is still correct.
+    /// [#273](https://github.com/pnpm/pacquet/issues/273)), but cutting the syscall count is still correct.
     pub verify_store_integrity: bool,
     /// Install-scoped dedup cache shared across every cached-tarball
     /// lookup. Ports pnpm's `verifiedFilesCache: Set<string>`: a CAFS
@@ -1266,7 +1266,7 @@ pub struct DownloadTarballToStore<'a> {
     /// `fetching/tarball-fetcher/src/remoteTarballFetcher.ts`): every
     /// failure retries except HTTP 401, 403, 404 — including arbitrary
     /// 4xx / 5xx, network resets, timeouts, mid-stream body errors,
-    /// integrity mismatches, and gzip / tar parse failures (#259).
+    /// integrity mismatches, and gzip / tar parse failures ([#259](https://github.com/pnpm/pacquet/issues/259)).
     pub retry_opts: RetryOpts,
     /// Per-package archive-entry filter applied during CAS extraction.
     /// Receives the entry's path *after* the top-level
@@ -1404,7 +1404,7 @@ fn is_transient_error(err: &TarballError) -> bool {
 /// Permits are acquired *inside* this function so a backoff sleep
 /// between attempts doesn't keep one parked. The network permit is
 /// held from `connect + send` through body streaming (matching pnpm's
-/// pQueue and #281's EMFILE fix), then dropped before the
+/// pQueue and [#281](https://github.com/pnpm/pacquet/pull/281)'s EMFILE fix), then dropped before the
 /// `post_download_semaphore` permit gates the CPU-bound checksum +
 /// decode + extract step.
 #[expect(

@@ -877,7 +877,7 @@ impl<'a> CreateVirtualStore<'a> {
 ///   fail on anyway — missing metadata, missing tarball integrity, or
 ///   a directory / git resolution this build doesn't support yet —
 ///   so the orchestrator can short-circuit *before* the warm rayon
-///   batch runs (Copilot review on #292). The previous shape collapsed
+///   batch runs (Copilot review on [#292](https://github.com/pnpm/pacquet/pull/292)). The previous shape collapsed
 ///   these into `None` and shoved them into the cold batch, which
 ///   meant a malformed lockfile would do up to ~6 s of warm-batch
 ///   linking before the actual error fired.

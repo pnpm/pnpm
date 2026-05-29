@@ -356,7 +356,7 @@ fn skipped_snapshot_is_excluded() {
 }
 
 /// `symlink_hoisted_dependencies` filters entries whose key is in
-/// the skip set. Regression for PR #485 Copilot review: without the
+/// the skip set. Regression for PR [#485](https://github.com/pnpm/pacquet/pull/485) Copilot review: without the
 /// filter, a prod dependency with an optional transitive child
 /// would still get a dangling hoist symlink to the child's
 /// virtual-store slot, which `CreateVirtualStore` skipped.

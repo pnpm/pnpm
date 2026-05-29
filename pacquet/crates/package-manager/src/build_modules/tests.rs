@@ -105,7 +105,7 @@ fn unlisted_returns_none() {
 /// Upstream checks `expandedDisallowed` before `expandedAllowed`
 /// in [`createAllowBuildFunction`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts#L36-L43),
 /// so a bare-name disallow wins over an exact-version allow.
-/// Pacquet matches that order — pre-#397-item-5, the matcher
+/// Pacquet matches that order — pre-[#397](https://github.com/pnpm/pacquet/issues/397)-item-5, the matcher
 /// checked exact-version first, which diverged from upstream.
 #[test]
 fn disallow_bare_name_wins_over_allow_exact_version() {
@@ -564,7 +564,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 ///
 /// Upstream runs the install twice — first to populate the cache
 /// via the WRITE path, then to consume it. Pacquet doesn't have a
-/// WRITE path yet (#421's slice (B)), so we hand-craft the same
+/// WRITE path yet ([#421](https://github.com/pnpm/pacquet/issues/421)'s slice (B)), so we hand-craft the same
 /// state directly: a `side_effects_maps_by_snapshot` entry whose
 /// cache key matches what `BuildModules` will compute via
 /// `calc_dep_state`. With that in place, the gate skips the build

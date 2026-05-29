@@ -533,7 +533,7 @@ fn link_bins_propagates_chmod_error_via_di() {
 /// binary, not the shim). `NotFound` is swallowed by design, since the
 /// target may have been removed concurrently. `PermissionDenied`
 /// and friends must instead surface as [`LinkBinsError::Chmod`]. Pins
-/// the guard added in this PR (review finding #4).
+/// the guard added in this PR (review finding `#4`).
 #[test]
 fn link_bins_propagates_target_chmod_error_via_di() {
     use std::io;
@@ -984,7 +984,7 @@ fn ownership_breaks_bin_conflicts() {
 /// a hoisted (transitive) dep's bin must never shadow a direct
 /// dep's bin with the same name, even when the hoisted package's
 /// own name is lexically smaller (which would have won under the
-/// pre-#342 lexical fallback).
+/// pre-[#342](https://github.com/pnpm/pacquet/issues/342) lexical fallback).
 #[test]
 fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
     let tmp = tempdir().unwrap();

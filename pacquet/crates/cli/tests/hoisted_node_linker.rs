@@ -13,7 +13,7 @@
 //! [`installing/deps-installer/test/hoistedNodeLinker/install.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts).
 //! Cases that depend on features pacquet hasn't built yet — `pnpm add`
 //! / update manifest mutation (pnpm/pacquet#433), lifecycle scripts +
-//! bin linking on the fresh path (#11870) — live in [`known_failures`]
+//! bin linking on the fresh path ([#11870](https://github.com/pnpm/pnpm/issues/11870)) — live in [`known_failures`]
 //! below with [`pacquet_testing_utils::allow_known_failure`] gating the
 //! assertion against the not-yet-implemented subject under test.
 

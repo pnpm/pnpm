@@ -10,7 +10,7 @@ use std::{
 /// Subset of `.npmrc` keys pacquet honours for registry / auth setup.
 ///
 /// The parser pulls out:
-/// * the top-level `registry=` URL (already supported pre-#336),
+/// * the top-level `registry=` URL (already supported pre-[#336](https://github.com/pnpm/pacquet/issues/336)),
 /// * default-registry credentials (`_auth`, `_authToken`,
 ///   `username` + `_password`),
 /// * per-registry credentials keyed on a nerf-darted URI prefix

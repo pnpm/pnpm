@@ -486,7 +486,7 @@ impl<'a> BuildModules<'a> {
 /// Per-snapshot work extracted out of [`BuildModules::run`]'s inner
 /// loop so the bounded-parallelism `par_iter().try_for_each(...)`
 /// dispatch can call it once per chunk member. The body is the same
-/// as the pre-#12 sequential loop — `continue`s become `return Ok(())`
+/// as the pre-`#12` sequential loop — `continue`s become `return Ok(())`
 /// here.
 #[allow(
     clippy::too_many_arguments,
@@ -793,7 +793,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
 /// — `slot_dir(key)` — or the GVS lookup misses, falls through to the
 /// legacy flat-name path, and points at a directory that
 /// [`crate::CreateVirtualDirBySnapshot`] never created.
-/// `slot_dir(key.without_peer())` was the pre-#432 spelling and
+/// `slot_dir(key.without_peer())` was the pre-[#432](https://github.com/pnpm/pacquet/issues/432) spelling and
 /// silently dropped lifecycle scripts for peer-resolved snapshots
 /// — never use it here.
 ///

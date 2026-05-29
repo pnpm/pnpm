@@ -500,7 +500,7 @@ impl StoreIndex {
     /// per-key query overhead (≈40 µs even for misses) collapses into
     /// one round-trip. With 1352 cache keys against an empty store this
     /// drops the prefetch cost from ~50 ms of N selects to a single
-    /// query — see #294 for the cold-cache regression this fixes.
+    /// query — see [#294](https://github.com/pnpm/pacquet/issues/294) for the cold-cache regression this fixes.
     pub fn get_many(
         &self,
         keys: &[String],
@@ -596,7 +596,7 @@ impl StoreIndex {
     /// `BEGIN IMMEDIATE` ... `COMMIT` around the inserts, which amortizes the
     /// WAL commit fsync across the whole batch. At 1352 snapshots that
     /// turns 1352 per-row fsyncs into ⌈1352/batch_size⌉ — on APFS this is
-    /// the single biggest lever for `pacquet install` wall time (#263).
+    /// the single biggest lever for `pacquet install` wall time ([#263](https://github.com/pnpm/pacquet/issues/263)).
     ///
     /// SQLite errors during the transaction roll it back before returning,
     /// so a partial apply never leaves the index in a half-written state.

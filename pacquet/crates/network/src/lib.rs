@@ -145,7 +145,7 @@ impl ThrottledClient {
     /// Construct the default throttled client used for real installs.
     ///
     /// Network topology is ported from pnpm v11's
-    /// `network/fetch/src/dispatcher.ts` (see #280):
+    /// `network/fetch/src/dispatcher.ts` (see [#280](https://github.com/pnpm/pacquet/issues/280)):
     ///
     /// * **HTTP/1.1 only.** A default `reqwest::Client` upgrades to
     ///   HTTP/2 via ALPN whenever the registry advertises it

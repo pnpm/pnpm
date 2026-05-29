@@ -43,7 +43,7 @@ pub async fn main() -> miette::Result<()> {
 /// limits in containers and CI runners are respected — `num_cpus`
 /// reports the host's logical CPU count, which on a quota-limited
 /// runner can spin up far more rayon threads than the kernel will
-/// actually schedule onto our cores (Copilot review on #292).
+/// actually schedule onto our cores (Copilot review on [#292](https://github.com/pnpm/pacquet/pull/292)).
 ///
 /// **Floor of 4 threads is intentional.** A 1-2-CPU CI runner left
 /// at `2 × parallelism` would be capped to 2-4 rayon threads, and

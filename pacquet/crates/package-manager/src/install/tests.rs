@@ -271,7 +271,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     drop(dir);
 }
 
-/// Issue #312: an npm-alias dependency
+/// Issue [#312](https://github.com/pnpm/pacquet/issues/312): an npm-alias dependency
 /// (`"<key>": "npm:<real>@<range>"`) used to panic during install
 /// because the whole `npm:...` spec was fed to
 /// `node_semver::Range::parse`. Assert that:
@@ -356,7 +356,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     drop((dir, mock_instance));
 }
 
-/// Issue #312, unversioned variant: `"foo": "npm:bar"` (no `@<range>`)
+/// Issue [#312](https://github.com/pnpm/pacquet/issues/312), unversioned variant: `"foo": "npm:bar"` (no `@<range>`)
 /// must default to `latest` without panicking. `resolve_registry_dependency`
 /// turns `"npm:bar"` into `("bar", "latest")`; the previous code then
 /// fed `"latest"` to `package.pinned_version()` which panics because
@@ -1263,7 +1263,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
 /// integrity is bogus on purpose. Pacquet enforces tarball integrity
 /// on the install path, so any test that lets the install reach the
 /// fetch site would fail — meaning a successful install with this
-/// fixture is *proof* that the per-snapshot skip path (issue #433
+/// fixture is *proof* that the per-snapshot skip path (issue [#433](https://github.com/pnpm/pacquet/issues/433)
 /// section B) short-circuited the fetch entirely.
 const PARTIAL_INSTALL_LOCKFILE: &str = text_block! {
     "lockfileVersion: '9.0'"
@@ -1752,7 +1752,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     drop(dir);
 }
 
-/// Issue #447: a `--frozen-lockfile` install where the on-disk
+/// Issue [#447](https://github.com/pnpm/pacquet/issues/447): a `--frozen-lockfile` install where the on-disk
 /// `package.json` has drifted from the lockfile importer entry must
 /// fail with `OutdatedLockfile` *before* any fetch or link work
 /// starts. Mirrors upstream's `ERR_PNPM_OUTDATED_LOCKFILE` thrown
@@ -3350,7 +3350,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
 }
 
 /// Wiring proof for the new `nodeLinker: hoisted` install branch
-/// (umbrella #438 slice 6). Empty lockfile drives the cheapest
+/// (umbrella [#438](https://github.com/pnpm/pacquet/issues/438) slice 6). Empty lockfile drives the cheapest
 /// successful install path:
 ///
 /// 1. `Install::run` dispatches into `InstallFrozenLockfile::run`.
@@ -3536,7 +3536,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
 /// before any network fetch, so the bogus URL on the variant is
 /// never read — the test stays hermetic.
 ///
-/// Closes the variant-mismatch checkbox of #437 slice F.
+/// Closes the variant-mismatch checkbox of [#437](https://github.com/pnpm/pacquet/issues/437) slice F.
 #[tokio::test]
 async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     let dir = tempdir().unwrap();
@@ -3634,7 +3634,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
 /// never runs and the unmatchable-platform variant doesn't fail
 /// the install.
 ///
-/// Closes the `--no-runtime` checkbox of #437 slice F.
+/// Closes the `--no-runtime` checkbox of [#437](https://github.com/pnpm/pacquet/issues/437) slice F.
 #[tokio::test]
 async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     let dir = tempdir().unwrap();
@@ -4554,7 +4554,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
 /// in `.modules.yaml`. With an empty manifest there is nothing to
 /// materialize, so the assertion focuses on the dispatch reaching
 /// the hoisted-linker pipeline rather than bailing — the previous
-/// hard-refusal at this site (#11871) is gone.
+/// hard-refusal at this site ([#11871](https://github.com/pnpm/pnpm/issues/11871)) is gone.
 #[tokio::test]
 async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     let dir = tempdir().unwrap();
