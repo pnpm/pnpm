@@ -13,6 +13,10 @@ use pacquet_catalogs_config::{
 };
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, NodeLinker};
+use pacquet_executor::{
+    LifecycleScriptError, RunPostinstallHooks,
+    ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
+};
 use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
 };
@@ -111,6 +115,15 @@ where
     /// frozen-lockfile path so the fresh-resolve path rewrites them.
     /// Mirrors pnpm's `--update-checksums`.
     pub update_checksums: bool,
+    /// Whether this is a full project install (`pacquet install`,
+    /// pnpm's `mutation: 'install'`) rather than a partial one
+    /// (`pacquet add`, pnpm's `mutation: 'installSome'`). Gates the
+    /// project's own lifecycle scripts: pnpm only runs them for the
+    /// full install via the `mutation === 'install'` filter at
+    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1524>,
+    /// so a named install such as `pacquet add foo` does not fire
+    /// the root project's preinstall/postinstall/prepare/etc.
+    pub is_full_install: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
     /// with the CLI per-axis overrides (`--cpu` / `--os` / `--libc`).
@@ -178,6 +191,14 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
+
+    /// A workspace project's own lifecycle script
+    /// (preinstall/install/postinstall/preprepare/prepare/postprepare)
+    /// exited non-zero. Unlike a dependency build failure — which
+    /// `BuildModules` can swallow for optional deps — a project script
+    /// failure always fails the install, matching pnpm.
+    #[diagnostic(transparent)]
+    ProjectLifecycleScript(#[error(source)] LifecycleScriptError),
 
     #[diagnostic(transparent)]
     WriteModules(#[error(source)] WriteModulesError),
@@ -325,6 +346,7 @@ where
             skip_runtimes,
             trust_lockfile,
             update_checksums,
+            is_full_install,
             supported_architectures,
             node_linker,
             lockfile_only,
@@ -1033,6 +1055,26 @@ where
                 .map_err(InstallError::SaveWantedLockfile)?;
         }
 
+        // Run each workspace project's own lifecycle scripts now that
+        // the dependency graph is materialized, bins are linked, and
+        // `.modules.yaml` / the current lockfile are written. Mirrors
+        // pnpm's `runLifecycleHooksConcurrently(['preinstall', ...])`
+        // emit point near the end of the install at
+        // <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1517-L1530>.
+        // The `pnpm:lifecycle` events these scripts produce render
+        // before the closing `pnpm:summary` below, matching pnpm.
+        //
+        // Skipped for partial installs (`pacquet add`): pnpm filters
+        // to `mutation === 'install'` so a named install does not fire
+        // the project's own scripts (see [`Install::is_full_install`]).
+        if is_full_install {
+            run_projects_lifecycle_scripts::<Reporter>(
+                &project_manifests,
+                config,
+                &workspace_root,
+            )?;
+        }
+
         // Write `node_modules/.pnpm-workspace-state-v1.json`. Mirrors
         // upstream's `updateWorkspaceState` call at
         // <https://github.com/pnpm/pnpm/blob/7ff112bac6/installing/commands/src/installDeps.ts#L447-L454>.
@@ -1384,6 +1426,62 @@ fn load_workspace_projects(
     let Some(manifest) = workspace_manifest else { return Ok(None) };
     let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
     pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
+}
+
+/// Run every workspace project's own lifecycle scripts after the
+/// dependency graph is materialized and bins are linked. Ports the
+/// `runLifecycleHooksConcurrently(['preinstall', ...])` call pnpm fires
+/// near the end of the install, gated on `!ignoreScripts`:
+/// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1517-L1530>.
+///
+/// pacquet has no `ignoreScripts` toggle yet (it hardcodes
+/// `ignore_scripts: false` throughout the dependency-build path), so
+/// this always runs — matching pnpm's default. Projects are visited
+/// root-first; pnpm orders them by `buildIndex` (workspace
+/// topological order) and re-links each project's bins between groups
+/// so a later project's `prepare` can consume a dependency workspace
+/// package's freshly-built output. That ordering — and running
+/// projects concurrently under `child_concurrency` — is a follow-up
+/// once pacquet computes a per-importer build index; the common
+/// single-project case is unaffected.
+fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    config: &Config,
+    workspace_root: &Path,
+) -> Result<(), InstallError> {
+    let modules_dir_basename =
+        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    // Same tri-state mapping the dependency-build path applies; see
+    // the doc on [`pacquet_config::ScriptsPrependNodePath`].
+    let scripts_prepend_node_path = match config.scripts_prepend_node_path {
+        pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
+        pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
+        pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
+    };
+    let extra_env = std::collections::HashMap::new();
+    for (project_dir, _manifest) in project_manifests {
+        let root_modules_dir = project_dir.join(modules_dir_basename);
+        let dep_path = project_dir.to_string_lossy();
+        run_project_lifecycle_scripts::<Reporter>(RunPostinstallHooks {
+            dep_path: &dep_path,
+            pkg_root: project_dir,
+            root_modules_dir: &root_modules_dir,
+            init_cwd: workspace_root,
+            extra_bin_paths: &[],
+            extra_env: &extra_env,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            unsafe_perm: config.unsafe_perm,
+            node_gyp_bin: None,
+            scripts_prepend_node_path,
+            script_shell: None,
+            optional: false,
+        })
+        .map_err(InstallError::ProjectLifecycleScript)?;
+    }
+    Ok(())
 }
 
 /// Assemble the `(root_dir, manifest)` list every importer the

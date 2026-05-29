@@ -576,3 +576,218 @@ mod known_failures {
         drop((root, mock_instance));
     }
 }
+
+/// Project (workspace/root) lifecycle scripts run during
+/// `pacquet install` — preinstall, install, postinstall, preprepare,
+/// prepare, postprepare — as opposed to the dependency build scripts
+/// the `known_failures` module above exercises.
+///
+/// Ported from
+/// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/test/install/lifecycleScripts.ts>.
+mod project_scripts {
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use std::{fs, process::Command};
+
+    /// A `node -e` lifecycle script that appends `<stage>\n` to
+    /// `order.txt` in the script's cwd (the project root). pacquet
+    /// passes Windows lifecycle scripts to `cmd /d /s /c` verbatim
+    /// (matching Node's `windowsVerbatimArguments`), so the embedded
+    /// quotes survive on every platform.
+    fn append_order_script(stage: &str) -> String {
+        format!(r#"node -e "require('fs').appendFileSync('order.txt','{stage}\n')""#)
+    }
+
+    fn project_with_lifecycle_scripts() -> serde_json::Value {
+        serde_json::json!({
+            "name": "project-with-lifecycle-scripts",
+            "version": "1.0.0",
+            "scripts": {
+                "postpare": append_order_script("typo-never-runs"),
+                "prepare": append_order_script("prepare"),
+                "preprepare": append_order_script("preprepare"),
+                "postprepare": append_order_script("postprepare"),
+                "preinstall": append_order_script("preinstall"),
+                "install": append_order_script("install"),
+                "postinstall": append_order_script("postinstall"),
+            },
+        })
+    }
+
+    #[test]
+    fn runs_project_lifecycle_scripts_in_order() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_with_lifecycle_scripts().to_string())
+            .expect("write package.json");
+
+        pacquet.with_arg("install").assert().success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        let stages: Vec<&str> = order.lines().collect();
+        assert_eq!(
+            stages,
+            ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"],
+        );
+
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn runs_project_lifecycle_scripts_on_frozen_install() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_with_lifecycle_scripts().to_string())
+            .expect("write package.json");
+
+        // First install resolves and writes pnpm-lock.yaml (and runs
+        // the scripts once).
+        pacquet.with_arg("install").assert().success();
+        assert!(workspace.join("pnpm-lock.yaml").exists(), "first install should write a lockfile");
+        fs::remove_file(workspace.join("order.txt")).expect("clear order.txt between installs");
+
+        // Frozen reinstall must re-run the project scripts.
+        Command::cargo_bin("pacquet")
+            .expect("find the pacquet binary")
+            .with_current_dir(&workspace)
+            .with_arg("install")
+            .with_arg("--frozen-lockfile")
+            .assert()
+            .success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        let stages: Vec<&str> = order.lines().collect();
+        assert_eq!(
+            stages,
+            ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"],
+        );
+
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn failing_project_script_fails_the_install() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        // `exit 1` is shell-agnostic — a non-zero exit in both `sh -c`
+        // and `cmd /d /s /c`. Mirrors pnpm's own test
+        // (`preinstall: 'exit 1'`).
+        let package_json = serde_json::json!({
+            "name": "project-with-failing-script",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall": "exit 1",
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_arg("install").assert().failure();
+
+        drop((root, mock_instance));
+    }
+
+    /// Ported from
+    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/test/install/lifecycleScripts.ts#L155>
+    /// — the project's scripts run regardless of whether its `name`
+    /// matches its directory.
+    #[test]
+    fn runs_scripts_when_project_name_differs_from_directory() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "different-name",
+            "version": "1.0.0",
+            "scripts": {
+                "preinstall": append_order_script("preinstall"),
+                "install": append_order_script("install"),
+                "postinstall": append_order_script("postinstall"),
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_arg("install").assert().success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        let stages: Vec<&str> = order.lines().collect();
+        assert_eq!(stages, ["preinstall", "install", "postinstall"]);
+
+        drop((root, mock_instance));
+    }
+
+    /// Ported from
+    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/test/install/lifecycleScripts.ts#L187>
+    /// — `INIT_CWD` is set to the lockfile directory for project scripts.
+    #[test]
+    fn project_script_sees_init_cwd() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "project-reads-init-cwd",
+            "version": "1.0.0",
+            "scripts": {
+                "postinstall":
+                    r#"node -e "require('fs').writeFileSync('init-cwd.txt', process.env.INIT_CWD || '')""#,
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_arg("install").assert().success();
+
+        let init_cwd =
+            fs::read_to_string(workspace.join("init-cwd.txt")).expect("read init-cwd.txt");
+        let canonical_workspace = fs::canonicalize(&workspace).expect("canonicalize workspace dir");
+        let canonical_init_cwd =
+            fs::canonicalize(init_cwd.trim()).expect("canonicalize INIT_CWD value");
+        assert_eq!(canonical_init_cwd, canonical_workspace);
+
+        drop((root, mock_instance));
+    }
+
+    /// `pacquet add <pkg>` is a partial install (pnpm's
+    /// `mutation: 'installSome'`), so the project's own lifecycle
+    /// scripts must not run. Ported from
+    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pnpm/test/install/lifecycleScripts.ts#L66-L90>
+    /// (`postinstall`/`prepare` are not executed after a named install).
+    #[test]
+    fn add_does_not_run_project_lifecycle_scripts() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "project-adding-a-dep",
+            "version": "1.0.0",
+            "scripts": {
+                "preinstall": append_order_script("preinstall"),
+                "install": append_order_script("install"),
+                "postinstall": append_order_script("postinstall"),
+                "prepare": append_order_script("prepare"),
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        pacquet.with_arg("add").with_arg("@pnpm.e2e/hello-world-js-bin-parent").assert().success();
+
+        assert!(
+            !workspace.join("order.txt").exists(),
+            "named install (`add`) must not run the project's own lifecycle scripts",
+        );
+
+        drop((root, mock_instance));
+    }
+}
