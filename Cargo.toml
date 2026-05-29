@@ -85,7 +85,7 @@ axum = { version = "0.8.7", default-features = false, features = [
 clap = { version = "4", features = ["derive", "string"] }
 command-extra = { version = "1.0.0" }
 base64 = { version = "0.22.1" }
-bcrypt = { version = "0.17.1" }
+bcrypt = { version = "0.19.1" }
 bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 dashmap = { version = "6.1.0" }
