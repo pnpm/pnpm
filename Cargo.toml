@@ -133,7 +133,7 @@ split-first-char   = { version = "2.0.1" }
 ssri               = { version = "9.2.0" }
 strum              = { version = "0.28.0", features = ["derive"] }
 sysinfo            = { version = "0.39.2" }
-tar                = { version = "0.4.45" }
+tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
 tower-http         = { version = "0.6.11", features = ["trace"] }
