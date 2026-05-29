@@ -145,7 +145,7 @@ pub(crate) async fn handle_install(runtime: &AgentRuntime, body: Bytes) -> Respo
             "I\t{}\t{}\t{}",
             entry.integrity,
             entry.pkg_id,
-            BASE64.encode(&entry.raw)
+            BASE64.encode(&entry.raw),
         );
     }
 
