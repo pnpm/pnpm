@@ -22,11 +22,11 @@ use crate::error::RegistryError;
 pub enum AccessToken {
     /// `$all` / `@all` / `all` — anyone, authenticated or not.
     All,
-    /// `$authenticated` / `@authenticated` — any caller carrying valid
-    /// Bearer or Basic credentials.
+    /// `$authenticated` / `@authenticated` / `authenticated` — any
+    /// caller carrying valid Bearer or Basic credentials.
     Authenticated,
-    /// `$anonymous` / `@anonymous` — only callers *without* valid
-    /// credentials.
+    /// `$anonymous` / `@anonymous` / `anonymous` — only callers
+    /// *without* valid credentials.
     Anonymous,
     /// A username or group name. Matches an authenticated caller whose
     /// username (or, eventually, auth-provided group) equals it.
