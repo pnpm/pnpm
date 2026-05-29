@@ -5,7 +5,7 @@ use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System};
 /// process existed and the signal was delivered, `false` if the
 /// process was already gone or the signal couldn't be sent.
 ///
-/// pnpm-registry runs as a single process with no spawned children,
+/// pnpr runs as a single process with no spawned children,
 /// so we send the signal directly to the recorded PID instead of
 /// walking the process tree the way the old verdaccio-backed mock
 /// had to.

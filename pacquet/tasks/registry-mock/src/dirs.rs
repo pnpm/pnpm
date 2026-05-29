@@ -32,18 +32,18 @@ pub fn workspace_root() -> &'static Path {
 }
 
 /// The verdaccio-shaped storage built from the in-repo package fixtures
-/// (`registry/.fixtures/packages`) — the same storage pacquet's tests serve.
+/// (`pnpr/.fixtures/packages`) — the same storage pacquet's tests serve.
 /// We don't serve directly from here — see [`runtime_storage`] for why — but
 /// we seed [`runtime_storage`] from it on every launch.
 pub fn registry_mock_storage() -> &'static Path {
-    pnpm_registry_fixtures::ensure_storage()
+    pnpr_fixtures::ensure_storage()
 }
 
-/// Stable cache path we hand to `pnpm-registry --storage` (instead
+/// Stable cache path we hand to `pnpr --storage` (instead
 /// of [`registry_mock_storage`]). Two reasons it has to be separate
 /// and stable:
 ///
-/// 1. `pnpm-registry` writes proxy-mode cache entries (the ~2.3k
+/// 1. `pnpr` writes proxy-mode cache entries (the ~2.3k
 ///    unscoped npm packages the benchmark lockfile pulls) into
 ///    `--storage`. If we pointed at the generated fixture storage
 ///    we'd mix proxy-cache entries into it and lose them whenever the

@@ -1,5 +1,15 @@
 # pnpm-agent
 
+## 0.0.20
+
+### Patch Changes
+
+- Updated dependencies [2cadfb5]
+- Updated dependencies [a33c4bf]
+  - @pnpm/installing.deps-installer@1101.6.0
+  - @pnpm/installing.client@1100.2.4
+  - @pnpm/store.controller@1101.0.10
+
 ## 0.0.19
 
 ### Patch Changes

@@ -1,10 +1,10 @@
 name: Pacquet CI
 
 # Despite the name, this workflow covers every Rust crate in the
-# repo — pacquet and pnpm-registry alike. They share the same cargo
+# repo — pacquet and pnpr alike. They share the same cargo
 # workspace, so `just test`, dylint, doc, etc. all see both stacks
 # in one pass; running two workflows would just duplicate the work.
-# Trigger paths intentionally include `registry/**` for the same
+# Trigger paths intentionally include `pnpr/**` for the same
 # reason.
 
 permissions:
@@ -16,7 +16,7 @@ on:
     types: [opened, synchronize]
     paths:
       - 'pacquet/**'
-      - 'registry/**'
+      - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -35,7 +35,7 @@ on:
       - main
     paths:
       - 'pacquet/**'
-      - 'registry/**'
+      - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -145,7 +145,7 @@ jobs:
 
       - uses: crate-ci/typos@5374cbf686e897b15713110e233094e2874de7ef # v1.46.1
         with:
-          files: pacquet registry
+          files: pacquet pnpr
 
   deny:
     name: Cargo Deny

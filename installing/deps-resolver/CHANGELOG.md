@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 1100.1.5
+
+### Patch Changes
+
+- 39101f5: Fix pnpm hanging during peer resolution when an aliased install pulls in transitive packages with mutual peer cycles at different depths in the dependency tree (for example, `pnpm i nuxt@npm:nuxt-nightly@5x`). Cycles whose members hit the `findHit` cache instead of running their own `calculateDepPath` are now short-circuited by sibling resolutions at the level where the cycle is detected, so the cached path promises no longer deadlock. [#11999](https://github.com/pnpm/pnpm/issues/11999).
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/fetching.pick-fetcher@1100.0.9
+
 ## 1100.1.4
 
 ### Patch Changes

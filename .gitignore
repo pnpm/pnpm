@@ -62,6 +62,6 @@ __fixtures__/custom-modules-dir/patches/
 /bench-work-env
 .pacquet
 
-## test registry auth state (written by pnpm-registry when serving with auth)
+## test registry auth state (written by pnpr when serving with auth)
 htpasswd
 tokens.db

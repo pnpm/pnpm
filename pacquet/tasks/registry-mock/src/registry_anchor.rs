@@ -44,7 +44,7 @@ impl Drop for RegistryAnchor {
 
         let pid = anchor.info.pid;
         eprintln!("info: There are no more users that use the mocked server");
-        eprintln!("info: Terminating pnpm-registry pid {pid}...");
+        eprintln!("info: Terminating pnpr pid {pid}...");
         let killed = kill_process_by_pid(Pid::from_u32(pid), Signal::Interrupt);
         eprintln!("info: kill signal delivered: {killed}");
 

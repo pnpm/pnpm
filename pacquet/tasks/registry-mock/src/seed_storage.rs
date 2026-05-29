@@ -19,7 +19,7 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
     if !src.exists() {
         // `registry_mock_storage` builds the fixture storage on first
         // call, so this is unreachable in practice; guard anyway and
-        // let pnpm-registry's own startup surface any problem.
+        // let pnpr's own startup surface any problem.
         return Ok(0);
     }
     fs::create_dir_all(dest)?;

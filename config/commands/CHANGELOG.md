@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-config
 
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.10
+
 ## 1100.0.17
 
 ### Patch Changes

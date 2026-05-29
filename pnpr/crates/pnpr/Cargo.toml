@@ -1,0 +1,56 @@
+[package]
+name              = "pnpr"
+description       = "pnpm-compatible npm registry server"
+version           = "0.0.1"
+authors           = ["pnpm contributors"]
+edition.workspace = true
+license.workspace = true
+homepage          = "https://pnpm.io"
+repository        = "https://github.com/pnpm/pnpm"
+keywords          = ["npm", "registry", "pnpm", "verdaccio"]
+categories        = ["development-tools", "web-programming::http-server"]
+readme            = "README.md"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "pnpr"
+path = "src/main.rs"
+
+[dependencies]
+pacquet-config-dir  = { workspace = true }
+pacquet-env-replace = { workspace = true }
+pacquet-network     = { workspace = true }
+axum                = { workspace = true }
+base64              = { workspace = true }
+bcrypt              = { workspace = true }
+clap                = { workspace = true }
+derive_more         = { workspace = true }
+futures-util        = { workspace = true }
+getrandom           = { workspace = true }
+home                = { workspace = true }
+indexmap            = { workspace = true }
+miette              = { workspace = true }
+reqwest             = { workspace = true }
+rusqlite            = { workspace = true }
+serde               = { workspace = true }
+serde-saphyr        = { workspace = true }
+serde_json          = { workspace = true }
+sha2                = { workspace = true }
+ssri                = { workspace = true }
+tokio               = { workspace = true }
+tower-http          = { workspace = true }
+tracing             = { workspace = true }
+tracing-subscriber  = { workspace = true, features = ["json"] }
+wax                 = { workspace = true }
+
+[dev-dependencies]
+mockito    = { workspace = true }
+pipe-trait = { workspace = true }
+tempfile   = { workspace = true }
+tokio      = { workspace = true }
+tower      = { workspace = true }
+
+[lints]
+workspace = true
