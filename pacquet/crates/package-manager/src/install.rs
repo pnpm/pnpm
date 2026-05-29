@@ -1597,10 +1597,6 @@ fn build_workspace_state(
         // `false` so pnpm doesn't treat the install as partial and
         // skip the cache.
         filtered_install: false,
-        // Mirror pnpm's `createWorkspaceState`, which records
-        // `configDependencies` verbatim. Omitting it makes pnpm's
-        // `checkDepsStatus` see a missing value, compare it against the
-        // live config, and reinstall on every `pnpm run` / `pnpm node`.
         config_dependencies: config.config_dependencies.clone(),
         // Settings construction is shared with
         // `optimistic_repeat_install::current_settings` so the
