@@ -1,5 +1,18 @@
 # @pnpm/client
 
+## 1100.2.4
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/network.fetch@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.3
+  - @pnpm/fetching.tarball-fetcher@1101.0.11
+  - @pnpm/resolving.default-resolver@1100.3.4
+
 ## 1100.2.3
 
 ### Patch Changes

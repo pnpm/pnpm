@@ -1,5 +1,21 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.3.2
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+- Updated dependencies [6235428]
+- Updated dependencies [a39a83d]
+- Updated dependencies [1e9ab29]
+  - @pnpm/network.fetch@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/resolving.registry.types@1100.1.0
+  - @pnpm/resolving.default-resolver@1100.3.4
+  - @pnpm/deps.inspection.outdated@1100.1.4
+  - @pnpm/global.commands@1100.0.23
+
 ## 1100.3.1
 
 ### Patch Changes

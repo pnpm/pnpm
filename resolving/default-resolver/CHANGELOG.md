@@ -1,5 +1,18 @@
 # @pnpm/default-resolver
 
+## 1100.3.4
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.3
+  - @pnpm/resolving.git-resolver@1100.1.2
+  - @pnpm/resolving.tarball-resolver@1100.1.1
+  - @pnpm/engine.runtime.bun-resolver@1101.1.4
+  - @pnpm/engine.runtime.deno-resolver@1101.1.4
+
 ## 1100.3.3
 
 ### Patch Changes
