@@ -2850,9 +2850,14 @@ dependencies = [
  "mockito",
  "pacquet-lockfile",
  "pacquet-network",
+ "pacquet-reporter",
  "pacquet-resolving-resolver-base",
+ "pacquet-store-dir",
+ "pacquet-tarball",
  "pretty_assertions",
  "reqwest",
+ "serde_json",
+ "ssri",
  "tokio",
 ]
 

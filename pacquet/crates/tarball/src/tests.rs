@@ -1063,10 +1063,10 @@ async fn retries_then_succeeds_on_transient_5xx() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    let (cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1114,7 +1114,7 @@ async fn retries_integrity_mismatch_until_exhausted() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1146,7 +1146,7 @@ async fn fails_fast_on_404() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1187,7 +1187,7 @@ async fn retries_other_4xx_codes() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1222,7 +1222,7 @@ async fn retry_exhaustion_returns_last_error() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1416,7 +1416,7 @@ async fn zero_retries_makes_a_single_attempt() {
     fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1458,10 +1458,10 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
         None,
     );
 
-    let (cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1512,10 +1512,10 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
         None,
     );
 
-    let (cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1828,7 +1828,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "@fastify/error@3.3.0",
         "",
@@ -1918,7 +1918,7 @@ async fn started_fires_for_connection_level_failures() {
     let _ = fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         "http://127.0.0.1:1/pkg.tgz", // port 1 is reserved → connect-refused
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "/proj",
@@ -2125,7 +2125,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",

@@ -22,7 +22,7 @@ use pacquet_store_dir::{
 use pipe_trait::Pipe;
 use rayon::prelude::*;
 use smart_default::SmartDefault;
-use ssri::Integrity;
+use ssri::{Algorithm, Integrity, IntegrityOpts};
 use tar::Archive;
 use tokio::sync::{Notify, RwLock, Semaphore};
 use tracing::instrument;
@@ -1428,14 +1428,14 @@ fn is_transient_error(err: &TarballError) -> bool {
 async fn fetch_and_extract_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    package_integrity: &Integrity,
+    expected_integrity: Option<&Integrity>,
     package_unpacked_size: Option<usize>,
     package_id: &str,
     attempt: u32,
     store_dir: &'static StoreDir,
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let network_error =
         |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
 
@@ -1625,13 +1625,29 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // each tarball — on a 2-core runner only two tarballs could make
     // progress at a time. The post-download semaphore caps concurrency
     // here.
-    let package_integrity = package_integrity.clone();
+    let expected_integrity = expected_integrity.cloned();
     let package_url_owned = package_url.to_string();
     let result = tokio::task::spawn_blocking(
-        move || -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-            package_integrity.check(&buffer).map_err(|error| {
-                TarballError::Checksum(VerifyChecksumError { url: package_url_owned, error })
-            })?;
+        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+            // Verify a known integrity, or compute one when the hash
+            // isn't known until after download — remote (non-registry)
+            // https-tarball direct deps, where the resolver learns the
+            // integrity here. Mirrors pnpm's worker
+            // `integrity ?? calcIntegrity(buffer)`
+            // ([worker/src/start.ts](https://github.com/pnpm/pnpm/blob/086c5e91e8/worker/src/start.ts#L232)).
+            let integrity = match expected_integrity {
+                Some(expected) => {
+                    expected.check(&buffer).map_err(|error| {
+                        TarballError::Checksum(VerifyChecksumError { url: package_url_owned, error })
+                    })?;
+                    expected
+                }
+                None => {
+                    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+                    opts.input(&buffer);
+                    opts.result()
+                }
+            };
 
             // Extract in a scope so the decompressed buffer + `tar::Archive`
             // are released before we return — a large package's inflated
@@ -1642,7 +1658,7 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
                     .pipe(Archive::new);
                 extract_tarball_entries(&mut archive, store_dir, ignore_file_pattern.as_deref())?
             };
-            Ok((cas_paths, pkg_files_idx))
+            Ok((integrity, cas_paths, pkg_files_idx))
         },
     )
     .await
@@ -1689,7 +1705,7 @@ fn emit_progress_found_in_store<Reporter: self::Reporter>(package_id: &str, requ
 async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    package_integrity: &Integrity,
+    expected_integrity: Option<&Integrity>,
     package_unpacked_size: Option<usize>,
     package_id: &str,
     requester: &str,
@@ -1697,13 +1713,13 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     retry_opts: RetryOpts,
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut attempt: u32 = 0;
     loop {
         let result = fetch_and_extract_once::<Reporter>(
             http_client,
             package_url,
-            package_integrity,
+            expected_integrity,
             package_unpacked_size,
             package_id,
             attempt,
@@ -2076,19 +2092,20 @@ impl<'a> DownloadTarballToStore<'a> {
         // parsing recovers via re-fetch instead of aborting the install
         // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
         // [`is_transient_error`].
-        let (cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
-            http_client,
-            package_url,
-            package_integrity,
-            package_unpacked_size,
-            package_id,
-            requester,
-            store_dir,
-            retry_opts,
-            auth_headers,
-            ignore_file_pattern,
-        )
-        .await?;
+        let (_computed_integrity, cas_paths, pkg_files_idx) =
+            fetch_and_extract_with_retry::<Reporter>(
+                http_client,
+                package_url,
+                Some(package_integrity),
+                package_unpacked_size,
+                package_id,
+                requester,
+                store_dir,
+                retry_opts,
+                auth_headers,
+                ignore_file_pattern,
+            )
+            .await?;
 
         // Hand the per-tarball files index off to the shared writer task
         // from <https://github.com/pnpm/pacquet/pull/265> *after* the retry loop returns, so transient failures
@@ -2112,6 +2129,108 @@ impl<'a> DownloadTarballToStore<'a> {
 
         Ok(cas_paths)
     }
+}
+
+/// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
+/// computed from the downloaded tarball and the bundled manifest read
+/// from its `package.json`. The extracted CAFS paths are not returned —
+/// they are stashed in the shared [`MemCache`] keyed by URL so the
+/// install pass reuses them without re-downloading.
+#[derive(Debug)]
+pub struct ResolvedTarball {
+    pub integrity: Integrity,
+    pub manifest: Option<serde_json::Value>,
+}
+
+/// Download a remote tarball during *resolution*, compute its sha512
+/// integrity, extract it to the store, and read its bundled manifest.
+///
+/// Remote (non-registry) https-tarball direct dependencies carry no
+/// name/version/integrity at resolve time — those live in the tarball's
+/// `package.json`. pnpm learns them in `packageRequester` after the
+/// fetch; pacquet builds the lockfile before the install pass, so the
+/// `TarballResolver` must fetch here to fill `manifest` + `integrity`
+/// into its `ResolveResult`. Passing a `mem_cache` warms it (keyed by
+/// URL) so the install pass's
+/// [`DownloadTarballToStore::run_with_mem_cache`] reuses the extraction
+/// without a second download.
+pub struct FetchTarballForResolution<'a> {
+    pub http_client: &'a ThrottledClient,
+    pub store_dir: &'static StoreDir,
+    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
+    pub package_url: &'a str,
+    pub auth_headers: &'a AuthHeaders,
+    pub retry_opts: RetryOpts,
+}
+
+impl FetchTarballForResolution<'_> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+        mem_cache: Option<&MemCache>,
+    ) -> Result<ResolvedTarball, TarballError> {
+        let FetchTarballForResolution {
+            http_client,
+            store_dir,
+            store_index_writer,
+            package_url,
+            auth_headers,
+            retry_opts,
+        } = self;
+
+        // `None` expected-integrity → compute it from the bytes. The
+        // package_id / requester are the post-redirect URL: the real
+        // `name@version` is only known once the manifest is read below,
+        // and the resolve-time fetch is silent (the install pass owns
+        // the reporter ordering), so the placeholder never surfaces.
+        let (integrity, cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
+            http_client,
+            package_url,
+            None,
+            None,
+            package_url,
+            package_url,
+            store_dir,
+            retry_opts,
+            auth_headers,
+            None,
+        )
+        .await?;
+
+        let manifest = pkg_files_idx.manifest.clone();
+        // Scope the store-index row by the package's canonical
+        // `name@version`, matching what the install pass derives from
+        // the same manifest. Fall back to the URL when the tarball has
+        // no usable `package.json` name (degraded, but keeps the row
+        // addressable).
+        let package_id =
+            manifest_package_id(manifest.as_ref()).unwrap_or_else(|| package_url.to_string());
+
+        let index_key = store_index_key(&integrity.to_string(), &package_id);
+        if let Some(writer) = store_index_writer {
+            writer.queue(index_key, pkg_files_idx);
+        } else {
+            tracing::warn!(
+                target: "pacquet::download",
+                ?index_key,
+                "no shared store-index writer; skipping index row for this resolve-time tarball",
+            );
+        }
+
+        if let Some(mem_cache) = mem_cache {
+            let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::new(cas_paths))));
+            mem_cache.insert(package_url.to_string(), cache_lock);
+        }
+
+        Ok(ResolvedTarball { integrity, manifest })
+    }
+}
+
+/// `name@version` from a bundled manifest, when both fields are present.
+fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
+    let manifest = manifest?;
+    let name = manifest.get("name")?.as_str()?;
+    let version = manifest.get("version")?.as_str()?;
+    Some(format!("{name}@{version}"))
 }
 
 /// Run one full zip-archive fetch attempt: hit the network, drain the
