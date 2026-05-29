@@ -33,23 +33,29 @@ impl NodeJsHooks {
             .map_err(|err| HookError::HookFailed(func.to_string(), err.to_string()))?;
 
         let (input_type, wrapper) = if file_path.ends_with(".mjs") {
-            ("module", format!(
-                r#"const hooks = await import({file_path_escaped});
+            (
+                "module",
+                format!(
+                    r#"const hooks = await import({file_path_escaped});
 const res = await (hooks.hooks && hooks.hooks['{func}'])?.({payload});
 console.log(JSON.stringify(res));
 "#,
-                file_path_escaped = file_path_escaped,
-            ))
+                    file_path_escaped = file_path_escaped,
+                ),
+            )
         } else {
-            ("commonjs", format!(
-                r#"(async () => {{
+            (
+                "commonjs",
+                format!(
+                    r#"(async () => {{
   const hooks = require({file_path_escaped});
   const res = await (hooks.hooks && hooks.hooks['{func}'])?.({payload});
   console.log(JSON.stringify(res));
 }})();
 "#,
-                file_path_escaped = file_path_escaped,
-            ))
+                    file_path_escaped = file_path_escaped,
+                ),
+            )
         };
 
         let output = timeout(
@@ -99,8 +105,10 @@ console.log(JSON.stringify(res));
         };
 
         let (input_type, wrapper) = if file_path.ends_with(".mjs") {
-            ("module", format!(
-                r#"import {{ readFileSync }} from 'node:fs';
+            (
+                "module",
+                format!(
+                    r#"import {{ readFileSync }} from 'node:fs';
 const hooks = await import({file_path_escaped});
 const ctx = JSON.parse(readFileSync(0, 'utf8'));
 const logger = {{
@@ -109,11 +117,14 @@ const logger = {{
 }};
 await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
 "#,
-                file_path_escaped = file_path_escaped,
-            ))
+                    file_path_escaped = file_path_escaped,
+                ),
+            )
         } else {
-            ("commonjs", format!(
-                r#"(async () => {{
+            (
+                "commonjs",
+                format!(
+                    r#"(async () => {{
   const hooks = require({file_path_escaped});
   const ctx = JSON.parse(require('fs').readFileSync(0, 'utf8'));
   const logger = {{
@@ -123,8 +134,9 @@ await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
   await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
 }})();
 "#,
-                file_path_escaped = file_path_escaped,
-            ))
+                    file_path_escaped = file_path_escaped,
+                ),
+            )
         };
 
         let mut child = match Command::new("node")
