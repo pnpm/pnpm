@@ -35,7 +35,7 @@ use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pacquet_registry::{Package, PackageVersion};
 
 /// Rank of supply-chain evidence on a single version. Variants are
-/// declared weakest-first so the derived `Ord` matches [`trust_rank`].
+/// declared weakest-first so the derived `Ord` matches `trust_rank`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TrustEvidence {
     /// `dist.attestations.provenance` is set.
