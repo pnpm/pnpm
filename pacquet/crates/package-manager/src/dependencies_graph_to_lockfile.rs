@@ -344,7 +344,8 @@ fn real_name(result: &ResolveResult) -> Option<String> {
     // matching pnpm's `depPathToRef`. Other manifest-only resolutions
     // (`file:` / git) are deliberately left to the `None` path so their
     // importer entries keep pacquet's current prefixed shape — bringing
-    // those in line with `depPathToRef` is separate from #12053.
+    // those in line with `depPathToRef` is separate from
+    // <https://github.com/pnpm/pnpm/issues/12053>.
     let LockfileResolution::Tarball(tarball) = &result.resolution else {
         return None;
     };
@@ -355,8 +356,9 @@ fn real_name(result: &ResolveResult) -> Option<String> {
 }
 
 /// `true` for an `http(s)://` tarball URL — the remote tarball deps
-/// #12053 covers. Excludes `file:` tarballs and registry-reconstructed
-/// resolutions that carry no URL.
+/// covered by <https://github.com/pnpm/pnpm/issues/12053>. Excludes
+/// `file:` tarballs and registry-reconstructed resolutions that carry
+/// no URL.
 fn is_remote_http_tarball(tarball: &str) -> bool {
     tarball.starts_with("http:") || tarball.starts_with("https:")
 }

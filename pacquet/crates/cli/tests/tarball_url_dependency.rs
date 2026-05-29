@@ -32,7 +32,8 @@ fn pacquet_at(workspace: &Path) -> Command {
 
 /// The `integrity:` recorded for a `packages:` entry keyed by
 /// `package_key` (e.g. `is-positive@<tarball-url>`). `None` when the
-/// entry is absent or carries no integrity (the #12001 regression).
+/// entry is absent or carries no integrity (the
+/// <https://github.com/pnpm/pnpm/issues/12001> regression).
 fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
     // The `packages:` key for a tarball-URL dep contains `://` and a
     // `:port`, which the YAML emitter wraps in double quotes; the lookup
@@ -87,7 +88,8 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     });
 
     // Install an unrelated package. This rewrites the lockfile while the
-    // tarball dependency is re-resolved — the exact #12001 trigger.
+    // tarball dependency is re-resolved — the exact
+    // <https://github.com/pnpm/pnpm/issues/12001> trigger.
     fs::write(
         &manifest_path,
         serde_json::json!({
@@ -109,8 +111,9 @@ fn remote_tarball_integrity_survives_unrelated_install() {
         "the tarball dependency's integrity must be preserved verbatim:\n{lockfile}",
     );
 
-    // The frozen install is the symptom #12001 reports: it fails closed
-    // when the tarball entry has lost its integrity.
+    // The frozen install is the symptom
+    // <https://github.com/pnpm/pnpm/issues/12001> reports: it fails
+    // closed when the tarball entry has lost its integrity.
     pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, mock_instance));
