@@ -231,6 +231,12 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 
+    /// `trustPolicyExclude` patterns rejected at compile time.
+    /// Mirrors upstream's `ERR_PNPM_INVALID_TRUST_POLICY_EXCLUDE`.
+    #[display("Invalid value in trustPolicyExclude: {_0}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_TRUST_POLICY_EXCLUDE))]
+    TrustPolicyExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
+
     /// `allowBuilds` patterns in `pnpm-workspace.yaml` couldn't be
     /// parsed. Same `VersionPolicyError` shape the frozen-lockfile
     /// path surfaces — see `InstallFrozenLockfileError::VersionPolicy`
@@ -609,6 +615,23 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .transpose()
             .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
+        // `trustPolicy='no-downgrade'` config, threaded into every
+        // resolve so the npm resolver re-applies the downgrade gate to
+        // freshly picked versions. `full_metadata` above is already
+        // forced on under this policy, so the picker hands the resolver
+        // the per-version `time` + trust evidence the check reads.
+        let trust_policy = match config.trust_policy {
+            TrustPolicy::Off => None,
+            TrustPolicy::NoDowngrade => Some(TrustPolicy::NoDowngrade),
+        };
+        let trust_policy_exclude = config
+            .trust_policy_exclude
+            .as_deref()
+            .filter(|patterns| !patterns.is_empty())
+            .map(pacquet_config::version_policy::create_package_version_policy)
+            .transpose()
+            .map_err(InstallWithFreshLockfileError::TrustPolicyExclude)?;
+
         // Seed `allPreferredVersions` from every importer's manifest +
         // the wanted lockfile's snapshots (when an existing one is
         // present and is being rewritten). Mirrors upstream's
@@ -725,6 +748,9 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                         default_tag: Some("latest".to_string()),
                         published_by,
                         published_by_exclude: published_by_exclude.clone(),
+                        trust_policy,
+                        trust_policy_exclude: trust_policy_exclude.clone(),
+                        trust_policy_ignore_after: config.trust_policy_ignore_after,
                         project_dir,
                         lockfile_dir: lockfile_dir.to_path_buf(),
                         workspace_packages: workspace_packages.clone(),

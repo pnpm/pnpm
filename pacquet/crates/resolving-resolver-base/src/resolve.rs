@@ -12,7 +12,7 @@ use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
-use pacquet_config::version_policy::PackageVersionPolicy;
+use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgNameVer};
 use serde::{Deserialize, Serialize};
 
@@ -215,6 +215,21 @@ pub struct ResolveOptions {
     /// Per-package exclude policy for the maturity filter. `None`
     /// applies the filter uniformly.
     pub published_by_exclude: Option<PackageVersionPolicy>,
+    /// `trustPolicy='no-downgrade'` gate. When `Some(NoDowngrade)`, the
+    /// npm resolver rejects a freshly picked version whose trust
+    /// evidence is weaker than an earlier-published version's — the
+    /// resolver-time counterpart to the lockfile verifier's check.
+    /// `None`/`Some(Off)` disables it. Mirrors pnpm's resolver-time
+    /// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
+    /// call, gated on `opts.trustPolicy === 'no-downgrade'`.
+    pub trust_policy: Option<TrustPolicy>,
+    /// Per-package exclude policy for the trust gate. `None` applies
+    /// the gate uniformly.
+    pub trust_policy_exclude: Option<PackageVersionPolicy>,
+    /// Max age, in minutes, before which the trust gate still applies.
+    /// A picked version older than this skips the check. `None` always
+    /// checks. Mirrors pnpm's `trustPolicyIgnoreAfter`.
+    pub trust_policy_ignore_after: Option<u64>,
     /// `true` suppresses on-disk and in-memory cache write-back during
     /// resolution. Mirrors upstream's `dryRun` flag at the resolver
     /// boundary.
