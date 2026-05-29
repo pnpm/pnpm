@@ -404,7 +404,7 @@ describe('failIfTrustDowngraded', () => {
             email: 'approver@example.com',
             approver: {
               name: 'test-approver',
-              email: 'approver@example.com'
+              email: 'approver@example.com',
             },
           },
           dist: {
