@@ -77,7 +77,7 @@ impl PreparedRegistryInfo {
         let prepared = PreparedRegistryInfo::try_load()?;
         let pid = prepared.info.pid;
 
-        eprintln!("info: Terminating pnpm-registry pid {pid}...");
+        eprintln!("info: Terminating pnpr pid {pid}...");
         let killed = kill_process_by_pid(Pid::from_u32(pid), Signal::Interrupt);
         eprintln!("info: kill signal delivered: {killed}");
 

@@ -102,7 +102,7 @@ This runs `typos`, `cargo fmt`, `just check` (which is `cargo check --locked --w
 > Run `just ready` before every commit. This rule applies to all changes, including documentation edits, comment changes, and config updates. Any change can break formatting, linting, building, or tests across the supported platforms.
 
 > [!NOTE]
-> Integration tests that need the local registry mock start `pnpm-registry` automatically. After dependencies are installed, `cargo test`, `cargo nextest run`, and `just test` should not require a separate registry process.
+> Integration tests that need the local registry mock start `pnpr` automatically. After dependencies are installed, `cargo test`, `cargo nextest run`, and `just test` should not require a separate registry process.
 
 ## Debugging
 

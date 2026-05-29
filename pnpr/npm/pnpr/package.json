@@ -7,12 +7,12 @@
     "registry"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/registry",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpr",
   "bugs": "https://github.com/pnpm/pnpm/issues",
   "repository": {
     "type": "git",
     "url": "https://github.com/pnpm/pnpm",
-    "directory": "registry/npm/pnpr"
+    "directory": "pnpr/npm/pnpr"
   },
   "bin": "bin/pnpr",
   "engines": {

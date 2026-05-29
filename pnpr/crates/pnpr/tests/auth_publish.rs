@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-use pnpm_registry::{Config, router};
+use pnpr::{Config, router};
 
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
@@ -641,7 +641,7 @@ async fn publish_supports_scoped_packages() {
 /// for `@scope/name` that's `@scope/name-1.0.0.tgz`, with a literal `/`
 /// in the filename. The server has to accept that shape and normalize
 /// it to the canonical `<basename>-<version>.tgz` form on disk, otherwise
-/// `pnpm publish` against pnpm-registry fails with 400 for every scoped
+/// `pnpm publish` against pnpr fails with 400 for every scoped
 /// package — see `recursivePublish.ts` in `@pnpm/releasing.commands`.
 #[tokio::test]
 async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {

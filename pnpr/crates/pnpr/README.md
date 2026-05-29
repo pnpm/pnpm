@@ -1,4 +1,4 @@
-# pnpm-registry
+# pnpr
 
 A pnpm-compatible npm registry server, written in Rust.
 

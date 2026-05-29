@@ -5,7 +5,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-/// Locate the `pnpm-registry` binary built into the cargo workspace's
+/// Locate the `pnpr` binary built into the cargo workspace's
 /// `target/<profile>/` dir.
 ///
 /// `assert_cmd::cargo::cargo_bin` (the obvious choice) panics here:
@@ -17,26 +17,26 @@ use std::process::Command;
 /// var is unset and `cargo_bin` aborts. We resolve the path
 /// ourselves:
 ///
-/// 1. Honor `CARGO_BIN_EXE_pnpm-registry` if set — this is the case
-///    inside pnpm-registry's own integration tests.
+/// 1. Honor `CARGO_BIN_EXE_pnpr` if set — this is the case
+///    inside pnpr's own integration tests.
 /// 2. Prefer the release binary if one exists at
-///    `$CARGO_TARGET_DIR/release/pnpm-registry`. Critical for the
+///    `$CARGO_TARGET_DIR/release/pnpr`. Critical for the
 ///    integrated benchmark: comparing a debug-Rust mock to a
 ///    JIT-optimized verdaccio is apples to oranges — the install
 ///    measures 20%+ slower purely from unoptimized JSON parse +
 ///    serialize on every request. Tests don't need the release
 ///    binary, but having a release build override the debug one is
 ///    always the right choice when both exist.
-/// 3. Fall back to `$CARGO_TARGET_DIR/debug/pnpm-registry` for
+/// 3. Fall back to `$CARGO_TARGET_DIR/debug/pnpr` for
 ///    local dev where only `cargo build` ran.
-fn pnpm_registry_binary() -> PathBuf {
-    if let Some(path) = env::var_os("CARGO_BIN_EXE_pnpm-registry") {
+fn pnpr_binary() -> PathBuf {
+    if let Some(path) = env::var_os("CARGO_BIN_EXE_pnpr") {
         return PathBuf::from(path);
     }
     let target_dir = env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace_root().join("target"));
-    let exe = format!("pnpm-registry{}", env::consts::EXE_SUFFIX);
+    let exe = format!("pnpr{}", env::consts::EXE_SUFFIX);
     let release = target_dir.join("release").join(&exe);
     if release.is_file() {
         return release;
@@ -44,7 +44,7 @@ fn pnpm_registry_binary() -> PathBuf {
     target_dir.join("debug").join(&exe)
 }
 
-/// Build a [`Command`] that spawns the `pnpm-registry` binary in
+/// Build a [`Command`] that spawns the `pnpr` binary in
 /// proxy mode against the storage built from the in-repo fixtures,
 /// with `registry.npmjs.org` as the upstream.
 ///
@@ -58,21 +58,21 @@ fn pnpm_registry_binary() -> PathBuf {
 /// than any sane TTL, so a short TTL would mark them stale and try
 /// to refetch from npm — where the fixtures don't exist — and 404.
 ///
-/// `pnpm-registry` is a workspace crate; run
-/// `cargo build -p pnpm-registry` once before invoking the mock if
+/// `pnpr` is a workspace crate; run
+/// `cargo build -p pnpr` once before invoking the mock if
 /// it isn't already built. `--public-url` is pinned to
 /// `http://localhost:<port>` so the tarball URLs the registry
 /// rewrites match the URL pacquet's tests expect via
 /// `port_to_url`.
-pub fn pnpm_registry_command(port: u16) -> Command {
-    let bin = pnpm_registry_binary();
+pub fn pnpr_command(port: u16) -> Command {
+    let bin = pnpr_binary();
     assert!(
         bin.is_file(),
-        "pnpm-registry binary not found at {bin:?} — \
-         run `cargo build -p pnpm-registry` before invoking the mock",
+        "pnpr binary not found at {bin:?} — \
+         run `cargo build -p pnpr` before invoking the mock",
     );
     // Seed the runtime storage with the registry-mock fixtures
-    // before pnpm-registry starts serving. Idempotent — existing
+    // before pnpr starts serving. Idempotent — existing
     // files are left alone, so CI can cache the runtime path
     // across runs and only npm-proxied entries get fetched fresh.
     let seeded = seed_runtime_storage()
@@ -81,7 +81,7 @@ pub fn pnpm_registry_command(port: u16) -> Command {
         eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
     }
     let mut cmd = Command::new(bin);
-    // `pnpm-registry` defaults to its bundled verdaccio-shaped config
+    // `pnpr` defaults to its bundled verdaccio-shaped config
     // (npmjs uplink + `**` proxy rule), which matches what the mock
     // needs — no `-c` override required. We only pin the runtime
     // bits the bundled config can't know about.

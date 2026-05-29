@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members  = ["pacquet/crates/*", "pacquet/tasks/*", "registry/crates/*"]
+members  = ["pacquet/crates/*", "pacquet/tasks/*", "pnpr/crates/*"]
 
 [workspace.package]
 authors     = ["Yagiz Nizipli <yagiz@nizipli.com"]
@@ -72,8 +72,8 @@ pacquet-workspace-state                   = { path = "pacquet/crates/workspace-s
 pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpm-registry          = { path = "registry/crates/pnpm-registry", version = "0.0.1" }
-pnpm-registry-fixtures = { path = "registry/crates/pnpm-registry-fixtures", version = "0.0.1" }
+pnpr          = { path = "pnpr/crates/pnpr", version = "0.0.1" }
+pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures", version = "0.0.1" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }

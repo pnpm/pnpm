@@ -13,7 +13,7 @@ const kill = promisify(treeKill)
 const require = createRequire(import.meta.url)
 
 const REPO_ROOT = path.join(import.meta.dirname, '..', '..', '..')
-const FIXTURE_PACKAGES = path.join(REPO_ROOT, 'registry', '.fixtures', 'packages')
+const FIXTURE_PACKAGES = path.join(REPO_ROOT, 'pnpr', '.fixtures', 'packages')
 
 export default async () => {
   if (!process.env.PNPM_REGISTRY_MOCK_PORT) {
@@ -29,7 +29,7 @@ export default async () => {
   buildStorage(storage)
   process.env.PNPM_REGISTRY_MOCK_STORAGE = storage
 
-  const bin = resolvePnpmRegistryBin()
+  const bin = resolvePnprBin()
 
   const server = spawn(
     bin,
@@ -73,41 +73,41 @@ export default async () => {
 
 /**
  * Build registry storage from the in-repo fixtures into `out` using the
- * `pnpm-registry-prepare` binary (built from the `pnpm-registry-fixtures`
- * crate). The same builder backs pacquet's in-process registry.
+ * `pnpr-prepare` binary (built from the `pnpr-fixtures` crate). The same
+ * builder backs pacquet's in-process registry.
  */
 function buildStorage (out) {
-  const bin = resolvePnpmRegistryPrepareBin()
+  const bin = resolvePnprPrepareBin()
   const result = spawnSync(bin, ['--packages', FIXTURE_PACKAGES, '--out', out], { stdio: 'inherit' })
   if (result.status !== 0) {
     throw new Error(
-      `pnpm-registry-prepare failed to build fixture storage (exit ${result.status ?? result.signal}).`
+      `pnpr-prepare failed to build fixture storage (exit ${result.status ?? result.signal}).`
     )
   }
 }
 
 /**
- * Locate the `pnpm-registry-prepare` binary. Lookup order:
+ * Locate the `pnpr-prepare` binary. Lookup order:
  *
- * 1. `PNPM_REGISTRY_PREPARE_BIN` env var (set by CI, which builds it from source).
- * 2. A locally-built `target/{release,debug}/pnpm-registry-prepare`.
+ * 1. `PNPR_PREPARE_BIN` env var (set by CI, which builds it from source).
+ * 2. A locally-built `target/{release,debug}/pnpr-prepare`.
  */
-function resolvePnpmRegistryPrepareBin () {
-  return resolveRustBin('pnpm-registry-prepare', 'PNPM_REGISTRY_PREPARE_BIN')
+function resolvePnprPrepareBin () {
+  return resolveRustBin('pnpr-prepare', 'PNPR_PREPARE_BIN')
 }
 
 /**
- * Locate the `pnpm-registry` server binary. Lookup order:
+ * Locate the `pnpr` server binary. Lookup order:
  *
- * 1. `PNPM_REGISTRY_BIN` env var override.
- * 2. A locally-built `target/{release,debug}/pnpm-registry`.
+ * 1. `PNPR_BIN` env var override.
+ * 2. A locally-built `target/{release,debug}/pnpr`.
  * 3. The platform binary shipped as an optionalDependency of `@pnpm/pnpr`.
  */
-function resolvePnpmRegistryBin () {
-  if (process.env.PNPM_REGISTRY_BIN) {
-    return process.env.PNPM_REGISTRY_BIN
+function resolvePnprBin () {
+  if (process.env.PNPR_BIN) {
+    return process.env.PNPR_BIN
   }
-  const localBin = findRustTargetBin('pnpm-registry')
+  const localBin = findRustTargetBin('pnpr')
   if (localBin) return localBin
 
   const ext = process.platform === 'win32' ? '.exe' : ''
@@ -117,8 +117,8 @@ function resolvePnpmRegistryBin () {
     return wrapperRequire.resolve(`${platformPkg}/pnpr${ext}`)
   } catch {
     throw new Error(
-      'pnpm-registry binary not found. Build it with `cargo build -p pnpm-registry`, ' +
-      `set PNPM_REGISTRY_BIN, or install ${platformPkg} (an optionalDependency of @pnpm/pnpr).`
+      'pnpr binary not found. Build it with `cargo build -p pnpr`, ' +
+      `set PNPR_BIN, or install ${platformPkg} (an optionalDependency of @pnpm/pnpr).`
     )
   }
 }
@@ -130,7 +130,7 @@ function resolveRustBin (name, envVar) {
   const localBin = findRustTargetBin(name)
   if (localBin) return localBin
   throw new Error(
-    `${name} binary not found. Build it with \`cargo build -p pnpm-registry-fixtures --bin ${name}\` ` +
+    `${name} binary not found. Build it with \`cargo build -p pnpr-fixtures --bin ${name}\` ` +
     `or set ${envVar} to an absolute path.`
   )
 }
@@ -155,16 +155,16 @@ async function waitForServerOnline () {
 
       const totalWait = (performance.now() - start) / 1000
       if (totalWait > UNUSUAL_REGISTRY_STARTUP_THRESHOLD) {
-        console.warn(`pnpm-registry required an unusually long amount of time to start: ${totalWait} seconds`)
+        console.warn(`pnpr required an unusually long amount of time to start: ${totalWait} seconds`)
       }
 
       return
     } catch (err) {
-      // If pnpm-registry hasn't begun listening yet, attempts to
+      // If pnpr hasn't begun listening yet, attempts to
       // connect to the unbound port should throw ECONNREFUSED. If a different
       // error is observed, throw an error.
       if (err?.cause?.code !== 'ECONNREFUSED') {
-        throw new Error('Failed to bring pnpm-registry online:', { cause: err })
+        throw new Error('Failed to bring pnpr online:', { cause: err })
       }
 
       await scheduler.wait(delay)
@@ -172,7 +172,7 @@ async function waitForServerOnline () {
   }
 
   const totalWait = (performance.now() - start) / 1000
-  throw new Error(`pnpm-registry did not come online after waiting ${totalWait} seconds`)
+  throw new Error(`pnpr did not come online after waiting ${totalWait} seconds`)
 }
 
 function *exponentialBackoff (attempts = 15, base = 1.5, initialWait = 100) {

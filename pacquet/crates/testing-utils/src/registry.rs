@@ -1,4 +1,4 @@
-use pnpm_registry::Config;
+use pnpr::Config;
 use std::{
     net::{Ipv4Addr, TcpListener},
     sync::OnceLock,
@@ -39,7 +39,7 @@ impl TestRegistryInstance {
         let listen = listener.local_addr().expect("read test registry listener address");
 
         let url = format!("http://{listen}/");
-        let storage = pnpm_registry_fixtures::ensure_storage();
+        let storage = pnpr_fixtures::ensure_storage();
         // Proxy mode: `@pnpm.e2e` fixtures are served from local storage, while
         // real npm packages (`is-positive`, `is-negative`, etc.) fall through to
         // the npm uplink — matching how registry-mock served pacquet's tests.
@@ -65,6 +65,6 @@ fn run_registry(config: Config, listener: TcpListener) {
 
     runtime.block_on(async move {
         let listener = tokio::net::TcpListener::from_std(listener).expect("create tokio listener");
-        pnpm_registry::serve_listener(config, listener).await.expect("serve test registry");
+        pnpr::serve_listener(config, listener).await.expect("serve test registry");
     });
 }

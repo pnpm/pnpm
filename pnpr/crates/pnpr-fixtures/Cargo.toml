@@ -1,7 +1,7 @@
 [package]
-name                 = "pnpm-registry-fixtures"
+name                 = "pnpr-fixtures"
 version              = "0.0.1"
-description          = "Build static pnpm-registry storage from shared test package fixtures"
+description          = "Build static pnpr storage from shared test package fixtures"
 publish              = false
 authors.workspace    = true
 edition.workspace    = true
@@ -21,8 +21,8 @@ tar         = { workspace = true }
 walkdir     = { workspace = true }
 
 [[bin]]
-name = "pnpm-registry-prepare"
-path = "src/bin/pnpm-registry-prepare.rs"
+name = "pnpr-prepare"
+path = "src/bin/pnpr-prepare.rs"
 
 [lints]
 workspace = true

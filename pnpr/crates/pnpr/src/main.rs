@@ -5,10 +5,10 @@ use std::time::Duration;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use pnpm_registry::{Config, ConfigSource, LogConfig, LogFormat, serve};
+use pnpr::{Config, ConfigSource, LogConfig, LogFormat, serve};
 
 #[derive(Debug, Parser)]
-#[command(name = "pnpm-registry", version, about = "pnpm-compatible npm registry server")]
+#[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
     /// Path to a verdaccio-shaped YAML config (storage, uplinks,
     /// packages, log). When omitted, the global `config.yaml` in
@@ -76,7 +76,7 @@ async fn main() -> miette::Result<()> {
 /// Install the `tracing-subscriber` for this process based on the
 /// resolved log config. `RUST_LOG` always wins over the YAML/CLI
 /// level — same precedence Node ecosystem tools use for their
-/// `LOG_LEVEL`/`DEBUG` env vars, and what existing pnpm-registry
+/// `LOG_LEVEL`/`DEBUG` env vars, and what existing pnpr
 /// operators will already expect.
 fn init_logging(logs: &LogConfig) {
     let filter = EnvFilter::try_from_default_env()

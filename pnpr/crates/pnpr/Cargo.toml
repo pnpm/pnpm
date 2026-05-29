@@ -1,5 +1,5 @@
 [package]
-name              = "pnpm-registry"
+name              = "pnpr"
 description       = "pnpm-compatible npm registry server"
 version           = "0.0.1"
 authors           = ["pnpm contributors"]
@@ -15,7 +15,7 @@ readme            = "README.md"
 path = "src/lib.rs"
 
 [[bin]]
-name = "pnpm-registry"
+name = "pnpr"
 path = "src/main.rs"
 
 [dependencies]

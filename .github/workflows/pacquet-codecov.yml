@@ -11,13 +11,13 @@ on:
     types: [opened, synchronize]
     paths:
       - 'pacquet/**/*.rs'
-      - 'registry/**/*.rs'
+      - 'pnpr/**/*.rs'
   push:
     branches:
       - main
     paths:
       - 'pacquet/**/*.rs'
-      - 'registry/**/*.rs'
+      - 'pnpr/**/*.rs'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
