@@ -1,11 +1,12 @@
 use async_trait::async_trait;
 use derive_more::Display;
 use serde_json::Value;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::io::AsyncWriteExt;
-use tokio::process::Command;
-use tokio::time::{Duration, timeout};
+use std::{path::PathBuf, sync::Arc};
+use tokio::{
+    io::AsyncWriteExt,
+    process::Command,
+    time::{Duration, timeout},
+};
 
 pub struct NodeJsHooks {
     pub file: PathBuf,
