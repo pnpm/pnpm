@@ -1,6 +1,3 @@
-#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
-#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
-
 mod api;
 mod defaults;
 mod env_overlay;

@@ -23,14 +23,7 @@ fn key(name_text: &str, version: &str) -> PackageKey {
 /// Build a `requires_build` map for tests from a list of (key, requires_build)
 /// pairs. Mirrors the per-snapshot map the runtime computes from each
 /// extracted package's `pkg_requires_build`.
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(
-        perfectionist::single_letter_const_generic,
-        reason = "`N` is the idiomatic const-generic array-length name, matching `[T; N]`"
-    )
-)]
-fn requires<const N: usize>(entries: [(PackageKey, bool); N]) -> HashMap<PackageKey, bool> {
+fn requires<const LEN: usize>(entries: [(PackageKey, bool); LEN]) -> HashMap<PackageKey, bool> {
     entries.into_iter().collect()
 }
 

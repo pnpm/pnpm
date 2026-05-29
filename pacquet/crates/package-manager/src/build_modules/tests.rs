@@ -24,15 +24,8 @@ use tempfile::tempdir;
 /// [`crate::expand_package_version_specs`] so version unions
 /// (`foo@1.0.0 || 2.0.0`) work the same way they do at runtime.
 /// Panics on any parse failure — test inputs must be valid.
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(
-        perfectionist::single_letter_const_generic,
-        reason = "`N` is the idiomatic const-generic array-length name, matching `[T; N]`"
-    )
-)]
-fn policy_from_specs<const N: usize>(
-    entries: [(&str, bool); N],
+fn policy_from_specs<const LEN: usize>(
+    entries: [(&str, bool); LEN],
     dangerously_allow_all: bool,
 ) -> AllowBuildPolicy {
     use crate::expand_package_version_specs;

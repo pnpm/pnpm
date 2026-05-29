@@ -1,5 +1,3 @@
-#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
-#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 //! Real-directory hoister for the `nodeLinker: hoisted` install layout.
 //!
 //! Ports pnpm v11's [`installing/linking/real-hoist`][upstream-wrapper]
@@ -250,15 +248,8 @@ impl<Inner> std::ops::Deref for RcByPtr<Inner> {
     }
 }
 
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(
-        perfectionist::single_letter_generic,
-        reason = "`T` is the idiomatic name for this wrapper's single type parameter; was exempt before rc.16 removed the short-impl exemption"
-    )
-)]
-impl<T> From<Rc<T>> for RcByPtr<T> {
-    fn from(rc: Rc<T>) -> Self {
+impl<Inner> From<Rc<Inner>> for RcByPtr<Inner> {
+    fn from(rc: Rc<Inner>) -> Self {
         Self(rc)
     }
 }

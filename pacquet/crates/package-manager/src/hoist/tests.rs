@@ -54,14 +54,7 @@ fn metadata(has_bin: bool) -> PackageMetadata {
     }
 }
 
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(
-        perfectionist::single_letter_const_generic,
-        reason = "`N` is the idiomatic const-generic array-length name, matching `[T; N]`"
-    )
-)]
-fn pats<const N: usize>(patterns: [&str; N]) -> Vec<String> {
+fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
     patterns.iter().map(|text| text.to_string()).collect()
 }
 
