@@ -109,6 +109,18 @@ fn dependents_of_brace_dir() {
 }
 
 #[test]
+fn absolute_brace_dir_extends_prefix() {
+    // Node's `path.join` concatenates an absolute segment instead of
+    // letting it reset the prefix (`path.join('/prefix', '/pkg')` ->
+    // `/prefix/pkg`), so an absolute directory selector resolves under
+    // the workspace prefix.
+    assert_eq!(
+        parse("{/pkg}"),
+        ProjectSelector { parent_dir: dir("/prefix/pkg"), ..Default::default() },
+    );
+}
+
+#[test]
 fn dot_selects_prefix() {
     assert_eq!(parse("."), ProjectSelector { parent_dir: dir("/prefix"), ..Default::default() });
 }
