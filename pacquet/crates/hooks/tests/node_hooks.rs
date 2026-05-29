@@ -148,6 +148,10 @@ function filterLog(log) {
     );
 }
 
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "Node.js ESM import() on Windows resolves absolute paths differently"
+)]
 #[tokio::test]
 async fn test_node_js_hooks_read_package_mjs() {
     let tmp = TempDir::new().expect("temp dir");
@@ -178,7 +182,11 @@ function readPackage(pkg) {
         .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}) })
         .await;
 
-    assert!(result.is_some());
+    assert!(
+        result.is_some(),
+        "readPackage returned None; the Node.js subprocess likely failed to load the .mjs file at {}",
+        pnpmfile_path.display()
+    );
     let updated = result.unwrap();
     assert_eq!(updated["dependencies"]["bar"], "100.0.0");
 }
