@@ -253,6 +253,9 @@ impl ThrottledClient {
         per_registry: &PerRegistryTls,
         settings: &NetworkSettings,
     ) -> Result<Self, ForInstallsError> {
+        if settings.network_concurrency == 0 {
+            return Err(ForInstallsError::ZeroNetworkConcurrency);
+        }
         let https = proxy.https_proxy.as_deref().map(parse_proxy_url).transpose()?;
         let http = proxy.http_proxy.as_deref().map(parse_proxy_url).transpose()?;
         let no_proxy = Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref()));
@@ -487,6 +490,14 @@ pub enum ForInstallsError {
 
     #[diagnostic(transparent)]
     Tls(#[error(source)] TlsError),
+
+    /// `network_concurrency` resolved to `0`. A zero-permit
+    /// [`Semaphore`] would make every `acquire` block forever, hanging
+    /// the install. pnpm rejects the same value — its `p-queue` throws
+    /// `Expected concurrency to be a number from 1 and up` — so pacquet
+    /// fails fast rather than deadlock.
+    #[display("networkConcurrency must be at least 1")]
+    ZeroNetworkConcurrency,
 }
 
 impl From<ProxyError> for ForInstallsError {

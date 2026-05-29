@@ -1365,10 +1365,11 @@ impl Config {
         });
         let user_source = match &user_npmrc_path {
             Some(path) => read_npmrc_file(path).map(|text| {
-                let dir = path
-                    .parent()
-                    .map(|parent| parent.to_path_buf())
-                    .unwrap_or_else(|| path.clone());
+                // Relative `cafile`/`certfile` entries resolve against
+                // the file's directory; for a bare filename (no parent)
+                // that's the empty path — i.e. the process cwd — never
+                // the file itself.
+                let dir = path.parent().map(|parent| parent.to_path_buf()).unwrap_or_default();
                 parse_source(text, dir, "<user>/.npmrc")
             }),
             None => Sys::home_dir()

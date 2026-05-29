@@ -649,6 +649,21 @@ fn for_installs_honors_custom_network_settings() {
 }
 
 #[test]
+fn for_installs_rejects_zero_network_concurrency() {
+    // A zero-permit semaphore would hang every fetch; pnpm rejects the
+    // same value, so `for_installs` must fail fast rather than deadlock.
+    let settings = NetworkSettings { network_concurrency: 0, ..NetworkSettings::default() };
+    let err = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &settings,
+    )
+    .expect_err("zero network concurrency must error");
+    assert!(matches!(err, ForInstallsError::ZeroNetworkConcurrency), "got {err:?}");
+}
+
+#[test]
 fn for_installs_falls_back_on_unencodable_user_agent() {
     // A user-agent containing a control character cannot be encoded as
     // an HTTP header value; the client must still build (falling back
