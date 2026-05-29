@@ -135,7 +135,7 @@ function filterLog(log) {
     });
 
     assert!(
-        hooks.filter_log(debug_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}) }).await
+        hooks.filter_log(debug_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}) }).await,
     );
 
     let warn_log = serde_json::json!({
@@ -144,7 +144,7 @@ function filterLog(log) {
     });
 
     assert!(
-        !hooks.filter_log(warn_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}) }).await
+        !hooks.filter_log(warn_log, pacquet_hooks::HookContext { log: Arc::new(|_| {}) }).await,
     );
 }
 
