@@ -32,18 +32,16 @@ impl NodeJsHooks {
         let file_path_escaped = serde_json::to_string(&file_path)
             .map_err(|err| HookError::HookFailed(func.to_string(), err.to_string()))?;
 
-        let wrapper = if file_path.ends_with(".mjs") {
-            format!(
-                r#"(async () => {{
-  const hooks = await import({file_path_escaped});
-  const res = await (hooks.hooks && hooks.hooks['{func}'])?.({payload});
-  console.log(JSON.stringify(res));
-}})();
+        let (input_type, wrapper) = if file_path.ends_with(".mjs") {
+            ("module", format!(
+                r#"const hooks = await import({file_path_escaped});
+const res = await (hooks.hooks && hooks.hooks['{func}'])?.({payload});
+console.log(JSON.stringify(res));
 "#,
                 file_path_escaped = file_path_escaped,
-            )
+            ))
         } else {
-            format!(
+            ("commonjs", format!(
                 r#"(async () => {{
   const hooks = require({file_path_escaped});
   const res = await (hooks.hooks && hooks.hooks['{func}'])?.({payload});
@@ -51,12 +49,18 @@ impl NodeJsHooks {
 }})();
 "#,
                 file_path_escaped = file_path_escaped,
-            )
+            ))
         };
 
         let output = timeout(
             HOOK_TIMEOUT,
-            Command::new("node").arg("-e").arg(&wrapper).kill_on_drop(true).output(),
+            Command::new("node")
+                .arg("--input-type")
+                .arg(input_type)
+                .arg("-e")
+                .arg(&wrapper)
+                .kill_on_drop(true)
+                .output(),
         )
         .await
         .map_err(|_| HookError::Timeout(func.to_string()))?
@@ -94,22 +98,21 @@ impl NodeJsHooks {
             Err(_) => return,
         };
 
-        let wrapper = if file_path.ends_with(".mjs") {
-            format!(
-                r#"(async () => {{
-  const hooks = await import({file_path_escaped});
-  const ctx = JSON.parse(require('fs').readFileSync(0, 'utf8'));
-  const logger = {{
-    info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":m}})); }},
-    warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":m}})); }}
-  }};
-  await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
-}})();
+        let (input_type, wrapper) = if file_path.ends_with(".mjs") {
+            ("module", format!(
+                r#"import {{ readFileSync }} from 'node:fs';
+const hooks = await import({file_path_escaped});
+const ctx = JSON.parse(readFileSync(0, 'utf8'));
+const logger = {{
+  info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":m}})); }},
+  warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":m}})); }}
+}};
+await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
 "#,
                 file_path_escaped = file_path_escaped,
-            )
+            ))
         } else {
-            format!(
+            ("commonjs", format!(
                 r#"(async () => {{
   const hooks = require({file_path_escaped});
   const ctx = JSON.parse(require('fs').readFileSync(0, 'utf8'));
@@ -121,10 +124,12 @@ impl NodeJsHooks {
 }})();
 "#,
                 file_path_escaped = file_path_escaped,
-            )
+            ))
         };
 
         let mut child = match Command::new("node")
+            .arg("--input-type")
+            .arg(input_type)
             .arg("-e")
             .arg(&wrapper)
             .kill_on_drop(true)
