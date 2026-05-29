@@ -109,13 +109,12 @@ function detectStrongestTrustEvidenceBeforeDate (
     const trustEvidence = getTrustEvidence(manifest)
     if (!trustEvidence) continue
 
-    if (trustEvidence === 'stagedPublish') {
-      return 'stagedPublish'
+    if (best === undefined || TRUST_RANK[trustEvidence] > TRUST_RANK[best]) {
+      best = trustEvidence
+      if (best === 'stagedPublish') {
+        return best
+      }
     }
-    if (trustEvidence === 'trustedPublisher') {
-      return 'trustedPublisher'
-    }
-    best ||= 'provenance'
   }
 
   return best
