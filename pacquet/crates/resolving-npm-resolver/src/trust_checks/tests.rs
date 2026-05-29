@@ -27,7 +27,7 @@ fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Va
     });
     if matches!(
         evidence,
-        Evidence::Provenance | Evidence::TrustedPublisher | Evidence::StagedPublish
+        Evidence::Provenance | Evidence::TrustedPublisher | Evidence::StagedPublish,
     ) {
         dist["attestations"] = serde_json::json!({
             "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
