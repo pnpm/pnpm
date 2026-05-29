@@ -72,8 +72,8 @@ pacquet-workspace-state                   = { path = "pacquet/crates/workspace-s
 pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpr          = { path = "pnpr/crates/pnpr", version = "0.0.1" }
-pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures", version = "0.0.1" }
+pnpr          = { path = "pnpr/crates/pnpr" }
+pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
