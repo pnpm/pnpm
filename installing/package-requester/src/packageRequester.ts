@@ -207,6 +207,20 @@ async function resolveAndFetch (
   resolution = resolveResult.resolution
   pkgId = resolveResult.id
 
+  // URL/tarball resolvers don't return an integrity, because it is only known
+  // after the tarball is downloaded. When a package is reused from the lockfile
+  // without being re-fetched, the freshly resolved resolution has no integrity,
+  // so carry it over from the current resolution instead of dropping it.
+  // https://github.com/pnpm/pnpm/issues/12001
+  if (
+    !updated &&
+    typeof previousIntegrity === 'string' &&
+    !resolution.type &&
+    !(resolution as TarballResolution).integrity
+  ) {
+    (resolution as TarballResolution).integrity = previousIntegrity
+  }
+
   const id = pkgId!
 
   if ('type' in resolution && resolution.type === 'directory' && !id.startsWith('file:')) {
