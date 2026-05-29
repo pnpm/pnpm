@@ -104,8 +104,8 @@ describe('getTrustEvidence', () => {
         email: 'user@example.com',
         approver: {
           name: 'test-approver',
-          email: 'user@example.com'
-        }
+          email: 'user@example.com',
+        },
       },
       dist: {
         shasum: 'abc123',
@@ -422,7 +422,11 @@ describe('failIfTrustDowngraded', () => {
           version: '2.0.0',
           _npmUser: {
             name: 'test-publisher',
-            email: 'approver@example.com'
+            email: 'approver@example.com',
+            trustedPublisher: {
+              id: 'test-provider',
+              oidcConfigId: 'oidc:test-config-123',
+            },
           },
           dist: {
             shasum: 'def456',

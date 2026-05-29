@@ -32,7 +32,7 @@ export interface PackageInRegistry extends PackageManifest {
     approver?: {
       name: string
       email?: string
-    },
+    }
     trustedPublisher?: {
       id: string
       oidcConfigId: string
