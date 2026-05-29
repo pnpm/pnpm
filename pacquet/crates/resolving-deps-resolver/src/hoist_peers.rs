@@ -140,18 +140,12 @@ pub fn hoist_peers(
 
 /// Pick an installable version for each missing optional peer, but only
 /// when at least one preferred version satisfies *every* recorded range.
-/// Returns `peer_name → version`. Mirrors upstream's
-/// [`getHoistableOptionalPeers`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/hoistPeers.ts#L67-L90).
+/// Returns `peer_name → version`. Mirrors pnpm's
+/// `getHoistableOptionalPeers`.
 ///
-/// Upstream's loop checks `specType === 'version'` against the raw map
-/// value, which is true only for the *string* selector form (`'version'`)
-/// produced by the resolver as packages are walked
-/// ([`resolveDependencies.ts:1440`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1440)),
-/// **not** the weighted form
-/// `getPreferredVersionsFromLockfileAndManifests` produces. Pacquet
-/// mirrors that filter exactly — weighted entries are skipped — so
-/// optional peer hoisting only sees versions added to the preferred
-/// map during the in-flight walk, matching upstream behavior.
+/// Version selectors may be plain entries produced while resolving or
+/// weighted entries seeded from the wanted lockfile. Both are eligible
+/// so an already locked optional peer is not discarded during re-resolution.
 pub fn get_hoistable_optional_peers(
     all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
     all_preferred_versions: &PreferredVersions,
@@ -161,9 +155,11 @@ pub fn get_hoistable_optional_peers(
         let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
         let mut max_satisfying_version: Option<Version> = None;
         for (version_str, entry) in selectors {
-            let is_plain_version =
-                matches!(entry, VersionSelectorEntry::Plain(VersionSelectorType::Version));
-            if !is_plain_version {
+            let selector_type = match entry {
+                VersionSelectorEntry::Plain(selector_type) => *selector_type,
+                VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,
+            };
+            if selector_type != VersionSelectorType::Version {
                 continue;
             }
             let Ok(version) = version_str.parse::<Version>() else { continue };
