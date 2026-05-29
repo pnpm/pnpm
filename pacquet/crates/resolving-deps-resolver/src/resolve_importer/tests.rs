@@ -7,6 +7,18 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
+// `import_granularity` wants the two `resolve_importer` entries collapsed to
+// `resolve_importer::{self, ..}`, but `crate::resolve_importer` is both a
+// module (the nested items below) and a re-exported function (the bare entry);
+// `self` would only re-import the module, dropping the function. The tree is
+// already minimal, so suppress the false positive.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::import_granularity,
+        reason = "`resolve_importer` is both a module and a re-exported fn; the value- and type-namespace entries cannot be merged via `self`"
+    )
+)]
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
     resolve_importer::{ResolveImporterError, ResolveImporterOptions},
@@ -279,7 +291,7 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
 // ---------------------------------------------------------------------------
 // Ports of upstream's deps-installer `autoInstallPeers.ts` test cases. Each
 // covers a single-importer scenario from
-// https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/test/install/autoInstallPeers.ts
+// <https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/test/install/autoInstallPeers.ts>
 // ---------------------------------------------------------------------------
 
 /// Port of "auto install non-optional peer dependencies": only the

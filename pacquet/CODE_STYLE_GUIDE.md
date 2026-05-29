@@ -46,7 +46,7 @@ Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/nami
 
 ### Module Organization
 
-- Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`perfectionist::flat_module_pattern`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/flat_module_pattern.md).
+- Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`perfectionist::flat_module_pattern`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/flat_module_pattern.md).
 - List `pub mod` declarations first, then `pub use` re-exports, then private imports and items.
 - Use `pub use` to re-export key types at the module level for convenience.
 
@@ -61,7 +61,7 @@ pub use install_package_from_registry::InstallPackageFromRegistry;
 
 ### Import Organization
 
-Prefer **merged imports**. Combine multiple items from the same crate or module into a single `use` statement with braces rather than separate `use` lines. Import ordering is enforced by `cargo fmt`. Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
+Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by `cargo fmt`; the granularity is enforced by [`perfectionist::import_granularity`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/import_granularity.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
 
 ```rust
 use crate::{
@@ -114,15 +114,17 @@ pub use load_lockfile::*;
 
 ### Generic Parameter Naming
 
-Use descriptive names for type parameters (`Size`, `Name`, `Manifest`, `Store`, `Reporter`) instead of single letters. Enforced by [`perfectionist::single_letter_generic`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/single_letter_generic.md), which exempts short self-contained trait impls.
+Use descriptive names for type parameters (`Size`, `Name`, `Manifest`, `Store`, `Reporter`) and `const` generics instead of single letters. Enforced by [`perfectionist::single_letter_generic`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_generic.md) and [`perfectionist::single_letter_const_generic`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_const_generic.md). The idiomatic `T` for a lone type parameter and `N` for a const-generic array length are accepted at the site with `#[expect(perfectionist::single_letter_generic, …)]` / `#[expect(perfectionist::single_letter_const_generic, …)]`.
 
 ### Variable and Closure Parameter Naming
 
-Use descriptive names for variables and closure parameters. Single letters are accepted only where the rules' default allowlists permit them: `n`/`f`/`i`/`j`/`k` for their conventional roles, the `sort_by` / `sort_by_key` / `min_by` / `max_by` / `fold` callback shape, single-expression closure bodies, and `let` bindings in `#[cfg(test)]` code. Multi-line closure bodies and non-test `let` bindings are flagged. Enforced by:
+Use descriptive names for variables and closure parameters, in test code as well as production code. Single letters are accepted only where the rules' default allowlists permit them: `n`/`f`/`i`/`j`/`k` for their conventional roles, the `sort_by` / `sort_by_key` / `min_by` / `max_by` / `fold` callback shape, and single-expression closure bodies. Multi-line closure bodies and every `let` binding (including in `#[cfg(test)]` code) are flagged. The same applies to single-letter `const`/`static` items. Enforced by:
 
-- [`perfectionist::single_letter_function_param`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/single_letter_function_param.md)
-- [`perfectionist::single_letter_closure_param`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/single_letter_closure_param.md)
-- [`perfectionist::single_letter_let_binding`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.15/rules/single_letter_let_binding.md)
+- [`perfectionist::single_letter_function_param`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_function_param.md)
+- [`perfectionist::single_letter_closure_param`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_closure_param.md)
+- [`perfectionist::single_letter_let_binding`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_let_binding.md)
+- [`perfectionist::single_letter_const_item`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_const_item.md)
+- [`perfectionist::single_letter_static_item`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_static_item.md)
 
 ### When to use [owned] parameter? When to use [borrowed] parameter?
 
@@ -484,21 +486,7 @@ If the assertion fails, the value of `received` will appear alongside the error 
 
 ### Unit test file layout
 
-Always place unit tests in a dedicated external `tests` submodule rather than inline in the parent file. This keeps production code and test code in separate files, makes each file easier to scan, and avoids churning git blame when tests are added or removed.
-
-The parent declares the test module at the end of the file with the standard declaration:
-
-```rust
-#[cfg(test)]
-mod tests;
-```
-
-The external file itself sits in a directory named after the parent, using the same path regardless of whether the parent has any other submodules. Concretely:
-
-- For `src/foo.rs`, the tests file is `src/foo/tests.rs`.
-- For `src/foo/bar.rs`, the tests file is `src/foo/bar/tests.rs`.
-
-Do not flatten the tests into a sibling file such as `src/foo_tests.rs`, and do not skip the intermediate directory when the parent currently has no other submodules. This mirrors the flat file pattern (`module.rs` rather than `module/mod.rs`) described under [Module Organization](#module-organization).
+Always place unit tests in a dedicated external `tests` submodule (`#[cfg(test)] mod tests;`) rather than inline in the parent file — for `src/foo.rs` the tests live in `src/foo/tests.rs`. This keeps production and test code in separate files and avoids churning git blame. Enforced by [`perfectionist::unit_test_file_layout`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/unit_test_file_layout.md) (configured to `inline_style = "external_only"`, nested layout), which flags inline test code, the flattened `src/foo_tests.rs` sibling, and the skipped-intermediate form.
 
 ### Cloning `Arc` and `Rc`
 

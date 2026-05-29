@@ -27,10 +27,10 @@ fn list(entries: &[&str]) -> NoProxySetting {
 
 #[test]
 fn no_proxy_matcher_reverse_dot_match() {
-    let m = NoProxyMatcher::from(Some(&list(&["npmjs.org"])));
+    let matcher = NoProxyMatcher::from(Some(&list(&["npmjs.org"])));
     // The matcher state is the same across every probe; logging it
     // once per test makes a failure diagnosable without rerunning.
-    eprintln!("matcher={m:?}");
+    eprintln!("matcher={matcher:?}");
     for (host, expected) in [
         ("npmjs.org", true),
         ("registry.npmjs.org", true),
@@ -38,7 +38,7 @@ fn no_proxy_matcher_reverse_dot_match() {
         ("evilnpmjs.org", false),
         ("org", false),
     ] {
-        let got = m.matches_host(host);
+        let got = matcher.matches_host(host);
         assert_eq!(got, expected, "host={host}: expected match={expected}, got={got}");
     }
 }
@@ -48,38 +48,38 @@ fn no_proxy_matcher_empty_entries_never_match() {
     // Trailing/leading commas in `.npmrc` already get filtered in the
     // config layer's `parse_no_proxy`, but a malformed `List(vec![""])`
     // must still fail to match — defense in depth at the matcher.
-    let m = NoProxyMatcher::from(Some(&list(&[""])));
-    let got = m.matches_host("anything.example");
-    assert!(!got, "matcher={m:?} host=anything.example expected miss, got match");
+    let matcher = NoProxyMatcher::from(Some(&list(&[""])));
+    let got = matcher.matches_host("anything.example");
+    assert!(!got, "matcher={matcher:?} host=anything.example expected miss, got match");
 }
 
 #[test]
 fn no_proxy_matcher_multiple_entries() {
-    let m = NoProxyMatcher::from(Some(&list(&["npmjs.org", "internal.example"])));
-    eprintln!("matcher={m:?}");
+    let matcher = NoProxyMatcher::from(Some(&list(&["npmjs.org", "internal.example"])));
+    eprintln!("matcher={matcher:?}");
     for (host, expected) in
         [("registry.npmjs.org", true), ("ci.internal.example", true), ("public.example", false)]
     {
-        let got = m.matches_host(host);
+        let got = matcher.matches_host(host);
         assert_eq!(got, expected, "host={host}: expected={expected}, got={got}");
     }
 }
 
 #[test]
 fn no_proxy_bypass_short_circuits_every_host() {
-    let m = NoProxyMatcher::from(Some(&NoProxySetting::Bypass));
-    eprintln!("matcher={m:?}");
+    let matcher = NoProxyMatcher::from(Some(&NoProxySetting::Bypass));
+    eprintln!("matcher={matcher:?}");
     for host in ["any.host", ""] {
-        let got = m.matches_host(host);
+        let got = matcher.matches_host(host);
         assert!(got, "host={host:?}: bypass must match every host, got miss");
     }
 }
 
 #[test]
 fn no_proxy_none_matches_nothing() {
-    let m = NoProxyMatcher::from(None);
-    let got = m.matches_host("registry.npmjs.org");
-    assert!(!got, "matcher={m:?}: None setting must never match");
+    let matcher = NoProxyMatcher::from(None);
+    let got = matcher.matches_host("registry.npmjs.org");
+    assert!(!got, "matcher={matcher:?}: None setting must never match");
 }
 
 #[test]
@@ -580,10 +580,10 @@ async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
     // short-circuits and `acquire_for_url` always returns the
     // default client.
     let throttled = ThrottledClient::new_for_installs();
-    let a = throttled.acquire_for_url("https://example.com/").await;
-    let b = throttled.acquire_for_url("https://other.example.org/").await;
-    let a_ptr: *const reqwest::Client = &*a;
-    let b_ptr: *const reqwest::Client = &*b;
+    let permit_a = throttled.acquire_for_url("https://example.com/").await;
+    let permit_b = throttled.acquire_for_url("https://other.example.org/").await;
+    let a_ptr: *const reqwest::Client = &*permit_a;
+    let b_ptr: *const reqwest::Client = &*permit_b;
     assert_eq!(a_ptr, b_ptr, "without overrides every URL should hit the default client");
 }
 

@@ -111,7 +111,10 @@ pub enum RegistryMode {
 // will stop firing once the `Hoisted*` and `Pnp*` linker buckets land.
 // Keeping the prefix is intentional — it mirrors the slug's leading
 // segment and makes the linker grouping legible in code.
-#[allow(clippy::enum_variant_names)]
+#[allow(
+    clippy::enum_variant_names,
+    reason = "the shared `Isolated` prefix mirrors the scenario slug and keeps the linker grouping legible; it stops firing once other linker buckets land"
+)]
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum BenchmarkScenario {
     /// No lockfile, cold cache + cold store. Mirrors `pnpm install` with nothing on disk.
@@ -278,41 +281,4 @@ impl HyperfineOptions {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{TargetKind, TargetSpec};
-    use std::str::FromStr;
-
-    #[test]
-    fn target_spec_pacquet_prefix() {
-        let spec = TargetSpec::from_str("pacquet@main").unwrap();
-        assert_eq!(spec.kind, TargetKind::Pacquet);
-        assert_eq!(spec.rev, "main");
-    }
-
-    #[test]
-    fn target_spec_pnpm_prefix() {
-        let spec = TargetSpec::from_str("pnpm@v9.0.0").unwrap();
-        assert_eq!(spec.kind, TargetKind::Pnpm);
-        assert_eq!(spec.rev, "v9.0.0");
-    }
-
-    #[test]
-    fn target_spec_unprefixed_is_rejected() {
-        let err = TargetSpec::from_str("HEAD").unwrap_err();
-        assert!(err.contains("`pacquet@<rev>` or `pnpm@<rev>`"), "err = {err}");
-    }
-
-    #[test]
-    fn target_spec_unknown_prefix_is_rejected() {
-        let err = TargetSpec::from_str("yarn@main").unwrap_err();
-        assert!(err.contains("unknown kind"), "err = {err}");
-    }
-
-    #[test]
-    fn target_spec_empty_rev_is_rejected() {
-        let err = TargetSpec::from_str("pacquet@").unwrap_err();
-        assert!(err.contains("<rev> must not be empty"), "err = {err}");
-        let err = TargetSpec::from_str("pnpm@").unwrap_err();
-        assert!(err.contains("<rev> must not be empty"), "err = {err}");
-    }
-}
+mod tests;

@@ -1,5 +1,4 @@
-use crate::State;
-use crate::cli_args::supported_architectures::SupportedArchitecturesArgs;
+use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::{Args, ValueEnum};
 use miette::Context;
 use pacquet_config::NodeLinker;
@@ -116,7 +115,7 @@ pub struct InstallArgs {
     /// Narrow on purpose: only gates
     /// [`pacquet_lockfile::satisfies_package_manifest`]. Settings
     /// drift (`overrides`, `ignoredOptionalDependencies`,
-    /// `pnpmfileChecksum`, …) still aborts. A future broader flag
+    /// `pnpmfileChecksum`, ...) still aborts. A future broader flag
     /// matching pnpm's internal `ignorePackageManifest` (used by
     /// `pnpm fetch`) would skip linking / hoisting / pruning too;
     /// that's deliberately a separate name.

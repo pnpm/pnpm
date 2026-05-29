@@ -10,17 +10,18 @@
 //!   final cache path on stream completion. On upstream error or
 //!   client disconnect the temp file is removed.
 
-use std::io;
-use std::pin::Pin;
-
-use axum::body::{Body, Bytes};
-use futures_util::Stream;
-use futures_util::stream::{self, StreamExt};
-use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::mpsc;
-
 use crate::cache::TarballWrite;
+use axum::body::{Body, Bytes};
+use futures_util::{
+    Stream,
+    stream::{self, StreamExt},
+};
+use std::{io, pin::Pin};
+use tokio::{
+    fs::File,
+    io::{AsyncReadExt, AsyncWriteExt},
+    sync::mpsc,
+};
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
 /// overhead low without buffering a meaningful fraction of a

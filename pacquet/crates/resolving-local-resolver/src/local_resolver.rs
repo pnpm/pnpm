@@ -147,7 +147,7 @@ pub enum ResolveLocalError {
 
     /// Reading `<spec.fetchSpec>/package.json` raised something the
     /// resolver doesn't have a specific code for (malformed JSON,
-    /// permission denied, …).
+    /// permission denied, ...).
     ReadManifest(#[error(source)] PackageManifestError),
 }
 

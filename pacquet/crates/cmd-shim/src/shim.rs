@@ -77,7 +77,7 @@ fn read_shebang<Sys: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime
 /// [`FsReadHead::read_head`] mirrors a single `read(2)` syscall, which
 /// POSIX permits to return short. This loop collects short reads so
 /// the shebang parser sees a complete view of the head of the file
-/// even on pseudo-fs paths (`/proc`, `/sys`, FUSE, …) where short
+/// even on pseudo-fs paths (`/proc`, `/sys`, FUSE, ...) where short
 /// reads are common. On regular files at offset 0 the underlying
 /// `read` returns the whole prefix in one syscall, so the loop adds
 /// no extra syscalls in the hot path. The cost is one extra branch.

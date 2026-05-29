@@ -18,7 +18,7 @@ mod known_failures {
         ))
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L26
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L26>
     #[test]
     fn run_pre_and_postinstall_scripts() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -59,7 +59,7 @@ mod known_failures {
         drop((root, mock_instance));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L121
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L121>
     #[test]
     fn run_install_scripts() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -96,7 +96,7 @@ mod known_failures {
         drop((root, mock_instance));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L303
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L303>
     #[test]
     fn lifecycle_scripts_run_in_dependency_order() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -145,7 +145,7 @@ mod known_failures {
         drop((root, mock_instance));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L331
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L331>
     #[test]
     fn lifecycle_scripts_run_before_linking_bins() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -201,7 +201,7 @@ mod known_failures {
         drop((root, mock_instance, frozen_root));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L372
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L372>
     #[test]
     fn bins_linked_even_if_scripts_ignored() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -248,7 +248,7 @@ mod known_failures {
         drop((root, mock_instance));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L445
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L445>
     #[test]
     fn selectively_ignore_scripts_by_allow_builds() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -295,7 +295,7 @@ mod known_failures {
         drop((root, mock_instance));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L466
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L466>
     #[test]
     fn selectively_allow_scripts_by_allow_builds() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -342,7 +342,7 @@ mod known_failures {
 
         // TODO: assert the `pnpm:ignored-scripts` reporter event lists
         // `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0` here. Pacquet
-        // does not emit that channel yet (see issue #397).
+        // does not emit that channel yet (see issue <https://github.com/pnpm/pacquet/issues/397>).
 
         eprintln!(
             "Re-running install with explicit denial of pre-and-postinstall-scripts-example...",
@@ -381,7 +381,7 @@ mod known_failures {
         drop((root, mock_instance, frozen_root));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L543
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L543>
     #[test]
     fn selectively_allow_scripts_by_allow_builds_exact_versions() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -428,7 +428,7 @@ mod known_failures {
         drop((root, mock_instance));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L552
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L552>
     #[test]
     fn lifecycle_scripts_run_after_linking_root_deps() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -466,7 +466,7 @@ mod known_failures {
         drop((root, mock_instance, frozen_root));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L724
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L724>
     #[test]
     fn rebuild_after_allow_builds_changes() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -543,7 +543,7 @@ mod known_failures {
         drop((root, mock_instance, frozen_root));
     }
 
-    // Ported from https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-restorer/test/index.ts#L362
+    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-restorer/test/index.ts#L362>
     #[test]
     fn headless_run_pre_postinstall_scripts() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

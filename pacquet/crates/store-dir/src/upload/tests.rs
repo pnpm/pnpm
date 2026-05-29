@@ -30,8 +30,8 @@ fn map(entries: &[(&str, CafsFileInfo)]) -> HashMap<String, CafsFileInfo> {
 /// `if (added.size > 0)` guards upstream.
 #[test]
 fn identical_maps_yield_no_diff() {
-    let m = map(&[("a", info("d-a", 0o644, 1))]);
-    let diff = calculate_diff(&m, &m);
+    let files = map(&[("a", info("d-a", 0o644, 1))]);
+    let diff = calculate_diff(&files, &files);
     assert_eq!(diff.added, None);
     assert_eq!(diff.deleted, None);
 }

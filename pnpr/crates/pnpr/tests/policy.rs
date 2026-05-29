@@ -3,15 +3,15 @@
 //! policy and gate requests, including the `$anonymous` rule.
 //! Static-mode (no upstream) to keep the tests hermetic.
 
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
+use pnpr::{Config, router};
 use serde_json::{Value, json};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use tempfile::TempDir;
 use tower::ServiceExt;
-
-use pnpr::{Config, router};
 
 fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))

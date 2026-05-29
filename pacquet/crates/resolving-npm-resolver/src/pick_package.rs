@@ -94,7 +94,7 @@ pub trait PackageMetaCache: Send + Sync {
     /// Shared handle to the cached packument for `key`, or `None`
     /// when the cache hasn't seen it. Returned as
     /// [`Arc<Package>`] so cross-resolve sharing of a popular
-    /// packument (`react`, `lodash`, …) doesn't deep-clone the
+    /// packument (`react`, `lodash`, ...) doesn't deep-clone the
     /// full versions map on every consumer's hit. Mirrors JS
     /// `Map.get` semantics — pnpm's metaCache returns object
     /// references, not copies, and pacquet matches that contract.
@@ -675,7 +675,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 /// Bundling these into a struct would just shuffle the same fields
 /// into a wrapper without removing any work; allowing the lint is
 /// the lower-noise option.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "bundling these independent inputs into a struct moves the fields into a wrapper without removing work"
+)]
 async fn handle_cache_hit<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,

@@ -20,13 +20,15 @@
 //! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
 //! against the not-yet-implemented subject under test.
 //!
-//! Workspace install (pnpm/pacquet#431) landed in #443. The
+//! Workspace install (pnpm/pacquet#431) landed in [#443]. The
 //! [`workspace_hoist_walks_every_importer`] test below covers the
 //! basic multi-importer case directly; the upstream
 //! `hoistWorkspacePackages` test still lives under [`known_failures`]
 //! because pacquet doesn't yet model the
 //! `hoistedWorkspacePackages` shape itself (linking workspace
 //! projects into the hoist target tree).
+//!
+//! [#443]: https://github.com/pnpm/pacquet/pull/443
 
 #![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
 
@@ -558,7 +560,7 @@ mod known_failures {
     //! exits early rather than masking a real bug. The cases here
     //! cover:
     //!
-    //! - **Partial install / re-hoist** (#433): persisted-map
+    //! - **Partial install / re-hoist** ([#433]): persisted-map
     //!   preservation across re-installs, uninstall-then-rehoist,
     //!   pattern-change detection.
     //! - **`pnpm add` / `pnpm remove`**: re-running install after
@@ -578,8 +580,11 @@ mod known_failures {
     //!   with direct deps; pacquet's bin-link pipeline doesn't yet
     //!   mirror upstream's full ordering.
     //!
-    //! Workspace install (pnpm/pacquet#431) landed in #443 and is
+    //! Workspace install (pnpm/pacquet#431) landed in [#443] and is
     //! covered by [`super::workspace_hoist_walks_every_importer`].
+    //!
+    //! [#433]: https://github.com/pnpm/pacquet/issues/433
+    //! [#443]: https://github.com/pnpm/pacquet/pull/443
 
     use pacquet_testing_utils::{
         allow_known_failure,
@@ -790,7 +795,9 @@ mod known_failures {
     /// per-importer hoist walk lands the basic shape — covered by
     /// [`super::workspace_hoist_walks_every_importer`] — but the
     /// upstream test additionally re-installs and asserts
-    /// preservation, which needs partial install (#433).
+    /// preservation, which needs partial install ([#433]).
+    ///
+    /// [#433]: https://github.com/pnpm/pacquet/issues/433
     #[test]
     fn workspace_hoist_all_to_virtual_store_node_modules() {
         allow_known_failure!(partial_install_persists_hoisted_map());

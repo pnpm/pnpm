@@ -1,6 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::str::FromStr;
-
+use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
@@ -11,9 +9,11 @@ use pacquet_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, 
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use serde_json::json;
 use ssri::Integrity;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    str::FromStr,
+};
 use tempfile::TempDir;
-
-use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
 
 /// Build a single-importer [`GraphToLockfileOptions`] under the root key
 /// (`"."`). Every existing test exercises the single-importer shape;
@@ -555,7 +555,7 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
     // `c` was first reached via the optional path, so the resolver
     // left `node.optional = true`. The pruner should flip it back to
     // false.
-    let c = make_node_with_optional(
+    let node_c = make_node_with_optional(
         "c",
         "1.0.0",
         json!({ "name": "c", "version": "1.0.0" }),
@@ -570,7 +570,7 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
     // descendants.
     let mut a_children = BTreeMap::new();
     a_children.insert("c".to_string(), DepPath::from("c@1.0.0".to_string()));
-    let a = make_node_with_optional(
+    let node_a = make_node_with_optional(
         "a",
         "1.0.0",
         json!({ "name": "a", "version": "1.0.0", "dependencies": { "c": "^1.0.0" } }),
@@ -582,7 +582,7 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
 
     let mut b_children = BTreeMap::new();
     b_children.insert("a".to_string(), DepPath::from("a@1.0.0".to_string()));
-    let b = make_node_with_optional(
+    let node_b = make_node_with_optional(
         "b",
         "1.0.0",
         json!({ "name": "b", "version": "1.0.0", "dependencies": { "a": "^1.0.0" } }),
@@ -593,9 +593,9 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
     );
 
     let mut graph = DependenciesGraph::new();
-    graph.insert(a.dep_path.clone(), a);
-    graph.insert(b.dep_path.clone(), b);
-    graph.insert(c.dep_path.clone(), c);
+    graph.insert(node_a.dep_path.clone(), node_a);
+    graph.insert(node_b.dep_path.clone(), node_b);
+    graph.insert(node_c.dep_path.clone(), node_c);
 
     let mut direct = BTreeMap::new();
     direct.insert("a".to_string(), DepPath::from("a@1.0.0".to_string()));

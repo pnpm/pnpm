@@ -1,16 +1,16 @@
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
+use crate::{Config, api::EnvVar};
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
-
-use crate::{Config, api::EnvVar};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Subset of `.npmrc` keys pacquet honours for registry / auth setup.
 ///
 /// The parser pulls out:
-/// * the top-level `registry=` URL (already supported pre-#336),
+/// * the top-level `registry=` URL (already supported pre-[#336]),
 /// * default-registry credentials (`_auth`, `_authToken`,
 ///   `username` + `_password`),
 /// * per-registry credentials keyed on a nerf-darted URI prefix
@@ -38,6 +38,8 @@ use crate::{Config, api::EnvVar};
 /// [`isIniConfigKey`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/localConfig.ts#L160-L161)
 /// list. They will land here as the matching feature work picks them
 /// up.
+///
+/// [#336]: https://github.com/pnpm/pacquet/issues/336
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,

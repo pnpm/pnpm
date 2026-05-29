@@ -1,7 +1,7 @@
 //! End-to-end tests for static-serve mode against a synthetic
 //! verdaccio-shaped storage built in a `TempDir` (see `common`). The
 //! packuments carry the rich publish metadata verdaccio/npm emit
-//! (`_attachments`, `_nodeVersion`, `contributors`, …) so these tests
+//! (`_attachments`, `_nodeVersion`, `contributors`, ...) so these tests
 //! assert that pnpr rewrites tarball URLs and abbreviates that
 //! format correctly without any upstream proxy.
 
@@ -10,15 +10,17 @@
 #[path = "common/storage.rs"]
 mod common;
 
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::path::PathBuf;
-
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
-use serde_json::Value;
-use tower::ServiceExt;
-
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
 use pnpr::{Config, router};
+use serde_json::Value;
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::PathBuf,
+};
+use tower::ServiceExt;
 
 const PUBLIC_URL: &str = "http://example.test";
 

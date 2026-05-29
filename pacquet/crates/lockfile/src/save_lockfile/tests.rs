@@ -94,7 +94,7 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
 ///    the same wire form.
 ///
 /// This is the smallest possible v9 workspace lockfile pacquet needs
-/// to load to do anything useful for #431.
+/// to load to do anything useful for [#431](https://github.com/pnpm/pacquet/issues/431).
 #[test]
 fn workspace_lockfile_with_link_dep_round_trips() {
     const WORKSPACE_YAML: &str = text_block! {
@@ -413,8 +413,8 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .filter(|name| {
-            let s = name.to_string_lossy();
-            s != Lockfile::CURRENT_FILE_NAME
+            let name_str = name.to_string_lossy();
+            name_str != Lockfile::CURRENT_FILE_NAME
         })
         .collect();
     assert!(leftovers.is_empty(), "temp file should have been cleaned up, found: {leftovers:?}");

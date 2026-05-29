@@ -1,5 +1,4 @@
-use crate::State;
-use crate::cli_args::supported_architectures::SupportedArchitecturesArgs;
+use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::Args;
 use miette::Context;
 use pacquet_package_manager::Add;

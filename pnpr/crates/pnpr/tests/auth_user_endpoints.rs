@@ -4,18 +4,20 @@
 //! the rest gate behind a valid bearer token in the same way as
 //! `npm whoami` / `npm profile get` / `npm logout` expect.
 
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::path::PathBuf;
-
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
-use serde_json::{Value, json};
-use tempfile::TempDir;
-use tower::ServiceExt;
-
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
 use pnpr::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
 };
+use serde_json::{Value, json};
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::PathBuf,
+};
+use tempfile::TempDir;
+use tower::ServiceExt;
 
 fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))

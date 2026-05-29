@@ -23,19 +23,6 @@
 //! [`fn@crate::resolve_peers_workspace`] pass that shares the peer
 //! walker's caches across importers and applies `dedupeInjectedDeps`.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::sync::Arc;
-
-use chrono::{DateTime, Utc};
-use derive_more::{Display, Error};
-use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_patching::PatchGroupRecord;
-use pacquet_resolving_resolver_base::{
-    PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
-};
-
 use crate::{
     DirectDep,
     dependencies_graph::MissingPeer,
@@ -49,6 +36,19 @@ use crate::{
     },
     resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
     resolved_tree::ResolvedTree,
+};
+use chrono::{DateTime, Utc};
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pacquet_catalogs_types::Catalogs;
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_patching::PatchGroupRecord;
+use pacquet_resolving_resolver_base::{
+    PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
+};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashSet},
+    sync::Arc,
 };
 
 /// Options threaded into [`fn@resolve_importer`].

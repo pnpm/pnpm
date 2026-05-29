@@ -41,13 +41,6 @@
 //!   the peer-id, which is what upstream's cycle resolution converges
 //!   on anyway.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
-use node_semver::{Range, Version};
-use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
-
 use crate::{
     dedupe_injected_deps::dedupe_injected_deps,
     dependencies_graph::{
@@ -59,7 +52,14 @@ use crate::{
         DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
     },
 };
+use node_semver::{Range, Version};
+use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
 use pacquet_resolving_resolver_base::ResolveResult;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Pull `(name, version)` out of a `ResolveResult` the peer-resolution
 /// stage can hash and compare on.
@@ -1443,31 +1443,4 @@ fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::satisfies_with_prereleases;
-
-    #[test]
-    fn satisfies_handles_basic_ranges() {
-        assert!(satisfies_with_prereleases("1.2.3", "^1.0.0"));
-        assert!(!satisfies_with_prereleases("2.0.0", "^1.0.0"));
-        assert!(satisfies_with_prereleases("18.0.0", "*"));
-    }
-
-    #[test]
-    fn satisfies_falls_back_to_equality_for_unparsable_ranges() {
-        assert!(satisfies_with_prereleases("workspace:^1.0.0", "workspace:^1.0.0"));
-        assert!(!satisfies_with_prereleases("1.0.0", "workspace:^1.0.0"));
-    }
-
-    #[test]
-    fn satisfies_accepts_prerelease_against_non_prerelease_range() {
-        // Mirrors Yarn's `satisfiesWithPrereleases` carve-out: a peer
-        // candidate at `18.0.0-rc.1` should satisfy a `^18.0.0` peer
-        // requirement. node-semver's default `satisfies` rejects this
-        // pairing, so the prerelease-strip retry has to catch it.
-        assert!(satisfies_with_prereleases("18.0.0-rc.1", "^18.0.0"));
-        assert!(satisfies_with_prereleases("1.2.3-beta.0", "^1.2.0"));
-        // Out-of-range prereleases still fail.
-        assert!(!satisfies_with_prereleases("19.0.0-rc.1", "^18.0.0"));
-    }
-}
+mod tests;

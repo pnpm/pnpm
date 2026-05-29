@@ -1,31 +1,33 @@
-use std::sync::Arc;
-use std::time::Duration;
-
-use axum::Router;
-use axum::body::Body;
-use axum::extract::{DefaultBodyLimit, OriginalUri, Path, Request, State};
-use axum::http::{HeaderMap, StatusCode, header};
-use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, get};
+use crate::{
+    auth::{AuthState, UpsertOutcome, identify},
+    cache::Cache,
+    config::Config,
+    error::RegistryError,
+    package_name::PackageName,
+    policy::Identity,
+    publish::{
+        PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
+        stream_decode_verify_and_write,
+    },
+    streaming,
+    upstream::{
+        FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest,
+        rewrite_tarball_urls,
+    },
+};
+use axum::{
+    Router,
+    body::Body,
+    extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
+    http::{HeaderMap, StatusCode, header},
+    response::{IntoResponse, Response},
+    routing::{delete, get},
+};
 use indexmap::IndexMap;
 use serde_json::{Value, json};
+use std::{sync::Arc, time::Duration};
 use tower_http::trace::TraceLayer;
 use tracing::Span;
-
-use crate::auth::{AuthState, UpsertOutcome, identify};
-use crate::cache::Cache;
-use crate::config::Config;
-use crate::error::RegistryError;
-use crate::package_name::PackageName;
-use crate::policy::Identity;
-use crate::publish::{
-    PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
-    stream_decode_verify_and_write,
-};
-use crate::streaming;
-use crate::upstream::{
-    FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
-};
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when

@@ -1,9 +1,7 @@
 use crate::{
     port_to_url::port_to_url, runtime_storage, seed_storage::seed_runtime_storage, workspace_root,
 };
-use std::env;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{env, path::PathBuf, process::Command};
 
 /// Locate the `pnpr` binary built into the cargo workspace's
 /// `target/<profile>/` dir.
@@ -48,7 +46,7 @@ fn pnpr_binary() -> PathBuf {
 /// proxy mode against the storage built from the in-repo fixtures,
 /// with `registry.npmjs.org` as the upstream.
 ///
-/// The storage holds the fixture packages (`@foo`, `@pnpm.e2e`, …)
+/// The storage holds the fixture packages (`@foo`, `@pnpm.e2e`, ...)
 /// and anything else (e.g. extra npm packages the benchmark lockfile
 /// pulls) is fetched from npmjs.org on demand.
 ///

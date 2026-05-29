@@ -214,7 +214,7 @@ impl SpecDiff {
 /// Verify that lockfile-level settings the install pipeline reads
 /// from `pnpm-workspace.yaml` haven't drifted since the lockfile
 /// was written. Today this covers `overrides` and
-/// `ignoredOptionalDependencies` (umbrella #434 slice 7); the
+/// `ignoredOptionalDependencies` (umbrella [#434] slice 7); the
 /// variants below will grow as more upstream settings land
 /// (`catalogs`, `patchedDependencies`, `pnpmfileChecksum`, etc.).
 ///
@@ -226,6 +226,8 @@ impl SpecDiff {
 /// matches upstream's so the *first* drifted field is reported on
 /// both sides — which matters for tests and for CI logs that quote
 /// the reason verbatim.
+///
+/// [#434]: https://github.com/pnpm/pacquet/issues/434
 pub fn check_lockfile_settings(
     lockfile: &Lockfile,
     overrides: Option<&HashMap<String, String>>,
@@ -323,7 +325,7 @@ pub fn check_lockfile_settings(
 /// describing the first detected mismatch otherwise.
 ///
 /// Single-importer only today (pacquet doesn't have workspace support
-/// — see #431). Callers thread the root importer entry directly.
+/// — see [#431]). Callers thread the root importer entry directly.
 ///
 /// What is checked (in order, short-circuiting on the first failure):
 ///
@@ -341,17 +343,19 @@ pub fn check_lockfile_settings(
 /// Scoped to what pacquet supports today: no catalogs (#?), no
 /// `auto-install-peers` pre-pass (pacquet has no separate
 /// auto-install-peers mode), no `excludeLinksFromLockfile` (`link:`
-/// resolutions aren't supported yet — #431 territory), and no
+/// resolutions aren't supported yet — [#431] territory), and no
 /// version-range-satisfies check (covered in pnpm's
 /// `localTarballDepsAreUpToDate` for file: / tarball deps; out of
 /// scope here).
+///
+/// [#431]: https://github.com/pnpm/pacquet/issues/431
 pub fn satisfies_package_manifest(
     importer: &ProjectSnapshot,
     manifest: &PackageManifest,
     importer_id: &str,
     is_ignored_optional: &dyn Fn(&str) -> bool,
 ) -> Result<(), StalenessReason> {
-    let _ = importer_id; // reserved for the multi-importer path once #431 lands.
+    let _ = importer_id; // reserved for the multi-importer path once <https://github.com/pnpm/pacquet/issues/431> lands.
 
     // Phase 1: flat-record diff against the manifest's union of
     // dependency fields. Matches the upstream
@@ -426,7 +430,7 @@ pub fn satisfies_package_manifest(
         let field_name = <&'static str>::from(field);
         let manifest_field: BTreeMap<&str, &str> = manifest
             .dependencies([field])
-            // `ignoredOptionalDependencies` (umbrella #434 slice 7):
+            // `ignoredOptionalDependencies` (umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7):
             // upstream's read-package-hook strips matching entries
             // from `optionalDependencies` AND `dependencies` before
             // the resolver sees the manifest, so the lockfile never

@@ -170,7 +170,7 @@ fn next_path(from: &Path, to: &Path) -> PathBuf {
 /// [`canLinkToSubdir`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L80-L92):
 /// create a temp file in `from_dir`, create a temp subdirectory in
 /// `to_dir`, attempt the hardlink, then clean up. Failure for any
-/// reason (parent missing, EACCES, EXDEV, …) collapses to `false`.
+/// reason (parent missing, EACCES, EXDEV, ...) collapses to `false`.
 pub(crate) fn host_can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool {
     let src = path_temp_in(from_dir);
     if fs::File::create(&src).is_err() {

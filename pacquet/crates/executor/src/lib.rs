@@ -36,5 +36,5 @@ pub fn execute_shell(command: &str) -> Result<(), ExecutorError> {
     Ok(())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests;

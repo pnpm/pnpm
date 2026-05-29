@@ -369,8 +369,7 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
 }
 
 mod block_exotic_subdeps {
-    use std::collections::HashMap;
-    use std::sync::Mutex;
+    use std::{collections::HashMap, sync::Mutex};
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_resolving_resolver_base::ResolveOptions;
@@ -566,16 +565,17 @@ mod block_exotic_subdeps {
 }
 
 mod peers {
-    use std::collections::HashMap;
-    use std::sync::Mutex;
+    use std::{collections::HashMap, sync::Mutex};
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_resolving_resolver_base::ResolveOptions;
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
-    use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
-    use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
+    use crate::{
+        resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree},
+        resolve_peers::{ResolvePeersOptions, resolve_peers},
+    };
     use pacquet_deps_path::DepPath;
 
     /// A pure leaf — no peer dependencies — should land in the graph
@@ -1443,13 +1443,13 @@ mod peers {
         // leaf (children_by_id entry is empty AND peer_dependencies
         // is empty) and collapse the revisit onto `NodeId::Leaf`.
         let manifestless = {
-            let mut r = fake_result(
+            let mut result = fake_result(
                 "manifestless",
                 "1.0.0",
                 serde_json::json!({ "name": "manifestless", "version": "1.0.0" }),
             );
-            r.manifest = None;
-            r
+            result.manifest = None;
+            result
         };
         table.insert(("manifestless".to_string(), "^1.0.0".to_string()), manifestless);
         table.insert(
@@ -1724,8 +1724,10 @@ mod peers {
 }
 
 mod patched_dependencies {
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
@@ -1733,10 +1735,12 @@ mod patched_dependencies {
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
-    use crate::resolve_dependency_tree::{
-        ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+    use crate::{
+        resolve_dependency_tree::{
+            ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+        },
+        resolve_peers::{ResolvePeersOptions, resolve_peers},
     };
-    use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
     use pacquet_deps_path::DepPath;
 
     fn exact_group(version: &str, key: &str, hash: &str) -> PatchGroup {

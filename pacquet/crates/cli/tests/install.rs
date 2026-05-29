@@ -5,14 +5,15 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
     fs::{get_all_files, get_all_folders, is_symlink_or_junction},
 };
 #[cfg(unix)]
 use pipe_trait::Pipe;
-use std::fs;
-
-use pacquet_testing_utils::fixtures::{BIG_LOCKFILE, BIG_MANIFEST};
-use std::{fs::OpenOptions, io::Write};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+};
 
 #[test]
 fn should_install_dependencies() {

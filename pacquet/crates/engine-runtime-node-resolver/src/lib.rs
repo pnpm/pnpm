@@ -6,7 +6,7 @@
 //! (`release`, `nightly`, `rc`, `test`, `v8-canary`) plus a version
 //! selector that may be a semver range, an exact version, a dist tag
 //! (`lts`, `latest`), or one of the LTS codenames (`argon`, `iron`,
-//! …). Once a concrete version is picked, the resolver crawls the
+//! ...). Once a concrete version is picked, the resolver crawls the
 //! mirror's `SHASUMS256.txt` to enumerate every platform-specific
 //! artifact and emits one
 //! [`VariationsResolution`](pacquet_lockfile::VariationsResolution)

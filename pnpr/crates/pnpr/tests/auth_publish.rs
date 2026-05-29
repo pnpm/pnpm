@@ -6,18 +6,19 @@
 #[path = "common/storage.rs"]
 mod common;
 
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::path::PathBuf;
-
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use pnpr::{Config, router};
 use serde_json::{Value, json};
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::PathBuf,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
-
-use pnpr::{Config, router};
 
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));

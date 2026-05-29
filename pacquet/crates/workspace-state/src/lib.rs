@@ -4,7 +4,7 @@
 //! <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/index.ts>.
 //!
 //! The file records what an install actually used (project list,
-//! resolved settings, pnpmfiles, …) so the next `pnpm run` invocation
+//! resolved settings, pnpmfiles, ...) so the next `pnpm run` invocation
 //! can decide whether `node_modules` is still up to date without
 //! re-resolving anything. Mirroring the on-disk shape byte-for-byte
 //! lets pnpm read state written by pacquet — that's what closes the

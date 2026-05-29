@@ -152,7 +152,7 @@ fn env_replace_substitutes_token() {
 fn env_replace_failure_warns_and_drops_unresolved_to_empty() {
     // Mirrors pnpm's `substituteEnv` lossy fallback: unresolved `${VAR}` becomes
     // "" so a downstream `Authorization: Bearer ...` header is never sent with a
-    // literal placeholder. See https://github.com/pnpm/pnpm/issues/11513.
+    // literal placeholder. See <https://github.com/pnpm/pnpm/issues/11513>.
     let ini = "//reg.com/:_authToken=${MISSING}\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(
@@ -544,7 +544,7 @@ fn parses_cafile_path_from_ini() {
     assert_eq!(auth.cafile.as_deref(), Some("/etc/pacquet/ca.pem"));
 }
 
-// Regression for https://github.com/pnpm/pnpm/issues/11624.
+// Regression for <https://github.com/pnpm/pnpm/issues/11624>.
 #[test]
 fn cafile_relative_path_resolves_against_npmrc_dir() {
     let npmrc_dir = tempfile::tempdir().expect("tempdir");
@@ -572,7 +572,7 @@ fn cafile_empty_value_passes_through_unchanged() {
     assert_eq!(auth.cafile.as_deref(), Some(""));
 }
 
-// End-to-end regression for https://github.com/pnpm/pnpm/issues/11624.
+// End-to-end regression for <https://github.com/pnpm/pnpm/issues/11624>.
 #[test]
 fn cafile_relative_path_loads_ca_from_disk_via_apply() {
     use std::io::Write;

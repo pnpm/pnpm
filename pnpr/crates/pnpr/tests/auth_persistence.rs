@@ -1,21 +1,25 @@
-//! Acceptance tests for issue #11974 — pnpr must keep user
+//! Acceptance tests for issue [#11974] — pnpr must keep user
 //! accounts and bearer tokens across process restarts so an
 //! operator can run it as a hosted registry without losing every
 //! account on the next container redeploy.
+//!
+//! [#11974]: https://github.com/pnpm/pnpm/issues/11974
 
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::path::PathBuf;
-use std::process::Command;
-
-use axum::body::{Body, to_bytes};
-use axum::http::{Request, StatusCode};
-use serde_json::{Value, json};
-use tempfile::TempDir;
-use tower::ServiceExt;
-
+use axum::{
+    body::{Body, to_bytes},
+    http::{Request, StatusCode},
+};
 use pnpr::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router_with_auth,
 };
+use serde_json::{Value, json};
+use std::{
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::PathBuf,
+    process::Command,
+};
+use tempfile::TempDir;
+use tower::ServiceExt;
 
 fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))

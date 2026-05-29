@@ -248,8 +248,8 @@ impl<Inner> std::ops::Deref for RcByPtr<Inner> {
     }
 }
 
-impl<T> From<Rc<T>> for RcByPtr<T> {
-    fn from(rc: Rc<T>) -> Self {
+impl<Inner> From<Rc<Inner>> for RcByPtr<Inner> {
+    fn from(rc: Rc<Inner>) -> Self {
         Self(rc)
     }
 }

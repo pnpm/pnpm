@@ -119,7 +119,7 @@ pub struct RunPostinstallHooks<'a> {
     /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/src/runLifecycleHook.ts#L102>.
     /// Does NOT affect failure handling — `BuildModules` consults the
     /// same flag independently to decide whether to swallow a build
-    /// failure (see #397 item 6).
+    /// failure (see [#397](https://github.com/pnpm/pacquet/issues/397) item 6).
     pub optional: bool,
 }
 

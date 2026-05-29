@@ -48,7 +48,7 @@ where
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
-/// `lockfile`, …) out of `.npmrc` into `pnpm-workspace.yaml`, using
+/// `lockfile`, ...) out of `.npmrc` into `pnpm-workspace.yaml`, using
 /// camelCase keys. Pacquet needs to honour these overrides so a real
 /// pnpm-11-style project — where `.npmrc` may not even contain the
 /// settings — works out of the box.
@@ -59,7 +59,7 @@ where
 ///
 /// See <https://pnpm.io/settings> for the canonical key list.
 /// Non-config keys in a real pnpm-workspace.yaml (`packages`, `catalog`,
-/// `catalogs`, `onlyBuiltDependencies`, `allowBuilds`, …) are silently
+/// `catalogs`, `onlyBuiltDependencies`, `allowBuilds`, ...) are silently
 /// ignored — serde drops them since the struct doesn't use
 /// `deny_unknown_fields`.
 ///
@@ -126,7 +126,7 @@ pub struct WorkspaceSettings {
     pub registry: Option<String>,
 
     /// User-defined named-registry aliases. Outer key is the alias
-    /// name (`gh`, `work`, …); inner string is the registry URL the
+    /// name (`gh`, `work`, ...); inner string is the registry URL the
     /// alias resolves against. Merged on top of pnpm's built-in
     /// defaults at resolver construction. Mirrors upstream's
     /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
@@ -501,7 +501,7 @@ impl WorkspaceSettings {
     /// reads this file with the same parser as `pnpm-workspace.yaml`,
     /// but applies it through a key-filter pass
     /// ([`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187))
-    /// so workspace-only knobs (`nodeLinker`, `hoist`, `lockfile`, …)
+    /// so workspace-only knobs (`nodeLinker`, `hoist`, `lockfile`, ...)
     /// cannot be set globally. Mirrors that filter via
     /// [`Self::clear_workspace_only_fields`].
     ///
