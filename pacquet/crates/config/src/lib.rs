@@ -1001,6 +1001,21 @@ pub struct Config {
     /// diverges.
     pub recursive: bool,
 
+    /// `--filter` selectors, one raw selector string per entry
+    /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, ...), parsed by
+    /// `pacquet-workspace-projects-filter`. Mirrors pnpm's CLI-only
+    /// [`filter`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L75)
+    /// array: not a `.npmrc` / `pnpm-workspace.yaml` key, so only the
+    /// CLI layer populates it.
+    pub filter: Vec<String>,
+
+    /// `--filter-prod` selectors. Same shape as [`Self::filter`], but
+    /// each selector follows production dependencies only when its
+    /// dependency walk runs. Mirrors pnpm's CLI-only
+    /// [`filterProd`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L76)
+    /// array.
+    pub filter_prod: Vec<String>,
+
     /// Git host names where pacquet should clone via `git init` +
     /// `git remote add` + `git fetch --depth 1 origin <commit>` instead
     /// of a full `git clone`. Saves bandwidth and disk when the remote

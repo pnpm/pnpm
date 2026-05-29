@@ -255,6 +255,58 @@ Rust port notes:
 - Start with single root workspace lockfile and direct workspace links.
 - Add subset/partial install tests only after Rust has project selection semantics.
 
+## Workspace Project Filtering (`--filter`)
+
+Ported into the new `pacquet-workspace-projects-filter` and
+`pacquet-workspace-projects-graph` crates (the Rust ports of
+`@pnpm/workspace.projects-filter` and `@pnpm/workspace.projects-graph`).
+The CLI `--filter` / `--filter-prod` flags are parsed into
+`Config::filter` / `Config::filter_prod`; narrowing the install to the
+selected projects is still a follow-up (the install fan-out is
+unfiltered, so the two `known_failures` hoist stubs below stay).
+
+`parseProjectSelector` (ported as `parse_project_selector::tests`):
+
+- [x] `TypeScript repo: workspace/projects-filter/test/parseProjectSelector.ts:198` `parseProjectSelector()` — all 17 fixtures (name, `...`-dependents/dependencies, `^` exclude-self, `./dir`, `{dir}`, `[since]`, and combinations) ported as individual cases.
+
+`filterWorkspaceProjects` (ported as `filter::tests`, fixture mirrors `index.ts:22`):
+
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:126` `select only package dependencies (excluding the package itself)`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:138` `select package with dependencies`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:150` `select package with dependencies and dependents, including dependent dependencies`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:163` `select package with dependents`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:175` `select dependents excluding package itself`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:187` `filter using two selectors: one selects dependencies another selects dependents`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:204` `select just a package by name`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:215` `select package without specifying its scope`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:238` `when a scoped package with the same name exists, only pick the exact match`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:271` `when two scoped packages match the searched name, don't select any`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:304` `select by parentDir`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:315` `select by parentDir using glob`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:326` `select by parentDir using globstar`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:337` `select by parentDir with no glob`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:565` `should return unmatched filters`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:577` `select all packages except one`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:591` `select by parentDir and exclude one package by pattern`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:608` `select by parentDir with glob and exclude one package by pattern`.
+
+Changed-packages (`[<since>]`) selectors — stubbed in
+`filter::tests::known_failures` (the selector parses but
+`filter_workspace_projects` rejects it with
+`FilterError::UnsupportedDiffSelector`; the rejection path is covered by
+`filter::tests::diff_selector_is_unsupported`). These need git-diff
+project selection (`getChangedProjects`), not yet ported:
+
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:348` `select changed packages`. Stubbed (`git_diff_selection_unimplemented`).
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:480` `select changed packages when operating under a git worktree`. Stubbed.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:553` `selection should fail when diffing to a branch that does not exist`. Stubbed.
+
+`createProjectsGraph` has no upstream unit tests (it is exercised only
+through `filterProjectsFromDir`'s fixtures upstream); pacquet covers it
+with `create_projects_graph::tests` (workspace-spec, version/range,
+local-path, strict `linkWorkspacePackages`, and `ignoreDevDeps` edge
+resolution).
+
 ## Support `nodeLinker=hoisted`
 
 Primary tests:

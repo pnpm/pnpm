@@ -82,6 +82,8 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         child_concurrency: 1,
         workspace_concurrency: 1,
         recursive: false,
+        filter: Vec::new(),
+        filter_prod: Vec::new(),
         git_shallow_hosts: pacquet_config::default_git_shallow_hosts(),
         supported_architectures: None,
         ignored_optional_dependencies: None,

@@ -51,6 +51,28 @@ pub struct CliArgs {
     /// Reporter output format.
     #[clap(long, value_enum, default_value_t = ReporterType::Silent, global = true)]
     pub reporter: ReporterType,
+
+    /// `--filter` / `-F` workspace selectors. Each occurrence adds one
+    /// raw selector (`@scope/*`, `./pkg`, `foo...`, `!bar`, `{dir}`,
+    /// `[since]`, ...). Stored into [`pacquet_config::Config::filter`];
+    /// see that field for why the resolved selection is not yet
+    /// consumed by `install`.
+    ///
+    /// As a global multi-value flag, occurrences collect only within one
+    /// side of the subcommand boundary: `pacquet -F a -F b install` and
+    /// `pacquet install -F a -F b` both yield `[a, b]`, but mixing sides
+    /// (`pacquet -F a install -F b`) keeps only the subcommand-side
+    /// occurrence. This is a clap limitation; pass all selectors on the
+    /// same side.
+    #[clap(short = 'F', long, global = true)]
+    pub filter: Vec<String>,
+
+    /// `--filter-prod` workspace selectors. Same syntax as
+    /// [`Self::filter`], but the dependency walk follows production
+    /// dependencies only. Stored into
+    /// [`pacquet_config::Config::filter_prod`].
+    #[clap(long = "filter-prod", global = true)]
+    pub filter_prod: Vec<String>,
 }
 
 /// Selectable rendering strategy for log events.
@@ -95,7 +117,8 @@ impl CliArgs {
     /// `Config` is loaded, mirroring pnpm 11's
     /// "CLI > yaml > .npmrc > defaults" precedence.
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
-        let CliArgs { command, dir, npmrc_auth_file, recursive, reporter } = self;
+        let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
+            self;
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
         // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
@@ -132,6 +155,12 @@ impl CliArgs {
                     // global flag rather than through the yaml / env
                     // overlay. Mirrors pnpm's `Config.recursive`.
                     cfg.recursive = recursive;
+                    // `--filter` / `--filter-prod` are likewise CLI-only
+                    // (pnpm's `Config.filter` / `Config.filterProd`),
+                    // so the parsed selector strings are threaded in
+                    // from the global flags here.
+                    cfg.filter.clone_from(&filter);
+                    cfg.filter_prod.clone_from(&filter_prod);
                     Config::leak(cfg)
                 })
                 .map_err(miette::Report::new)
