@@ -24,6 +24,7 @@ tracing           = { workspace = true }
 
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }
+mockito               = { workspace = true }
 pnpr                  = { workspace = true }
 tempfile              = { workspace = true }
 tokio                 = { workspace = true }

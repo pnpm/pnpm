@@ -226,13 +226,13 @@ pub struct InstallArgs {
     #[clap(long = "user-agent")]
     pub user_agent: Option<String>,
 
-    /// URL of a pnpm agent server to resolve through. Mirrors pnpm's
-    /// `--agent`; overrides `agent` for this invocation. When set,
-    /// resolution runs server-side and `node_modules` is linked from the
-    /// agent-produced lockfile. Applied to
-    /// [`pacquet_config::Config::agent`].
-    #[clap(long)]
-    pub agent: Option<String>,
+    /// URL of a `pnpr` server to offload resolution + file fetching to.
+    /// Overrides the `pnprServer` setting for this invocation. When set,
+    /// the server resolves against the client's registries and
+    /// `node_modules` is linked locally from the server-produced
+    /// lockfile. Applied to [`pacquet_config::Config::pnpr_server`].
+    #[clap(long = "pnpr-server")]
+    pub pnpr_server: Option<String>,
 }
 
 impl InstallArgs {
@@ -257,9 +257,9 @@ impl InstallArgs {
             network_concurrency: _,
             fetch_timeout: _,
             user_agent: _,
-            // Read from `config.agent` (the CLI flag was already merged in
-            // by the dispatch in `cli_args.rs`), not from this field.
-            agent: _,
+            // Read from `config.pnpr_server` (the CLI flag was already
+            // merged in by the dispatch in `cli_args.rs`), not from here.
+            pnpr_server: _,
         } = self;
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
@@ -309,14 +309,14 @@ impl InstallArgs {
             .parent()
             .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
 
-        // pnpm-agent fast path: when an `agent` URL is configured, resolve
-        // server-side through the agent, then link `node_modules` from the
-        // agent-produced lockfile via the normal frozen install. Mirrors
+        // pnpr fast path: when a `pnprServer` URL is configured, offload
+        // resolution + fetching to it, then link `node_modules` from the
+        // server-produced lockfile via the normal frozen install. Mirrors
         // pnpm's `install()` delegating to `installFromPnpmRegistry`.
-        if let Some(agent_url) = config.agent.as_deref() {
-            return install_via_agent::<Reporter>(
+        if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+            return install_via_pnpr::<Reporter>(
                 &state,
-                agent_url,
+                pnpr_server,
                 AgentLink {
                     dependency_groups: dependency_options.dependency_groups().collect(),
                     supported_architectures,
@@ -378,12 +378,6 @@ impl InstallArgs {
     }
 }
 
-/// Resolve a single project through the pnpm agent, then link it.
-///
-/// Populates the local store and writes the agent-produced lockfile,
-/// then runs a frozen install to materialize `node_modules` from it —
-/// the equivalent of pnpm's `installFromPnpmRegistry` handing off to
-/// `headlessInstall`.
 /// Per-invocation install knobs forwarded to the frozen link pass,
 /// already resolved from the CLI flags + config by [`InstallArgs::run`].
 struct AgentLink<'a> {
@@ -395,18 +389,25 @@ struct AgentLink<'a> {
     lockfile_path: Option<&'a std::path::Path>,
 }
 
-async fn install_via_agent<Reporter: self::Reporter + 'static>(
+/// Resolve a single project through a `pnpr` server, then link it.
+///
+/// Sends the client's registries to the server, which resolves against
+/// them and streams back the missing files; writes the server-produced
+/// lockfile, then runs a frozen install to materialize `node_modules`
+/// from it — the equivalent of pnpm's `installFromPnpmRegistry` handing
+/// off to `headlessInstall`.
+async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
-    agent_url: &str,
+    pnpr_server: &str,
     link: AgentLink<'_>,
 ) -> miette::Result<()> {
-    // The agent resolves server-side, so the local resolver-side
+    // The server resolves remotely, so the local resolver-side
     // `trustPolicy: no-downgrade` check can't run. Refuse rather than
     // silently link a lockfile the local verifier would reject — mirrors
     // pnpm's `TRUST_POLICY_INCOMPATIBLE_WITH_AGENT` guard.
     if state.config.trust_policy == TrustPolicy::NoDowngrade {
         return Err(miette::miette!(
-            "The pnpm agent does not enforce `trustPolicy: no-downgrade`; unset it or disable the agent so resolution runs locally."
+            "A pnprServer does not enforce `trustPolicy: no-downgrade`; unset it or unset pnprServer so resolution runs locally."
         ));
     }
 
@@ -421,15 +422,22 @@ async fn install_via_agent<Reporter: self::Reporter + 'static>(
         .map(|(name, spec)| (name.to_string(), spec.to_string()))
         .collect();
 
-    let outcome = AgentClient::new(agent_url)
+    let overrides =
+        state.config.overrides.as_ref().and_then(|overrides| serde_json::to_value(overrides).ok());
+
+    let outcome = AgentClient::new(pnpr_server)
         .install(AgentInstallOptions {
             store_dir: &state.config.store_dir,
             dependencies,
             dev_dependencies,
+            registry: state.config.registry.clone(),
+            named_registries: state.config.named_registries.clone(),
+            overrides,
+            minimum_release_age: state.config.minimum_release_age,
         })
         .await
         .map_err(|err| miette::miette!("{err}"))
-        .wrap_err("resolving dependencies via the pnpm agent")?;
+        .wrap_err("resolving dependencies via the pnpr server")?;
 
     if state.config.lockfile {
         let lockfile_dir =
@@ -464,7 +472,7 @@ async fn install_via_agent<Reporter: self::Reporter + 'static>(
     }
     .run::<Reporter>()
     .await
-    .wrap_err("linking dependencies resolved via the pnpm agent")?;
+    .wrap_err("linking dependencies resolved via the pnpr server")?;
 
     Ok(())
 }

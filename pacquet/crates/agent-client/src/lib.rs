@@ -47,6 +47,16 @@ pub struct InstallOptions<'a> {
     pub store_dir: &'a StoreDir,
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
+    /// The client's default registry. The server resolves against this
+    /// (and `named_registries`) rather than its own configuration.
+    pub registry: String,
+    /// The client's named-registry aliases.
+    pub named_registries: DepMap,
+    /// The client's `overrides` (selector -> spec) as raw JSON, applied
+    /// at resolve time server-side.
+    pub overrides: Option<serde_json::Value>,
+    /// Minimum package age (minutes) before a version is acceptable.
+    pub minimum_release_age: Option<u64>,
 }
 
 /// Result of [`AgentClient::install`].
@@ -92,6 +102,22 @@ pub enum AgentClientError {
     Io(std::io::Error),
 }
 
+/// Protocol version this client speaks. The server advertises the
+/// versions it supports at `GET /-/pnpr`; today only v1 exists.
+const PROTOCOL_VERSION: u32 = 1;
+
+#[derive(Default, Deserialize)]
+struct HandshakeResponse {
+    #[serde(default)]
+    pnpr: HandshakeCapability,
+}
+
+#[derive(Default, Deserialize)]
+struct HandshakeCapability {
+    #[serde(default)]
+    versions: Vec<u32>,
+}
+
 impl AgentClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         let mut base_url = base_url.into();
@@ -101,12 +127,36 @@ impl AgentClient {
         AgentClient { http: Client::new(), base_url }
     }
 
-    /// Resolve a single project against the agent and materialize the
+    /// Confirm the server speaks a compatible protocol version. Errors
+    /// if it's unreachable, isn't a pnpr (404 at `/-/pnpr`), or shares
+    /// no protocol version with this client.
+    pub async fn handshake(&self) -> Result<(), AgentClientError> {
+        let response = self.http.get(format!("{}-/pnpr", self.base_url)).send().await?;
+        if !response.status().is_success() {
+            return Err(AgentClientError::Server(format!(
+                "{} is not a pnpr server (GET /-/pnpr returned {})",
+                self.base_url,
+                response.status(),
+            )));
+        }
+        let body: HandshakeResponse = response.json().await?;
+        if !body.pnpr.versions.contains(&PROTOCOL_VERSION) {
+            return Err(AgentClientError::Server(format!(
+                "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
+                body.pnpr.versions,
+            )));
+        }
+        Ok(())
+    }
+
+    /// Resolve a single project against the server and materialize the
     /// missing files + store-index entries into the local store.
     pub async fn install(
         &self,
         opts: InstallOptions<'_>,
     ) -> Result<InstallOutcome, AgentClientError> {
+        self.handshake().await?;
+
         let store_keys = read_store_keys(opts.store_dir);
         let store_integrities = integrities_from_keys(&store_keys);
         let present: HashSet<&str> = store_keys.iter().map(String::as_str).collect();
@@ -118,6 +168,10 @@ impl AgentClient {
                 "devDependencies": opts.dev_dependencies,
             }],
             "storeIntegrities": store_integrities,
+            "registry": opts.registry,
+            "namedRegistries": opts.named_registries,
+            "overrides": opts.overrides,
+            "minimumReleaseAge": opts.minimum_release_age,
         });
 
         let response =

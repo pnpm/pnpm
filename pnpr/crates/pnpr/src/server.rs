@@ -99,8 +99,10 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     };
     Router::new()
         .route("/-/ping", get(serve_ping))
-        // pnpm-agent fast path: opt-in, versioned endpoints layered on
-        // the registry core. Non-pnpm clients never touch these.
+        // pnpr fast path: opt-in, versioned endpoints layered on the
+        // registry core. Non-pnpm clients never touch these. `/-/pnpr`
+        // is the capability handshake (404 on a plain registry).
+        .route("/-/pnpr", get(serve_pnpr_handshake))
         .route("/v1/install", post(serve_agent_install))
         .route("/v1/files", post(serve_agent_files))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
@@ -1500,6 +1502,14 @@ fn error_response(err: &RegistryError) -> Response {
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
+}
+
+/// `GET /-/pnpr` — capability handshake for the pnpr fast-path
+/// protocol. A plain npm registry has no such route and 404s, so a
+/// client can fail fast against a misconfigured server. `versions`
+/// lists the `/vN/install` protocol versions this server speaks.
+async fn serve_pnpr_handshake() -> Response {
+    (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
 }
 
 async fn serve_agent_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {

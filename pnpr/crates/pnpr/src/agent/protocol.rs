@@ -16,10 +16,11 @@ pub struct InstallRequestProject {
     pub dev_dependencies: DepMap,
 }
 
-/// Body of `POST /v1/install`. Fields the agent doesn't yet honor
-/// (`overrides`, `minimum_release_age`, `lockfile`, `node_version`,
-/// `os`, `arch`) are accepted and ignored so older/newer clients still
-/// parse; see the module docs for the deferred-feature list.
+/// Body of `POST /v1/install`. The registry fields carry the *client's*
+/// resolution configuration so the server resolves against the same
+/// registries the client would. Unknown fields (`lockfile`,
+/// `node_version`, `os`, `arch`) are accepted and ignored so
+/// older/newer clients still parse.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallRequest {
@@ -31,6 +32,21 @@ pub struct InstallRequest {
     pub projects: Option<Vec<InstallRequestProject>>,
     #[serde(default)]
     pub store_integrities: Vec<String>,
+    /// The client's default registry. Falls back to npmjs when absent.
+    #[serde(default)]
+    pub registry: Option<String>,
+    /// The client's named-registry aliases (`pnpm-workspace.yaml`
+    /// `namedRegistries`).
+    #[serde(default)]
+    pub named_registries: BTreeMap<String, String>,
+    /// The client's `overrides` (selector -> spec), applied at resolve
+    /// time. Kept as raw JSON; reconstructed into pacquet's override map
+    /// server-side.
+    #[serde(default)]
+    pub overrides: Option<serde_json::Value>,
+    /// Minimum package age (minutes) before a version is acceptable.
+    #[serde(default)]
+    pub minimum_release_age: Option<u64>,
 }
 
 /// The dependency maps for a single project, normalized across the

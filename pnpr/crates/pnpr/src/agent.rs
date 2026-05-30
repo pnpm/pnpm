@@ -1,31 +1,37 @@
-//! pnpm-agent fast path: server-side dependency resolution plus
-//! file-level store deduplication, exposed as an additive, opt-in
-//! protocol alongside pnpr's npm-compatible API.
+//! pnpr fast path: server-side dependency resolution plus file-level
+//! store deduplication, exposed as an additive, opt-in protocol
+//! alongside pnpr's npm-compatible API. The handshake + endpoints are
+//! served under one base URL (the `pnprServer`).
 //!
-//! Two endpoints, ported from the pnpm-agent TypeScript proof of
-//! concept onto pacquet's resolver and content-addressable store:
+//! Three routes, built on pacquet's resolver and content-addressable
+//! store:
 //!
-//! * `POST /v1/install` — resolve a project server-side and stream an
-//!   NDJSON response: `D` lines (file digests the client is missing),
-//!   `I` lines (pre-packed store-index entries), a final `L` line with
-//!   the lockfile and stats, or an `E` line on a mid-stream error.
+//! * `GET /-/pnpr` — capability handshake; advertises the supported
+//!   protocol versions so a client can negotiate or fail fast.
+//! * `POST /v1/install` — resolve a project **against the registries
+//!   the client sends** (so the server uses the same source of truth as
+//!   the client), then stream an NDJSON response: `D` lines (file
+//!   digests the client is missing), `I` lines (pre-packed store-index
+//!   entries), a final `L` line with the lockfile and stats, or an `E`
+//!   line on a mid-stream error.
 //! * `POST /v1/files` — serve a batch of files by digest as a gzip
 //!   binary stream the client writes straight into its CAFS.
 //!
-//! **Deferred from the TypeScript agent (single default registry, no
-//! per-request override):** multi-project workspaces, incremental
-//! resolution from a client-supplied lockfile, `overrides`, and
-//! `minimumReleaseAge`. Responses are buffered rather than truly
-//! streamed; both are tracked follow-ups.
+//! The client's `registry`, `namedRegistries`, `overrides`, and
+//! `minimumReleaseAge` drive resolution. **Deferred:** auth/credential
+//! forwarding (so private registries resolve), multi-project
+//! workspaces, and incremental resolution from a client-supplied
+//! lockfile. Responses are buffered rather than truly streamed.
 
 mod diff;
 mod protocol;
 mod resolve;
 
 use std::{
+    collections::HashMap,
     io::Write as _,
     path::PathBuf,
-    sync::{Arc, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 use crate::config::Config as RegistryConfig;
@@ -37,24 +43,31 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use flate2::{Compression, write::GzEncoder};
+use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
 use pacquet_network::ThrottledClient;
 use pacquet_store_dir::{StoreDir, StoreIndex};
 
 use self::protocol::{FilesRequest, InstallRequest, is_valid_sha512_hex};
 
-/// Per-server pacquet runtime: a single leaked `Config` (store, cache,
-/// and registry are stable for the server's lifetime) plus a shared
-/// HTTP client. Leaking once per server — rather than per request —
-/// gives the install path the `&'static Config` it requires without an
-/// unbounded per-request leak. Held lazily in a [`OnceLock`] on the
-/// server's state so servers that never receive an agent request pay
-/// nothing, and so each server in a multi-server test process gets its
-/// own store rather than sharing a process-global one.
+/// Per-server pacquet runtime backing the pnpr fast-path endpoints. The
+/// store and cache dirs are fixed for the server's lifetime; the
+/// *registries* come from each client request (the server resolves
+/// against the client's registries, not its own), so the `&'static
+/// Config` the install path requires is interned per distinct client
+/// registry configuration rather than leaked once or per request.
+///
+/// Held lazily in a [`OnceLock`] on the server's state so servers that
+/// never receive a fast-path request pay nothing, and so each server in
+/// a multi-server test process keeps its own store.
 pub(crate) struct AgentRuntime {
-    config: &'static PacquetConfig,
+    store_dir: StoreDir,
+    cache_dir: PathBuf,
     client: Arc<ThrottledClient>,
-    registry: String,
+    /// One leaked `Config` per distinct client registry configuration,
+    /// keyed by its canonical JSON. Bounds the leak to the number of
+    /// distinct client setups the server sees (typically one).
+    configs: Mutex<HashMap<String, &'static PacquetConfig>>,
 }
 
 impl AgentRuntime {
@@ -66,30 +79,55 @@ impl AgentRuntime {
     }
 
     fn build(config: &RegistryConfig) -> AgentRuntime {
-        let registry = config
-            .uplinks
-            .values()
-            .next()
-            .map(|uplink| uplink.url.clone())
-            .unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
         let store_dir = config.storage.join("agent-store");
         let cache_dir = config.storage.join("agent-cache");
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
-
-        let mut pacquet_config = PacquetConfig::new();
-        pacquet_config.store_dir = StoreDir::new(store_dir);
-        pacquet_config.cache_dir = cache_dir;
-        pacquet_config.registry = registry.clone();
-        pacquet_config.modules_dir = PathBuf::from("node_modules");
-        pacquet_config.lockfile = true;
-        pacquet_config.verify_store_integrity = true;
-
         AgentRuntime {
-            config: pacquet_config.leak(),
+            store_dir: StoreDir::new(store_dir),
+            cache_dir,
             client: Arc::new(ThrottledClient::new_for_installs()),
-            registry,
+            configs: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Resolve (or build + intern) the `&'static Config` for a request's
+    /// registry configuration. Pacquet's install path resolves against
+    /// `config.registry` / `named_registries` / `overrides`, so a request
+    /// from a client with a different registry setup gets its own Config.
+    fn config_for(&self, request: &InstallRequest) -> &'static PacquetConfig {
+        let registry =
+            request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
+        let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
+        let overrides: Option<IndexMap<String, String>> =
+            request.overrides.as_ref().and_then(|value| serde_json::from_value(value.clone()).ok());
+
+        let key = serde_json::json!({
+            "registry": registry,
+            "namedRegistries": request.named_registries,
+            "overrides": overrides,
+            "minimumReleaseAge": request.minimum_release_age,
+        })
+        .to_string();
+
+        let mut configs = self.configs.lock().expect("agent config cache poisoned");
+        if let Some(config) = configs.get(&key) {
+            return config;
+        }
+
+        let mut config = PacquetConfig::new();
+        config.store_dir = self.store_dir.clone();
+        config.cache_dir = self.cache_dir.clone();
+        config.registry = registry;
+        config.named_registries = request.named_registries.clone();
+        config.overrides = overrides;
+        config.minimum_release_age = request.minimum_release_age;
+        config.modules_dir = PathBuf::from("node_modules");
+        config.lockfile = true;
+        config.verify_store_integrity = true;
+        let config: &'static PacquetConfig = config.leak();
+        configs.insert(key, config);
+        config
     }
 }
 
@@ -107,18 +145,21 @@ pub(crate) async fn handle_install(runtime: &AgentRuntime, body: Bytes) -> Respo
         );
     }
 
-    let lockfile = match resolve::resolve(runtime.config, &runtime.client, &request).await {
+    // Resolve against the client's registries, not the server's own.
+    let config = runtime.config_for(&request);
+
+    let lockfile = match resolve::resolve(config, &runtime.client, &request).await {
         Ok(lockfile) => lockfile,
         Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
     };
 
-    let packages = resolve::collect_packages(&lockfile, &runtime.registry);
+    let packages = resolve::collect_packages(&lockfile, &config.registry);
 
-    if let Err(err) = resolve::fetch_uncached(runtime.config, &runtime.client, &packages).await {
+    if let Err(err) = resolve::fetch_uncached(config, &runtime.client, &packages).await {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string());
     }
 
-    let store = match StoreIndex::open_readonly_in(&runtime.config.store_dir) {
+    let store = match StoreIndex::open_readonly_in(&config.store_dir) {
         Ok(store) => store,
         Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
     };
@@ -189,7 +230,7 @@ pub(crate) async fn handle_files(runtime: &AgentRuntime, body: Bytes) -> Respons
         }
     }
 
-    let store_dir = &runtime.config.store_dir;
+    let store_dir = &runtime.store_dir;
 
     // Build the binary payload up front so a missing file surfaces as a
     // clean 500 before any bytes are committed to the response.

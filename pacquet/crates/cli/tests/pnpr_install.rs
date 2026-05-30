@@ -1,10 +1,11 @@
-//! End-to-end test for `pacquet install --agent <url>`.
+//! End-to-end test for `pacquet install --pnpr-server <url>`.
 //!
 //! Runs the real `pacquet` binary against a mocked fixtures registry,
-//! with an in-process `pnpr` agent (resolving from that registry)
-//! hosting the `/v1/install` + `/v1/files` endpoints. Proves the CLI
-//! routes through the agent client and then links `node_modules` from
-//! the agent-produced lockfile.
+//! with an in-process `pnpr` hosting the fast-path endpoints. The pnpr
+//! server's own uplink is left at the default — the client sends the
+//! registry it wants resolved from (the mock), so a passing test proves
+//! resolution used the client-supplied registry. The client then links
+//! `node_modules` from the server-produced lockfile.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -19,36 +20,32 @@ use std::{
     time::Duration,
 };
 
-/// Start an in-process pnpr with the agent endpoints, resolving from
-/// `upstream`. The server runs on a detached thread for the rest of the
-/// process; returns its base URL.
-fn start_agent(upstream: &str) -> String {
+/// Start an in-process pnpr with the fast-path endpoints on a detached
+/// thread; returns its base URL.
+fn start_pnpr() -> String {
     // Persisted (not cleaned) because the detached server thread outlives
-    // this function; a test process leaves it in the OS temp dir.
-    let storage = tempfile::tempdir().expect("agent storage").keep();
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind agent");
+    // this function.
+    let storage = tempfile::tempdir().expect("pnpr storage").keep();
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
     // tokio's `from_std` requires the listener to be non-blocking.
-    listener.set_nonblocking(true).expect("set agent listener non-blocking");
-    let addr = listener.local_addr().expect("agent addr");
-    let upstream = upstream.trim_end_matches('/').to_string();
+    listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
+    let addr = listener.local_addr().expect("pnpr addr");
 
     thread::Builder::new()
-        .name("pnpr-agent".to_string())
+        .name("pnpr".to_string())
         .spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
-                .expect("agent runtime");
+                .expect("pnpr runtime");
             runtime.block_on(async move {
                 let mut config = pnpr::Config::proxy(addr, storage);
-                // The agent derives its resolve registry from the first uplink.
-                config.uplinks.get_mut("npmjs").expect("npmjs uplink").url = upstream;
                 config.public_url = format!("http://{addr}");
                 let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
                 let _ = pnpr::serve_listener(config, listener).await;
             });
         })
-        .expect("spawn agent thread");
+        .expect("spawn pnpr thread");
 
     wait_until_ready(addr);
     format!("http://{addr}/")
@@ -61,16 +58,16 @@ fn wait_until_ready(addr: SocketAddr) {
         }
         thread::sleep(Duration::from_millis(20));
     }
-    panic!("agent server never became ready at {addr}");
+    panic!("pnpr server never became ready at {addr}");
 }
 
 #[test]
-fn install_via_agent_links_node_modules() {
+fn install_via_pnpr_links_node_modules() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    let agent_url = start_agent(&mock_instance.url());
+    let pnpr_url = start_pnpr();
 
     let manifest_path = workspace.join("package.json");
     let package_json = serde_json::json!({
@@ -78,14 +75,14 @@ fn install_via_agent_links_node_modules() {
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
 
-    pacquet.with_arg("install").with_arg("--agent").with_arg(&agent_url).assert().success();
+    pacquet.with_arg("install").with_arg("--pnpr-server").with_arg(&pnpr_url).assert().success();
 
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
     assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
     let virtual_path = workspace.join("node_modules/.pnpm/@foo+no-deps@1.0.0");
     assert!(virtual_path.exists(), "virtual store should hold the package");
-    assert!(workspace.join("pnpm-lock.yaml").exists(), "agent should write the lockfile");
-    // The client store was populated by the agent's `/v1/files` downloads.
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
+    // The client store was populated by the server's `/v1/files` downloads.
     assert!(store_dir.join("v11/index.db").exists(), "client store index should exist");
 
     drop((root, mock_instance));

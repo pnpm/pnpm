@@ -214,8 +214,8 @@ impl CliArgs {
                 if let Some(user_agent) = args.user_agent.clone() {
                     cfg.user_agent = user_agent;
                 }
-                if let Some(agent) = args.agent.clone() {
-                    cfg.agent = Some(agent);
+                if let Some(pnpr_server) = args.pnpr_server.clone() {
+                    cfg.pnpr_server = Some(pnpr_server);
                 }
                 let require_lockfile = args.frozen_lockfile;
                 let state = State::init(manifest_path(), cfg, require_lockfile)
