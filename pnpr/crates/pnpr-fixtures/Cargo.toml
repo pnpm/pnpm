@@ -7,7 +7,7 @@ authors.workspace    = true
 edition.workspace    = true
 homepage.workspace   = true
 keywords.workspace   = true
-license.workspace    = true
+license-file         = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]

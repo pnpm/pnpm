@@ -6,7 +6,7 @@
     "pnpm",
     "pnpm11"
   ],
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
   "funding": "https://opencollective.com/pnpm",
   "repository": "https://github.com/pnpm/pnpm/tree/main/agent/server",
   "homepage": "https://github.com/pnpm/pnpm/tree/main/agent/server#readme",
