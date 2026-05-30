@@ -185,7 +185,7 @@ function readPackage(pkg) {
     assert!(
         result.is_some(),
         "readPackage returned None; the Node.js subprocess likely failed to load the .mjs file at {}",
-        pnpmfile_path.display()
+        pnpmfile_path.display(),
     );
     let updated = result.unwrap();
     assert_eq!(updated["dependencies"]["bar"], "100.0.0");
