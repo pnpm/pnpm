@@ -1,14 +1,15 @@
 import path from 'node:path'
 
+import { confirm } from '@inquirer/prompts'
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/network.git-utils'
+import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
-import enquirer from 'enquirer'
 import { pick } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import { renderHelp } from 'render-help'
@@ -17,14 +18,15 @@ import { temporaryDirectory } from 'tempy'
 import { extractManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
 import { optionsWithOtpEnv } from './otpEnv.js'
 import * as pack from './pack.js'
-import { publishPackedPkg } from './publishPackedPkg.js'
-import { type PublishRecursiveOpts, recursivePublish } from './recursivePublish.js'
+import { publishPackedPkg, type PublishSummary } from './publishPackedPkg.js'
+import { type PublishRecursiveOpts, recursivePublish, type RecursivePublishedPackage } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'access',
     'git-checks',
     'ignore-scripts',
+    'skip-manifest-obfuscation',
     'provenance',
     'npm-path',
     'otp',
@@ -87,6 +89,10 @@ export function help (): string {
             name: '--ignore-scripts',
           },
           {
+            description: 'Skip pnpm\'s manifest obfuscation: keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.',
+            name: '--skip-manifest-obfuscation',
+          },
+          {
             description: 'Packages are proceeded to be published even if their current version is already in the registry. This is useful when a "prepublishOnly" script bumps the version of the package before it is published',
             name: '--force',
           },
@@ -120,13 +126,24 @@ export async function handler (
       original: string[]
     }
     engineStrict?: boolean
+    json?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'skipManifestObfuscation'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
-): Promise<{ exitCode?: number } | undefined> {
+): Promise<{ exitCode?: number, output?: string } | undefined> {
   const result = await publish(opts, params)
+  // Emit per-package summaries on stdout when --json is set: single object for a single-package
+  // publish, array for recursive publish. Mirrors `pnpm pack --json`'s shape choice.
+  if (opts.json) {
+    if (result?.publishSummary) {
+      return { output: JSON.stringify(result.publishSummary, null, 2), exitCode: 0 }
+    }
+    if (result?.publishedPackages) {
+      return { output: JSON.stringify(result.publishedPackages, null, 2), exitCode: result.exitCode ?? 0 }
+    }
+  }
   if (result?.manifest) return
   return result
 }
@@ -134,6 +151,11 @@ export async function handler (
 export interface PublishResult {
   exitCode?: number
   manifest?: ProjectManifest
+  publishedManifest?: ExportedManifest
+  /** Per-package summary in the npm-CLI `--json` shape; only populated for single-package publish. */
+  publishSummary?: PublishSummary
+  /** Per-package summaries collected by recursive publish. */
+  publishedPackages?: RecursivePublishedPackage[]
 }
 
 export async function publish (
@@ -144,7 +166,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'skipManifestObfuscation'>
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<PublishResult> {
@@ -166,14 +188,20 @@ export async function publish (
       )
     }
     if (!branches.includes(currentBranch)) {
-      const { confirm } = await enquirer.prompt({
-        message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
-Do you want to continue?`,
-        name: 'confirm',
-        type: 'confirm',
-      } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      let isConfirmed: boolean
+      try {
+        isConfirmed = await confirm({
+          message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". Do you want to continue?`,
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          isConfirmed = false
+        } else {
+          throw err
+        }
+      }
 
-      if (!confirm) {
+      if (!isConfirmed) {
         throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('|')}'.`, {
           hint: GIT_CHECKS_HINT,
         })
@@ -186,12 +214,12 @@ Do you want to continue?`,
     }
   }
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
-    const { exitCode } = await recursivePublish({
+    const { exitCode, publishedPackages } = await recursivePublish({
       ...opts,
       selectedProjectsGraph: opts.selectedProjectsGraph,
       workspaceDir: opts.workspaceDir ?? process.cwd(),
     })
-    return { exitCode }
+    return { exitCode, publishedPackages }
   }
 
   opts = optionsWithOtpEnv(opts, process.env)
@@ -201,11 +229,15 @@ Do you want to continue?`,
   if (dirInParams != null && isTarballPath(dirInParams)) {
     const tarballPath = dirInParams
     const publishedManifest = await extractManifestFromPacked(tarballPath)
-    await publishPackedPkg({
+    // Publishing a pre-built tarball bypasses `pack.api()`, so we don't have the file listing
+    // or unpacked size — those summary fields are reported as empty/zero.
+    const publishSummary = await publishPackedPkg({
       tarballPath,
       publishedManifest,
+      contents: [],
+      unpackedSize: 0,
     }, opts)
-    return { exitCode: 0 }
+    return { exitCode: 0, publishSummary }
   }
 
   const dir = dirInParams ?? opts.dir ?? process.cwd()
@@ -234,6 +266,8 @@ Do you want to continue?`,
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
   const packDestination = temporaryDirectory()
+  let publishedManifest: ExportedManifest | undefined
+  let publishSummary: PublishSummary | undefined
   try {
     const packResult = await pack.api({
       ...opts,
@@ -241,7 +275,8 @@ Do you want to continue?`,
       packDestination,
       dryRun: false,
     })
-    await publishPackedPkg(packResult, opts)
+    publishSummary = await publishPackedPkg(packResult, opts)
+    publishedManifest = packResult.publishedManifest
   } finally {
     await rimraf(packDestination)
   }
@@ -252,7 +287,7 @@ Do you want to continue?`,
       'postpublish',
     ], manifest)
   }
-  return { manifest }
+  return { manifest, publishedManifest, publishSummary }
 }
 
 export async function runScriptsIfPresent (

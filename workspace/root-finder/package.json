@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.root-finder",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Finds the root of a pnpm workspace",
   "keywords": [
     "pnpm",

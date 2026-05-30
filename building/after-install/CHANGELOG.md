@@ -1,5 +1,301 @@
 # @pnpm/building.after-install
 
+## 1101.0.18
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/store.connection-manager@1100.2.5
+  - @pnpm/exec.lifecycle@1100.0.14
+
+## 1101.0.17
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/worker@1100.1.8
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/building.pkg-requires-build@1100.0.5
+  - @pnpm/building.policy@1100.0.7
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.controller-types@1100.1.2
+
+## 1101.0.16
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/bins.linker@1100.0.9
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/exec.lifecycle@1100.0.13
+
+## 1101.0.15
+
+### Patch Changes
+
+- @pnpm/store.connection-manager@1100.2.2
+
+## 1101.0.14
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/types@1101.1.1
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/building.pkg-requires-build@1100.0.4
+  - @pnpm/building.policy@1100.0.6
+  - @pnpm/config.normalize-registries@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/lockfile.walker@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/store.cafs@1100.1.6
+  - @pnpm/worker@1100.1.7
+
+## 1101.0.13
+
+### Patch Changes
+
+- 3ddde2b: **fix**: anchor the side-effects-cache key and global-virtual-store hash to the project's script-runner Node — `engines.runtime` pin when present, shell `node` otherwise — instead of pnpm's own runtime.
+
+  `ENGINE_NAME` (the `<platform>;<arch>;node<major>` prefix used as the side-effects-cache key and the engine portion of the GVS hash) was computed from `process.version` — the Node that runs pnpm itself. That was wrong in two situations:
+
+  1. **`@pnpm/exe` SEA bundle.** The bundle has its own embedded Node, not the `node` on the user's `PATH` that actually spawns lifecycle scripts. Two pnpm installations on the same machine (one SEA, one npm-package) therefore disagreed on the cache key, partitioning the side-effects cache and the global virtual store across two Node majors even though both installs would run scripts on the same shell `node`.
+  2. **`engines.runtime` / `devEngines.runtime` pin.** When a project pins a Node version via `devEngines.runtime` (pnpm v11+), pnpm downloads that Node into `node_modules/node/` and uses it to run lifecycle scripts. But the hash still anchored to whichever Node ran pnpm itself, not to the pinned Node — so two installs of the same project with two different runner Nodes would still disagree on the GVS slot path even though scripts run on the same pinned Node.
+
+  Three changes:
+
+  - `@pnpm/engine.runtime.system-node-version` now exports `engineName(nodeVersion?)`. Resolves the version in this order: explicit override → `getSystemNodeVersion()` (which already prefers `node --version` over `process.version` in SEA contexts) → `process.version`.
+  - `@pnpm/deps.graph-hasher` now exports `findRuntimeNodeVersion(snapshotKeys)` — scans an iterable of lockfile snapshot keys for a `node@runtime:<version>` entry and returns its bare version string. `calcDepState` and `calcGraphNodeHash`/`iterateHashedGraphNodes` accept a `nodeVersion?` (in the options bag for the first, as a trailing parameter / ctx field for the others), forwarded to `engineName()`. The default (no override) preserves the pre-change behaviour. The legacy `ENGINE_NAME` constant in `@pnpm/constants` is unchanged so external consumers and existing tests keep working; in non-SEA, non-pinned contexts every value lines up.
+  - Every install-side caller of the graph-hasher (`@pnpm/installing.deps-resolver`, `@pnpm/installing.deps-restorer`, `@pnpm/installing.deps-installer`, `@pnpm/building.during-install`, `@pnpm/building.after-install`, `@pnpm/deps.graph-builder`) now derives the project's pinned runtime via `findRuntimeNodeVersion(Object.keys(graph))` once per invocation and threads it through.
+
+  On upgrade, two one-time GVS slot churns are possible:
+
+  - **SEA-pnpm users** without a runtime pin: slots that previously hashed under the embedded-Node major (e.g. `node26`) now hash under the shell-Node major (e.g. `node24`), matching what pacquet, the npm-published `pnpm` package, and any other pnpm-compatible tool already produce.
+  - **Projects with a `devEngines.runtime` pin**: slots that previously hashed under the runner's Node major now hash under the pinned Node major, matching what the lifecycle scripts will actually run on.
+
+  In both cases the old slots become prune-eligible.
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [5dc8be8]
+- Updated dependencies [4a79336]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/store.connection-manager@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/deps.graph-hasher@1100.2.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/installing.context@1100.0.11
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/exec.lifecycle@1100.0.11
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/building.policy@1100.0.5
+  - @pnpm/lockfile.walker@1100.0.6
+  - @pnpm/worker@1100.1.6
+  - @pnpm/bins.linker@1100.0.7
+
+## 1101.0.12
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/bins.linker@1100.0.6
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/installing.context@1100.0.10
+  - @pnpm/exec.lifecycle@1100.0.10
+  - @pnpm/store.cafs@1100.1.4
+  - @pnpm/store.connection-manager@1100.1.2
+  - @pnpm/worker@1100.1.5
+
+## 1101.0.11
+
+### Patch Changes
+
+- Updated dependencies [b4f8f47]
+  - @pnpm/bins.linker@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.9
+  - @pnpm/store.connection-manager@1100.1.1
+
+## 1101.0.10
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/store.connection-manager@1100.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/bins.linker@1100.0.4
+  - @pnpm/building.pkg-requires-build@1100.0.3
+  - @pnpm/building.policy@1100.0.4
+  - @pnpm/config.normalize-registries@1100.0.3
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.5
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/exec.lifecycle@1100.0.8
+  - @pnpm/installing.context@1100.0.9
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/store.cafs@1100.1.3
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/worker@1100.1.4
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [e9e876c]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/worker@1100.1.3
+  - @pnpm/installing.context@1100.0.8
+  - @pnpm/exec.lifecycle@1100.0.7
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/installing.context@1100.0.7
+  - @pnpm/store.connection-manager@1100.0.12
+
+## 1101.0.7
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.context@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/lockfile.walker@1100.0.4
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/store.connection-manager@1100.0.11
+  - @pnpm/exec.lifecycle@1100.0.6
+  - @pnpm/store.cafs@1100.1.2
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [ab6c42d]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/building.policy@1100.0.3
+  - @pnpm/store.connection-manager@1100.0.10
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/store.connection-manager@1100.0.9
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/building.pkg-requires-build@1100.0.2
+  - @pnpm/config.normalize-registries@1100.0.2
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/building.policy@1100.0.2
+  - @pnpm/exec.lifecycle@1100.0.5
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/worker@1100.1.1
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/lockfile.walker@1100.0.3
+
+## 1101.0.3
+
+### Patch Changes
+
+- @pnpm/installing.context@1100.0.4
+- @pnpm/store.connection-manager@1100.0.7
+
+## 1101.0.2
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/store.connection-manager@1100.0.6
+
 ## 1101.0.1
 
 ### Patch Changes

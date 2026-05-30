@@ -1,5 +1,99 @@
 # @pnpm/filter-workspace-packages
 
+## 1100.0.17
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.14
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [e8b3ae1]
+  - @pnpm/workspace.projects-reader@1101.0.8
+  - @pnpm/workspace.projects-graph@1100.0.13
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.5
+
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.7
+- @pnpm/workspace.projects-graph@1100.0.12
+
+## 1100.0.14
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.11
+
+## 1100.0.13
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.10
+- @pnpm/workspace.projects-reader@1101.0.6
+- @pnpm/workspace.workspace-manifest-reader@1100.0.4
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.9
+- @pnpm/workspace.projects-reader@1101.0.5
+
+## 1100.0.11
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.8
+- @pnpm/workspace.projects-reader@1101.0.4
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.7
+- @pnpm/workspace.projects-reader@1101.0.3
+- @pnpm/workspace.workspace-manifest-reader@1100.0.3
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.6
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/workspace.projects-graph@1100.0.5
+
+## 1100.0.7
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.projects-reader@1101.0.2
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/workspace.projects-graph@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [f543b77]
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.2
+  - @pnpm/workspace.projects-reader@1101.0.0
+
 ## 1100.0.4
 
 ### Patch Changes

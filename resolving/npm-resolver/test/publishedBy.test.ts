@@ -8,9 +8,10 @@ import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
+import semver from 'semver'
 import { temporaryDirectory } from 'tempy'
 
-import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
+import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
@@ -90,12 +91,14 @@ test('request metadata when the one in cache does not have a version satisfying 
   expect(resolveResult!.id).toBe('bad-dates@1.0.0')
 })
 
-test('do not pick version that does not satisfy the date requirement even if it is loaded from cache and requested by exact version', async () => {
+test('reports an immature pick via policyViolation even when loaded from cache and requested by exact version', async () => {
   const cacheDir = temporaryDirectory()
   const fooMeta = {
     'dist-tags': {},
     versions: {
       '1.0.0': {
+        name: 'foo',
+        version: '1.0.0',
         dist: {
           integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
           shasum: '857db584a1ba5d1cb2980527fc3b6c435d37b0fd',
@@ -118,17 +121,25 @@ test('do not pick version that does not satisfy the date requirement even if it 
     .intercept({ path: '/foo', method: 'GET' })
     .reply(200, fooMeta)
 
+  // The resolver no longer throws on immature picks — it falls back to the
+  // lowest match in range and flags the result with `policyViolation`. The
+  // outer caller (install / dlx / self-update) decides what to do with it.
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
     registries,
-    strictPublishedByCheck: true,
   })
-  await expect(resolveFromNpm({ alias: 'foo', bareSpecifier: '1.0.0' }, {
+  const result = await resolveFromNpm({ alias: 'foo', bareSpecifier: '1.0.0' }, {
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
-  })).rejects.toThrow(/Version 1\.0\.0 \(released .+\) of foo does not meet the minimumReleaseAge constraint/)
+  })
+  expect(result!.id).toBe('foo@1.0.0')
+  expect(result!.policyViolation).toMatchObject({
+    name: 'foo',
+    version: '1.0.0',
+    code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+  })
 })
 
 test('should skip time field validation for excluded packages', async () => {
@@ -176,6 +187,30 @@ test('use abbreviated metadata when modified date is older than publishedBy', as
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2018-01-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('use abbreviated metadata when modified date equals publishedBy (boundary case)', async () => {
+  // is-positive abbreviated has modified: "2017-08-17T19:26:00.508Z".
+  // Setting publishedBy to that exact instant must take the abbreviated
+  // shortcut, not throw MISSING_TIME or re-fetch full metadata: `modified`
+  // is an upper bound on every version's publish time, so the boundary
+  // case is mature under the per-version `<=` filter.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveAbbreviatedMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    publishedBy: new Date('2017-08-17T19:26:00.508Z'),
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
@@ -320,13 +355,169 @@ test('ignoreMissingTimeField=true skips maturity check from disk-cached metadata
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
+test('falls through to the registry fetch when cached abbreviated meta lacks time on the version-spec cache path', async () => {
+  // Regression test for the bug where the version-spec cache fast path
+  // (`!opts.includeLatestTag && spec.type === 'version'`) in pickPackage
+  // would rethrow ERR_PNPM_MISSING_TIME under what used to be
+  // strictPublishedByCheck, instead of falling through to the registry-fetch
+  // path like the adjacent mtime-gated cache block does. The fix makes the
+  // two catch blocks consistent — both now always swallow and fall through.
+  //
+  // Setup: cache abbreviated metadata (no per-version `time` field) for the
+  // package, then request an exact-version pin that IS present in the cached
+  // meta.versions. The version-spec fast path will try pickMatchingVersionFast
+  // against the cached meta, which throws MISSING_TIME because the abbreviated
+  // form lacks `time`. The catch falls through to the registry fetch, which
+  // returns full metadata with time, and resolution succeeds.
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  // Strip `time` from the cached abbreviated metadata to simulate the
+  // real-world "registry returned abbreviated form without per-version times" case.
+  // Set `modified` to something recent so the mtime-gated block above doesn't
+  // short-circuit the resolution before we hit the version-spec cache path.
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: new Date().toISOString(),
+  }
+  fs.writeFileSync(
+    cachePath,
+    `${JSON.stringify({ modified: cachedMeta.modified })}\n${JSON.stringify(cachedMeta)}`,
+    'utf8'
+  )
+
+  // Mock the network fetch (the path the fix lets us fall through to). Returns
+  // full metadata with the `time` field present.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+    ignoreMissingTimeField: true,
+  })
+
+  // Exact-version bareSpecifier → spec.type === 'version' → hits the cache path
+  // we are testing. 3.0.0 was published 2015-07-10, mature relative to publishedBy.
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('falls through to the registry fetch even with default ignoreMissingTimeField on the version-spec cache path', async () => {
+  // Companion to the test above: same scenario but with the default
+  // ignoreMissingTimeField (false). MISSING_TIME from cached abbreviated
+  // meta should never escape the catch — resolution falls through to the
+  // registry fetch and succeeds with full (time-bearing) metadata.
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: new Date().toISOString(),
+  }
+  fs.writeFileSync(
+    cachePath,
+    `${JSON.stringify({ modified: cachedMeta.modified })}\n${JSON.stringify(cachedMeta)}`,
+    'utf8'
+  )
+
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.0.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('upgrades cached abbreviated metadata to full when 304 Not Modified and publishedBy is set', async () => {
+  // Regression test for the misleading "missing the time field" warning.
+  //
+  // When pnpm has abbreviated metadata in its disk cache and the registry
+  // returns 304 Not Modified on the conditional fetch, pnpm reuses the
+  // cached abbreviated metadata. Abbreviated metadata has no per-version
+  // `time` field by registry spec, so the minimumReleaseAge check would
+  // fall back to its warn-and-skip path — silently bypassing the maturity
+  // guarantee even though the registry HAS the time data in full metadata.
+  //
+  // The fix: after a 304, if the cached metadata is abbreviated and the
+  // package was recently modified, re-fetch with `fullMetadata: true` to
+  // get per-version times and run the check properly.
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  // Cache abbreviated metadata: no `time`, recent `modified` (so the upgrade
+  // condition triggers), with an etag so the conditional fetch returns 304.
+  const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
+  const cachedMeta = {
+    ...abbreviatedWithoutTime,
+    modified: '2015-06-10T00:00:00.000Z',
+  }
+  const cacheHeaders = JSON.stringify({ etag: '"abc123"', modified: cachedMeta.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(cachedMeta)}`, 'utf8')
+
+  // First fetch: conditional request with the cached etag → 304 Not Modified.
+  // Second fetch: upgrade request with `fullMetadata: true` → 200 with time-bearing full metadata.
+  const agent = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  agent.intercept({
+    path: '/is-positive',
+    method: 'GET',
+    headers: { 'if-none-match': '"abc123"' },
+  }).reply(304, '')
+  agent.intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  // publishedBy is 2015-06-05, cached meta `modified` is 2015-06-10 → upgrade triggers.
+  // is-positive@1.0.0 (2015-06-02) is mature; @3.1.0 (2015-08-21) is not.
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  // The maturity check ran properly thanks to the upgrade — picked 1.0.0, not 3.x.
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+
+  // The upgraded full metadata should be persisted to disk so the next
+  // install doesn't re-trigger the upgrade fetch.
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const persistedMeta = await retryLoadJsonFile<any>(cachePath)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(persistedMeta?.time).toBeDefined()
+})
+
 test('use cached metadata based on file mtime when publishedBy is set', async () => {
   const cacheDir = temporaryDirectory()
   // Write abbreviated metadata to the abbreviated cache dir
   const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
   const cachePath = path.join(cacheDir2, 'is-positive.jsonl')
-  const headers = JSON.stringify({ modified: isPositiveAbbreviatedMeta.modified })
+  const headers = JSON.stringify({ etag: '"mtime-shortcut-test"', modified: isPositiveAbbreviatedMeta.modified })
   fs.writeFileSync(cachePath, `${headers}\n${JSON.stringify(isPositiveAbbreviatedMeta)}`, 'utf8')
 
   // No mock agent intercepts — the test verifies no network request is made.
@@ -340,6 +531,55 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
   // publishedBy in the past relative to file mtime (file was just written = now)
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2020-01-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('excluded packages bypass the mtime cache shortcut and refresh stale metadata', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  // Stale abbreviated cache: every version newer than 3.0.0 is missing.
+  // If the publishedBy mtime shortcut is taken, resolution incorrectly
+  // freezes on 3.0.0 forever for recently-written cache files.
+  const staleVersions = Object.fromEntries(
+    Object.entries(isPositiveAbbreviatedMeta.versions)
+      .filter(([version]) => !semver.gt(version, '3.0.0'))
+  )
+  const staleCachedMeta = {
+    ...isPositiveAbbreviatedMeta,
+    versions: staleVersions,
+    'dist-tags': {
+      ...isPositiveAbbreviatedMeta['dist-tags'],
+      latest: '3.0.0',
+    },
+  }
+  const headers = JSON.stringify({ etag: '"exclude-refresh-test"', modified: staleCachedMeta.modified })
+  fs.writeFileSync(cachePath, `${headers}\n${JSON.stringify(staleCachedMeta)}`, 'utf8')
+  const forcedMtime = new Date('2024-01-01T00:00:00.000Z')
+  fs.utimesSync(cachePath, forcedMtime, forcedMtime)
+
+  // Network has fresh metadata with 3.1.0 as latest.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveAbbreviatedMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    // Mirror mtime is explicitly set after this cutoff to guarantee the
+    // mtime shortcut condition is satisfied in all environments.
+    publishedBy: new Date('2020-01-01T00:00:00.000Z'),
+    // But excluded packages should behave like publishedBy is off and
+    // still revalidate stale metadata against the registry.
+    publishedByExclude: (pkgName) => pkgName === 'is-positive',
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')

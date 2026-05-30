@@ -8,7 +8,7 @@ import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { pMapValues } from 'p-map-values'
-import { omit } from 'ramda'
+import { clone, omit } from 'ramda'
 
 import { overridePublishConfig } from './overridePublishConfig.js'
 import { type ExportedManifest, transform } from './transform/index.js'
@@ -28,6 +28,7 @@ export interface MakePublishManifestOptions {
   catalogs: Catalogs
   hooks?: Hooks
   modulesDir?: string
+  skipManifestObfuscation?: boolean
   readmeFile?: string
 }
 
@@ -36,9 +37,14 @@ export async function createExportableManifest (
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
 ): Promise<ExportedManifest> {
-  let publishManifest: ProjectManifest = omit(['scripts', 'packageManager', 'pnpm' as keyof ProjectManifest], originalManifest)
-  if (originalManifest.scripts != null) {
-    publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
+  let publishManifest: ProjectManifest
+  if (opts.skipManifestObfuscation) {
+    publishManifest = omit(['pnpm' as keyof ProjectManifest], clone(originalManifest))
+  } else {
+    publishManifest = omit(['scripts', 'packageManager', 'pnpm' as keyof ProjectManifest], originalManifest)
+    if (originalManifest.scripts != null) {
+      publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
+    }
   }
 
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs)

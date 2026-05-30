@@ -4,9 +4,9 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { pack, publish } from '@pnpm/releasing.commands'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { isCI } from 'ci-info'
 import crossSpawn from 'cross-spawn'
 import { safeExeca as execa } from 'execa'
@@ -304,6 +304,28 @@ test('publish: package with all possible fields in publishConfig', async () => {
   })
 })
 
+test('publish: package with publishConfig.registry overrides the default registry', async () => {
+  const pkgName = `test-publish-config-registry-${Date.now()}`
+  prepare({
+    name: pkgName,
+    version: '1.0.0',
+
+    publishConfig: {
+      registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+    },
+  })
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    registries: { default: 'https://__fake_npm_registry__.com' },
+  }, [])
+
+  await checkPkgExists(pkgName, '1.0.0')
+})
+
 test('publish: package with publishConfig.directory', async () => {
   const packages = preparePackages([
     {
@@ -357,6 +379,50 @@ test('publish: package with publishConfig.directory', async () => {
       version: '1.0.0',
     })
   expect(fs.existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
+})
+
+test('publish: preserves packageManager and publish lifecycle scripts when skipManifestObfuscation is enabled, but still omits pnpm', async () => {
+  preparePackages([
+    {
+      name: 'test-publish-skip-manifest-obfuscation',
+      version: '1.0.0',
+      packageManager: 'pnpm@10.0.0',
+      pnpm: {
+        testField: true,
+      },
+      scripts: {
+        prepublishOnly: 'echo prepublishOnly',
+        postinstall: 'echo postinstall',
+      },
+    } as Parameters<typeof preparePackages>[0][number] & { pnpm?: Record<string, unknown> },
+    {
+      name: 'test-publish-skip-manifest-obfuscation-installation',
+      version: '1.0.0',
+    },
+  ])
+
+  process.chdir('test-publish-skip-manifest-obfuscation')
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    skipManifestObfuscation: true,
+  }, [])
+
+  process.chdir('../test-publish-skip-manifest-obfuscation-installation')
+  crossSpawn.sync(pnpmBin, ['add', 'test-publish-skip-manifest-obfuscation', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+
+  const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-skip-manifest-obfuscation/package.json'))
+  expect(publishedManifest).toEqual({
+    name: 'test-publish-skip-manifest-obfuscation',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    scripts: {
+      prepublishOnly: 'echo prepublishOnly',
+      postinstall: 'echo postinstall',
+    },
+  })
 })
 
 test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {
@@ -981,4 +1047,37 @@ test('publish from a tarball', async () => {
   }, [tarballName])
 
   await checkPkgExists(pkg.name, pkg.version)
+})
+
+test('publish --json: writes per-package summary to stdout', async () => {
+  const pkgName = `test-publish-json-${Date.now()}`
+  prepare({ name: pkgName, version: '0.0.0' })
+
+  const result = await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', '--json'] },
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    json: true,
+  }, [])
+
+  expect(result?.output).toBeDefined()
+  const summary = JSON.parse(result!.output!) as Record<string, unknown>
+  expect(summary).toMatchObject({
+    id: `${pkgName}@0.0.0`,
+    name: pkgName,
+    version: '0.0.0',
+    filename: `${pkgName}-0.0.0.tgz`,
+    bundled: [],
+  })
+  expect(summary.size).toEqual(expect.any(Number))
+  expect(summary.size as number).toBeGreaterThan(0)
+  expect(summary.unpackedSize).toEqual(expect.any(Number))
+  expect(summary.unpackedSize as number).toBeGreaterThan(0)
+  expect(summary.shasum).toMatch(/^[0-9a-f]{40}$/)
+  expect(summary.integrity).toMatch(/^sha512-/)
+  expect(Array.isArray(summary.files)).toBe(true)
+  expect(summary.entryCount).toBe((summary.files as unknown[]).length)
+
+  await checkPkgExists(pkgName, '0.0.0')
 })

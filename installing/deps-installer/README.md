@@ -1,4 +1,4 @@
-# @pnpm/core
+# @pnpm/installing.deps-installer
 
 > Fast, disk space efficient installation engine. Used by [pnpm](https://github.com/pnpm/pnpm)
 
@@ -7,7 +7,7 @@
 Install it via npm.
 
 ```
-pnpm add @pnpm/core
+pnpm add @pnpm/installing.deps-installer
 ```
 
 It also depends on `@pnpm/logger` version `1`, so install it as well via:
@@ -75,7 +75,7 @@ Hooks are functions that can step into the installation process. All hooks can b
 ### `readPackage(pkg: Manifest, context): Manifest | Promise<Manifest>`
 
 This hook is called with every dependency's manifest information.
-The modified manifest returned by this hook is then used by `@pnpm/core` during installation.
+The modified manifest returned by this hook is then used by `@pnpm/installing.deps-installer` during installation.
 An async function is supported.
 
 **Arguments:**
@@ -86,7 +86,7 @@ An async function is supported.
 **Example:**
 
 ```js
-const { installPkgs } = require('@pnpm/core')
+const { installPkgs } = require('@pnpm/installing.deps-installer')
 
 installPkgs({
   hooks: {

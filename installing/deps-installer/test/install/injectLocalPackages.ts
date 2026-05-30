@@ -2013,3 +2013,91 @@ test('injected local packages are deduped', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
   }
 })
+
+// Regression test: when an injected workspace package has a prepare script
+// AND any dep with a bin, the re-import after the script crashed with
+// `ENOENT: copyfile '...node_modules/.bin/<tool>'`. `runLifecycleHooksConcurrently`
+// scanned the existing injected node_modules and added absolute paths under
+// it to the filesMap; the importer's fast path then wiped the target before
+// reading from those paths. Fixed by keeping storeController.importPackage
+// but passing keepModulesDir: true, so importIndexedDir skips the
+// destructive makeEmptyDir fast path (#11088) and preserves the target's
+// existing node_modules (bin links + transitive deps) instead.
+test('inject local package with prepare script + bin-having dep does not crash on re-import', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      // hello-world-js-bin declares "bin": "./index.js", so pnpm creates
+      // a node_modules/.bin/hello-world-js-bin symlink in the injected
+      // copy. Before the fix that symlink triggered the crash.
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+    scripts: {
+      // `prepare` (not `prepublishOnly`) is the script that pnpm runs during
+      // install — it's the lifecycle stage that triggered the original
+      // re-import crash on bin-having injected deps.
+      prepare: 'node -e "require(\'node:fs\').writeFileSync(\'built.txt\',\'ok\')"',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  const projects = preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  // The install would throw with ERR_PNPM_ENOENT on `.bin/hello-world-js-bin`
+  // before the fix.
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  // prepare ran in project-1.
+  expect(fs.existsSync(path.resolve('project-1/built.txt'))).toBeTruthy()
+  // The re-import succeeded — project-2's injected copy has both the bin
+  // symlink from the original injection AND the built.txt from prepare.
+  expect(() => projects['project-2'].has('project-1')).not.toThrow()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/built.txt'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/node_modules/.bin/hello-world-js-bin'))).toBeTruthy()
+})

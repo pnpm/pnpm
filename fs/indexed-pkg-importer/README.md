@@ -1,11 +1,11 @@
-# @pnpm/create-cafs-store
+# @pnpm/fs.indexed-pkg-importer
 
 > Replicates indexed directories using hard links, copies, or cloning
 
 ## Installation
 
 ```
-pnpm add @pnpm/create-cafs-store
+pnpm add @pnpm/fs.indexed-pkg-importer
 ```
 
 ## License

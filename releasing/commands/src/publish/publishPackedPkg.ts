@@ -1,21 +1,28 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
+import { createDispatchedFetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
+import { extractBundledDependencies, type PublishSummary } from '../tarball/publishSummary.js'
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
-import { publishWithOtpHandling } from './otp.js'
+import { type OtpContext, type PublishOptionsWithDefaultAccess, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
+import { SHARED_CONTEXT } from './utils/shared-context.js'
+
+export type { PublishSummary }
 
 export type PublishPackedPkgOptions = Pick<Config,
 | 'configByUri'
@@ -28,42 +35,105 @@ export type PublishPackedPkgOptions = Pick<Config,
 | 'registries'
 | 'tag'
 | 'userAgent'
-> & {
+> & Partial<Pick<Config,
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'noProxy'
+| 'strictSsl'
+>> & {
   access?: 'public' | 'restricted'
   ci?: boolean
   otp?: string // NOTE: There is no existing test for the One-time Password feature
   provenance?: boolean
   provenanceFile?: string // NOTE: This field is currently not supported
+  stage?: boolean
 }
 
 export async function publishPackedPkg (
-  packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath'>,
+  packResult: Pick<PackResult, 'publishedManifest' | 'tarballPath' | 'contents' | 'unpackedSize'>,
   opts: PublishPackedPkgOptions
-): Promise<void> {
-  const { publishedManifest, tarballPath } = packResult
+): Promise<PublishSummary> {
+  const { publishedManifest, tarballPath, contents, unpackedSize } = packResult
   const tarballData = await fs.readFile(tarballPath)
   const publishOptions = await createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
   const { registry } = publishOptions
+  const isStage = opts.stage === true
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
-  if (opts.dryRun) {
-    globalWarn(`Skip publishing ${name}@${version} (dry run)`)
-    return
+  const summary: PublishSummary = {
+    id: `${name}@${version}`,
+    name: name as string,
+    version: version as string,
+    size: tarballData.byteLength,
+    unpackedSize,
+    // SHA-1 is what `npm publish --json` reports as `shasum` for back-compat with the registry's
+    // legacy dist.shasum field; `integrity` below is the modern SRI hash.
+    shasum: createHash('sha1').update(tarballData).digest('hex'),
+    integrity: `sha512-${createHash('sha512').update(tarballData).digest('base64')}`,
+    filename: path.basename(tarballPath),
+    files: contents.map((file) => ({ path: file })),
+    entryCount: contents.length,
+    bundled: extractBundledDependencies(publishedManifest),
   }
-  const response = await publishWithOtpHandling({ manifest: publishedManifest, tarballData, publishOptions })
+  if (opts.dryRun) {
+    globalWarn(`Skip ${isStage ? 'staging' : 'publishing'} ${name}@${version} (dry run)`)
+    return summary
+  }
+  const context = createPublishContext(opts)
+  const response = await publishWithOtpHandling({
+    context,
+    manifest: publishedManifest,
+    publishOptions,
+    tarballData,
+  })
   if (response.ok) {
-    globalInfo(`✅ Published package ${name}@${version}`)
-    return
+    if (isStage && response.stageId) {
+      summary.stageId = response.stageId
+    }
+    globalInfo(`✅ ${isStage ? 'Staged' : 'Published'} package ${name}@${version}`)
+    return summary
   }
   throw await createFailedToPublishError(packResult, response)
 }
 
-async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
-  const { registry, config } = findRegistryInfo(manifest, options)
+/**
+ * Builds the {@link OtpContext} used to drive the publish. The default fetch
+ * is replaced by one that respects proxy / TLS / local-address settings, so
+ * the `doneUrl` polling in the web-based authentication flow goes through
+ * the same network configuration as the initial publish request (see
+ * https://github.com/pnpm/pnpm/issues/11561).
+ */
+export function createPublishContext (opts: PublishPackedPkgOptions): OtpContext {
+  return {
+    ...SHARED_CONTEXT,
+    fetch: createDispatchedFetch({ ...opts, timeout: opts.fetchTimeout }),
+  }
+}
+
+type StagePublishOptions = PublishOptionsWithDefaultAccess & {
+  command?: string
+  stage?: boolean
+}
+
+/**
+ * @internal Exported for unit testing of the access / registry / auth fallback rules. Not part of the package's
+ *   public API.
+ */
+export async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<StagePublishOptions> {
+  const publishConfigRegistry = typeof manifest.publishConfig?.registry === 'string'
+    ? manifest.publishConfig.registry
+    : undefined
+  const { registry, config } = findRegistryInfo(manifest, options, publishConfigRegistry)
   const { creds, tls } = config ?? {}
 
+  const publishConfigAccess = manifest.publishConfig?.access
+  const access = options.access ?? (isPublishAccess(publishConfigAccess) ? publishConfigAccess : null)
+
   const {
-    access,
     ci: isFromCI,
     fetchRetries,
     fetchRetryFactor,
@@ -77,12 +147,13 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     userAgent,
   } = options
 
+  const npmCommand = options.stage === true ? 'stage' : 'publish'
   const headers: PublishOptions['headers'] = {
     'npm-auth-type': 'web',
-    'npm-command': 'publish',
+    'npm-command': npmCommand,
   }
 
-  const publishOptions: PublishOptions = {
+  const publishOptions: StagePublishOptions = {
     access,
     defaultTag,
     fetchRetries,
@@ -105,21 +176,36 @@ async function createPublishOptions (manifest: ExportedManifest, options: Publis
     ca: tls?.ca,
     cert: tls?.cert,
     key: tls?.key,
-    npmCommand: 'publish',
+    npmCommand,
     token: creds && extractToken(creds),
     username: creds?.basicAuth?.username,
     password: creds?.basicAuth?.password,
   }
 
+  if (options.stage === true) {
+    publishOptions.command = 'stage'
+    publishOptions.stage = true
+  }
+
   if (registry) {
-    const oidcTokenProvenance = await fetchTokenAndProvenanceByOidcIfApplicable(publishOptions, manifest.name, registry, options)
-    publishOptions.token ??= oidcTokenProvenance?.authToken
+    // OIDC takes precedence over a configured static `_authToken`, mirroring the npm CLI's
+    // behavior (see https://github.com/npm/cli/blob/7d900c46/lib/utils/oidc.js). Trusted
+    // publishing wins whenever the registry has it configured for the package; the static
+    // token is used only as a fallback when OIDC is not applicable.
+    const oidcTokenProvenance = await fetchTokenAndProvenanceByOidc(manifest.name, registry, options)
+    if (oidcTokenProvenance?.authToken) {
+      publishOptions.token = oidcTokenProvenance.authToken
+    }
     publishOptions.provenance ??= oidcTokenProvenance?.provenance
     appendAuthOptionsForRegistry(publishOptions, registry)
   }
 
   pruneUndefined(publishOptions)
   return publishOptions
+}
+
+function isPublishAccess (access: unknown): access is 'public' | 'restricted' {
+  return access === 'public' || access === 'restricted'
 }
 
 interface RegistryInfo {
@@ -130,16 +216,19 @@ interface RegistryInfo {
 /**
  * Find credentials and SSL info for a package's registry.
  * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
+ *
+ * The manifest's `publishConfig.registry`, when set, takes precedence over `registries`.
  */
 function findRegistryInfo (
   { name }: ExportedManifest,
-  { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>
+  { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>,
+  publishConfigRegistry?: string
 ): Partial<RegistryInfo> {
   // eslint-disable-next-line regexp/no-unused-capturing-group
   const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
 
   const registryName = scopedMatches?.groups ? `@${scopedMatches.groups.scope}` : 'default'
-  const nonNormalizedRegistry = registries[registryName] ?? registries.default
+  const nonNormalizedRegistry = publishConfigRegistry ?? registries[registryName] ?? registries.default
 
   const supportedRegistryInfo = parseSupportedRegistryUrl(nonNormalizedRegistry)
   if (!supportedRegistryInfo) {
@@ -160,15 +249,6 @@ function findRegistryInfo (
     creds ??= entry.creds
     // TLS from longer path individually overrides shorter path
     tls = { ...entry.tls, ...tls }
-  }
-
-  const isDefaultRegistry =
-    nonNormalizedRegistry === registries.default ||
-    registry === registries.default ||
-    registry === parseSupportedRegistryUrl(registries.default)?.normalizedUrl
-
-  if (isDefaultRegistry) {
-    creds ??= configByUri['']?.creds
   }
 
   return {
@@ -204,20 +284,24 @@ interface OidcTokenProvenanceResult {
 }
 
 /**
- * If authentication information doesn't already set in {@link targetPublishOptions},
- * try fetching an authentication token and provenance by OpenID Connect and return it.
+ * Try fetching an authentication token and provenance by OpenID Connect.
+ *
+ * The result, when defined, is intended to take precedence over any statically configured
+ * authentication. This mirrors the npm CLI's OIDC flow, which always attempts the exchange
+ * in supported CI environments and overwrites a configured `_authToken` on success.
+ *
+ * @returns the OIDC-derived authToken (and provenance flag) on success, or `undefined` when
+ *   OIDC is not applicable / not configured on the registry — in which case callers should
+ *   fall back to whatever static authentication they already have.
+ *
+ * @internal Exported for unit testing of the precedence rules. Not part of the package's
+ *   public API.
  */
-async function fetchTokenAndProvenanceByOidcIfApplicable (
-  targetPublishOptions: PublishOptions,
+export async function fetchTokenAndProvenanceByOidc (
   packageName: string,
   registry: string,
   options: PublishPackedPkgOptions
 ): Promise<OidcTokenProvenanceResult | undefined> {
-  if (
-    targetPublishOptions.token != null ||
-    (targetPublishOptions.username && targetPublishOptions.password)
-  ) return undefined
-
   let idToken: string | undefined
   try {
     idToken = await getIdToken({
@@ -233,7 +317,11 @@ async function fetchTokenAndProvenanceByOidcIfApplicable (
     throw error
   }
   if (!idToken) {
-    globalWarn('Skipped OIDC: idToken is not available')
+    // OIDC is simply not applicable here — either we're outside of CI, or we're in a CI
+    // that doesn't natively drive OIDC and the user hasn't forwarded a token via
+    // `NPM_ID_TOKEN`. This is the common case for local publishes, so it must stay
+    // silent — only configuration *errors* in a supported CI environment surface as
+    // warnings, and those come back as `IdTokenError` and are handled above.
     return undefined
   }
 
@@ -272,8 +360,11 @@ async function fetchTokenAndProvenanceByOidcIfApplicable (
     })
   } catch (error) {
     if (error instanceof ProvenanceError) {
+      // Don't lose the OIDC-derived authToken just because we couldn't determine the
+      // provenance flag — the publish itself can still go through, and that's what
+      // the npm CLI does too.
       globalWarn(`Skipped setting provenance: ${displayError(error)}`)
-      return undefined
+      return { authToken }
     }
 
     throw error
@@ -289,7 +380,7 @@ async function fetchTokenAndProvenanceByOidcIfApplicable (
  * instead of `token`.
  * This function fixes that by making sure the registry specific authentication information exists.
  */
-function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, registry: NormalizedRegistryUrl): void {
+function appendAuthOptionsForRegistry (targetPublishOptions: StagePublishOptions, registry: NormalizedRegistryUrl): void {
   const registryInfo = parseSupportedRegistryUrl(registry)
   if (!registryInfo) {
     globalWarn(`The registry ${registry} cannot be converted into a config key. Supplement is skipped. Subsequent libnpmpublish call may fail.`)

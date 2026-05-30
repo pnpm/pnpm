@@ -1,0 +1,54 @@
+[package]
+name                  = "pacquet-cli"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[[bin]]
+name = "pacquet"
+path = "src/bin/main.rs"
+
+[dependencies]
+pacquet-executor               = { workspace = true }
+pacquet-fs                     = { workspace = true }
+pacquet-lockfile               = { workspace = true }
+pacquet-network                = { workspace = true }
+pacquet-config                 = { workspace = true }
+pacquet-package-manifest       = { workspace = true }
+pacquet-package-manager        = { workspace = true }
+pacquet-package-is-installable = { workspace = true }
+pacquet-registry               = { workspace = true }
+pacquet-reporter               = { workspace = true }
+pacquet-tarball                = { workspace = true }
+pacquet-diagnostics            = { workspace = true }
+
+clap        = { workspace = true }
+derive_more = { workspace = true }
+dunce       = { workspace = true }
+home        = { workspace = true }
+miette      = { workspace = true }
+pipe-trait  = { workspace = true }
+rayon       = { workspace = true }
+tokio       = { workspace = true }
+
+[dev-dependencies]
+pacquet-store-dir     = { workspace = true }
+pacquet-testing-utils = { workspace = true }
+
+assert_cmd        = { workspace = true }
+command-extra     = { workspace = true }
+insta             = { workspace = true }
+pretty_assertions = { workspace = true }
+serde-saphyr      = { workspace = true }
+serde_json        = { workspace = true }
+tempfile          = { workspace = true }
+walkdir           = { workspace = true }
+
+[lints]
+workspace = true

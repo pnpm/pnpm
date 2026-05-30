@@ -1,5 +1,133 @@
 # @pnpm/node.resolver
 
+## 1101.1.3
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+  - @pnpm/config.reader@1101.5.0
+
+## 1101.1.2
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.resolver-base@1100.3.1
+
+## 1101.1.1
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+
+## 1101.1.0
+
+### Minor Changes
+
+- 1627943: `pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+  Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines a `ResolveLatestFunction` shape (with `LatestQuery` input — `{ wantedDependency, compatible? }` — and `LatestInfo` result — `{ latestManifest? }`), and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own `resolveLatest*` function alongside its `resolve*`. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).resolveLatest`.
+
+  Each resolver decides whether it owns the dep and what "latest" means for its protocol; the outdated command derives `current` / `wanted` display values from the lockfile snapshot (`pkgSnapshot.version` for semver protocols, raw ref for URL-shaped ones) and uses raw ref equality for the "lockfile changed" check, so protocol knowledge stays inside each resolver instead of the command.
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+
+## 1101.0.8
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.3.1
+
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/resolving.resolver-base@1100.1.3
+
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/config.reader@1101.2.1
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
+## 1101.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/crypto.shasums-file@1100.0.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+
 ## 1101.0.0
 
 ### Major Changes

@@ -15,6 +15,8 @@ import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { ConfigDependencies, ConfigDependencySpecifiers, RegistryConfig } from '@pnpm/types'
 
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
+import { pruneEnvLockfile } from './pruneEnvLockfile.js'
+import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
@@ -28,7 +30,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   }
 
   const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
   // Extract existing specifiers from configDependencies (handles both old and new formats)
@@ -68,8 +70,16 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
         registry
       ),
     }
-    envLockfile.snapshots[pkgKey] = {}
+    const optionalSubdeps = await resolveOptionalSubdeps(pkgName, resolution.manifest, {
+      envLockfile,
+      lockfileDir: opts.rootDir,
+      registries: opts.registries,
+      resolveFromNpm,
+    })
+    envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
   }))
+
+  pruneEnvLockfile(envLockfile)
 
   await Promise.all([
     writeSettings({

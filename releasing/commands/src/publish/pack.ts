@@ -32,6 +32,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     ...cliOptionsTypes(),
     ...pick([
       'npm-path',
+      'skip-manifest-obfuscation',
     ], allTypes),
   }
 }
@@ -45,6 +46,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'pack-destination',
       'pack-gzip-level',
       'json',
+      'skip-manifest-obfuscation',
       'workspace-concurrency',
     ], allTypes),
   }
@@ -83,6 +85,10 @@ export function help (): string {
             shortAlias: '-r',
           },
           {
+            description: 'Skip pnpm\'s manifest obfuscation: keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.',
+            name: '--skip-manifest-obfuscation',
+          },
+          {
             description: `Set the maximum number of concurrency. Default is ${getDefaultWorkspaceConcurrency()}. For unlimited concurrency use Infinity.`,
             name: '--workspace-concurrency <number>',
           },
@@ -98,6 +104,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'embedReadme'
 | 'packGzipLevel'
 | 'nodeLinker'
+| 'skipManifestObfuscation'
 | 'userAgent'
 > & Partial<Pick<Config, 'extraBinPaths'
 | 'extraEnv'
@@ -223,21 +230,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!manifest.version) {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
-  let tarballName: string
-  let packDestination: string | undefined
-  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
-  if (opts.out) {
-    if (opts.packDestination) {
-      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
-    }
-    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', manifest.version)
-    const parsedOut = path.parse(preparedOut)
-    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
-    tarballName = parsedOut.base
-  } else {
-    tarballName = `${normalizedName}-${manifest.version}.tgz`
-    packDestination = opts.packDestination
-  }
   const publishManifest = await createPublishManifest({
     projectDir: dir,
     modulesDir: path.join(opts.dir, 'node_modules'),
@@ -245,7 +237,30 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     embedReadme: opts.embedReadme,
     catalogs: opts.catalogs ?? {},
     hooks: opts.hooks,
+    skipManifestObfuscation: opts.skipManifestObfuscation,
   })
+  // Strip semver build metadata (the `+<build>` segment) from the published version so that
+  // the tarball, the manifest packed inside it, and the metadata sent to the registry all agree.
+  // libnpmpublish runs `semver.clean()` on `manifest.version` before computing the provenance
+  // subject, which removes build metadata. Leaving it in here would mismatch the version embedded
+  // in the tarball's package.json and cause the registry to reject the publish with a 422 when
+  // verifying the sigstore provenance bundle. See https://github.com/pnpm/pnpm/issues/11518.
+  publishManifest.version = stripBuildMetadata(publishManifest.version!)
+  let tarballName: string
+  let packDestination: string | undefined
+  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
+  if (opts.out) {
+    if (opts.packDestination) {
+      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+    }
+    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', publishManifest.version)
+    const parsedOut = path.parse(preparedOut)
+    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
+    tarballName = parsedOut.base
+  } else {
+    tarballName = `${normalizedName}-${publishManifest.version}.tgz`
+    packDestination = opts.packDestination
+  }
   const files = await packlist(dir, {
     manifest: publishManifest as Record<string, unknown>,
   })
@@ -284,11 +299,31 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   } else {
     packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
-  const packedContents = files.sort((a, b) => a.localeCompare(b, 'en'))
+  // Derive `contents` and `unpackedSize` from `filesMap` (the full set of tar entries) rather than
+  // from `files` (the packlist subset) so that:
+  //   - workspace LICENSE files appended to `filesMap` after the packlist call are included; and
+  //   - `package.yaml` / `package.json5` entries are reported under the name they actually have in
+  //     the tar (`package.json`), since `packPkg()` rewrites them.
+  const sizes = await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
+    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
+      return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
+    }
+    const stat = await fs.promises.stat(source)
+    return stat.size
+  }))
+  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0)
+  const packedContents = Array.from(new Set(
+    Object.keys(filesMap).map((name) =>
+      /^package\/package\.(?:json|json5|yaml)$/.test(name)
+        ? 'package.json'
+        : name.replace(/^package\//, '')
+    )
+  )).sort((a, b) => a.localeCompare(b, 'en'))
   return {
     publishedManifest: publishManifest,
     contents: packedContents,
     tarballPath: packedTarballPath,
+    unpackedSize,
   }
 }
 
@@ -296,6 +331,13 @@ export interface PackResult {
   publishedManifest: ExportedManifest
   contents: string[]
   tarballPath: string
+  /** Total uncompressed size of all files in the tarball, in bytes. */
+  unpackedSize: number
+}
+
+function stripBuildMetadata (version: string): string {
+  const plusIndex = version.indexOf('+')
+  return plusIndex === -1 ? version : version.slice(0, plusIndex)
 }
 
 function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
@@ -360,14 +402,16 @@ async function createPublishManifest (opts: {
   manifest: ProjectManifest
   catalogs: Catalogs
   hooks?: Hooks
+  skipManifestObfuscation?: boolean
 }): Promise<ExportedManifest> {
-  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks } = opts
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation } = opts
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
   return createExportableManifest(projectDir, manifest, {
     catalogs,
     hooks,
     readmeFile,
     modulesDir,
+    skipManifestObfuscation,
   })
 }
 

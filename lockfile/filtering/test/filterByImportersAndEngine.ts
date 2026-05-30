@@ -672,3 +672,80 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
     'project-3',
   ])
 })
+
+test('filterByImportersAndEngine(): skipRuntimes drops runtime: entries from importers and packages', () => {
+  const filteredLockfile = filterLockfileByImportersAndEngine(
+    {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            'regular-dep': '1.0.0',
+          },
+          devDependencies: {
+            node: 'runtime:22.13.0',
+            'dev-dep': '1.0.0',
+          },
+          optionalDependencies: {
+            bun: 'runtime:1.1.0',
+          },
+          specifiers: {
+            'regular-dep': '^1.0.0',
+            node: 'runtime:22.13.0',
+            'dev-dep': '^1.0.0',
+            bun: 'runtime:1.1.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['regular-dep@1.0.0' as DepPath]: {
+          resolution: { integrity: '' },
+        },
+        ['dev-dep@1.0.0' as DepPath]: {
+          resolution: { integrity: '' },
+        },
+        ['node@runtime:22.13.0' as DepPath]: {
+          resolution: { integrity: '' },
+        },
+        ['bun@runtime:1.1.0' as DepPath]: {
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['.' as ProjectId],
+    {
+      currentEngine: {
+        nodeVersion: '22.0.0',
+        pnpmVersion: '11.0.0',
+      },
+      engineStrict: false,
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      lockfileDir: process.cwd(),
+      skipped: new Set<string>(),
+      skipRuntimes: true,
+    }
+  )
+
+  expect(filteredLockfile.lockfile.importers['.' as ProjectId]).toStrictEqual({
+    dependencies: {
+      'regular-dep': '1.0.0',
+    },
+    devDependencies: {
+      'dev-dep': '1.0.0',
+    },
+    optionalDependencies: {},
+    specifiers: {
+      'regular-dep': '^1.0.0',
+      'dev-dep': '^1.0.0',
+    },
+  })
+  expect(Object.keys(filteredLockfile.lockfile.packages ?? {}).sort()).toStrictEqual([
+    'dev-dep@1.0.0',
+    'regular-dep@1.0.0',
+  ])
+})

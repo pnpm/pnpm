@@ -1,5 +1,125 @@
 # @pnpm/deps.compliance.sbom
 
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.detect-dep-types@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.pkg-finder@1100.0.13
+
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/store.pkg-finder@1100.0.12
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.pkg-finder@1100.0.11
+  - @pnpm/lockfile.detect-dep-types@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/store.pkg-finder@1100.0.10
+  - @pnpm/lockfile.detect-dep-types@1100.0.6
+  - @pnpm/lockfile.walker@1100.0.6
+
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/store.pkg-finder@1100.0.9
+
+## 1100.1.0
+
+### Minor Changes
+
+- 87b4bac: Allow setting sbom spec version using `--sbom-spec-version` [#11389](https://github.com/pnpm/pnpm/pull/11389).
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.detect-dep-types@1100.0.5
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.pkg-finder@1100.0.8
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/store.pkg-finder@1100.0.7
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/store.pkg-finder@1100.0.6
+  - @pnpm/lockfile.detect-dep-types@1100.0.4
+  - @pnpm/lockfile.walker@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/store.pkg-finder@1100.0.5
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.detect-dep-types@1100.0.3
+  - @pnpm/lockfile.walker@1100.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- f9afe81: Populate download location for git-sourced dependencies in SBOM output. Previously `pnpm sbom` emitted `NOASSERTION` (SPDX) and omitted the distribution reference (CycloneDX) for git dependencies. Now emits the git URL with commit hash, e.g. `git+https://github.com/user/repo.git#commit`.
+
 ## 1100.0.4
 
 ### Patch Changes

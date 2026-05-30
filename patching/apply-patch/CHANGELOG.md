@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 1100.0.1
+
+### Patch Changes
+
+- 26a7d63: Reject patch files whose `diff --git` headers reference paths outside the patched package directory. Previously a malicious `.patch` file added via a pull request could write, delete, or rename arbitrary files reachable by the user running `pnpm install`.
+
 ## 1001.0.0
 
 ### Major Changes

@@ -29,6 +29,9 @@
       "path": "../../../cli/utils"
     },
     {
+      "path": "../../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../../config/reader"
     },
     {
@@ -80,10 +83,16 @@
       "path": "../../../testing/mock-agent"
     },
     {
+      "path": "../../../testing/registry-mock"
+    },
+    {
       "path": "../../../workspace/project-manifest-reader"
     },
     {
       "path": "../../../workspace/projects-filter"
+    },
+    {
+      "path": "../../security/signatures"
     },
     {
       "path": "../audit"

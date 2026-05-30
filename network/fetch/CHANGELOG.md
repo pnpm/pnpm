@@ -1,5 +1,57 @@
 # @pnpm/fetch
 
+## 1100.0.8
+
+### Patch Changes
+
+- b1fa2d5: Fix `pnpm dist-tag add` and `pnpm dist-tag rm` against npmjs.org failing without `--otp` with `[ERR_PNPM_UNAUTHORIZED] You must be logged in to set dist-tag … "You must provide a one-time pass. Upgrade your client to npm@latest in order to use 2FA."`. pnpm now sends `npm-auth-type: web` on dist-tag writes and surfaces the resulting OTP challenge through the existing browser-based 2FA flow (the same `withOtpHandling` helper used by `pnpm publish`), so the browser opens, the user authenticates, and the dist-tag is set on retry. `--otp=<code>` continues to work via the classic flow.
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/core-loggers@1100.1.2
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/core-loggers@1100.1.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [4a79336]
+  - @pnpm/core-loggers@1100.1.0
+
+## 1100.0.4
+
+### Patch Changes
+
+- 18a464f: Strip `sec-fetch-*` headers from outgoing HTTP requests. These headers are automatically added by undici's `fetch()` implementation per the Fetch spec but cause Azure DevOps Artifacts to return HTTP 400 for uncached upstream packages, as ADO interprets them as browser requests [#11572](https://github.com/pnpm/pnpm/issues/11572).
+
+## 1100.0.3
+
+### Patch Changes
+
+- 20e7aff: `pnpm publish` now honors the configured HTTP/HTTPS proxy (including `https_proxy`/`http_proxy`/`no_proxy` environment variables) when polling the registry's `doneUrl` during the web-based authentication flow. Previously the poll bypassed the proxy, causing the registry to respond `403` from a different source IP and the login to never complete [#11561](https://github.com/pnpm/pnpm/issues/11561).
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/core-loggers@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/fetching.types@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

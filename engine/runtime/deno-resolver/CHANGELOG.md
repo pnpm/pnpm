@@ -1,5 +1,130 @@
 # @pnpm/resolving.deno-resolver
 
+## 1101.1.4
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+
+## 1101.1.3
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/fetching.fetcher-base@1100.1.6
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/fetching.binary-fetcher@1101.0.8
+
+## 1101.1.2
+
+### Patch Changes
+
+- Updated dependencies [212315d]
+  - @pnpm/resolving.npm-resolver@1101.3.2
+
+## 1101.1.1
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+
+## 1101.1.0
+
+### Minor Changes
+
+- 1627943: `pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+  Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines a `ResolveLatestFunction` shape (with `LatestQuery` input — `{ wantedDependency, compatible? }` — and `LatestInfo` result — `{ latestManifest? }`), and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own `resolveLatest*` function alongside its `resolve*`. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).resolveLatest`.
+
+  Each resolver decides whether it owns the dep and what "latest" means for its protocol; the outdated command derives `current` / `wanted` display values from the lockfile snapshot (`pkgSnapshot.version` for semver protocols, raw ref for URL-shaped ones) and uses raw ref equality for the "lockfile changed" check, so protocol knowledge stays inside each resolver instead of the command.
+
+### Patch Changes
+
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/fetching.fetcher-base@1100.1.5
+  - @pnpm/worker@1100.1.7
+  - @pnpm/fetching.binary-fetcher@1101.0.7
+
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/fetching.binary-fetcher@1101.0.6
+  - @pnpm/worker@1100.1.6
+
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [e526f89]
+- Updated dependencies [c2c2890]
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/worker@1100.1.5
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.3
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/worker@1100.1.4
+  - @pnpm/fetching.binary-fetcher@1101.0.5
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [15e9e35]
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/fetching.binary-fetcher@1101.0.4
+  - @pnpm/worker@1100.1.3
+
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/fetching.fetcher-base@1100.1.2
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/fetching.binary-fetcher@1101.0.3
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/worker@1100.1.1
+  - @pnpm/fetching.binary-fetcher@1101.0.2
+  - @pnpm/crypto.shasums-file@1100.0.1
+
 ## 1101.0.1
 
 ### Patch Changes

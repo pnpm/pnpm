@@ -1,5 +1,142 @@
 # @pnpm/cache.commands
 
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/cache.api@1100.0.18
+
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/cache.api@1100.0.17
+  - @pnpm/cli.utils@1101.0.8
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/cache.api@1100.0.16
+
+## 1100.0.16
+
+### Patch Changes
+
+- @pnpm/cache.api@1100.0.15
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/cache.api@1100.0.14
+  - @pnpm/cli.utils@1101.0.6
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/cache.api@1100.0.13
+  - @pnpm/cli.utils@1101.0.5
+
+## 1100.0.13
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.4
+- @pnpm/config.reader@1101.3.1
+- @pnpm/cache.api@1100.0.12
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/cache.api@1100.0.11
+  - @pnpm/cli.utils@1101.0.3
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/cache.api@1100.0.10
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/cache.api@1100.0.9
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/cache.api@1100.0.8
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/cache.api@1100.0.7
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/store.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/cache.api@1100.0.6
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/cache.api@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

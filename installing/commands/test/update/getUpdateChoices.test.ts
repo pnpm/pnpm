@@ -86,6 +86,7 @@ test('getUpdateChoices()', () => {
         choices: [
           {
             name: 'Package                                                    Current   Target            URL              ',
+            message: 'Package                                                    Current   Target            URL              ',
             disabled: true,
             hint: '',
             value: '',
@@ -103,6 +104,7 @@ test('getUpdateChoices()', () => {
         choices: [
           {
             name: 'Package                                                    Current   Target            URL ',
+            message: 'Package                                                    Current   Target            URL ',
             disabled: true,
             hint: '',
             value: '',
@@ -130,6 +132,7 @@ test('getUpdateChoices()', () => {
         choices: [
           {
             name: 'Package                                                    Current   Target            URL ',
+            message: 'Package                                                    Current   Target            URL ',
             disabled: true,
             hint: '',
             value: '',

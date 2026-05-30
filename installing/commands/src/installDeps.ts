@@ -40,6 +40,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
+import { setupPolicyHandlers } from './policyHandlers.js'
 import {
   type CommandFullName,
   createMatcher,
@@ -49,6 +50,7 @@ import {
   type RecursiveOptions,
   type UpdateDepsMatcher,
 } from './recursive.js'
+import { makeRunPacquet } from './runPacquet.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -84,6 +86,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'preferWorkspacePackages'
 | 'registries'
+| 'runtime'
 | 'runtimeOnFail'
 | 'save'
 | 'saveDev'
@@ -102,6 +105,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
 | 'tag'
+| 'trustLockfile'
 | 'allowBuilds'
 | 'optional'
 | 'workspaceConcurrency'
@@ -121,9 +125,12 @@ export type InstallDepsOptions = Pick<Config,
 | 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'selectedProjectsGraph'
-> & CreateStoreControllerOptions & {
+> & Partial<Pick<Config, 'ci'>>
+& CreateStoreControllerOptions & {
   argv: {
+    cooked?: string[]
     original: string[]
+    remain?: string[]
   }
   allowNew?: boolean
   forceFullResolution?: boolean
@@ -156,6 +163,13 @@ export type InstallDepsOptions = Pick<Config,
   rebuildHandler?: CommandHandler
   pnpmfile: string[]
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
+  /**
+   * `true` when this call originated from `pnpm install` (or `pnpm i`),
+   * `false`/`undefined` for `add`, `update`, `dedupe`, etc. Used to gate
+   * which pnpm CLI flags are safe to forward to pacquet's `install`
+   * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
+   */
+  isInstallCommand?: boolean
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
@@ -192,6 +206,30 @@ export async function installDeps (
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
   const store = await createStoreController(opts)
+  // When `configDependencies` declares pacquet, build the alternative
+  // install engine the deps-installer delegates to. The CLI layer owns
+  // the construction so the installer doesn't need to know about
+  // pacquet's binary path, CLI surface, or any settings that only
+  // pacquet consumes. Threaded through both the workspace recursive
+  // path and the single-project path below. Two declaration names are
+  // accepted: the original unscoped `pacquet` and the official scoped
+  // `@pnpm/pacquet` mirror. Both packages ship the same JS shim and
+  // optional `@pacquet/<plat>-<arch>` binary sub-packages, so the
+  // resolved \`node_modules/.pnpm-config/<name>\` layout pacquet's
+  // wrapper expects is identical either way.
+  const pacquetConfigDepName = opts.configDependencies?.['@pnpm/pacquet'] != null
+    ? '@pnpm/pacquet'
+    : opts.configDependencies?.pacquet != null
+      ? 'pacquet'
+      : undefined
+  const runPacquet = pacquetConfigDepName != null
+    ? makeRunPacquet({
+      lockfileDir: opts.lockfileDir ?? opts.dir,
+      packageName: pacquetConfigDepName,
+      argv: { original: opts.argv.original, remain: opts.argv.remain ?? [] },
+      isInstallCommand: opts.isInstallCommand === true,
+    })
+    : undefined
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
@@ -240,6 +278,7 @@ export async function installDeps (
           selectedProjectsGraph,
           storeControllerAndDir: store,
           workspaceDir: opts.workspaceDir,
+          runPacquet,
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
       )
@@ -266,6 +305,13 @@ export async function installDeps (
     applyRuntimeOnFailOverride(manifest, opts.runtimeOnFail)
   }
 
+  // `setupPolicyHandlers` composes the per-policy handlers the install
+  // needs for the current opts (today: minimumReleaseAge; future:
+  // trustPolicy UX, license policy, etc.). Returns `undefined` when no
+  // handler is active so the install skips the empty no-op call at
+  // every checkpoint when no policies are configured.
+  const policyHandlers = setupPolicyHandlers(opts)
+
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     // In case installation is done in a multi-package repository
@@ -275,10 +321,14 @@ export async function installDeps (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,
+    skipRuntimes: opts.runtime === false,
     storeController: store.ctrl,
     storeDir: store.dir,
+    resolutionVerifiers: store.resolutionVerifiers,
     workspacePackages,
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
+    handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
+    runPacquet,
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -337,14 +387,20 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
+      // Only pick entries when we'll actually persist. Otherwise the
+      // info log would claim we added entries the workspace manifest
+      // never saw, and the next install would re-prompt or fail
+      // verification.
+      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
           cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
           allProjects: opts.allProjects,
+          ...policyUpdates,
         }),
       ])
     }
@@ -362,20 +418,34 @@ export async function installDeps (
     return
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
   })
-  if (opts.update === true && opts.save !== false) {
-    await Promise.all([
-      writeProjectManifest(updatedManifest),
-      updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-        updatedCatalogs,
-        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-        allProjects,
-      }),
-    ])
+  // `opts.save === false` (e.g. `--no-save`) means "don't persist anything
+  // from this install" — both package.json and the workspace manifest.
+  // Skip the pick so the info log doesn't claim entries were added that
+  // were never written; the next install will resurface them.
+  if (opts.save !== false) {
+    const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
+    if (opts.update === true) {
+      await Promise.all([
+        writeProjectManifest(updatedManifest),
+        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+          updatedCatalogs,
+          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          allProjects,
+          ...policyUpdates,
+        }),
+      ])
+    } else if (policyUpdates != null) {
+      // Plain `pnpm install` (no --update, no params) wouldn't otherwise touch
+      // the workspace manifest. Persist the auto-policy patches anyway so any
+      // loose bypass (today: minimumReleaseAgeExclude) remains explicit on
+      // subsequent installs.
+      await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, policyUpdates)
+    }
   }
   await handleIgnoredBuilds(opts, ignoredBuilds)
 
@@ -395,6 +465,7 @@ export async function installDeps (
       allProjectsGraph: opts.allProjectsGraph!,
       selectedProjectsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
+      runPacquet,
     }, 'install')
 
     if (opts.ignoreScripts) return

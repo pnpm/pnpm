@@ -104,7 +104,7 @@ async function unpublishPackage (
 ): Promise<string> {
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
 
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, registryUrl)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
 
   const authHeader = getAuthHeader(registryUrl)
 

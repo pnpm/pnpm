@@ -1,8 +1,8 @@
-# @pnpm/make-dedicated-lockfile
+# @pnpm/lockfile.make-dedicated-lockfile
 
 > Creates a dedicated lockfile for a subset of workspace projects
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/make-dedicated-lockfile.svg)](https://www.npmjs.com/package/@pnpm/make-dedicated-lockfile)
+[![npm version](https://img.shields.io/npm/v/@pnpm/lockfile.make-dedicated-lockfile.svg)](https://npmx.dev/package/@pnpm/lockfile.make-dedicated-lockfile)
 
 **This package is deprecated. Please use the [pnpm deploy] command instead.**
 
@@ -11,7 +11,7 @@
 ## Installation
 
 ```sh
-pnpm add @pnpm/make-dedicated-lockfile
+pnpm add @pnpm/lockfile.make-dedicated-lockfile
 ```
 
 ## Usage

@@ -41,6 +41,10 @@ interface ModulesRaw {
   injectedDeps?: Record<string, string[]>
   hoistedLocations?: Record<string, string[]>
   allowBuilds?: Record<string, boolean | string>
+  // True when the modules dir was populated by a virtualStoreOnly install
+  // (e.g. `pnpm fetch`) — the recorded hoist patterns are forced empty
+  // and must not be compared against user config on the next install.
+  virtualStoreOnly?: boolean
 }
 
 export type Modules = Omit<ModulesRaw, 'ignoredBuilds'> & {
@@ -122,6 +126,9 @@ export async function writeModulesManifest (
   }
   if (saveModules.publicHoistPattern == null) {
     delete saveModules.publicHoistPattern
+  }
+  if (!saveModules.virtualStoreOnly) {
+    delete saveModules.virtualStoreOnly
   }
   if ((saveModules.hoistedAliases == null) || (saveModules.hoistPattern == null) && (saveModules.publicHoistPattern == null)) {
     delete saveModules.hoistedAliases

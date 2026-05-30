@@ -5,11 +5,9 @@ import { getAuthHeadersFromCreds } from './getAuthHeadersFromConfig.js'
 import { removePort } from './helpers/removePort.js'
 
 export function createGetAuthHeaderByURI (
-  configByUri: Record<string, RegistryConfig>,
-  defaultRegistry?: string
+  configByUri: Record<string, RegistryConfig>
 ): (uri: string) => string | undefined {
-  const registry = defaultRegistry ? nerfDart(defaultRegistry) : '//registry.npmjs.org/'
-  const authHeaders = getAuthHeadersFromCreds(configByUri, registry)
+  const authHeaders = getAuthHeadersFromCreds(configByUri)
   if (Object.keys(authHeaders).length === 0) return (uri: string) => basicAuth(new URL(uri))
   return getAuthHeaderByURI.bind(null, authHeaders, getMaxParts(Object.keys(authHeaders)))
 }

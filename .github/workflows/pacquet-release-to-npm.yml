@@ -1,0 +1,207 @@
+name: Release Pacquet
+
+# Manual-trigger only. Type the version to publish — the workflow patches
+# pacquet/npm/pacquet/package.json with it before generating per-platform
+# packages and publishing. No git tag is created and no GitHub release
+# asset is uploaded; npm is the authoritative artifact store.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 0.2.3 or 0.2.3-rc.1)'
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      id-token: write # needed for actions/attest-build-provenance
+      attestations: write
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            code-target: win32-x64
+
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            code-target: win32-arm64
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            code-target: linux-x64
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            code-target: linux-arm64
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            code-target: darwin-x64
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            code-target: darwin-arm64
+
+    name: Package ${{ matrix.code-target }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install cross
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        with:
+          tool: cross
+
+      - name: Cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: release-${{ matrix.target }}
+
+      - name: Add Rust Target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Validate version input
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid version: '$VERSION' (expected semver like 0.2.3 or 0.2.3-rc.1)"
+            exit 1
+          fi
+
+      - name: Inject version into pacquet/crates/config/src/defaults.rs
+        # `pacquet --version` and the default User-Agent both read the
+        # PACQUET_VERSION constant. Patch it here so the binary built for the
+        # matrix leg reports the version we're about to publish.
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          file=pacquet/crates/config/src/defaults.rs
+          perl -i -pe 's/(pub const PACQUET_VERSION: &str = )"[^"]*";/${1}"'"$VERSION"'";/' "$file"
+          grep -F "PACQUET_VERSION: &str = \"$VERSION\"" "$file"
+
+      - name: Build with cross
+        run: cross build -p pacquet-cli --bin pacquet --release --target=${{ matrix.target }}
+
+      # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
+      - name: Archive Binary
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          BIN_NAME=pacquet-${{ matrix.code-target }}
+          mv target/${{ matrix.target }}/release/pacquet.exe $BIN_NAME.exe
+          7z a $BIN_NAME.zip $BIN_NAME.exe
+
+      # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
+      - name: Archive Binary
+        if: runner.os != 'Windows'
+        run: |
+          BIN_NAME=pacquet-${{ matrix.code-target }}
+          mv target/${{ matrix.target }}/release/pacquet $BIN_NAME
+          tar czf $BIN_NAME.tar.gz $BIN_NAME
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: |
+            pacquet-${{ matrix.code-target }}*
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: binaries-${{ matrix.code-target }}
+          path: |
+            *.zip
+            *.tar.gz
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for npm provenance attestations via OIDC.
+      id-token: write
+    needs:
+      - build
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Validate version input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid version: '$VERSION' (expected semver like 0.2.3 or 0.2.3-rc.1)"
+            exit 1
+          fi
+
+      - name: Inject version into pacquet/npm/pacquet/package.json
+        # The committed package.json has no `version` field; the version comes
+        # from the workflow_dispatch input. Patching it here means
+        # generate-packages.mjs (which copies the version into each
+        # per-platform manifest) and `pnpm publish` (which reads from
+        # package.json) both see the right value.
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          jq --arg v "$VERSION" '.version = $v' pacquet/npm/pacquet/package.json > pacquet/npm/pacquet/package.json.tmp
+          mv pacquet/npm/pacquet/package.json.tmp pacquet/npm/pacquet/package.json
+          cat pacquet/npm/pacquet/package.json
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-*
+          merge-multiple: true
+
+      - name: Unzip
+        uses: montudor/action-zip@0852c26906e00f8a315c704958823928d8018b28 # v1.0.0
+        with:
+          args: unzip -qq *.zip -d .
+
+      - name: Untar
+        run: ls *.gz | xargs -i tar xf {}
+
+      - name: Generate npm packages
+        run: |
+          node pacquet/npm/pacquet/scripts/generate-packages.mjs
+          cat pacquet/npm/pacquet/package.json
+          for package in pacquet/npm/pacquet* pacquet/npm/pnpm-pacquet; do cat $package/package.json ; echo ; done
+
+      - name: Publish npm packages as latest
+        # Auth is via npm's trusted publishing: `id-token: write` above grants
+        # this job an OIDC token that pnpm/npm exchange with the registry,
+        # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
+        # token to a provenance attestation on each tarball.
+        # The trailing slash on $package/ changes it to publishing the directory.
+        # `pnpm-pacquet` is the `@pnpm/pacquet` scoped alias mirror —
+        # same shim and same `@pacquet/<plat>-<arch>` optional deps as the
+        # unscoped `pacquet`. Published alongside so users can adopt
+        # either name; the per-platform binary sub-packages stay under
+        # the `@pacquet/` scope (no need to mirror those).
+        run: |
+          for package in pacquet/npm/pacquet* pacquet/npm/pnpm-pacquet; do
+            pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
+          done

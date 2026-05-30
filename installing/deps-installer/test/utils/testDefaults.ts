@@ -1,7 +1,8 @@
 import type { CustomResolver } from '@pnpm/hooks.types'
 import type { InstallOptions } from '@pnpm/installing.deps-installer'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import type { Registries } from '@pnpm/types'
 
@@ -14,6 +15,9 @@ export function testDefaults<T> (
     prefix?: string
     registries?: Registries
     customResolvers?: CustomResolver[]
+    minimumReleaseAge?: number
+    minimumReleaseAgeStrict?: boolean
+    minimumReleaseAgeExclude?: string[]
   },
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
@@ -24,13 +28,23 @@ export function testDefaults<T> (
     registries: Registries
     storeController: StoreController
     storeDir: string
+    resolutionVerifiers: ResolutionVerifier[]
   } &
   T {
-  const { storeController, storeDir, cacheDir } = createTempStore({
+  // Forward minimumReleaseAge policy into the Client so it builds the
+  // matching ResolutionVerifier; tests that set these options exercise the
+  // same code path the CLI command would.
+  const policyClientOptions = {
+    ...(opts?.minimumReleaseAge != null ? { minimumReleaseAge: opts.minimumReleaseAge } : {}),
+    ...(opts?.minimumReleaseAgeStrict != null ? { minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict } : {}),
+    ...(opts?.minimumReleaseAgeExclude != null ? { minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude } : {}),
+  }
+  const { storeController, storeDir, cacheDir, resolutionVerifiers } = createTempStore({
     ...opts,
     clientOptions: {
       ...(opts?.registries != null ? { registries: opts.registries } : {}),
       customResolvers: opts?.customResolvers,
+      ...policyClientOptions,
       ...resolveOpts,
       ...fetchOpts,
     },
@@ -43,6 +57,7 @@ export function testDefaults<T> (
     },
     storeController,
     storeDir,
+    resolutionVerifiers,
     ...opts,
   } as (
     InstallOptions &
@@ -51,6 +66,7 @@ export function testDefaults<T> (
       registries: Registries
       storeController: StoreController
       storeDir: string
+      resolutionVerifiers: ResolutionVerifier[]
     } &
     T
   )

@@ -122,12 +122,21 @@ async function fromHostedGit (hosted: any, dispatcherOptions: DispatcherOptions)
     fetchSpec: fetchSpec!,
     hosted: {
       ...hosted,
+      tarballtemplate: hosted.type === 'gitlab' ? gitlabTarballTemplate : hosted.tarballtemplate,
       _fill: hosted._fill,
       tarball: hosted.tarball,
     },
     normalizedBareSpecifier: hosted.shortcut(),
     ...parseGitParams(hosted.committish),
   }
+}
+
+// hosted-git-info's default GitLab tarball URL contains an encoded slash
+// (`%2F`) which survives into the virtual store directory name and makes
+// Node refuse to import the package (ERR_INVALID_MODULE_SPECIFIER).
+function gitlabTarballTemplate ({ domain, user, project, committish }: { domain: string, user: string, project: string, committish: string | null }): string {
+  const ref = committish ? encodeURIComponent(committish) : 'HEAD'
+  return `https://${domain}/${user}/${project}/-/archive/${ref}/${project}-${ref}.tar.gz`
 }
 
 async function isRepoPublic (httpsUrl: string, dispatcherOptions: DispatcherOptions): Promise<boolean> {

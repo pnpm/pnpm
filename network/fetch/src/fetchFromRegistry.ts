@@ -31,6 +31,28 @@ export function fetchWithDispatcher (url: string | URL, opts: FetchWithDispatche
   })
 }
 
+export interface CreateDispatchedFetchOptions extends DispatcherOptions {
+  /**
+   * Per-registry config (TLS, auth, etc.). When set, the matching TLS entries
+   * are automatically extracted into `clientCertificates` so callers don't
+   * have to do it themselves.
+   */
+  configByUri?: Record<string, RegistryConfig>
+}
+
+/**
+ * Returns a {@link fetch} pre-bound to the given dispatcher options, so callers
+ * that need a fetch function (rather than a one-shot call) can route their
+ * requests through the configured proxy / TLS / local-address settings.
+ */
+export function createDispatchedFetch (opts: CreateDispatchedFetchOptions): (url: string | URL, opts?: RequestInit) => Promise<Response> {
+  const dispatcherOptions: DispatcherOptions = {
+    ...opts,
+    clientCertificates: opts.clientCertificates ?? extractTlsConfigs(opts.configByUri),
+  }
+  return (url, fetchOpts) => fetchWithDispatcher(url, { ...fetchOpts, dispatcherOptions })
+}
+
 export type { DispatcherOptions }
 
 export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
@@ -39,12 +61,14 @@ export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
 }
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
+  const clientCertificates = extractTlsConfigs(defaultOpts.configByUri)
   return async (url, opts): Promise<Response> => {
     const headers: Record<string, string> = {
       'user-agent': USER_AGENT,
       ...getHeaders({
         auth: opts?.authHeaderValue,
         fullMetadata: opts?.fullMetadata,
+        method: opts?.method,
         userAgent: defaultOpts.userAgent,
       }),
     }
@@ -73,7 +97,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         ...defaultOpts,
         ...opts,
         strictSsl: defaultOpts.strictSsl ?? true,
-        clientCertificates: extractTlsConfigs(defaultOpts.configByUri),
+        clientCertificates,
       }
 
       const response = await fetchWithDispatcher(urlObject, {
@@ -102,7 +126,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
 }
 
 interface Headers {
-  accept: string
+  accept?: string
   authorization?: string
   'user-agent'?: string
 }
@@ -111,11 +135,16 @@ function getHeaders (
   opts: {
     auth?: string
     fullMetadata?: boolean
+    method?: string
     userAgent?: string
   }
 ): Headers {
-  const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
-    accept: opts.fullMetadata === true ? ACCEPT_FULL_DOC : ACCEPT_ABBREVIATED_DOC,
+  const headers: Headers = {}
+  // The abbreviated/full-metadata Accept header is meaningful only on package
+  // metadata reads. Setting it on writes (PUT/POST/DELETE) breaks npmjs.org's
+  // dist-tag endpoint, which rejects the request with a generic 400.
+  if (!opts.method || opts.method === 'GET' || opts.method === 'HEAD') {
+    headers.accept = opts.fullMetadata === true ? ACCEPT_FULL_DOC : ACCEPT_ABBREVIATED_DOC
   }
   if (opts.auth) {
     headers['authorization'] = opts.auth

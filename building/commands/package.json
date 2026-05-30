@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.commands",
-  "version": "1100.0.5",
+  "version": "1100.1.0",
   "description": "Commands for rebuilding and managing dependency builds",
   "keywords": [
     "pnpm",
@@ -32,6 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@inquirer/prompts": "catalog:",
     "@pnpm/building.after-install": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
@@ -48,7 +49,6 @@
     "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "chalk": "catalog:",
-    "enquirer": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
@@ -64,12 +64,12 @@
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
     "execa": "catalog:",

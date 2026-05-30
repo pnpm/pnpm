@@ -18,16 +18,10 @@ jobs:
     steps:
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    - name: Install pnpm
-      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
       with:
-        standalone: true
-    - name: Setup Node
-      run: pn runtime -g set node 24.6.0
-      timeout-minutes: 2
-    - name: pnpm install
-      run: pn install
-      timeout-minutes: 3
+        persist-credentials: false
+    - name: Install pnpm
+      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint
@@ -35,7 +29,7 @@ jobs:
     - name: Package compiled artifacts
       run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
     - name: Upload compiled artifacts
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: compiled-packages
         path: compiled.tar.gz
@@ -48,6 +42,9 @@ jobs:
     with:
       node: '24.0.0'
       platform: ubuntu-latest
+      garnet: true
+    secrets:
+      GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
   test:
     name: ${{ matrix.platform }} / Node.js ${{ matrix.node }}
@@ -55,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.13.0', '24.0.0', '25.0.0']
+        node: ['22.13.0', '24.0.0', '26.0.0']
         platform: [ubuntu-latest, windows-latest]
         exclude:
           - node: '24.0.0'
@@ -64,7 +61,7 @@ jobs:
           # Exception: main and release branches (release/x, release/x.x) run the full matrix.
           - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '24.0.0' }}
             platform: windows-latest
-          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '25.0.0' }}
+          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '26.0.0' }}
             platform: windows-latest
     uses: ./.github/workflows/test.yml
     with:

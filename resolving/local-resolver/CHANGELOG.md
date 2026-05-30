@@ -1,5 +1,93 @@
 # @pnpm/local-resolver
 
+## 1101.1.2
+
+### Patch Changes
+
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.1.1
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
+## 1101.1.0
+
+### Minor Changes
+
+- 1627943: `pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+  Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines a `ResolveLatestFunction` shape (with `LatestQuery` input — `{ wantedDependency, compatible? }` — and `LatestInfo` result — `{ latestManifest? }`), and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own `resolveLatest*` function alongside its `resolve*`. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).resolveLatest`.
+
+  Each resolver decides whether it owns the dep and what "latest" means for its protocol; the outdated command derives `current` / `wanted` display values from the lockfile snapshot (`pkgSnapshot.version` for semver protocols, raw ref for URL-shaped ones) and uses raw ref equality for the "lockfile changed" check, so protocol knowledge stays inside each resolver instead of the command.
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.2
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.5
+- @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.0
+
+### Major Changes
+
+- 3ab403a: Replaced the `resolveFromLocal` export with two narrower exports: `resolveFromLocalScheme` (handles `file:`/`link:`/`workspace:`/`path:`) and `resolveFromLocalPath` (path-shape match by tarball extension or filesystem characters).
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.3
 
 ### Patch Changes

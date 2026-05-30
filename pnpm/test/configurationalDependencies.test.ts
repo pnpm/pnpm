@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { describe, expect, test } from '@jest/globals'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/registry-mock'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity } from '@pnpm/testing.registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -149,6 +149,53 @@ test('package manager from the packageManager field is not saved into the lockfi
   expect(envLockfile!.importers['.'].packageManagerDependencies).toBeUndefined()
 })
 
+// These tests resolve the running pnpm version's integrity from registry-mock,
+// which proxies pnpm to npmjs. They fail between a release commit and the
+// matching npm publish ("No matching version found for pnpm@<version>"), and
+// pass again once the version lands on npmjs.
+describe('release-brittle: may fail until current version is published to npm', () => {
+  test('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
+    const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
+    prepare({
+      devEngines: {
+        packageManager: {
+          name: 'pnpm',
+          version: pnpmVersion,
+        },
+      },
+    })
+
+    // Seed the lockfile with a stale packageManagerDependencies entry that no
+    // longer satisfies devEngines.packageManager. Multi-document YAML: env
+    // lockfile is the first doc, the (empty) installer lockfile is the second.
+    fs.writeFileSync('pnpm-lock.yaml', `---
+lockfileVersion: '9.0'
+importers:
+  '.':
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 0.0.1
+        version: 0.0.1
+packages: {}
+snapshots: {}
+
+---
+`)
+
+    // COREPACK_ROOT used to skip the entire pm-handling block, leaving the
+    // stale 0.0.1 entry untouched. The sync must run regardless of how pnpm
+    // was invoked.
+    await execPnpm(['install'], {
+      env: { COREPACK_ROOT: '/fake/corepack' },
+    })
+
+    const envLockfile = await readEnvLockfile(process.cwd())
+    expect(envLockfile).not.toBeNull()
+    expect(envLockfile!.importers['.'].packageManagerDependencies?.['pnpm'].version).toBe(pnpmVersion)
+  })
+})
+
 test('installing a new configurational dependency', async () => {
   prepare()
 
@@ -170,4 +217,69 @@ test('installing a new configurational dependency', async () => {
   expect((envLockfile!.packages['@pnpm.e2e/foo@100.0.0'].resolution as { integrity: string }).integrity).toBe(
     getIntegrity('@pnpm.e2e/foo', '100.0.0')
   )
+})
+
+// Regression tests for https://github.com/pnpm/pnpm/issues/10684 — if the user
+// has a configDependency stored in a registry that needs auth, the config
+// commands must not crash when pnpm tries to fetch the configDependency before
+// the new setting is written. We reference a non-existent package version so
+// the install errors out fast; the real-world scenario is a 401 from the
+// private registry.
+//
+// All four entry points are tested: `pnpm config set`, `pnpm config get`,
+// `pnpm set`, and `pnpm get`. The latter two are shortcuts that delegate to
+// the config handler internally but are separate top-level commands, so they
+// need their own coverage at the main.ts guard level.
+function writeFailingConfigDep () {
+  // Clean specifier for a version that does not exist on the mock registry.
+  // fetchRetries: 0 keeps the failure fast so the test does not time out.
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/foo': '999.999.999',
+    },
+    fetchRetries: 0,
+  })
+}
+
+test('pnpm config set succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+
+  // Use an auth-style key so the setting lands in ./.npmrc (project scope).
+  const authKey = '//example.com/:_authToken'
+  await execPnpm(['config', 'set', '--location=project', authKey, 'my-secret-token'])
+
+  const npmrc = fs.readFileSync('.npmrc', 'utf8')
+  expect(npmrc).toContain(`${authKey}=my-secret-token`)
+})
+
+test('pnpm config get succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+  const authKey = '//example.com/:_authToken'
+  fs.writeFileSync('.npmrc', `${authKey}=my-secret-token\n`, 'utf8')
+
+  const result = execPnpmSync(['config', 'get', '--location=project', authKey], { expectSuccess: true })
+  expect(result.stdout.toString()).toContain('my-secret-token')
+})
+
+test('pnpm set succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+
+  const authKey = '//example.com/:_authToken'
+  await execPnpm(['set', '--location=project', authKey, 'my-secret-token'])
+
+  const npmrc = fs.readFileSync('.npmrc', 'utf8')
+  expect(npmrc).toContain(`${authKey}=my-secret-token`)
+})
+
+test('pnpm get succeeds even when configDependencies fail to install', async () => {
+  prepare()
+  writeFailingConfigDep()
+  const authKey = '//example.com/:_authToken'
+  fs.writeFileSync('.npmrc', `${authKey}=my-secret-token\n`, 'utf8')
+
+  const result = execPnpmSync(['get', '--location=project', authKey], { expectSuccess: true })
+  expect(result.stdout.toString()).toContain('my-secret-token')
 })

@@ -29,6 +29,9 @@
       "path": "../../../config/reader"
     },
     {
+      "path": "../../../config/version-policy"
+    },
+    {
       "path": "../../../core/constants"
     },
     {
@@ -57,6 +60,9 @@
     },
     {
       "path": "../../../installing/env-installer"
+    },
+    {
+      "path": "../../../lockfile/fs"
     },
     {
       "path": "../../../lockfile/types"

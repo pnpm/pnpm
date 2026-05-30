@@ -3,7 +3,7 @@
 > Installer for configurational dependencies
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/installing.env-installer.svg)](https://www.npmjs.com/package/@pnpm/installing.env-installer)
+[![npm version](https://img.shields.io/npm/v/@pnpm/installing.env-installer.svg)](https://npmx.dev/package/@pnpm/installing.env-installer)
 <!--/@-->
 
 ## Installation

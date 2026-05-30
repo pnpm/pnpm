@@ -70,6 +70,7 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     pruneStore: true,
     storeController: store.ctrl,
     storeDir: store.dir,
+    resolutionVerifiers: store.resolutionVerifiers,
     // Hoisting is skipped anyway,
     // so we store these empty patterns in node_modules/.modules.yaml
     // to let the subsequent install know that hoisting should be performed.

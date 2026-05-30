@@ -1,0 +1,280 @@
+name: Pacquet CI
+
+# Despite the name, this workflow covers every Rust crate in the
+# repo — pacquet and pnpr alike. They share the same cargo
+# workspace, so `just test`, dylint, doc, etc. all see both stacks
+# in one pass; running two workflows would just duplicate the work.
+# Trigger paths intentionally include `pnpr/**` for the same
+# reason.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'pacquet/**'
+      - 'pnpr/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'rustfmt.toml'
+      - 'deny.toml'
+      - 'dylint.toml'
+      - '.taplo.toml'
+      - '.typos.toml'
+      - 'justfile'
+      - '.cargo/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/workflows/pacquet-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'pacquet/**'
+      - 'pnpr/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'rustfmt.toml'
+      - 'deny.toml'
+      - 'dylint.toml'
+      - '.taplo.toml'
+      - '.typos.toml'
+      - 'justfile'
+      - '.cargo/**'
+      - '.github/actions/rustup/**'
+      - '.github/actions/binstall/**'
+      - '.github/workflows/pacquet-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+jobs:
+  test:
+    name: Lint and Test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: ubuntu-latest
+          - os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Rust Toolchain
+        uses: ./.github/actions/rustup
+        with:
+          clippy: true
+          save-cache: ${{ github.ref_name == 'main' }}
+
+      - name: Install pnpm (for compatibility check)
+        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+        with:
+          install: false
+
+      - name: Cache pnpm
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          key: ci-pnpm-v11-${{ matrix.os }}
+          path: |
+            ${{ env.PNPM_HOME }}/store/v11
+            ${{ env.HOME }}/.local/share/pnpm/store/v11
+        timeout-minutes: 1
+        continue-on-error: true
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      - name: Install just
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        with:
+          tool: just
+
+      - name: Install dependencies
+        run: just install
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        with:
+          tool: cargo-nextest
+
+      - name: Test
+        shell: bash
+        run: |
+          # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
+          # this should be removed in the future
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+
+          just test
+
+  doc:
+    name: Doc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Rust Toolchain
+        uses: ./.github/actions/rustup
+        with:
+          docs: true
+
+      - name: Doc
+        env:
+          RUSTDOCFLAGS: '-D warnings'
+        run: cargo doc --no-deps --workspace --document-private-items
+
+  typos:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: crate-ci/typos@5374cbf686e897b15713110e233094e2874de7ef # v1.46.1
+        with:
+          files: pacquet pnpr
+
+  deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'Cargo.lock'
+              - 'deny.toml'
+
+      - name: Install cargo-deny
+        if: steps.filter.outputs.src == 'true'
+        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        with:
+          tool: cargo-deny
+
+      - if: steps.filter.outputs.src == 'true'
+        run: cargo deny check
+
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: ./.github/actions/rustup
+        with:
+          fmt: true
+          restore-cache: false
+
+      - run: cargo fmt --all -- --check
+
+      - name: Install Taplo CLI
+        uses: ./.github/actions/binstall
+        with:
+          packages: taplo-cli@0.8.1
+
+      - run: taplo format --check
+
+  dylint:
+    name: Dylint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # Two caches with disjoint scopes:
+      #
+      #   1. Workspace cache — `~/.cargo`, `~/.dylint_drivers`, and the
+      #      workspace `target/` directory minus `target/dylint`. Keyed
+      #      loosely on `Cargo.lock` with a `rust-toolchain.toml`-only
+      #      fallback so a lockfile-only change still benefits from a
+      #      warm registry and a warm workspace build cache. The
+      #      `!target/dylint` negation excludes the lint library from
+      #      this snapshot so it cannot leak across `dylint.toml`
+      #      changes.
+      #
+      #   2. Dylint-library cache — `target/dylint`, where cargo-dylint
+      #      builds `libperfectionist.so`. Keyed strictly on
+      #      `dylint.toml` with no looser restore-keys, so a hit
+      #      guarantees the cached `.so` was built against the
+      #      in-tree config. On a miss cargo-dylint rebuilds the
+      #      library from scratch.
+      #
+      # Splitting the caches this way removes the need for a separate
+      # "invalidate stale dylint artifacts" step: the workspace cache
+      # never holds a `target/dylint` snapshot to invalidate, and the
+      # dylint-library cache can never be restored from a mismatched
+      # `dylint.toml`.
+      - name: Cache workspace artifacts
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        timeout-minutes: 2
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cargo
+            ~/.dylint_drivers
+            target
+            !target/dylint
+          key: ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+            ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
+
+      - name: Cache dylint lint library
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        timeout-minutes: 2
+        continue-on-error: true
+        with:
+          path: target/dylint
+          key: ${{ github.job }}-dylint-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('dylint.toml') }}
+
+      - name: Install Rust Toolchain
+        uses: ./.github/actions/rustup
+        with:
+          # Disable Swatinem/rust-cache: it strips `target/` aggressively
+          # before saving, which would wipe the `target/dylint`
+          # `libperfectionist.so` we want to preserve. The `actions/cache`
+          # steps above handle caching instead.
+          restore-cache: false
+
+      - name: Install cargo-dylint and dylint-link
+        uses: ./.github/actions/binstall
+        with:
+          # Pin to 6.0.0 until trailofbits/dylint cuts a 6.0.2. The
+          # 6.0.1 binstall artifacts (published 2026-05-26 17:51 UTC)
+          # fail at driver bootstrap with `failed to read
+          # /home/runner/work/dylint/dylint/driver/Cargo.toml`, the
+          # path baked in by dylint's own CI checkout. Downstream
+          # runners don't have that workspace so the step aborts.
+          packages: cargo-dylint@6.0.0 dylint-link@6.0.0
+
+      - name: Run dylint
+        # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing
+        # `-- -D warnings` after `cargo dylint`'s `--`: `cargo dylint`
+        # forwards args after `--` to `cargo check`, which would treat
+        # `-D warnings` as a cargo argument and reject it. This mirrors
+        # how KSXGitHub/parallel-disk-usage invokes the same lint.
+        env:
+          RUSTFLAGS: '-D warnings'
+        run: cargo dylint --all -- --all-targets --workspace

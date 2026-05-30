@@ -28,6 +28,7 @@ import {
   type PkgResolutionId,
   type PreferredVersions,
   type Resolution,
+  type ResolutionPolicyViolation,
   type WorkspacePackages,
 } from '@pnpm/resolving.resolver-base'
 import type {
@@ -155,6 +156,7 @@ export interface ResolutionContext {
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
+  updateChecksums?: boolean
   ignoreScripts?: boolean
   resolvedPkgsById: ResolvedPkgsById
   resolvePeersFromWorkspaceRoot?: boolean
@@ -187,6 +189,16 @@ export interface ResolutionContext {
   hoistPeers?: boolean
   maximumPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
+  /**
+   * Shared accumulator the resolver pushes into when an inline policy
+   * check (today: minimumReleaseAge in `npm-resolver`) flags a pick.
+   * resolveDependencyTree hands the populated array back to the install
+   * command via its return so the post-tree gate can prompt / abort /
+   * persist without re-walking the resolved tree. Each verifier code
+   * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …) is the
+   * contract surface for downstream UX.
+   */
+  resolutionPolicyViolations: ResolutionPolicyViolation[]
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
@@ -672,29 +684,29 @@ export async function resolveDependencies (
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
   const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
   const pkgAddresses: PkgAddress[] = []
-  await Promise.all(
-    extendedWantedDeps.map(async (extendedWantedDep) => {
-      const {
-        resolveDependencyResult,
-        postponedResolution,
-        postponedPeersResolution,
-      } = await resolveDependenciesOfDependency(
-        ctx,
-        preferredVersions,
-        options,
-        extendedWantedDep
-      )
-      if (resolveDependencyResult) {
-        pkgAddresses.push(resolveDependencyResult as PkgAddress)
-      }
-      if (postponedResolution) {
-        postponedResolutionsQueue.push(postponedResolution)
-      }
-      if (postponedPeersResolution) {
-        postponedPeersResolutionQueue.push(postponedPeersResolution)
-      }
-    })
+  // Resolve in parallel, then drain the results in input order. Pushing
+  // from inside the Promise.all callbacks would leak completion-order timing
+  // into pkgAddresses / postponedResolutionsQueue, which downstream
+  // determines how cyclic peer suffixes are assigned. See pnpm/pnpm#8155.
+  const resolvedDependencies = await Promise.all(
+    extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
+      ctx,
+      preferredVersions,
+      options,
+      extendedWantedDep
+    ))
   )
+  for (const { resolveDependencyResult, postponedResolution, postponedPeersResolution } of resolvedDependencies) {
+    if (resolveDependencyResult) {
+      pkgAddresses.push(resolveDependencyResult as PkgAddress)
+    }
+    if (postponedResolution) {
+      postponedResolutionsQueue.push(postponedResolution)
+    }
+    if (postponedPeersResolution) {
+      postponedPeersResolutionQueue.push(postponedPeersResolution)
+    }
+  }
   const newPreferredVersions = Object.create(preferredVersions) as PreferredVersions
   const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
   for (const pkgAddress of pkgAddresses) {
@@ -867,6 +879,7 @@ async function resolveDependenciesOfDependency (
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
     update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
+    updateChecksums: ctx.updateChecksums,
     updateDepth,
     updateRequested,
     supportedArchitectures: options.supportedArchitectures,
@@ -1255,6 +1268,7 @@ interface ResolveDependencyOptions {
   publishedBy?: Date
   pickLowestVersion?: boolean
   update: false | 'compatible' | 'latest'
+  updateChecksums?: boolean
   updateDepth: number
   /**
    * Whether or not an update is requested based on filter conditions (such as
@@ -1332,6 +1346,7 @@ async function resolveDependency (
           name: currentPkg.name,
           resolution: currentPkg.resolution,
           version: currentPkg.version,
+          publishedAt: currentPkg.pkgId ? ctx.wantedLockfile.time?.[currentPkg.pkgId] : undefined,
         }
         : undefined,
       expectedPkg: currentPkg,
@@ -1355,6 +1370,7 @@ async function resolveDependency (
       trustPolicyExclude: ctx.trustPolicyExclude,
       trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
       update: options.update,
+      updateChecksums: options.updateChecksums,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
       onFetchError: (err: any) => { // eslint-disable-line
@@ -1372,7 +1388,7 @@ async function resolveDependency (
       bareSpecifier: wantedDependency.bareSpecifier,
       version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
     }
-    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE' && err.code !== 'ERR_PNPM_NO_MATURE_MATCHING_VERSION') {
+    if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE') {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: wantedDependencyDetails,
@@ -1396,6 +1412,14 @@ async function resolveDependency (
       rawSpec: wantedDependency.bareSpecifier,
     },
   })
+
+  // Resolver-inline policy violations (e.g. minimumReleaseAge) flow up
+  // here; collect them onto the shared context so resolveDependencyTree
+  // can hand the full set to the install command between
+  // resolveDependencyTree and resolvePeers.
+  if (pkgResponse.body.policyViolation) {
+    ctx.resolutionPolicyViolations.push(pkgResponse.body.policyViolation)
+  }
 
   // Check if exotic dependencies are disallowed in subdependencies
   if (

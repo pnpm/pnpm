@@ -128,3 +128,39 @@ test('resolveFromJsr() on jsr with packages without scope', async () => {
     code: 'ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE',
   })
 })
+
+test('resolveFromJsr() returns the immature pick with policyViolation when publishedBy excludes it', async () => {
+  // jsr-rus-greet's 0.0.3 was published 2024-11-16; passing a `publishedBy`
+  // before that makes the version immature relative to the cutoff. The
+  // resolver always falls back to the requested version and flags the
+  // result with `policyViolation`; the install command (or other caller)
+  // decides what to do with it. This is the named-registry / jsr path's
+  // coverage for inline violation reporting.
+  const slash = '%2F'
+  const defaultPool = getMockAgent().get(registries.default.replace(/\/$/, ''))
+  defaultPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(404, {})
+  const jsrPool = getMockAgent().get(registries['@jsr'].replace(/\/$/, ''))
+  jsrPool.intercept({ path: `/@jsr${slash}rus__greet`, method: 'GET' }).reply(200, jsrRusGreetMeta)
+
+  const cacheDir = temporaryDirectory()
+  const { resolveFromJsr } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const result = await resolveFromJsr(
+    { alias: '@rus/greet', bareSpecifier: 'jsr:0.0.3' },
+    {
+      publishedBy: new Date('2020-01-01T00:00:00Z'),
+    }
+  )
+
+  expect(result).toMatchObject({
+    id: '@jsr/rus__greet@0.0.3',
+    policyViolation: {
+      name: '@jsr/rus__greet',
+      version: '0.0.3',
+      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    },
+  })
+})

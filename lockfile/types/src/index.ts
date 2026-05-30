@@ -91,6 +91,19 @@ export interface TarballResolution {
   tarball: string
   integrity?: string
   path?: string
+  /**
+   * True for tarballs sourced from a git host (codeload.github.com /
+   * gitlab.com / bitbucket.org). Such tarballs need preparation
+   * (preparePackage / packlist) on extraction, and their cached content
+   * depends on whether build scripts ran, so they're addressed by
+   * gitHostedStoreIndexKey rather than the integrity-based key.
+   *
+   * The git resolver sets this when it produces the resolution; the
+   * lockfile loader sets it on entries whose URL matches a known git host
+   * for backward compatibility with lockfiles written before this field
+   * existed.
+   */
+  gitHosted?: boolean
 }
 
 /**

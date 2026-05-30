@@ -139,6 +139,33 @@ test('peer dependencies keep prerelease resolved version without prefix', async 
   })
 })
 
+test('writes prototype-conflicting aliases as own data properties without polluting Object.prototype', async () => {
+  const protoSnapshotBefore = Object.getOwnPropertyNames(Object.prototype).sort()
+
+  const manifest = await updateProjectManifestObject('/project', {}, [
+    { alias: '__proto__', bareSpecifier: '1.0.0', saveType: 'dependencies' },
+    { alias: 'constructor', bareSpecifier: '1.0.1', saveType: 'dependencies' },
+    { alias: 'prototype', bareSpecifier: '1.0.2', saveType: 'dependencies' },
+    { alias: 'real-pkg', bareSpecifier: '2.0.0', saveType: 'dependencies' },
+  ])
+
+  // Each pollution-key alias is stored as a regular own data property.
+  const deps = manifest.dependencies!
+  expect(Object.hasOwn(deps, '__proto__')).toBe(true)
+  expect(Object.hasOwn(deps, 'constructor')).toBe(true)
+  expect(Object.hasOwn(deps, 'prototype')).toBe(true)
+  expect(Object.hasOwn(deps, 'real-pkg')).toBe(true)
+  // The own __proto__ data property shadows the inherited getter and returns the value.
+  expect(deps.__proto__).toBe('1.0.0')
+  expect(deps.constructor as unknown as string).toBe('1.0.1')
+  expect(deps.prototype as unknown as string).toBe('1.0.2')
+  // The prototype chain of `deps` is unchanged (the assignment did not run __proto__'s setter).
+  expect(Object.getPrototypeOf(deps)).toBe(Object.prototype)
+
+  // Object.prototype hasn't grown a new property.
+  expect(Object.getOwnPropertyNames(Object.prototype).sort()).toStrictEqual(protoSnapshotBefore)
+})
+
 test('peer dependencies respect pinned version "patch" and "none"', async () => {
   const cases = [
     { pinnedVersion: 'patch' as const, expected: '3.2.1' },

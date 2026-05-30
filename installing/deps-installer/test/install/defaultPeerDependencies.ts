@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import deepRequireCwd from 'deep-require-cwd'
 
 import { testDefaults } from '../utils/index.js'

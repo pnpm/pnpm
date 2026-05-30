@@ -242,6 +242,38 @@ test('throw an error when strict-dep-builds is true and there are ignored script
   })
 })
 
+test('allowBuilds false resolves a strict ignored-build failure on repeat install', async () => {
+  const project = prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    optimisticRepeatInstall: true,
+    strictDepBuilds: true,
+  })
+
+  const firstResult = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
+
+  expect(firstResult.status).toBe(1)
+  expect(firstResult.stdout.toString()).toContain('Ignored build scripts:')
+  expect(fs.existsSync('node_modules/.modules.yaml')).toBeTruthy()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': false,
+    },
+    optimisticRepeatInstall: true,
+    strictDepBuilds: true,
+  })
+
+  const secondResult = execPnpmSync(['install'])
+
+  expect(secondResult.status).toBe(0)
+  expect(secondResult.stdout.toString()).not.toContain('Ignored build scripts:')
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest?.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': false,
+  })
+  expect(Array.from(modulesManifest?.ignoredBuilds ?? [])).toStrictEqual([])
+})
+
 test('the list of ignored builds is preserved after a repeat install', async () => {
   const project = prepare({})
   execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', 'esbuild@0.25.0', '--config.optimistic-repeat-install=false'])

@@ -555,9 +555,16 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     pendingPeerNodes: PendingPeer[],
     cycles: string[][]
   ): Promise<void> {
-    const cyclicPeerAliases = new Set()
+    const cyclicPeerAliases = new Set<string>()
+    const pendingPeerAliases = new Set(pendingPeerNodes.map(({ alias }) => alias))
     for (const cycle of cycles) {
-      if (cycle.includes(currentAlias)) {
+      // A cycle has to be short-circuited at this level whenever any of
+      // its members is involved in the current resolution — either as
+      // currentAlias or among the pending peers we are about to await.
+      // When a cycle member hits the `findHit` cache instead of running
+      // its own calculateDepPath, only the awaiting siblings at this
+      // level can release the cached promise. See pnpm/pnpm#11999.
+      if (cycle.includes(currentAlias) || cycle.some((alias) => pendingPeerAliases.has(alias))) {
         for (const peerAlias of cycle) {
           cyclicPeerAliases.add(peerAlias)
         }

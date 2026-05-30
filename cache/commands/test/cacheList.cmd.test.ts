@@ -3,7 +3,7 @@ import path from 'node:path'
 import { beforeAll, describe, expect, test } from '@jest/globals'
 import { cache } from '@pnpm/cache.commands'
 import { prepare } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 

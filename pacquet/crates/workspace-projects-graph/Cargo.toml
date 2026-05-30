@@ -1,0 +1,22 @@
+[package]
+name                  = "pacquet-workspace-projects-graph"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-fs                       = { workspace = true }
+pacquet-workspace-range-resolver = { workspace = true }
+pacquet-workspace-spec           = { workspace = true }
+
+indexmap    = { workspace = true }
+node-semver = { workspace = true }
+
+[lints]
+workspace = true

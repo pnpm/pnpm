@@ -1,5 +1,147 @@
 # @pnpm/testing.temp-store
 
+## 1100.1.5
+
+### Patch Changes
+
+- @pnpm/testing.registry-mock@1100.0.2
+- @pnpm/installing.client@1100.2.4
+- @pnpm/store.controller@1101.0.10
+
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.3
+- @pnpm/resolving.resolver-base@1100.3.1
+- @pnpm/store.controller@1101.0.9
+- @pnpm/store.controller-types@1100.1.2
+
+## 1100.1.3
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.2
+- @pnpm/store.controller@1101.0.8
+
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.1
+- @pnpm/store.controller@1101.0.8
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/store.controller-types@1100.1.1
+
+## 1100.1.0
+
+### Minor Changes
+
+- 31538bf: Restructured the `minimumReleaseAge` lockfile revalidation gate around a generic `ResolutionVerifier` interface. Each resolver may now export a sibling verifier factory (today: `createNpmResolutionVerifier`) that re-checks an already-resolved lockfile entry against its policies; the resolver chain returns the verifier list as `resolutionVerifiers` and the install side fans out across it. A `ResolutionVerifier` carries `verify` plus `policy` and `canTrustPastCheck` — the cache contract that lets repeat installs against an unchanged lockfile skip the per-package registry round trip entirely.
+
+  Verification results are memoized in JSON Lines at `<cacheDir>/lockfile-verified.jsonl`: a stat-only fast path matches on lockfile size, mtime, and inode, falling back to a content hash when those drift (typical after a CI checkout). Every active verifier's policy contribution is merged into a single `policy` bag on the record; the gate runs in full whenever the lockfile changes, any verifier rejects the cached policy, or no record exists [#11687](https://github.com/pnpm/pnpm/issues/11687).
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/store.controller@1101.0.7
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/installing.client@1100.0.15
+  - @pnpm/store.controller@1101.0.6
+
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.14
+- @pnpm/store.controller@1101.0.5
+
+## 1100.0.14
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.13
+- @pnpm/store.controller@1101.0.5
+- @pnpm/store.controller-types@1100.0.6
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/store.controller@1101.0.4
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.11
+- @pnpm/store.controller@1101.0.3
+
+## 1100.0.11
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.10
+- @pnpm/store.controller@1101.0.3
+- @pnpm/store.controller-types@1100.0.5
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.9
+- @pnpm/store.controller@1101.0.2
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.8
+- @pnpm/store.controller@1101.0.2
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/store.controller@1101.0.2
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.1
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.6
+- @pnpm/store.controller@1101.0.0
+
 ## 1100.0.5
 
 ### Patch Changes

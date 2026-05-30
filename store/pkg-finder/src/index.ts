@@ -1,10 +1,9 @@
 import path from 'node:path'
 
-import { parse } from '@pnpm/deps.path'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
-import type { Resolution } from '@pnpm/resolving.resolver-base'
+import type { Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { gitHostedStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 
 export interface ReadPackageFileMapOptions {
   storeDir: string
@@ -17,10 +16,18 @@ export interface ReadPackageFileMapOptions {
  * Reads the file index for a package and returns a `Map<string, string>`
  * mapping filenames to absolute paths on disk.
  *
- * Handles three types of package resolutions:
- * - Directory packages: fetches the file list from the local directory
- * - Packages with integrity: looks up the index file in the CAFS by integrity hash
- * - Tarball packages: looks up the index file by package directory name
+ * Picks the store key by resolution shape:
+ * - Directory packages: fetches the file list from the local directory.
+ * - Git-hosted tarballs (codeload.github.com / gitlab.com / bitbucket.org):
+ *   keyed by `gitHostedStoreIndexKey(packageId, { built: true })`. The
+ *   lockfile pins their integrity for security, but the cached payload
+ *   depends on whether build scripts ran during fetch (preparePackage), so
+ *   the `built` dimension is part of the key. Folding them under the
+ *   integrity-only key would collapse that distinction.
+ * - npm-registry tarballs with integrity: keyed by
+ *   `storeIndexKey(integrity, packageId)`.
+ * - Other tarball / git resolutions without integrity: keyed by
+ *   `gitHostedStoreIndexKey(packageId, { built: true })`.
  *
  * For CAFS packages, the content-addressed digests are resolved to file
  * paths upfront, so callers get a uniform map regardless of resolution type.
@@ -44,19 +51,16 @@ export async function readPackageFileMap (
     return localInfo.filesMap
   }
 
-  const isPackageWithIntegrity = 'integrity' in packageResolution
-
   let pkgIndexFilePath: string
-  if (isPackageWithIntegrity) {
-    const parsedId = parse(packageId)
-    pkgIndexFilePath = storeIndexKey(
-      packageResolution.integrity as string,
-      parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
+  if (
+    (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) ||
+    packageResolution.type === 'git'
+  ) {
+    pkgIndexFilePath = pickStoreIndexKey(
+      packageResolution as TarballResolution,
+      packageId,
+      { built: true }
     )
-  } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
-    pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
-  } else if (packageResolution.type === 'git') {
-    pkgIndexFilePath = gitHostedStoreIndexKey(packageId, { built: true })
   } else {
     return undefined
   }

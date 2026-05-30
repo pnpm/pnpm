@@ -6,10 +6,10 @@ import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
+import { getIntegrity } from '@pnpm/testing.registry-mock'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
@@ -642,4 +642,47 @@ test('install does not fail when the trust evidence of a package is downgraded b
   ])
   expect(result.status).toBe(0)
   project.has('@pnpm/e2e.test-provenance')
+})
+
+test('lockfile verifier rejects a trust-downgraded entry that bypassed resolution', () => {
+  // Step 1: install with trust policy off. The resolver picks up the
+  // downgraded version without complaint and writes it to the lockfile.
+  prepare()
+  execPnpmSync(
+    ['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'],
+    { expectSuccess: true }
+  )
+
+  // Step 2: turn the policy on. The resolver wouldn't be invoked under
+  // --frozen-lockfile (peek-path takes over), so the trust check would
+  // be silently bypassed if the verifier weren't running. The lockfile
+  // verifier catches the same downgrade pattern the resolver-time check
+  // catches at fresh resolution.
+  const result = execPnpmSync([
+    'install',
+    '--frozen-lockfile',
+    '--trust-policy=no-downgrade',
+  ])
+  expect(result.status).toBe(1)
+  const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+  expect(output).toContain('ERR_PNPM_TRUST_DOWNGRADE')
+  expect(output).toMatch(/@pnpm\/e2e\.test-provenance/)
+})
+
+test('lockfile verifier respects trust-policy-exclude on a downgraded lockfile entry', () => {
+  prepare()
+  execPnpmSync(
+    ['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'],
+    { expectSuccess: true }
+  )
+
+  // With the exclude entry in place, the verifier short-circuits before
+  // running the trust check on this package — mirrors the resolver-time
+  // exclude path so users have one consistent way to allow a downgrade.
+  execPnpmSync([
+    'install',
+    '--frozen-lockfile',
+    '--trust-policy=no-downgrade',
+    '--trust-policy-exclude=@pnpm/e2e.test-provenance',
+  ], { expectSuccess: true })
 })

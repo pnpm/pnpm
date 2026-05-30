@@ -1,5 +1,158 @@
 # @pnpm/default-reporter
 
+## 1100.2.4
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+  - @pnpm/config.reader@1101.5.0
+
+## 1100.2.3
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/types@1101.2.0
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.3
+
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/types@1101.1.1
+  - @pnpm/cli.meta@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.2
+
+## 1100.2.0
+
+### Minor Changes
+
+- 4a79336: The lockfile verifier added in #11705 now emits `pnpm:lockfile-verification` log events (`status: 'started' | 'done'`) around the registry round-trip pass, and the default reporter renders them as a transient progress line so users can see that pnpm is doing work — on a cold registry cache the round-trip can take a noticeable beat, and the previous behavior was complete silence followed by either a long pause or an error. The cached short-circuit stays silent (no logs when no work happens), and the `done` line carries the number of distinct entries that were checked plus the elapsed time.
+
+  Pacquet parity: not ported — pacquet doesn't carry the lockfile verifier yet (see the parity note on #11705).
+
+### Patch Changes
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [4a79336]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/core-loggers@1100.1.0
+
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.3.1
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/cli.meta@1100.0.3
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.1
+
+## 1100.1.0
+
+### Minor Changes
+
+- 781918f: Added a `pnpm-render` bin that renders pnpm-shaped NDJSON read from stdin, so the same renderer can be used to format output from external tools that emit `pnpm:*` log records (e.g. `pacquet install --reporter=ndjson 2>&1 >/dev/null | pnpm-render`). An optional first positional argument sets the command name (defaults to `install`).
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+
+## 1100.0.8
+
+### Patch Changes
+
+- 0b2f86e: When `strictPeerDependencies` is `true`, the `ERR_PNPM_PEER_DEP_ISSUES` error once again renders the peer dependency issues inline using the same format as `pnpm peers check`, so users (and CI tools like Renovate) can see what failed without running `pnpm peers check` separately [#11439](https://github.com/pnpm/pnpm/issues/11439).
+- cd87c16: The `WARN` and error code labels in pnpm's output now wrap in brackets (`[WARN]`, `[ERR_PNPM_FOO]`). Previously the labels relied entirely on a colored background to stand out, which meant they blended into the surrounding text in terminals without color (e.g. when `NO_COLOR` is set or output is piped). The brackets are painted in the same color as the badge background, so they appear as ordinary padding in color-capable terminals — only the no-color rendering changes.
+- Updated dependencies [0b2f86e]
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.0
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/installing.dedupe.issues-renderer@1100.0.1
+  - @pnpm/installing.dedupe.types@1100.0.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/cli.meta@1100.0.2
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+
 ## 1100.0.4
 
 ### Patch Changes

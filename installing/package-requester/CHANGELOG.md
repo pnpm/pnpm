@@ -1,5 +1,144 @@
 # @pnpm/package-requester
 
+## 1101.0.10
+
+### Patch Changes
+
+- 3cf2b86: Fix the `integrity` field being dropped from the lockfile entry of a remote (non-registry) https-tarball dependency when an unrelated package is installed afterwards. URL/tarball resolvers do not return an integrity (it is only known after the tarball is downloaded), so when such a dependency was reused from the lockfile without being re-fetched, its integrity was lost. It is now carried over from the existing resolution. With pnpm's lockfile-integrity hardening, the missing integrity made subsequent `--frozen-lockfile` installs fail with `ERR_PNPM_MISSING_TARBALL_INTEGRITY`. [#12001](https://github.com/pnpm/pnpm/issues/12001).
+  - @pnpm/fetching.pick-fetcher@1100.0.9
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/config.package-is-installable@1100.0.7
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/fetching.fetcher-base@1100.1.6
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/fetching.pick-fetcher@1100.0.9
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/fetching.fetcher-base@1100.1.5
+  - @pnpm/fetching.pick-fetcher@1100.0.8
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/config.package-is-installable@1100.0.6
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/store.cafs@1100.1.6
+  - @pnpm/worker@1100.1.7
+
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [4a79336]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/fetching.pick-fetcher@1100.0.7
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/config.package-is-installable@1100.0.5
+  - @pnpm/worker@1100.1.6
+
+## 1101.0.6
+
+### Patch Changes
+
+- c2c2890: Fix `minimumReleaseAge` / `resolutionMode: time-based` installs failing on lockfiles whose `time:` block is missing entries. The npm-resolver's peek-from-store fast path now surfaces `publishedAt` from the lockfile rather than discarding it, and falls through to a registry metadata fetch when the time-based cutoff can't be computed from the data on hand.
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/fetching.pick-fetcher@1100.0.6
+  - @pnpm/store.cafs@1100.1.4
+  - @pnpm/worker@1100.1.5
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.6
+  - @pnpm/config.package-is-installable@1100.0.4
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/fetching.fetcher-base@1100.1.3
+  - @pnpm/hooks.types@1100.0.6
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.cafs@1100.1.3
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/worker@1100.1.4
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/worker@1100.1.3
+
+## 1101.0.3
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [27425d7]
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/fetching.fetcher-base@1100.1.2
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/store.cafs@1100.1.2
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/config.package-is-installable@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/fetching.pick-fetcher@1100.0.4
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/worker@1100.1.1
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/store.cafs@1100.1.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- Updated dependencies [d96a1bf]
+  - @pnpm/config.package-is-installable@1100.0.2
+
 ## 1101.0.0
 
 ### Patch Changes

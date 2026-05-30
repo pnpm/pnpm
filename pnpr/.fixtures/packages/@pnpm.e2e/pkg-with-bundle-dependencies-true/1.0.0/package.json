@@ -1,0 +1,11 @@
+{
+  "name": "@pnpm.e2e/pkg-with-bundle-dependencies-true",
+  "version": "1.0.0",
+  "bundleDependencies": true,
+  "scripts": {
+    "prepublishOnly": "pnpm install --ignore-scripts --no-lockfile --node-linker=hoisted"
+  },
+  "dependencies": {
+    "@pnpm.e2e/hello-world-js-bin": "*"
+  }
+}

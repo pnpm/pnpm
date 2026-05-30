@@ -6,7 +6,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 import Fuse from 'fuse-native'
 import schemas from 'hyperdrive-schemas'
@@ -176,7 +176,9 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgIndexFilePath = storeIndexKey((pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
+      const resolution = pkgSnapshot.resolution as TarballResolution
+      const pkgId = nameVer.nonSemverVersion ?? `${nameVer.name}@${nameVer.version}`
+      const pkgIndexFilePath = pickStoreIndexKey(resolution, pkgId, { built: true })
       const pkgIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex
       pkgSnapshotCache.set(depPath, {
         ...nameVer,

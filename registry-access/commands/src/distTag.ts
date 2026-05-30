@@ -1,9 +1,20 @@
+import readline from 'node:readline'
+
+import { input } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
+import {
+  type OtpContext,
+  SyntheticOtpError,
+  type WebAuthFetchOptions,
+  withOtpHandling,
+} from '@pnpm/network.web-auth'
 import npa from '@pnpm/npm-package-arg'
+import { setDistTag } from '@pnpm/registry-access.client'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
@@ -139,22 +150,23 @@ async function distTagAdd (
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const otp = opts.cliOptions?.otp
+  const cliOtp = opts.cliOptions?.otp
+  const authType = cliOtp ? 'legacy' : 'web'
 
-  const distTagUrl = getDistTagUrl(packageName, registryUrl, tag)
-  const response = await fetchFromRegistry(distTagUrl, {
-    authHeaderValue: authHeader,
-    method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      ...(otp ? { 'npm-otp': otp } : {}),
-    },
-    body: JSON.stringify(version),
+  await withOtpHandling({
+    context: createOtpContext(opts),
+    fetchOptions: WEB_AUTH_FETCH_OPTIONS,
+    operation: (otp) => setDistTag({
+      packageName,
+      version,
+      distTag: tag,
+      registryUrl,
+      authHeader,
+      authType,
+      fetchFromRegistry,
+      otp: otp ?? cliOtp,
+    }),
   })
-
-  if (!response.ok) {
-    await throwRegistryError(response, `set dist-tag "${tag}" on`)
-  }
 
   return `+${tag}: ${packageName}@${version}`
 }
@@ -177,7 +189,7 @@ async function distTagRm (
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const otp = opts.cliOptions?.otp
+  const cliOtp = opts.cliOptions?.otp
 
   // First check the tag exists
   const distTags = await fetchDistTags(packageName, registryUrl, fetchFromRegistry, authHeader)
@@ -186,26 +198,86 @@ async function distTagRm (
   }
 
   const distTagUrl = getDistTagUrl(packageName, registryUrl, tag)
+  const authType: 'web' | 'legacy' = cliOtp ? 'legacy' : 'web'
+
+  await withOtpHandling({
+    context: createOtpContext(opts),
+    fetchOptions: WEB_AUTH_FETCH_OPTIONS,
+    operation: (otp) => deleteDistTag({
+      authHeader,
+      authType,
+      distTagUrl,
+      fetchFromRegistry,
+      otp: otp ?? cliOtp,
+      tag,
+    }),
+  })
+
+  return `-${tag}: ${packageName}@${distTags[tag]}`
+}
+
+interface DeleteDistTagParams {
+  authHeader: string | undefined
+  authType: 'web' | 'legacy'
+  distTagUrl: string
+  fetchFromRegistry: FetchFromRegistry
+  otp: string | undefined
+  tag: string
+}
+
+async function deleteDistTag ({
+  authHeader,
+  authType,
+  distTagUrl,
+  fetchFromRegistry,
+  otp,
+  tag,
+}: DeleteDistTagParams): Promise<void> {
   const response = await fetchFromRegistry(distTagUrl, {
     authHeaderValue: authHeader,
     method: 'DELETE',
     headers: {
+      'npm-auth-type': authType,
       ...(otp ? { 'npm-otp': otp } : {}),
     },
   })
 
-  if (!response.ok) {
-    await throwRegistryError(response, `remove dist-tag "${tag}" from`)
+  if (response.ok) return
+  const body = await response.text()
+  const action = `remove dist-tag "${tag}" from`
+  if (response.status === 401) {
+    throw parseAuthError(body, action)
   }
+  if (response.status === 403) {
+    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action} this package. ${body}`)
+  }
+  throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${body}`)
+}
 
-  return `-${tag}: ${packageName}@${distTags[tag]}`
+function parseAuthError (body: string, action: string): Error {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    parsed = undefined
+  }
+  if (parsed != null && typeof parsed === 'object' && 'authUrl' in parsed && 'doneUrl' in parsed) {
+    return new SyntheticOtpError({
+      authUrl: typeof parsed.authUrl === 'string' ? parsed.authUrl : undefined,
+      doneUrl: typeof parsed.doneUrl === 'string' ? parsed.doneUrl : undefined,
+    })
+  }
+  if (/one-time pass/i.test(body)) {
+    return new SyntheticOtpError(undefined)
+  }
+  return new PnpmError('UNAUTHORIZED', `You must be logged in to ${action} packages. ${body}`)
 }
 
 function getAuthHeaderForRegistry (
   configByUri: Record<string, RegistryConfig> | undefined,
   registryUrl: string
 ): string | undefined {
-  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {}, registryUrl)
+  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
   return getAuthHeader(registryUrl)
 }
 
@@ -236,13 +308,22 @@ async function fetchDistTags (
   return await response.json() as Record<string, string>
 }
 
-async function throwRegistryError (response: Response, action: string): Promise<never> {
-  const errorBody = await response.text()
-  if (response.status === 401) {
-    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action} packages. ${errorBody}`)
+const WEB_AUTH_FETCH_OPTIONS: WebAuthFetchOptions = {
+  method: 'GET',
+}
+
+// `withOtpHandling` polls `doneUrl` through `context.fetch`, so it must inherit
+// the command's proxy/TLS/`configByUri` config — otherwise the write succeeds
+// but the web-auth retry fails in custom-network environments.
+function createOtpContext (opts: CreateFetchFromRegistryOptions): OtpContext {
+  return {
+    Date,
+    createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
+    enquirer: { input },
+    fetch: createFetchFromRegistry(opts),
+    globalInfo,
+    globalWarn,
+    process,
+    setTimeout,
   }
-  if (response.status === 403) {
-    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action} this package. ${errorBody}`)
-  }
-  throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${errorBody}`)
 }

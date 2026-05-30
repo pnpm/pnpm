@@ -19,6 +19,15 @@ packages:
   - '!workspace-has-shared-npm-shrinkwrap-json'
 sharedWorkspaceLockfile: false
 
+# The fixture lockfiles are pinned to packages from the local registry-mock
+# (e.g. `@pnpm.e2e/*`). The v11 default of `minimumReleaseAge: 1440` would
+# spin up the lockfile verifier here, which can't reach the mock from this
+# install context and rejects the entries as un-checkable. Disable the
+# policy for fixture installs — they're test scaffolding, not a real
+# project. The actual minimumReleaseAge code paths are covered by the
+# unit and e2e tests in their own packages.
+minimumReleaseAge: 0
+
 catalog:
   # Used in has-outdated-deps-using-catalog-protocol fixture.
   is-negative: ^1.0.0

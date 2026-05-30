@@ -1,5 +1,140 @@
 # @pnpm/package-store
 
+## 1101.0.10
+
+### Patch Changes
+
+- Updated dependencies [3cf2b86]
+  - @pnpm/installing.package-requester@1101.0.10
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/store.create-cafs-store@1100.0.10
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/fetching.fetcher-base@1100.1.6
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/installing.package-requester@1101.0.9
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/store.create-cafs-store@1100.0.10
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/installing.package-requester@1101.0.8
+  - @pnpm/fetching.fetcher-base@1100.1.5
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/store.cafs@1100.1.6
+  - @pnpm/worker@1100.1.7
+  - @pnpm/store.create-cafs-store@1100.0.9
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/installing.package-requester@1101.0.7
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/store.create-cafs-store@1100.0.8
+  - @pnpm/worker@1100.1.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/installing.package-requester@1101.0.6
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/store.cafs@1100.1.4
+  - @pnpm/store.create-cafs-store@1100.0.7
+  - @pnpm/worker@1100.1.5
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.3
+  - @pnpm/hooks.types@1100.0.6
+  - @pnpm/installing.package-requester@1101.0.5
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.cafs@1100.1.3
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/worker@1100.1.4
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/store.create-cafs-store@1100.0.6
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/installing.package-requester@1101.0.4
+  - @pnpm/worker@1100.1.3
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/store.create-cafs-store@1100.0.5
+
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/installing.package-requester@1101.0.3
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/fetching.fetcher-base@1100.1.2
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/store.cafs@1100.1.2
+  - @pnpm/store.create-cafs-store@1100.0.5
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/installing.package-requester@1101.0.2
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/store.create-cafs-store@1100.0.4
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/worker@1100.1.1
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/installing.package-requester@1101.0.1
+
 ## 1101.0.0
 
 ### Patch Changes

@@ -2,7 +2,7 @@
 
 > Sort packages
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.projects-sorter.svg)](https://www.npmjs.com/package/@pnpm/plugin-commands-recursive)
+[![npm version](https://img.shields.io/npm/v/@pnpm/workspace.projects-sorter.svg)](https://npmx.dev/package/@pnpm/plugin-commands-recursive)
 
 ## Installation
 

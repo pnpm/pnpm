@@ -1,11 +1,11 @@
-# @pnpm/modules-cleaner
+# @pnpm/installing.linking.modules-cleaner
 
 > Exports util functions to clean up node_modules
 
 ## Install
 
 ```
-pnpm install @pnpm/modules-cleaner
+pnpm install @pnpm/installing.linking.modules-cleaner
 ```
 
 ## API

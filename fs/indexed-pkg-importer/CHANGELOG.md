@@ -1,5 +1,58 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.1.2
+- @pnpm/store.controller-types@1100.1.2
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/store.controller-types@1100.1.1
+- @pnpm/core-loggers@1100.1.1
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [4a79336]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.0.2
+- @pnpm/store.controller-types@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/store.controller-types@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fs.graceful-fs@1100.1.0
+
 ## 1100.0.3
 
 ### Patch Changes

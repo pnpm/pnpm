@@ -1,5 +1,71 @@
 # @pnpm/find-workspace-packages
 
+## 1101.0.8
+
+### Patch Changes
+
+- e8b3ae1: Clarify that non-root `resolutions` does not take effect and dependency overrides should be configured with `overrides` in `pnpm-workspace.yaml`.
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/cli.utils@1101.0.8
+
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/cli.utils@1101.0.7
+
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+
+## 1101.0.5
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.5
+- @pnpm/workspace.project-manifest-reader@1100.0.6
+
+## 1101.0.4
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.4
+- @pnpm/workspace.project-manifest-reader@1100.0.5
+
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+
+## 1101.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/cli.utils@1101.0.2
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+
 ## 1101.0.0
 
 ### Major Changes

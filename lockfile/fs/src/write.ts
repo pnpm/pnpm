@@ -8,7 +8,7 @@ import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
 import writeFileAtomic from 'write-file-atomic'
 
-import { convertToLockfileFile } from './lockfileFormatConverters.js'
+import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormatConverters.js'
 import { getWantedLockfileName } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
@@ -26,26 +26,34 @@ export function lockfileYamlDump (obj: object): string {
   return yaml.dump(obj, LOCKFILE_YAML_FORMAT)
 }
 
+/**
+ * Returns the canonical post-write lockfile — structurally identical
+ * to what `readWantedLockfile` would parse back. Lets callers like
+ * the verification cache hash the as-saved form without re-reading.
+ */
 export async function writeWantedLockfile (
   pkgPath: string,
   wantedLockfile: LockfileObject,
   opts?: {
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
+    /** Pre-resolved filename; skips the `getWantedLockfileName` (and
+     *  its `getCurrentBranch`) call when supplied. */
+    lockfileName?: string
   }
-): Promise<void> {
-  const wantedLockfileName: string = await getWantedLockfileName(opts)
+): Promise<LockfileObject> {
+  const wantedLockfileName: string = opts?.lockfileName ?? await getWantedLockfileName(opts)
   return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile)
 }
 
 export async function writeCurrentLockfile (
   virtualStoreDir: string,
   currentLockfile: LockfileObject
-): Promise<void> {
+): Promise<LockfileObject | undefined> {
   // empty lockfile is not saved
   if (isEmptyLockfile(currentLockfile)) {
     await rimraf(path.join(virtualStoreDir, 'lock.yaml'))
-    return
+    return undefined
   }
   await fs.mkdir(virtualStoreDir, { recursive: true })
   return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile)
@@ -55,7 +63,7 @@ async function writeLockfile (
   lockfileFilename: string,
   pkgPath: string,
   wantedLockfile: LockfileObject
-): Promise<void> {
+): Promise<LockfileObject> {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
   const lockfileToStringify = convertToLockfileFile(wantedLockfile)
@@ -69,9 +77,27 @@ async function writeLockfile (
     // in the OS page cache and streaming stops at the first separator.
     const envDoc = await streamReadFirstYamlDocument(lockfilePath)
     const envPrefix = envDoc != null ? `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}` : ''
-    return writeFileAtomic(lockfilePath, `${envPrefix}${yamlDoc}`)
+    await writeFileAtomic(lockfilePath, `${envPrefix}${yamlDoc}`)
+  } else {
+    await writeFileAtomic(lockfilePath, yamlDoc)
   }
-  return writeFileAtomic(lockfilePath, yamlDoc)
+
+  // YAML drops undefined on serialize, so the in-memory LockfileFile
+  // can carry fields (like an unset settings.dedupePeers) that won't
+  // survive a round-trip; strip them to mirror what the next reader
+  // will parse back.
+  return convertToLockfileObject(stripUndefinedDeep(lockfileToStringify) as LockfileFile)
+}
+
+function stripUndefinedDeep<T> (value: T): T {
+  if (value === null || typeof value !== 'object') return value
+  if (Array.isArray(value)) return value.map(stripUndefinedDeep) as unknown as T
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === undefined) continue
+    out[k] = stripUndefinedDeep(v)
+  }
+  return out as T
 }
 
 export function writeLockfileFile (
@@ -91,6 +117,19 @@ export function isEmptyLockfile (lockfile: LockfileObject): boolean {
   return Object.values(lockfile.importers).every((importer) => isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {}))
 }
 
+export interface WriteLockfilesResult {
+  /**
+   * The canonical "as-saved" wanted lockfile — the inverse converter
+   * applied to the same object that was serialized to YAML. Hashing
+   * this is equivalent to hashing the lockfile the next install will
+   * load from disk (modulo undefined values that YAML drops, which any
+   * sensible canonicalization-then-hash routine should strip).
+   */
+  wantedLockfile: LockfileObject
+  /** Same as above for the current lockfile, or undefined when it was skipped because empty. */
+  currentLockfile: LockfileObject | undefined
+}
+
 export async function writeLockfiles (
   opts: {
     wantedLockfile: LockfileObject
@@ -99,9 +138,11 @@ export async function writeLockfiles (
     currentLockfileDir: string
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
+    /** See {@link writeWantedLockfile}'s `lockfileName` option. */
+    wantedLockfileName?: string
   }
-): Promise<void> {
-  const wantedLockfileName: string = await getWantedLockfileName(opts)
+): Promise<WriteLockfilesResult> {
+  const wantedLockfileName: string = opts.wantedLockfileName ?? await getWantedLockfileName(opts)
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
@@ -134,7 +175,12 @@ export async function writeLockfiles (
         }
       })(),
     ])
-    return
+    // Both files share the same source object; strip once and reuse.
+    const normalized = convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile)
+    return {
+      wantedLockfile: normalized,
+      currentLockfile: isEmptyLockfile(opts.wantedLockfile) ? undefined : normalized,
+    }
   }
 
   logger.debug({
@@ -145,10 +191,13 @@ export async function writeLockfiles (
   const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile)
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
+  // Filtered-current callers (deps-restorer) can pass an empty
+  // current against a non-empty wanted; key off the current.
+  const currentIsEmpty = isEmptyLockfile(opts.currentLockfile)
   await Promise.all([
     writeFileAtomic(wantedLockfilePath, wantedYamlDoc),
     (async () => {
-      if (isEmptyLockfile(opts.wantedLockfile)) {
+      if (currentIsEmpty) {
         await rimraf(currentLockfilePath)
       } else {
         await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
@@ -156,4 +205,10 @@ export async function writeLockfiles (
       }
     })(),
   ])
+  return {
+    wantedLockfile: convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile),
+    currentLockfile: currentIsEmpty
+      ? undefined
+      : convertToLockfileObject(stripUndefinedDeep(currentLockfileToStringify) as LockfileFile),
+  }
 }

@@ -1,0 +1,42 @@
+[package]
+name                  = "pacquet-resolving-deps-resolver"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-catalogs-resolver                 = { workspace = true }
+pacquet-catalogs-types                    = { workspace = true }
+pacquet-deps-path                         = { workspace = true }
+pacquet-fs                                = { workspace = true }
+pacquet-lockfile                          = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
+pacquet-patching                          = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-resolving-resolver-base           = { workspace = true }
+
+async-recursion = { workspace = true }
+chrono          = { workspace = true }
+derive_more     = { workspace = true }
+futures-util    = { workspace = true }
+miette          = { workspace = true }
+node-semver     = { workspace = true }
+pathdiff        = { workspace = true }
+pipe-trait      = { workspace = true }
+serde_json      = { workspace = true }
+tokio           = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+node-semver       = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile          = { workspace = true }
+tokio             = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

@@ -1,5 +1,77 @@
 # @pnpm/deps.inspection.peers-checker
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/lockfile.walker@1100.0.8
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/lockfile.walker@1100.0.7
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.walker@1100.0.6
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.5
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.walker@1100.0.4
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.walker@1100.0.3
+
 ## 1100.0.3
 
 ### Patch Changes

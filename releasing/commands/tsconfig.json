@@ -97,6 +97,9 @@
       "path": "../../lockfile/types"
     },
     {
+      "path": "../../network/auth-header"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -110,6 +113,9 @@
     },
     {
       "path": "../../testing/command-defaults"
+    },
+    {
+      "path": "../../testing/registry-mock"
     },
     {
       "path": "../../workspace/projects-filter"

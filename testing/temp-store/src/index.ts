@@ -1,10 +1,11 @@
 import * as path from 'node:path'
 
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { createPackageStore, type CreatePackageStoreOptions } from '@pnpm/store.controller'
 import type { StoreController } from '@pnpm/store.controller-types'
 import { StoreIndex } from '@pnpm/store.index'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -12,6 +13,7 @@ export interface CreateTempStoreResult {
   storeController: StoreController
   storeDir: string
   cacheDir: string
+  resolutionVerifiers: ResolutionVerifier[]
 }
 
 export function createTempStore (opts?: {
@@ -24,7 +26,7 @@ export function createTempStore (opts?: {
   const cacheDir = path.resolve('cache')
   const storeDir = opts?.storeDir ?? path.resolve('.store')
   const storeIndex = new StoreIndex(storeDir)
-  const { resolve, fetchers, clearResolutionCache } = createClient({
+  const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     configByUri,
     retry: {
       retries: 4,
@@ -58,5 +60,6 @@ export function createTempStore (opts?: {
     storeController,
     storeDir,
     cacheDir,
+    resolutionVerifiers,
   }
 }

@@ -10,7 +10,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
@@ -33,7 +33,7 @@ import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { createStoreController } from '@pnpm/store.connection-manager'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import type {
   DepPath,
   IgnoredBuilds,
@@ -281,6 +281,11 @@ async function _rebuild (
 ): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile, opts.supportedArchitectures)
   const depsStateCache: DepsStateCache = {}
+  // Resolved `engines.runtime` Node version (when one is pinned) —
+  // every side-effects-cache key computed below is anchored to it so
+  // the prefix tracks the script-runner Node rather than pnpm's own
+  // `process.version`.
+  const nodeVersion = findRuntimeNodeVersion(Object.keys(depGraph))
   const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
@@ -358,14 +363,18 @@ async function _rebuild (
         }
         const resolution = (pkgSnapshot.resolution as TarballResolution)
         let sideEffectsCacheKey: string | undefined
-        const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
-        if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
-          const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
+        // Match the resolver-supplied pkg.id used by the writer in
+        // @pnpm/installing.package-requester: that's the tarball URL for
+        // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
+        const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
+        if (opts.skipIfHasSideEffectsCache && (resolution.gitHosted || resolution.integrity)) {
+          const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
           const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
           if (pkgFilesIndex) {
             sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
               includeDepGraphHash: true,
               supportedArchitectures: opts.supportedArchitectures,
+              nodeVersion,
             })
             if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
               pkgsThatWereRebuilt.add(depPath)
@@ -393,13 +402,14 @@ async function _rebuild (
           unsafePerm: opts.unsafePerm || false,
           userAgent: opts.userAgent,
         })
-        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
+        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
           builtDepPaths.add(depPath)
-          const filesIndexFile = storeIndexKey(resolution.integrity!.toString(), pkgId)
+          const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
                 includeDepGraphHash: true,
+                nodeVersion,
               })
             }
             await opts.storeController.upload(pkgRoot, {

@@ -11,6 +11,7 @@ import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.type
 import { globalWarn } from '@pnpm/logger'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import * as retry from '@zkochan/retry'
+import semver from 'semver'
 
 interface RegistryResponse {
   status: number
@@ -33,10 +34,6 @@ export interface FetchMetadataNotModifiedResult {
   notModified: true
 }
 
-// https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
-// eslint-disable-next-line regexp/no-super-linear-backtracking, regexp/use-ignore-case
-const semverRegex = /(.*)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
-
 export class RegistryResponseError extends FetchError {
   public readonly pkgName: string
 
@@ -48,14 +45,59 @@ export class RegistryResponseError extends FetchError {
     let hint: string | undefined
     if (response.status === 404) {
       hint = `${pkgName} is not in the npm registry, or you have no permission to fetch it.`
-      const matched = pkgName.match(semverRegex)
-      if (matched != null) {
-        hint += ` Did you mean ${matched[1]}?`
+      const nameWithoutVersion = stripTrailingSemverSuffix(pkgName)
+      if (nameWithoutVersion != null) {
+        hint += ` Did you mean ${nameWithoutVersion}?`
       }
     }
     super(request, response, hint)
     this.pkgName = pkgName
   }
+}
+
+/**
+ * Detect when a package name accidentally includes a `<version>` suffix
+ * (e.g. `lodash@4.17.21` or `lodash4.17.21`) and return the part before the
+ * version. Returns `undefined` when no semver suffix is present.
+ *
+ * Implemented as an O(n) scan to avoid polynomial backtracking on adversarial
+ * input (CodeQL: js/polynomial-redos).
+ */
+function stripTrailingSemverSuffix (pkgName: string): string | undefined {
+  // Common case: "name@version" – split on the rightmost '@'.
+  // `atIdx > 0` rules out the leading '@' of scoped names like '@scope/foo'.
+  const atIdx = pkgName.lastIndexOf('@')
+  if (atIdx > 0 && semver.valid(pkgName.slice(atIdx + 1)) != null) {
+    return pkgName.slice(0, atIdx)
+  }
+  // Fallback: detect a trailing "<digits>.<digits>.<digits>" appended to a name
+  // with no separator (e.g. "foo1.0.0"). We walk backwards through three
+  // digit-blocks separated by dots; this is O(n) and free of regex backtracking.
+  let i = pkgName.length
+  i = consumeTrailingDigits(pkgName, i)
+  if (i === pkgName.length || i === 0 || pkgName.charCodeAt(i - 1) !== 46 /* '.' */) return undefined
+  i--
+  const beforePatch = i
+  i = consumeTrailingDigits(pkgName, i)
+  if (i === beforePatch || i === 0 || pkgName.charCodeAt(i - 1) !== 46) return undefined
+  i--
+  const beforeMinor = i
+  i = consumeTrailingDigits(pkgName, i)
+  if (i === beforeMinor || i === 0) return undefined
+  if (semver.valid(pkgName.slice(i)) == null) return undefined
+  let prefix = pkgName.slice(0, i)
+  if (prefix.endsWith('@')) prefix = prefix.slice(0, -1)
+  return prefix.length > 0 ? prefix : undefined
+}
+
+function consumeTrailingDigits (s: string, end: number): number {
+  let i = end
+  while (i > 0) {
+    const c = s.charCodeAt(i - 1)
+    if (c < 48 || c > 57) break
+    i--
+  }
+  return i
 }
 
 export interface FetchMetadataFromFromRegistryOptions {

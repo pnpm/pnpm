@@ -5,7 +5,7 @@ import type { PackageInRegistry, PackageMetaWithTime } from '@pnpm/resolving.reg
 import { failIfTrustDowngraded, getTrustEvidence } from '../src/trustChecks.js'
 
 describe('getTrustEvidence', () => {
-  test('returns "trustedPublisher" when _npmUser.trustedPublisher exists', () => {
+  test('returns undefined when _npmUser.trustedPublisher exists without provenance', () => {
     const manifest: PackageInRegistry = {
       name: 'foo',
       version: '1.0.0',
@@ -22,10 +22,10 @@ describe('getTrustEvidence', () => {
         tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
       },
     }
-    expect(getTrustEvidence(manifest)).toBe('trustedPublisher')
+    expect(getTrustEvidence(manifest)).toBeUndefined()
   })
 
-  test('returns "trustedPublisher" even when attestations.provenance exists', () => {
+  test('returns "trustedPublisher" when attestations.provenance also exists', () => {
     const manifest: PackageInRegistry = {
       name: 'foo',
       version: '1.0.0',
@@ -93,6 +93,55 @@ describe('getTrustEvidence', () => {
       },
     }
     expect(getTrustEvidence(manifest)).toBeUndefined()
+  })
+
+  test('returns stagedPublish when approver exists', () => {
+    const manifest: PackageInRegistry = {
+      name: 'foo',
+      version: '1.0.0',
+      _npmUser: {
+        name: 'test-approver',
+        email: 'user@example.com',
+        approver: {
+          name: 'test-approver',
+          email: 'user@example.com',
+        },
+      },
+      dist: {
+        shasum: 'abc123',
+        tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
+      },
+    }
+    expect(getTrustEvidence(manifest)).toBe('stagedPublish')
+  })
+
+  test('returns stagedPublish when both approver and trustedPublisher exist', () => {
+    const manifest: PackageInRegistry = {
+      name: 'foo',
+      version: '1.0.0',
+      _npmUser: {
+        name: 'test-approver',
+        email: 'user@example.com',
+        approver: {
+          name: 'test-approver',
+          email: 'user@example.com',
+        },
+        trustedPublisher: {
+          id: 'test-provider',
+          oidcConfigId: 'oidc:test-config-123',
+        },
+      },
+      dist: {
+        shasum: 'abc123',
+        tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
+        attestations: {
+          provenance: {
+            predicateType: 'https://slsa.dev/provenance/v1',
+          },
+        },
+      },
+    }
+    expect(getTrustEvidence(manifest)).toBe('stagedPublish')
   })
 })
 
@@ -285,6 +334,11 @@ describe('failIfTrustDowngraded', () => {
           dist: {
             shasum: 'def456',
             tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
           },
         },
         '3.0.0': {
@@ -339,6 +393,11 @@ describe('failIfTrustDowngraded', () => {
           dist: {
             shasum: 'def456',
             tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
           },
         },
         '3.0.0': {
@@ -358,6 +417,64 @@ describe('failIfTrustDowngraded', () => {
     }
     expect(() => {
       failIfTrustDowngraded(meta, '3.0.0')
+    }).toThrow('High-risk trust downgrade')
+  })
+
+  test('throws an error when downgrading from stagedPublish to trustedPublisher', () => {
+    const meta: PackageMetaWithTime = {
+      name: 'foo',
+      'dist-tags': { latest: '2.0.0' },
+      versions: {
+        '1.0.0': {
+          name: 'foo',
+          version: '1.0.0',
+          _npmUser: {
+            name: 'test-approver',
+            email: 'approver@example.com',
+            approver: {
+              name: 'test-approver',
+              email: 'approver@example.com',
+            },
+          },
+          dist: {
+            shasum: 'abc123',
+            tarball: 'https://registry.example.com/foo/-/foo-1.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
+          },
+        },
+        '2.0.0': {
+          name: 'foo',
+          version: '2.0.0',
+          _npmUser: {
+            name: 'test-publisher',
+            email: 'publisher@example.com',
+            trustedPublisher: {
+              id: 'test-provider',
+              oidcConfigId: 'oidc:test-config-123',
+            },
+          },
+          dist: {
+            shasum: 'def456',
+            tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
+          },
+        },
+      },
+      time: {
+        '1.0.0': '2025-01-01T00:00:00.000Z',
+        '2.0.0': '2025-02-01T00:00:00.000Z',
+      },
+    }
+    expect(() => {
+      failIfTrustDowngraded(meta, '2.0.0')
     }).toThrow('High-risk trust downgrade')
   })
 
@@ -388,6 +505,11 @@ describe('failIfTrustDowngraded', () => {
           dist: {
             shasum: 'def456',
             tarball: 'https://registry.example.com/foo/-/foo-2.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
           },
         },
         '3.0.0': {
@@ -404,6 +526,11 @@ describe('failIfTrustDowngraded', () => {
           dist: {
             shasum: 'ghi789',
             tarball: 'https://registry.example.com/foo/-/foo-3.0.0.tgz',
+            attestations: {
+              provenance: {
+                predicateType: 'https://slsa.dev/provenance/v1',
+              },
+            },
           },
         },
       },

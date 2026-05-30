@@ -1,5 +1,25 @@
 # @pnpm/parse-cli-args
 
+## 1100.1.3
+
+### Patch Changes
+
+- 43d5456: Fixed `pnpm --prefix=<dir> install` overwriting the existing `pnpm-workspace.yaml` in `<dir>` with `set this to true or false` placeholders. The renamed `--prefix` option (which maps to `dir`) was not honored when locating the workspace root, so the workspace manifest's `allowBuilds` settings were not loaded into config and got clobbered when ignored builds were auto-populated [#11535](https://github.com/pnpm/pnpm/issues/11535).
+
+## 1100.1.2
+
+### Patch Changes
+
+- 81161d5: `--pm-on-fail=ignore` (and other universal options like `--loglevel`, `--reporter`) is now honored when combined with `--help` or `--version`. Previously the CLI argument parser short-circuited those flags before universal options were preserved, so `pnpm audit --pm-on-fail=ignore --help` and `pnpm --pm-on-fail=ignore --version` reported the strict packageManager mismatch instead of running the requested action [#11487](https://github.com/pnpm/pnpm/issues/11487).
+
+## 1100.1.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.root-finder@1100.0.1
+
 ## 1100.1.0
 
 ### Minor Changes

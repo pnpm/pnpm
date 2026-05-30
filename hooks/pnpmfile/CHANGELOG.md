@@ -1,5 +1,88 @@
 # @pnpm/pnpmfile
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [4a79336]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/hooks.types@1100.0.6
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- 8131d7c: Validate all `readPackage` dependency map fields, including `devDependencies`, and reject falsy non-object invalid values instead of silently accepting them.
+
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.3
 
 ### Patch Changes

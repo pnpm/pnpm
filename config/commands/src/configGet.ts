@@ -21,6 +21,18 @@ interface Found<Value> {
 
 function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boolean): Found<unknown> | undefined {
   if (isScopedKey) {
+    // Scoped registry keys (e.g. `@scope:registry`) can be set in two places:
+    // `.npmrc` (which lands in authConfig) or pnpm-workspace.yaml's
+    // `registries` block (which lands in the merged Config.registries map).
+    // Prefer the merged map so this command reports the same value that
+    // `pnpm publish` and the resolvers actually use.
+    if (key.endsWith(':registry')) {
+      const scope = key.slice(0, key.length - ':registry'.length)
+      const merged = opts._config.registries?.[scope]
+      if (merged !== undefined) {
+        return { value: merged }
+      }
+    }
     return { value: opts.authConfig[key] }
   }
   const kebabKey = isCamelCase(key) ? kebabCase(key) : key

@@ -6,7 +6,7 @@ import { list, why } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { writeYamlFileSync } from 'write-yaml-file'
 

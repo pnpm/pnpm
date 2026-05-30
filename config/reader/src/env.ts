@@ -5,6 +5,7 @@ import camelcase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 
 const PREFIX = 'pnpm_config_'
+const PREFIX_UPPER = PREFIX.toUpperCase()
 
 export type ValueConstructor =
   | ArrayConstructor
@@ -173,19 +174,30 @@ function tryParseObjectOrArray (envVar: string): object | unknown[] | undefined 
 }
 
 /**
- * Return the suffix if {@link envKey} starts with {@link PREFIX} and is fully lower_snake_case.
+ * Return the lowercase suffix if {@link envKey} starts with {@link PREFIX} or
+ * {@link PREFIX_UPPER} and the suffix is fully snake_case (in matching case).
  * Otherwise, return `undefined`.
+ *
+ * Both lowercase (`pnpm_config_*`) and uppercase (`PNPM_CONFIG_*`) prefixes
+ * are accepted because shell convention favors uppercase env vars and the v11
+ * migration guide tells users to rename `NPM_CONFIG_*` to `PNPM_CONFIG_*`.
  */
 function getEnvKeySuffix (envKey: string): string | undefined {
-  if (!envKey.startsWith(PREFIX)) return undefined
-  const suffix = envKey.slice(PREFIX.length)
-  if (!isEnvKeySuffix(suffix)) return undefined
-  return suffix
+  if (envKey.startsWith(PREFIX)) {
+    const suffix = envKey.slice(PREFIX.length)
+    return isLowerSnakeCase(suffix) ? suffix : undefined
+  }
+  if (envKey.startsWith(PREFIX_UPPER)) {
+    const suffix = envKey.slice(PREFIX_UPPER.length)
+    return isUpperSnakeCase(suffix) ? suffix.toLowerCase() : undefined
+  }
+  return undefined
 }
 
-/**
- * A valid env key suffix is lower_snake_case without redundant underscore characters.
- */
-function isEnvKeySuffix (envKeySuffix: string): boolean {
-  return envKeySuffix.split('_').every(segment => /^[a-z0-9]+$/.test(segment))
+function isLowerSnakeCase (s: string): boolean {
+  return s.length > 0 && s.split('_').every(segment => /^[a-z0-9]+$/.test(segment))
+}
+
+function isUpperSnakeCase (s: string): boolean {
+  return s.length > 0 && s.split('_').every(segment => /^[A-Z0-9]+$/.test(segment))
 }

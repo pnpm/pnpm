@@ -1,0 +1,21 @@
+[package]
+name                  = "pacquet-config-parse-overrides"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+derive_more                               = { workspace = true }
+miette                                    = { workspace = true }
+pacquet-catalogs-resolver                 = { workspace = true }
+pacquet-catalogs-types                    = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+
+[lints]
+workspace = true

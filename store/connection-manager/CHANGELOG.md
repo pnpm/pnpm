@@ -1,5 +1,207 @@
 # @pnpm/store-connection-manager
 
+## 1100.2.5
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.client@1100.2.4
+  - @pnpm/store.controller@1101.0.10
+
+## 1100.2.4
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller@1101.0.9
+
+## 1100.2.3
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.client@1100.2.2
+  - @pnpm/store.controller@1101.0.8
+
+## 1100.2.2
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.1
+- @pnpm/store.controller@1101.0.8
+
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/cli.meta@1100.0.4
+
+## 1100.2.0
+
+### Minor Changes
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+- 31538bf: Restructured the `minimumReleaseAge` lockfile revalidation gate around a generic `ResolutionVerifier` interface. Each resolver may now export a sibling verifier factory (today: `createNpmResolutionVerifier`) that re-checks an already-resolved lockfile entry against its policies; the resolver chain returns the verifier list as `resolutionVerifiers` and the install side fans out across it. A `ResolutionVerifier` carries `verify` plus `policy` and `canTrustPastCheck` — the cache contract that lets repeat installs against an unchanged lockfile skip the per-package registry round trip entirely.
+
+  Verification results are memoized in JSON Lines at `<cacheDir>/lockfile-verified.jsonl`: a stat-only fast path matches on lockfile size, mtime, and inode, falling back to a content hash when those drift (typical after a CI checkout). Every active verifier's policy contribution is merged into a single `policy` bag on the record; the gate runs in full whenever the lockfile changes, any verifier rejects the cached policy, or no record exists [#11687](https://github.com/pnpm/pnpm/issues/11687).
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/store.controller@1101.0.7
+
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.3.1
+- @pnpm/installing.client@1100.0.15
+- @pnpm/store.controller@1101.0.6
+
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.14
+- @pnpm/store.controller@1101.0.5
+
+## 1100.1.0
+
+### Minor Changes
+
+- b61e268: Added support for installing packages from the [GitHub Packages npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry) via a built-in `gh:` prefix (e.g. `pnpm add gh:@acme/private`), and, more broadly, for arbitrary named registries in the style of [vlt's named-registry aliases](https://docs.vlt.sh/cli/registries). Authentication is picked up from the existing per-URL `.npmrc` entries (e.g. `//npm.pkg.github.com/:_authToken=...`), so no separate auth mechanism is required.
+
+  Additional aliases — or an override for the built-in `gh` alias, for GitHub Enterprise Server — can be configured under `namedRegistries` in `pnpm-workspace.yaml`:
+
+  ```yaml
+  namedRegistries:
+    gh: https://npm.pkg.github.example.com/
+    work: https://npm.work.example.com/
+  ```
+
+  With this, `work:@corp/lib@^2.0.0` resolves against `https://npm.work.example.com/`. [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/installing.client@1100.0.13
+  - @pnpm/cli.meta@1100.0.3
+  - @pnpm/store.controller@1101.0.5
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [e9e876c]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/store.controller@1101.0.4
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.11
+- @pnpm/store.controller@1101.0.3
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/store.controller@1101.0.3
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/installing.client@1100.0.9
+  - @pnpm/store.controller@1101.0.2
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/installing.client@1100.0.8
+  - @pnpm/store.controller@1101.0.2
+
+## 1100.0.8
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/store.path@1100.0.1
+  - @pnpm/cli.meta@1100.0.2
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.1
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/installing.client@1100.0.6
+  - @pnpm/store.controller@1101.0.0
+
 ## 1100.0.5
 
 ### Patch Changes

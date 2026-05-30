@@ -1,5 +1,13 @@
 # @pnpm/dedupe.issues-renderer
 
+## 1100.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/installing.dedupe.types@1100.0.1
+
 ## 1001.0.0
 
 ### Major Changes

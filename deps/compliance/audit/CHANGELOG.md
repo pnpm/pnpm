@@ -1,5 +1,114 @@
 # @pnpm/audit
 
+## 1101.0.11
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+  - @pnpm/network.fetch@1100.0.8
+
+## 1101.0.10
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/network.fetch@1100.0.7
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/lockfile.detect-dep-types@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.7
+  - @pnpm/network.fetch@1100.0.6
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.6
+  - @pnpm/lockfile.walker@1100.0.6
+
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [18a464f]
+- Updated dependencies [180aee9]
+  - @pnpm/network.fetch@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.8
+
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [20e7aff]
+- Updated dependencies [b61e268]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/lockfile.detect-dep-types@1100.0.5
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.5
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/lockfile.fs@1100.0.6
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.4
+  - @pnpm/lockfile.walker@1100.0.4
+
+## 1101.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.detect-dep-types@1100.0.3
+  - @pnpm/lockfile.walker@1100.0.3
+
 ## 1101.0.2
 
 ### Patch Changes

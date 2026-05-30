@@ -1,5 +1,103 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/releasing.exportable-manifest@1100.1.1
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/lockfile.pruner@1100.0.8
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [3b62f9d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/releasing.exportable-manifest@1100.1.0
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/lockfile.pruner@1100.0.7
+  - @pnpm/releasing.exportable-manifest@1100.0.7
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.pruner@1100.0.6
+  - @pnpm/releasing.exportable-manifest@1100.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.5
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.pruner@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+
+## 1100.0.8
+
+### Patch Changes
+
+- 15e9e35: Upgrade `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/exec`, and `parse-npm-tarball-url` to versions that expose their helpers as named exports instead of CommonJS default exports. This eliminates the `.default` property accesses that broke under Node.js ESM interop in tests and could fail at runtime in some module loaders.
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.6
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.pruner@1100.0.4
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+  - @pnpm/workspace.root-finder@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.pruner@1100.0.3
+
 ## 1100.0.4
 
 ### Patch Changes

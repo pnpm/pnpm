@@ -1,9 +1,9 @@
-# @pnpm/dependency-path
+# @pnpm/deps.path
 
 > Utilities for working with symlinked node_modules
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/dependency-path.svg)](https://www.npmjs.com/package/dependency-path)
+[![npm version](https://img.shields.io/npm/v/deps.path.svg)](https://npmx.dev/package/deps.path)
 <!--/@-->
 
 Like `path` but for packages in a symlinked `node_modules`. Symlinked `node_modules` is a unique dependencies layout that
@@ -12,7 +12,7 @@ Like `path` but for packages in a symlinked `node_modules`. Symlinked `node_modu
 ## Installation
 
 ```sh
-pnpm add @pnpm/dependency-path
+pnpm add @pnpm/deps.path
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ pnpm add @pnpm/dependency-path
 <!--/* cspell:disable */-->
 <!--@example('./example.js')-->
 ```js
-const dependencyPath = require('@pnpm/dependency-path')
+const dependencyPath = require('@pnpm/deps.path')
 
 const registry = 'https://registry.npmjs.org/'
 

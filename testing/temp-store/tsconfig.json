@@ -13,6 +13,9 @@
       "path": "../../installing/client"
     },
     {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../../store/controller"
     },
     {
@@ -20,6 +23,9 @@
     },
     {
       "path": "../../store/index"
+    },
+    {
+      "path": "../registry-mock"
     }
   ]
 }

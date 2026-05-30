@@ -1,5 +1,85 @@
 # @pnpm/git-resolver
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+  - @pnpm/network.fetch@1100.0.8
+
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.0.7
+- @pnpm/resolving.resolver-base@1100.3.1
+
+## 1100.1.0
+
+### Minor Changes
+
+- 1627943: `pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+  Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines a `ResolveLatestFunction` shape (with `LatestQuery` input — `{ wantedDependency, compatible? }` — and `LatestInfo` result — `{ latestManifest? }`), and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own `resolveLatest*` function alongside its `resolve*`. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).resolveLatest`.
+
+  Each resolver decides whether it owns the dep and what "latest" means for its protocol; the outdated command derives `current` / `wanted` display values from the lockfile snapshot (`pkgSnapshot.version` for semver protocols, raw ref for URL-shaped ones) and uses raw ref equality for the "lockfile changed" check, so protocol knowledge stays inside each resolver instead of the command.
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/network.fetch@1100.0.6
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/network.fetch@1100.0.5
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [18a464f]
+  - @pnpm/network.fetch@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [20e7aff]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- a57f7bd: Fixed installation of GitLab-hosted dependencies. pnpm now downloads the tarball from `https://gitlab.com/<user>/<project>/-/archive/<sha>/<project>-<sha>.tar.gz` instead of the GitLab API endpoint that contained an encoded slash (`%2F`) between user and project. The encoded slash both triggered `406 Not Acceptable` responses from GitLab and produced virtual store directory names that Node refused to import (`ERR_INVALID_MODULE_SPECIFIER`) [#11533](https://github.com/pnpm/pnpm/issues/11533).
+
+## 1100.0.4
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [27425d7]
+  - @pnpm/resolving.resolver-base@1100.1.2
+
+## 1100.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/network.fetch@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

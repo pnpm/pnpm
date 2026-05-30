@@ -12,7 +12,7 @@ import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
 
 import { publish } from './publish.js'
-import type { PublishPackedPkgOptions } from './publishPackedPkg.js'
+import type { PublishPackedPkgOptions, PublishSummary } from './publishPackedPkg.js'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
 | 'bin'
@@ -63,9 +63,11 @@ Partial<Pick<ConfigContext,
   reportSummary?: boolean
 } & PublishPackedPkgOptions
 
+export type RecursivePublishedPackage = PublishSummary | { name?: string, version?: string }
+
 export async function recursivePublish (
   opts: PublishRecursiveOpts & Required<Pick<ConfigContext, 'selectedProjectsGraph'>>
-): Promise<{ exitCode: number }> {
+): Promise<{ exitCode: number, publishedPackages: RecursivePublishedPackage[] }> {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const { resolve } = createResolver({
     ...opts,
@@ -89,7 +91,7 @@ export async function recursivePublish (
     }, pkg.manifest.name, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set<ProjectRootDir>(pkgsToPublish.map(({ rootDir }) => rootDir))
-  const publishedPackages: Array<{ name?: string, version?: string }> = []
+  const publishedPackages: RecursivePublishedPackage[] = []
   if (publishedPkgDirs.size === 0) {
     logger.info({
       message: 'There are no new packages that should be published',
@@ -111,6 +113,7 @@ export async function recursivePublish (
     }
     const chunks = sortProjects(opts.selectedProjectsGraph)
     const tag = opts.tag ?? 'latest'
+    const commandArgs = opts.stage ? ['stage', 'publish'] : ['publish']
     for (const chunk of chunks) {
       // We can't run publish concurrently due to the npm CLI asking for OTP.
       // NOTE: If we solve the OTP issue, we still need to limit packages concurrency.
@@ -126,7 +129,7 @@ export async function recursivePublish (
           dir: pkg.rootDir,
           argv: {
             original: [
-              'publish',
+              ...commandArgs,
               '--tag',
               tag,
               '--registry',
@@ -137,10 +140,17 @@ export async function recursivePublish (
           gitChecks: false,
           recursive: false,
         }, [pkg.rootDir])
-        if (publishResult?.manifest != null) {
-          publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
-        } else if (publishResult?.exitCode) {
-          return { exitCode: publishResult.exitCode }
+        if (publishResult?.publishSummary != null) {
+          publishedPackages.push(publishResult.publishSummary)
+        } else {
+          // Fallback for paths that don't produce a full PublishSummary (e.g. dry run via the
+          // legacy npm-CLI bridge, or future call sites that bypass publishPackedPkg).
+          const publishedManifest = publishResult?.publishedManifest ?? publishResult?.manifest
+          if (publishedManifest != null) {
+            publishedPackages.push(pick(['name', 'version'], publishedManifest))
+          } else if (publishResult?.exitCode) {
+            return { exitCode: publishResult.exitCode, publishedPackages }
+          }
         }
       }
     }
@@ -148,7 +158,7 @@ export async function recursivePublish (
   if (opts.reportSummary) {
     await writeJsonFile(path.join(opts.lockfileDir ?? opts.dir, 'pnpm-publish-summary.json'), { publishedPackages })
   }
-  return { exitCode: 0 }
+  return { exitCode: 0, publishedPackages }
 }
 
 async function isAlreadyPublished (

@@ -1,5 +1,64 @@
 # @pnpm/store.cafs
 
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/fetching.fetcher-base@1100.1.6
+  - @pnpm/store.controller-types@1100.1.2
+
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/fetching.fetcher-base@1100.1.5
+  - @pnpm/store.controller-types@1100.1.1
+
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.3
+  - @pnpm/store.controller-types@1100.0.6
+
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.2
+- @pnpm/store.controller-types@1100.0.5
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+
 ## 1100.1.0
 
 ### Minor Changes

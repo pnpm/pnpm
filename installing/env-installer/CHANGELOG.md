@@ -1,5 +1,253 @@
 # @pnpm/config.deps-installer
 
+## 1101.1.4
+
+### Patch Changes
+
+- Updated dependencies [39101f5]
+- Updated dependencies [b1fa2d5]
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/installing.deps-resolver@1100.1.5
+  - @pnpm/network.fetch@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/store.controller@1101.0.10
+
+## 1101.1.3
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [ad84fff]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/worker@1100.1.8
+  - @pnpm/installing.deps-resolver@1100.1.4
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.package-is-installable@1100.0.7
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.writer@1100.0.10
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/lockfile.pruner@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/store.controller@1101.0.9
+  - @pnpm/store.controller-types@1100.1.2
+
+## 1101.1.2
+
+### Patch Changes
+
+- 155af87: Fixed `pnpm add --config` leaving orphan entries in `pnpm-lock.env.yaml` (the optional subdependencies of the previously resolved version of the updated config dependency).
+- Updated dependencies [3422cec]
+- Updated dependencies [e0bd879]
+- Updated dependencies [212315d]
+  - @pnpm/installing.deps-resolver@1100.1.3
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/store.controller@1101.0.8
+
+## 1101.1.1
+
+### Patch Changes
+
+- 2061c55: Mark optional subdependency snapshots of config dependencies with `optional: true` in the env lockfile, matching how optional dependencies are recorded elsewhere in `pnpm-lock.yaml`. Previously, snapshots for the platform-specific subdeps pulled in via a config dep's `optionalDependencies` were written as empty objects, which was inconsistent with the rest of the lockfile and made it look like those non-host platform variants were required.
+- e5e7b72: Don't print "Installing config dependencies..." when config dependencies are already installed and nothing needs to be fetched, re-linked, or removed.
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.3.1
+  - @pnpm/installing.deps-resolver@1100.1.2
+  - @pnpm/store.controller@1101.0.8
+
+## 1101.1.0
+
+### Minor Changes
+
+- c8d8fde: `configDependencies` now resolve and install one level of `optionalDependencies` declared by the config dependency, with `os`/`cpu`/`libc` platform filtering applied at install time. This unlocks the esbuild/swc-style pattern where a package ships platform-specific binaries via `optionalDependencies` — a config dependency can now do the same and have the matching binary symlinked next to it in the global virtual store, so `require('pkg-platform-arch')` from inside the config dependency resolves correctly.
+
+  The env lockfile records all platform variants regardless of host platform, so it remains portable across machines. Each entry in a config dependency's `optionalDependencies` must declare an exact version — ranges and tags are rejected to keep installs reproducible.
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/installing.deps-resolver@1100.1.1
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/config.package-is-installable@1100.0.6
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/config.writer@1100.0.9
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/lockfile.pruner@1100.0.7
+  - @pnpm/network.auth-header@1100.0.3
+  - @pnpm/network.fetch@1100.0.6
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/worker@1100.1.7
+
+## 1101.0.10
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [6e93f35]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [5dc8be8]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/installing.deps-resolver@1100.1.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/deps.graph-hasher@1100.2.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/lockfile.pruner@1100.0.6
+  - @pnpm/worker@1100.1.6
+  - @pnpm/config.writer@1100.0.8
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [18a464f]
+- Updated dependencies [e526f89]
+- Updated dependencies [180aee9]
+- Updated dependencies [c2c2890]
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/network.fetch@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/installing.deps-resolver@1100.0.10
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/store.controller@1101.0.6
+  - @pnpm/worker@1100.1.5
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [20e7aff]
+- Updated dependencies [b61e268]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.deps-resolver@1100.0.9
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/config.writer@1100.0.7
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.5
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.pruner@1100.0.5
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/network.auth-header@1100.0.2
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/store.controller@1101.0.5
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/worker@1100.1.4
+
+## 1101.0.7
+
+### Patch Changes
+
+- Updated dependencies [15e9e35]
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/store.controller@1101.0.4
+  - @pnpm/worker@1100.1.3
+  - @pnpm/installing.deps-resolver@1100.0.8
+
+## 1101.0.6
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/installing.deps-resolver@1100.0.7
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/store.controller@1101.0.3
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/installing.deps-resolver@1100.0.6
+  - @pnpm/store.controller@1101.0.3
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/lockfile.pruner@1100.0.4
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/config.writer@1100.0.6
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.4
+
+### Patch Changes
+
+- @pnpm/config.writer@1100.0.5
+- @pnpm/store.controller@1101.0.2
+
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fs.read-modules-dir@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/config.writer@1100.0.4
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/worker@1100.1.1
+  - @pnpm/installing.deps-resolver@1100.0.5
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.pruner@1100.0.3
+
+## 1101.0.2
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.1
+
+## 1101.0.1
+
+### Patch Changes
+
+- @pnpm/config.writer@1100.0.3
+- @pnpm/store.controller@1101.0.0
+
 ## 1101.0.0
 
 ### Patch Changes

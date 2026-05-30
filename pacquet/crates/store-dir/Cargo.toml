@@ -1,0 +1,49 @@
+[package]
+name                 = "pacquet-store-dir"
+description          = "Abstraction over store-dir paths"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+pacquet-crypto-hash = { workspace = true }
+pacquet-fs          = { workspace = true }
+
+dashmap       = { workspace = true }
+derive_more   = { workspace = true }
+dunce         = { workspace = true }
+miette        = { workspace = true }
+rmp-serde     = { workspace = true }
+rusqlite      = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+sha2          = { workspace = true }
+smart-default = { workspace = true }
+ssri          = { workspace = true }
+tokio         = { workspace = true, features = ["sync"] }
+tracing       = { workspace = true }
+
+# Enable `sha2`'s `asm` feature on non-MSVC targets only. The feature
+# activates the `sha2-asm` crate (hand-written `.S` assembly files for
+# x86_64 SHA-256/512) plus sha2's aarch64 NEON backend gated on runtime
+# FEAT_SHA512 detection. MSVC's `cl.exe` doesn't parse GAS-syntax `.S`
+# files, so enabling `asm` on `target_env = "msvc"` fails the Windows
+# build with `LNK1181: cannot open input file ...sha512_x64.o`.
+# Non-MSVC Windows (e.g. windows-gnu via mingw) would work, but we
+# build with MSVC in CI so gate it off there specifically.
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+sha2 = { workspace = true, features = ["asm"] }
+
+[dev-dependencies]
+pipe-trait        = { workspace = true }
+pretty_assertions = { workspace = true }
+sha2              = { workspace = true }
+tempfile          = { workspace = true }
+
+[lints]
+workspace = true

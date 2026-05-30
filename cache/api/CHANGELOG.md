@@ -1,5 +1,146 @@
 # @pnpm/cache.api
 
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [a39a83d]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/config.reader@1101.5.0
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/store.cafs@1100.1.7
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/resolving.npm-resolver@1101.3.2
+
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/store.cafs@1100.1.6
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/store.cafs@1100.1.5
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [e526f89]
+- Updated dependencies [c2c2890]
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/store.cafs@1100.1.4
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/store.cafs@1100.1.3
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [e9e876c]
+- Updated dependencies [15e9e35]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/resolving.npm-resolver@1101.0.3
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [707a879]
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/store.cafs@1100.1.2
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/store.cafs@1100.1.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+
 ## 1100.0.4
 
 ### Patch Changes

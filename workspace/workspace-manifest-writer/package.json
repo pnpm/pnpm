@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.workspace-manifest-writer",
-  "version": "1100.0.2",
+  "version": "1100.0.10",
   "description": "Updates the workspace manifest file",
   "keywords": [
     "pnpm",
@@ -35,8 +35,8 @@
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@pnpm/yaml.document-sync": "workspace:*",
     "ramda": "catalog:",

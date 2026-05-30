@@ -1,5 +1,206 @@
 # @pnpm/outdated
 
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/installing.client@1100.2.4
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.read-package-hook@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.2.1
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [212315d]
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/installing.client@1100.2.2
+
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+- @pnpm/installing.client@1100.2.1
+
+## 1100.1.0
+
+### Minor Changes
+
+- 1627943: `pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+  Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines a `ResolveLatestFunction` shape (with `LatestQuery` input — `{ wantedDependency, compatible? }` — and `LatestInfo` result — `{ latestManifest? }`), and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own `resolveLatest*` function alongside its `resolve*`. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).resolveLatest`.
+
+  Each resolver decides whether it owns the dep and what "latest" means for its protocol; the outdated command derives `current` / `wanted` display values from the lockfile snapshot (`pkgSnapshot.version` for semver protocols, raw ref for URL-shaped ones) and uses raw ref equality for the "lockfile changed" check, so protocol knowledge stays inside each resolver instead of the command.
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/config.version-policy@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/hooks.read-package-hook@1100.0.4
+
+## 1100.0.16
+
+### Patch Changes
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+- b6e2c8c: Make `pnpm self-update` respect `minimumReleaseAge` (and `minimumReleaseAgeExclude`) when resolving which pnpm version to install.
+
+  When the `latest` dist-tag points to a version newer than the configured age threshold, `self-update` now selects the newest mature version instead unless excluded by `minimumReleaseAgeExclude`.
+
+  Also makes `dlx` and `outdated` surface invalid `minimumReleaseAgeExclude` patterns under the same `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` error code already used by `install`, instead of leaking the internal `ERR_PNPM_INVALID_VERSION_UNION` / `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` codes.
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/config.version-policy@1100.1.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/pkg-manifest.utils@1100.1.4
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [9cad827]
+- Updated dependencies [50b33c1]
+- Updated dependencies [e526f89]
+- Updated dependencies [180aee9]
+- Updated dependencies [c2c2890]
+  - @pnpm/pkg-manifest.utils@1100.1.3
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/installing.client@1100.0.15
+
+## 1100.0.14
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.14
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.client@1100.0.13
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/config.version-policy@1100.0.3
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/hooks.read-package-hook@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/pkg-manifest.utils@1100.1.2
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [15e9e35]
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/installing.client@1100.0.12
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/installing.client@1100.0.11
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/resolving.npm-resolver@1101.0.2
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.8
+
+## 1100.0.7
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/hooks.read-package-hook@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/config.version-policy@1100.0.2
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.6
+
 ## 1100.0.5
 
 ### Patch Changes

@@ -3,6 +3,7 @@ import util, { promisify } from 'node:util'
 import gfs from 'graceful-fs'
 
 export default { // eslint-disable-line
+  chmod: promisify(gfs.chmod),
   copyFile: promisify(gfs.copyFile),
   copyFileSync: withEagainRetry(gfs.copyFileSync),
   createReadStream: gfs.createReadStream,
@@ -16,6 +17,7 @@ export default { // eslint-disable-line
   readdirSync: gfs.readdirSync,
   stat: promisify(gfs.stat),
   statSync: gfs.statSync,
+  unlink: promisify(gfs.unlink),
   unlinkSync: gfs.unlinkSync,
   writeFile: promisify(gfs.writeFile),
   writeFileSync: withEagainRetry(gfs.writeFileSync),

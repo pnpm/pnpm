@@ -4,22 +4,13 @@ import { PnpmError } from '@pnpm/error'
 import type { Creds, RegistryConfig, TokenHelper } from '@pnpm/types'
 
 export function getAuthHeadersFromCreds (
-  configByUri: Record<string, RegistryConfig>,
-  defaultRegistry: string
+  configByUri: Record<string, RegistryConfig>
 ): Record<string, string> {
   const authHeaderValueByURI: Record<string, string> = {}
   for (const [uri, registryConfig] of Object.entries(configByUri)) {
-    if (uri === '') continue // default auth handled below
     const header = credsToHeader(registryConfig.creds)
     if (header) {
       authHeaderValueByURI[uri] = header
-    }
-  }
-  const defaultConfig = configByUri['']
-  if (defaultConfig?.creds) {
-    const header = credsToHeader(defaultConfig.creds)
-    if (header) {
-      authHeaderValueByURI[defaultRegistry] = header
     }
   }
   return authHeaderValueByURI

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.utils",
-  "version": "1100.0.3",
+  "version": "1100.0.10",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -35,7 +35,6 @@
   "dependencies": {
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",

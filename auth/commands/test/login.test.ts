@@ -13,8 +13,10 @@ const TEST_CONTEXT: LoginContext = {
     once: () => {},
     close: () => {},
   }),
-  enquirer: { prompt: async () => {
-    throw new Error('Unexpected call to enquirer.prompt')
+  enquirer: { input: async () => {
+    throw new Error('Unexpected call to enquirer.input')
+  }, password: async () => {
+    throw new Error('Unexpected call to enquirer.password')
   } },
   fetch: async url => {
     throw new Error(`Unexpected call to fetch: ${url}`)
@@ -141,6 +143,103 @@ describe('login', () => {
     ])
   })
 
+  it('should persist a scope→registry mapping when --scope is provided', async () => {
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        if (url === 'https://my-org.example/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://my-org.example/auth/login',
+              doneUrl: 'https://my-org.example/auth/done',
+            },
+          })
+        }
+        if (url === 'https://my-org.example/auth/done') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'scoped-token' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    // `--scope my-org` (no `@`) should be normalized to `@my-org` when written.
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://my-org.example', scope: 'my-org' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://my-org.example/')
+    expect(savedSettings).toMatchObject({
+      '//my-org.example/:_authToken': 'scoped-token',
+      '@my-org:registry': 'https://my-org.example/',
+    })
+  })
+
+  it('should accept --scope with a leading @ and not double-prefix', async () => {
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        if (url === 'https://my-org.example/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://my-org.example/auth/login',
+              doneUrl: 'https://my-org.example/auth/done',
+            },
+          })
+        }
+        return createMockResponse({ ok: true, status: 200, json: { token: 'tok' } })
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://my-org.example', scope: '@my-org' }
+    await login({ context, opts })
+    expect(savedSettings['@my-org:registry']).toBe('https://my-org.example/')
+    expect(savedSettings['@@my-org:registry']).toBeUndefined()
+  })
+
+  it('should not write a scope mapping when --scope is omitted', async () => {
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        if (url === 'https://example.com/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://example.com/auth/login',
+              doneUrl: 'https://example.com/auth/done',
+            },
+          })
+        }
+        return createMockResponse({ ok: true, status: 200, json: { token: 'tok' } })
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com' }
+    await login({ context, opts })
+    // No `@…:registry` key should be added when scope isn't passed.
+    for (const key of Object.keys(savedSettings)) {
+      expect(key.startsWith('@')).toBe(false)
+    }
+  })
+
   it('should fall back to classic login when web login returns 404', async () => {
     const fetchedUrls: string[] = []
     const globalInfo = jest.fn()
@@ -172,11 +271,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'john' }
-          if (opts.name === 'password') return { password: 'secret' }
-          if (opts.name === 'email') return { email: 'john@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'john'
+          if (opts.message === 'Email (this IS public):') return 'john@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'secret'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -228,12 +330,15 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'alice' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'alice@example.com' }
-          if (opts.name === 'otp') return { otp: '999999' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'alice'
+          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
+          if (opts.message === 'This operation requires a one-time password.\nEnter OTP:') return '999999'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -266,10 +371,10 @@ describe('login', () => {
             return createMockResponse({
               ok: false,
               status: 401,
-              json: {
+              text: JSON.stringify({
                 authUrl: 'https://example.org/auth/web',
                 doneUrl: 'https://example.org/auth/web/done',
-              },
+              }),
               headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
             })
           }
@@ -291,11 +396,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'bob' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'bob@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'bob'
+          if (opts.message === 'Email (this IS public):') return 'bob@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -327,15 +435,18 @@ describe('login', () => {
         })
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'alice' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'alice@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'alice'
+          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
-    const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_FAILED')
     await expect(promise).rejects.toHaveProperty(['message'], 'Login failed (HTTP 403): Forbidden')
@@ -356,11 +467,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: '' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'a@b.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return ''
+          if (opts.message === 'Email (this IS public):') return 'a@b.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -392,11 +506,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'alice' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'alice@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'alice'
+          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -454,11 +571,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'jane' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'jane@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'jane'
+          if (opts.message === 'Email (this IS public):') return 'jane@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -492,11 +612,14 @@ describe('login', () => {
         })
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'alice' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'alice@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'alice'
+          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })

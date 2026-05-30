@@ -16,6 +16,7 @@ export interface WorkspaceState {
 }
 
 export const WORKSPACE_STATE_SETTING_KEYS = [
+  'allowBuilds',
   'autoInstallPeers',
   'catalogs',
   'dedupeDirectDeps',
@@ -29,6 +30,15 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'ignoredOptionalDependencies',
   'injectWorkspacePackages',
   'linkWorkspacePackages',
+  // The lockfile-resolution verifier short-circuits on a per-lockfile
+  // cache that's keyed by these policy settings; if any of them
+  // changes (turning a policy on, shrinking an exclude list, etc.) the
+  // workspace state needs to look stale so `optimisticRepeatInstall`
+  // doesn't skip the verifier fan-out.
+  'minimumReleaseAge',
+  'minimumReleaseAgeStrict',
+  'minimumReleaseAgeExclude',
+  'minimumReleaseAgeIgnoreMissingTime',
   'nodeLinker',
   'optional',
   'overrides',
@@ -38,6 +48,9 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'preferWorkspacePackages',
   'production',
   'publicHoistPattern',
+  'trustPolicy',
+  'trustPolicyExclude',
+  'trustPolicyIgnoreAfter',
   'workspacePackagePatterns',
 ] as const satisfies ReadonlyArray<keyof Config>
 

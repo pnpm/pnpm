@@ -1,15 +1,15 @@
-# @pnpm/npm-resolver
+# @pnpm/resolving.npm-resolver
 
 > Resolver for npm-hosted packages
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/npm-resolver.svg)](https://www.npmjs.com/package/@pnpm/npm-resolver)
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.npm-resolver.svg)](https://npmx.dev/package/@pnpm/resolving.npm-resolver)
 <!--/@-->
 
 ## Installation
 
 ```
-pnpm add @pnpm/npm-resolver
+pnpm add @pnpm/resolving.npm-resolver
 ```
 
 ## Usage
@@ -17,7 +17,7 @@ pnpm add @pnpm/npm-resolver
 <!--@example('./example.js')-->
 ```js
 'use strict'
-const createResolveFromNpm = require('@pnpm/npm-resolver').default
+const createResolveFromNpm = require('@pnpm/resolving.npm-resolver').default
 
 const resolveFromNpm = createResolveFromNpm({
   store: '.store',

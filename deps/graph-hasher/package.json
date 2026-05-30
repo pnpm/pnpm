@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-hasher",
-  "version": "1100.1.1",
+  "version": "1100.2.2",
   "description": "Calculates the state of a dependency",
   "keywords": [
     "pnpm",
@@ -31,9 +31,9 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",

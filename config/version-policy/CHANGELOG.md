@@ -1,5 +1,43 @@
 # @pnpm/config.version-policy
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+
+## 1100.1.0
+
+### Minor Changes
+
+- b6e2c8c: Make `pnpm self-update` respect `minimumReleaseAge` (and `minimumReleaseAgeExclude`) when resolving which pnpm version to install.
+
+  When the `latest` dist-tag points to a version newer than the configured age threshold, `self-update` now selects the newest mature version instead unless excluded by `minimumReleaseAgeExclude`.
+
+  Also makes `dlx` and `outdated` surface invalid `minimumReleaseAgeExclude` patterns under the same `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` error code already used by `install`, instead of leaking the internal `ERR_PNPM_INVALID_VERSION_UNION` / `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` codes.
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.matcher@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

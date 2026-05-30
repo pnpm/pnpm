@@ -1,5 +1,32 @@
 # @pnpm/workspace.read-manifest
 
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+
+## 1100.0.2
+
+### Patch Changes
+
+- f543b77: Reject `null` named catalogs in workspace manifests with `InvalidWorkspaceManifestError` instead of crashing with a raw `TypeError`.
+
 ## 1100.0.1
 
 ### Patch Changes

@@ -16,6 +16,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { StoreIndex } from '@pnpm/store.index'
 import { DEPENDENCIES_FIELDS, type DependenciesField, type Finder, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
+import { pathAbsolute } from 'path-absolute'
 import { realpathMissing } from 'realpath-missing'
 import { resolveLinkTarget } from 'resolve-link-target'
 
@@ -50,7 +51,7 @@ export async function buildDependenciesTree (
   if (!maybeOpts?.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
   }
-  const modulesDir = await realpathMissing(path.join(maybeOpts.lockfileDir, maybeOpts.modulesDir ?? 'node_modules'))
+  const modulesDir = await realpathMissing(pathAbsolute(maybeOpts.modulesDir ?? 'node_modules', maybeOpts.lockfileDir))
   const modules = await readModulesManifest(modulesDir)
   const registries = normalizeRegistries({
     ...maybeOpts?.registries,

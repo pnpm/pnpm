@@ -10,8 +10,13 @@ import type {
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   DirectoryResolution,
+  LatestInfo,
+  LatestQuery,
   PkgResolutionId,
   PreferredVersions,
+  Resolution,
+  ResolutionPolicyViolation,
+  ResolveOptions,
   ResolveResult,
   TarballResolution,
   WantedDependency,
@@ -55,6 +60,7 @@ import {
 } from './pickPackage.js'
 import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
@@ -64,52 +70,45 @@ export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta
   registry: string
-  immatureVersion?: string
-  publishedBy?: Date
 }
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
-  public readonly immatureVersion?: string
   constructor (opts: NoMatchingVersionErrorOptions) {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
       : opts.wantedDependency.bareSpecifier!
-    let errorMessage: string
-    if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
-      const time = new Date(opts.packageMeta.time[opts.immatureVersion])
-      const releaseAgeText = formatTimeAgo(time)
-      const pkgName = opts.wantedDependency.alias ?? opts.packageMeta.name
-      errorMessage = `Version ${opts.immatureVersion} (released ${releaseAgeText}) of ${pkgName} does not meet the minimumReleaseAge constraint`
-    } else {
-      errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
-    }
-    super(opts.publishedBy ? 'NO_MATURE_MATCHING_VERSION' : 'NO_MATCHING_VERSION', errorMessage)
+    super('NO_MATCHING_VERSION', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
     this.packageMeta = opts.packageMeta
-    this.immatureVersion = opts.immatureVersion
   }
 }
 
-function formatTimeAgo (date: Date): string {
+export function formatTimeAgo (date: Date): string | null {
+  const ts = date.getTime()
+  if (isNaN(ts)) {
+    return null
+  }
   const now = Date.now()
-  const diffMs = now - date.getTime()
+  const diffMs = now - ts
 
-  // Handle clock skew (future dates) and very recent releases (< 1 minute)
-  if (diffMs < 60 * 1000) {
-    return 'just now'
+  // Handle clock skew (future dates)
+  if (diffMs < 0) {
+    return null
   }
 
-  const diffMinutes = Math.floor(diffMs / (60 * 1000))
-  const diffHours = Math.floor(diffMs / (60 * 60 * 1000))
-  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+  const diffMonth = Math.floor(diffDay / 30)
+  const diffYear = Math.floor(diffDay / 365)
 
-  if (diffHours >= 48) {
-    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
-  }
-  if (diffMinutes >= 90) {
-    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
-  }
-  return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+  if (diffYear > 0) return `${diffYear} year${diffYear === 1 ? '' : 's'} ago`
+  if (diffMonth > 0) return `${diffMonth} month${diffMonth === 1 ? '' : 's'} ago`
+  if (diffDay > 0) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`
+  if (diffHour > 0) return `${diffHour} hour${diffHour === 1 ? '' : 's'} ago`
+  if (diffMin > 0) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`
+  return 'a few seconds ago'
 }
 
 export {
@@ -125,6 +124,11 @@ export {
   RegistryResponseError,
   workspacePrefToNpm,
 }
+export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } from './createNpmResolutionVerifier.js'
+export {
+  MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  TRUST_DOWNGRADE_VIOLATION_CODE,
+} from './violationCodes.js'
 export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export interface ResolverFactoryOptions {
@@ -140,7 +144,6 @@ export interface ResolverFactoryOptions {
   namedRegistries?: Record<string, string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
-  strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
   fetchWarnTimeoutMs?: number
   /** Pre-populated metadata cache. When provided, the resolver uses this
@@ -183,11 +186,24 @@ export type NpmResolver = (
   opts: ResolveFromNpmOptions
 ) => Promise<NpmResolveResult | JsrResolveResult | NamedRegistryResolveResult | WorkspaceResolveResult | null>
 
+export type ResolveLatestFromNpmStyle = (
+  query: LatestQuery,
+  opts: ResolveOptions
+) => Promise<LatestInfo | undefined>
+
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): { resolveFromNpm: NpmResolver, resolveFromJsr: NpmResolver, resolveFromNamedRegistry: NpmResolver, clearCache: () => void } {
+): {
+  resolveFromNpm: NpmResolver
+  resolveFromJsr: NpmResolver
+  resolveFromNamedRegistry: NpmResolver
+  resolveLatestFromNpm: ResolveLatestFromNpmStyle
+  resolveLatestFromJsr: ResolveLatestFromNpmStyle
+  resolveLatestFromNamedRegistry: ResolveLatestFromNpmStyle
+  clearCache: () => void
+} {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -200,10 +216,15 @@ export function createNpmResolver (
   const fetch = pMemoize(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
     cacheKey: (...args) => JSON.stringify(args),
   })
-  const metaCache: PackageMetaCache = opts.metaCache ?? new LRUCache<string, PackageMeta>({
-    max: 10000,
-    ttl: 120 * 1000, // 2 minutes
-  })
+  // Track ownership so `clearCache()` below only wipes the in-memory
+  // cache when this factory created it. A caller-supplied
+  // `opts.metaCache` may be shared with another resolver instance (or
+  // outlive this resolver entirely — e.g. a long-lived agent process
+  // that keeps one cache across many install requests); clearing it
+  // here would silently evict entries that other consumers are still
+  // using.
+  const ownsMetaCache = opts.metaCache == null
+  const metaCache: PackageMetaCache = opts.metaCache ?? createDefaultPackageMetaCache()
   // Create peek function if storeDir is provided
   const storeDir = opts.storeDir
   const peekLockerForPeek = new Map<string, Promise<DependencyManifest | undefined>>()
@@ -244,7 +265,6 @@ export function createNpmResolver (
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
-      strictPublishedByCheck: opts.strictPublishedByCheck,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
     }),
     registries: opts.registries,
@@ -253,16 +273,89 @@ export function createNpmResolver (
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
   }
+  const boundResolveFromNpm = resolveNpm.bind(null, ctx)
+  const boundResolveFromJsr = resolveJsr.bind(null, ctx)
+  const boundResolveFromNamedRegistry = resolveFromNamedRegistry.bind(null, ctx)
+  const defaultRegistry = opts.registries.default
   return {
-    resolveFromNpm: resolveNpm.bind(null, ctx),
-    resolveFromJsr: resolveJsr.bind(null, ctx),
-    resolveFromNamedRegistry: resolveFromNamedRegistry.bind(null, ctx),
+    resolveFromNpm: boundResolveFromNpm,
+    resolveFromJsr: boundResolveFromJsr,
+    resolveFromNamedRegistry: boundResolveFromNamedRegistry,
+    resolveLatestFromNpm: createResolveLatest(boundResolveFromNpm,
+      (query) => isNpmSpec(query, defaultRegistry)),
+    resolveLatestFromJsr: createResolveLatest(boundResolveFromJsr, isJsrSpec),
+    resolveLatestFromNamedRegistry: createResolveLatest(boundResolveFromNamedRegistry,
+      (query) => isNamedRegistrySpec(query, ctx.namedRegistryNames)),
     clearCache: () => {
-      if ('clear' in metaCache && typeof metaCache.clear === 'function') {
+      if (ownsMetaCache && 'clear' in metaCache && typeof metaCache.clear === 'function') {
         metaCache.clear()
       }
       pMemoizeClear(fetch)
     },
+  }
+}
+
+function isNpmSpec (query: LatestQuery, defaultRegistry: string): boolean {
+  const { alias, bareSpecifier } = query.wantedDependency
+  if (!bareSpecifier) return alias != null
+  return parseBareSpecifier(bareSpecifier, alias, 'latest', defaultRegistry) != null
+}
+
+function isJsrSpec (query: LatestQuery): boolean {
+  if (!query.wantedDependency.bareSpecifier?.startsWith('jsr:')) return false
+  return parseJsrSpecifierToRegistryPackageSpec(
+    query.wantedDependency.bareSpecifier,
+    query.wantedDependency.alias,
+    'latest'
+  ) != null
+}
+
+function isNamedRegistrySpec (
+  query: LatestQuery,
+  knownRegistryNames: ReadonlySet<string>
+): boolean {
+  if (!query.wantedDependency.bareSpecifier) return false
+  try {
+    return parseNamedRegistrySpecifierToRegistryPackageSpec(
+      query.wantedDependency.bareSpecifier,
+      knownRegistryNames,
+      query.wantedDependency.alias,
+      'latest'
+    ) != null
+  } catch {
+    return false
+  }
+}
+
+function createResolveLatest (
+  resolve: NpmResolver,
+  matches: (query: LatestQuery) => boolean
+) {
+  return async (query: LatestQuery, opts: ResolveOptions): Promise<LatestInfo | undefined> => {
+    if (!matches(query)) return undefined
+    // Always pass the manifest's bareSpecifier so protocol-prefixed specs
+    // (`jsr:@scope/pkg@^1.0.0`, `gh:owner/repo@^1.0.0`) still match their
+    // resolver. In --compatible mode that range drives the pick; otherwise
+    // `update: 'latest'` tells the resolver to ignore the range and take
+    // the absolute newest.
+    const bareSpecifier = query.wantedDependency.bareSpecifier ?? 'latest'
+    const resolveOpts = query.compatible ? opts : { ...opts, update: 'latest' as const }
+    try {
+      const result = await resolve(
+        { alias: query.wantedDependency.alias, bareSpecifier },
+        resolveOpts
+      )
+      // Policy-blocked: handled but no latest to surface.
+      if (result?.policyViolation?.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
+        return {}
+      }
+      return { latestManifest: result?.manifest }
+    } catch (err) {
+      if (opts.publishedBy && (err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION') {
+        return {}
+      }
+      throw err
+    }
   }
 }
 
@@ -295,6 +388,7 @@ export type ResolveFromNpmOptions = {
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   update?: false | 'compatible' | 'latest'
+  updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
@@ -315,6 +409,7 @@ async function resolveNpm (
       name?: string
       version?: string
       resolution: TarballResolution
+      publishedAt?: string
     }
   }
 ): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
@@ -349,7 +444,15 @@ async function resolveNpm (
   // Fast path: if we have a current resolution with integrity, try to peek the manifest from the store.
   // This avoids the expensive metadata fetch from the registry.
   // We do this AFTER ensuring the spec is valid for this resolver to avoids hijacking other resolvers.
-  if (ctx.peekManifestFromStore && opts.currentPkg?.resolution && !opts.update) {
+  // If publishedBy is set (resolutionMode=time-based or minimumReleaseAge is configured), we only take
+  // the fast path when publishedAt is already known from the lockfile's `time:` block; otherwise we
+  // fall through to a registry fetch so the cutoff isn't computed from missing data.
+  if (
+    ctx.peekManifestFromStore &&
+    opts.currentPkg?.resolution &&
+    !opts.update &&
+    (opts.publishedBy == null || opts.currentPkg.publishedAt != null)
+  ) {
     const currentResolution = opts.currentPkg.resolution
     // Only use this optimization for tarball resolutions with integrity (npm packages)
     if ('tarball' in currentResolution && currentResolution.integrity) {
@@ -369,7 +472,20 @@ async function resolveNpm (
             manifest,
             resolution: currentResolution as TarballResolution,
             resolvedVia: 'npm-registry',
-            publishedAt: undefined, // Don't have this without metadata
+            publishedAt: opts.currentPkg.publishedAt,
+            // Loose-mode bypass: a lockfile entry whose publishedAt sits
+            // after the maturity cutoff would have been rejected at
+            // resolver time, but the peek path skips the maturity check.
+            // Report inline so the deps-resolver aggregator surfaces it
+            // to the install command.
+            policyViolation: detectMinReleaseAgeViolation({
+              name: manifest.name,
+              version: manifest.version,
+              publishedAt: opts.currentPkg.publishedAt,
+              resolution: currentResolution,
+              publishedBy: opts.publishedBy,
+              publishedByExclude: opts.publishedByExclude,
+            }),
           }
         }
       }
@@ -388,6 +504,7 @@ async function resolveNpm (
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
       includeLatestTag: opts.update === 'latest',
+      updateChecksums: opts.updateChecksums,
       optional: wantedDependency.optional,
     })
   } catch (err: any) { // eslint-disable-line
@@ -429,22 +546,6 @@ async function resolveNpm (
       }
     }
 
-    if (opts.publishedBy) {
-      const immatureVersion = pickVersionByVersionRange({
-        meta,
-        versionRange: spec.fetchSpec,
-        preferredVersionSelectors: opts.preferredVersions?.[spec.name],
-      })
-      if (immatureVersion) {
-        throw new NoMatchingVersionError({
-          wantedDependency,
-          packageMeta: meta,
-          registry,
-          immatureVersion,
-          publishedBy: opts.publishedBy,
-        })
-      }
-    }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   } else if (opts.trustPolicy === 'no-downgrade') {
     failIfTrustDowngraded(meta, pickedPackage.version, opts)
@@ -498,14 +599,23 @@ async function resolveNpm (
       defaultPinnedVersion: opts.pinnedVersion,
     })
   }
+  const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id,
     latest: meta['dist-tags'].latest,
     manifest: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
-    publishedAt: meta.time?.[pickedPackage.version],
+    publishedAt,
     normalizedBareSpecifier,
+    policyViolation: detectMinReleaseAgeViolation({
+      name: pickedPackage.name,
+      version: pickedPackage.version,
+      publishedAt,
+      resolution,
+      publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
+    }),
   }
 }
 
@@ -618,6 +728,7 @@ async function pickFromSimpleRegistry (
   manifest: DependencyManifest
   resolution: TarballResolution
   publishedAt?: string
+  policyViolation?: ResolutionPolicyViolation
 }> {
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   const { meta, pickedPackage } = await ctx.pickPackage(spec, {
@@ -629,20 +740,31 @@ async function pickFromSimpleRegistry (
     preferredVersionSelectors: opts.preferredVersions?.[spec.name],
     registry,
     includeLatestTag: opts.update === 'latest',
+    updateChecksums: opts.updateChecksums,
     optional: wantedDependency.optional,
   })
   if (pickedPackage == null) {
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
+  const resolution = {
+    integrity: getIntegrity(pickedPackage.dist),
+    tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
+  }
+  const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: meta['dist-tags'].latest,
     manifest: pickedPackage,
-    resolution: {
-      integrity: getIntegrity(pickedPackage.dist),
-      tarball: normalizeRegistryUrl(pickedPackage.dist.tarball),
-    },
-    publishedAt: meta.time?.[pickedPackage.version],
+    resolution,
+    publishedAt,
+    policyViolation: detectMinReleaseAgeViolation({
+      name: pickedPackage.name,
+      version: pickedPackage.version,
+      publishedAt,
+      resolution,
+      publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
+    }),
   }
 }
 
@@ -893,6 +1015,44 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
   }
 }
 
+/**
+ * Inline minimumReleaseAge detection: returns a violation entry when the
+ * picked version's publish timestamp is past the policy cutoff (and
+ * isn't covered by `publishedByExclude`). The resolver already has the
+ * timestamp in hand, so reporting inline saves the install layer from
+ * re-walking the resolved tree and re-fetching the same metadata. The
+ * deps-resolver aggregates the per-resolve `policyViolation` fields into
+ * a single set the install command reacts to.
+ *
+ * Returns `undefined` for resolutions outside the policy — no policy
+ * active, version excluded by pattern, timestamp missing or malformed,
+ * or version mature. Specific-version exclusions (`pkg@1.0.0`) and
+ * full-name exclusions (`pkg`) are both honored so an entry already on
+ * the user's exclude list isn't re-announced every install.
+ */
+function detectMinReleaseAgeViolation (args: {
+  name: string
+  version: string
+  publishedAt: string | undefined
+  resolution: Resolution
+  publishedBy: Date | undefined
+  publishedByExclude: PackageVersionPolicy | undefined
+}): ResolutionPolicyViolation | undefined {
+  if (!args.publishedBy || !args.publishedAt) return undefined
+  const excludeResult = args.publishedByExclude?.(args.name)
+  if (excludeResult === true) return undefined
+  if (Array.isArray(excludeResult) && excludeResult.includes(args.version)) return undefined
+  const ts = new Date(args.publishedAt).getTime()
+  if (Number.isNaN(ts) || ts <= args.publishedBy.getTime()) return undefined
+  return {
+    name: args.name,
+    version: args.version,
+    resolution: args.resolution,
+    code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    reason: `was published at ${new Date(ts).toISOString()}, within the minimumReleaseAge cutoff (${args.publishedBy.toISOString()})`,
+  }
+}
+
 function getIntegrity (dist: {
   integrity?: string
   shasum: string
@@ -923,4 +1083,18 @@ function createVersionSpec (version: string, pinnedVersion?: PinnedVersion): str
     default:
       throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
   }
+}
+
+/**
+ * Construct the LRU `PackageMetaCache` instance the resolver uses by
+ * default. Exported so the install layer can build one cache and hand
+ * the same reference to both the resolver and the verifier — the
+ * verifier's fast path reads from it when the resolver has already
+ * fetched a packument during the same install.
+ */
+export function createDefaultPackageMetaCache (): PackageMetaCache {
+  return new LRUCache<string, PackageMeta>({
+    max: 10000,
+    ttl: 120 * 1000, // 2 minutes
+  })
 }

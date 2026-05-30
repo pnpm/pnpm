@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.read-modules-dir",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Finds all direct packages in node_modules",
   "keywords": [
     "pnpm",

@@ -1,0 +1,37 @@
+---
+source: pacquet/crates/cli/tests/install.rs
+expression: "(workspace_folders, store_files)"
+---
+(
+    [
+        "node_modules",
+        "node_modules/.bin",
+        "node_modules/.pnpm",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin-parent/node_modules/.bin",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin/node_modules",
+        "node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin/node_modules/.bin",
+        "node_modules/.pnpm/node_modules",
+        "node_modules/.pnpm/node_modules/@pnpm.e2e",
+        "node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin",
+        "node_modules/@pnpm.e2e",
+        "node_modules/@pnpm.e2e/hello-world-js-bin-parent",
+    ],
+    [
+        "v11/files/02/f9d952341eade675d0a8f5da14d4277fded62f937242292c2cf5f1bb0eda101b5f803098d64e2a138f4bfe4cdf326cfaf8f6b4015476ab86d25df03ddec731-exec",
+        "v11/files/68/b837b4fd7982b081521e51b14a167ccdb272b3c499202449d07d48d78a2fa7bb8652d3a894bb06ac6e3995e5126ee3470f73b5775584940751fce8be468405",
+        "v11/files/76/7494fa050e61986b11b9d8af9a97faec0065fb71983265000e596f1b9cd8c35bda0ba18b643064ffc3e08da7da1afc42f6548f7939a91526f5780abbe1af10",
+        "v11/files/93/e31fcd9144a604f87d04fa8fb4a058202c579df17fd2b21301e17ac0ae4f3e2bae90ced7ae71b71218bd4a789e355ef7b8bd8899cdb785250071b229503b2e",
+        "v11/files/bf/0c878f2a4f2ec6f231bb2d414547efb15eb22a673815cba36acfd89633cd4c8affcbdc9378e90ad4d8fc654de921d1f67444be94e6a2f81bda9330be60be93-exec",
+        "v11/index.db",
+    ],
+)

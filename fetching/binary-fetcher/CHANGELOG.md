@@ -1,5 +1,58 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/fetching.fetcher-base@1100.1.6
+
+## 1101.0.7
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.5
+- @pnpm/worker@1100.1.7
+
+## 1101.0.6
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.4
+- @pnpm/worker@1100.1.6
+
+## 1101.0.5
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.3
+- @pnpm/worker@1100.1.4
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/worker@1100.1.3
+
+## 1101.0.3
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.2
+- @pnpm/worker@1100.1.2
+
+## 1101.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/worker@1100.1.1
+
 ## 1101.0.1
 
 ### Patch Changes

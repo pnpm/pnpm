@@ -1,0 +1,27 @@
+[package]
+name                 = "pacquet-fs"
+description          = "Filesystem utility functions used by pacquet"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+derive_more = { workspace = true }
+miette      = { workspace = true }
+pathdiff    = { workspace = true }
+
+[dev-dependencies]
+sha2     = { workspace = true }
+tempfile = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+dunce    = { workspace = true }
+junction = { workspace = true }
+
+[lints]
+workspace = true

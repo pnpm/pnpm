@@ -3,7 +3,7 @@ import path from 'node:path'
 import { test } from '@jest/globals'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { RegistryConfig } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
@@ -60,27 +60,6 @@ test('installing a package that need authentication, using password', async () =
 
   const configByUri: Record<string, RegistryConfig> = {
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { creds: { basicAuth: { username: 'foo', password: 'bar' } } },
-  }
-  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
-    configByUri,
-  }, {
-    configByUri,
-  }))
-
-  project.has('@pnpm.e2e/needs-auth')
-})
-
-test('a package that need authentication, legacy way', async () => {
-  const project = prepareEmpty()
-
-  await addUser({
-    email: 'foo@bar.com',
-    password: 'bar',
-    username: 'foo',
-  })
-
-  const configByUri: Record<string, RegistryConfig> = {
-    '': { creds: { basicAuth: { username: 'foo', password: 'bar' } } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
     configByUri,

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.commands",
-  "version": "1101.1.2",
+  "version": "1101.3.0",
   "description": "pnpm commands for audit, licenses, and sbom",
   "keywords": [
     "pnpm",
@@ -35,10 +35,12 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@inquirer/prompts": "catalog:",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -46,6 +48,7 @@
     "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.compliance.license-scanner": "workspace:*",
     "@pnpm/deps.compliance.sbom": "workspace:*",
+    "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
@@ -59,7 +62,6 @@
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
-    "enquirer": "catalog:",
     "memoize": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
@@ -74,10 +76,10 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",

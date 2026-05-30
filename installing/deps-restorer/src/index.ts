@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules } from '@pnpm/building.during-install'
-import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -22,7 +22,7 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -176,6 +176,7 @@ export interface HeadlessOptions {
   pendingBuilds: string[]
   resolveSymlinksInInjectedDirs?: boolean
   skipped: Set<DepPath>
+  skipRuntimes?: boolean
   enableModulesDir?: boolean
   virtualStoreOnly?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
@@ -216,11 +217,15 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   const depsStateCache: DepsStateCache = {}
-  const relativeModulesDir = opts.modulesDir ?? 'node_modules'
-  const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
+  // `modulesDir` is conventionally a path relative to `lockfileDir`, but
+  // some callers pass it as an absolute path. Resolve via `pathAbsolute`
+  // so both forms work — `path.join` on Windows would otherwise produce a
+  // doubled prefix when the second argument is also absolute.
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const rootModulesDir = await realpathMissing(pathAbsolute(modulesDir, lockfileDir))
   const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
   const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), lockfileDir)
   const hoistedModulesDir = path.join(
     opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
     'node_modules'
@@ -255,6 +260,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     include: opts.include,
     registries: opts.registries,
     skipped,
+    skipRuntimes: opts.skipRuntimes,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
@@ -590,7 +596,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (opts.modulesFile?.ignoredBuilds?.size) {
       ignoredBuilds ??= new Set()
       for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
-        if (filteredLockfile.packages?.[ignoredBuild]) {
+        if (filteredLockfile.packages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, allowBuild)) {
           ignoredBuilds.add(ignoredBuild)
         }
       }
@@ -672,6 +678,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       allowBuilds: opts.allowBuilds,
+      virtualStoreOnly: opts.virtualStoreOnly,
     })
     const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {
@@ -902,6 +909,14 @@ async function linkAllPkgs (
     needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
     await fs.writeFile(needsBuildMarkerSrc, '')
   }
+  // Resolved `engines.runtime` Node version (when present) anchors
+  // the side-effects-cache key prefix to the script-runner Node, not
+  // pnpm's own `process.version`. The restorer's `depGraph` is keyed
+  // by install directory, so scanning `Object.keys(opts.depGraph)`
+  // would never see a `node@runtime:<version>` entry — pull the
+  // depPath off each node instead. Computed once outside the
+  // per-node loop.
+  const nodeVersion = findRuntimeNodeVersion(depNodes.map((node) => node.depPath))
   await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
@@ -921,6 +936,7 @@ async function linkAllPkgs (
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
+            nodeVersion,
           })
         }
       }

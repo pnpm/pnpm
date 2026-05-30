@@ -1,6 +1,6 @@
 {
   "name": "pnpm-agent",
-  "version": "0.0.3",
+  "version": "0.0.20",
   "description": "pnpm agent server for server-side resolution and store-aware downloads",
   "keywords": [
     "pnpm",
@@ -52,7 +52,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/agent.client": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "cross-env": "catalog:",
     "pnpm-agent": "workspace:*"
   },

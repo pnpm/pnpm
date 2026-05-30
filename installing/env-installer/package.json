@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.env-installer",
-  "version": "1101.0.0",
+  "version": "1101.1.4",
   "description": "Installer for configurational dependencies",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -55,6 +56,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "get-npm-tarball-url": "catalog:",
+    "semver": "catalog:",
     "symlink-dir": "catalog:"
   },
   "peerDependencies": {
@@ -65,8 +67,9 @@
     "@jest/globals": "catalog:",
     "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",
+    "@types/semver": "catalog:",
     "load-json-file": "catalog:",
     "read-yaml-file": "catalog:"
   },

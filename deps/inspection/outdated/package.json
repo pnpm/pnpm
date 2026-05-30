@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.outdated",
-  "version": "1100.0.5",
+  "version": "1100.1.4",
   "description": "Check for outdated packages",
   "keywords": [
     "pnpm",
@@ -36,7 +36,6 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
-    "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.path": "workspace:*",

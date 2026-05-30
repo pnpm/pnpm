@@ -1,3 +1,4 @@
+import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { docsUrl } from '@pnpm/cli.utils'
 import { PnpmError } from '@pnpm/error'
 import { renderHelp } from 'render-help'
@@ -6,7 +7,7 @@ import * as dlx from './dlx.js'
 
 export const commandNames = ['create']
 
-export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): Promise<{ exitCode: number } | string> {
+export async function handler (_opts: dlx.DlxCommandOptions, params: string[], commands?: CommandHandlerMap): Promise<{ exitCode: number } | string> {
   // If the first argument is --help or -h, we show the help message.
   if (params[0] === '--help' || params[0] === '-h') {
     return help()
@@ -23,7 +24,7 @@ export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): 
   }
 
   const createPackageName = convertToCreateName(packageName)
-  return dlx.handler(_opts, [createPackageName, ...packageArgs])
+  return dlx.handler(_opts, [createPackageName, ...packageArgs], commands)
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {

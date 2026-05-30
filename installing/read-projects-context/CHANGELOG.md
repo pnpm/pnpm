@@ -1,5 +1,82 @@
 # @pnpm/read-projects-context
 
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/installing.modules-yaml@1100.0.6
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/config.normalize-registries@1100.0.4
+  - @pnpm/installing.modules-yaml@1100.0.5
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/config.normalize-registries@1100.0.3
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.7
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.6
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/config.normalize-registries@1100.0.2
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+
+## 1100.0.4
+
+### Patch Changes
+
+- 685a369: Fix `ENOENT` symlink failure when `pnpm add -g` triggers the approve-builds prompt. The global add flow used to forward an absolute `modulesDir` (`<installDir>/node_modules`) into the install run by `approve-builds`. The install layer treated `modulesDir` as a path relative to `lockfileDir` and joined it again, producing a doubled path on Windows because `path.join` does not collapse an embedded absolute path. The hoist step then tried to `mkdir` and symlink under `<installDir>\<installDir>\node_modules\.pnpm\node_modules\...` and failed with `ENOENT` [#11403](https://github.com/pnpm/pnpm/issues/11403).
+
 ## 1100.0.3
 
 ### Patch Changes

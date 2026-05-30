@@ -9,6 +9,7 @@ import { writeProjectManifest } from '@pnpm/workspace.project-manifest-writer'
 import detectIndent from 'detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
+import pLimit from 'p-limit'
 import { readYamlFile } from 'read-yaml-file'
 
 import {
@@ -18,15 +19,19 @@ import {
 
 export type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
+const limitProjectManifestReads = pLimit(4)
+
 export async function safeReadProjectManifestOnly (projectDir: string): Promise<ProjectManifest | null> {
-  try {
-    return await readProjectManifestOnly(projectDir)
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
-      return null
+  return limitProjectManifestReads(async () => {
+    try {
+      return await readProjectManifestOnly(projectDir)
+    } catch (err: any) { // eslint-disable-line
+      if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
+        return null
+      }
+      throw err
     }
-    throw err
-  }
+  })
 }
 
 export async function readProjectManifest (projectDir: string): Promise<{
@@ -290,7 +295,7 @@ function normalize (manifest: ProjectManifest): ProjectManifest {
   for (const key in manifest) {
     if (Object.hasOwn(manifest, key)) {
       const value = manifest[key as keyof ProjectManifest]
-      if (typeof value !== 'object' || !dependencyKeys.has(key)) {
+      if (typeof value !== 'object' || value === null || !dependencyKeys.has(key)) {
         result[key] = structuredClone(value)
       } else {
         const keys = Object.keys(value)

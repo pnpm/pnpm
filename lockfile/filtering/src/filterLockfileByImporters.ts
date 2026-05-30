@@ -18,14 +18,20 @@ export function filterLockfileByImporters (
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
     skipped: Set<DepPath>
+    skipRuntimes?: boolean
     failOnMissingDependencies: boolean
   }
 ): LockfileObject {
+  const importers = { ...lockfile.importers }
+  for (const importerId of importerIds) {
+    importers[importerId] = filterImporter(lockfile.importers[importerId], opts.include, { skipRuntimes: opts.skipRuntimes })
+  }
+
   const packages = {} as PackageSnapshots
   if (lockfile.packages != null) {
     pkgAllDeps(
       lockfileWalker(
-        lockfile,
+        { ...lockfile, importers },
         importerIds,
         { include: opts.include, skipped: opts.skipped }
       ).step,
@@ -34,11 +40,6 @@ export function filterLockfileByImporters (
         failOnMissingDependencies: opts.failOnMissingDependencies,
       }
     )
-  }
-
-  const importers = { ...lockfile.importers }
-  for (const importerId of importerIds) {
-    importers[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
   }
 
   return {

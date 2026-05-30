@@ -1,10 +1,11 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { afterAll, expect, test } from '@jest/globals'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { type LogBase, streamParser } from '@pnpm/logger'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -20,6 +21,28 @@ function createOpts () {
     store: storeController,
     storeDir,
   }
+}
+
+interface InstallingConfigDepsEvent { status: string, deps?: Array<{ name: string, version: string }> }
+
+// `streamParser` is a `split2` Transform stream that buffers writes until the
+// first 'data' listener attaches, then drains the whole buffer into it.
+// Subscribing per-test would therefore replay events from earlier tests into
+// the current test's listener. Subscribe once at module load and let each test
+// take only the events accumulated since its last drain.
+const accumulatedConfigDepEvents: InstallingConfigDepsEvent[] = []
+const configDepsListener = (msg: LogBase): void => {
+  const log = msg as { name?: string, status?: string, deps?: Array<{ name: string, version: string }> }
+  if (log.name !== 'pnpm:installing-config-deps' || log.status == null) return
+  accumulatedConfigDepEvents.push({ status: log.status, deps: log.deps })
+}
+streamParser.on('data', configDepsListener)
+afterAll(() => {
+  streamParser.removeListener('data', configDepsListener)
+})
+
+function takeConfigDepEvents (): InstallingConfigDepsEvent[] {
+  return accumulatedConfigDepEvents.splice(0, accumulatedConfigDepEvents.length)
 }
 
 test('resolves and installs config dep when no env lockfile exists', async () => {
@@ -220,6 +243,29 @@ test('fails with frozenLockfile when new-format deps need resolution', async () 
   await expect(resolveAndInstallConfigDeps({
     '@pnpm.e2e/foo': '100.0.0',
   }, { ...opts, frozenLockfile: true })).rejects.toThrow('Cannot update configDependencies with "frozen-lockfile"')
+})
+
+test('emits installing-config-deps events only when work is needed', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  takeConfigDepEvents()
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+  }, opts)
+  const firstRunEvents = takeConfigDepEvents()
+
+  expect(firstRunEvents.map(e => e.status)).toEqual(['started', 'done'])
+  expect(firstRunEvents.find(e => e.status === 'done')?.deps).toEqual([
+    { name: '@pnpm.e2e/foo', version: '100.0.0' },
+  ])
+
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foo': '100.0.0',
+  }, opts)
+  const secondRunEvents = takeConfigDepEvents()
+
+  expect(secondRunEvents).toStrictEqual([])
 })
 
 test('succeeds with frozenLockfile when env lockfile is up-to-date', async () => {

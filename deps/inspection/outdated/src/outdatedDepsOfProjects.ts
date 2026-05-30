@@ -2,6 +2,8 @@ import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
+import { getPublishedByPolicy } from '@pnpm/config.version-policy'
+import { type ClientOptions, createResolver } from '@pnpm/installing.client'
 import {
   readCurrentLockfile,
   readWantedLockfile,
@@ -10,16 +12,28 @@ import type {
   IncludedDependencies,
   ProjectManifest,
   ProjectRootDir,
+  RegistryConfig,
 } from '@pnpm/types'
 import { unnest } from 'ramda'
 
-import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter.js'
 import { outdated, type OutdatedPackage } from './outdated.js'
+
+export type OutdatedDepsOfProjectsOptions = Omit<ClientOptions, 'configByUri' | 'minimumReleaseAgeExclude' | 'storeIndex'>
+& {
+  dir: string
+  lockfileDir?: string
+  configByUri: Record<string, RegistryConfig>
+  fullMetadata?: boolean
+  minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeIgnoreMissingTime?: boolean
+  minimumReleaseAgeStrict?: boolean
+}
 
 export async function outdatedDepsOfProjects (
   pkgs: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>,
   args: string[],
-  opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
+  opts: OutdatedDepsOfProjectsOptions & {
     catalogs?: Catalogs
     compatible?: boolean
     ignoreDependencies?: string[]
@@ -27,7 +41,7 @@ export async function outdatedDepsOfProjects (
     minimumReleaseAge?: number
     minimumReleaseAgeExclude?: string[]
     trustPolicy?: 'no-downgrade' | 'off'
-  } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'>>
+  }
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
     return unnest(await Promise.all(
@@ -40,20 +54,26 @@ export async function outdatedDepsOfProjects (
   const internalPnpmDir = path.join(path.join(lockfileDir, 'node_modules/.pnpm'))
   const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
-  const getLatestManifest = createManifestGetter({
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+
+  const { resolveLatest } = createResolver({
     ...opts,
+    configByUri: opts.configByUri,
+    filterMetadata: false,
     fullMetadata: opts.fullMetadata === true || Boolean(opts.minimumReleaseAge) || opts.trustPolicy === 'no-downgrade',
+    ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     lockfileDir,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
   })
+
   return Promise.all(pkgs.map(async ({ rootDir, manifest }): Promise<OutdatedPackage[]> => {
     const match = (args.length > 0) && createMatcher(args) || undefined
     return outdated({
       catalogs: opts.catalogs,
       compatible: opts.compatible,
       currentLockfile,
-      getLatestManifest,
+      resolveLatest,
       ignoreDependencies: opts.ignoreDependencies,
       include: opts.include,
       lockfileDir,
@@ -62,7 +82,8 @@ export async function outdatedDepsOfProjects (
       minimumReleaseAge: opts.minimumReleaseAge,
       minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       prefix: rootDir,
-      registries: opts.registries,
+      publishedBy,
+      publishedByExclude,
       wantedLockfile,
       trustPolicy: opts.trustPolicy,
     })

@@ -1,5 +1,81 @@
 # @pnpm/lockfile-utils
 
+## 1100.0.10
+
+### Patch Changes
+
+- e55f4b5: Reject `pnpm-lock.yaml` entries whose remote tarball `resolution:` block is missing the `integrity` field. Previously the worker that extracts a downloaded tarball skipped hash verification when no integrity was supplied and minted a fresh one from the unverified bytes, so an attacker who could both alter the lockfile (e.g. via a pull request that strips `integrity:`) and serve modified content at the referenced tarball URL could install a tampered package without any error — including under `--frozen-lockfile`. pnpm now fails closed at lockfile-read time with `ERR_PNPM_MISSING_TARBALL_INTEGRITY`. Git-hosted tarballs (`gitHosted: true` or a URL on codeload.github.com / bitbucket.org / gitlab.com) and `file:` tarballs are exempt — the commit SHA in a git-host URL and the user-controlled local path already anchor the bytes.
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/resolving.resolver-base@1100.3.1
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/deps.path@1100.0.4
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/lockfile.types@1100.0.6
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/hooks.types@1100.0.6
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.3
+
+## 1100.0.6
+
+### Patch Changes
+
+- cfa271b: Restored the heuristic that preserves tarball URLs in `pnpm-lock.yaml` when they cannot be derived from name+version+registry, even with the default `lockfileIncludeTarballUrl: false`. Without this, `pnpm install --frozen-lockfile` from an empty store fails with `ERR_PNPM_FETCH_404` for packages on registries that serve tarballs from a non-standard path — most notably GitHub Packages (`https://npm.pkg.github.com/download/<scope>/<name>/<version>/<hash>`) and JSR. `lockfileIncludeTarballUrl: true` continues to force the URL into the lockfile for every package [#11276](https://github.com/pnpm/pnpm/issues/11276).
+
+## 1100.0.5
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/hooks.types@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- 6b891a5: Fix `ERR_PNPM_FETCH_404` when installing a project whose lockfile depends on a `file:` tarball. The previous behavior dropped the `tarball` field from `file:` and git-hosted resolutions when `lockfile-include-tarball-url=false` (the default), even though those URLs cannot be reconstructed from the package name, version, and registry [#11407](https://github.com/pnpm/pnpm/issues/11407).
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.pick-fetcher@1100.0.4
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+
 ## 1100.0.3
 
 ### Patch Changes

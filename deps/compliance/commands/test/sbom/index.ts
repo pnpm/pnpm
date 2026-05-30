@@ -203,6 +203,61 @@ test('pnpm sbom invalid --sbom-type throws', async () => {
   ).rejects.toThrow('Invalid SBOM type')
 })
 
+test('pnpm sbom --sbom-spec-version 1.6', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    sbomSpecVersion: '1.6',
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  expect(parsed.specVersion).toBe('1.6')
+  expect(parsed.$schema).toBe('http://cyclonedx.org/schema/bom-1.6.schema.json')
+})
+
+test('pnpm sbom invalid --sbom-spec-version throws', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  await expect(
+    sbom.handler({
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      pnpmHomeDir: '',
+      sbomFormat: 'cyclonedx',
+      sbomSpecVersion: '1.4',
+      lockfileOnly: true,
+    })
+  ).rejects.toThrow('Invalid CycloneDX spec version')
+})
+
+test('pnpm sbom --sbom-spec-version with spdx format throws', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  await expect(
+    sbom.handler({
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      pnpmHomeDir: '',
+      sbomFormat: 'spdx',
+      sbomSpecVersion: '1.6',
+      lockfileOnly: true,
+    })
+  ).rejects.toThrow('only supported with --sbom-format cyclonedx')
+})
+
 test('pnpm sbom --sbom-type application', async () => {
   const workspaceDir = tempDir()
   f.copy('simple-sbom', workspaceDir)

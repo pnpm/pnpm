@@ -37,10 +37,16 @@
       "path": "../../hooks/types"
     },
     {
+      "path": "../../network/auth-header"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
       "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../testing/mock-agent"
     },
     {
       "path": "../git-resolver"

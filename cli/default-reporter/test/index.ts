@@ -27,7 +27,7 @@ import { map, skip, take } from 'rxjs/operators'
 
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
-const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
+const formatErrorCode = (code: string) => chalk.bgRed.red('[') + chalk.bgRed.black(code) + chalk.bgRed.red(']')
 const formatError = (code: string, message: string) => {
   return `${formatErrorCode(code)} ${chalk.red(message)}`
 }

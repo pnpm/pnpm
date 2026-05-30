@@ -1,13 +1,13 @@
-# @pnpm/pick-fetcher
+# @pnpm/fetching.pick-fetcher
 
 > Pick a package fetcher by type
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/pick-fetcher.svg)](https://www.npmjs.com/package/@pnpm/pick-fetcher)
+[![npm version](https://img.shields.io/npm/v/@pnpm/fetching.pick-fetcher.svg)](https://npmx.dev/package/@pnpm/fetching.pick-fetcher)
 
 ## Deploy
 
 ```sh
-pnpm add @pnpm/pick-fetcher
+pnpm add @pnpm/fetching.pick-fetcher
 ```
 
 ## License

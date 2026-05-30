@@ -11,7 +11,7 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowedDeprecatedVersions,
@@ -51,6 +51,7 @@ export interface StrictInstallOptions {
   lockfileOnly: boolean
   forceFullResolution: boolean
   fixLockfile: boolean
+  updateChecksums: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
   ignorePackageManifest: boolean
@@ -165,6 +166,7 @@ export interface StrictInstallOptions {
    */
   disableRelinkLocalDirDeps: boolean
 
+  skipRuntimes: boolean
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
@@ -174,11 +176,86 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  /**
+   * Resolver-agnostic post-tree gate, invoked between
+   * `resolveDependencyTree` and `resolvePeers` inside
+   * `resolveDependencies`. Receives the violations the verifier
+   * fan-out collected from the freshly-resolved tree. Throwing here
+   * unwinds the install before peer-dep resolution runs — nothing on
+   * disk has changed, and the (potentially expensive) peer pass is
+   * skipped on abort.
+   *
+   * Intentionally policy-neutral. Each verifier owns its violation
+   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …); the
+   * install command filters by code to decide what to do. Future
+   * resolvers can plug verifiers in without touching this signature.
+   */
+  handleResolutionPolicyViolations?: (
+    violations: readonly ResolutionPolicyViolation[]
+  ) => Promise<void>
+  /**
+   * Resolver-side verifiers that re-check each lockfile-pinned resolution
+   * against policies configured upstream (today: at most one,
+   * `npm.minimumReleaseAge` in strict mode). Constructed by `createClient`
+   * and surfaced via the `createStoreController` return; mutateModules
+   * fans out across the list once, right after the lockfile is loaded
+   * from disk. Empty when no policy is active.
+   */
+  resolutionVerifiers: ResolutionVerifier[]
+  /**
+   * pnpm's on-disk cache directory. When set together with non-empty
+   * `resolutionVerifiers`, the lockfile verification result is memoized
+   * in `<cacheDir>/lockfile-verified.jsonl` so repeat installs against an
+   * unchanged lockfile skip the per-package registry round trip. The
+   * record is policy-neutral; each active resolver-side verifier writes
+   * its own slot under `verifiers[<key>]`.
+   */
+  cacheDir?: string
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
+  /**
+   * Skip the lockfile supply-chain verification pass entirely. When
+   * true, `verifyLockfileResolutions` is not called even if
+   * `resolutionVerifiers` is non-empty — the install trusts the
+   * lockfile as-is. Trade-off: a poisoned lockfile (e.g. one a
+   * contributor authored under a weaker policy than CI enforces) can
+   * slip through. Use only in environments where the lockfile is
+   * effectively part of the trusted base — closed-source projects
+   * where every commit comes from a trusted author, fully reproducible
+   * CI runs against an already-verified lockfile, etc.
+   *
+   * Added for #11860: on workspaces with thousands of locked entries,
+   * the verification pass holds the per-package registry metadata
+   * needed for the trust check resident in memory and can OOM CI
+   * runners with a 2GB heap cap.
+   */
+  trustLockfile?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  /**
+   * Optional alternative install engine. When set, the frozen-install
+   * path invokes this callback instead of `headlessInstall`. The CLI
+   * layer constructs it (today: spawning the pacquet binary installed
+   * via `configDependencies` and forwarding pnpm's own CLI argv); the
+   * installer treats it as an opaque "do the install" hook so it
+   * doesn't need to know about pacquet's binary path, CLI surface, or
+   * any settings that only pacquet consumes.
+   *
+   * `filterResolvedProgress` tells the helper to drop the engine's
+   * own `pnpm:progress status:resolved` events because pnpm already
+   * emitted one per package during a preceding lockfileOnly resolve
+   * pass. The frozen-install path passes `false` (or nothing): no
+   * resolve pass ran, so the engine's events are the only source.
+   */
+  runPacquet?: (opts?: { filterResolvedProgress?: boolean }) => Promise<void>
+  /**
+   * If true, `mutateModules` does not emit the per-install `summary` log
+   * event. Used by `pnpm add -g` when it runs multiple isolated installs
+   * inside a single command and wants to emit a single consolidated
+   * summary at the very end instead of one summary per install.
+   */
+  omitSummaryLog: boolean
   /** URL of a pnpm agent server. See the pnpm-agent README. */
   agent?: string
 }
@@ -226,6 +303,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
+    updateChecksums: false,
     nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
     overrides: {},
@@ -279,9 +357,12 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ignoreWorkspaceCycles: false,
     disallowWorkspaceCycles: false,
     excludeLinksFromLockfile: false,
+    skipRuntimes: false,
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,
+    omitSummaryLog: false,
+    resolutionVerifiers: [] as ResolutionVerifier[],
   } as StrictInstallOptions
 }
 

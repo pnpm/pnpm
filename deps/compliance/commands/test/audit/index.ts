@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
@@ -12,9 +13,11 @@ import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/optio
 import * as responses from './utils/responses/index.js'
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const SCOPED_AUDIT_REGISTRY = 'http://scope.audit.registry/'
 
 describe('plugin-commands-audit', () => {
   const hasVulnerabilitiesDir = f.prepare('has-vulnerabilities')
+  const hasSignaturesDir = f.prepare('has-signatures')
   beforeAll(async () => {
     await install.handler({
       ...DEFAULT_OPTS,
@@ -88,6 +91,67 @@ describe('plugin-commands-audit', () => {
 
     expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
     expect(exitCode).toBe(0)
+  })
+
+  test('audit signatures', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    mockRegistryKey(SCOPED_AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(200, {
+        name: 'signed-pkg',
+        time: { '1.0.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.0.0': {
+            dist: {
+              integrity: 'sha512-test-integrity',
+              shasum: 'test-shasum',
+              signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-test-integrity') }],
+              tarball: `${AUDIT_REGISTRY}signed-pkg/-/signed-pkg-1.0.0.tgz`,
+            },
+            name: 'signed-pkg',
+            version: '1.0.0',
+          },
+        },
+      })
+    getMockAgent().get(SCOPED_AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: `/@scope${'%2F'}signed-pkg`, method: 'GET' })
+      .reply(200, {
+        name: '@scope/signed-pkg',
+        time: { '1.0.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.0.0': {
+            dist: {
+              integrity: 'sha512-scoped-test-integrity',
+              shasum: 'test-shasum',
+              signatures: [{ keyid: key.keyid, sig: key.sign('@scope/signed-pkg@1.0.0', 'sha512-scoped-test-integrity') }],
+              tarball: `${SCOPED_AUDIT_REGISTRY}@scope/signed-pkg/-/signed-pkg-1.0.0.tgz`,
+            },
+            name: '@scope/signed-pkg',
+            version: '1.0.0',
+          },
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasSignaturesDir,
+      registries: { ...AUDIT_REGISTRY_OPTS.registries, '@scope': SCOPED_AUDIT_REGISTRY },
+      rootProjectManifestDir: hasSignaturesDir,
+    }, ['signatures'])
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toContain('audited 2 packages')
+    expect(stripAnsi(output)).toContain('2 packages have verified registry signatures')
+  })
+
+  test('audit rejects unknown subcommands', async () => {
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: hasSignaturesDir,
+      rootProjectManifestDir: hasSignaturesDir,
+    }, ['unknown'])).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_UNKNOWN_SUBCOMMAND' })
   })
 
   test('audit --json', async () => {
@@ -328,3 +392,36 @@ describe('plugin-commands-audit', () => {
 Severity: 1 info`)
   })
 })
+
+function createSigningKey (): {
+  keyid: string
+  publicKey: string
+  sign: (id: string, integrity: string) => string
+} {
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  const publicKeyPem = publicKey.export({ format: 'pem', type: 'spki' }).toString()
+  return {
+    keyid: 'SHA256:test-key',
+    publicKey: publicKeyPem.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g, ''),
+    sign: (id, integrity) => {
+      const signer = crypto.createSign('SHA256')
+      signer.write(`${id}:${integrity}`)
+      signer.end()
+      return signer.sign(privateKey, 'base64')
+    },
+  }
+}
+
+function mockRegistryKey (registry: string, key: ReturnType<typeof createSigningKey>): void {
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
+    .reply(200, {
+      keys: [{
+        expires: null,
+        key: key.publicKey,
+        keyid: key.keyid,
+        keytype: 'ecdsa-sha2-nistp256',
+        scheme: 'ecdsa-sha2-nistp256',
+      }],
+    })
+}

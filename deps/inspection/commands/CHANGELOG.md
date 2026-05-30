@@ -1,5 +1,319 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.3.2
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+- Updated dependencies [6235428]
+- Updated dependencies [a39a83d]
+- Updated dependencies [1e9ab29]
+  - @pnpm/network.fetch@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/resolving.registry.types@1100.1.0
+  - @pnpm/resolving.default-resolver@1100.3.4
+  - @pnpm/deps.inspection.outdated@1100.1.4
+  - @pnpm/global.commands@1100.0.23
+
+## 1100.3.1
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+- Updated dependencies [440e155]
+- Updated dependencies [0721d64]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/deps.inspection.list@1100.0.14
+  - @pnpm/types@1101.2.0
+  - @pnpm/global.commands@1100.0.22
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/resolving.default-resolver@1100.3.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/deps.inspection.outdated@1100.1.3
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/deps.inspection.peers-checker@1100.0.11
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.3
+  - @pnpm/global.packages@1100.0.5
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/resolving.registry.types@1100.0.5
+
+## 1100.3.0
+
+### Minor Changes
+
+- 22cb743: Implement `pnpm repo` command natively, following `npm repo` standards.
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/deps.inspection.list@1100.0.13
+  - @pnpm/global.commands@1100.0.21
+  - @pnpm/deps.inspection.outdated@1100.1.2
+  - @pnpm/resolving.default-resolver@1100.3.2
+
+## 1100.2.5
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.3.1
+  - @pnpm/deps.inspection.outdated@1100.1.1
+  - @pnpm/resolving.default-resolver@1100.3.1
+  - @pnpm/global.commands@1100.0.20
+
+## 1100.2.4
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/global.commands@1100.0.19
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/deps.inspection.outdated@1100.1.0
+  - @pnpm/resolving.default-resolver@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/deps.inspection.list@1100.0.12
+  - @pnpm/deps.inspection.peers-checker@1100.0.10
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.2
+  - @pnpm/global.packages@1100.0.4
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/network.auth-header@1100.0.3
+  - @pnpm/network.fetch@1100.0.6
+  - @pnpm/resolving.registry.types@1100.0.4
+
+## 1100.2.3
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [d3f8408]
+- Updated dependencies [6e93f35]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/resolving.default-resolver@1100.2.0
+  - @pnpm/deps.inspection.outdated@1100.0.16
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/global.commands@1100.0.18
+  - @pnpm/deps.inspection.list@1100.0.11
+  - @pnpm/deps.inspection.peers-checker@1100.0.9
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/cli.utils@1101.0.5
+
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [18a464f]
+- Updated dependencies [e526f89]
+- Updated dependencies [180aee9]
+- Updated dependencies [c2c2890]
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/deps.inspection.list@1100.0.10
+  - @pnpm/network.fetch@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/deps.inspection.outdated@1100.0.15
+  - @pnpm/global.commands@1100.0.17
+  - @pnpm/resolving.default-resolver@1100.1.2
+  - @pnpm/deps.inspection.peers-checker@1100.0.8
+
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [3ab403a]
+  - @pnpm/resolving.default-resolver@1100.1.1
+  - @pnpm/global.commands@1100.0.16
+  - @pnpm/deps.inspection.outdated@1100.0.14
+
+## 1100.2.0
+
+### Minor Changes
+
+- 0477da5: Added the `pnpm bugs` command that opens a package's bug tracker URL in the browser. With no arguments, it reads the current project's `package.json`; with one or more package names, it fetches each package's metadata from the registry and opens its bug tracker. Falls back to `<repository>/issues` when the `bugs` field is missing [#11279](https://github.com/pnpm/pnpm/pull/11279).
+
+### Patch Changes
+
+- 8543b89: Added "published X ago by Y" information to the `pnpm view` command output, similar to `npm view`. This is useful when comparing against `minimumReleaseAge`.
+
+  For example, `pnpm view pnpm` now shows:
+
+  ```
+  published 17 hours ago by GitHub Actions
+  ```
+
+- Updated dependencies [20e7aff]
+- Updated dependencies [4b25a3d]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/global.commands@1100.0.15
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/resolving.default-resolver@1100.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.inspection.outdated@1100.0.13
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/deps.inspection.list@1100.0.9
+  - @pnpm/deps.inspection.peers-checker@1100.0.7
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.1
+  - @pnpm/global.packages@1100.0.3
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/network.auth-header@1100.0.2
+  - @pnpm/resolving.registry.types@1100.0.3
+
+## 1100.1.13
+
+### Patch Changes
+
+- 15e9e35: Upgrade `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/exec`, and `parse-npm-tarball-url` to versions that expose their helpers as named exports instead of CommonJS default exports. This eliminates the `.default` property accesses that broke under Node.js ESM interop in tests and could fail at runtime in some module loaders.
+- Updated dependencies [e9e876c]
+- Updated dependencies [15e9e35]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/resolving.default-resolver@1100.0.11
+  - @pnpm/global.commands@1100.0.14
+  - @pnpm/deps.inspection.outdated@1100.0.12
+  - @pnpm/deps.inspection.list@1100.0.8
+
+## 1100.1.12
+
+### Patch Changes
+
+- @pnpm/deps.inspection.outdated@1100.0.11
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/resolving.default-resolver@1100.0.10
+- @pnpm/deps.inspection.list@1100.0.7
+- @pnpm/global.commands@1100.0.13
+- @pnpm/deps.inspection.peers-checker@1100.0.6
+
+## 1100.1.11
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/global.commands@1100.0.12
+  - @pnpm/resolving.default-resolver@1100.0.10
+  - @pnpm/deps.inspection.list@1100.0.6
+  - @pnpm/deps.inspection.outdated@1100.0.10
+  - @pnpm/deps.inspection.peers-checker@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.0.2
+
+## 1100.1.10
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/global.commands@1100.0.11
+  - @pnpm/resolving.default-resolver@1100.0.9
+  - @pnpm/deps.inspection.outdated@1100.0.9
+
+## 1100.1.9
+
+### Patch Changes
+
+- 0b2f86e: When `strictPeerDependencies` is `true`, the `ERR_PNPM_PEER_DEP_ISSUES` error once again renders the peer dependency issues inline using the same format as `pnpm peers check`, so users (and CI tools like Renovate) can see what failed without running `pnpm peers check` separately [#11439](https://github.com/pnpm/pnpm/issues/11439).
+- Updated dependencies [72629fc]
+- Updated dependencies [0b2f86e]
+  - @pnpm/global.commands@1100.0.10
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.0
+
+## 1100.1.8
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/global.commands@1100.0.9
+  - @pnpm/resolving.default-resolver@1100.0.8
+  - @pnpm/deps.inspection.outdated@1100.0.8
+
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/resolving.default-resolver@1100.0.7
+  - @pnpm/deps.inspection.outdated@1100.0.7
+  - @pnpm/resolving.registry.types@1100.0.2
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/deps.inspection.list@1100.0.5
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/store.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/global.commands@1100.0.8
+  - @pnpm/deps.inspection.peers-checker@1100.0.4
+  - @pnpm/global.packages@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/global.commands@1100.0.6
+  - @pnpm/resolving.default-resolver@1100.0.6
+  - @pnpm/deps.inspection.outdated@1100.0.6
+
 ## 1100.1.4
 
 ### Patch Changes

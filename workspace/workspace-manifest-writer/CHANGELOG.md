@@ -1,5 +1,66 @@
 # @pnpm/workspace.manifest-writer
 
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.5
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.4
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.6
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.3
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+
+## 1100.0.5
+
+### Patch Changes
+
+- 0d791f3: Preserve the original key order in `pnpm-workspace.yaml` when updating it. Existing keys keep their position, and new keys are inserted in alphabetical position when the existing keys are already sorted (with a leading `packages` key allowed) or appended at the end otherwise.
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/lockfile.types@1100.0.3
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [f543b77]
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

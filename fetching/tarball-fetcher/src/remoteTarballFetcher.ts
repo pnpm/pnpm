@@ -120,6 +120,10 @@ export function createDownloader (
       try {
         const res = await fetchFromRegistry(url, {
           authHeaderValue,
+          // Tarballs are already compressed; ask the server not to apply an additional
+          // Content-Encoding so Content-Length matches the body we receive and we don't
+          // waste CPU on round-trip re-compression. See https://github.com/pnpm/pnpm/issues/11506
+          headers: { 'accept-encoding': 'identity' },
           // The fetch library can retry requests on bad HTTP responses.
           // However, it is not enough to retry on bad HTTP responses only.
           // Requests should also be retried when the tarball's integrity check fails.
@@ -133,7 +137,11 @@ export function createDownloader (
           throw new FetchError({ url, authHeaderValue }, res)
         }
 
-        const contentLength = res.headers.has('content-length') && res.headers.get('content-length')
+        // When Content-Encoding is present, Content-Length refers to the encoded form
+        // of the data, not the decoded bytes that the fetch implementation yields.
+        // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
+        const isEncoded = isContentEncoded(res.headers.get('content-encoding'))
+        const contentLength = !isEncoded && res.headers.has('content-length') && res.headers.get('content-length')
         const parsedLength = typeof contentLength === 'string' ? parseInt(contentLength, 10) : NaN
         const size = Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null
         if (opts.onStart != null) {
@@ -212,4 +220,15 @@ export function createDownloader (
       })
     }
   }
+}
+
+// Per RFC 9110 §8.4, Content-Encoding is a comma-separated list of codings.
+// The response is encoded unless every coding is `identity` (case-insensitive,
+// surrounding whitespace ignored).
+function isContentEncoded (header: string | null): boolean {
+  if (header == null) return false
+  return header
+    .split(',')
+    .map(coding => coding.trim().toLowerCase())
+    .some(coding => coding !== '' && coding !== 'identity')
 }

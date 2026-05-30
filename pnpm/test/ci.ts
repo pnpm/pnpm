@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepare, tempDir } from '@pnpm/prepare'
+import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
 
@@ -45,6 +46,27 @@ test('pnpm ci removes node_modules and installs from lockfile', () => {
 
   // Verify dependencies are installed
   expect(fs.existsSync(path.join(process.cwd(), 'node_modules', 'is-positive'))).toBe(true)
+})
+
+test('pnpm ci reinstalls workspace package node_modules', () => {
+  preparePackages([
+    {
+      name: 'foo',
+      version: '0.0.0',
+      private: true,
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+  ])
+
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', version: '1.0.0', private: true }))
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(fs.existsSync(path.join('foo', 'node_modules', 'is-positive'))).toBe(true)
+
+  const result = execPnpmSync(['ci'])
+  expect(result.status).toBe(0)
+  expect(fs.existsSync(path.join('foo', 'node_modules', 'is-positive'))).toBe(true)
 })
 
 test('pnpm ci fails when package.json conflicts with lockfile', () => {

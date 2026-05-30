@@ -1,7 +1,7 @@
 import { expect, test } from '@jest/globals'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { view } from '@pnpm/deps.inspection.commands'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -208,4 +208,15 @@ test('view: time field returns publish timestamps', async () => {
   const parsed = JSON.parse(result as string)
   expect(typeof parsed).toBe('object')
   expect(parsed['1.0.0']).toBeDefined()
+})
+
+test('view: published info includes timestamp', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative@1.0.0']) as string
+  expect(result).toMatch(/published .* ago/)
+})
+
+test('view: published info includes publisher when maintainer data is available', async () => {
+  // Note: is-negative package has maintainer data in the mock registry
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative@1.0.0']) as string
+  expect(result).toMatch(/published .* ago by /)
 })

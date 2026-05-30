@@ -7,35 +7,33 @@ import {
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
+import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
 import {
   getLockfileImporterId,
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
-import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,
+  type DepPath,
   type IncludedDependencies,
   type PackageManifest,
+  type PackageVersionPolicy,
   type ProjectManifest,
-  type Registries,
 } from '@pnpm/types'
 import semver from 'semver'
 
 export * from './createManifestGetter.js'
 
-export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string) => Promise<PackageManifest | null>
-
 interface OutdatedPackageManifest extends PackageManifest {
   _npmUser?: {
+    approver?: unknown
     name?: string
     email?: string
     trustedPublisher?: {
@@ -54,7 +52,6 @@ interface OutdatedPackageManifest extends PackageManifest {
     }
   }
 }
-
 export interface OutdatedPackage {
   alias: string
   belongsTo: DependenciesField
@@ -71,7 +68,7 @@ export async function outdated (
     catalogs?: Catalogs
     compatible?: boolean
     currentLockfile: LockfileObject | null
-    getLatestManifest: GetLatestManifestFunction
+    resolveLatest: ResolveLatestDispatcher
     ignoreDependencies?: string[]
     include?: IncludedDependencies
     lockfileDir: string
@@ -80,7 +77,8 @@ export async function outdated (
     minimumReleaseAge?: number
     minimumReleaseAgeExclude?: string[]
     prefix: string
-    registries: Registries
+    publishedBy?: Date
+    publishedByExclude?: PackageVersionPolicy
     wantedLockfile: LockfileObject | null
     trustPolicy?: 'no-downgrade' | 'off'
   }
@@ -112,6 +110,14 @@ export async function outdated (
 
   const ignoreDependenciesMatcher = opts.ignoreDependencies?.length ? createMatcher(opts.ignoreDependencies) : undefined
 
+  const resolveOpts = {
+    lockfileDir: opts.lockfileDir,
+    preferredVersions: {},
+    projectDir: opts.prefix,
+    publishedBy: opts.publishedBy,
+    publishedByExclude: opts.publishedByExclude,
+  }
+
   await Promise.all(
     DEPENDENCIES_FIELDS.map(async (depType) => {
       if (
@@ -130,41 +136,37 @@ export async function outdated (
       await Promise.all(
         pkgs.map(async (alias) => {
           if (!allDeps[alias]) return
-          const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
-
-          if (
-            ref.startsWith('file:') || // ignoring linked packages. (For backward compatibility)
-            ignoreDependenciesMatcher?.(alias)
-          ) {
-            return
-          }
-
-          const relativeDepPath = dp.refToRelative(ref, alias)
-
-          // ignoring linked packages
-          if (relativeDepPath === null) return
-
-          const pkgSnapshot = opts.wantedLockfile!.packages?.[relativeDepPath]
-
-          if (pkgSnapshot == null) {
-            throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
-          }
+          const wantedRef = opts.wantedLockfile!.importers[importerId][depType]![alias]
+          if (ignoreDependenciesMatcher?.(alias)) return
 
           const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
-          const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
-          const current = (currentRelative && dp.parse(currentRelative).version) ?? currentRef
-          const wanted = dp.parse(relativeDepPath).version ?? ref
-          const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
-          const name = dp.parse(relativeDepPath).name ?? packageName
+          const wantedRelative = dp.refToRelative(wantedRef, alias)
+          const currentRelative = currentRef ? dp.refToRelative(currentRef, alias) : null
+          const wantedSnapshot = wantedRelative != null ? opts.wantedLockfile!.packages?.[wantedRelative] : undefined
+          const currentSnapshot = currentRelative != null ? currentLockfile.packages?.[currentRelative] : undefined
+          // Aliased npm deps lock under their real name (e.g. `positive: is-positive@3.1.0`);
+          // pull the name off the depPath so the report shows the real package.
+          const packageName = (wantedRelative != null ? dp.parse(wantedRelative).name : undefined) ?? alias
 
           const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
-          // If the npm resolve parser cannot parse the spec of the dependency,
-          // it means that the package is not from a npm-compatible registry.
-          // In that case, we can't check whether the package is up-to-date
-          if (
-            parseBareSpecifier(bareSpecifier, alias, 'latest', pickRegistryForPackage(opts.registries, name)) == null
-          ) {
-            if (current !== wanted) {
+
+          const info = await opts.resolveLatest(
+            { wantedDependency: { alias, bareSpecifier }, compatible: opts.compatible },
+            resolveOpts
+          )
+          if (info == null) return // resolver doesn't claim this dep — skip silently
+
+          const wanted = displayVersion(wantedRef, wantedRelative, wantedSnapshot?.version)
+          const current = currentRef ? displayVersion(currentRef, currentRelative, currentSnapshot?.version) : undefined
+          const { latestManifest } = info
+
+          // Compare the parsed `wanted` / `current` rather than raw refs.
+          // For npm-style deps that means peer-graph-only changes (same
+          // semver, different `(peer-hash)`) don't surface as fake
+          // "outdated" entries; for URL/git refs the display values *are*
+          // the refs, so a commit/path change still fires correctly.
+          if (latestManifest == null) {
+            if (wanted !== current) {
               outdated.push({
                 alias,
                 belongsTo: depType,
@@ -177,14 +179,6 @@ export async function outdated (
             }
             return
           }
-
-          const latestManifest = await opts.getLatestManifest(
-            name,
-            opts.compatible ? (bareSpecifier ?? 'latest') : 'latest'
-          )
-
-          if (latestManifest == null) return
-
           if (!current) {
             outdated.push({
               alias,
@@ -193,13 +187,11 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-
             })
             return
           }
-
-          if (current !== wanted || semver.lt(current, latestManifest.version) || latestManifest.deprecated) {
-            const outdatedPks = {
+          if (wanted !== current || isLowerVersion(wanted, latestManifest.version) || latestManifest.deprecated) {
+            outdated.push({
               alias,
               belongsTo: depType,
               current,
@@ -207,11 +199,7 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-            } as OutdatedPackage
-            if (opts.trustPolicy === 'no-downgrade') {
-              outdatedPks.currentManifest = await opts.getLatestManifest(name, current)
-            }
-            outdated.push(outdatedPks)
+            })
           }
         })
       )
@@ -229,6 +217,33 @@ function packageHasNoDeps (manifest: ProjectManifest): boolean {
 
 function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
+}
+
+// Pick a clean display string for a lockfile ref.
+//
+//   - If the dep-path parses to a semver, that's the value (handles
+//     `pkg@1.0.0(peer-hash)` and aliased `positive: is-positive@3.1.0`).
+//   - If the dep-path's non-semver version contains a `/`, it's a
+//     URL/git-shape (`https://`, `git+ssh://`, scheme-less `github.com/…/sha`,
+//     `link:../foo`, etc.) — return the raw ref so a commit/path change is
+//     visible to the user.
+//   - Otherwise prefer `snapshot.version` (clean semver for `runtime:`-style
+//     refs); fall back to the raw ref when the snapshot didn't record one.
+function displayVersion (ref: string, relativeDepPath: DepPath | null, snapshotVersion: string | undefined): string {
+  if (relativeDepPath != null) {
+    const parsed = dp.parse(relativeDepPath)
+    if (parsed.version != null) return parsed.version
+    if (parsed.nonSemverVersion?.includes('/')) return ref
+  }
+  return snapshotVersion ?? ref
+}
+
+// semver.lt throws on non-semver strings (e.g. URL refs from git/tarball).
+// Treat those as "not lower" so a ref change still gets surfaced via the
+// `wantedRef !== currentRef` check above.
+function isLowerVersion (current: string, latest: string): boolean {
+  if (!semver.valid(current) || !semver.valid(latest)) return false
+  return semver.lt(current, latest)
 }
 
 function replaceCatalogProtocolIfNecessary (catalogs: Catalogs, wantedDependency: WantedDependency) {

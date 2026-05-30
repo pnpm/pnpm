@@ -1,9 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
+import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
+import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
@@ -291,4 +292,89 @@ test('redirect without location header throws error', async () => {
   } finally {
     await teardownMockAgent()
   }
+})
+
+test('createDispatchedFetch returns a fetch bound to the given dispatcher options', async () => {
+  setupMockAgent()
+  try {
+    const mockPool = getMockAgent().get('http://registry.pnpm.io')
+    mockPool.intercept({ path: '/ping', method: 'GET' }).reply(200, 'pong')
+
+    // MockAgent intercepts the global dispatcher; passing empty dispatcher
+    // options means getDispatcher returns undefined and fetch falls back to it.
+    const dispatchedFetch = createDispatchedFetch({})
+    const res = await dispatchedFetch('http://registry.pnpm.io/ping')
+    expect(res.status).toBe(200)
+    await expect(res.text()).resolves.toBe('pong')
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
+test('abbreviated metadata Accept header is not sent on write requests', async () => {
+  const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      resolve(req.headers)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end('{"ok":true}')
+    })
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number }
+      const fetchFromRegistry = createFetchFromRegistry({})
+      fetchFromRegistry(`http://127.0.0.1:${port}/-/package/pnpm/dist-tags/latest-10`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify('10.34.0'),
+      }).then(
+        (res) => res.text().then(() => server.close()),
+        (err) => {
+          server.close(); reject(err)
+        }
+      )
+    })
+  })
+  expect(receivedHeaders.accept).not.toContain('application/vnd.npm.install-v1+json')
+})
+
+test('abbreviated metadata Accept header is sent on GET requests', async () => {
+  const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      resolve(req.headers)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end('{"ok":true}')
+    })
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number }
+      const fetchFromRegistry = createFetchFromRegistry({})
+      fetchFromRegistry(`http://127.0.0.1:${port}/test`).then(
+        (res) => res.text().then(() => server.close()),
+        (err) => {
+          server.close(); reject(err)
+        }
+      )
+    })
+  })
+  expect(receivedHeaders.accept).toBe('application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*')
+})
+
+test('sec-fetch-* headers are stripped from requests', async () => {
+  const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      resolve(req.headers)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end('{"ok":true}')
+    })
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number }
+      const fetchFromRegistry = createFetchFromRegistry({})
+      fetchFromRegistry(`http://127.0.0.1:${port}/test`).then(
+        (res) => res.text().then(() => server.close()),
+        (err) => {
+          server.close(); reject(err)
+        }
+      )
+    })
+  })
+  const secFetchHeaders = Object.keys(receivedHeaders).filter(h => h.startsWith('sec-fetch-'))
+  expect(secFetchHeaders).toEqual([])
 })

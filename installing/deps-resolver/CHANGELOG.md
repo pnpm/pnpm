@@ -1,5 +1,241 @@
 # @pnpm/resolve-dependencies
 
+## 1100.1.5
+
+### Patch Changes
+
+- 39101f5: Fix pnpm hanging during peer resolution when an aliased install pulls in transitive packages with mutual peer cycles at different depths in the dependency tree (for example, `pnpm i nuxt@npm:nuxt-nightly@5x`). Cycles whose members hit the `findHit` cache instead of running their own `calculateDepPath` are now short-circuited by sibling resolutions at the level where the cycle is detected, so the cached path promises no longer deadlock. [#11999](https://github.com/pnpm/pnpm/issues/11999).
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/fetching.pick-fetcher@1100.0.9
+
+## 1100.1.4
+
+### Patch Changes
+
+- ad84fff: Reject dependency aliases that contain path-traversal segments (such as `@x/../../../../../.git/hooks`) when reading them from a package manifest or symlinking them into `node_modules`. A malicious registry package could otherwise use a transitive dependency key to make `pnpm install` create symlinks at attacker-chosen paths outside the intended `node_modules` directory.
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/lockfile.preferred-versions@1100.0.12
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/lockfile.pruner@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/patching.config@1100.0.5
+  - @pnpm/fetching.pick-fetcher@1100.0.9
+
+## 1100.1.3
+
+### Patch Changes
+
+- 3422cec: Fixed non-determinism in `pnpm dedupe` and `pnpm install` when a dependency graph contains packages with transitive peer dependencies on each other (e.g. `@aws-sdk/client-sts` and `@aws-sdk/client-sso-oidc`) and `auto-install-peers` is enabled. The lockfile no longer flips between two equally-valid forms across consecutive runs. The root cause was that `resolveDependencies` pushed onto its `pkgAddresses` / `postponedResolutionsQueue` arrays from inside `Promise.all`-spawned callbacks, so completion-order timing leaked into the array order and downstream cyclic-peer suffix assignment. Fixes [#8155](https://github.com/pnpm/pnpm/issues/8155).
+- e0bd879: Fixed a regression introduced by [#11711](https://github.com/pnpm/pnpm/pull/11711) where `pnpm add <github-shorthand>` (and any other wanted-dependency whose alias can't be parsed from the user-supplied spec, e.g. tarball URLs or `pnpm/test-git-fetch#sha`) was silently dropped from the manifest update and from `pendingBuilds`. The alias-keyed lookup added in that PR couldn't find a `wantedDependency` whose `alias` was `undefined` at parse time but resolved to a package name only after fetching, so the entry never made it into `specsToUpsert`. Restored the original index-based pairing between `directDependencies` and `wantedDependencies`; the catalog-protocol preservation that PR was originally fixing is unaffected because it's driven by `rdd.catalogLookup.userSpecifiedBareSpecifier`, not by the lookup. Fixes the three `rebuilds dependencies` / `rebuilds specific dependencies` / `rebuild with pending option` failures in `building/commands/test/build/index.ts`.
+- Updated dependencies [212315d]
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/fetching.pick-fetcher@1100.0.8
+
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.3.1
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/fetching.pick-fetcher@1100.0.8
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/lockfile.preferred-versions@1100.0.11
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/config.version-policy@1100.1.1
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/lockfile.pruner@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/patching.config@1100.0.4
+
+## 1100.1.0
+
+### Minor Changes
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+### Patch Changes
+
+- b6e2c8c: Make `pnpm self-update` respect `minimumReleaseAge` (and `minimumReleaseAgeExclude`) when resolving which pnpm version to install.
+
+  When the `latest` dist-tag points to a version newer than the configured age threshold, `self-update` now selects the newest mature version instead unless excluded by `minimumReleaseAgeExclude`.
+
+  Also makes `dlx` and `outdated` surface invalid `minimumReleaseAgeExclude` patterns under the same `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` error code already used by `install`, instead of leaking the internal `ERR_PNPM_INVALID_VERSION_UNION` / `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` codes.
+
+- 3ddde2b: **fix**: anchor the side-effects-cache key and global-virtual-store hash to the project's script-runner Node — `engines.runtime` pin when present, shell `node` otherwise — instead of pnpm's own runtime.
+
+  `ENGINE_NAME` (the `<platform>;<arch>;node<major>` prefix used as the side-effects-cache key and the engine portion of the GVS hash) was computed from `process.version` — the Node that runs pnpm itself. That was wrong in two situations:
+
+  1. **`@pnpm/exe` SEA bundle.** The bundle has its own embedded Node, not the `node` on the user's `PATH` that actually spawns lifecycle scripts. Two pnpm installations on the same machine (one SEA, one npm-package) therefore disagreed on the cache key, partitioning the side-effects cache and the global virtual store across two Node majors even though both installs would run scripts on the same shell `node`.
+  2. **`engines.runtime` / `devEngines.runtime` pin.** When a project pins a Node version via `devEngines.runtime` (pnpm v11+), pnpm downloads that Node into `node_modules/node/` and uses it to run lifecycle scripts. But the hash still anchored to whichever Node ran pnpm itself, not to the pinned Node — so two installs of the same project with two different runner Nodes would still disagree on the GVS slot path even though scripts run on the same pinned Node.
+
+  Three changes:
+
+  - `@pnpm/engine.runtime.system-node-version` now exports `engineName(nodeVersion?)`. Resolves the version in this order: explicit override → `getSystemNodeVersion()` (which already prefers `node --version` over `process.version` in SEA contexts) → `process.version`.
+  - `@pnpm/deps.graph-hasher` now exports `findRuntimeNodeVersion(snapshotKeys)` — scans an iterable of lockfile snapshot keys for a `node@runtime:<version>` entry and returns its bare version string. `calcDepState` and `calcGraphNodeHash`/`iterateHashedGraphNodes` accept a `nodeVersion?` (in the options bag for the first, as a trailing parameter / ctx field for the others), forwarded to `engineName()`. The default (no override) preserves the pre-change behaviour. The legacy `ENGINE_NAME` constant in `@pnpm/constants` is unchanged so external consumers and existing tests keep working; in non-SEA, non-pinned contexts every value lines up.
+  - Every install-side caller of the graph-hasher (`@pnpm/installing.deps-resolver`, `@pnpm/installing.deps-restorer`, `@pnpm/installing.deps-installer`, `@pnpm/building.during-install`, `@pnpm/building.after-install`, `@pnpm/deps.graph-builder`) now derives the project's pinned runtime via `findRuntimeNodeVersion(Object.keys(graph))` once per invocation and threads it through.
+
+  On upgrade, two one-time GVS slot churns are possible:
+
+  - **SEA-pnpm users** without a runtime pin: slots that previously hashed under the embedded-Node major (e.g. `node26`) now hash under the shell-Node major (e.g. `node24`), matching what pacquet, the npm-published `pnpm` package, and any other pnpm-compatible tool already produce.
+  - **Projects with a `devEngines.runtime` pin**: slots that previously hashed under the runner's Node major now hash under the pinned Node major, matching what the lifecycle scripts will actually run on.
+
+  In both cases the old slots become prune-eligible.
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [5dc8be8]
+- Updated dependencies [4a79336]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/config.version-policy@1100.1.0
+  - @pnpm/deps.graph-hasher@1100.2.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.7
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/lockfile.preferred-versions@1100.0.10
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/pkg-manifest.utils@1100.1.4
+  - @pnpm/lockfile.pruner@1100.0.6
+
+## 1100.0.10
+
+### Patch Changes
+
+- c2c2890: Fix `minimumReleaseAge` / `resolutionMode: time-based` installs failing on lockfiles whose `time:` block is missing entries. The npm-resolver's peek-from-store fast path now surfaces `publishedAt` from the lockfile rather than discarding it, and falls through to a registry metadata fetch when the time-based cutoff can't be computed from the data on hand.
+- Updated dependencies [9cad827]
+- Updated dependencies [50b33c1]
+- Updated dependencies [e526f89]
+- Updated dependencies [c2c2890]
+  - @pnpm/pkg-manifest.utils@1100.1.3
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/lockfile.preferred-versions@1100.0.9
+  - @pnpm/fetching.pick-fetcher@1100.0.6
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.6
+  - @pnpm/config.version-policy@1100.0.3
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.5
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/hooks.types@1100.0.6
+  - @pnpm/lockfile.preferred-versions@1100.0.8
+  - @pnpm/lockfile.pruner@1100.0.5
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/pkg-manifest.utils@1100.1.2
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/patching.config@1100.0.3
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [15e9e35]
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/lockfile.preferred-versions@1100.0.7
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/fetching.pick-fetcher@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/lockfile.pruner@1100.0.4
+  - @pnpm/lockfile.preferred-versions@1100.0.6
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/store.controller-types@1100.0.5
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.pick-fetcher@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/deps.peer-range@1100.0.1
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/lockfile.preferred-versions@1100.0.5
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/config.version-policy@1100.0.2
+  - @pnpm/lockfile.pruner@1100.0.3
+  - @pnpm/patching.config@1100.0.2
+
 ## 1100.0.4
 
 ### Patch Changes

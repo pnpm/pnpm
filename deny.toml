@@ -1,0 +1,106 @@
+# Configuration for cargo-deny (https://embarkstudios.github.io/cargo-deny/).
+# The schema evolves fast; fields follow the 0.19+ format.
+
+# --- Graph ---------------------------------------------------------------
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+# --- Output --------------------------------------------------------------
+[output]
+feature-depth = 1
+
+# --- Advisories ----------------------------------------------------------
+# https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Scope for RUSTSEC unmaintained advisories.
+# One of "all", "workspace", "transitive", "none".
+unmaintained = "workspace"
+# yanked-crates check: "deny" | "warn" | "allow"
+yanked = "warn"
+ignore = [
+  # hickory-proto 0.25.2 is pulled in transitively through reqwest 0.13.x ->
+  # hickory-resolver 0.25.x. The reqwest 0.13 line has not migrated to
+  # hickory-proto 0.26, so `cargo update` cannot resolve either advisory; the
+  # only paths forward are an upstream reqwest release on hickory 0.26 or
+  # dropping the `hickory-dns` reqwest feature, which would regress the macOS
+  # `mDNSResponder` / `EAI_NONAME` workaround landed in #302. Revisit when
+  # reqwest moves to hickory 0.26.
+  #
+  # NSEC3 closest-encloser proof unbounded loop in `DnssecDnsHandle`. The
+  # vulnerable path is only linked when hickory-proto is built with the
+  # `dnssec-ring` or `dnssec-aws-lc-rs` Cargo feature; reqwest's `hickory-dns`
+  # feature does not enable either, so the affected code is unreachable in
+  # pacquet. The advisory itself notes "No safe upgrade is available" for the
+  # 0.25 line.
+  { id = "RUSTSEC-2026-0118", reason = "DNSSEC validation path is not linked: reqwest's `hickory-dns` feature does not enable hickory-proto's `dnssec-ring`/`dnssec-aws-lc-rs` features, and no fix exists on the 0.25 line." },
+  # O(n²) name compression in `BinEncoder` during DNS message encoding.
+  # Reachability is bounded: the BinEncoder is only invoked when reqwest's
+  # `hickory-dns` resolver builds outbound DNS queries for the registry
+  # hostnames pacquet resolves, which originate from `.npmrc` and so can be
+  # attacker-influenced in an untrusted-checkout / untrusted-CI scenario. We
+  # accept this temporary DoS risk because no upgrade is reachable: reqwest
+  # 0.13.x (latest 0.13.3) is locked to `hickory-resolver` 0.25, and the fix
+  # ships only in `hickory-proto` 0.26.1+. Revisit when reqwest moves to
+  # hickory 0.26.
+  { id = "RUSTSEC-2026-0119", reason = "Temporary risk acceptance: reqwest 0.13.x (latest 0.13.3) is locked to hickory-resolver 0.25 and no release consumes hickory-proto 0.26.1+ yet; revisit on reqwest upgrade." },
+]
+
+# --- Licenses ------------------------------------------------------------
+# https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
+[licenses]
+allow = [
+  "MIT",
+  "MPL-2.0", # required by mockito, used by crates/tarball tests and tasks/micro-benchmark
+  "Apache-2.0",
+  "Unicode-3.0", # newer ICU crates switched from Unicode-DFS-2016 to this
+  "Unicode-DFS-2016",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CDLA-Permissive-2.0", # `webpki-root-certs`, pulled in by reqwest's `rustls` feature
+  "ISC",
+  "Zlib", # required by foldhash, a transitive dep of rusqlite
+]
+confidence-threshold = 0.8
+exceptions = []
+
+[[licenses.clarify]]
+name = "ring"
+version = "*"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [
+  { path = "LICENSE", hash = 0xbd0eed23 },
+]
+
+[licenses.private]
+ignore = false
+registries = []
+
+# --- Bans ----------------------------------------------------------------
+# https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+deny = []
+skip = []
+skip-tree = []
+
+# --- Sources -------------------------------------------------------------
+# https://embarkstudios.github.io/cargo-deny/checks/sources/cfg.html
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+github = []
+gitlab = []
+bitbucket = []

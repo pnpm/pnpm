@@ -9,6 +9,13 @@ on:
       platform:
         required: true
         type: string
+      garnet:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      GARNET_API_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -30,30 +37,65 @@ jobs:
         git config --global user.email "x@y.z"
     - name: Checkout Commit
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    - name: Install pnpm
-      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
       with:
-        standalone: true
-    - name: Setup Node
-      run: pn runtime -g set node ${{ inputs.node }}
-      timeout-minutes: 2
-    # npm is needed for preparing git-hosted dependencies (e.g. in dlx tests)
+        persist-credentials: false
+    - if: ${{ inputs.garnet }}
+      uses: garnet-org/action@2b7fc9d79b54f551b43358c27424a36064b3e078 # v2
+      with:
+        api_token: ${{ secrets.GARNET_API_TOKEN }}
+    - name: Install pnpm and Node
+      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      with:
+        runtime: node@${{ inputs.node }}
+    - name: Verify Node version
+      shell: bash
+      env:
+        NODE_VERSION: ${{ inputs.node }}
+        # `pn node -v` falls back through `run`/`exec`, which would
+        # otherwise trigger a verifyDepsBeforeRun install just to print
+        # the version. Disable it so this step measures the runtime that
+        # pnpm/setup provisioned, not one a stray install pulled in.
+        pnpm_config_verify_deps_before_run: false
+      run: |
+        actual=$(pn node -v)
+        expected="v${NODE_VERSION}"
+        if [ "$actual" != "$expected" ]; then
+          echo "Expected Node version $expected but got $actual"
+          exit 1
+        fi
+    # npm is needed for preparing git-hosted dependencies (e.g. in dlx tests).
+    # `pnpm runtime set node` does not extract npm; the runner image's
+    # pre-installed Node toolchain provides it on PATH.
     - name: Verify npm
       run: npm --version
-    - name: pnpm install
-      run: pn install
-      timeout-minutes: 3
     - name: Download compiled artifacts
-      uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
+    # The test harness serves package fixtures through the in-repo
+    # `pnpr`; `pnpr-prepare` turns the raw fixtures under
+    # `pnpr/.fixtures/packages` into the storage the server reads.
+    - name: Install Rust
+      uses: ./.github/actions/rustup
+      with:
+        save-cache: ${{ github.ref_name == 'main' }}
+        shared-key: registry-prepare
+    - name: Build the registry fixture preparer
+      shell: bash
+      run: |
+        cargo build --locked --release -p pnpr-fixtures --bin pnpr-prepare
+        bin="$PWD/target/release/pnpr-prepare"
+        [ -f "$bin.exe" ] && bin="$bin.exe"
+        echo "PNPR_PREPARE_BIN=$bin" >> "$GITHUB_ENV"
     - name: Determine test scope
       id: test-scope
       shell: bash
+      env:
+        REF_NAME: ${{ github.ref_name }}
       run: |
-        if [[ "${{ github.ref_name }}" == "main" || "${{ github.ref_name }}" == "chore/update-lockfile" || "${{ github.ref_name }}" == release/* ]]; then
+        if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* ]]; then
           echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
           echo "scope=all" >> "$GITHUB_OUTPUT"
         else
@@ -68,6 +110,8 @@ jobs:
         fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
-      run: pn run ${{ steps.test-scope.outputs.script }}
+      shell: bash
       env:
         PNPM_WORKERS: 3
+        TEST_SCRIPT: ${{ steps.test-scope.outputs.script }}
+      run: pn run "$TEST_SCRIPT"

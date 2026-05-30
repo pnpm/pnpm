@@ -1,5 +1,117 @@
 # @pnpm/calc-dep-state
 
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/engine.runtime.system-version@1100.0.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/resolving.resolver-base@1100.3.1
+
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/engine.runtime.system-node-version@1100.1.1
+
+## 1100.2.0
+
+### Minor Changes
+
+- 5dc8be8: **fix**: resolve the GVS hash's engine portion per-snapshot when a dependency declares its own `engines.runtime`, instead of using an install-wide value.
+
+  Pnpm's resolver desugars a dep's `engines.runtime` into `dependencies.node: 'runtime:<version>'`, and the bin linker spawns that dep's lifecycle scripts through the pinned Node downloaded into `<pkgDir>/node_modules/node/`. The GVS hash and the side-effects-cache key prefix were still anchored to the install-wide runtime — so a pinning snapshot's slot encoded the wrong Node major, and a reinstall on the same host could read the cached side-effects under a key whose `<platform>;<arch>;node<major>` triple disagreed with the Node the build actually ran on.
+
+  Per-snapshot resolution now matches what `bins/linker` already does on a per-package basis:
+
+  - `@pnpm/deps.graph-hasher` adds `readSnapshotRuntimePin(children)` — reads the `node` entry from one snapshot's graph children and extracts the version from a `node@runtime:` value. Pairs with the existing `findRuntimeNodeVersion(snapshotKeys)` install-wide fallback (also now exported from `@pnpm/deps.graph-hasher` rather than `@pnpm/engine.runtime.system-node-version`, where it was a poor fit — `system-node-version` is about probing the host Node, not parsing lockfile-derived strings).
+  - `calcDepState` and `calcGraphNodeHash` consult `readSnapshotRuntimePin(graph[depPath].children)` first and only fall back to the install-wide `nodeVersion` parameter when the snapshot doesn't pin its own Node.
+
+  Pacquet mirrors the same precedence at the `calc_graph_node_hash` call site in `package-manager/src/virtual_store_layout.rs` — a new `find_own_runtime_node_major(snapshot)` helper reads each snapshot's `dependencies` for a `node` entry with `Prefix::Runtime` and overrides the install-wide engine when present.
+
+  On upgrade, snapshots of dependencies that declare their own `engines.runtime` re-hash under that dep's pinned Node instead of the install-wide value. The old slots become prune-eligible. Closes [#11690](https://github.com/pnpm/pnpm/issues/11690).
+
+### Patch Changes
+
+- 3ddde2b: **fix**: anchor the side-effects-cache key and global-virtual-store hash to the project's script-runner Node — `engines.runtime` pin when present, shell `node` otherwise — instead of pnpm's own runtime.
+
+  `ENGINE_NAME` (the `<platform>;<arch>;node<major>` prefix used as the side-effects-cache key and the engine portion of the GVS hash) was computed from `process.version` — the Node that runs pnpm itself. That was wrong in two situations:
+
+  1. **`@pnpm/exe` SEA bundle.** The bundle has its own embedded Node, not the `node` on the user's `PATH` that actually spawns lifecycle scripts. Two pnpm installations on the same machine (one SEA, one npm-package) therefore disagreed on the cache key, partitioning the side-effects cache and the global virtual store across two Node majors even though both installs would run scripts on the same shell `node`.
+  2. **`engines.runtime` / `devEngines.runtime` pin.** When a project pins a Node version via `devEngines.runtime` (pnpm v11+), pnpm downloads that Node into `node_modules/node/` and uses it to run lifecycle scripts. But the hash still anchored to whichever Node ran pnpm itself, not to the pinned Node — so two installs of the same project with two different runner Nodes would still disagree on the GVS slot path even though scripts run on the same pinned Node.
+
+  Three changes:
+
+  - `@pnpm/engine.runtime.system-node-version` now exports `engineName(nodeVersion?)`. Resolves the version in this order: explicit override → `getSystemNodeVersion()` (which already prefers `node --version` over `process.version` in SEA contexts) → `process.version`.
+  - `@pnpm/deps.graph-hasher` now exports `findRuntimeNodeVersion(snapshotKeys)` — scans an iterable of lockfile snapshot keys for a `node@runtime:<version>` entry and returns its bare version string. `calcDepState` and `calcGraphNodeHash`/`iterateHashedGraphNodes` accept a `nodeVersion?` (in the options bag for the first, as a trailing parameter / ctx field for the others), forwarded to `engineName()`. The default (no override) preserves the pre-change behaviour. The legacy `ENGINE_NAME` constant in `@pnpm/constants` is unchanged so external consumers and existing tests keep working; in non-SEA, non-pinned contexts every value lines up.
+  - Every install-side caller of the graph-hasher (`@pnpm/installing.deps-resolver`, `@pnpm/installing.deps-restorer`, `@pnpm/installing.deps-installer`, `@pnpm/building.during-install`, `@pnpm/building.after-install`, `@pnpm/deps.graph-builder`) now derives the project's pinned runtime via `findRuntimeNodeVersion(Object.keys(graph))` once per invocation and threads it through.
+
+  On upgrade, two one-time GVS slot churns are possible:
+
+  - **SEA-pnpm users** without a runtime pin: slots that previously hashed under the embedded-Node major (e.g. `node26`) now hash under the shell-Node major (e.g. `node24`), matching what pacquet, the npm-published `pnpm` package, and any other pnpm-compatible tool already produce.
+  - **Projects with a `devEngines.runtime` pin**: slots that previously hashed under the runner's Node major now hash under the pinned Node major, matching what the lifecycle scripts will actually run on.
+
+  In both cases the old slots become prune-eligible.
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [3ddde2b]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/engine.runtime.system-node-version@1100.1.0
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/resolving.resolver-base@1100.1.3
+
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+
+## 1100.1.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+
 ## 1100.1.1
 
 ### Patch Changes

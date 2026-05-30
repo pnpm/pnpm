@@ -3,6 +3,8 @@ import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type {
   BinaryResolution,
+  LatestInfo,
+  LatestQuery,
   PlatformAssetResolution,
   PlatformAssetTarget,
   ResolveOptions,
@@ -77,6 +79,21 @@ export async function resolveNodeRuntime (
       variants,
     },
   }
+}
+
+export async function resolveLatestNodeRuntime (
+  ctx: { fetchFromRegistry: FetchFromRegistry, nodeDownloadMirrors?: Record<string, string> },
+  query: LatestQuery,
+  _opts: ResolveOptions
+): Promise<LatestInfo | undefined> {
+  const manifestSpec = query.wantedDependency.bareSpecifier
+  if (query.wantedDependency.alias !== 'node' || !manifestSpec?.startsWith('runtime:')) return undefined
+  const versionSpec = query.compatible ? manifestSpec.substring('runtime:'.length) : 'latest'
+  const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
+  const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
+  const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
+  if (!version) return {}
+  return { latestManifest: { name: 'node', version } }
 }
 
 async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {

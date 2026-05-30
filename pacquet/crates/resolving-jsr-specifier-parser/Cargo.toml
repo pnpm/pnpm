@@ -1,0 +1,18 @@
+[package]
+name                  = "pacquet-resolving-jsr-specifier-parser"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+derive_more = { workspace = true }
+miette      = { workspace = true }
+
+[lints]
+workspace = true

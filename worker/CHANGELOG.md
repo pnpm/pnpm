@@ -1,5 +1,98 @@
 # @pnpm/worker
 
+## 1100.1.8
+
+### Patch Changes
+
+- aa6149d: Treat tarball-integrity mismatches against the lockfile as a hard failure by default. Previously, `pnpm install` (non-frozen) would log `ERR_PNPM_TARBALL_INTEGRITY`, silently re-resolve from the registry, and overwrite the locked integrity — which meant a compromised registry, proxy, or republished version could substitute attacker-controlled content on a clean machine even though the project shipped a committed lockfile.
+
+  `pnpm install` now exits with `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the new opt-in flag.
+
+  The only opt-in is **`pnpm install --update-checksums`** — narrowly scoped to refreshing the locked integrity values from what the registry currently serves. Mirrors yarn's flag of the same name. A warning still prints when the bypass takes effect so the operation is auditable.
+
+  `--force` and `pnpm update` deliberately do **not** bypass the integrity check. They are routine refresh operations; silently overwriting a locked integrity in those flows would erase the protection a committed lockfile is supposed to provide. `--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and is also not a bypass.
+
+- Updated dependencies [ad84fff]
+  - @pnpm/fs.symlink-dependency@1100.0.6
+  - @pnpm/building.pkg-requires-build@1100.0.5
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/store.create-cafs-store@1100.0.10
+
+## 1100.1.7
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.4
+- @pnpm/fs.symlink-dependency@1100.0.5
+- @pnpm/store.cafs@1100.1.6
+- @pnpm/store.cafs-types@1100.0.1
+- @pnpm/store.create-cafs-store@1100.0.9
+- @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.6
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.5
+- @pnpm/store.create-cafs-store@1100.0.8
+- @pnpm/fs.symlink-dependency@1100.0.4
+- @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.5
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.4
+- @pnpm/store.create-cafs-store@1100.0.7
+- @pnpm/fs.hard-link-dir@1100.0.1
+- @pnpm/fs.symlink-dependency@1100.0.3
+
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.3
+- @pnpm/fs.symlink-dependency@1100.0.3
+- @pnpm/store.cafs@1100.1.3
+- @pnpm/store.cafs-types@1100.0.1
+- @pnpm/fs.hard-link-dir@1100.0.1
+- @pnpm/store.create-cafs-store@1100.0.6
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/store.create-cafs-store@1100.0.5
+
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.2
+- @pnpm/store.create-cafs-store@1100.0.5
+- @pnpm/fs.hard-link-dir@1100.0.1
+- @pnpm/fs.symlink-dependency@1100.0.2
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/building.pkg-requires-build@1100.0.2
+  - @pnpm/store.create-cafs-store@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+
 ## 1100.1.0
 
 ### Minor Changes

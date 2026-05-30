@@ -1,5 +1,95 @@
 # @pnpm/lockfile-file
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/lockfile.merger@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+
+## 1100.1.1
+
+### Patch Changes
+
+- 9cb48bb: Fix two crashes with `injectWorkspacePackages: true` when the lockfile has been pruned (e.g. by `turbo prune --docker`):
+
+  - `Cannot use 'in' operator to search for 'directory' in undefined`: a peer-dependency-variant injected snapshot inherits its `resolution` from the base `packages:` entry; when a pruner drops that base entry the readers crash. `convertToLockfileObject` now reconstructs the directory resolution from the `file:` depPath at load time — a single normalization point, so every reader sees a fully-formed snapshot.
+  - `ERR_PNPM_ENOENT` on `node_modules/.bin/<tool>`: after `prepare`/`postinstall`, `runLifecycleHooksConcurrently` re-imported each injected workspace package; the `scanDir`-into-`filesMap` workaround fed target-internal paths to the importer, which the `makeEmptyDir` fast path (#11088) then wiped. Drop the workaround and pass `keepModulesDir: true` so the importer preserves the target's existing `node_modules` (bin links + transitive deps) and source files keep their hardlinks.
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/lockfile.merger@1100.0.7
+
+## 1100.1.0
+
+### Minor Changes
+
+- 2a9bd89: Record the post-resolution lockfile in the verification cache. Previously the cache only captured the lockfile that was loaded at the start of an install, so a flow like `pnpm install <pkg>` followed by `rm -rf node_modules && pnpm install` re-ran the per-package registry round-trip against the newly written lockfile even though the local resolver had already enforced the policy when picking those versions. The fresh lockfile is now recorded immediately after each install-time write, so the second install takes the cache fast path.
+
+### Patch Changes
+
+- 6e93f35: Fix lockfile parsing failures when `pnpm-lock.yaml` contains CRLF line endings and multiple YAML documents [#11612](https://github.com/pnpm/pnpm/issues/11612).
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/lockfile.merger@1100.0.6
+
+## 1100.0.8
+
+### Patch Changes
+
+- 180aee9: Fixed `optimisticRepeatInstall` skipping `pnpm-lock.yaml` merge conflict resolution when the existing `node_modules` state appears up to date.
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/lockfile.merger@1100.0.5
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/lockfile.merger@1100.0.4
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/network.git-utils@1100.0.1
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.merger@1100.0.3
+
 ## 1100.0.3
 
 ### Patch Changes

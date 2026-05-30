@@ -1,7 +1,9 @@
+import { checkbox, Separator } from '@inquirer/prompts'
 import type { CommandHandler, CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import {
   docsUrl,
+  interactivePromptPageSize,
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli.utils'
@@ -14,14 +16,14 @@ import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
 import chalk from 'chalk'
-import enquirer from 'enquirer'
-import { pick, pluck, unnest } from 'ramda'
+import { pick, unnest } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from '../install.js'
 import { installDeps } from '../installDeps.js'
 import { parseUpdateParam } from '../recursive.js'
-import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
+import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
+import { getUpdateChoices } from './getUpdateChoices.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
@@ -68,6 +70,9 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store-dir',
+    'trust-policy',
+    'trust-policy-exclude',
+    'trust-policy-ignore-after',
     'unsafe-perm',
   ], allTypes)
 }
@@ -149,6 +154,18 @@ dependencies is not found inside the workspace',
             name: '--interactive',
             shortAlias: '-i',
           },
+          {
+            description: 'When set to no-downgrade, show trust evidence in interactive update and reject weaker trust when resolving',
+            name: '--trust-policy no-downgrade',
+          },
+          {
+            description: 'Exclude package specs from trust-policy checks',
+            name: '--trust-policy-exclude <package-spec>',
+          },
+          {
+            description: 'Ignore trust-policy checks for versions published earlier than this many minutes',
+            name: '--trust-policy-ignore-after <minutes>',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -179,7 +196,10 @@ export async function handler (
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
-    return handleGlobalUpdate(opts, params, commands ?? {})
+    return handleGlobalUpdate({
+      ...opts,
+      ...createGlobalPolicyCallbacks(opts),
+    }, params, commands ?? {})
   }
   const rebuildHandler = commands?.rebuild
   if (opts.interactive) {
@@ -216,71 +236,62 @@ async function interactiveUpdate (
     timeout: opts.fetchTimeout,
   })
   const workspacesEnabled = !!opts.workspaceDir
-  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled, opts.trustPolicy)
-  if (choices.length === 0) {
+  const choiceGroups = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled, opts.trustPolicy)
+  if (choiceGroups.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up to date'
     }
     return 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
   }
-  const { updateDependencies } = await enquirer.prompt({
-    choices,
-    footer: '\nEnter to start updating. Ctrl-c to cancel.',
-    indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-      return ` ${choice.enabled ? '●' : '○'}`
-    },
-    message: 'Choose which packages to update ' +
-      `(Press ${chalk.cyan('<space>')} to select, ` +
-      `${chalk.cyan('<a>')} to toggle all, ` +
-      `${chalk.cyan('<i>')} to invert selection)`,
-    name: 'updateDependencies',
-    pointer: '❯',
-    result () {
-      return this.selected
-    },
-    format () {
-      if (!this.state.submitted || this.state.cancelled) return ''
 
-      if (Array.isArray(this.selected)) {
-        return this.selected
-          // The custom format function is used to filter out "[dependencies]" or "[devDependencies]" from the output.
-          // https://github.com/enquirer/enquirer/blob/master/lib/prompts/select.js#L98
-          .filter((choice: ChoiceRow) => !/^\[.+\]$/.test(choice.name))
-          .map((choice: ChoiceRow) => this.styles.primary(choice.name)).join(', ')
+  const flatChoices: Array<Separator | { name: string; value: string; disabled?: boolean | string }> = []
+  for (const group of choiceGroups) {
+    flatChoices.push(new Separator(chalk.bold(`── ${group.message} ──`)))
+    for (const choice of group.choices) {
+      if (choice.disabled) {
+        flatChoices.push(new Separator(`  ${choice.message ?? choice.name}`))
+      } else {
+        flatChoices.push({
+          name: choice.message,
+          value: choice.value,
+        })
       }
-      return this.styles.primary(this.selected.name)
-    },
-    styles: {
-      dark: chalk.reset,
-      em: chalk.bgBlack.whiteBright,
-      success: chalk.reset,
-    },
-    type: 'multiselect',
-    validate (value: string[]) {
-      if (value.length === 0) {
-        return 'You must choose at least one package.'
-      }
-      return true
-    },
+    }
+  }
 
-    // For Vim users (related: https://github.com/enquirer/enquirer/pull/163)
-    j () {
-      return this.down()
-    },
-    k () {
-      return this.up()
-    },
-    cancel () {
-      // By default, canceling the prompt via Ctrl+c throws an empty string.
-      // The custom cancel function prevents that behavior.
-      // Otherwise, pnpm CLI would print an error and confuse users.
-      // See related issue: https://github.com/enquirer/enquirer/issues/225
+  const message = 'Choose which packages to update ' +
+    `(Press ${chalk.cyan('<space>')} to select, ` +
+    `${chalk.cyan('<a>')} to toggle all, ` +
+    `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`
+  let updatePkgNames: string[]
+  try {
+    updatePkgNames = await checkbox({
+      choices: flatChoices,
+      pageSize: interactivePromptPageSize(),
+      message,
+      required: true,
+      validate: (values) => {
+        if (values.length === 0) {
+          return 'You must choose at least one package.'
+        }
+        return true
+      },
+      theme: {
+        icon: { checked: '●', unchecked: '○', cursor: '❯' },
+        style: {
+          highlight: (text: string) => text,
+        },
+        keybindings: ['vim'],
+      },
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ExitPromptError') {
       globalInfo('Update canceled')
       process.exit(0)
-    },
-  } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
+    throw err
+  }
 
-  const updatePkgNames = pluck('value', updateDependencies as ChoiceRow[])
   return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
 }
 

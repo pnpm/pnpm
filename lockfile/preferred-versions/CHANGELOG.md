@@ -1,5 +1,80 @@
 # @pnpm/lockfile.preferred-versions
 
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/pkg-manifest.utils@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.3.1
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.utils@1100.0.9
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/pkg-manifest.utils@1100.1.4
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [9cad827]
+- Updated dependencies [50b33c1]
+  - @pnpm/pkg-manifest.utils@1100.1.3
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/pkg-manifest.utils@1100.1.2
+  - @pnpm/resolving.resolver-base@1100.1.3
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/lockfile.utils@1100.0.4
+
 ## 1100.0.4
 
 ### Patch Changes

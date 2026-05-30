@@ -1,5 +1,104 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [e8b3ae1]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.projects-reader@1101.0.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/fetching.directory-fetcher@1100.0.13
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/pkg-manifest.reader@1100.0.5
+
+## 1100.0.14
+
+### Patch Changes
+
+- @pnpm/bins.linker@1100.0.9
+- @pnpm/fetching.directory-fetcher@1100.0.12
+- @pnpm/workspace.projects-reader@1101.0.7
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/fetching.directory-fetcher@1100.0.11
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/workspace.projects-reader@1101.0.6
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/fetching.directory-fetcher@1100.0.10
+- @pnpm/bins.linker@1100.0.7
+- @pnpm/workspace.projects-reader@1101.0.5
+
+## 1100.0.11
+
+### Patch Changes
+
+- @pnpm/bins.linker@1100.0.6
+- @pnpm/workspace.projects-reader@1101.0.4
+- @pnpm/fetching.directory-fetcher@1100.0.9
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [b4f8f47]
+  - @pnpm/bins.linker@1100.0.5
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/bins.linker@1100.0.4
+  - @pnpm/fetching.directory-fetcher@1100.0.8
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/workspace.projects-reader@1101.0.3
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/fetching.directory-fetcher@1100.0.7
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/fetching.directory-fetcher@1100.0.6
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/fetching.directory-fetcher@1100.0.5
+  - @pnpm/workspace.projects-reader@1101.0.2
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/bins.linker@1100.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/workspace.projects-reader@1101.0.1
+
 ## 1100.0.4
 
 ### Patch Changes

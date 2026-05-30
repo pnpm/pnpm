@@ -11,7 +11,7 @@ import {
 import { streamParser } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { TarballResolution } from '@pnpm/store.controller-types'
-import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey } from '@pnpm/store.index'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 import dint from 'dint'
@@ -43,10 +43,11 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     .filter(([depPath]) => !skipped.has(depPath))
     .map(([depPath, pkgSnapshot]) => {
       const id = packageIdFromSnapshot(depPath, pkgSnapshot)
+      const resolution = pkgSnapshot.resolution as TarballResolution
       return {
         depPath,
         id,
-        integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
+        resolution,
         pkgPath: depPath,
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }
@@ -54,10 +55,8 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
 
   const storeIndex = new StoreIndex(storeDir)
   try {
-    const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
-      const pkgIndexFilePath = integrity
-        ? storeIndexKey(integrity, id)
-        : gitHostedStoreIndexKey(id, { built: true })
+    const modified = await pFilter(pkgs, async ({ id, resolution, depPath, name }) => {
+      const pkgIndexFilePath = pickStoreIndexKey(resolution, id, { built: true })
       const pkgFilesIndex = storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
       if (!pkgFilesIndex) {
         return false

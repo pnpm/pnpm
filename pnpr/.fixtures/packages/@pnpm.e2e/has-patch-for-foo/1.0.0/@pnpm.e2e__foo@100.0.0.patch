@@ -1,0 +1,7 @@
+diff --git a/index.js b/index.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..1e2e7be215a474d90dd0daf2bc9e368694fec353
+--- /dev/null
++++ b/index.js
+@@ -0,0 +1 @@
++console.log('Hello world!')

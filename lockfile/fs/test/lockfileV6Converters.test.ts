@@ -1,4 +1,5 @@
 import { expect, test } from '@jest/globals'
+import type { DepPath } from '@pnpm/types'
 
 import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters.js'
 
@@ -91,6 +92,36 @@ test('convertToLockfileFile()', () => {
   }
   expect(convertToLockfileFile(lockfileV5)).toEqual(lockfileV6)
   expect(convertToLockfileObject(lockfileV6)).toEqual(lockfileV5)
+})
+
+test('convertToLockfileObject() reconstructs a dropped directory resolution for a pruned file: peer-variant, but never for a file: tarball', () => {
+  // Simulates a pruned lockfile (e.g. after `turbo prune --docker`): the
+  // base `pkg@file:...` packages entry that carried `resolution` is gone,
+  // only the peer-variant snapshot remains.
+  const prunedLockfileV6 = {
+    lockfileVersion: '9.0',
+    importers: {},
+    snapshots: {
+      'dir@file:packages/dir(peer@1.0.0)': {},
+      'tar@file:vendor/tar-1.0.0.tgz(peer@1.0.0)': {},
+      // Uppercase tarball extensions must be treated as tarballs too — the
+      // resolver in resolving/local-resolver/src/parseBareSpecifier.ts
+      // matches /\.(?:tgz|tar.gz|tar)$/i, so the boundary applied here at
+      // load time has to be case-insensitive in lockstep.
+      'upper@file:vendor/upper-1.0.0.TGZ(peer@1.0.0)': {},
+      'mixed@file:vendor/mixed-1.0.0.Tar.Gz(peer@1.0.0)': {},
+    },
+  }
+  const lockfile = convertToLockfileObject(prunedLockfileV6)
+  // Local-directory `file:` ref → directory resolution losslessly reconstructed.
+  expect(lockfile.packages?.['dir@file:packages/dir(peer@1.0.0)' as DepPath]?.resolution).toEqual({
+    directory: 'packages/dir',
+    type: 'directory',
+  })
+  // `file:` tarball ref → must NOT be turned into a directory resolution.
+  expect(lockfile.packages?.['tar@file:vendor/tar-1.0.0.tgz(peer@1.0.0)' as DepPath]?.resolution).toBeUndefined()
+  expect(lockfile.packages?.['upper@file:vendor/upper-1.0.0.TGZ(peer@1.0.0)' as DepPath]?.resolution).toBeUndefined()
+  expect(lockfile.packages?.['mixed@file:vendor/mixed-1.0.0.Tar.Gz(peer@1.0.0)' as DepPath]?.resolution).toBeUndefined()
 })
 
 test('convertToLockfileFile() with lockfile v6', () => {

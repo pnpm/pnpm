@@ -159,7 +159,7 @@ describe('determineProvenance', () => {
     )
     expect(mockFetch).toHaveBeenCalledWith(
       expect.objectContaining({
-        href: expect.stringContaining(`/-/package/${packageName.replace('/', '%2f')}/visibility`),
+        href: expect.stringContaining(`/-/package/${packageName.replaceAll('/', '%2f')}/visibility`),
       }),
       expectedOptions
     )
@@ -485,7 +485,7 @@ describe('determineProvenance', () => {
 
     expect(mockFetch.mock.calls).toStrictEqual([[
       expect.objectContaining({
-        href: expect.stringContaining(packageName.replace('/', '%2f')),
+        href: expect.stringContaining(packageName.replaceAll('/', '%2f')),
       }),
       expect.anything(),
     ]])

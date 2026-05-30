@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../core/error"
+    },
+    {
       "path": "../../core/types"
     },
     {
@@ -44,6 +47,9 @@
     },
     {
       "path": "../../resolving/default-resolver"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
     },
     {
       "path": "../../resolving/resolver-base"

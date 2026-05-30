@@ -1,0 +1,16 @@
+# Make Rust more readable given most people have wide screens nowadays.
+# This is also the setting used by [rustc](https://github.com/rust-lang/rust/blob/c7fe5e9d1e/rustfmt.toml)
+use_small_heuristics = "Max"
+
+# Use field initialize shorthand if possible
+use_field_init_shorthand = true
+
+# All unstable features that we wish for
+# unstable_features = true
+# version = "Two"
+# Provide a cleaner impl order
+# reorder_impl_items = true
+# Provide a cleaner import sort order
+# group_imports = "StdExternalCrate"
+# Group "use" statements by crate
+# imports_granularity = "Crate"

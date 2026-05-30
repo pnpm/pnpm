@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/depends-on-pkg-abcd",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/pkg-a": "1.0.0",
+    "@pnpm.e2e/pkg-b": "1.0.0",
+    "@pnpm.e2e/pkg-c": "1.0.0",
+    "@pnpm.e2e/pkg-d": "1.0.0"
+  }
+}

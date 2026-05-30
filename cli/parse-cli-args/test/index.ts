@@ -1,4 +1,6 @@
+import fs from 'node:fs'
 import os from 'node:os'
+import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { parseCliArgs } from '@pnpm/cli.parse-cli-args'
@@ -185,6 +187,64 @@ test('no command', async () => {
   expect(cmd).toBeNull()
 })
 
+// Regression for #11487 — --pm-on-fail must reach the consumer even when
+// short-circuited by --help, otherwise users can't bypass the
+// packageManager check just to read help text for a stale-pinned project.
+test('universal options typed in the exploratory parse survive the --help short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { 'pm-on-fail': ['ignore', 'warn', 'error'] },
+  }, ['install', '--pm-on-fail=ignore', '--help'])
+  expect(cmd).toBe('help')
+  expect(options).toMatchObject({ 'pm-on-fail': 'ignore' })
+})
+
+test('universal options typed in the exploratory parse survive the --version short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { 'pm-on-fail': ['ignore', 'warn', 'error'] },
+  }, ['--pm-on-fail=ignore', '--version'])
+  expect(cmd).toBeNull()
+  expect(options).toMatchObject({ version: true, 'pm-on-fail': 'ignore' })
+})
+
+test('command-specific options do NOT leak through the --help short-circuit', async () => {
+  // We're not executing the command, so its options shouldn't appear in
+  // cliOptions and accidentally influence config (e.g. --frozen-lockfile
+  // shouldn't bleed into the help path).
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (name) => name === 'install' ? { 'frozen-lockfile': Boolean } : {},
+  }, ['install', '--frozen-lockfile', '--help'])
+  expect(cmd).toBe('help')
+  expect(options).not.toHaveProperty(['frozen-lockfile'])
+})
+
+// renamedOptions (e.g. pnpm's --prefix → dir) must be applied in the
+// short-circuit too, otherwise consumers downstream receive inconsistent
+// keys depending on whether --help/--version was the entry path.
+test('renamedOptions are applied to picked universal options in --help short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String },
+    renamedOptions: { prefix: 'dir' },
+  }, ['install', '--prefix=/foo', '--help'])
+  expect(cmd).toBe('help')
+  expect(options).toMatchObject({ dir: '/foo' })
+  expect(options).not.toHaveProperty(['prefix'])
+})
+
+test('renamedOptions are applied to picked universal options in --version short-circuit', async () => {
+  const { cmd, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String },
+    renamedOptions: { prefix: 'dir' },
+  }, ['--prefix=/foo', '--version'])
+  expect(cmd).toBeNull()
+  expect(options).toMatchObject({ version: true, dir: '/foo' })
+  expect(options).not.toHaveProperty(['prefix'])
+})
+
 test('use command-specific shorthands', async () => {
   const { options } = await parseCliArgs({
     ...DEFAULT_OPTS,
@@ -338,6 +398,61 @@ test('--workspace-root fails if used outside of a workspace', async () => {
   }
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NOT_IN_WORKSPACE')
+})
+
+// Regression for #11535. The renamed option (`--prefix` → `dir`) must be
+// considered when locating the workspace root; otherwise running pnpm from
+// a directory outside the project (e.g. `pnpm --prefix=child install` from
+// the parent dir) misses the workspace manifest in the prefix dir, and
+// settings declared there (e.g. allowBuilds) are silently overwritten.
+function setupParentWithChildWorkspace (): { parent: string, child: string } {
+  const parent = temporaryDirectory()
+  const child = path.join(parent, 'child')
+  fs.mkdirSync(child)
+  fs.writeFileSync(path.join(child, 'pnpm-workspace.yaml'), '')
+  process.chdir(parent)
+  return { parent, child }
+}
+
+test('workspaceDir resolves from --prefix when prefix is renamed to dir', async () => {
+  const { child } = setupParentWithChildWorkspace()
+  const { workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String },
+  }, ['install', '--prefix=child'])
+  expect(workspaceDir && fs.realpathSync.native(workspaceDir)).toBe(fs.realpathSync.native(child))
+})
+
+test('workspaceDir resolves from --prefix on the --help short-circuit', async () => {
+  const { child } = setupParentWithChildWorkspace()
+  const { cmd, workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String, help: Boolean },
+  }, ['install', '--prefix=child', '--help'])
+  expect(cmd).toBe('help')
+  expect(workspaceDir && fs.realpathSync.native(workspaceDir)).toBe(fs.realpathSync.native(child))
+})
+
+test('workspaceDir resolves from --prefix on the --version short-circuit', async () => {
+  const { child } = setupParentWithChildWorkspace()
+  const { cmd, workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String, version: Boolean },
+  }, ['--prefix=child', '--version'])
+  expect(cmd).toBeNull()
+  expect(workspaceDir && fs.realpathSync.native(workspaceDir)).toBe(fs.realpathSync.native(child))
+})
+
+// When both the alias and the canonical option are supplied, the canonical
+// value must win and the alias must be dropped — otherwise --prefix could
+// silently overwrite an explicit --dir.
+test('canonical option wins when both --prefix and --dir are passed', async () => {
+  const { options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { prefix: String, dir: String },
+  }, ['install', '--prefix=fromPrefix', '--dir=fromDir'])
+  expect(options.dir).toBe('fromDir')
+  expect(options).not.toHaveProperty(['prefix'])
 })
 
 test('everything after an escape arg is a parameter', async () => {

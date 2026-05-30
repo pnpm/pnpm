@@ -1,0 +1,33 @@
+[package]
+name                  = "pacquet-engine-runtime-deno-resolver"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-lockfile                = { workspace = true }
+pacquet-network                 = { workspace = true }
+pacquet-resolving-npm-resolver  = { workspace = true }
+pacquet-resolving-resolver-base = { workspace = true }
+
+base64      = { workspace = true }
+derive_more = { workspace = true }
+miette      = { workspace = true }
+reqwest     = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+ssri        = { workspace = true }
+tokio       = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+tokio             = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

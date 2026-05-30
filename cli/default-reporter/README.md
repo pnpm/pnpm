@@ -1,18 +1,18 @@
-# @pnpm/default-reporter
+# @pnpm/cli.default-reporter
 
 > The default reporter of pnpm
 
 ## Installation
 
 ```
-pnpm add @pnpm/default-reporter
+pnpm add @pnpm/cli.default-reporter
 ```
 
 ## Usage
 
 ```ts
 import { streamParser } from '@pnpm/logger'
-import { initDefaultReporter } from '@pnpm/default-reporter'
+import { initDefaultReporter } from '@pnpm/cli.default-reporter'
 
 const stopReporting = initDefaultReporter({
   context: {
@@ -26,6 +26,24 @@ try {
 } finally {
   stopReporting()
 }
+```
+
+## `pnpm-render` bin
+
+Installing this package exposes a `pnpm-render` bin that reads pnpm-shaped NDJSON from stdin and renders it through the default reporter. This lets external tools that emit `pnpm:*` log records reuse pnpm's renderer.
+
+For example, [pacquet](https://github.com/pnpm/pacquet) emits the same wire format under `--reporter=ndjson` (to stderr), so its output can be piped through `pnpm-render`:
+
+```sh
+pacquet install --reporter=ndjson 2>&1 >/dev/null | pnpm-render
+```
+
+The redirect (`2>&1 >/dev/null`) is needed because pacquet writes the NDJSON stream to stderr.
+
+An optional first positional argument sets the command name (defaults to `install`); pass it to match the verb the producer is running so command-specific renderers behave correctly:
+
+```sh
+pacquet add lodash --reporter=ndjson 2>&1 >/dev/null | pnpm-render add
 ```
 
 ## Style Guide

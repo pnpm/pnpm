@@ -1,0 +1,284 @@
+use clap::{Args, Parser, ValueEnum};
+use std::{path::PathBuf, process::Command, str::FromStr};
+
+#[derive(Debug, Parser)]
+pub struct CliArgs {
+    /// Task to benchmark.
+    #[clap(long, short, required_unless_present = "build_only", conflicts_with = "build_only")]
+    pub scenario: Option<BenchmarkScenario>,
+
+    /// Port of the local virtual registry. Ignored when `--registry=npm`.
+    #[clap(long, short = 'p', default_value_t = 4873)]
+    pub registry_port: u16,
+
+    /// Which registry the benchmarked installs hit.
+    #[clap(long, value_enum, default_value_t = RegistryMode::Virtual)]
+    pub registry: RegistryMode,
+
+    /// Path to the git repository of pacquet.
+    #[clap(long, short = 'R', default_value = ".")]
+    pub repository: PathBuf,
+
+    /// Path to pnpm's git repository. Only set this if pnpm and pacquet
+    /// live in separate clones; defaults to `--repository`, which is
+    /// correct for the `pnpm/pnpm` monorepo (where both live together).
+    #[clap(long)]
+    pub pnpm_repository: Option<PathBuf>,
+
+    /// Override default `package.json` and `pnpm-lock.yaml` by specifying the directory containing them.
+    #[clap(long, short = 'D')]
+    pub fixture_dir: Option<PathBuf>,
+
+    /// Flags to pass to `hyperfine`.
+    #[clap(flatten)]
+    pub hyperfine_options: HyperfineOptions,
+
+    /// Path to the work environment.
+    #[clap(long, short, default_value = "bench-work-env")]
+    pub work_env: PathBuf,
+
+    /// Also benchmark the system-installed pnpm.
+    #[clap(long)]
+    pub with_pnpm: bool,
+
+    /// Build each target without running the benchmark.
+    #[clap(long)]
+    pub build_only: bool,
+
+    /// Targets to benchmark. Each is `pacquet@<rev>` or `pnpm@<rev>`.
+    #[clap(required = true)]
+    pub targets: Vec<TargetSpec>,
+}
+
+/// A benchmark target — a specific revision of pacquet or pnpm to build
+/// and measure.
+#[derive(Debug, Clone)]
+pub struct TargetSpec {
+    pub kind: TargetKind,
+    pub rev: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetKind {
+    Pacquet,
+    Pnpm,
+}
+
+impl FromStr for TargetSpec {
+    type Err = String;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let (prefix, rev) = input
+            .split_once('@')
+            .ok_or_else(|| format!("target {input:?}: must be `pacquet@<rev>` or `pnpm@<rev>`"))?;
+        let kind = match prefix {
+            "pacquet" => TargetKind::Pacquet,
+            "pnpm" => TargetKind::Pnpm,
+            other => {
+                return Err(format!(
+                    "target {input:?}: unknown kind {other:?} (expected `pacquet` or `pnpm`)",
+                ));
+            }
+        };
+        if rev.is_empty() {
+            return Err(format!("target {input:?}: <rev> must not be empty"));
+        }
+        Ok(TargetSpec { kind, rev: rev.to_string() })
+    }
+}
+
+/// Where the installs fetch packages from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum RegistryMode {
+    /// Spawn or attach to a local verdaccio proxy of npmjs.com.
+    Verdaccio,
+    /// Hit `registry.npmjs.org` directly. No proxy.
+    Npm,
+    /// Assume an external mock registry on `--registry-port`.
+    Virtual,
+}
+
+/// Slug shape: `<linker>.<action>.<cache state>.<store state>`. Dots
+/// separate the four axes that the bench varies, so charts and
+/// dashboards can group by leading segment (`isolated-linker.*`,
+/// `gvs-linker.*`, future `hoisted-linker.*` / `pnp-linker.*`).
+///
+/// Every current variant starts with `node_modules` wiped — "fresh"
+/// names that target state; future variants that begin with a
+/// populated `node_modules` will use a different action prefix.
+//
+// Five of six variants share the `Isolated` prefix today; the lint
+// will stop firing once the `Hoisted*` and `Pnp*` linker buckets land.
+// Keeping the prefix is intentional — it mirrors the slug's leading
+// segment and makes the linker grouping legible in code.
+#[allow(
+    clippy::enum_variant_names,
+    reason = "the shared `Isolated` prefix mirrors the scenario slug and keeps the linker grouping legible; it stops firing once other linker buckets land"
+)]
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum BenchmarkScenario {
+    /// No lockfile, cold cache + cold store. Mirrors `pnpm install` with nothing on disk.
+    #[value(name = "isolated-linker.fresh-install.cold-cache.cold-store")]
+    IsolatedFreshInstallColdCacheColdStore,
+    /// No lockfile, hot cache + hot store. Resolves everything against an already-populated store.
+    #[value(name = "isolated-linker.fresh-install.hot-cache.hot-store")]
+    IsolatedFreshInstallHotCacheHotStore,
+    /// Frozen lockfile, cold cache + cold store. The typical CI shape.
+    #[value(name = "isolated-linker.fresh-restore.cold-cache.cold-store")]
+    IsolatedFreshRestoreColdCacheColdStore,
+    /// Frozen lockfile, hot cache + hot store. The repeat-headless-install shape.
+    #[value(name = "isolated-linker.fresh-restore.hot-cache.hot-store")]
+    IsolatedFreshRestoreHotCacheHotStore,
+    /// `pnpm add <dep>` against an existing lockfile, hot cache + hot store.
+    #[value(name = "isolated-linker.fresh-add-dep.hot-cache.hot-store")]
+    IsolatedFreshAddDepHotCacheHotStore,
+    /// Frozen lockfile, hot cache + hot store, `enableGlobalVirtualStore: true` with a pre-warmed GVS.
+    #[value(name = "gvs-linker.fresh-restore.hot-cache.hot-store")]
+    GvsFreshRestoreHotCacheHotStore,
+}
+
+/// Per-iteration cleanup applied by hyperfine's `--prepare`.
+pub struct Cleanup {
+    /// Paths in the bench dir to `rm -rf` before each iteration.
+    pub remove: &'static [&'static str],
+    /// `(dst, src)` pairs (relative to the bench dir) to `cp` before
+    /// each iteration — restores files the install mutates.
+    pub restore: &'static [(&'static str, &'static str)],
+}
+
+impl BenchmarkScenario {
+    /// Install command arguments. The leading subcommand is the first
+    /// element (`install` or `add`), followed by any flags.
+    pub fn install_args(self) -> &'static [&'static str] {
+        match self {
+            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => &["install"],
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
+            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
+                &["install", "--frozen-lockfile"]
+            }
+            BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
+        }
+    }
+
+    /// Return `lockfile=true` or `lockfile=false` for use in generating `.npmrc`.
+    pub fn npmrc_lockfile_setting(self) -> &'static str {
+        if self.lockfile_enabled() { "lockfile=true" } else { "lockfile=false" }
+    }
+
+    /// Whether the lockfile is enabled for this scenario. Mirrored into
+    /// `pnpm-workspace.yaml` alongside `.npmrc` so pnpm picks the same
+    /// value up regardless of which config source it prefers.
+    pub fn lockfile_enabled(self) -> bool {
+        match self {
+            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => false,
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
+            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => true,
+        }
+    }
+
+    /// Whether to seed a `pnpm-lock.yaml` into the bench dir during
+    /// init. The two install variants skip this; the restore, add-dep,
+    /// and GVS variants need it.
+    pub fn lockfile<Text, LoadLockfile>(self, load_lockfile: LoadLockfile) -> Option<String>
+    where
+        Text: Into<String>,
+        LoadLockfile: FnOnce() -> Text,
+    {
+        self.lockfile_enabled().then(|| load_lockfile().into())
+    }
+
+    /// Per-iteration cleanup (paths to remove and saved copies to
+    /// restore) applied via hyperfine's `--prepare`.
+    pub fn cleanup(self) -> Cleanup {
+        const SAVED_LOCKFILE: (&str, &str) = ("pnpm-lock.yaml", ".saved-pnpm-lock.yaml");
+        const SAVED_PACKAGE_JSON: (&str, &str) = ("package.json", ".saved-package.json");
+        match self {
+            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore => Cleanup {
+                remove: &["node_modules", "pnpm-lock.yaml", "store-dir"],
+                restore: &[SAVED_PACKAGE_JSON],
+            },
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => {
+                Cleanup { remove: &["node_modules", "store-dir"], restore: &[SAVED_LOCKFILE] }
+            }
+            BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore => {
+                Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
+            }
+            BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => Cleanup {
+                remove: &["node_modules"],
+                restore: &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON],
+            },
+            BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => Cleanup {
+                remove: &["node_modules", "pnpm-lock.yaml"],
+                restore: &[SAVED_PACKAGE_JSON],
+            },
+            BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
+                Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
+            }
+        }
+    }
+
+    /// Whether this scenario requires `enableGlobalVirtualStore: true`
+    /// in the workspace manifest, and a pre-warm pass that primes the
+    /// store before hyperfine's warmup runs.
+    pub fn enables_gvs(self) -> bool {
+        matches!(self, BenchmarkScenario::GvsFreshRestoreHotCacheHotStore)
+    }
+}
+
+#[derive(Debug, Args)]
+pub struct HyperfineOptions {
+    /// Number of warmup runs to perform before the actual measured benchmark.
+    #[clap(long, default_value_t = 1)]
+    pub warmup: u8,
+
+    /// Minimum number of runs for each command.
+    #[clap(long)]
+    pub min_runs: Option<u8>,
+
+    /// Maximum number of runs for each command.
+    #[clap(long)]
+    pub max_runs: Option<u8>,
+
+    /// Exact number of runs for each command.
+    #[clap(long)]
+    pub runs: Option<u8>,
+
+    /// Print stdout and stderr of the benchmarked program instead of suppressing it
+    #[clap(long)]
+    show_output: bool,
+
+    /// Ignore non-zero exit codes of the benchmarked program.
+    #[clap(long)]
+    pub ignore_failure: bool,
+}
+
+impl HyperfineOptions {
+    pub fn append_to(&self, hyperfine_command: &mut Command) {
+        let &HyperfineOptions { show_output, warmup, min_runs, max_runs, runs, ignore_failure } =
+            self;
+        hyperfine_command.arg("--warmup").arg(warmup.to_string());
+        if let Some(min_runs) = min_runs {
+            hyperfine_command.arg("--min-runs").arg(min_runs.to_string());
+        }
+        if let Some(max_runs) = max_runs {
+            hyperfine_command.arg("--max-runs").arg(max_runs.to_string());
+        }
+        if let Some(runs) = runs {
+            hyperfine_command.arg("--runs").arg(runs.to_string());
+        }
+        if show_output {
+            hyperfine_command.arg("--show-output");
+        }
+        if ignore_failure {
+            hyperfine_command.arg("--ignore-failure");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

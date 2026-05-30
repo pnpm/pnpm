@@ -1,5 +1,6 @@
 import type {
   DependencyManifest,
+  PackageManifest,
   PackageVersionPolicy,
   PinnedVersion,
   PkgResolutionId,
@@ -18,6 +19,14 @@ export interface TarballResolution {
   tarball: string
   integrity?: string
   path?: string
+  /**
+   * True for tarballs sourced from a git host (codeload.github.com /
+   * gitlab.com / bitbucket.org). Such tarballs need preparation
+   * (preparePackage / packlist) on extraction, and their cached content
+   * depends on whether build scripts ran, so they're addressed by
+   * gitHostedStoreIndexKey rather than the integrity-based key.
+   */
+  gitHosted?: boolean
 }
 
 export interface BinaryResolution {
@@ -73,6 +82,73 @@ export interface VariationsResolution {
 }
 
 export type Resolution = AtomicResolution | VariationsResolution
+
+/**
+ * Outcome of asking a `ResolutionVerifier` whether a (name, version,
+ * resolution) entry from a lockfile is acceptable under whatever policies
+ * the resolver chain has been configured with. Resolvers that don't have
+ * an opinion on a given resolution should return `{ ok: true }`.
+ */
+export type ResolutionVerification =
+  | { ok: true }
+  | { ok: false, code: string, reason: string }
+
+/**
+ * Optional companion to a resolver factory.
+ *
+ * `verify` inspects the `resolution` shape to decide whether the entry
+ * is within its protocol; for entries outside its protocol it should
+ * return `{ ok: true }`. The install side fans out across the verifier
+ * list rather than asking a combinator to dispatch.
+ *
+ * `policy` and `canTrustPastCheck` describe the verifier's cache
+ * contract. Policies from every active verifier are merged into a
+ * single shared bag stored alongside the lockfile hash; the
+ * install-side verification cache reads them to decide if a previous
+ * run on the same lockfile is still trustworthy under today's policy
+ * without re-issuing the registry round-trips that `verify` would.
+ * Verifiers that check the same logical policy (e.g. minimumReleaseAge
+ * across registries) name it the same and share the cache slot.
+ */
+export interface ResolutionVerifier {
+  verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification>
+  /**
+   * Snapshot of the policy fields this verifier enforces. Merged with
+   * every other active verifier's `policy` into the cache record. A
+   * field shared across verifiers (same key) should carry the same
+   * value; if it doesn't, the last verifier in the list wins.
+   */
+  policy: Record<string, unknown>
+  /**
+   * Returns true when the previously cached policy (the merged snapshot
+   * from the last successful run) can be trusted to still satisfy what
+   * this verifier currently demands. Reads whichever fields the
+   * verifier owns; missing or non-conforming values (e.g. an older
+   * record shape) should return false. A loosened policy can trust a
+   * stricter cached run; a tightened policy cannot.
+   */
+  canTrustPastCheck: (cachedPolicy: Record<string, unknown>) => boolean
+}
+
+/**
+ * A `ResolutionVerifier`'s rejection materialized for one (name,
+ * version, resolution) entry. The install side aggregates these across
+ * every active verifier on the freshly-resolved tree and either prompts
+ * the user, persists them (e.g. into `minimumReleaseAgeExclude`), or
+ * aborts. Code is the verifier-defined error code
+ * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, etc.) — the
+ * install command filters by code to decide downstream UX. Lifted here
+ * (rather than in deps-installer) so both deps-resolver and
+ * deps-installer can share one shape; future resolver packages plug in
+ * without needing the deps-installer dependency.
+ */
+export interface ResolutionPolicyViolation {
+  name: string
+  version: string
+  resolution: Resolution
+  code: string
+  reason: string
+}
 
 /** Concrete platform selector used when picking a variant from a VariationsResolution. */
 export interface PlatformSelector {
@@ -142,6 +218,22 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
+  /**
+   * Set when the resolver picked this version despite a policy
+   * violation (e.g. immature relative to `publishedBy`, trust
+   * downgrade detected by `failIfTrustDowngraded`). The resolver
+   * already has the metadata it needs to decide, so reporting inline
+   * here avoids the install layer having to re-scan the tree and
+   * re-fetch the same metadata. The deps-resolver aggregates these
+   * across every resolve call into a single set the install command
+   * can react to.
+   *
+   * `resolution` on the violation is the same `resolution` field
+   * above — supplied for symmetry with `ResolutionPolicyViolation`
+   * entries that flow out of `verifyLockfileResolutions` for
+   * lockfile-only paths.
+   */
+  policyViolation?: ResolutionPolicyViolation
 }
 
 export interface WorkspacePackage {
@@ -197,6 +289,7 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
+  updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
@@ -205,6 +298,7 @@ export interface ResolveOptions {
     name?: string
     version?: string
     resolution: Resolution
+    publishedAt?: string
   }
 }
 
@@ -220,3 +314,34 @@ export type WantedDependency = {
 })
 
 export type ResolveFunction = (wantedDependency: WantedDependency & { optional?: boolean }, opts: ResolveOptions) => Promise<ResolveResult>
+
+/**
+ * Input to a resolver's `resolveLatest` function. The resolver decides
+ * whether it owns this dep purely from `wantedDependency` (its alias and
+ * manifest specifier) — the lockfile-resolved ref is the caller's
+ * concern, not the resolver's.
+ */
+export interface LatestQuery {
+  wantedDependency: WantedDependency
+  compatible?: boolean
+}
+
+/**
+ * Result of a resolver's `resolveLatest` call.
+ *
+ * - `undefined` means "this resolver does not handle this dep — try
+ *   the next one".
+ * - An object (even without a `latestManifest`) means "I claim this
+ *   dep, but I can't tell you what's latest" (e.g. policy blocked,
+ *   network unavailable, no concept of latest for this protocol).
+ *   The caller still surfaces a ref-mismatch report if the lockfile
+ *   shifted.
+ */
+export interface LatestInfo {
+  latestManifest?: PackageManifest
+}
+
+export type ResolveLatestFunction = (
+  query: LatestQuery,
+  opts: ResolveOptions
+) => Promise<LatestInfo | undefined>

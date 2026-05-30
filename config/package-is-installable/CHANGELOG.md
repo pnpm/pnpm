@@ -1,5 +1,59 @@
 # @pnpm/package-is-installable
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/engine.runtime.system-version@1100.0.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/cli.meta@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/engine.runtime.system-node-version@1100.1.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [3ddde2b]
+- Updated dependencies [4a79336]
+  - @pnpm/engine.runtime.system-node-version@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/cli.meta@1100.0.3
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/engine.runtime.system-node-version@1100.0.3
+
+## 1100.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/engine.runtime.system-node-version@1100.0.2
+  - @pnpm/cli.meta@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- d96a1bf: Fix negated `os` / `cpu` entries (e.g. `["!win32"]`) being incorrectly rejected when `supportedArchitectures` expands to multiple platforms [#11375](https://github.com/pnpm/pnpm/pull/11375).
+
 ## 1100.0.1
 
 ### Patch Changes

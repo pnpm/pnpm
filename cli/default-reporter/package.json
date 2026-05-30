@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli.default-reporter",
-  "version": "1100.0.4",
+  "version": "1100.2.4",
   "description": "The default reporter of pnpm",
   "keywords": [
     "pnpm",
@@ -22,8 +22,12 @@
   },
   "files": [
     "lib",
-    "!*.map"
+    "!*.map",
+    "bin"
   ],
+  "bin": {
+    "pnpm-render": "bin/pnpm-render.mjs"
+  },
   "scripts": {
     "start": "tsgo --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -36,6 +40,7 @@
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.inspection.peers-issues-renderer": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/installing.dedupe.issues-renderer": "workspace:*",
     "@pnpm/installing.dedupe.types": "workspace:*",

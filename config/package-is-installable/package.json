@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.package-is-installable",
-  "version": "1100.0.1",
+  "version": "1100.0.7",
   "description": "Checks if a package is installable on the current system",
   "keywords": [
     "pnpm",
@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/engine.runtime.system-node-version": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",

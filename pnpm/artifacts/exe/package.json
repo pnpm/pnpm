@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.0.0",
+  "version": "11.5.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -30,7 +30,9 @@
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",
-    "build-artifacts": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts"
+    "build-artifacts": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
+    "test": "pn .test"
   },
   "dependencies": {
     "@reflink/reflink": "catalog:",
@@ -42,7 +44,6 @@
     "@pnpm/linuxstatic-arm64": "workspace:*",
     "@pnpm/linuxstatic-x64": "workspace:*",
     "@pnpm/macos-arm64": "workspace:*",
-    "@pnpm/macos-x64": "workspace:*",
     "@pnpm/win-arm64": "workspace:*",
     "@pnpm/win-x64": "workspace:*"
   },
@@ -50,6 +51,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
+    "@zkochan/cmd-shim": "catalog:",
     "execa": "catalog:"
   },
   "pnpm": {
@@ -60,7 +62,6 @@
       "targets": [
         "win32-x64",
         "linux-x64",
-        "darwin-x64",
         "darwin-arm64",
         "linux-arm64",
         "win32-arm64",
@@ -80,6 +81,11 @@
       "pn": "pn",
       "pnpx": "pnpx",
       "pnx": "pnx"
-    }
+    },
+    "executableFiles": [
+      "./dist/node-gyp-bin/node-gyp",
+      "./dist/node-gyp-bin/node-gyp.cmd",
+      "./dist/node_modules/node-gyp/bin/node-gyp.js"
+    ]
   }
 }

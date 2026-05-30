@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.project-manifest-reader",
-  "version": "1100.0.2",
+  "version": "1100.0.9",
   "description": "Read a project manifest (called package.json in most cases)",
   "keywords": [
     "pnpm",
@@ -41,6 +41,7 @@
     "fast-deep-equal": "catalog:",
     "is-windows": "catalog:",
     "json5": "catalog:",
+    "p-limit": "catalog:",
     "parse-json": "catalog:",
     "read-yaml-file": "catalog:",
     "strip-bom": "catalog:"

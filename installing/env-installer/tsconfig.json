@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../config/package-is-installable"
+    },
+    {
       "path": "../../config/pick-registry-for-package"
     },
     {
@@ -68,6 +71,9 @@
     },
     {
       "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../testing/registry-mock"
     },
     {
       "path": "../../testing/temp-store"

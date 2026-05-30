@@ -1,0 +1,7 @@
+diff --git a/../../../../../../../../../../tmp/pnpm-patch-traversal-pwned b/../../../../../../../../../../tmp/pnpm-patch-traversal-pwned
+new file mode 100644
+index 0000000..3b18e51
+--- /dev/null
++++ b/../../../../../../../../../../tmp/pnpm-patch-traversal-pwned
+@@ -0,0 +1 @@
++pwned

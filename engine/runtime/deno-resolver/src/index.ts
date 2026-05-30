@@ -1,8 +1,10 @@
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
-import type { NpmResolver } from '@pnpm/resolving.npm-resolver'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE, type NpmResolver } from '@pnpm/resolving.npm-resolver'
 import type {
   BinaryResolution,
+  LatestInfo,
+  LatestQuery,
   PlatformAssetResolution,
   PlatformAssetTarget,
   ResolveOptions,
@@ -93,6 +95,30 @@ export async function resolveDenoRuntime (
       type: 'variations',
       variants: assets,
     },
+  }
+}
+
+export async function resolveLatestDenoRuntime (
+  ctx: { resolveFromNpm: NpmResolver },
+  query: LatestQuery,
+  opts: ResolveOptions
+): Promise<LatestInfo | undefined> {
+  const manifestSpec = query.wantedDependency.bareSpecifier
+  if (query.wantedDependency.alias !== 'deno' || !manifestSpec?.startsWith('runtime:')) return undefined
+  const versionSpec = query.compatible ? manifestSpec.substring('runtime:'.length) : 'latest'
+  try {
+    const npmResolution = await ctx.resolveFromNpm(
+      { alias: 'deno', bareSpecifier: versionSpec },
+      query.compatible ? opts : { ...opts, update: 'latest' }
+    )
+    if (npmResolution?.policyViolation?.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE) return {}
+    if (!npmResolution?.manifest) return {}
+    return { latestManifest: { name: 'deno', version: npmResolution.manifest.version } }
+  } catch (err) {
+    if (opts.publishedBy && (err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION') {
+      return {}
+    }
+    throw err
   }
 }
 

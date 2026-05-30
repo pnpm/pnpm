@@ -44,13 +44,17 @@ export function pickPackageFromMeta (
         meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
       } else {
         const modifiedDate = parseModifiedDate(meta.modified)
-        if (modifiedDate == null || modifiedDate >= publishedBy) {
+        if (modifiedDate == null || modifiedDate > publishedBy) {
           // Abbreviated metadata without per-version timestamps, and the package
           // was recently modified (or has no/invalid modified field). We cannot determine
           // which individual versions are mature enough — need full metadata.
           assertMetaHasTime(meta)
         }
-        // else: meta.modified < publishedBy — all versions are old enough, no filtering needed
+        // else: meta.modified <= publishedBy — every version was published at or
+        // before the cutoff (modified is an upper bound on per-version time), so
+        // they all pass the per-version `<=` maturity filter and no filtering is
+        // needed. Inclusive at the boundary on purpose so this branch matches the
+        // per-version filter in `filterPkgMetadataByPublishDate`.
       }
     }
   }

@@ -229,6 +229,38 @@ describe('version command', () => {
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION' })
   })
 
+  it('should run version lifecycle scripts in order', async () => {
+    const lifecycleLog = path.join(tempDir, 'lifecycle.log')
+    const logLifecycleScript = path.join(tempDir, 'log-lifecycle.cjs')
+    fs.writeFileSync(logLifecycleScript, `const fs = require('fs')
+const path = require('path')
+const manifest = require(path.join(process.cwd(), 'package.json'))
+fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\\n')
+`)
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-pkg',
+      version: '1.0.0',
+      scripts: {
+        preversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} preversion`,
+        version: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} version`,
+        postversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} postversion`,
+      },
+    }))
+
+    await handler({
+      dir: tempDir,
+      workspaceDir: tempDir,
+      gitChecks: false,
+      gitTagVersion: false,
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    expect(fs.readFileSync(lifecycleLog, 'utf-8')).toBe(
+      'preversion:1.0.0\n' +
+      'version:1.0.1\n' +
+      'postversion:1.0.1\n'
+    )
+  })
+
   describe('git integration', () => {
     let origCwd: string
 

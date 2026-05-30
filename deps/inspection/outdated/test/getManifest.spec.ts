@@ -58,14 +58,30 @@ test('getManifest() with minimumReleaseAge filters latest when too new', async (
 
   const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
 
+  // The resolver no longer throws on immature picks — it falls back to
+  // the lowest matching version and flags the result with `policyViolation`.
+  // outdated treats that as "no version available within the policy" and
+  // returns null, same as the pre-refactor throw path.
   const resolve = jest.fn<ResolveFunction>(async (wantedPackage, resolveOpts) => {
     expect(wantedPackage.bareSpecifier).toBe('latest')
     expect(resolveOpts.publishedBy).toBeInstanceOf(Date)
-
-    // Simulate latest version being too new
-    const error = new Error('No matching version found') as Error & { code?: string }
-    error.code = 'ERR_PNPM_NO_MATURE_MATCHING_VERSION'
-    throw error
+    return {
+      id: 'foo/2.0.0' as PkgResolutionId,
+      latest: '2.0.0',
+      manifest: {
+        name: 'foo',
+        version: '2.0.0',
+      },
+      resolution: {} as TarballResolution,
+      resolvedVia: 'npm-registry',
+      policyViolation: {
+        name: 'foo',
+        version: '2.0.0',
+        resolution: {} as TarballResolution,
+        code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+        reason: 'was published within the minimumReleaseAge cutoff',
+      },
+    }
   })
 
   const result = await getManifest({ ...opts, resolve, publishedBy }, 'foo', 'latest')

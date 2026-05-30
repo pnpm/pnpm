@@ -36,7 +36,7 @@ export async function renderDependentsTree (trees: DependentsTree[], opts: { lon
       }
       const childNodes = dependentsToTreeNodes(result.dependents, multiPeerPkgs, 0, opts.depth)
       const tree: TreeNode = { label: rootLabel, nodes: childNodes }
-      return renderArchyTree(tree, { treeChars: chalk.dim }).replace(/\n+$/, '')
+      return trimTrailingNewlines(renderArchyTree(tree, { treeChars: chalk.dim }))
     }))
   ).join('\n\n')
 
@@ -177,4 +177,10 @@ function truncateDependents (dependents: DependentNode[], currentDepth: number, 
 
 function plainNameAtVersion (name: string, version: string): string {
   return version ? `${name}@${version}` : name
+}
+
+function trimTrailingNewlines (s: string): string {
+  let end = s.length
+  while (end > 0 && s.charCodeAt(end - 1) === 10) end--
+  return end === s.length ? s : s.slice(0, end)
 }

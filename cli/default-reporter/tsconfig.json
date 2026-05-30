@@ -26,6 +26,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../deps/inspection/peers-issues-renderer"
+    },
+    {
       "path": "../../installing/dedupe/issues-renderer"
     },
     {

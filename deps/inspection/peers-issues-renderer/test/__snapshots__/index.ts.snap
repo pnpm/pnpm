@@ -1,0 +1,58 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`renderPeerIssues() formats version ranges with spaces or "*" with quotes 1`] = `
+"✕ missing peer a
+  Wanted:
+    "*":
+      z@1.0.0
+
+✕ missing peer b
+  Wanted:
+    "1 || 2":
+      z@1.0.0"
+`;
+
+exports[`renderPeerIssues() handles missing parents gracefully 1`] = `
+"✕ missing peer foo
+  Wanted:
+    ">=1.0.0 <3.0.0":
+      <unknown>"
+`;
+
+exports[`renderPeerIssues() renders bad peer dependencies 1`] = `
+"✕ unmet peer a
+  Installed: 2
+  Wanted:
+    3:
+      b@1.0.0"
+`;
+
+exports[`renderPeerIssues() renders conflicting peer dependencies 1`] = `
+"✕ conflicting peer a
+  Wanted:
+    ^1.0.0:
+      b@1.0.0
+    ^2.0.0:
+      c@1.0.0"
+`;
+
+exports[`renderPeerIssues() renders missing peer dependencies that are required 1`] = `
+"✕ missing peer a
+  Wanted:
+    ^1.0.0:
+      b@1.0.0"
+`;
+
+exports[`renderPeerIssues() splits bad peer dependencies by foundVersion 1`] = `
+"✕ unmet peer a
+  Installed: 1.0.0
+  Wanted:
+    ^2.0.0:
+      b@1.0.0
+
+✕ unmet peer a
+  Installed: 2.0.0
+  Wanted:
+    ^3.0.0:
+      c@1.0.0"
+`;

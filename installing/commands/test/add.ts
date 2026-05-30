@@ -5,7 +5,7 @@ import { describe, expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/installing.commands'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
@@ -381,7 +381,7 @@ test('minimumReleaseAge with minimumReleaseAgeStrict enabled makes install fail 
     minimumReleaseAge,
     minimumReleaseAgeStrict: true,
     linkWorkspacePackages: false,
-  }, ['is-odd@0.1.1'])).rejects.toThrow(/Version 0\.1\.1 \(released .+\) of is-odd does not meet the minimumReleaseAge constraint/)
+  }, ['is-odd@0.1.1'])).rejects.toThrow(/is-odd@0\.1\.1 was published.+minimumReleaseAge cutoff/)
 })
 
 describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {

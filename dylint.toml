@@ -1,0 +1,81 @@
+# Dylint configuration. cargo-dylint reads `[workspace.metadata.dylint]`
+# from this file (or, equivalently, from `Cargo.toml`). Keeping the table
+# here keeps the workspace `Cargo.toml` focused on cargo-native metadata
+# and makes the cache key for CI easy to compute (see the `dylint` job
+# in `.github/workflows/ci.yml`).
+#
+# Run with: `cargo dylint --all -- --all-targets --workspace`
+# or via the `just dylint` recipe.
+[workspace.metadata.dylint]
+libraries = [
+    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.17" },
+]
+
+# Project-local DSL / test macros that perfectionist's exactly-once
+# heuristic cannot peer through. The built-in allow list in rc.14 already
+# covers `concat!`, `json!`, and the `assert_*_snapshot!` family, so they
+# do not need to be repeated here.
+["perfectionist::macro_argument_binding"]
+ignore = [
+    # `pacquet_testing_utils::allow_known_failure!` binds its argument
+    # to a `let` internally before the match, so the expression is
+    # evaluated exactly once. The rule cannot peer through the macro
+    # body to see that.
+    "allow_known_failure",
+    # Test-local `static_env!` (in `npmrc_auth/tests.rs`) generates an
+    # `EnvVar` impl. The `&[(...)]` slice expression it receives binds
+    # to a local inside the impl, evaluated once on each `var(name)`
+    # call.
+    "static_env",
+    # Test-local `case!` (in `pkg_*_*/tests.rs`) takes
+    # `$input:expr, $message:expr, $variant:pat`. The lint sees the
+    # `$variant` slot's token stream as a non-trivial expression even
+    # though it's parsed as a pattern. The macro binds `$input` to a
+    # local on entry, so the exactly-once contract holds.
+    "case",
+    # `rusqlite::params!` is a DSL macro that wraps each arg as a
+    # `&dyn ToSql` reference. Args carry no side effects (they are
+    # already references / borrows that the macro forwards once);
+    # hoisting to a `let` is purely noise.
+    "params",
+]
+
+[perfectionist]
+enable = ["derive_ordering"]
+
+# The codebase collapses imports to one `use` per crate root (shared
+# prefixes in nested braces) — the same granularity rustfmt spells
+# `imports_granularity = "Crate"` and perfectionist spells `"crate"`. Pin
+# the rule to it; its default `module` style would flag every such import.
+["perfectionist::import_granularity"]
+style = "crate"
+
+# Every unit test lives in an external file (shorter production files,
+# less churn). Flag any inline test item, not just the ones over a line
+# budget.
+["perfectionist::unit_test_file_layout"]
+inline_style = "external_only"
+
+# Don't rely on the doc-comment-only default: a bare `#NNN` is just as
+# ambiguous in a plain `//` comment, so lint those too.
+["perfectionist::bare_issue_reference"]
+include_plain_comments = true
+
+["perfectionist::derive_ordering"]
+style = "prefix_then_alphabetical"
+prefix = [
+    "Debug",
+    "Default",
+    "Display",
+    "Error",
+    "Diagnostic",
+    "Clone",
+    "Copy",
+    "PartialEq",
+    "Eq",
+    "PartialOrd",
+    "Ord",
+    "Hash",
+    "Serialize",
+    "Deserialize",
+]

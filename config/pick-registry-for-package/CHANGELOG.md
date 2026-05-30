@@ -1,5 +1,38 @@
 # @pnpm/pick-registry-for-package
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+
+## 1100.0.5
+
+### Patch Changes
+
+- 097983f: Fix `pickRegistryForPackage` returning the wrong registry for an unscoped `npm:` alias under a scoped local name. A manifest entry like `"@private/foo": "npm:lodash@^1"` was routing the `lodash` fetch through `registries["@private"]`, even though `lodash` is unscoped and doesn't live on that registry. The npm-alias branch now returns the alias target's own scope (or `null` for an unscoped target, falling through to `registries.default`) instead of leaking into the local key's scope.
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+
 ## 1100.0.1
 
 ### Patch Changes

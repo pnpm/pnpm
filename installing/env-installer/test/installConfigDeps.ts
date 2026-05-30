@@ -1,11 +1,14 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { installConfigDeps } from '@pnpm/installing.env-installer'
 import { createEnvLockfile, type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
+import { rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -78,6 +81,200 @@ test('configuration dependency is installed from env lockfile', async () => {
   })
 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')).toBeFalsy()
+})
+
+test('optional subdep matching the current platform is installed and symlinked next to parent', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const subdepVersion = '100.0.0'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [subdepName]: subdepVersion },
+  }
+  lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+    os: [process.platform],
+    cpu: [process.arch],
+  }
+
+  await installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })
+
+  expect(fs.existsSync(`node_modules/.pnpm-config/${parentName}/package.json`)).toBe(true)
+
+  // Node-style resolution from inside the parent must find the sibling subdep.
+  const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
+  const requireFromParent = createRequire(path.join(parentRealPath, 'package.json'))
+  const siblingPkgJsonPath = requireFromParent.resolve(`${subdepName}/package.json`)
+  const siblingManifest = loadJsonFileSync<{ name: string, version: string }>(siblingPkgJsonPath)
+  expect(siblingManifest.name).toBe(subdepName)
+  expect(siblingManifest.version).toBe(subdepVersion)
+})
+
+test('changing only an optional subdep version re-installs and re-symlinks the parent', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+
+  function buildLockfile (subdepVersion: string): EnvLockfile {
+    const lockfile = createEnvLockfile()
+    const parentKey = `${parentName}@${parentVersion}`
+    lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+    lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+    lockfile.snapshots[parentKey] = { optionalDependencies: { [subdepName]: subdepVersion } }
+    lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+      resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+      os: [process.platform],
+      cpu: [process.arch],
+    }
+    return lockfile
+  }
+
+  const installOpts = {
+    registries: { default: registry },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  }
+
+  await installConfigDeps(buildLockfile('100.0.0'), installOpts)
+  const requireBefore = createRequire(path.join(fs.realpathSync(`node_modules/.pnpm-config/${parentName}`), 'package.json'))
+  expect(loadJsonFileSync<{ version: string }>(requireBefore.resolve(`${subdepName}/package.json`)).version).toBe('100.0.0')
+
+  await installConfigDeps(buildLockfile('100.1.0'), installOpts)
+  const requireAfter = createRequire(path.join(fs.realpathSync(`node_modules/.pnpm-config/${parentName}`), 'package.json'))
+  expect(loadJsonFileSync<{ version: string }>(requireAfter.resolve(`${subdepName}/package.json`)).version).toBe('100.1.0')
+})
+
+test('optional subdep that does not match the current platform is skipped', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const subdepVersion = '100.0.0'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [subdepName]: subdepVersion },
+  }
+  lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+    os: ['this-os-does-not-exist'],
+  }
+
+  await installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })
+
+  const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
+  const requireFromParent = createRequire(path.join(parentRealPath, 'package.json'))
+  expect(() => requireFromParent.resolve(`${subdepName}/package.json`)).toThrow(/Cannot find/)
+})
+
+test('re-installs sibling symlinks even when the parent symlink is already correct', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const subdepVersion = '100.0.0'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = { optionalDependencies: { [subdepName]: subdepVersion } }
+  lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+    os: [process.platform],
+    cpu: [process.arch],
+  }
+
+  const installOpts = {
+    registries: { default: registry },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  }
+
+  // First install — parent + subdep symlink land in the GVS leaf.
+  await installConfigDeps(lockfile, installOpts)
+  const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
+  const subdepSiblingPath = path.join(path.dirname(path.dirname(parentRealPath)), subdepName)
+  expect(fs.existsSync(`${subdepSiblingPath}/package.json`)).toBe(true)
+
+  // Simulate stale state: remove the subdep sibling symlink. The parent's
+  // .pnpm-config symlink still points at the expected leaf, so the realpath
+  // skip-check passes. installOptionalSubdeps must still run to repair.
+  await rimraf(subdepSiblingPath)
+  expect(fs.existsSync(subdepSiblingPath)).toBe(false)
+
+  // Second install with the same lockfile.
+  await installConfigDeps(lockfile, installOpts)
+  expect(fs.existsSync(`${subdepSiblingPath}/package.json`)).toBe(true)
+})
+
+test('optional subdep that does not match the current cpu is skipped', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const subdepVersion = '100.0.0'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [subdepName]: subdepVersion },
+  }
+  lockfile.packages[`${subdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, subdepVersion) },
+    cpu: ['this-cpu-does-not-exist'],
+  }
+
+  await installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })
+
+  const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
+  const requireFromParent = createRequire(path.join(parentRealPath, 'package.json'))
+  expect(() => requireFromParent.resolve(`${subdepName}/package.json`)).toThrow(/Cannot find/)
 })
 
 test('installation fails if the checksum of the config dependency is invalid', async () => {

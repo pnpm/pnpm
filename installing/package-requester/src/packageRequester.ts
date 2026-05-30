@@ -43,7 +43,7 @@ import type {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/store.controller-types'
-import { gitHostedStoreIndexKey, storeIndexKey } from '@pnpm/store.index'
+import { pickStoreIndexKey } from '@pnpm/store.index'
 import type { DependencyManifest, SupportedArchitectures } from '@pnpm/types'
 import {
   calcMaxWorkers,
@@ -181,6 +181,7 @@ async function resolveAndFetch (
         name: options.currentPkg.name,
         version: options.currentPkg.version,
         resolution: options.currentPkg.resolution,
+        publishedAt: options.currentPkg.publishedAt,
       }
       : undefined,
   }), { priority: options.downloadPriority })
@@ -192,6 +193,7 @@ async function resolveAndFetch (
     publishedAt,
     normalizedBareSpecifier,
     alias,
+    policyViolation,
   } = resolveResult
 
   // Check if the integrity has changed between the current and newly resolved package
@@ -204,6 +206,20 @@ async function resolveAndFetch (
   const updated = pkgId !== resolveResult.id || !resolution || integrityChanged
   resolution = resolveResult.resolution
   pkgId = resolveResult.id
+
+  // URL/tarball resolvers don't return an integrity, because it is only known
+  // after the tarball is downloaded. When a package is reused from the lockfile
+  // without being re-fetched, the freshly resolved resolution has no integrity,
+  // so carry it over from the current resolution instead of dropping it.
+  // https://github.com/pnpm/pnpm/issues/12001
+  if (
+    !updated &&
+    typeof previousIntegrity === 'string' &&
+    !resolution.type &&
+    !(resolution as TarballResolution).integrity
+  ) {
+    (resolution as TarballResolution).integrity = previousIntegrity
+  }
 
   const id = pkgId!
 
@@ -255,6 +271,7 @@ async function resolveAndFetch (
         updated,
         publishedAt,
         alias,
+        policyViolation,
       },
     }
   }
@@ -318,6 +335,7 @@ async function resolveAndFetch (
       updated,
       publishedAt,
       alias,
+      policyViolation,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,
@@ -345,28 +363,18 @@ function getFilesIndexFilePath (
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  if ((opts.pkg.resolution as TarballResolution).integrity) {
-    return {
-      target,
-      filesIndexFile: storeIndexKey((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
-      resolution: opts.pkg.resolution as AtomicResolution,
-    }
-  }
-  let resolution!: AtomicResolution
+  const built = !opts.ignoreScripts
+  let resolution: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
     resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
-    if ((resolution as TarballResolution).integrity) {
-      return {
-        target,
-        filesIndexFile: storeIndexKey((resolution as TarballResolution).integrity!, opts.pkg.id),
-        resolution,
-      }
-    }
   } else {
     resolution = opts.pkg.resolution
   }
-  const filesIndexFile = gitHostedStoreIndexKey(opts.pkg.id, { built: !opts.ignoreScripts })
-  return { filesIndexFile, target, resolution }
+  return {
+    target,
+    filesIndexFile: pickStoreIndexKey(resolution as TarballResolution, opts.pkg.id, { built }),
+    resolution,
+  }
 }
 
 function findResolution (resolutionVariants: PlatformAssetResolution[], supportedArchitectures?: SupportedArchitectures): AtomicResolution {

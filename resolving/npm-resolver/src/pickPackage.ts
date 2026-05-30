@@ -70,12 +70,20 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   includeLatestTag?: boolean
   optional?: boolean
+  /**
+   * When true, skip the on-disk exact-version cache fast path so a
+   * stale on-disk packument can't satisfy the call without a
+   * conditional registry request. The in-memory cache is left alone:
+   * its entries can only be populated by this install's own fresh
+   * network fetches, so they're authoritative for second-and-onward
+   * lookups within the same install.
+   */
+  updateChecksums?: boolean
 }
 
 interface PickerOptions extends PickPackageFromMetaOptions {
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
-  strictPublishedByCheck?: boolean
   ignoreMissingTimeField?: boolean
 }
 
@@ -106,8 +114,9 @@ const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
 // When minimumReleaseAge is active: try the highest mature version; if none
-// and strictPublishedByCheck is off, fall back to the lowest version in range
-// without applying the maturity filter.
+// satisfies the range, fall back to the lowest version regardless of maturity
+// so the resolver can report the violation inline and let the install layer
+// (or other caller) decide what to do — never throw at this layer.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
@@ -115,7 +124,7 @@ function pickRespectingMinReleaseAge (
 ): PackageInRegistry | null {
   return runPicker(pickerOpts, spec, (targetSpec) => {
     const highest = pickHighest(pickerOpts, meta, targetSpec)
-    if (highest || pickerOpts.strictPublishedByCheck) return highest
+    if (highest) return highest
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
@@ -178,7 +187,6 @@ export async function pickPackage (
     offline?: boolean
     preferOffline?: boolean
     filterMetadata?: boolean
-    strictPublishedByCheck?: boolean
     ignoreMissingTimeField?: boolean
   },
   spec: RegistryPackageSpec,
@@ -192,7 +200,6 @@ export async function pickPackage (
     publishedByExclude: opts.publishedByExclude,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,
-    strictPublishedByCheck: ctx.strictPublishedByCheck,
     ignoreMissingTimeField: ctx.ignoreMissingTimeField,
   }
 
@@ -206,16 +213,29 @@ export async function pickPackage (
     : ABBREVIATED_META_DIR
   // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
   const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
+  const pkgMirror = getPkgMirrorPath(ctx.cacheDir, metaDir, opts.registry, spec.name)
   const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
+    // The in-memory cache may hold abbreviated metadata from an earlier call
+    // that didn't need `time` (no publishedBy then). If this call has
+    // publishedBy and the package was modified recently, upgrade to full
+    // metadata so the maturity check runs properly.
+    const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cachedMeta)
+    let metaForCache = upgrade.meta
+    if (upgrade.upgradedFrom != null) {
+      // Persist the upgraded meta to disk too: the on-disk mirror still holds
+      // the abbreviated form, so without this a fresh process would re-trigger
+      // the upgrade fetch on its next install.
+      metaForCache = opts.dryRun
+        ? upgrade.meta
+        : persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
+      ctx.metaCache.set(cacheKey, metaForCache)
+    }
     return {
-      meta: cachedMeta,
-      pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, cachedMeta),
+      meta: metaForCache,
+      pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaForCache),
     }
   }
-
-  const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.cacheDir, metaDir, registryName, `${encodePkgName(spec.name)}.jsonl`)
 
   return runLimited(pkgMirror, async (limit) => {
     let metaCachedInStore: PackageMeta | null | undefined
@@ -232,6 +252,17 @@ export async function pickPackage (
       }
 
       if (metaCachedInStore != null) {
+        // Disk-cached meta may be abbreviated; upgrade for the maturity check
+        // before letting pickMatchingVersionFinal warn-and-skip on missing time.
+        const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, metaCachedInStore)
+        metaCachedInStore = upgrade.meta
+        if (upgrade.upgradedFrom != null) {
+          // Persist so the next install skips this upgrade fetch entirely.
+          if (!opts.dryRun) {
+            metaCachedInStore = persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
+          }
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+        }
         const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore)
         if (pickedPackage) {
           return {
@@ -242,7 +273,7 @@ export async function pickPackage (
       }
     }
 
-    if (!opts.includeLatestTag && spec.type === 'version') {
+    if (!opts.includeLatestTag && !opts.updateChecksums && spec.type === 'version') {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
@@ -255,14 +286,15 @@ export async function pickPackage (
               pickedPackage,
             }
           }
-        } catch (err) {
-          if (ctx.strictPublishedByCheck) {
-            throw err
-          }
+        } catch {
+          // Swallow fast-path errors (e.g. ERR_PNPM_MISSING_TIME from
+          // abbreviated meta) and fall through to the network fetch, which
+          // can upgrade to full metadata and run the maturity check on
+          // real `time` data.
         }
       }
     }
-    if (opts.publishedBy) {
+    if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
       const mtime = await limit(async () => getFileMtime(pkgMirror))
       if (mtime != null && mtime >= opts.publishedBy) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
@@ -275,15 +307,8 @@ export async function pickPackage (
                 pickedPackage,
               }
             }
-          } catch (err: unknown) {
-            // Don't rethrow ERR_PNPM_MISSING_TIME from cached abbreviated metadata —
-            // let the code fall through to the network fetch path which will get full metadata.
-            if (
-              ctx.strictPublishedByCheck &&
-              !(isMissingTimeError(err))
-            ) {
-              throw err
-            }
+          } catch {
+            // Same as above — fall through to the network fetch.
           }
         }
       }
@@ -309,6 +334,21 @@ export async function pickPackage (
       if (fetchResult.notModified) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
+          // The cached metadata may be abbreviated (no per-version `time`).
+          // When minimumReleaseAge is active we need `time` for the maturity check,
+          // so upgrade to full metadata via a follow-up fetch when warranted.
+          // Without this, repeat installs of recently-modified packages would
+          // silently bypass the maturity check via the warn-and-skip fallback.
+          const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(
+            ctx, spec, opts, metaCachedInStore
+          )
+          metaCachedInStore = upgrade.meta
+          if (upgrade.upgradedFrom != null && !opts.dryRun) {
+            // Persist the upgraded full metadata to disk so subsequent installs
+            // skip this upgrade fetch entirely (the cached meta will then have
+            // `time` populated, so the upgrade condition won't trigger).
+            metaCachedInStore = persistUpgradedMeta(ctx, pkgMirror, upgrade.upgradedFrom)
+          }
           ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,
@@ -338,7 +378,12 @@ export async function pickPackage (
       ) {
         const modifiedDate = meta.modified ? new Date(meta.modified) : null
         const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
-        if (!isModifiedValid || modifiedDate >= opts.publishedBy) {
+        // Strict `>` (not `>=`) so the boundary case `modified == publishedBy`
+        // takes the abbreviated fast path: `modified` is an upper bound on
+        // every version's publish time, so when it equals the cutoff every
+        // version passes the per-version `<=` filter in
+        // `filterPkgMetadataByPublishDate` and a full re-fetch isn't needed.
+        if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
             const abbreviatedJson = prepareJsonForDisk(fetchResult.meta, fetchResult.etag, fetchResult.jsonText)
@@ -400,6 +445,93 @@ export async function pickPackage (
   })
 }
 
+// When `minimumReleaseAge` is active and we have abbreviated metadata (which
+// the npm registry serves by default and which omits per-version `time`),
+// the maturity check can't run on the data we have. If the package has been
+// modified since the maturity cutoff, re-fetch with `fullMetadata: true` so
+// `time` is populated and the check can proceed properly. Without this,
+// `pickMatchingVersionFinal` would fall back to its warn-and-skip path,
+// silently bypassing the minimumReleaseAge guarantee for affected packages.
+//
+// Returns the original meta when no upgrade is needed. When an upgrade
+// happens, returns both the upgraded meta and the underlying fetch result
+// so callers can persist it to disk and avoid re-fetching on next install.
+async function maybeUpgradeAbbreviatedMetaForReleaseAge (
+  ctx: {
+    fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
+    offline?: boolean
+  },
+  spec: RegistryPackageSpec,
+  opts: {
+    publishedBy?: Date
+    publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
+    authHeaderValue?: string
+    registry: string
+  },
+  meta: PackageMeta
+): Promise<{ meta: PackageMeta, upgradedFrom?: FetchMetadataResult }> {
+  if (
+    ctx.offline === true ||
+    !opts.publishedBy ||
+    meta.time != null ||
+    opts.publishedByExclude?.(spec.name) === true
+  ) {
+    return { meta }
+  }
+  const modifiedDate = meta.modified ? new Date(meta.modified) : null
+  const isModifiedValid = modifiedDate != null && !Number.isNaN(modifiedDate.getTime())
+  if (isModifiedValid && modifiedDate <= opts.publishedBy) {
+    // The package was last modified at or before the maturity cutoff. Since
+    // `modified` is an upper bound on every version's publish time, no version
+    // can be newer than the cutoff, so the abbreviated form is fine.
+    // Inclusive at the boundary on purpose: matches the per-version `<=` filter
+    // in `filterPkgMetadataByPublishDate`.
+    return { meta }
+  }
+  // When `modified` is missing or malformed we fall through to the upgrade
+  // fetch: prefer correctness (run the maturity check on real `time` data)
+  // over saving a network call when our cached freshness signal is unusable.
+  // Forward etag/modified so the registry can answer 304 if the upgraded
+  // representation hasn't actually changed (rare on the npm registry where
+  // full and abbreviated have distinct etags, but cheap to support).
+  const fullFetchResult = await ctx.fetch(spec.name, {
+    authHeaderValue: opts.authHeaderValue,
+    fullMetadata: true,
+    etag: meta.etag,
+    modified: meta.modified,
+    registry: opts.registry,
+  })
+  if (fullFetchResult.notModified) {
+    // Upgrade fetch came back 304: keep the abbreviated meta. The downstream
+    // `pickMatchingVersionFinal` will fall through to its warn-and-skip path.
+    return { meta }
+  }
+  return { meta: fullFetchResult.meta, upgradedFrom: fullFetchResult }
+}
+
+// Persists upgraded full metadata to the on-disk cache mirror and returns
+// the meta to store in the in-memory cache. When `filterMetadata` is on, the
+// in-memory and on-disk forms are both stripped via `clearMeta`; otherwise
+// the original raw response body is written and the unstripped meta is kept.
+function persistUpgradedMeta (
+  ctx: { filterMetadata?: boolean },
+  pkgMirror: string,
+  upgradedFrom: FetchMetadataResult
+): PackageMeta {
+  const metaForCache = ctx.filterMetadata ? clearMeta(upgradedFrom.meta) : upgradedFrom.meta
+  const jsonForDisk = ctx.filterMetadata
+    ? prepareJsonForDisk(metaForCache, upgradedFrom.etag)
+    : prepareJsonForDisk(upgradedFrom.meta, upgradedFrom.etag, upgradedFrom.jsonText)
+  runLimited(pkgMirror, (l) => l(async () => {
+    try {
+      await saveMeta(pkgMirror, jsonForDisk)
+    } catch (err: any) { // eslint-disable-line
+      // We don't care if this file was not written to the cache
+    }
+  }))
+  return metaForCache
+}
+
 function clearMeta (pkg: PackageMeta): PackageMeta {
   const versions: PackageMeta['versions'] = {}
   for (const [version, info] of Object.entries(pkg.versions)) {
@@ -437,7 +569,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   }
 }
 
-function encodePkgName (pkgName: string): string {
+export function encodePkgName (pkgName: string): string {
   if (pkgName !== pkgName.toLowerCase()) {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
@@ -445,11 +577,19 @@ function encodePkgName (pkgName: string): string {
 }
 
 /**
+ * Path of the on-disk JSONL document where pnpm mirrors a package's registry
+ * metadata. `metaDir` selects between abbreviated and full caches.
+ */
+export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: string, pkgName: string): string {
+  return path.join(cacheDir, metaDir, getRegistryName(registry), `${encodePkgName(pkgName)}.jsonl`)
+}
+
+/**
  * Formats metadata for disk storage as two-line NDJSON:
  *   Line 1: cache headers (etag, modified) — small, fast to read
  *   Line 2: the full registry metadata JSON — unchanged from the registry response
  */
-function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
+export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
   const modified = meta.modified ?? meta.time?.modified
   const headers = JSON.stringify({ etag, modified })
   const body = jsonText ?? JSON.stringify(meta)
@@ -470,7 +610,7 @@ function isMissingTimeError (err: unknown): boolean {
 const MAX_WARNED_MISSING_TIME = 1024
 const warnedMissingTimeFor = new Set<string>()
 
-function warnMissingTimeFieldOnce (pkgName: string): void {
+export function warnMissingTimeFieldOnce (pkgName: string): void {
   if (warnedMissingTimeFor.has(pkgName)) return
   if (warnedMissingTimeFor.size >= MAX_WARNED_MISSING_TIME) {
     // Set preserves insertion order, so the first entry is the oldest.
@@ -501,7 +641,7 @@ interface MetaHeaders {
  * parsing the full metadata (which can be megabytes for popular packages)
  * when we only need conditional-request headers.
  */
-async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
+export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> {
   let fh: fs.FileHandle | undefined
   try {
     fh = await fs.open(pkgMirror, 'r')
@@ -525,7 +665,7 @@ async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders | null> 
  * Line 1: cache headers (etag, modified)
  * Line 2: registry metadata JSON
  */
-async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
+export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
     const data = await gfs.readFile(pkgMirror, 'utf8')
     const newlineIdx = data.indexOf('\n')
@@ -541,7 +681,7 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
 
 const createdDirs = new Set<string>()
 
-async function saveMeta (pkgMirror: string, json: string): Promise<void> {
+export async function saveMeta (pkgMirror: string, json: string): Promise<void> {
   const dir = path.dirname(pkgMirror)
   if (!createdDirs.has(dir)) {
     await fs.mkdir(dir, { recursive: true })

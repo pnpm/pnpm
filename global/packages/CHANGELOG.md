@@ -1,5 +1,44 @@
 # @pnpm/global.packages
 
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/bins.resolver@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/bins.resolver@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/bins.resolver@1100.0.3
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/bins.resolver@1100.0.2
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

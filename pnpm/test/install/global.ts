@@ -7,6 +7,7 @@ import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import PATH_NAME from 'path-name'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import {
@@ -14,6 +15,9 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils/index.js'
+
+const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
+const IMMATURE_FOR_EVERYTHING = 1_000_000_000
 
 function globalPkgDir (pnpmHome: string): string {
   return path.join(pnpmHome, 'global', GLOBAL_LAYOUT_VERSION)
@@ -25,6 +29,10 @@ function globalPkgDir (pnpmHome: string): string {
  * and returns the path to the package's node_modules entry.
  */
 function findGlobalPkg (globalDir: string, pkgName: string): string | null {
+  return findGlobalPkgInstall(globalDir, pkgName)?.pkgPath ?? null
+}
+
+function findGlobalPkgInstall (globalDir: string, pkgName: string): { installDir: string, pkgPath: string } | null {
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })
@@ -46,7 +54,7 @@ function findGlobalPkg (globalDir: string, pkgName: string): string | null {
       continue
     }
     if (pkgJson.dependencies?.[pkgName]) {
-      return path.join(installDir, 'node_modules', pkgName)
+      return { installDir, pkgPath: path.join(installDir, 'node_modules', pkgName) }
     }
   }
   return null
@@ -153,6 +161,49 @@ test('run lifecycle events of global packages in correct working directory', asy
   const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/postinstall-calls-pnpm')
   expect(pkgPath).toBeTruthy()
   expect(fs.existsSync(path.join(pkgPath!, 'created-by-postinstall'))).toBeTruthy()
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/11403.
+//
+// When `pnpm add -g` installs a package whose build is not pre-allowed,
+// the install succeeds with the build ignored and `globalAdd` then runs
+// `promptApproveGlobalBuilds`. If the user approves, `approve-builds`
+// runs `install.handler` against the install directory — and that is the
+// install run that crashed with `ENOENT` because `modulesDir` was being
+// forwarded as an absolute path and re-joined with `lockfileDir`.
+//
+// `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS=1` lets the test drive this flow
+// non-interactively: `promptApproveGlobalBuilds` skips the TTY check and
+// passes `all: true` so `approve-builds` approves every pending build
+// without prompting. The post-approval install must complete and the
+// build artifact must end up in the global install dir.
+test('approve-builds during global add does not produce a doubled modules path', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS: '1',
+  }
+
+  // Note: no --allow-build here. The first install records the build in
+  // `ignoredBuilds`; `promptApproveGlobalBuilds` then drives the
+  // approve → install chain that produced the doubled-path crash.
+  await execPnpm([
+    'add',
+    '-g',
+    '@pnpm.e2e/install-script-example@1.0.0',
+  ], { env })
+
+  const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/install-script-example')
+  expect(pkgPath).toBeTruthy()
+  // The build artifacts are only present if the post-approval install
+  // ran the package's install scripts.
+  expect(fs.existsSync(path.join(pkgPath!, 'generated-by-install.js'))).toBe(true)
 })
 
 // CONTEXT: dangerously-allow-all-builds has been removed from rc files, as a result, this test no longer applies
@@ -299,6 +350,111 @@ test('global update should not crash if there are no global packages', async () 
   expect(execPnpmSync(['update', '--global'], { env }).status).toBe(0)
 })
 
+test('global add in loose minimumReleaseAge mode persists immature picks', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+  const globalDir = globalPkgDir(pnpmHome)
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_minimum_release_age: String(IMMATURE_FOR_EVERYTHING),
+    pnpm_config_minimum_release_age_strict: 'false',
+  }
+
+  execPnpmSync([
+    'add',
+    '--global',
+    'is-positive@1.0.0',
+    PUBLIC_REGISTRY,
+    '--ignore-scripts',
+  ], {
+    env,
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+    expectSuccess: true,
+  })
+
+  expect(findGlobalPkg(globalDir, 'is-positive')).toBeTruthy()
+  const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(path.join(globalDir, 'pnpm-workspace.yaml'))
+  expect(workspaceManifest.minimumReleaseAgeExclude).toContain('is-positive@1.0.0')
+})
+
+test('global add in strict minimumReleaseAge mode reports the user-facing error', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_minimum_release_age: String(IMMATURE_FOR_EVERYTHING),
+    pnpm_config_minimum_release_age_strict: 'true',
+  }
+
+  const result = execPnpmSync([
+    'add',
+    '--global',
+    'is-positive@1.0.0',
+    PUBLIC_REGISTRY,
+    '--ignore-scripts',
+  ], {
+    env,
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+  })
+  const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+
+  expect(result.status).toBe(1)
+  expect(output).toContain('ERR_PNPM_NO_MATURE_MATCHING_VERSION')
+  expect(output).not.toContain('ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED')
+})
+
+test('global update in loose minimumReleaseAge mode persists immature picks', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+  const globalDir = globalPkgDir(pnpmHome)
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+  execPnpmSync([
+    'add',
+    '--global',
+    'is-positive@1.0.0',
+    PUBLIC_REGISTRY,
+    '--ignore-scripts',
+  ], { env, expectSuccess: true })
+
+  execPnpmSync([
+    'update',
+    '--global',
+    '--latest',
+    PUBLIC_REGISTRY,
+    '--ignore-scripts',
+  ], {
+    env: {
+      ...env,
+      pnpm_config_minimum_release_age: String(IMMATURE_FOR_EVERYTHING),
+      pnpm_config_minimum_release_age_strict: 'false',
+    },
+    omitEnvDefaults: ['pnpm_config_minimum_release_age'],
+    expectSuccess: true,
+  })
+
+  const workspaceManifest = readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>(path.join(globalDir, 'pnpm-workspace.yaml'))
+  expect(workspaceManifest.minimumReleaseAgeExclude).toEqual(expect.arrayContaining([
+    expect.stringMatching(/^is-positive@/),
+  ]))
+})
+
 test('global add cleans up stale bins when re-adding a package with different bins', async () => {
   prepare()
   const global = path.resolve('..', 'global')
@@ -425,6 +581,116 @@ test('global add from a local directory using "."', () => {
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'my-local-tool'))).toBeTruthy()
 })
 
+test('global ls --json outputs valid JSON (#11440)', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', 'is-positive@1.0.0'], { env })
+  await execPnpm(['add', '--global', 'is-negative@1.0.0'], { env })
+
+  const { stdout } = execPnpmSync(['ls', '-g', '--json'], { env, expectSuccess: true })
+  const parsed = JSON.parse(stdout.toString())
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed).toHaveLength(1)
+  expect(parsed[0].dependencies['is-positive'].version).toBe('1.0.0')
+  expect(parsed[0].dependencies['is-negative'].version).toBe('1.0.0')
+})
+
+test('global ls --parseable outputs paths', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', 'is-positive@1.0.0'], { env })
+
+  const { stdout } = execPnpmSync(['ls', '-g', '--parseable'], { env, expectSuccess: true })
+  const lines = stdout.toString().trim().split(/\r?\n/).map((line) => line.trim())
+  expect(lines.length).toBeGreaterThanOrEqual(2)
+  expect(lines.some((line) => line.endsWith(path.join('node_modules', 'is-positive')))).toBe(true)
+})
+
+test('global ls --depth>0 errors across multiple isolated installs', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', 'is-positive@1.0.0'], { env })
+  await execPnpm(['add', '--global', 'is-negative@1.0.0'], { env })
+
+  const result = execPnpmSync(['ls', '-g', '--depth=1'], { env })
+  expect(result.status).not.toBe(0)
+  expect(result.stdout.toString() + result.stderr.toString()).toContain('GLOBAL_LS_DEPTH_NOT_SUPPORTED')
+})
+
+test('global ls --depth>0 shows the full dependency tree of a single global install', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', '@pnpm.e2e/pkg-with-1-dep@100.0.0'], { env })
+
+  const { stdout } = execPnpmSync(['ls', '-g', '--depth=1', '--json'], { env, expectSuccess: true })
+  const parsed = JSON.parse(stdout.toString())
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed).toHaveLength(1)
+  const pkg = parsed[0].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(pkg.version).toBe('100.0.0')
+  expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
+})
+
+test('global ls <transitive> --depth>0 against a single global install reports the match', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', '@pnpm.e2e/pkg-with-1-dep@100.0.0'], { env })
+
+  const { stdout } = execPnpmSync(['ls', '-g', '@pnpm.e2e/dep-of-pkg-with-1-dep', '--depth=1', '--json'], { env, expectSuccess: true })
+  const parsed = JSON.parse(stdout.toString())
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed).toHaveLength(1)
+  const pkg = parsed[0].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
+})
+
+test('global ls <pkg> --depth>0 narrows to the install dir containing <pkg> and shows its tree', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '--global', '@pnpm.e2e/pkg-with-1-dep@100.0.0'], { env })
+  await execPnpm(['add', '--global', 'is-negative@1.0.0'], { env })
+
+  // The filter narrows depth>0 down to the single install group containing
+  // pkg-with-1-dep, so its transitive dep should be visible.
+  const { stdout } = execPnpmSync(['ls', '-g', '@pnpm.e2e/pkg-with-1-dep', '--depth=1', '--json'], { env, expectSuccess: true })
+  const parsed = JSON.parse(stdout.toString())
+  expect(Array.isArray(parsed)).toBe(true)
+  expect(parsed).toHaveLength(1)
+  const pkg = parsed[0].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(pkg.version).toBe('100.0.0')
+  expect(pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBeDefined()
+})
+
 test('global remove deletes install group and bin shims', async () => {
   prepare()
   const global = path.resolve('..', 'global')
@@ -452,8 +718,8 @@ test('global remove deletes install group and bin shims', async () => {
   }))
   fs.writeFileSync(path.join(pkgB, 'index.js'), '#!/usr/bin/env node\nconsole.log("b")\n')
 
-  // Install as a group
-  await execPnpm(['add', '-g', pkgA, pkgB], { env })
+  // Install as a single bundled group via comma syntax
+  await execPnpm(['add', '-g', `${pkgA},${pkgB}`], { env })
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-a-bin'))).toBeTruthy()
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-b-bin'))).toBeTruthy()
 
@@ -463,4 +729,85 @@ test('global remove deletes install group and bin shims', async () => {
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-b-bin'))).toBeFalsy()
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-a')).toBeNull()
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-b')).toBeNull()
+})
+
+test('global add installs each space-separated package into its own isolated group', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['add', '-g', 'is-positive@1.0.0', 'is-negative@1.0.0'], { env })
+
+  const positive = findGlobalPkgInstall(globalPkgDir(pnpmHome), 'is-positive')
+  const negative = findGlobalPkgInstall(globalPkgDir(pnpmHome), 'is-negative')
+  expect(positive).toBeTruthy()
+  expect(negative).toBeTruthy()
+
+  // Each package lives in its own install dir (they are not bundled together).
+  expect(positive!.installDir).not.toBe(negative!.installDir)
+
+  // Removing one only removes that one — the other remains.
+  await execPnpm(['remove', '-g', 'is-positive'], { env })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-positive')).toBeNull()
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-negative')).toBeTruthy()
+})
+
+test('global add bundles comma-separated packages into a single group', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  // `is-positive,is-negative` is one group; `@pnpm.e2e/peer-c@1` is its own group.
+  await execPnpm(['add', '-g', 'is-positive@1.0.0,is-negative@1.0.0', '@pnpm.e2e/peer-c@1'], { env })
+
+  const positive = findGlobalPkgInstall(globalPkgDir(pnpmHome), 'is-positive')
+  const negative = findGlobalPkgInstall(globalPkgDir(pnpmHome), 'is-negative')
+  const peerC = findGlobalPkgInstall(globalPkgDir(pnpmHome), '@pnpm.e2e/peer-c')
+  expect(positive).toBeTruthy()
+  expect(negative).toBeTruthy()
+  expect(peerC).toBeTruthy()
+
+  // is-positive and is-negative share an install dir (same group).
+  expect(positive!.installDir).toBe(negative!.installDir)
+  // peer-c is in a different install dir.
+  expect(peerC!.installDir).not.toBe(positive!.installDir)
+})
+
+test('global add does not treat commas inside a local path selector as a group separator', () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  // Create a local package whose directory name contains a comma.
+  const pkgDir = path.resolve('..', 'tool,with,comma')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: 'tool-comma',
+    version: '1.0.0',
+    bin: { 'tool-comma-bin': './index.js' },
+  }))
+  fs.writeFileSync(path.join(pkgDir, 'index.js'), '#!/usr/bin/env node\nconsole.log("ok")\n')
+
+  const env = {
+    [PATH_NAME]: path.join(pnpmHome, 'bin'),
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    pnpm_config_store_dir: path.resolve('..', 'store'),
+  }
+
+  // The path contains commas but must be treated as one selector, not split.
+  execPnpmSync(['add', '-g', pkgDir], { env, expectSuccess: true })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-comma')).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-comma-bin'))).toBeTruthy()
+
+  // Same path via file: protocol should also be preserved.
+  execPnpmSync(['add', '-g', `file:${pkgDir}`], { env, expectSuccess: true })
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), 'tool-comma')).toBeTruthy()
 })

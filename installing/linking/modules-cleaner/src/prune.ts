@@ -50,6 +50,7 @@ export async function prune (
     pruneStore?: boolean
     pruneVirtualStore?: boolean
     skipped: Set<DepPath>
+    skipRuntimes?: boolean
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     lockfileDir: string
@@ -59,6 +60,7 @@ export async function prune (
   const wantedLockfile = filterLockfile(opts.wantedLockfile, {
     include: opts.include,
     skipped: opts.skipped,
+    skipRuntimes: opts.skipRuntimes,
   })
   const rootImporter = wantedLockfile.importers['.' as ProjectId] ?? {} as ProjectSnapshot
   const wantedRootPkgs = mergeDependencies(rootImporter)

@@ -1,11 +1,11 @@
-# @pnpm/manifest-utils
+# @pnpm/pkg-manifest.utils
 
 > Utils for dealing with package manifest
 
 ## Installation
 
 ```
-pnpm i @pnpm/manifest-utils
+pnpm i @pnpm/pkg-manifest.utils
 
 ```
 

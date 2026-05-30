@@ -1,10 +1,8 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
-import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { runGroups } from 'run-groups'
@@ -73,45 +71,30 @@ export async function runLifecycleHooksConcurrently (
           }
         }
         if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return
+        // Re-import only the freshly-built source — fetchFromDir already
+        // excludes the source's node_modules/. `keepModulesDir: true` makes
+        // importIndexedDir skip the destructive makeEmptyDir fast path
+        // (#11088) and preserve the target's existing node_modules (bin
+        // symlinks + transitive deps from the initial install) via its
+        // staging/move path. Replaces the old scanDir-into-filesMap
+        // workaround (#4299) that the fast path then wiped, causing ENOENT
+        // on .bin/<tool>. Stays on storeController.importPackage so source
+        // files keep their hardlinks (no copy-loop).
         const filesResponse = await fetchFromDir(rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
         await Promise.all(
-          targetDirs.map(async (targetDir) => {
-            const targetModulesDir = path.join(targetDir, 'node_modules')
-            const newFilesMap: FilesMap = new Map(filesResponse.filesMap)
-            if (fs.existsSync(targetModulesDir)) {
-              // If the target directory contains a node_modules directory
-              // (it may happen when the hoisted node linker is used)
-              // then we need to preserve this node_modules.
-              // So we scan this node_modules directory and  pass it as part of the new package.
-              await scanDir('node_modules', targetModulesDir, targetModulesDir, newFilesMap)
-            }
-            return opts.storeController.importPackage(targetDir, {
+          targetDirs.map(async (targetDir) =>
+            opts.storeController.importPackage(targetDir, {
               filesResponse: {
                 resolvedFrom: 'local-dir',
                 ...filesResponse,
-                filesMap: newFilesMap,
               },
               force: false,
+              keepModulesDir: true,
             })
-          })
+          )
         )
       }
     )
   })
   await runGroups(childConcurrency, groups)
-}
-
-async function scanDir (prefix: string, rootDir: string, currentDir: string, index: FilesMap): Promise<void> {
-  const files = await fs.promises.readdir(currentDir)
-  await Promise.all(files.map(async (file) => {
-    const fullPath = path.join(currentDir, file)
-    const stat = await fs.promises.stat(fullPath)
-    if (stat.isDirectory()) {
-      return scanDir(prefix, rootDir, fullPath, index)
-    }
-    if (stat.isFile()) {
-      const relativePath = path.relative(rootDir, fullPath)
-      index.set(path.join(prefix, relativePath), fullPath)
-    }
-  }))
 }

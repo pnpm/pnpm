@@ -4,6 +4,7 @@ import path from 'node:path'
 import { linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
+import { summaryLogger } from '@pnpm/core-loggers'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
@@ -17,7 +18,7 @@ import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
 
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { installGlobalPackages } from './installGlobalPackages.js'
+import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
@@ -30,6 +31,8 @@ export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   savePrefix?: string
   supportedArchitectures?: { libc?: string[] }
   rootProjectManifest?: unknown
+  handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
+  updateResolutionPolicyManifest?: (violations: readonly ResolutionPolicyViolation[], dir: string) => Promise<void>
 }
 
 export async function handleGlobalUpdate (
@@ -64,6 +67,7 @@ export async function handleGlobalUpdate (
   for (const pkg of packagesToUpdate) {
     await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) // eslint-disable-line no-await-in-loop
   }
+  summaryLogger.debug({ prefix: globalDir })
   return undefined
 }
 
@@ -90,7 +94,7 @@ async function updateGlobalPackageGroup (
   const fetchFullMetadata = opts.supportedArchitectures?.libc != null && true
   const allowBuilds = opts.allowBuilds ?? {}
 
-  const ignoredBuilds = await installGlobalPackages({
+  const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages({
     ...opts,
     global: false,
     bin: path.join(installDir, 'node_modules/.bin'),
@@ -109,6 +113,7 @@ async function updateGlobalPackageGroup (
     include,
     includeDirect: include,
     allowBuilds,
+    omitSummaryLog: true,
   }, depSpecs)
 
   await promptApproveGlobalBuilds({
@@ -148,4 +153,5 @@ async function updateGlobalPackageGroup (
 
   // Link bins from new installation
   await linkBinsOfPackages(pkgs, globalBinDir, { excludeBins: binsToSkip })
+  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }

@@ -1,5 +1,381 @@
 # @pnpm/releasing.commands
 
+## 1100.4.0
+
+### Minor Changes
+
+- 2cadfb5: Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+### Patch Changes
+
+- c94b4f8: Fix scoped packages without a publishConfig.access setting being published with public access.
+- Updated dependencies [b1fa2d5]
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+  - @pnpm/network.fetch@1100.0.8
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.commands@1100.7.0
+  - @pnpm/network.web-auth@1101.1.0
+  - @pnpm/engine.runtime.commands@1100.1.1
+  - @pnpm/engine.runtime.node-resolver@1101.1.3
+  - @pnpm/installing.client@1100.2.4
+  - @pnpm/workspace.projects-filter@1100.0.17
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/fs.indexed-pkg-importer@1100.0.10
+  - @pnpm/releasing.exportable-manifest@1100.1.1
+
+## 1100.3.1
+
+### Patch Changes
+
+- 6316e7b: Fix `pnpm deploy` crashing with `ENOENT: ... lstat '<deployDir>/node_modules'` when `configDependencies` declares pacquet (`pacquet` or `@pnpm/pacquet`). The deploy directory never installs config dependencies, so the install engine they designate isn't on disk to invoke; the nested install now skips them.
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [572842a]
+- Updated dependencies [35d2355]
+- Updated dependencies [a662de4]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/installing.commands@1100.6.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/engine.runtime.commands@1100.1.0
+  - @pnpm/workspace.projects-filter@1100.0.16
+  - @pnpm/engine.runtime.node-resolver@1101.1.2
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/fetching.directory-fetcher@1100.0.13
+  - @pnpm/releasing.exportable-manifest@1100.1.1
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/bins.resolver@1100.0.5
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/workspace.projects-sorter@1100.0.4
+  - @pnpm/fs.indexed-pkg-importer@1100.0.10
+
+## 1100.3.0
+
+### Minor Changes
+
+- 3b62f9d: Add a `skip-manifest-obfuscation` option for `pnpm pack` and `pnpm publish`. When enabled, the original `packageManager` field and publish lifecycle scripts are kept in the packed/published manifest instead of being stripped. The pnpm-specific `pnpm` field continues to be omitted.
+- 508e6d8: Added `pnpm stage` with `publish`, `list`, `view`, `approve`, `reject`, and `download` subcommands for npm staged publishing.
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/releasing.exportable-manifest@1100.1.0
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.commands@1100.5.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/fetching.directory-fetcher@1100.0.12
+  - @pnpm/engine.runtime.commands@1100.0.17
+  - @pnpm/engine.runtime.node-resolver@1101.1.1
+  - @pnpm/installing.client@1100.2.2
+  - @pnpm/exec.lifecycle@1100.0.13
+  - @pnpm/workspace.projects-filter@1100.0.15
+
+## 1100.2.18
+
+### Patch Changes
+
+- Updated dependencies [881a865]
+  - @pnpm/installing.commands@1100.4.2
+
+## 1100.2.17
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/installing.commands@1100.4.1
+  - @pnpm/installing.client@1100.2.1
+  - @pnpm/workspace.projects-filter@1100.0.14
+
+## 1100.2.16
+
+### Patch Changes
+
+- 64afc92: Honor `publishConfig.access` when publishing packages.
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.commands@1100.4.0
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/engine.runtime.commands@1100.0.16
+  - @pnpm/fetching.directory-fetcher@1100.0.11
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/bins.resolver@1100.0.4
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/network.fetch@1100.0.6
+  - @pnpm/releasing.exportable-manifest@1100.0.7
+  - @pnpm/workspace.projects-filter@1100.0.13
+  - @pnpm/workspace.projects-sorter@1100.0.3
+  - @pnpm/fs.indexed-pkg-importer@1100.0.9
+
+## 1100.2.15
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [247d70b]
+- Updated dependencies [6e93f35]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/installing.commands@1100.3.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/exec.pnpm-cli-runner@1100.0.1
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/engine.runtime.node-resolver@1101.0.9
+  - @pnpm/fetching.directory-fetcher@1100.0.10
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/exec.lifecycle@1100.0.11
+  - @pnpm/fs.indexed-pkg-importer@1100.0.8
+  - @pnpm/engine.runtime.commands@1100.0.15
+  - @pnpm/network.fetch@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.12
+  - @pnpm/releasing.exportable-manifest@1100.0.6
+  - @pnpm/cli.utils@1101.0.5
+
+## 1100.2.14
+
+### Patch Changes
+
+- Updated dependencies [18a464f]
+- Updated dependencies [180aee9]
+  - @pnpm/network.fetch@1100.0.4
+  - @pnpm/installing.commands@1100.2.2
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/engine.runtime.commands@1100.0.14
+  - @pnpm/engine.runtime.node-resolver@1101.0.8
+  - @pnpm/installing.client@1100.0.15
+  - @pnpm/exec.lifecycle@1100.0.10
+  - @pnpm/fs.indexed-pkg-importer@1100.0.7
+  - @pnpm/fetching.directory-fetcher@1100.0.9
+  - @pnpm/releasing.exportable-manifest@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.11
+
+## 1100.2.13
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.2.1
+- @pnpm/installing.client@1100.0.14
+- @pnpm/exec.lifecycle@1100.0.9
+
+## 1100.2.12
+
+### Patch Changes
+
+- 20e7aff: `pnpm publish` now honors the configured HTTP/HTTPS proxy (including `https_proxy`/`http_proxy`/`no_proxy` environment variables) when polling the registry's `doneUrl` during the web-based authentication flow. Previously the poll bypassed the proxy, causing the registry to respond `403` from a different source IP and the login to never complete [#11561](https://github.com/pnpm/pnpm/issues/11561).
+- Updated dependencies [20e7aff]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+- Updated dependencies [a575dd2]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.commands@1100.2.0
+  - @pnpm/engine.runtime.commands@1100.0.13
+  - @pnpm/engine.runtime.node-resolver@1101.0.7
+  - @pnpm/installing.client@1100.0.13
+  - @pnpm/bins.resolver@1100.0.3
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/exec.lifecycle@1100.0.8
+  - @pnpm/fetching.directory-fetcher@1100.0.8
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/workspace.projects-filter@1100.0.10
+  - @pnpm/workspace.projects-sorter@1100.0.2
+  - @pnpm/fs.indexed-pkg-importer@1100.0.6
+
+## 1100.2.11
+
+### Patch Changes
+
+- 80ef69b: Fixed `pnpm publish --provenance` failing with a 422 from the registry when the package version contained semver build metadata (e.g. `1.0.0-canary.0+abc1234`). The `+<build>` segment is now stripped before packing so that the version embedded in the tarball, the metadata sent to the registry, and the sigstore provenance subject all agree [#11518](https://github.com/pnpm/pnpm/issues/11518).
+- Updated dependencies [e9e876c]
+- Updated dependencies [dd8d5d7]
+- Updated dependencies [15e9e35]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/fs.packlist@1100.0.1
+  - @pnpm/installing.commands@1100.1.12
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/engine.runtime.commands@1100.0.12
+  - @pnpm/engine.runtime.node-resolver@1101.0.6
+  - @pnpm/fetching.directory-fetcher@1100.0.7
+  - @pnpm/exec.lifecycle@1100.0.7
+  - @pnpm/workspace.projects-filter@1100.0.9
+  - @pnpm/fs.indexed-pkg-importer@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+
+## 1100.2.10
+
+### Patch Changes
+
+- ce474cc: Run `preversion`, `version`, and `postversion` lifecycle scripts for `pnpm version`.
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/installing.client@1100.0.11
+  - @pnpm/installing.commands@1100.1.11
+
+## 1100.2.9
+
+### Patch Changes
+
+- 90e215f: Make trusted publishing (OIDC) take precedence over a configured static `_authToken` in `pnpm publish`, mirroring the npm CLI's behavior. When OIDC succeeds, the OIDC-derived token overrides any pre-configured `_authToken`; when OIDC is not applicable (no CI environment, exchange fails, registry has no trusted publisher configured), the static token is used as a fallback. This applies on every package during recursive publish, so each workspace package independently attempts trusted publishing.
+
+  Additionally, the `NPM_ID_TOKEN` env var is now honored as a CI-agnostic injection point for an OIDC ID token. Previously OIDC was only attempted on GitHub Actions or GitLab; now any CI provider that exposes its own OIDC mechanism (e.g. CircleCI's `CIRCLE_OIDC_TOKEN_V2`, Buildkite, etc.) can forward its token via `NPM_ID_TOKEN` and trusted publishing will work without pnpm needing to recognize the provider explicitly.
+
+- 5607279: Restore npm-CLI-compatible `--json` stdout output for `pnpm publish` ([#11476](https://github.com/pnpm/pnpm/issues/11476)). pnpm 11 reimplemented publish natively ([#10591](https://github.com/pnpm/pnpm/pull/10591)) and inadvertently dropped the per-package JSON object that pnpm 10 emitted transitively via the npm CLI, silently breaking downstream tooling — most notably `nx release publish`, which parses stdout JSON to confirm success ([nrwl/nx#35575](https://github.com/nrwl/nx/issues/35575)). On success, the output is now:
+
+  - `pnpm publish --json` → single object `{ id, name, version, size, unpackedSize, shasum, integrity, filename, files, entryCount, bundled }`, mirroring `npm publish --json`.
+  - `pnpm publish -r --json` → array of those objects, mirroring `pnpm pack --json`'s shape choice.
+  - `pnpm publish -r --report-summary` → existing `pnpm-publish-summary.json` envelope `{ publishedPackages: [...] }` is preserved, but each entry is upgraded to the same per-package shape (additive — `name` and `version` are still present).
+
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.commands@1100.1.10
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/engine.runtime.node-resolver@1101.0.5
+  - @pnpm/fetching.directory-fetcher@1100.0.6
+  - @pnpm/engine.runtime.commands@1100.0.11
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+  - @pnpm/exec.lifecycle@1100.0.6
+  - @pnpm/fs.indexed-pkg-importer@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.8
+
+## 1100.2.8
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/engine.runtime.commands@1100.0.10
+  - @pnpm/engine.runtime.node-resolver@1101.0.4
+  - @pnpm/installing.commands@1100.1.9
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+  - @pnpm/installing.client@1100.0.9
+
+## 1100.2.7
+
+### Patch Changes
+
+- 2b8932d: Fixed `pnpm publish` to honor `publishConfig.registry` from `package.json` when publishing a single package. The native publish flow introduced in v11 was reading the registry from `.npmrc` only, ignoring the per-package override [#11419](https://github.com/pnpm/pnpm/issues/11419).
+- Updated dependencies [f6bc1db]
+  - @pnpm/installing.commands@1100.1.8
+
+## 1100.2.6
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/engine.runtime.commands@1100.0.9
+  - @pnpm/engine.runtime.node-resolver@1101.0.3
+  - @pnpm/installing.commands@1100.1.7
+  - @pnpm/installing.client@1100.0.8
+
+## 1100.2.5
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/fetching.directory-fetcher@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.7
+  - @pnpm/fs.indexed-pkg-importer@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/installing.commands@1100.1.6
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/network.git-utils@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.5
+  - @pnpm/bins.resolver@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/network.fetch@1100.0.2
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/engine.runtime.node-resolver@1101.0.2
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/engine.runtime.commands@1100.0.8
+
+## 1100.2.4
+
+### Patch Changes
+
+- 8c41c5c: Fix recursive publish summaries to report the manifest from `publishConfig.directory` when packages publish from a generated directory [#11239](https://github.com/pnpm/pnpm/issues/11239).
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/installing.commands@1100.1.5
+  - @pnpm/engine.runtime.commands@1100.0.7
+  - @pnpm/workspace.projects-filter@1100.0.6
+
+## 1100.2.3
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/workspace.projects-filter@1100.0.5
+  - @pnpm/engine.runtime.commands@1100.0.6
+  - @pnpm/engine.runtime.node-resolver@1101.0.1
+  - @pnpm/installing.commands@1100.1.4
+  - @pnpm/installing.client@1100.0.6
+
 ## 1100.2.2
 
 ### Patch Changes

@@ -30,6 +30,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'global',
     'hoist',
     'hoist-pattern',
+    'hoisting-limits',
     'https-proxy',
     'ignore-pnpmfile',
     'ignore-scripts',
@@ -56,6 +57,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'public-hoist-pattern',
     'registry',
     'reporter',
+    'runtime',
     'save-workspace-protocol',
     'scripts-prepend-node-path',
     'shamefully-hoist',
@@ -64,6 +66,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache',
     'store-dir',
     'strict-peer-dependencies',
+    'trust-lockfile',
     'trust-policy',
     'trust-policy-exclude',
     'trust-policy-ignore-after',
@@ -81,8 +84,14 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
   'fix-lockfile': Boolean,
+  'update-checksums': Boolean,
   'resolution-only': Boolean,
   recursive: Boolean,
+  // `--no-save` lets `pnpm install` skip writing to package.json /
+  // pnpm-workspace.yaml. Without registering it here, nopt drops the
+  // flag, `opts.save` stays undefined, and the auto-add path treats
+  // it as "save enabled".
+  save: Boolean,
 })
 
 export const shorthands: Record<string, string> = {
@@ -133,6 +142,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--no-optional',
           },
           {
+            description: 'Skip installing runtime entries (e.g. Node.js downloaded via `devEngines.runtime`). The lockfile is left untouched, so frozen installs still validate; only the runtime fetch and bin-linking are skipped. Useful in CI matrices where the runtime is provisioned externally.',
+            name: '--no-runtime',
+          },
+          {
             description: `Don't read or generate a \`${WANTED_LOCKFILE}\` file`,
             name: '--no-lockfile',
           },
@@ -155,6 +168,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Fix broken lockfile entries automatically',
             name: '--fix-lockfile',
+          },
+          {
+            description: 'Refresh integrity checksums recorded in the lockfile from the registry',
+            name: '--update-checksums',
           },
           {
             description: 'Merge lockfiles were generated on git branch',
@@ -221,6 +238,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--trust-policy-ignore-after <minutes>',
           },
           {
+            description: 'Trust the lockfile and skip the supply-chain verification step that re-applies minimumReleaseAge / trustPolicy to each lockfile entry. Use only when the lockfile is part of the trusted base (closed-source projects, CI runs against an already-verified lockfile)',
+            name: '--trust-lockfile',
+          },
+          {
             description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',
             name: '--package-import-method auto',
           },
@@ -284,6 +305,9 @@ export type InstallCommandOptions = Pick<Config,
 | 'frozenLockfile'
 | 'global'
 | 'globalPnpmfile'
+| 'hoistPattern'
+| 'hoistingLimits'
+| 'publicHoistPattern'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'injectWorkspacePackages'
@@ -312,6 +336,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'tag'
+| 'trustLockfile'
 | 'allowBuilds'
 | 'optional'
 | 'virtualStoreDir'
@@ -338,9 +363,12 @@ export type InstallCommandOptions = Pick<Config,
 | 'selectedProjectsGraph'
 > & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
   argv: {
+    cooked?: string[]
     original: string[]
+    remain?: string[]
   }
   fixLockfile?: boolean
+  updateChecksums?: boolean
   frozenLockfileIfExists?: boolean
   useBetaCli?: boolean
   pruneDirectDependencies?: boolean
@@ -353,7 +381,7 @@ export type InstallCommandOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
   pnpmfile: string[]
-} & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
+} & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'strictDepBuilds' | 'useLockfile' | 'symlink'>>
 
 export async function handler (opts: InstallCommandOptions & { _calledFromLink?: boolean }, _params?: string[], commands?: CommandHandlerMap): Promise<void> {
   if (opts.global && !opts._calledFromLink) {
@@ -376,6 +404,7 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
     include,
     includeDirect: include,
     fetchFullMetadata: getFetchFullMetadata(opts),
+    isInstallCommand: true,
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true

@@ -8,17 +8,23 @@ import type { PublishOptions } from 'libnpmpublish'
 
 import { SHARED_CONTEXT } from './utils/shared-context.js'
 
+export type PublishOptionsWithDefaultAccess = Omit<PublishOptions, 'access'> & {
+  access?: PublishOptions['access'] | null
+}
+
 export interface OtpPublishResponse {
   readonly ok: boolean
   readonly status: number
   readonly statusText: string
   readonly text: () => Promise<string>
+  /** Set by the registry only when the publish was staged (i.e. `stage: true` was sent). */
+  readonly stageId?: string
 }
 
 export type OtpPublishFn = (
   manifest: ExportedManifest,
   tarballData: Buffer,
-  options: PublishOptions
+  options: PublishOptionsWithDefaultAccess
 ) => Promise<OtpPublishResponse>
 
 export interface OtpContext extends BaseOtpContext {
@@ -28,7 +34,7 @@ export interface OtpContext extends BaseOtpContext {
 export interface OtpParams {
   context?: OtpContext
   manifest: ExportedManifest
-  publishOptions: PublishOptions
+  publishOptions: PublishOptionsWithDefaultAccess
   tarballData: Buffer
 }
 
@@ -36,6 +42,11 @@ export interface OtpParams {
  * Publish a package, handling OTP challenges:
  * - Web based authentication flow (authUrl/doneUrl in error body with doneUrl polling)
  * - Classic OTP prompt (manual code entry)
+ *
+ * The caller is responsible for supplying a {@link OtpContext.fetch} that
+ * honors the desired network configuration (proxy, TLS, etc.); see
+ * https://github.com/pnpm/pnpm/issues/11561 for why this matters during the
+ * web-based authentication flow.
  *
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
  * @see https://github.com/npm/npm-profile/blob/main/lib/index.js for the webauth polling flow.

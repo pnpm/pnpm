@@ -27,7 +27,10 @@ try {
 
 global['pnpm__startedAt'] = Date.now()
 
-import {} from '../dist/pnpm.mjs'
+// Use dynamic import so the Node.js version check above runs first; a static
+// import would be hoisted and parse the bundle before the check, crashing on
+// older Node.js versions that don't recognize newer syntax in bundled deps.
+await import('../dist/pnpm.mjs')
 
 // if you want to debug at your local env, you can use this
 // require('../lib/pnpm')

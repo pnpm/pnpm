@@ -5,6 +5,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
+import { pathAbsolute } from 'path-absolute'
 import { pathExists } from 'path-exists'
 import { renderHelp } from 'render-help'
 
@@ -12,7 +13,7 @@ export const commandNames = ['clean', 'purge']
 
 export const overridableByScript = true
 
-export const rcOptionsTypes = cliOptionsTypes
+export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
@@ -57,11 +58,14 @@ export async function handler (
     virtualStoreDir?: string
     workspaceDir?: string
     workspacePackagePatterns?: string[]
+    cliOptions?: {
+      lockfile?: boolean
+    }
   }
 ): Promise<void> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const rootDir = opts.workspaceDir ?? opts.dir
-  const cleanOpts = { modulesDir, removeLockfile: opts.lockfile }
+  const cleanOpts = { modulesDir, removeLockfile: opts.cliOptions?.lockfile === true }
   const dirs = await getProjectDirs(opts)
   await Promise.all(dirs.map(cleanProjectDir.bind(null, cleanOpts)))
   if (opts.virtualStoreDir) {
@@ -72,7 +76,7 @@ export async function handler (
     const resolvedVirtualStoreDir = path.isAbsolute(opts.virtualStoreDir)
       ? opts.virtualStoreDir
       : path.resolve(rootDir, opts.virtualStoreDir)
-    const rootModulesDir = path.join(rootDir, modulesDir)
+    const rootModulesDir = pathAbsolute(modulesDir, rootDir)
     if (
       !isSubdir(rootModulesDir, resolvedVirtualStoreDir) &&
       isSubdir(rootDir, resolvedVirtualStoreDir) &&
@@ -89,7 +93,7 @@ function printRemoving (p: string): void {
 }
 
 async function cleanProjectDir (opts: { modulesDir: string, removeLockfile?: boolean }, dir: string): Promise<void> {
-  const fullModulesDir = path.join(dir, opts.modulesDir)
+  const fullModulesDir = pathAbsolute(opts.modulesDir, dir)
   if (await hasContentsToRemove(fullModulesDir)) {
     printRemoving(fullModulesDir)
     await removeModulesDirContents(fullModulesDir)

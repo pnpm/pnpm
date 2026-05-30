@@ -1,5 +1,78 @@
 # @pnpm/prepare-package
 
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/pkg-manifest.reader@1100.0.5
+
+## 1100.0.13
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.13
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/types@1101.1.1
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
+## 1100.0.11
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.11
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.10
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/exec.lifecycle@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.3
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/exec.lifecycle@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

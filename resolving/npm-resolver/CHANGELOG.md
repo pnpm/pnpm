@@ -1,5 +1,199 @@
 # @pnpm/npm-resolver
 
+## 1101.4.0
+
+### Minor Changes
+
+- 1e9ab29: Staged publishes are now recognized in the trust scale. When a package version's registry metadata carries an `approver` field, it is treated as the strongest trust evidence (ranked above trusted publishers and provenance attestations), since staged publishes require 2FA publish approvals. This prevents false-positive trust downgrade errors when moving from a staged publish to a lower trust level [#11887](https://github.com/pnpm/pnpm/issues/11887).
+
+### Patch Changes
+
+- 6235428: Fix `minimumReleaseAgeExclude` handling in npm resolution fast paths so excluded packages do not get pinned to stale versions. Excludes are honored consistently during `publishedBy` metadata selection and cache-mtime shortcuts.
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.registry.types@1100.1.0
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.3.3
+
+### Patch Changes
+
+- 0721d64: Require provenance before treating trusted publisher metadata as the strongest trust evidence.
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/resolving.registry.types@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.5
+
+## 1101.3.2
+
+### Patch Changes
+
+- 212315d: Added a new setting `trustLockfile`. When `true`, `pnpm install` skips the supply-chain verification pass that re-applies `minimumReleaseAge` / `trustPolicy='no-downgrade'` to every entry in the loaded lockfile. The install treats the lockfile as already-trusted — useful for closed-source projects where every commit comes from a trusted author, or for CI runs against an already-verified lockfile. Defaults to `false`; verification stays on by default. Set in `pnpm-workspace.yaml`.
+
+  Also cut the memory footprint of the verification pass itself: the per-(registry, name) trust-meta cache previously retained the full packument — dependency graphs, scripts, README, and per-version manifests — for the entire install. On large workspaces (`~4k` lockfile entries with `minimumReleaseAge` + `trustPolicy: no-downgrade` enabled) this could OOM CI runners with a 2GB heap cap. The cache now stores only the fields the trust check actually reads (`time`, per-version `_npmUser.trustedPublisher`, `dist.attestations.provenance`). The abbreviated-metadata cache is similarly projected to just the package-level `modified` field and the set of currently-listed version names. Fixes [#11860](https://github.com/pnpm/pnpm/issues/11860).
+
+## 1101.3.1
+
+### Patch Changes
+
+- Updated dependencies [097983f]
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+
+## 1101.3.0
+
+### Minor Changes
+
+- 1627943: `pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+  Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines a `ResolveLatestFunction` shape (with `LatestQuery` input — `{ wantedDependency, compatible? }` — and `LatestInfo` result — `{ latestManifest? }`), and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own `resolveLatest*` function alongside its `resolve*`. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).resolveLatest`.
+
+  Each resolver decides whether it owns the dep and what "latest" means for its protocol; the outdated command derives `current` / `wanted` display values from the lockfile snapshot (`pkgSnapshot.version` for semver protocols, raw ref for URL-shaped ones) and uses raw ref equality for the "lockfile changed" check, so protocol knowledge stays inside each resolver instead of the command.
+
+### Patch Changes
+
+- 3a54205: Fix the `minimumReleaseAge` (publishedBy) maturity shortcut to be inclusive at the cutoff. Previously, abbreviated metadata whose `modified` field equalled the cutoff fell off the fast path and triggered a full-metadata re-fetch (or a `MISSING_TIME` error when full metadata wasn't permitted). Since `modified` is an upper bound on every version's publish time, `modified == publishedBy` already implies every version passes the per-version `<=` filter in `filterPkgMetadataByPublishDate`, so the shortcut now accepts the boundary case directly. Strictly `>` (was `>=`) at the rejection branch.
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/config.version-policy@1100.1.1
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/resolving.registry.types@1100.0.4
+  - @pnpm/store.cafs@1100.1.6
+  - @pnpm/worker@1100.1.7
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.4
+
+## 1101.2.0
+
+### Minor Changes
+
+- 963861c: Sped up the `minimumReleaseAge` lockfile verification gate on cold-cache installs by trying npm's `/-/npm/v1/attestations/<name>@<version>` endpoint before fetching the full metadata document. The attestation response is tens of KB versus the multi-MB full metadata, so `--frozen-lockfile` installs against a fleet of provenance-published packages download far less to verify timestamps.
+
+  The publish time comes from `bundle.verificationMaterial.tlogEntries[].integratedTime` (the Rekor inclusion time, a couple of seconds after the actual publish — close enough for a policy that operates in minutes/hours/days). When the local full-metadata mirror already has the timestamp, or the attestation endpoint 404s / errors, the verifier falls back to the existing `fetchFullMetadataCached` path. Sigstore signature verification is not performed; the trust model is unchanged versus reading the registry's `time` field on the full metadata document [#11687](https://github.com/pnpm/pnpm/issues/11687).
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+- 31538bf: Restructured the `minimumReleaseAge` lockfile revalidation gate around a generic `ResolutionVerifier` interface. Each resolver may now export a sibling verifier factory (today: `createNpmResolutionVerifier`) that re-checks an already-resolved lockfile entry against its policies; the resolver chain returns the verifier list as `resolutionVerifiers` and the install side fans out across it. A `ResolutionVerifier` carries `verify` plus `policy` and `canTrustPastCheck` — the cache contract that lets repeat installs against an unchanged lockfile skip the per-package registry round trip entirely.
+
+  Verification results are memoized in JSON Lines at `<cacheDir>/lockfile-verified.jsonl`: a stat-only fast path matches on lockfile size, mtime, and inode, falling back to a content hash when those drift (typical after a CI checkout). Every active verifier's policy contribution is merged into a single `policy` bag on the record; the gate runs in full whenever the lockfile changes, any verifier rejects the cached policy, or no record exists [#11687](https://github.com/pnpm/pnpm/issues/11687).
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [4a79336]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/config.version-policy@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/worker@1100.1.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.1.1
+
+### Patch Changes
+
+- 50b33c1: Address CodeQL static-analysis findings: guard manifest dependency writes against prototype-polluting keys (`__proto__`, `constructor`, `prototype`), and replace a potentially super-linear semver-detection regex in registry 404 hints with an O(n) parser.
+- e526f89: Fix `minimumReleaseAge` handling for cached abbreviated metadata.
+
+  The version-spec cache fast path no longer rethrows `ERR_PNPM_MISSING_TIME` under `strictPublishedByCheck`; it now falls through to the registry-fetch path, consistent with the adjacent mtime-gated cache block.
+
+  When the registry returns 304 Not Modified for a package whose cached metadata is abbreviated (no per-version `time`), pnpm now re-fetches with `fullMetadata: true` if `minimumReleaseAge` is active and the package was modified after the cutoff. The upgraded metadata is persisted to disk so subsequent installs don't repeat the fetch. Previously the abbreviated meta was used as-is and the maturity check fell back to its warn-and-skip path, silently bypassing the quarantine and emitting a misleading "metadata is missing the time field" warning.
+
+  Closes #11619.
+
+- c2c2890: Fix `minimumReleaseAge` / `resolutionMode: time-based` installs failing on lockfiles whose `time:` block is missing entries. The npm-resolver's peek-from-store fast path now surfaces `publishedAt` from the lockfile rather than discarding it, and falls through to a registry metadata fetch when the time-based cutoff can't be computed from the data on hand.
+  - @pnpm/store.cafs@1100.1.4
+  - @pnpm/worker@1100.1.5
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.1.0
+
+### Minor Changes
+
+- b61e268: Added support for installing packages from the [GitHub Packages npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry) via a built-in `gh:` prefix (e.g. `pnpm add gh:@acme/private`), and, more broadly, for arbitrary named registries in the style of [vlt's named-registry aliases](https://docs.vlt.sh/cli/registries). Authentication is picked up from the existing per-URL `.npmrc` entries (e.g. `//npm.pkg.github.com/:_authToken=...`), so no separate auth mechanism is required.
+
+  Additional aliases — or an override for the built-in `gh` alias, for GitHub Enterprise Server — can be configured under `namedRegistries` in `pnpm-workspace.yaml`:
+
+  ```yaml
+  namedRegistries:
+    gh: https://npm.pkg.github.example.com/
+    work: https://npm.work.example.com/
+  ```
+
+  With this, `work:@corp/lib@^2.0.0` resolves against `https://npm.work.example.com/`. [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/resolving.registry.types@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.cafs@1100.1.3
+  - @pnpm/worker@1100.1.4
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.3
+
+## 1101.0.3
+
+### Patch Changes
+
+- 15e9e35: Upgrade `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/exec`, and `parse-npm-tarball-url` to versions that expose their helpers as named exports instead of CommonJS default exports. This eliminates the `.default` property accesses that broke under Node.js ESM interop in tests and could fail at runtime in some module loaders.
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/worker@1100.1.3
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.0.2
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/store.cafs@1100.1.2
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.2
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/resolving.registry.types@1100.0.2
+  - @pnpm/workspace.range-resolver@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/worker@1100.1.1
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1101.0.0
 
 ### Patch Changes

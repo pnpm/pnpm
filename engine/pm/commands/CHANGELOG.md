@@ -1,5 +1,367 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.18
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [a39a83d]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.env-installer@1101.1.4
+  - @pnpm/installing.client@1100.2.4
+  - @pnpm/installing.deps-restorer@1101.1.7
+  - @pnpm/store.controller@1101.0.10
+  - @pnpm/global.commands@1100.0.23
+  - @pnpm/store.connection-manager@1100.2.5
+
+## 1101.1.17
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+- Updated dependencies [440e155]
+- Updated dependencies [0721d64]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/global.commands@1100.0.22
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/installing.env-installer@1101.1.3
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/installing.deps-restorer@1101.1.6
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/building.policy@1100.0.7
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/global.packages@1100.0.5
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/store.controller@1101.0.9
+
+## 1101.1.16
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [155af87]
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/installing.env-installer@1101.1.2
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/bins.linker@1100.0.9
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/installing.deps-restorer@1101.1.5
+  - @pnpm/global.commands@1100.0.21
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/installing.client@1100.2.2
+  - @pnpm/store.controller@1101.0.8
+
+## 1101.1.15
+
+### Patch Changes
+
+- Updated dependencies [2061c55]
+- Updated dependencies [e5e7b72]
+  - @pnpm/installing.env-installer@1101.1.1
+  - @pnpm/resolving.npm-resolver@1101.3.1
+  - @pnpm/installing.client@1100.2.1
+  - @pnpm/store.connection-manager@1100.2.2
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/global.commands@1100.0.20
+  - @pnpm/installing.deps-restorer@1101.1.4
+
+## 1101.1.14
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [c8d8fde]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.env-installer@1101.1.0
+  - @pnpm/global.commands@1100.0.19
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/installing.deps-restorer@1101.1.4
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/building.policy@1100.0.6
+  - @pnpm/cli.meta@1100.0.4
+  - @pnpm/config.version-policy@1100.1.1
+  - @pnpm/global.packages@1100.0.4
+
+## 1101.1.13
+
+### Patch Changes
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+- b6e2c8c: Make `pnpm self-update` respect `minimumReleaseAge` (and `minimumReleaseAgeExclude`) when resolving which pnpm version to install.
+
+  When the `latest` dist-tag points to a version newer than the configured age threshold, `self-update` now selects the newest mature version instead unless excluded by `minimumReleaseAgeExclude`.
+
+  Also makes `dlx` and `outdated` surface invalid `minimumReleaseAgeExclude` patterns under the same `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` error code already used by `install`, instead of leaking the internal `ERR_PNPM_INVALID_VERSION_UNION` / `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` codes.
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [d3f8408]
+- Updated dependencies [6e93f35]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [5dc8be8]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/store.connection-manager@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/config.version-policy@1100.1.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/deps.graph-hasher@1100.2.0
+  - @pnpm/installing.deps-restorer@1101.1.3
+  - @pnpm/installing.env-installer@1101.0.10
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/global.commands@1100.0.18
+  - @pnpm/building.policy@1100.0.5
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/bins.linker@1100.0.7
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+
+## 1101.1.12
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [e526f89]
+- Updated dependencies [180aee9]
+- Updated dependencies [c2c2890]
+  - @pnpm/resolving.npm-resolver@1101.1.1
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/bins.linker@1100.0.6
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/global.commands@1100.0.17
+  - @pnpm/installing.env-installer@1101.0.9
+  - @pnpm/installing.client@1100.0.15
+  - @pnpm/installing.deps-restorer@1101.1.2
+  - @pnpm/store.controller@1101.0.6
+  - @pnpm/store.connection-manager@1100.1.2
+
+## 1101.1.11
+
+### Patch Changes
+
+- Updated dependencies [b4f8f47]
+  - @pnpm/bins.linker@1100.0.5
+  - @pnpm/installing.client@1100.0.14
+  - @pnpm/global.commands@1100.0.16
+  - @pnpm/installing.deps-restorer@1101.1.1
+  - @pnpm/store.connection-manager@1100.1.1
+  - @pnpm/store.controller@1101.0.5
+  - @pnpm/installing.env-installer@1101.0.8
+
+## 1101.1.10
+
+### Patch Changes
+
+- Updated dependencies [4b25a3d]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/global.commands@1100.0.15
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.1.0
+  - @pnpm/store.connection-manager@1100.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.deps-restorer@1101.1.0
+  - @pnpm/installing.client@1100.0.13
+  - @pnpm/installing.env-installer@1101.0.8
+  - @pnpm/bins.linker@1100.0.4
+  - @pnpm/building.policy@1100.0.4
+  - @pnpm/cli.meta@1100.0.3
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/deps.graph-hasher@1100.1.5
+  - @pnpm/global.packages@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/store.controller@1101.0.5
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+
+## 1101.1.9
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+- Updated dependencies [15e9e35]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/resolving.npm-resolver@1101.0.3
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/installing.deps-restorer@1101.0.8
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/store.controller@1101.0.4
+  - @pnpm/global.commands@1100.0.14
+  - @pnpm/installing.env-installer@1101.0.7
+
+## 1101.1.8
+
+### Patch Changes
+
+- @pnpm/deps.graph-hasher@1100.1.4
+- @pnpm/installing.deps-restorer@1101.0.7
+- @pnpm/installing.env-installer@1101.0.6
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/installing.client@1100.0.11
+- @pnpm/global.commands@1100.0.13
+- @pnpm/store.connection-manager@1100.0.12
+- @pnpm/store.controller@1101.0.3
+
+## 1101.1.7
+
+### Patch Changes
+
+- d0982fc: Fixed the `pn`, `pnpx`, and `pnx` aliases failing in Git Bash / MSYS2 on Windows when pnpm was installed via `@pnpm/exe` (or after `pnpm self-update`) [#11486](https://github.com/pnpm/pnpm/issues/11486). Running `pnpx` (or `pnx`) printed the cmd.exe banner and dropped the user into an interactive command prompt instead of running `pnpm dlx`. The `bin` field rewrite on Windows was pointing those aliases at `.cmd` files; cmd-shim's Bash shim for a `.cmd` target wraps it in `exec cmd /C ...`, and MSYS2 mangles `/C` into a Windows path before cmd.exe sees it. The aliases are now `.exe` hardlinks of the SEA binary, which detects which name it was launched as via `process.execPath` and prepends `dlx` for `pnpx` / `pnx`.
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.deps-restorer@1101.0.6
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/global.commands@1100.0.12
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/store.controller@1101.0.3
+  - @pnpm/installing.env-installer@1101.0.5
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/resolving.npm-resolver@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.11
+
+## 1101.1.6
+
+### Patch Changes
+
+- 0219ab2: Fixed `pnpm self-update` on installations originally set up by pnpm v10. v10 added `PNPM_HOME` directly to PATH and wrote a `pnpm` bootstrap shim there. v11 setup writes shims under `PNPM_HOME/bin` instead, so when a v10 user upgrades to v11 the legacy shim at `PNPM_HOME` keeps pointing into the old `.tools/<version>` install — `pnpm --version` continues to report the pre-update version even though the new version was installed under `global/v11`. Self-update now detects this layout, refreshes the legacy shims so the upgrade actually takes effect, and prints a hint suggesting `pnpm setup` to migrate PATH to the v11 layout. [#11464](https://github.com/pnpm/pnpm/issues/11464).
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [ab6c42d]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/building.policy@1100.0.3
+  - @pnpm/installing.deps-restorer@1101.0.5
+  - @pnpm/global.commands@1100.0.11
+  - @pnpm/store.connection-manager@1100.0.10
+  - @pnpm/installing.client@1100.0.9
+  - @pnpm/installing.env-installer@1101.0.4
+  - @pnpm/store.controller@1101.0.2
+
+## 1101.1.5
+
+### Patch Changes
+
+- Updated dependencies [72629fc]
+  - @pnpm/global.commands@1100.0.10
+
+## 1101.1.4
+
+### Patch Changes
+
+- c1d29d2: `pnpm self-update` (with no version argument) no longer downgrades pnpm when the registry's `latest` dist-tag points to an older release than the currently active version. Run `pnpm self-update latest` to force a downgrade [#11418](https://github.com/pnpm/pnpm/issues/11418).
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/global.commands@1100.0.9
+  - @pnpm/store.connection-manager@1100.0.9
+  - @pnpm/installing.deps-restorer@1101.0.4
+  - @pnpm/installing.client@1100.0.8
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+
+## 1101.1.3
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/installing.deps-restorer@1101.0.3
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.0.1
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/building.policy@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/shell.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/cli.meta@1100.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+  - @pnpm/global.commands@1100.0.8
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/global.packages@1100.0.2
+
+## 1101.1.2
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/installing.deps-restorer@1101.0.2
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/store.controller@1101.0.1
+  - @pnpm/installing.env-installer@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.7
+
+## 1101.1.1
+
+### Patch Changes
+
+- 0fbcf74: `pnpm self-update` now keeps `package.json`'s `packageManager` and `devEngines.packageManager` in sync. When the legacy `packageManager` field pins pnpm, both fields are rewritten to the new exact pnpm version on update — `packageManager` to `pnpm@<version>` (without an integrity hash), and `devEngines.packageManager.version` to the same exact `<version>` (dropping any range operator). When only `devEngines.packageManager` is declared, the existing range-preserving behavior is unchanged [#11388](https://github.com/pnpm/pnpm/issues/11388).
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/global.commands@1100.0.6
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/installing.deps-restorer@1101.0.1
+  - @pnpm/installing.client@1100.0.6
+  - @pnpm/installing.env-installer@1101.0.1
+  - @pnpm/store.controller@1101.0.0
+
 ## 1101.1.0
 
 ### Minor Changes

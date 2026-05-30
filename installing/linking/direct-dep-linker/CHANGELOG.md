@@ -1,5 +1,44 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [ad84fff]
+  - @pnpm/fs.symlink-dependency@1100.0.6
+  - @pnpm/core-loggers@1100.1.2
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.1.1
+- @pnpm/fs.symlink-dependency@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [4a79336]
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/fs.symlink-dependency@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.0.2
+- @pnpm/fs.symlink-dependency@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/fs.read-modules-dir@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

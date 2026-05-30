@@ -1,11 +1,11 @@
-# @pnpm/dedupe.issues-renderer
+# @pnpm/installing.dedupe.check
 
 > Logic for "pnpm dedupe --check"
 
 ## Installation
 
 ```
-pnpm add @pnpm/dedupe.check
+pnpm add @pnpm/installing.dedupe.check
 ```
 
 ## License

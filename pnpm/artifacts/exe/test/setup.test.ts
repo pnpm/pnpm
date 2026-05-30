@@ -1,8 +1,10 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
+import { cmdShim } from '@zkochan/cmd-shim'
 import { familySync } from 'detect-libc'
 
 // @ts-expect-error — JS helper without type declarations
@@ -88,4 +90,190 @@ test('prepare writes correct content for all bin files', () => {
   const pnpmBin = path.join(exeDir, isWindows ? 'pnpm.exe' : 'pnpm')
   const stdout = execFileSync(pnpmBin, ['-v'], { encoding: 'utf8', timeout: 30_000 }).trim()
   expect(stdout).toMatch(/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/)
+})
+
+// Stand up a minimal sandbox that mimics @pnpm/exe with NO platform package
+// installed: setup.js + platform-pkg-name.js + a package.json (so Node loads
+// it as ESM), plus a node_modules with detect-libc symlinked from this repo
+// so the script can reach the import.meta.resolve call we want to fail. The
+// path-suffix of the fake exe dir controls whether the workspace skip fires.
+function buildFailurePathSandbox (suffixSegments: string[]): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-setup-test-'))
+  const fakeExeDir = path.join(root, ...suffixSegments)
+  fs.mkdirSync(fakeExeDir, { recursive: true })
+  fs.copyFileSync(path.join(exeDir, 'setup.js'), path.join(fakeExeDir, 'setup.js'))
+  fs.copyFileSync(path.join(exeDir, 'platform-pkg-name.js'), path.join(fakeExeDir, 'platform-pkg-name.js'))
+  fs.writeFileSync(
+    path.join(fakeExeDir, 'package.json'),
+    JSON.stringify({ name: '@pnpm/exe', type: 'module' })
+  )
+  fs.mkdirSync(path.join(root, 'node_modules'))
+  fs.symlinkSync(
+    path.join(exeDir, 'node_modules', 'detect-libc'),
+    path.join(root, 'node_modules', 'detect-libc'),
+    'dir'
+  )
+  return fakeExeDir
+}
+
+// Skipping on Windows because fs.symlinkSync requires elevated privileges
+// there for non-junction symlinks, and the path-suffix logic in setup.js is
+// platform-independent — it's already exercised on Linux/macOS CI.
+const failurePathTest = isWindows ? test.skip : test
+
+failurePathTest('setup.js exits 0 silently when run from a workspace-shaped path with no platform package', () => {
+  const fakeExeDir = buildFailurePathSandbox(['pnpm', 'artifacts', 'exe'])
+  const result = spawnSync(process.execPath, [path.join(fakeExeDir, 'setup.js')], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  })
+  expect({ status: result.status, stderr: result.stderr, stdout: result.stdout })
+    .toEqual({ status: 0, stderr: '', stdout: '' })
+})
+
+failurePathTest('setup.js exits 1 with the missing platform package name when run from a non-workspace path', () => {
+  const fakeExeDir = buildFailurePathSandbox(['somewhere', 'else'])
+  const result = spawnSync(process.execPath, [path.join(fakeExeDir, 'setup.js')], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  })
+  const expectedPkgName = exePlatformPkgName(platform, process.arch, familySync())
+  expect(result.status).toBe(1)
+  // On darwin-x64 the message is the dedicated Intel-Mac one (mentions the
+  // upstream Node.js issue); on every other host it's the generic one that
+  // names the missing platform package. Both reference the package name, so
+  // assert on that.
+  expect(result.stderr).toContain(expectedPkgName === '@pnpm/macos-x64' ? '11423' : expectedPkgName)
+})
+
+// Build a sandboxed @pnpm/exe install with a real .exe playing the part of
+// pnpm.exe (we use the running node binary — setup.js only hardlinks it) and
+// run setup.js. Returns the sandbox directory.
+function buildWinSetupSandbox (): string {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-fix11486-'))
+  fs.copyFileSync(path.join(exeDir, 'setup.js'), path.join(sandbox, 'setup.js'))
+  fs.copyFileSync(path.join(exeDir, 'prepare.js'), path.join(sandbox, 'prepare.js'))
+  fs.copyFileSync(path.join(exeDir, 'platform-pkg-name.js'), path.join(sandbox, 'platform-pkg-name.js'))
+  fs.writeFileSync(path.join(sandbox, 'package.json'), JSON.stringify({
+    name: '@pnpm/exe',
+    type: 'module',
+    bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+  }))
+
+  const platformPkgName = exePlatformPkgName(platform, process.arch, familySync())
+  const platformDir = path.join(sandbox, 'node_modules', platformPkgName)
+  fs.mkdirSync(platformDir, { recursive: true })
+  fs.writeFileSync(path.join(platformDir, 'package.json'), JSON.stringify({
+    name: platformPkgName, version: '0.0.0',
+  }))
+  // Seed the platform binary with the test's own node.exe. setup.js then
+  // hardlinks it again into the sandbox @pnpm/exe dir; downstream tests can
+  // invoke the resulting `pnpx.exe` (etc.) and assert the alias actually ran.
+  // A hardlink is enough and avoids copying ~80MB, but it can't span volumes
+  // — on GitHub's Windows runners the workspace (and node) sit on `D:` while
+  // `os.tmpdir()` is on `C:`, so fall back to a copy when the link is
+  // cross-device. The seed's identity doesn't matter here; the assertions
+  // exercise setup.js's own intra-sandbox hardlinking.
+  const seedTarget = path.join(platformDir, 'pnpm.exe')
+  try {
+    fs.linkSync(process.execPath, seedTarget)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    fs.copyFileSync(process.execPath, seedTarget)
+  }
+  // platform-pkg-name.js calls into detect-libc; make the package resolvable
+  // from the sandbox. On Windows, use a junction — non-junction directory
+  // symlinks require Developer Mode or admin privileges, which Windows CI and
+  // most local Windows dev setups don't have. (See the failure-path tests
+  // higher in this file: they skip on Windows for the same reason.)
+  fs.symlinkSync(
+    path.join(exeDir, 'node_modules', 'detect-libc'),
+    path.join(sandbox, 'node_modules', 'detect-libc'),
+    isWindows ? 'junction' : 'dir'
+  )
+
+  execFileSync(process.execPath, [path.join(sandbox, 'prepare.js')], { cwd: sandbox })
+  execFileSync(process.execPath, [path.join(sandbox, 'setup.js')], { cwd: sandbox })
+
+  return sandbox
+}
+
+const winSetupTest = isWindows ? test : test.skip
+
+// Regression coverage for https://github.com/pnpm/pnpm/issues/11486.
+// See the matching describe block in
+// engine/pm/commands/test/self-updater/selfUpdate.test.ts for the full
+// rationale; this one covers the @pnpm/exe preinstall path that handles
+// fresh `npm install -g @pnpm/exe`.
+winSetupTest('setup.js (Windows) rewrites bin to .exe entries and hardlinks pn/pnpx/pnx aliases (issue #11486)', () => {
+  const sandbox = buildWinSetupSandbox()
+  const pkg = JSON.parse(fs.readFileSync(path.join(sandbox, 'package.json'), 'utf8'))
+
+  expect(pkg.bin).toEqual({
+    pnpm: 'pnpm.exe',
+    pn: 'pn.exe',
+    pnpx: 'pnpx.exe',
+    pnx: 'pnx.exe',
+  })
+
+  const pnpmIno = fs.statSync(path.join(sandbox, 'pnpm.exe')).ino
+  for (const name of ['pn', 'pnpx', 'pnx']) {
+    const aliasPath = path.join(sandbox, `${name}.exe`)
+    expect(fs.existsSync(aliasPath)).toBe(true)
+    expect(fs.statSync(aliasPath).ino).toBe(pnpmIno)
+  }
+})
+
+// The Bash-shim end-to-end repro depends on Git Bash / MSYS2. CI runners
+// (windows-latest) ship Git Bash on PATH, but local Windows dev machines
+// often don't, so probe before running and skip the test cleanly otherwise
+// (rather than spawning bash and getting an opaque ENOENT).
+const bashAvailable = (() => {
+  if (!isWindows) return false
+  const probe = spawnSync('bash', ['--version'], { encoding: 'utf8', timeout: 5_000 })
+  return probe.status === 0
+})()
+const winBashTest = bashAvailable ? test : test.skip
+
+winBashTest('aliases run from Bash (Git Bash / MSYS2) without dropping into interactive cmd.exe (issue #11486)', async () => {
+  const sandbox = buildWinSetupSandbox()
+  const pkg = JSON.parse(fs.readFileSync(path.join(sandbox, 'package.json'), 'utf8'))
+
+  // Mirror what `pnpm self-update` does in the global bin: feed each bin
+  // entry into @zkochan/cmd-shim and let it write the Bash / cmd / pwsh
+  // shims. Using cmd-shim here (the same lib pnpm's bin linker uses) is what
+  // lets this repro the real-world chain rather than just asserting the
+  // package.json shape.
+  const binDir = path.join(sandbox, 'global-bin')
+  await Promise.all(Object.entries(pkg.bin).map(([name, target]) =>
+    cmdShim(path.join(sandbox, target as string), path.join(binDir, name), { createPwshFile: true })
+  ))
+
+  for (const alias of ['pn', 'pnpx', 'pnx']) {
+    const shim = path.join(binDir, alias).replace(/\\/g, '/')
+    // The shim's target is hardlinked to node.exe in this test (it's the
+    // SEA pnpm.exe in production), so `-e "..."` lets us assert the alias
+    // really ran our snippet — a successful assertion implies the cmd.exe
+    // hop got bypassed.
+    const result = spawnSync('bash', ['-c', `'${shim}' -e "process.stdout.write('${alias}_OK')"`], {
+      encoding: 'utf8',
+      timeout: 30_000,
+    })
+
+    // Pre-fix symptom: cmd-shim's Bash shim for a .cmd target does
+    // `exec cmd /C ...`. MSYS2 mangles `/C` into a Windows path before
+    // cmd.exe sees it; cmd.exe finds no /C or /K and falls into interactive
+    // mode, printing its banner instead of running the alias.
+    expect({
+      alias,
+      status: result.status,
+      banner: /Microsoft Windows/.test(result.stdout + result.stderr),
+      stdout: result.stdout,
+    }).toEqual({
+      alias,
+      status: 0,
+      banner: false,
+      stdout: `${alias}_OK`,
+    })
+  }
 })

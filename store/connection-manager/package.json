@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.connection-manager",
-  "version": "1100.0.5",
+  "version": "1100.2.5",
   "description": "Create a pnpm store controller",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.path": "workspace:*",

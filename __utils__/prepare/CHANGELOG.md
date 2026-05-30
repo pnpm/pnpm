@@ -1,5 +1,65 @@
 # @pnpm/prepare
 
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/assert-project@1100.0.12
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/assert-project@1100.0.11
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/assert-project@1100.0.10
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/assert-project@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/assert-project@1100.0.8
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/assert-project@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/assert-project@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/assert-project@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/assert-project@1100.0.4
+
 ## 1100.0.3
 
 ### Patch Changes

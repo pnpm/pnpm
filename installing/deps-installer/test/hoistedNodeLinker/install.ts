@@ -4,7 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
@@ -226,18 +226,16 @@ test('running install scripts in a workspace that has no root project', async ()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 })
 
-test('hoistingLimits should prevent packages to be hoisted', async () => {
+test('hoistingLimits=dependencies should prevent packages from being hoisted past direct dependencies', async () => {
   prepareEmpty()
 
-  const hoistingLimits = new Map()
-  hoistingLimits.set('.@', new Set(['send']))
   await install({
     dependencies: {
       send: '0.17.2',
     },
   }, testDefaults({
     nodeLinker: 'hoisted',
-    hoistingLimits,
+    hoistingLimits: 'dependencies',
   }))
 
   expect(fs.existsSync('node_modules/ms')).toBeFalsy()

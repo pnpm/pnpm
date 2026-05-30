@@ -33,6 +33,7 @@ test.each([
   'https://codeload.github.com/zkochan/is-negative/tar.gz/6dcce91c268805d456b8a575b67d7febc7ae2933',
   'https://bitbucket.org/pnpmjs/git-resolver/get/87cf6a67064d2ce56e8cd20624769a5512b83ff9.tar.gz',
   'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz',
+  'https://gitlab.com/pnpm/git-resolver/-/archive/988c61e11dc8d9ca0b5580cb15291951812549dc/git-resolver-988c61e11dc8d9ca0b5580cb15291951812549dc.tar.gz',
 ])('should pick gitHostedTarball fetcher', async (tarball) => {
   const gitHostedTarball = jest.fn() as FetchFunction
   const fetcher = await pickFetcher(createMockFetchers({ gitHostedTarball }), { tarball })

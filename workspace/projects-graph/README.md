@@ -2,7 +2,7 @@
 
 > Create a graph from an array of packages
 
-[![npm version](https://img.shields.io/npm/v/pkgs-graph.svg)](https://www.npmjs.com/package/pkgs-graph)
+[![npm version](https://img.shields.io/npm/v/pkgs-graph.svg)](https://npmx.dev/package/pkgs-graph)
 
 ## Installation
 

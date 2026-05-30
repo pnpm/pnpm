@@ -14,8 +14,8 @@ import {
   preparePackages,
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'

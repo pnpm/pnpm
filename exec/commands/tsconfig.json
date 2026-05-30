@@ -19,6 +19,9 @@
       "path": "../../bins/resolver"
     },
     {
+      "path": "../../building/commands"
+    },
+    {
       "path": "../../catalogs/resolver"
     },
     {
@@ -58,7 +61,7 @@
       "path": "../../engine/runtime/commands"
     },
     {
-      "path": "../../engine/runtime/system-node-version"
+      "path": "../../engine/runtime/system-version"
     },
     {
       "path": "../../installing/client"

@@ -2,7 +2,8 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-opti
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { list, listForPackages } from '@pnpm/deps.inspection.list'
-import { listGlobalPackages } from '@pnpm/global.commands'
+import { PnpmError } from '@pnpm/error'
+import { findGlobalInstallDirs, listGlobalPackages } from '@pnpm/global.commands'
 import type { Finder, IncludedDependencies } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -112,11 +113,53 @@ export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
-  if (opts.global && opts.globalPkgDir) {
-    return listGlobalPackages(opts.globalPkgDir, params)
-  }
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
+  if (opts.global && opts.globalPkgDir) {
+    if (depth > 0) {
+      const allInstallDirs = findGlobalInstallDirs(opts.globalPkgDir, [])
+      if (allInstallDirs.length === 1) {
+        // Single global install: delegate with params unchanged so
+        // listForPackages can search across the whole tree (including
+        // transitive deps), matching regular `pnpm ls` semantics.
+        return render([allInstallDirs[0]], params, {
+          ...opts,
+          depth,
+          include,
+          lockfileDir: allInstallDirs[0],
+          checkWantedLockfileOnly: opts.lockfileOnly,
+          onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+        })
+      }
+      // Multiple installs — try to narrow to a single one via params,
+      // matching against top-level aliases of each install group.
+      const matchingInstallDirs = findGlobalInstallDirs(opts.globalPkgDir, params)
+      if (matchingInstallDirs.length > 1 || (matchingInstallDirs.length === 0 && allInstallDirs.length > 0)) {
+        throw new PnpmError('GLOBAL_LS_DEPTH_NOT_SUPPORTED',
+          'Cannot list a merged dependency tree across multiple global packages. ' +
+          'Each global package is installed in an isolated directory with its own lockfile, ' +
+          'so transitive dependencies cannot be coherently merged. ' +
+          'Filter to a single global package by its top-level name, or omit --depth.')
+      }
+      if (matchingInstallDirs.length === 1) {
+        // Drop params: they served their purpose of narrowing to a single
+        // install group. Passing them through to `render` would activate
+        // search semantics, which prune the matched package's children.
+        return render([matchingInstallDirs[0]], [], {
+          ...opts,
+          depth,
+          include,
+          lockfileDir: matchingInstallDirs[0],
+          checkWantedLockfileOnly: opts.lockfileOnly,
+          onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+        })
+      }
+    }
+    return listGlobalPackages(opts.globalPkgDir, params, {
+      long: opts.long,
+      reportAs: determineReportAs(opts),
+    })
+  }
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return listRecursive(pkgs, params, { ...opts, depth, include, checkWantedLockfileOnly: opts.lockfileOnly, onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects })

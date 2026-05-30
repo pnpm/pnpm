@@ -1,4 +1,4 @@
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 export const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 

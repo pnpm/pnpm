@@ -2,7 +2,7 @@
 
 > Checks a lockfile
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/lockfile.verification.svg)](https://www.npmjs.com/package/@pnpm/lockfile.verification)
+[![npm version](https://img.shields.io/npm/v/@pnpm/lockfile.verification.svg)](https://npmx.dev/package/@pnpm/lockfile.verification)
 
 ## Installation
 

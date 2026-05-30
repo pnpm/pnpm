@@ -1,5 +1,562 @@
 # @pnpm/core
 
+## 1101.6.0
+
+### Minor Changes
+
+- 2cadfb5: Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+### Patch Changes
+
+- a33c4bf: Skip dependency re-resolution when `pnpm-lock.yaml` is missing but `node_modules/.pnpm/lock.yaml` exists and still satisfies the manifest. `pnpm install` now reuses the materialized snapshot to regenerate `pnpm-lock.yaml` instead of walking the registry to rebuild it from scratch, turning the cache+node_modules variation into a near-no-op for users who deleted the lockfile but kept the install [#11993](https://github.com/pnpm/pnpm/issues/11993).
+
+  `--frozen-lockfile` still refuses to proceed when `pnpm-lock.yaml` is absent — the regenerated lockfile must be committed, so failing loudly is the correct behavior for CI.
+
+- Updated dependencies [39101f5]
+- Updated dependencies [3cf2b86]
+- Updated dependencies [a33c4bf]
+  - @pnpm/installing.deps-resolver@1100.1.5
+  - @pnpm/installing.package-requester@1101.0.10
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/installing.deps-restorer@1101.1.7
+  - @pnpm/building.after-install@1101.0.18
+  - @pnpm/building.during-install@1101.0.15
+  - @pnpm/lockfile.verification@1100.0.14
+  - @pnpm/lockfile.settings-checker@1100.0.14
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/fs.symlink-dependency@1100.0.6
+
+## 1101.5.0
+
+### Minor Changes
+
+- aa6149d: Treat tarball-integrity mismatches against the lockfile as a hard failure by default. Previously, `pnpm install` (non-frozen) would log `ERR_PNPM_TARBALL_INTEGRITY`, silently re-resolve from the registry, and overwrite the locked integrity — which meant a compromised registry, proxy, or republished version could substitute attacker-controlled content on a clean machine even though the project shipped a committed lockfile.
+
+  `pnpm install` now exits with `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the new opt-in flag.
+
+  The only opt-in is **`pnpm install --update-checksums`** — narrowly scoped to refreshing the locked integrity values from what the registry currently serves. Mirrors yarn's flag of the same name. A warning still prints when the bypass takes effect so the operation is auditable.
+
+  `--force` and `pnpm update` deliberately do **not** bypass the integrity check. They are routine refresh operations; silently overwriting a locked integrity in those flows would erase the protection a committed lockfile is supposed to provide. `--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and is also not a bypass.
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [ad84fff]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/installing.deps-resolver@1100.1.4
+  - @pnpm/fs.symlink-dependency@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/building.after-install@1101.0.17
+  - @pnpm/building.during-install@1101.0.14
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/installing.deps-restorer@1101.1.6
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/installing.linking.modules-cleaner@1100.1.4
+  - @pnpm/lockfile.filtering@1100.1.3
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/lockfile.preferred-versions@1100.0.12
+  - @pnpm/lockfile.to-pnp@1100.0.11
+  - @pnpm/lockfile.verification@1100.0.13
+  - @pnpm/agent.client@1.0.8
+  - @pnpm/bins.remover@1100.0.6
+  - @pnpm/building.policy@1100.0.7
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/hooks.read-package-hook@1100.0.5
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/installing.linking.hoist@1100.0.10
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/installing.package-requester@1101.0.9
+  - @pnpm/lockfile.pruner@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/pkg-manifest.utils@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/lockfile.settings-checker@1100.0.13
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.config@1100.0.5
+
+## 1101.4.0
+
+### Minor Changes
+
+- 212315d: Added a new setting `trustLockfile`. When `true`, `pnpm install` skips the supply-chain verification pass that re-applies `minimumReleaseAge` / `trustPolicy='no-downgrade'` to every entry in the loaded lockfile. The install treats the lockfile as already-trusted — useful for closed-source projects where every commit comes from a trusted author, or for CI runs against an already-verified lockfile. Defaults to `false`; verification stays on by default. Set in `pnpm-workspace.yaml`.
+
+  Also cut the memory footprint of the verification pass itself: the per-(registry, name) trust-meta cache previously retained the full packument — dependency graphs, scripts, README, and per-version manifests — for the entire install. On large workspaces (`~4k` lockfile entries with `minimumReleaseAge` + `trustPolicy: no-downgrade` enabled) this could OOM CI runners with a 2GB heap cap. The cache now stores only the fields the trust check actually reads (`time`, per-version `_npmUser.trustedPublisher`, `dist.attestations.provenance`). The abbreviated-metadata cache is similarly projected to just the package-level `modified` field and the set of currently-listed version names. Fixes [#11860](https://github.com/pnpm/pnpm/issues/11860).
+
+### Patch Changes
+
+- Updated dependencies [3422cec]
+- Updated dependencies [e0bd879]
+- Updated dependencies [d7da112]
+  - @pnpm/installing.deps-resolver@1100.1.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/bins.linker@1100.0.9
+  - @pnpm/installing.deps-restorer@1101.1.5
+  - @pnpm/building.after-install@1101.0.16
+  - @pnpm/building.during-install@1101.0.13
+  - @pnpm/exec.lifecycle@1100.0.13
+  - @pnpm/installing.linking.hoist@1100.0.9
+  - @pnpm/installing.package-requester@1101.0.8
+
+## 1101.3.1
+
+### Patch Changes
+
+- @pnpm/installing.deps-resolver@1100.1.2
+- @pnpm/installing.package-requester@1101.0.8
+- @pnpm/building.after-install@1101.0.15
+- @pnpm/installing.deps-restorer@1101.1.4
+
+## 1101.3.0
+
+### Minor Changes
+
+- b206a15: Adding [`pacquet`](https://github.com/pnpm/pnpm/tree/main/pacquet) (the Rust port of pnpm) to `configDependencies` in `pnpm-workspace.yaml` now delegates the materialization phase of `pnpm install` to the pacquet binary instead of running the JS installer's headless path. Pacquet emits the same `pnpm:*` NDJSON log events that `@pnpm/cli.default-reporter` already parses, so the install renders identically. Absent the `pacquet` entry, behavior is unchanged.
+
+  ```yaml
+  # pnpm-workspace.yaml
+  configDependencies:
+    pacquet: "^0.1.0"
+  ```
+
+  Pacquet takes over every place pnpm would otherwise call `headlessInstall`: the frozen-install path, the hoisted-`nodeLinker` install, the workspace partial-install (where pnpm runs a `lockfileOnly` resolve pass first), and the agent-server install. In all cases pnpm still owns dependency resolution; pacquet only fetches and imports from the freshly-written lockfile. This is an opt-in preview of the Rust install engine [#11723](https://github.com/pnpm/pnpm/issues/11723).
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/building.after-install@1101.0.14
+  - @pnpm/building.during-install@1101.0.12
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/installing.deps-restorer@1101.1.4
+  - @pnpm/lockfile.to-pnp@1100.0.10
+  - @pnpm/installing.deps-resolver@1100.1.1
+  - @pnpm/installing.package-requester@1101.0.8
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/lockfile.preferred-versions@1100.0.11
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/lockfile.verification@1100.0.12
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/agent.client@1.0.7
+  - @pnpm/bins.remover@1100.0.5
+  - @pnpm/building.policy@1100.0.6
+  - @pnpm/config.normalize-registries@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.5
+  - @pnpm/hooks.read-package-hook@1100.0.4
+  - @pnpm/installing.linking.hoist@1100.0.8
+  - @pnpm/installing.linking.modules-cleaner@1100.1.3
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/lockfile.filtering@1100.1.2
+  - @pnpm/lockfile.pruner@1100.0.7
+  - @pnpm/lockfile.walker@1100.0.7
+  - @pnpm/worker@1100.1.7
+  - @pnpm/lockfile.settings-checker@1100.0.12
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.5
+  - @pnpm/patching.config@1100.0.4
+
+## 1101.2.0
+
+### Minor Changes
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+- 31538bf: Restructured the `minimumReleaseAge` lockfile revalidation gate around a generic `ResolutionVerifier` interface. Each resolver may now export a sibling verifier factory (today: `createNpmResolutionVerifier`) that re-checks an already-resolved lockfile entry against its policies; the resolver chain returns the verifier list as `resolutionVerifiers` and the install side fans out across it. A `ResolutionVerifier` carries `verify` plus `policy` and `canTrustPastCheck` — the cache contract that lets repeat installs against an unchanged lockfile skip the per-package registry round trip entirely.
+
+  Verification results are memoized in JSON Lines at `<cacheDir>/lockfile-verified.jsonl`: a stat-only fast path matches on lockfile size, mtime, and inode, falling back to a content hash when those drift (typical after a CI checkout). Every active verifier's policy contribution is merged into a single `policy` bag on the record; the gate runs in full whenever the lockfile changes, any verifier rejects the cached policy, or no record exists [#11687](https://github.com/pnpm/pnpm/issues/11687).
+
+- 31538bf: `minimumReleaseAge` is now re-checked against `pnpm-lock.yaml` before any tarball is installed, so a freshly-published version pinned in the lockfile (e.g. by a developer who bypassed the policy locally) is no longer installed silently by other consumers or CI. Violating entries abort the install with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`; `minimumReleaseAgeExclude` is honored. [#10438](https://github.com/pnpm/pnpm/issues/10438).
+
+### Patch Changes
+
+- 3ddde2b: **fix**: anchor the side-effects-cache key and global-virtual-store hash to the project's script-runner Node — `engines.runtime` pin when present, shell `node` otherwise — instead of pnpm's own runtime.
+
+  `ENGINE_NAME` (the `<platform>;<arch>;node<major>` prefix used as the side-effects-cache key and the engine portion of the GVS hash) was computed from `process.version` — the Node that runs pnpm itself. That was wrong in two situations:
+
+  1. **`@pnpm/exe` SEA bundle.** The bundle has its own embedded Node, not the `node` on the user's `PATH` that actually spawns lifecycle scripts. Two pnpm installations on the same machine (one SEA, one npm-package) therefore disagreed on the cache key, partitioning the side-effects cache and the global virtual store across two Node majors even though both installs would run scripts on the same shell `node`.
+  2. **`engines.runtime` / `devEngines.runtime` pin.** When a project pins a Node version via `devEngines.runtime` (pnpm v11+), pnpm downloads that Node into `node_modules/node/` and uses it to run lifecycle scripts. But the hash still anchored to whichever Node ran pnpm itself, not to the pinned Node — so two installs of the same project with two different runner Nodes would still disagree on the GVS slot path even though scripts run on the same pinned Node.
+
+  Three changes:
+
+  - `@pnpm/engine.runtime.system-node-version` now exports `engineName(nodeVersion?)`. Resolves the version in this order: explicit override → `getSystemNodeVersion()` (which already prefers `node --version` over `process.version` in SEA contexts) → `process.version`.
+  - `@pnpm/deps.graph-hasher` now exports `findRuntimeNodeVersion(snapshotKeys)` — scans an iterable of lockfile snapshot keys for a `node@runtime:<version>` entry and returns its bare version string. `calcDepState` and `calcGraphNodeHash`/`iterateHashedGraphNodes` accept a `nodeVersion?` (in the options bag for the first, as a trailing parameter / ctx field for the others), forwarded to `engineName()`. The default (no override) preserves the pre-change behaviour. The legacy `ENGINE_NAME` constant in `@pnpm/constants` is unchanged so external consumers and existing tests keep working; in non-SEA, non-pinned contexts every value lines up.
+  - Every install-side caller of the graph-hasher (`@pnpm/installing.deps-resolver`, `@pnpm/installing.deps-restorer`, `@pnpm/installing.deps-installer`, `@pnpm/building.during-install`, `@pnpm/building.after-install`, `@pnpm/deps.graph-builder`) now derives the project's pinned runtime via `findRuntimeNodeVersion(Object.keys(graph))` once per invocation and threads it through.
+
+  On upgrade, two one-time GVS slot churns are possible:
+
+  - **SEA-pnpm users** without a runtime pin: slots that previously hashed under the embedded-Node major (e.g. `node26`) now hash under the shell-Node major (e.g. `node24`), matching what pacquet, the npm-published `pnpm` package, and any other pnpm-compatible tool already produce.
+  - **Projects with a `devEngines.runtime` pin**: slots that previously hashed under the runner's Node major now hash under the pinned Node major, matching what the lifecycle scripts will actually run on.
+
+  In both cases the old slots become prune-eligible.
+
+- 4a79336: The lockfile verifier added in #11705 now emits `pnpm:lockfile-verification` log events (`status: 'started' | 'done'`) around the registry round-trip pass, and the default reporter renders them as a transient progress line so users can see that pnpm is doing work — on a cold registry cache the round-trip can take a noticeable beat, and the previous behavior was complete silence followed by either a long pause or an error. The cached short-circuit stays silent (no logs when no work happens), and the `done` line carries the number of distinct entries that were checked plus the elapsed time.
+
+  Pacquet parity: not ported — pacquet doesn't carry the lockfile verifier yet (see the parity note on #11705).
+
+- 2a9bd89: Record the post-resolution lockfile in the verification cache. Previously the cache only captured the lockfile that was loaded at the start of an install, so a flow like `pnpm install <pkg>` followed by `rm -rf node_modules && pnpm install` re-ran the per-package registry round-trip against the newly written lockfile even though the local resolver had already enforced the policy when picking those versions. The fresh lockfile is now recorded immediately after each install-time write, so the second install takes the cache fast path.
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [6e93f35]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [5dc8be8]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/installing.deps-resolver@1100.1.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/building.after-install@1101.0.13
+  - @pnpm/building.during-install@1101.0.11
+  - @pnpm/deps.graph-hasher@1100.2.0
+  - @pnpm/installing.deps-restorer@1101.1.3
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/installing.context@1100.0.11
+  - @pnpm/installing.package-requester@1101.0.7
+  - @pnpm/lockfile.preferred-versions@1100.0.10
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/lockfile.verification@1100.0.11
+  - @pnpm/exec.lifecycle@1100.0.11
+  - @pnpm/installing.linking.modules-cleaner@1100.1.2
+  - @pnpm/building.policy@1100.0.5
+  - @pnpm/lockfile.to-pnp@1100.0.9
+  - @pnpm/bins.remover@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.4
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.4
+  - @pnpm/installing.linking.hoist@1100.0.7
+  - @pnpm/pkg-manifest.utils@1100.1.4
+  - @pnpm/agent.client@1.0.6
+  - @pnpm/lockfile.filtering@1100.1.1
+  - @pnpm/lockfile.pruner@1100.0.6
+  - @pnpm/lockfile.settings-checker@1100.0.11
+  - @pnpm/lockfile.walker@1100.0.6
+  - @pnpm/worker@1100.1.6
+  - @pnpm/bins.linker@1100.0.7
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.1.2
+
+### Patch Changes
+
+- 50b33c1: Address CodeQL static-analysis findings: guard manifest dependency writes against prototype-polluting keys (`__proto__`, `constructor`, `prototype`), and replace a potentially super-linear semver-detection regex in registry 404 hints with an O(n) parser.
+- 8c06d1a: Fix `pnpm upgrade --interactive --latest -r` not respecting named catalog groups. Previously, upgrading a dependency using a named catalog (e.g. `"catalog:foo"`) would incorrectly rewrite `package.json` to `"catalog:"` and place the updated version in the default catalog instead of the named one [#10115](https://github.com/pnpm/pnpm/issues/10115).
+- Updated dependencies [9cad827]
+- Updated dependencies [50b33c1]
+- Updated dependencies [180aee9]
+- Updated dependencies [c2c2890]
+  - @pnpm/pkg-manifest.utils@1100.1.3
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/installing.deps-resolver@1100.0.10
+  - @pnpm/installing.package-requester@1101.0.6
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/bins.linker@1100.0.6
+  - @pnpm/lockfile.preferred-versions@1100.0.9
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/installing.context@1100.0.10
+  - @pnpm/installing.deps-restorer@1101.1.2
+  - @pnpm/lockfile.to-pnp@1100.0.8
+  - @pnpm/building.after-install@1101.0.12
+  - @pnpm/building.during-install@1101.0.10
+  - @pnpm/exec.lifecycle@1100.0.10
+  - @pnpm/installing.linking.modules-cleaner@1100.1.1
+  - @pnpm/installing.linking.hoist@1100.0.6
+  - @pnpm/lockfile.verification@1100.0.10
+  - @pnpm/agent.client@1.0.5
+  - @pnpm/worker@1100.1.5
+  - @pnpm/lockfile.settings-checker@1100.0.10
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/fs.symlink-dependency@1100.0.3
+
+## 1101.1.1
+
+### Patch Changes
+
+- Updated dependencies [b4f8f47]
+  - @pnpm/bins.linker@1100.0.5
+  - @pnpm/building.after-install@1101.0.11
+  - @pnpm/building.during-install@1101.0.9
+  - @pnpm/exec.lifecycle@1100.0.9
+  - @pnpm/installing.deps-restorer@1101.1.1
+  - @pnpm/installing.linking.hoist@1100.0.5
+  - @pnpm/installing.package-requester@1101.0.5
+
+## 1101.1.0
+
+### Minor Changes
+
+- e1e29c1: Add `--no-runtime` flag (config: `runtime=false`) to skip installing runtime entries (e.g. Node.js downloaded via `devEngines.runtime`) without modifying the lockfile. The lockfile keeps the runtime entry so frozen-lockfile validation still passes; only the runtime fetch and `.bin` linking are skipped. Useful in CI matrices where the runtime is provisioned externally (e.g. via `pnpm runtime -g set node <version>`) before `pnpm install` runs.
+
+### Patch Changes
+
+- 4b25a3d: `pnpm add -g` now installs each space-separated package into its own isolated directory by default. To bundle multiple packages into the same isolated install (so that they share dependencies and are removed together), pass them as a comma-separated list. For example:
+
+  - `pnpm add -g foo bar` installs `foo` and `bar` as two independent globals — removing one does not affect the other.
+  - `pnpm add -g foo,bar qar` bundles `foo` and `bar` into a single isolated install while `qar` is installed on its own.
+
+  Related: [#11587](https://github.com/pnpm/pnpm/issues/11587).
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.filtering@1100.1.0
+  - @pnpm/installing.linking.modules-cleaner@1100.1.0
+  - @pnpm/installing.deps-restorer@1101.1.0
+  - @pnpm/building.after-install@1101.0.10
+  - @pnpm/building.during-install@1101.0.8
+  - @pnpm/installing.deps-resolver@1100.0.9
+  - @pnpm/agent.client@1.0.4
+  - @pnpm/bins.linker@1100.0.4
+  - @pnpm/bins.remover@1100.0.3
+  - @pnpm/building.policy@1100.0.4
+  - @pnpm/config.normalize-registries@1100.0.3
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.5
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/exec.lifecycle@1100.0.8
+  - @pnpm/fs.symlink-dependency@1100.0.3
+  - @pnpm/hooks.read-package-hook@1100.0.3
+  - @pnpm/hooks.types@1100.0.6
+  - @pnpm/installing.context@1100.0.9
+  - @pnpm/installing.linking.hoist@1100.0.4
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/installing.package-requester@1101.0.5
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.preferred-versions@1100.0.8
+  - @pnpm/lockfile.pruner@1100.0.5
+  - @pnpm/lockfile.to-pnp@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/lockfile.verification@1100.0.9
+  - @pnpm/lockfile.walker@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.1.2
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/worker@1100.1.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/lockfile.settings-checker@1100.0.9
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.3
+  - @pnpm/patching.config@1100.0.3
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/agent.client@1.0.3
+  - @pnpm/building.after-install@1101.0.9
+  - @pnpm/installing.deps-restorer@1101.0.8
+  - @pnpm/installing.package-requester@1101.0.4
+  - @pnpm/worker@1100.1.3
+  - @pnpm/building.during-install@1101.0.7
+  - @pnpm/installing.deps-resolver@1100.0.8
+  - @pnpm/installing.context@1100.0.8
+  - @pnpm/exec.lifecycle@1100.0.7
+  - @pnpm/lockfile.verification@1100.0.8
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/lockfile.settings-checker@1100.0.8
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/building.after-install@1101.0.8
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/installing.deps-resolver@1100.0.7
+  - @pnpm/installing.deps-restorer@1101.0.7
+  - @pnpm/installing.linking.modules-cleaner@1100.0.7
+  - @pnpm/lockfile.filtering@1100.0.7
+  - @pnpm/lockfile.fs@1100.0.6
+  - @pnpm/lockfile.preferred-versions@1100.0.7
+  - @pnpm/lockfile.to-pnp@1100.0.6
+  - @pnpm/lockfile.verification@1100.0.7
+  - @pnpm/building.during-install@1101.0.6
+  - @pnpm/installing.context@1100.0.7
+  - @pnpm/lockfile.settings-checker@1100.0.7
+  - @pnpm/installing.package-requester@1101.0.3
+
+## 1101.0.7
+
+### Patch Changes
+
+- 12313f1: Fix `pnpm install` recreating `node_modules` after `pnpm fetch`. `pnpm fetch` records empty `hoistPattern` and `publicHoistPattern` in `.modules.yaml`; since v11 removed the explicit-config gate, the follow-up install treated those as a hoist-pattern change and purged the modules directory. The fetch step now flags the modules manifest with `virtualStoreOnly: true` so the next install skips the hoist-pattern comparison and completes the missing post-import linking in place [#11488](https://github.com/pnpm/pnpm/issues/11488).
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/installing.deps-restorer@1101.0.6
+  - @pnpm/building.after-install@1101.0.7
+  - @pnpm/installing.package-requester@1101.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/installing.context@1100.0.6
+  - @pnpm/installing.deps-resolver@1100.0.6
+  - @pnpm/lockfile.to-pnp@1100.0.5
+  - @pnpm/agent.client@1.0.2
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/installing.linking.modules-cleaner@1100.0.6
+  - @pnpm/lockfile.filtering@1100.0.6
+  - @pnpm/lockfile.pruner@1100.0.4
+  - @pnpm/lockfile.settings-checker@1100.0.6
+  - @pnpm/lockfile.verification@1100.0.6
+  - @pnpm/lockfile.walker@1100.0.4
+  - @pnpm/lockfile.preferred-versions@1100.0.6
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/building.during-install@1101.0.5
+  - @pnpm/exec.lifecycle@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.6
+
+### Patch Changes
+
+- ab6c42d: Treat `allowBuilds` as an install-state input and clear previously ignored builds when they are explicitly disallowed.
+- Updated dependencies [ab6c42d]
+  - @pnpm/building.policy@1100.0.3
+  - @pnpm/installing.deps-restorer@1101.0.5
+  - @pnpm/building.after-install@1101.0.6
+  - @pnpm/building.during-install@1101.0.4
+  - @pnpm/installing.package-requester@1101.0.2
+
+## 1101.0.5
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.5
+- @pnpm/building.during-install@1101.0.3
+- @pnpm/installing.deps-restorer@1101.0.4
+- @pnpm/installing.package-requester@1101.0.2
+
+## 1101.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.2
+  - @pnpm/installing.linking.modules-cleaner@1100.0.5
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/installing.package-requester@1101.0.2
+  - @pnpm/config.normalize-registries@1100.0.2
+  - @pnpm/installing.deps-restorer@1101.0.3
+  - @pnpm/installing.linking.hoist@1100.0.3
+  - @pnpm/building.during-install@1101.0.2
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/fs.read-modules-dir@1100.0.1
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/building.policy@1100.0.2
+  - @pnpm/lockfile.to-pnp@1100.0.4
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.5
+  - @pnpm/bins.remover@1100.0.2
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/hooks.read-package-hook@1100.0.2
+  - @pnpm/lockfile.filtering@1100.0.5
+  - @pnpm/building.after-install@1101.0.4
+  - @pnpm/worker@1100.1.1
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/installing.deps-resolver@1100.0.5
+  - @pnpm/lockfile.preferred-versions@1100.0.5
+  - @pnpm/lockfile.verification@1100.0.5
+  - @pnpm/lockfile.settings-checker@1100.0.5
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/lockfile.pruner@1100.0.3
+  - @pnpm/lockfile.walker@1100.0.3
+  - @pnpm/patching.config@1100.0.2
+  - @pnpm/agent.client@1.0.1
+
+## 1101.0.3
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/installing.deps-restorer@1101.0.2
+  - @pnpm/installing.package-requester@1101.0.1
+  - @pnpm/lockfile.filtering@1100.0.4
+  - @pnpm/installing.context@1100.0.4
+  - @pnpm/installing.linking.modules-cleaner@1100.0.4
+  - @pnpm/building.after-install@1101.0.3
+  - @pnpm/lockfile.verification@1100.0.4
+  - @pnpm/lockfile.settings-checker@1100.0.4
+
+## 1101.0.2
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.2
+- @pnpm/building.during-install@1101.0.1
+- @pnpm/installing.deps-restorer@1101.0.1
+- @pnpm/installing.package-requester@1101.0.0
+
 ## 1101.0.1
 
 ### Patch Changes

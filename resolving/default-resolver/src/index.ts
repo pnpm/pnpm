@@ -1,12 +1,16 @@
-import { type BunRuntimeResolveResult, resolveBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
-import { type DenoRuntimeResolveResult, resolveDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
-import { type NodeRuntimeResolveResult, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
+import { type BunRuntimeResolveResult, resolveBunRuntime, resolveLatestBunRuntime } from '@pnpm/engine.runtime.bun-resolver'
+import { type DenoRuntimeResolveResult, resolveDenoRuntime, resolveLatestDenoRuntime } from '@pnpm/engine.runtime.deno-resolver'
+import { type NodeRuntimeResolveResult, resolveLatestNodeRuntime, resolveNodeRuntime } from '@pnpm/engine.runtime.node-resolver'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
-import { createGitResolver, type GitResolveResult } from '@pnpm/resolving.git-resolver'
-import { type LocalResolveResult, resolveFromLocal } from '@pnpm/resolving.local-resolver'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { createGitResolver, type GitResolveResult, resolveLatestFromGit } from '@pnpm/resolving.git-resolver'
+import { type LocalResolveResult, resolveFromLocalPath, resolveFromLocalScheme, resolveLatestFromLocal } from '@pnpm/resolving.local-resolver'
 import {
+  createDefaultPackageMetaCache,
+  createNpmResolutionVerifier,
+  type CreateNpmResolutionVerifierOptions,
   createNpmResolver,
   type JsrResolveResult,
   type NamedRegistryResolveResult,
@@ -18,12 +22,20 @@ import {
   type WorkspaceResolveResult,
 } from '@pnpm/resolving.npm-resolver'
 import type {
+  LatestInfo,
+  LatestQuery,
+  ResolutionVerifier,
   ResolveFunction,
   ResolveOptions,
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolving.resolver-base'
-import { resolveFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
+import { resolveFromTarball, resolveLatestFromTarball, type TarballResolveResult } from '@pnpm/resolving.tarball-resolver'
+import type { RegistryConfig } from '@pnpm/types'
+
+export {
+  createDefaultPackageMetaCache,
+}
 
 export type {
   PackageMeta,
@@ -85,6 +97,8 @@ async function resolveFromCustomResolvers (
   return null
 }
 
+export type ResolveLatestDispatcher = (query: LatestQuery, opts: ResolveOptions) => Promise<LatestInfo | undefined>
+
 export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
@@ -92,15 +106,26 @@ export function createResolver (
     nodeDownloadMirrors?: Record<string, string>
     customResolvers?: CustomResolver[]
   }
-): { resolve: DefaultResolver, clearCache: () => void } {
-  const { resolveFromNpm, resolveFromJsr, resolveFromNamedRegistry, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
+): { resolve: DefaultResolver, resolveLatest: ResolveLatestDispatcher, clearCache: () => void } {
+  const {
+    resolveFromNpm,
+    resolveFromJsr,
+    resolveFromNamedRegistry,
+    resolveLatestFromNpm,
+    resolveLatestFromJsr,
+    resolveLatestFromNamedRegistry,
+    clearCache,
+  } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
-  const _resolveFromLocal = resolveFromLocal.bind(null, {
-    preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths,
-  })
+  const localCtx = { preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths }
+  const _resolveFromLocalScheme = resolveFromLocalScheme.bind(null, localCtx)
+  const _resolveFromLocalPath = resolveFromLocalPath.bind(null, localCtx)
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
+  const _resolveLatestNodeRuntime = resolveLatestNodeRuntime.bind(null, { fetchFromRegistry, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
+  const _resolveLatestDenoRuntime = resolveLatestDenoRuntime.bind(null, { resolveFromNpm })
+  const _resolveLatestBunRuntime = resolveLatestBunRuntime.bind(null, { resolveFromNpm })
   const _resolveFromCustomResolvers = pnpmOpts.customResolvers
     ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
     : null
@@ -112,16 +137,19 @@ export function createResolver (
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
-          await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
+          await _resolveFromLocalScheme(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
         await _resolveDenoRuntime(wantedDependency, opts) ??
         await _resolveBunRuntime(wantedDependency, opts) ??
-        // Named-registry resolution runs last so that built-in schemes
-        // (`npm:`, `jsr:`, `git:`/`github:`/`gitlab:`/…, `file:`, `link:`,
-        // tarball URLs, etc.) are always claimed by their dedicated resolver
-        // before a user-configured alias gets a chance to shadow them.
-        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions)
+        // Named-registry runs between the explicit local schemes above and the
+        // path-shape match below, so `<alias>:@scope/pkg` reaches the configured
+        // registry while a colliding `file:`/`link:`/`workspace:` alias cannot
+        // hijack the built-in protocols.
+        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions) ??
+        (wantedDependency.bareSpecifier
+          ? await _resolveFromLocalPath(wantedDependency as { bareSpecifier: string }, opts)
+          : null)
       if (!resolution) {
         let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`
         if (specifier !== '') {
@@ -133,6 +161,78 @@ export function createResolver (
       }
       return resolution
     },
+    resolveLatest: async (query, opts) => {
+      const info = (await resolveLatestFromNpm(query, opts)) ??
+        (await resolveLatestFromJsr(query, opts)) ??
+        (await resolveLatestFromGit(query)) ??
+        (await resolveLatestFromTarball(query)) ??
+        (await resolveLatestFromLocal(query)) ??
+        (await _resolveLatestNodeRuntime(query, opts)) ??
+        (await _resolveLatestDenoRuntime(query, opts)) ??
+        (await _resolveLatestBunRuntime(query, opts)) ??
+        (await resolveLatestFromNamedRegistry(query, opts))
+      return info
+    },
     clearCache,
   }
+}
+
+export type ResolutionVerifierFactoryOptions =
+  & Pick<ResolverFactoryOptions, 'cacheDir' | 'registries' | 'namedRegistries' | 'retry' | 'timeout' | 'fetchWarnTimeoutMs'>
+  & Pick<CreateNpmResolutionVerifierOptions,
+  | 'minimumReleaseAge'
+  | 'minimumReleaseAgeStrict'
+  | 'minimumReleaseAgeExclude'
+  | 'ignoreMissingTimeField'
+  | 'trustPolicy'
+  | 'trustPolicyExclude'
+  | 'trustPolicyIgnoreAfter'
+  | 'metaCache'
+  | 'now'
+  > & {
+    configByUri?: Record<string, RegistryConfig>
+  }
+
+/**
+ * Companion to {@link createResolver}. Collects the resolver-specific
+ * verifier factories (today: npm) into a list. Returns an empty array
+ * when no policy is active — callers can cheaply decide whether to
+ * iterate at all by checking `verifiers.length`.
+ *
+ * Future protocols (jsr, git, attestation, etc.) plug in here by pushing
+ * their own `ResolutionVerifier` onto the list. Each verifier handles
+ * its own protocol short-circuit inside `verify` (returns `{ ok: true }`
+ * for resolutions outside its scope), so dispatch happens naturally at
+ * the install side — no combinator needed.
+ */
+export function createResolutionVerifiers (
+  fetchFromRegistry: FetchFromRegistry,
+  opts: ResolutionVerifierFactoryOptions
+): ResolutionVerifier[] {
+  const fetchOpts = {
+    fetch: fetchFromRegistry,
+    retry: opts.retry ?? {},
+    timeout: opts.timeout ?? 60_000,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10_000,
+  }
+  const getAuthHeaderValueByURI = createGetAuthHeaderByURI(opts.configByUri ?? {})
+  const verifiers: ResolutionVerifier[] = []
+  const npmVerifier = createNpmResolutionVerifier({
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    ignoreMissingTimeField: opts.ignoreMissingTimeField,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+    registries: opts.registries,
+    namedRegistries: opts.namedRegistries,
+    fetchOpts,
+    getAuthHeaderValueByURI,
+    cacheDir: opts.cacheDir,
+    metaCache: opts.metaCache,
+    now: opts.now,
+  })
+  if (npmVerifier) verifiers.push(npmVerifier)
+  return verifiers
 }

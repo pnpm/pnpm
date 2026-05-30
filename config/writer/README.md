@@ -1,15 +1,15 @@
-# @pnpm/config.config-writer
+# @pnpm/config.writer
 
 > Functions for updating the configuration settings
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/config.svg)](https://www.npmjs.com/package/@pnpm/config)
+[![npm version](https://img.shields.io/npm/v/@pnpm/config.svg)](https://npmx.dev/package/@pnpm/config)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add @pnpm/config.config-writer
+pnpm add @pnpm/config.writer
 ```
 
 ## License

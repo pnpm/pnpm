@@ -1,0 +1,52 @@
+storeDir: ./store-dir
+
+# Pin the virtual-store layout to the project-local shape
+# (`<project>/node_modules/.pnpm`) so the benchmark continues to
+# compare apples-to-apples across pacquet revisions.
+#
+# Pacquet's effective default is already `enableGlobalVirtualStore: false`
+# (matches pnpm v11 for non-`--global` installs — the `true`
+# assignment upstream lives only inside the `pnpm install --global`
+# branch). The pin is kept anyway so a future default flip surfaces
+# in CI rather than silently changing what the numbers measure:
+# with GVS on, slot directories move to
+# `<storeDir>/links/<scope>/<name>/<version>/<hash>`, a different
+# layout from the project-local baseline. Flip this to `true` in a
+# `--fixture-dir` override to benchmark the GVS path on its own
+# terms.
+enableGlobalVirtualStore: false
+
+# Force pnpm to install every optional dependency in the lockfile
+# regardless of the runner's own os/cpu/libc, so its install payload
+# matches pacquet's (which currently installs every snapshot in the
+# lockfile unconditionally — it doesn't filter optionals by platform).
+#
+# Without this, pnpm on Linux CI skips darwin-only optionals like
+# `fsevents` via its normal platform filter and ends up doing less
+# work than pacquet, which quietly tilts the benchmark in pnpm's
+# favour. Listing every OS / CPU / libc combo we realistically care
+# about removes that asymmetry; the exact set mirrors pnpm's own
+# release matrix.
+supportedArchitectures:
+  os:
+    - darwin
+    - linux
+    - win32
+  cpu:
+    - x64
+    - arm64
+  libc:
+    - glibc
+    - musl
+
+allowBuilds:
+  core-js: false
+  es5-ext: false
+  # `fsevents` ships a native postinstall that would fire on macOS.
+  # The fixture's `.npmrc` sets `ignore-scripts=true`, so pnpm emits
+  # `ERR_PNPM_IGNORED_BUILDS` and exits 1 on the first warmup run,
+  # taking the whole benchmark down. Explicitly declining its build
+  # silences the error. Now reachable on Linux too because
+  # `supportedArchitectures` above pulls fsevents in on every
+  # platform — the entry is no longer a macOS-only concern.
+  fsevents: false

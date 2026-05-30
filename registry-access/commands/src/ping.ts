@@ -4,7 +4,7 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
 import { rcOptionsTypes as commonRcOptionsTypes } from './common.js'
@@ -21,7 +21,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export interface PingOptions extends CreateFetchFromRegistryOptions {
   registry?: string
-  registries?: Registries
   configByUri?: Record<string, RegistryConfig>
 }
 
@@ -47,13 +46,13 @@ export function help (): string {
 }
 
 export async function handler (opts: PingOptions): Promise<string> {
-  const registryUrl = opts.registry ?? opts.registries?.default ?? 'https://registry.npmjs.org/'
+  const registryUrl = opts.registry ?? 'https://registry.npmjs.org/'
   const normalizedRegistryUrl = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
   const pingUrlObject = new URL('./-/ping', normalizedRegistryUrl)
   pingUrlObject.searchParams.set('write', 'true')
   const pingUrl = pingUrlObject.toString()
 
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, normalizedRegistryUrl)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const authHeaderValue = getAuthHeader(normalizedRegistryUrl)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 

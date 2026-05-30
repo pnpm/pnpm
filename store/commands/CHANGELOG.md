@@ -1,5 +1,243 @@
 # @pnpm/store.commands
 
+## 1100.0.22
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/installing.client@1100.2.4
+  - @pnpm/store.connection-manager@1100.2.5
+
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/global.packages@1100.0.5
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.controller-types@1100.1.2
+
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/installing.client@1100.2.2
+
+## 1100.0.19
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.1
+- @pnpm/store.connection-manager@1100.2.2
+
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.client@1100.2.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/config.normalize-registries@1100.0.4
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/global.packages@1100.0.4
+  - @pnpm/store.cafs@1100.1.6
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [8df408c]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/installing.client@1100.1.0
+  - @pnpm/store.connection-manager@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/installing.context@1100.0.11
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/store.cafs@1100.1.5
+  - @pnpm/cli.utils@1101.0.5
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/installing.client@1100.0.15
+  - @pnpm/installing.context@1100.0.10
+  - @pnpm/store.cafs@1100.1.4
+  - @pnpm/store.connection-manager@1100.1.2
+
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.0.14
+- @pnpm/store.connection-manager@1100.1.1
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/store.connection-manager@1100.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.client@1100.0.13
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.normalize-registries@1100.0.3
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/global.packages@1100.0.3
+  - @pnpm/installing.context@1100.0.9
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/store.cafs@1100.1.3
+  - @pnpm/store.controller-types@1100.0.6
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [e9e876c]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/installing.client@1100.0.12
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/installing.context@1100.0.8
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/installing.client@1100.0.11
+  - @pnpm/installing.context@1100.0.7
+  - @pnpm/store.connection-manager@1100.0.12
+
+## 1100.0.11
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.context@1100.0.6
+  - @pnpm/installing.client@1100.0.10
+  - @pnpm/store.controller-types@1100.0.5
+  - @pnpm/store.connection-manager@1100.0.11
+  - @pnpm/store.cafs@1100.1.2
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/store.connection-manager@1100.0.10
+  - @pnpm/installing.client@1100.0.9
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/store.connection-manager@1100.0.9
+  - @pnpm/installing.client@1100.0.8
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/config.normalize-registries@1100.0.2
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/installing.client@1100.0.7
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/store.path@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/global.packages@1100.0.2
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.1
+- @pnpm/installing.context@1100.0.4
+- @pnpm/store.connection-manager@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/installing.client@1100.0.6
+
 ## 1100.0.5
 
 ### Patch Changes

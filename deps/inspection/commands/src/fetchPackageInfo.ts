@@ -14,7 +14,7 @@ import type { PackageInRegistry } from '@pnpm/resolving.registry.types'
 
 export type ExtendedPackageInfo = PackageInRegistry & {
   author?: string
-  repository?: string
+  repository?: string | { url?: string, directory?: string }
   versions: string[]
   versionsCount?: number
   depsCount?: number
@@ -52,7 +52,7 @@ export async function fetchPackageInfo (
   }
   const registry = pickRegistryForPackage(opts.registries, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const fetchResult = await fetchMetadataFromFromRegistry(
     {
       fetch: fetchFromRegistry,
@@ -93,7 +93,6 @@ export async function fetchPackageInfo (
   return {
     ...data,
     author: typeof data.author === 'object' ? (data.author as { name: string }).name : data.author,
-    repository: typeof data.repository === 'object' ? (data.repository as { url: string }).url : data.repository,
     versions,
     versionsCount: versions.length > 0 ? versions.length : undefined,
     depsCount: depsCount > 0 ? depsCount : undefined,

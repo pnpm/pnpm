@@ -1,0 +1,3 @@
+[alias]
+# Do not append `--` or it will break IDEs
+codecov = "llvm-cov nextest --workspace --ignore-filename-regex tasks"

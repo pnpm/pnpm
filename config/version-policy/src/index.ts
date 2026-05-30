@@ -12,6 +12,50 @@ export function createPackageVersionPolicy (patterns: string[]): PackageVersionP
   return evaluateVersionPolicy.bind(null, rules)
 }
 
+/**
+ * Like {@link createPackageVersionPolicy}, but rewraps parser errors with an
+ * `INVALID_<KEY>` PnpmError so the message points at the user-facing config key
+ * (e.g. `minimumReleaseAgeExclude`) instead of the internal parser code.
+ */
+export function createPackageVersionPolicyOrThrow (patterns: string[], key: string): PackageVersionPolicy {
+  try {
+    return createPackageVersionPolicy(patterns)
+  } catch (err) {
+    if (!err || typeof err !== 'object' || !('message' in err)) throw err
+    throw new PnpmError(
+      `INVALID_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`,
+      `Invalid value in ${key}: ${err.message as string}`
+    )
+  }
+}
+
+export interface PublishedByPolicyOptions {
+  minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
+}
+
+export interface PublishedByPolicy {
+  publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
+}
+
+/**
+ * Derives the resolver's `publishedBy` cutoff date and `publishedByExclude`
+ * policy from the user's `minimumReleaseAge` / `minimumReleaseAgeExclude`
+ * config. Centralized so every call site computes the cutoff at the same
+ * instant and surfaces invalid exclude patterns under the same error code.
+ */
+export function getPublishedByPolicy (opts: PublishedByPolicyOptions): PublishedByPolicy {
+  return {
+    publishedBy: opts.minimumReleaseAge
+      ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
+      : undefined,
+    publishedByExclude: opts.minimumReleaseAgeExclude
+      ? createPackageVersionPolicyOrThrow(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')
+      : undefined,
+  }
+}
+
 export function expandPackageVersionSpecs (specs: string[]): Set<string> {
   const expandedSpecs = new Set<string>()
   for (const spec of specs) {

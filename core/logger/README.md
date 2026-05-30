@@ -2,7 +2,7 @@
 
 > Logger for pnpm
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/logger.svg)](https://www.npmjs.com/package/@pnpm/logger)
+[![npm version](https://img.shields.io/npm/v/@pnpm/logger.svg)](https://npmx.dev/package/@pnpm/logger)
 
 ## Installation
 
@@ -12,7 +12,7 @@ pnpm add @pnpm/logger
 
 ## Usage
 
-`@pnpm/logger` is mostly just a wrapper over [bole](https://www.npmjs.com/package/bole).
+`@pnpm/logger` is mostly just a wrapper over [bole](https://npmx.dev/package/bole).
 Logging is done the same way as in bole. To listed for logs, use `streamParser` or create
 a new parser with `createStreamParser()`.
 

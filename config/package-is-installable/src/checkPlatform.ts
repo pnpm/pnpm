@@ -56,7 +56,6 @@ export type WantedPlatform = Partial<Platform>
 function checkList (value: string | string[], list: string | string[]): boolean {
   let tmp
   let match = false
-  let blc = 0
 
   if (typeof list === 'string') {
     list = [list]
@@ -76,13 +75,14 @@ function checkList (value: string | string[], list: string | string[]): boolean 
         if (tmp === value) {
           return false
         }
-        ++blc
       } else {
         match = match || tmp === value
       }
     }
   }
-  return match || blc === list.length
+  // No negation rejected any value. Accept if a positive entry matched, or if the list
+  // contains only negations (no positive constraints to satisfy).
+  return match || list.every(entry => entry[0] === '!')
 }
 
 function dedupeCurrent (current: string, supported: string[]): string[] {

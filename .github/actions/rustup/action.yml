@@ -1,0 +1,84 @@
+name: Rustup
+
+description: Install Rust with minimal profile and additional components
+
+inputs:
+  # See https://rust-lang.github.io/rustup/concepts/components.html
+  clippy:
+    default: false
+    required: false
+  fmt:
+    default: false
+    required: false
+  docs:
+    default: false
+    required: false
+  restore-cache:
+    default: true
+    required: false
+  save-cache:
+    default: false
+    required: false
+  shared-key:
+    default: 'warm'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Print Inputs
+      shell: bash
+      env:
+        CLIPPY: ${{ inputs.clippy }}
+        FMT: ${{ inputs.fmt }}
+        DOCS: ${{ inputs.docs }}
+        RESTORE_CACHE: ${{ inputs.restore-cache }}
+        SAVE_CACHE: ${{ inputs.save-cache }}
+      run: |
+        echo "clippy: $CLIPPY"
+        echo "fmt: $FMT"
+        echo "docs: $DOCS"
+        echo "restore-cache: $RESTORE_CACHE"
+        echo "save-cache: $SAVE_CACHE"
+
+    - name: Remove `profile` line on MacOS
+      shell: bash
+      if: runner.os == 'macOS'
+      run: sed -i '' '/profile/d' rust-toolchain.toml
+
+    - name: Remove `profile` line on non-MacOS
+      shell: bash
+      if: runner.os != 'macOS'
+      run: sed -i '/profile/d' rust-toolchain.toml
+
+    - name: Set minimal
+      shell: bash
+      run: rustup set profile minimal
+
+    - name: Add Clippy
+      shell: bash
+      if: ${{ inputs.clippy == 'true' }}
+      run: rustup component add clippy
+
+    - name: Add Rustfmt
+      shell: bash
+      if: ${{ inputs.fmt == 'true' }}
+      run: rustup component add rustfmt
+
+    - name: Add docs
+      shell: bash
+      if: ${{ inputs.docs == 'true' }}
+      run: rustup component add rust-docs
+
+    - name: Install
+      shell: bash
+      run: |
+        rustup show
+        git restore .
+
+    - name: Cache on ${{ github.ref_name }}
+      uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      if: ${{ inputs.restore-cache == 'true' }}
+      with:
+        shared-key: ${{ inputs.shared-key }}
+        save-if: ${{ inputs.save-cache == 'true' }}

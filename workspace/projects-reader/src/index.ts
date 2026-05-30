@@ -71,8 +71,12 @@ function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
 }
 
 function printNonRootFieldWarning (prefix: string, propertyPath: string): void {
+  const message = propertyPath === 'resolutions'
+    ? `The field "${propertyPath}" was found in ${prefix}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.`
+    : `The field "${propertyPath}" was found in ${prefix}/package.json. This will not take effect. You should configure "${propertyPath}" at the root of the workspace instead.`
+
   logger.warn({
-    message: `The field "${propertyPath}" was found in ${prefix}/package.json. This will not take effect. You should configure "${propertyPath}" at the root of the workspace instead.`,
+    message,
     prefix,
   })
 }

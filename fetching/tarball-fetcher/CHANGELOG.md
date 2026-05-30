@@ -1,5 +1,110 @@
 # @pnpm/tarball-fetcher
 
+## 1101.0.11
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/exec.prepare-package@1100.0.14
+  - @pnpm/fetching.fetcher-base@1100.1.6
+
+## 1101.0.10
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.13
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/exec.prepare-package@1100.0.12
+  - @pnpm/fetching.fetcher-base@1100.1.5
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/worker@1100.1.7
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [4a79336]
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/exec.prepare-package@1100.0.11
+  - @pnpm/worker@1100.1.6
+
+## 1101.0.7
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.10
+- @pnpm/worker@1100.1.5
+
+## 1101.0.6
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.9
+
+## 1101.0.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/exec.prepare-package@1100.0.8
+  - @pnpm/fetching.fetcher-base@1100.1.3
+  - @pnpm/worker@1100.1.4
+
+## 1101.0.4
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+- Updated dependencies [dd8d5d7]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/fs.packlist@1100.0.1
+  - @pnpm/worker@1100.1.3
+  - @pnpm/exec.prepare-package@1100.0.7
+
+## 1101.0.3
+
+### Patch Changes
+
+- 36b4c83: Fixed `ERR_PNPM_BAD_TARBALL_SIZE` when a registry serves tarballs with an end-to-end `Content-Encoding` (e.g. `gzip`). Tarballs are already compressed, so the fetcher now requests them with `Accept-Encoding: identity` (matching pnpm v10's effective behavior) and, as defense in depth against misbehaving servers, no longer enforces the strict `Content-Length` check when the response declares a `Content-Encoding` — `Content-Length` in that case refers to the encoded payload, not the decoded bytes the fetch implementation yields [#11506](https://github.com/pnpm/pnpm/issues/11506).
+
+## 1101.0.2
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+  - @pnpm/fetching.fetcher-base@1100.1.2
+  - @pnpm/exec.prepare-package@1100.0.6
+  - @pnpm/worker@1100.1.2
+
+## 1101.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/exec.prepare-package@1100.0.5
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/worker@1100.1.1
+
 ## 1101.0.0
 
 ### Minor Changes

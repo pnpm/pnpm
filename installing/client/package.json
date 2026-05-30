@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.client",
-  "version": "1100.0.5",
+  "version": "1100.2.4",
   "description": "Creates the package resolve and fetch functions",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@pnpm/engine.runtime.node-resolver": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/fetching.git-fetcher": "workspace:*",
@@ -43,6 +44,7 @@
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/resolving.default-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",

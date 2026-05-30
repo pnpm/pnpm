@@ -3,6 +3,7 @@ import path from 'node:path'
 import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
@@ -196,6 +197,8 @@ export async function handler (
     await commitAndTag(changes, { ...opts, cwd: gitCwd })
   }
 
+  await Promise.all(changes.map(change => runVersionLifecycleHook('postversion', change, opts)))
+
   if (opts.json) {
     return JSON.stringify(changes.map(({ manifestPath: _manifestPath, ...change }) => change), null, 2)
   }
@@ -226,6 +229,15 @@ async function bumpPackageVersion (
     throw new PnpmError('INVALID_VERSION', `Invalid version in ${pkgDir}: ${currentVersion}`)
   }
 
+  const preVersionChange: VersionChange = {
+    name: manifest.name,
+    currentVersion,
+    newVersion: currentVersion,
+    path: pkgDir,
+    manifestPath: path.join(pkgDir, fileName),
+  }
+  await runVersionLifecycleHook('preversion', preVersionChange, opts)
+
   const newVersion = explicitVersion ?? inc(currentVersion, rawBump as BumpType, false, opts.preid)
 
   if (!newVersion) {
@@ -239,13 +251,37 @@ async function bumpPackageVersion (
   manifest.version = newVersion
   await writeProjectManifest(manifest)
 
-  return {
+  const change = {
     name: manifest.name,
     currentVersion,
     newVersion,
     path: pkgDir,
     manifestPath: path.join(pkgDir, fileName),
   }
+  await runVersionLifecycleHook('version', change, opts)
+
+  return change
+}
+
+async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postversion', change: VersionChange, opts: VersionHandlerOptions): Promise<void> {
+  if (opts.ignoreScripts === true) return
+
+  const { manifest } = await readProjectManifest(change.path)
+  const lifecycleOpts: RunLifecycleHookOptions = {
+    depPath: change.name,
+    extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
+    initCwd: opts.dir,
+    pkgRoot: change.path,
+    rootModulesDir: path.join(change.path, opts.modulesDir ?? 'node_modules'),
+    scriptShell: opts.scriptShell,
+    scriptsPrependNodePath: opts.scriptsPrependNodePath,
+    shellEmulator: opts.shellEmulator,
+    stdio: 'inherit',
+    unsafePerm: opts.unsafePerm ?? false,
+    userAgent: opts.userAgent,
+  }
+  await runLifecycleHook(stage, manifest, lifecycleOpts)
 }
 
 async function commitAndTag (changes: VersionChange[], opts: VersionHandlerOptions & { cwd: string }): Promise<void> {

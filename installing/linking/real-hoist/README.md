@@ -1,11 +1,11 @@
-# @pnpm/real-hoist
+# @pnpm/installing.linking.real-hoist
 
 > Hoists dependencies in a node_modules created by pnpm
 
 ## Installation
 
 ```
-pnpm add @pnpm/real-hoist
+pnpm add @pnpm/installing.linking.real-hoist
 ```
 
 ## License

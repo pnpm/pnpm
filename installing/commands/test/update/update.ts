@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { install, update } from '@pnpm/installing.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 

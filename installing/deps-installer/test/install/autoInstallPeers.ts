@@ -5,7 +5,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { createPeerDepGraphHash } from '@pnpm/deps.path'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 

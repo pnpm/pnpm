@@ -1,5 +1,126 @@
 # @pnpm/get-context
 
+## 1100.0.14
+
+### Patch Changes
+
+- a33c4bf: Skip dependency re-resolution when `pnpm-lock.yaml` is missing but `node_modules/.pnpm/lock.yaml` exists and still satisfies the manifest. `pnpm install` now reuses the materialized snapshot to regenerate `pnpm-lock.yaml` instead of walking the registry to rebuild it from scratch, turning the cache+node_modules variation into a near-no-op for users who deleted the lockfile but kept the install [#11993](https://github.com/pnpm/pnpm/issues/11993).
+
+  `--frozen-lockfile` still refuses to proceed when `pnpm-lock.yaml` is absent — the regenerated lockfile must be committed, so failing loudly is the correct behavior for CI.
+
+  - @pnpm/store.controller@1101.0.10
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/installing.read-projects-context@1100.0.12
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller@1101.0.9
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/installing.read-projects-context@1100.0.11
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/installing.modules-yaml@1100.0.5
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [6e93f35]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/installing.read-projects-context@1100.0.10
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/installing.read-projects-context@1100.0.9
+  - @pnpm/store.controller@1101.0.6
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/installing.read-projects-context@1100.0.8
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.controller@1101.0.5
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.4
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/installing.read-projects-context@1100.0.7
+- @pnpm/store.controller@1101.0.3
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/installing.read-projects-context@1100.0.6
+  - @pnpm/store.controller@1101.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/installing.read-projects-context@1100.0.5
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/installing.read-projects-context@1100.0.4
+  - @pnpm/store.controller@1101.0.1
+
 ## 1100.0.3
 
 ### Patch Changes

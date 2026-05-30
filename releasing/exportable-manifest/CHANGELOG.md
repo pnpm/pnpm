@@ -1,5 +1,65 @@
 # @pnpm/exportable-manifest
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/bins.resolver@1100.0.5
+
+## 1100.1.0
+
+### Minor Changes
+
+- 3b62f9d: Add a `skip-manifest-obfuscation` option for `pnpm pack` and `pnpm publish`. When enabled, the original `packageManager` field and publish lifecycle scripts are kept in the packed/published manifest instead of being stripped. The pnpm-specific `pnpm` field continues to be omitted.
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/bins.resolver@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/bins.resolver@1100.0.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/bins.resolver@1100.0.2
+
 ## 1100.0.2
 
 ### Patch Changes

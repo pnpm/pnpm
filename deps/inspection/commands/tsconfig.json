@@ -79,6 +79,9 @@
       "path": "../../../testing/command-defaults"
     },
     {
+      "path": "../../../testing/registry-mock"
+    },
+    {
       "path": "../../../workspace/projects-filter"
     },
     {
@@ -89,6 +92,9 @@
     },
     {
       "path": "../peers-checker"
+    },
+    {
+      "path": "../peers-issues-renderer"
     }
   ]
 }

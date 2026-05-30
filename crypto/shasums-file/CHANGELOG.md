@@ -1,5 +1,13 @@
 # @pnpm/crypto.shasums-file
 
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/fetching.types@1100.0.1
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1002.0.0
 
 ### Major Changes

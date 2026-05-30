@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import type { DispatcherOptions } from '@pnpm/network.fetch'
-import type { GitResolution, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
+import type { GitResolution, LatestInfo, LatestQuery, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import { gracefulGit as git } from 'graceful-git'
 import semver from 'semver'
 
@@ -66,7 +66,7 @@ export function createGitResolver (
       const tarball = hosted.tarball?.()
 
       if (tarball) {
-        resolution = { tarball }
+        resolution = { tarball, gitHosted: true }
       }
     }
 
@@ -99,6 +99,18 @@ export function createGitResolver (
       resolvedVia: 'git-repository',
     }
   }
+}
+
+// Git deps have no concept of "latest" — we'd need to query the host's tag list
+// to know about newer commits, which isn't a uniform thing across protocols.
+// Claim the dep so the dispatcher stops; the caller still surfaces a
+// ref-mismatch report if the lockfile shifted to a different commit.
+export async function resolveLatestFromGit (query: LatestQuery): Promise<LatestInfo | undefined> {
+  const bareSpecifier = query.wantedDependency.bareSpecifier
+  if (!bareSpecifier) return undefined
+  const parsedSpecFunc = parseBareSpecifier(bareSpecifier, {})
+  if (parsedSpecFunc == null) return undefined
+  return {}
 }
 
 function resolveVTags (vTags: string[], range: string): string | null {

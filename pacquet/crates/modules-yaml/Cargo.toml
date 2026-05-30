@@ -1,0 +1,35 @@
+[package]
+name                  = "pacquet-modules-yaml"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-diagnostics = { workspace = true }
+pacquet-fs          = { workspace = true }
+
+derive_more  = { workspace = true }
+httpdate     = { workspace = true }
+indexmap     = { workspace = true }
+pathdiff     = { workspace = true }
+pipe-trait   = { workspace = true }
+serde        = { workspace = true }
+serde-saphyr = { workspace = true }
+serde_json   = { workspace = true }
+
+[dev-dependencies]
+pacquet-testing-utils = { workspace = true }
+
+chrono            = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile          = { workspace = true }
+text-block-macros = { workspace = true }
+
+[lints]
+workspace = true

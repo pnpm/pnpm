@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/parent-of-has-many-optional-deps",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/has-many-optional-deps": "1.0.0"
+  }
+}

@@ -1,5 +1,549 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.7.0
+
+### Minor Changes
+
+- a39a83d: Added a new `hoistingLimits` setting for `nodeLinker: hoisted` installs, mirroring yarn's `nmHoistingLimits`. It accepts `none` (the default — hoist as far as possible), `workspaces` (hoist only as far as each workspace package), or `dependencies` (hoist only up to each workspace package's direct dependencies). Originally proposed in [#6468](https://github.com/pnpm/pnpm/pull/6468), closing [#6457](https://github.com/pnpm/pnpm/issues/6457).
+- 2cadfb5: Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+- Updated dependencies [a33c4bf]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.deps-installer@1101.6.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/installing.env-installer@1101.1.4
+  - @pnpm/deps.inspection.outdated@1100.1.4
+  - @pnpm/workspace.projects-graph@1100.0.14
+  - @pnpm/store.controller@1101.0.10
+  - @pnpm/building.after-install@1101.0.18
+  - @pnpm/deps.status@1100.0.20
+  - @pnpm/global.commands@1100.0.23
+  - @pnpm/store.connection-manager@1100.2.5
+  - @pnpm/workspace.state@1100.0.17
+  - @pnpm/workspace.projects-filter@1100.0.17
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.10
+
+## 1100.6.0
+
+### Minor Changes
+
+- aa6149d: Treat tarball-integrity mismatches against the lockfile as a hard failure by default. Previously, `pnpm install` (non-frozen) would log `ERR_PNPM_TARBALL_INTEGRITY`, silently re-resolve from the registry, and overwrite the locked integrity — which meant a compromised registry, proxy, or republished version could substitute attacker-controlled content on a clean machine even though the project shipped a committed lockfile.
+
+  `pnpm install` now exits with `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the new opt-in flag.
+
+  The only opt-in is **`pnpm install --update-checksums`** — narrowly scoped to refreshing the locked integrity values from what the registry currently serves. Mirrors yarn's flag of the same name. A warning still prints when the bypass takes effect so the operation is auditable.
+
+  `--force` and `pnpm update` deliberately do **not** bypass the integrity check. They are routine refresh operations; silently overwriting a locked integrity in those flows would erase the protection a committed lockfile is supposed to provide. `--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and is also not a bypass.
+
+### Patch Changes
+
+- 572842a: Improve the log message that pnpm prints after auto-adding entries to `minimumReleaseAgeExclude` when `minimumReleaseAge` is set without `minimumReleaseAgeStrict`. The message previously referred to the internal "loose mode" terminology, which wasn't searchable in the docs; it now tells the user to set `minimumReleaseAgeStrict` to `true` if they want these updates gated behind a prompt instead [#11747](https://github.com/pnpm/pnpm/issues/11747).
+- Updated dependencies [e8b3ae1]
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+- Updated dependencies [440e155]
+- Updated dependencies [0721d64]
+  - @pnpm/workspace.projects-reader@1101.0.8
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/installing.deps-installer@1101.5.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/global.commands@1100.0.22
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/deps.status@1100.0.19
+  - @pnpm/workspace.projects-filter@1100.0.16
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.10
+  - @pnpm/building.after-install@1101.0.17
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/workspace.state@1100.0.16
+  - @pnpm/installing.env-installer@1101.1.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/deps.inspection.outdated@1100.1.3
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.writer@1100.0.10
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.pnpmfile@1100.0.11
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/installing.dedupe.check@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller@1101.0.9
+  - @pnpm/workspace.project-manifest-writer@1100.0.5
+  - @pnpm/workspace.projects-graph@1100.0.13
+  - @pnpm/workspace.projects-sorter@1100.0.4
+
+## 1100.5.0
+
+### Minor Changes
+
+- 212315d: Added a new setting `trustLockfile`. When `true`, `pnpm install` skips the supply-chain verification pass that re-applies `minimumReleaseAge` / `trustPolicy='no-downgrade'` to every entry in the loaded lockfile. The install treats the lockfile as already-trusted — useful for closed-source projects where every commit comes from a trusted author, or for CI runs against an already-verified lockfile. Defaults to `false`; verification stays on by default. Set in `pnpm-workspace.yaml`.
+
+  Also cut the memory footprint of the verification pass itself: the per-(registry, name) trust-meta cache previously retained the full packument — dependency graphs, scripts, README, and per-version manifests — for the entire install. On large workspaces (`~4k` lockfile entries with `minimumReleaseAge` + `trustPolicy: no-downgrade` enabled) this could OOM CI runners with a 2GB heap cap. The cache now stores only the fields the trust check actually reads (`time`, per-version `_npmUser.trustedPublisher`, `dist.attestations.provenance`). The abbreviated-metadata cache is similarly projected to just the package-level `modified` field and the set of currently-listed version names. Fixes [#11860](https://github.com/pnpm/pnpm/issues/11860).
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [155af87]
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/installing.env-installer@1101.1.2
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.deps-installer@1101.4.0
+  - @pnpm/resolving.npm-resolver@1101.3.2
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/workspace.projects-reader@1101.0.7
+  - @pnpm/building.after-install@1101.0.16
+  - @pnpm/deps.status@1100.0.18
+  - @pnpm/global.commands@1100.0.21
+  - @pnpm/store.connection-manager@1100.2.3
+  - @pnpm/workspace.state@1100.0.15
+  - @pnpm/deps.inspection.outdated@1100.1.2
+  - @pnpm/workspace.projects-graph@1100.0.12
+  - @pnpm/workspace.projects-filter@1100.0.15
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.9
+  - @pnpm/store.controller@1101.0.8
+
+## 1100.4.2
+
+### Patch Changes
+
+- 881a865: When the install engine is delegated to pacquet via `configDependencies`, the user's CLI flags passed to `pnpm install` (e.g. `--no-runtime`, `--prod`, `--dev`, `--no-optional`, `--node-linker`, `--cpu`/`--os`/`--libc`, `--offline`, `--prefer-offline`) are now forwarded to pacquet's `install` subcommand verbatim. Previously pacquet was invoked with a fixed argument list, so flags like `--no-runtime` were silently dropped. Flag forwarding is gated on the command being `install`/`i`; `add`, `update`, and `dedupe` still don't forward (their flag surface doesn't line up with pacquet's `install`).
+
+## 1100.4.1
+
+### Patch Changes
+
+- Updated dependencies [2061c55]
+- Updated dependencies [097983f]
+- Updated dependencies [e5e7b72]
+  - @pnpm/installing.env-installer@1101.1.1
+  - @pnpm/config.pick-registry-for-package@1100.0.5
+  - @pnpm/resolving.npm-resolver@1101.3.1
+  - @pnpm/deps.inspection.outdated@1100.1.1
+  - @pnpm/workspace.projects-graph@1100.0.11
+  - @pnpm/store.connection-manager@1100.2.2
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/installing.deps-installer@1101.3.1
+  - @pnpm/workspace.projects-filter@1100.0.14
+  - @pnpm/building.after-install@1101.0.15
+  - @pnpm/global.commands@1100.0.20
+
+## 1100.4.0
+
+### Minor Changes
+
+- b206a15: Adding [`pacquet`](https://github.com/pnpm/pnpm/tree/main/pacquet) (the Rust port of pnpm) to `configDependencies` in `pnpm-workspace.yaml` now delegates the materialization phase of `pnpm install` to the pacquet binary instead of running the JS installer's headless path. Pacquet emits the same `pnpm:*` NDJSON log events that `@pnpm/cli.default-reporter` already parses, so the install renders identically. Absent the `pacquet` entry, behavior is unchanged.
+
+  ```yaml
+  # pnpm-workspace.yaml
+  configDependencies:
+    pacquet: "^0.1.0"
+  ```
+
+  Pacquet takes over every place pnpm would otherwise call `headlessInstall`: the frozen-install path, the hoisted-`nodeLinker` install, the workspace partial-install (where pnpm runs a `lockfileOnly` resolve pass first), and the agent-server install. In all cases pnpm still owns dependency resolution; pacquet only fetches and imports from the freshly-written lockfile. This is an opt-in preview of the Rust install engine [#11723](https://github.com/pnpm/pnpm/issues/11723).
+
+### Patch Changes
+
+- a620557: Fix global add/update to handle minimumReleaseAge policy violations instead of surfacing an internal resolver guardrail error.
+- Updated dependencies [3687b0e]
+- Updated dependencies [c8d8fde]
+- Updated dependencies [ced20cb]
+- Updated dependencies [a620557]
+- Updated dependencies [d1b340f]
+- Updated dependencies [3a54205]
+- Updated dependencies [1627943]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.env-installer@1101.1.0
+  - @pnpm/global.commands@1100.0.19
+  - @pnpm/resolving.npm-resolver@1101.3.0
+  - @pnpm/deps.inspection.outdated@1100.1.0
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/pkg-manifest.utils@1100.2.0
+  - @pnpm/installing.deps-installer@1101.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/building.after-install@1101.0.14
+  - @pnpm/deps.status@1100.0.17
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/workspace.state@1100.0.14
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/workspace.projects-graph@1100.0.10
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/config.pick-registry-for-package@1100.0.4
+  - @pnpm/config.writer@1100.0.9
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/hooks.pnpmfile@1100.0.10
+  - @pnpm/installing.dedupe.check@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/workspace.project-manifest-writer@1100.0.4
+  - @pnpm/workspace.projects-filter@1100.0.13
+  - @pnpm/workspace.projects-reader@1101.0.6
+  - @pnpm/workspace.projects-sorter@1100.0.3
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.9
+
+## 1100.3.0
+
+### Minor Changes
+
+- 4195766: Tightened the `minimumReleaseAge` story so the bypass becomes explicit on disk instead of silent, and removed the discover-by-loop dance for strict-mode users:
+
+  1. Fresh resolutions in loose mode (`minimumReleaseAgeStrict: false`) that fall back to a version newer than the cutoff auto-collect the picked `name@version` into the workspace manifest's `minimumReleaseAgeExclude`. A single info message lists the additions; entries already on the list are left alone.
+  2. The post-resolution lockfile verifier introduced in #11583 now runs in loose mode too — every accepted-immature pin must be on `minimumReleaseAgeExclude`, just like strict mode requires. A lockfile produced under a weaker (or absent) policy that still has immature entries is rejected the same way strict mode would reject it.
+  3. **Strict mode (interactive)** no longer aborts on the first immature pick. The resolver gathers every immature direct _and_ transitive in one pass; before peer-dependency resolution runs, pnpm prompts the user with the full list and asks whether to add them all to `minimumReleaseAgeExclude` and proceed. Approve → install continues and the workspace manifest is written at the end. Decline → resolution aborts before the lockfile or package.json is touched (tarballs already in the store stay, since the store is idempotent). This closes the [#10488](https://github.com/pnpm/pnpm/issues/10488) loop where security bumps to packages with platform-specific transitives (e.g. `next` + the `@next/swc-*` shims) made users re-run `pnpm add` once per transitive.
+  4. **Strict mode (non-interactive / CI)** now aborts with the full immature set in the error message instead of the first pick. The resolver always collects every immature direct + transitive; the install command then throws `ERR_PNPM_NO_MATURE_MATCHING_VERSION` listing each entry's `name@version` and publish time. Deterministic CI behavior is preserved (same exit code, same error code), but the error pinpoints every offending entry instead of forcing the discover-by-loop dance. The expected workflow is interactive approval locally → the lockfile + workspace manifest get committed → CI runs cleanly against the populated exclude list.
+
+  5. **The lockfile verifier now also covers `trustPolicy: 'no-downgrade'`.** The same post-resolution gate that re-checks `minimumReleaseAge` on lockfile entries now re-runs `failIfTrustDowngraded` for every npm-registry entry whose name isn't on `trustPolicyExclude`. The two checks share a single full-metadata fetch per package, so the extra coverage doesn't cost an extra round trip when both policies are active. Resolver-time trust checks still run as before — this just closes the gap when an entry bypasses resolution (peek path, `--frozen-lockfile`, restored CI cache).
+
+  Pacquet parity: not ported — pacquet's `minimumReleaseAge` policy is itself only stubbed today (see `pacquet/crates/package-manager/src/version_policy.rs`). The auto-exclude, loose-mode verifier, prompt, and the new trust-policy verifier check will travel with the broader policy port whenever that happens.
+
+### Patch Changes
+
+- Updated dependencies [963861c]
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [b6e2c8c]
+- Updated dependencies [d3f8408]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [4a79336]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [31538bf]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.npm-resolver@1101.2.0
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/installing.deps-installer@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.0
+  - @pnpm/deps.inspection.outdated@1100.0.16
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/building.after-install@1101.0.13
+  - @pnpm/installing.env-installer@1101.0.10
+  - @pnpm/workspace.projects-graph@1100.0.9
+  - @pnpm/deps.status@1100.0.16
+  - @pnpm/installing.context@1100.0.11
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/hooks.pnpmfile@1100.0.9
+  - @pnpm/global.commands@1100.0.18
+  - @pnpm/workspace.state@1100.0.13
+  - @pnpm/pkg-manifest.utils@1100.1.4
+  - @pnpm/workspace.projects-filter@1100.0.12
+  - @pnpm/installing.dedupe.check@1100.0.6
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.8
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+  - @pnpm/config.writer@1100.0.8
+  - @pnpm/workspace.projects-reader@1101.0.5
+
+## 1100.2.2
+
+### Patch Changes
+
+- 180aee9: Fixed `optimisticRepeatInstall` skipping `pnpm-lock.yaml` merge conflict resolution when the existing `node_modules` state appears up to date.
+- Updated dependencies [9cad827]
+- Updated dependencies [50b33c1]
+- Updated dependencies [8c06d1a]
+- Updated dependencies [180aee9]
+  - @pnpm/pkg-manifest.utils@1100.1.3
+  - @pnpm/installing.deps-installer@1101.1.2
+  - @pnpm/deps.status@1100.0.15
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/deps.inspection.outdated@1100.0.15
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/global.commands@1100.0.17
+  - @pnpm/installing.env-installer@1101.0.9
+  - @pnpm/workspace.projects-graph@1100.0.8
+  - @pnpm/installing.context@1100.0.10
+  - @pnpm/store.controller@1101.0.6
+  - @pnpm/building.after-install@1101.0.12
+  - @pnpm/hooks.pnpmfile@1100.0.8
+  - @pnpm/workspace.projects-reader@1101.0.4
+  - @pnpm/store.connection-manager@1100.1.2
+  - @pnpm/workspace.state@1100.0.12
+  - @pnpm/workspace.projects-filter@1100.0.11
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.7
+
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [02e9cf5]
+  - @pnpm/deps.status@1100.0.14
+  - @pnpm/building.after-install@1101.0.11
+  - @pnpm/global.commands@1100.0.16
+  - @pnpm/installing.deps-installer@1101.1.1
+  - @pnpm/deps.inspection.outdated@1100.0.14
+  - @pnpm/store.connection-manager@1100.1.1
+  - @pnpm/store.controller@1101.0.5
+  - @pnpm/installing.env-installer@1101.0.8
+
+## 1100.2.0
+
+### Minor Changes
+
+- e1e29c1: Add `--no-runtime` flag (config: `runtime=false`) to skip installing runtime entries (e.g. Node.js downloaded via `devEngines.runtime`) without modifying the lockfile. The lockfile keeps the runtime entry so frozen-lockfile validation still passes; only the runtime fetch and `.bin` linking are skipped. Useful in CI matrices where the runtime is provisioned externally (e.g. via `pnpm runtime -g set node <version>`) before `pnpm install` runs.
+
+### Patch Changes
+
+- Updated dependencies [4b25a3d]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/global.commands@1100.0.15
+  - @pnpm/installing.deps-installer@1101.1.0
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/store.connection-manager@1100.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/installing.env-installer@1101.0.8
+  - @pnpm/building.after-install@1101.0.10
+  - @pnpm/deps.status@1100.0.13
+  - @pnpm/workspace.state@1100.0.11
+  - @pnpm/deps.inspection.outdated@1100.0.13
+  - @pnpm/workspace.projects-graph@1100.0.7
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/config.pick-registry-for-package@1100.0.3
+  - @pnpm/config.writer@1100.0.7
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/hooks.pnpmfile@1100.0.7
+  - @pnpm/installing.context@1100.0.9
+  - @pnpm/installing.dedupe.check@1100.0.5
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/pkg-manifest.utils@1100.1.2
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.controller@1101.0.5
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+  - @pnpm/workspace.project-manifest-writer@1100.0.3
+  - @pnpm/workspace.projects-filter@1100.0.10
+  - @pnpm/workspace.projects-reader@1101.0.3
+  - @pnpm/workspace.projects-sorter@1100.0.2
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.7
+
+## 1100.1.12
+
+### Patch Changes
+
+- 15e9e35: Upgrade `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/exec`, and `parse-npm-tarball-url` to versions that expose their helpers as named exports instead of CommonJS default exports. This eliminates the `.default` property accesses that broke under Node.js ESM interop in tests and could fail at runtime in some module loaders.
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/building.after-install@1101.0.9
+  - @pnpm/installing.deps-installer@1101.0.9
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/store.controller@1101.0.4
+  - @pnpm/deps.status@1100.0.12
+  - @pnpm/global.commands@1100.0.14
+  - @pnpm/workspace.state@1100.0.10
+  - @pnpm/deps.inspection.outdated@1100.0.12
+  - @pnpm/installing.env-installer@1101.0.7
+  - @pnpm/workspace.projects-graph@1100.0.6
+  - @pnpm/installing.context@1100.0.8
+  - @pnpm/workspace.projects-filter@1100.0.9
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.6
+
+## 1100.1.11
+
+### Patch Changes
+
+- @pnpm/building.after-install@1101.0.8
+- @pnpm/deps.inspection.outdated@1100.0.11
+- @pnpm/installing.deps-installer@1101.0.8
+- @pnpm/installing.env-installer@1101.0.6
+- @pnpm/global.commands@1100.0.13
+- @pnpm/deps.status@1100.0.11
+- @pnpm/installing.context@1100.0.7
+- @pnpm/store.connection-manager@1100.0.12
+- @pnpm/store.controller@1101.0.3
+
+## 1100.1.10
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.deps-installer@1101.0.7
+  - @pnpm/building.after-install@1101.0.7
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.context@1100.0.6
+  - @pnpm/global.commands@1100.0.12
+  - @pnpm/store.controller@1101.0.3
+  - @pnpm/deps.inspection.outdated@1100.0.10
+  - @pnpm/deps.status@1100.0.10
+  - @pnpm/installing.env-installer@1101.0.5
+  - @pnpm/hooks.pnpmfile@1100.0.6
+  - @pnpm/installing.dedupe.check@1100.0.4
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.6
+  - @pnpm/store.connection-manager@1100.0.11
+  - @pnpm/workspace.state@1100.0.9
+  - @pnpm/config.writer@1100.0.6
+  - @pnpm/workspace.projects-graph@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.8
+
+## 1100.1.9
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [8131d7c]
+- Updated dependencies [c969392]
+- Updated dependencies [0d791f3]
+- Updated dependencies [ab6c42d]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/hooks.pnpmfile@1100.0.5
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.5
+  - @pnpm/installing.deps-installer@1101.0.6
+  - @pnpm/deps.status@1100.0.9
+  - @pnpm/workspace.state@1100.0.8
+  - @pnpm/building.after-install@1101.0.6
+  - @pnpm/global.commands@1100.0.11
+  - @pnpm/store.connection-manager@1100.0.10
+  - @pnpm/config.writer@1100.0.5
+  - @pnpm/installing.env-installer@1101.0.4
+  - @pnpm/deps.inspection.outdated@1100.0.9
+  - @pnpm/store.controller@1101.0.2
+
+## 1100.1.8
+
+### Patch Changes
+
+- f6bc1db: `pnpm dlx` (and `pnpx`/`pnx`/`pnpm create`) now runs the same interactive `approve-builds` prompt as `pnpm add -g` when the package being launched depends on transitive packages with install scripts. Previously, the v11 `strictDepBuilds` default made dlx fail with `ERR_PNPM_IGNORED_BUILDS` and required users to re-run with `--allow-build=<pkg>` for every offending dependency. dlx also now removes the partially-populated cache directory when the install fails, so a subsequent run starts clean instead of reusing a broken install whose builds were silently skipped [#11444](https://github.com/pnpm/pnpm/issues/11444).
+- Updated dependencies [72629fc]
+  - @pnpm/global.commands@1100.0.10
+
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/building.after-install@1101.0.5
+  - @pnpm/deps.status@1100.0.8
+  - @pnpm/global.commands@1100.0.9
+  - @pnpm/store.connection-manager@1100.0.9
+  - @pnpm/workspace.state@1100.0.7
+  - @pnpm/installing.deps-installer@1101.0.5
+  - @pnpm/deps.inspection.outdated@1100.0.8
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+
+## 1100.1.6
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/resolving.parse-wanted-dependency@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/workspace.project-manifest-writer@1100.0.2
+  - @pnpm/config.pick-registry-for-package@1100.0.2
+  - @pnpm/cli.common-cli-options-help@1100.0.1
+  - @pnpm/installing.deps-installer@1101.0.4
+  - @pnpm/workspace.projects-filter@1100.0.7
+  - @pnpm/workspace.projects-reader@1101.0.2
+  - @pnpm/deps.inspection.outdated@1100.0.7
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/installing.dedupe.check@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/workspace.root-finder@1100.0.1
+  - @pnpm/fs.read-modules-dir@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.1.1
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/hooks.pnpmfile@1100.0.4
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/config.writer@1100.0.4
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/installing.env-installer@1101.0.3
+  - @pnpm/deps.status@1100.0.7
+  - @pnpm/building.after-install@1101.0.4
+  - @pnpm/global.commands@1100.0.8
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.4
+  - @pnpm/workspace.projects-graph@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/workspace.state@1100.0.6
+
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/global.commands@1100.0.7
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/installing.deps-installer@1101.0.3
+  - @pnpm/installing.context@1100.0.4
+  - @pnpm/workspace.projects-reader@1101.0.1
+  - @pnpm/store.controller@1101.0.1
+  - @pnpm/building.after-install@1101.0.3
+  - @pnpm/deps.status@1100.0.6
+  - @pnpm/workspace.projects-filter@1100.0.6
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.3
+  - @pnpm/installing.env-installer@1101.0.2
+  - @pnpm/store.connection-manager@1100.0.7
+
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/deps.status@1100.0.5
+  - @pnpm/workspace.projects-filter@1100.0.5
+  - @pnpm/workspace.projects-reader@1101.0.0
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.3
+  - @pnpm/building.after-install@1101.0.2
+  - @pnpm/global.commands@1100.0.6
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/workspace.state@1100.0.5
+  - @pnpm/config.writer@1100.0.3
+  - @pnpm/installing.deps-installer@1101.0.2
+  - @pnpm/installing.env-installer@1101.0.1
+  - @pnpm/deps.inspection.outdated@1100.0.6
+  - @pnpm/store.controller@1101.0.0
+
 ## 1100.1.3
 
 ### Patch Changes

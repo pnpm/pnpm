@@ -1,5 +1,251 @@
 # @pnpm/global.commands
 
+## 1100.0.23
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.deps-installer@1101.6.0
+  - @pnpm/store.connection-manager@1100.2.5
+
+## 1100.0.22
+
+### Patch Changes
+
+- 440e155: Print the global update summary after all isolated global package groups are processed.
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/installing.deps-installer@1101.5.0
+  - @pnpm/deps.inspection.list@1100.0.14
+  - @pnpm/types@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/bins.remover@1100.0.6
+  - @pnpm/bins.resolver@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/global.packages@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.5
+
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/installing.deps-installer@1101.4.0
+  - @pnpm/bins.linker@1100.0.9
+  - @pnpm/cli.utils@1101.0.7
+  - @pnpm/deps.inspection.list@1100.0.13
+  - @pnpm/store.connection-manager@1100.2.3
+
+## 1100.0.20
+
+### Patch Changes
+
+- @pnpm/store.connection-manager@1100.2.2
+- @pnpm/installing.deps-installer@1101.3.1
+
+## 1100.0.19
+
+### Patch Changes
+
+- a620557: Fix global add/update to handle minimumReleaseAge policy violations instead of surfacing an internal resolver guardrail error.
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [b206a15]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/installing.deps-installer@1101.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/store.connection-manager@1100.2.1
+  - @pnpm/deps.inspection.list@1100.0.12
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/cli.utils@1101.0.6
+  - @pnpm/bins.remover@1100.0.5
+  - @pnpm/bins.resolver@1100.0.4
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/global.packages@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [4a79336]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [31538bf]
+- Updated dependencies [8df408c]
+  - @pnpm/installing.deps-installer@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/deps.inspection.list@1100.0.11
+  - @pnpm/bins.remover@1100.0.4
+  - @pnpm/cli.utils@1101.0.5
+  - @pnpm/bins.linker@1100.0.7
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [50b33c1]
+- Updated dependencies [8c06d1a]
+  - @pnpm/installing.deps-installer@1101.1.2
+  - @pnpm/deps.inspection.list@1100.0.10
+  - @pnpm/bins.linker@1100.0.6
+  - @pnpm/cli.utils@1101.0.4
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/store.connection-manager@1100.1.2
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [b4f8f47]
+  - @pnpm/bins.linker@1100.0.5
+  - @pnpm/installing.deps-installer@1101.1.1
+  - @pnpm/store.connection-manager@1100.1.1
+
+## 1100.0.15
+
+### Patch Changes
+
+- 4b25a3d: `pnpm add -g` now installs each space-separated package into its own isolated directory by default. To bundle multiple packages into the same isolated install (so that they share dependencies and are removed together), pass them as a comma-separated list. For example:
+
+  - `pnpm add -g foo bar` installs `foo` and `bar` as two independent globals — removing one does not affect the other.
+  - `pnpm add -g foo,bar qar` bundles `foo` and `bar` into a single isolated install while `qar` is installed on its own.
+
+  Related: [#11587](https://github.com/pnpm/pnpm/issues/11587).
+
+- Updated dependencies [4b25a3d]
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/installing.deps-installer@1101.1.0
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/store.connection-manager@1100.1.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/bins.linker@1100.0.4
+  - @pnpm/bins.remover@1100.0.3
+  - @pnpm/bins.resolver@1100.0.3
+  - @pnpm/cli.utils@1101.0.3
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.inspection.list@1100.0.9
+  - @pnpm/global.packages@1100.0.3
+  - @pnpm/pkg-manifest.reader@1100.0.3
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/installing.deps-installer@1101.0.9
+  - @pnpm/store.connection-manager@1100.0.13
+  - @pnpm/deps.inspection.list@1100.0.8
+
+## 1100.0.13
+
+### Patch Changes
+
+- @pnpm/installing.deps-installer@1101.0.8
+- @pnpm/deps.inspection.list@1100.0.7
+- @pnpm/store.connection-manager@1100.0.12
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/installing.deps-installer@1101.0.7
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/deps.inspection.list@1100.0.6
+  - @pnpm/store.connection-manager@1100.0.11
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [ab6c42d]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/installing.deps-installer@1101.0.6
+  - @pnpm/store.connection-manager@1100.0.10
+
+## 1100.0.10
+
+### Patch Changes
+
+- 72629fc: Fix `pnpm -g ls --json` and `pnpm -g ls --parseable` so they emit valid JSON and parseable output respectively, matching pnpm 10 behavior. Since the isolated global packages refactor in pnpm 11, the global list command had a custom path that always printed plain text and ignored `--json`/`--parseable`, which broke tools like `npm-check-updates` that parse the JSON output [#11440](https://github.com/pnpm/pnpm/issues/11440).
+
+  `pnpm -g ls --depth=<n>` (with n > 0) now errors when more than one isolated global install would be involved, since each install has its own lockfile and merging their transitive trees would be incoherent. When the request can be narrowed to a single install group, the regular `list` flow is used and the full dependency tree is shown.
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/store.connection-manager@1100.0.9
+  - @pnpm/installing.deps-installer@1101.0.5
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/installing.deps-installer@1101.0.4
+  - @pnpm/store.connection-manager@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/bins.resolver@1100.0.2
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/bins.remover@1100.0.2
+  - @pnpm/bins.linker@1100.0.3
+  - @pnpm/cli.command@1100.0.1
+  - @pnpm/cli.utils@1101.0.2
+  - @pnpm/global.packages@1100.0.2
+
+## 1100.0.7
+
+### Patch Changes
+
+- 685a369: Fix `ENOENT` symlink failure when `pnpm add -g` triggers the approve-builds prompt. The global add flow used to forward an absolute `modulesDir` (`<installDir>/node_modules`) into the install run by `approve-builds`. The install layer treated `modulesDir` as a path relative to `lockfileDir` and joined it again, producing a doubled path on Windows because `path.join` does not collapse an embedded absolute path. The hoist step then tried to `mkdir` and symlink under `<installDir>\<installDir>\node_modules\.pnpm\node_modules\...` and failed with `ENOENT` [#11403](https://github.com/pnpm/pnpm/issues/11403).
+  - @pnpm/cli.utils@1101.0.1
+  - @pnpm/installing.deps-installer@1101.0.3
+  - @pnpm/store.connection-manager@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [0fbcf74]
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/store.connection-manager@1100.0.6
+  - @pnpm/installing.deps-installer@1101.0.2
+
 ## 1100.0.5
 
 ### Patch Changes

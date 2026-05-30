@@ -32,6 +32,30 @@ test('readPackage hook run fails when returned dependencies is not an object', a
   ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned package manifest object\'s property \'dependencies\' must be an object.'))
 })
 
+test('readPackage hook run fails when returned devDependencies is not an object', async () => {
+  const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageNoObjectDevDependencies.js')
+  const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
+  return expect(
+    pnpmfile!.hooks!.readPackage!({}, defaultHookContext)
+  ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned package manifest object\'s property \'devDependencies\' must be an object.'))
+})
+
+test('readPackage hook run fails when returned optionalDependencies is a falsy non-object value', async () => {
+  const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageFalsyOptionalDependencies.js')
+  const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
+  return expect(
+    pnpmfile!.hooks!.readPackage!({}, defaultHookContext)
+  ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned package manifest object\'s property \'optionalDependencies\' must be an object.'))
+})
+
+test('readPackage hook run fails when returned peerDependencies is an array', async () => {
+  const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageArrayPeerDependencies.js')
+  const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
+  return expect(
+    pnpmfile!.hooks!.readPackage!({}, defaultHookContext)
+  ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned package manifest object\'s property \'peerDependencies\' must be an object.'))
+})
+
 test('filterLog hook combines with the global hook', async () => {
   const globalPnpmfile = path.join(import.meta.dirname, '__fixtures__/globalFilterLog.js')
   const pnpmfile = path.join(import.meta.dirname, '__fixtures__/filterLog.js')

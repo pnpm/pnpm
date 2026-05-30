@@ -18,10 +18,23 @@ on:
         required: false
         default: '1'
         type: string
+  push:
+    # Build Bencher's continuous baseline for the `pnpm` testbed.
+    # Every merge to main re-runs the bench so PR comparisons have
+    # an up-to-date reference; cancel-in-progress stays off below
+    # so we never throw away a partial run.
+    branches: [main]
 
 permissions:
   contents: read
   pull-requests: write
+  checks: write
+
+# Don't cancel-in-progress — killing a bench mid-run wastes a long
+# CI job and produces no usable data.
+concurrency:
+  group: benchmark-${{ inputs.pr_number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   benchmark:
@@ -34,38 +47,33 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Checkout PR head
       if: inputs.pr_number != ''
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_NUMBER: ${{ inputs.pr_number }}
       run: |
-        PR_NUMBER="${{ inputs.pr_number }}"
         echo "Fetching PR #$PR_NUMBER head..."
         git fetch origin "refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-${PR_NUMBER}"
         git checkout "origin/pr-${PR_NUMBER}"
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@6e7bdbda5fe05107efc88b23b7ed00aa05f84ca0
+    - name: Install pnpm and Node
+      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
-        standalone: true
+        runtime: node@26.0.0
 
-    - name: Setup Node
-      run: pnpm runtime -g set node 25.7.0
-      timeout-minutes: 2
+    - name: Install Rust Toolchain
+      uses: ./.github/actions/rustup
+      with:
+        shared-key: pnpm-benchmark
 
     - name: Install hyperfine
-      run: |
-        wget -q https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
-        sudo dpkg -i hyperfine_1.18.0_amd64.deb
-
-    - name: Install dependencies
-      run: pnpm install
-      timeout-minutes: 5
-
-    - name: Compile
-      run: pnpm run compile
+      uses: ./.github/actions/binstall
+      with:
+        packages: hyperfine@1.18.0
 
     - name: Run benchmarks
       id: bench
@@ -79,12 +87,81 @@ jobs:
         RUNS: ${{ inputs.runs }}
         WARMUP: ${{ inputs.warmup }}
 
+    - name: Install Bencher CLI
+      if: steps.bench.outputs.bench_dir != ''
+      uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+
+    - name: Upload results to Bencher
+      if: steps.bench.outputs.bench_dir != ''
+      env:
+        BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+        BENCH_DIR: ${{ steps.bench.outputs.bench_dir }}
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        REF_NAME: ${{ github.ref_name }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        if [ -z "${BENCHER_API_TOKEN:-}" ]; then
+          echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
+          exit 0
+        fi
+        if [ ! -f "$BENCH_DIR/bencher-results.json" ]; then
+          echo "::warning::bencher-results.json not found, skipping upload"
+          exit 0
+        fi
+
+        # `bencher run --file` takes hyperfine JSON via the
+        # shell_hyperfine adapter. Branch policy:
+        # - push to main → record into the `main` branch (baseline)
+        # - workflow_dispatch with pr_number → record into `pr/<n>`,
+        #   forked from main at the latest baseline
+        # - workflow_dispatch without pr_number → record into the
+        #   ref's branch name (e.g. a feature branch), forked from main
+        args=(
+          --project pnpm
+          --testbed pnpm
+          --adapter shell_hyperfine
+          --file "$BENCH_DIR/bencher-results.json"
+          --github-actions "$GITHUB_TOKEN"
+        )
+        # `--start-point-clone-thresholds` so the forked branch inherits
+        # the threshold configured on main; `--err` so the workflow fails
+        # when a sample breaches the upper boundary. Main pushes skip
+        # both — by then the regression has already landed.
+        if [ "$EVENT_NAME" = "push" ] || [ "$REF_NAME" = "main" ]; then
+          args+=(--branch main)
+        elif [ -n "$INPUT_PR_NUMBER" ]; then
+          args+=(
+            --branch "pr/$INPUT_PR_NUMBER"
+            --start-point main
+            --start-point-reset
+            --start-point-clone-thresholds
+            --err
+          )
+        else
+          args+=(
+            --branch "$REF_NAME"
+            --start-point main
+            --start-point-reset
+            --start-point-clone-thresholds
+            --err
+          )
+        fi
+        bencher run "${args[@]}"
+
     - name: Comment on PR
       if: steps.bench.outputs.bench_dir != ''
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BENCH_DIR: ${{ steps.bench.outputs.bench_dir }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        REF_NAME: ${{ github.ref_name }}
+        RUN_ID: ${{ github.run_id }}
+        SERVER_URL: ${{ github.server_url }}
+        REPO: ${{ github.repository }}
+        RUNS: ${{ inputs.runs }}
+        ACTOR: ${{ github.actor }}
       run: |
-        BENCH_DIR="${{ steps.bench.outputs.bench_dir }}"
         RESULTS_FILE="$BENCH_DIR/results.md"
 
         if [ ! -f "$RESULTS_FILE" ]; then
@@ -96,14 +173,14 @@ jobs:
         cat "$RESULTS_FILE"
         echo "-------------------------"
 
-        if [ -n "${{ inputs.pr_number }}" ]; then
-          PR_NUMBER="${{ inputs.pr_number }}"
+        if [ -n "$INPUT_PR_NUMBER" ]; then
+          PR_NUMBER="$INPUT_PR_NUMBER"
         else
-          PR_NUMBER=$(gh pr list --head "${{ github.ref_name }}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          PR_NUMBER=$(gh pr list --head "$REF_NAME" --json number --jq '.[0].number' 2>/dev/null || echo "")
         fi
 
         if [ -z "$PR_NUMBER" ]; then
-          echo "::notice::No open PR found for branch ${{ github.ref_name }}. Results printed above."
+          echo "::notice::No open PR found for branch $REF_NAME. Results printed above."
           exit 0
         fi
 
@@ -112,15 +189,15 @@ jobs:
           echo "$MARKER"
           cat "$RESULTS_FILE"
           echo ""
-          echo "_Run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) · ${{ inputs.runs }} runs per scenario · triggered by @${{ github.actor }}_"
+          echo "_Run [${RUN_ID}](${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}) · ${RUNS} runs per scenario · triggered by @${ACTOR}_"
         } > /tmp/comment-body.md
 
-        COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+        COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
           --jq "[.[] | select(.body | startswith(\"$MARKER\"))] | .[0].id // empty" 2>/dev/null || echo "")
 
         if [ -n "$COMMENT_ID" ]; then
           echo "Updating existing benchmark comment $COMMENT_ID on PR #$PR_NUMBER"
-          gh api "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+          gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
             -X PATCH \
             -F "body=@/tmp/comment-body.md"
         else
