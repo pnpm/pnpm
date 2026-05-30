@@ -160,23 +160,45 @@ impl UserStore {
         }
 
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        let snapshot = {
+        enum NextStep {
+            Persist(String),
+            VerifyExisting(String),
+        }
+        let next_step = {
             let mut users = self.users.lock().expect("UserStore mutex poisoned");
-            // Re-check the cap under the lock to make the limit hold
-            // under concurrent adduser bursts. A second writer that
-            // raced in while we were hashing could otherwise push
-            // past the cap.
-            if let MaxUsers::Limited(max) = self.max_users
-                && (users.len() as u64) >= max
-                && !users.contains_key(username)
-            {
-                return Err(RegistryError::TooManyUsers { max });
+            if let Some(stored) = users.get(username).cloned() {
+                NextStep::VerifyExisting(stored)
+            } else {
+                // Re-check the cap under the lock to make the limit hold
+                // under concurrent adduser bursts. A second writer that
+                // raced in while we were hashing could otherwise push
+                // past the cap.
+                if let MaxUsers::Limited(max) = self.max_users
+                    && (users.len() as u64) >= max
+                {
+                    return Err(RegistryError::TooManyUsers { max });
+                }
+                users.insert(username.to_string(), hash);
+                NextStep::Persist(serialize_htpasswd(&users))
             }
-            users.insert(username.to_string(), hash);
-            serialize_htpasswd(&users)
         };
-        self.persist(snapshot).await?;
-        Ok(UpsertOutcome::Created)
+        match next_step {
+            NextStep::Persist(snapshot) => {
+                self.persist(snapshot).await?;
+                Ok(UpsertOutcome::Created)
+            }
+            NextStep::VerifyExisting(stored) => {
+                verify_bcrypt(password.to_string(), stored).await.and_then(|ok| {
+                    if ok {
+                        Ok(UpsertOutcome::LoggedIn)
+                    } else {
+                        Err(RegistryError::Unauthenticated {
+                            resource: format!("user {username:?}"),
+                        })
+                    }
+                })
+            }
+        }
     }
 
     /// Verify a username+password pair against the store. Returns
