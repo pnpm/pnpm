@@ -16,3 +16,9 @@ This is the only part of the pnpm monorepo that is not MIT licensed.
 
 Contributions to `pnpr/` are accepted under separate terms — see
 [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+
+## Trademark notice
+
+pnpr is not affiliated with, endorsed by, or sponsored by npm, Inc., GitHub, or
+Microsoft. "npm" is a trademark of npm, Inc., used here only to describe
+compatibility with the npm registry protocol.

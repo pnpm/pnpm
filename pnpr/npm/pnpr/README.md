@@ -76,3 +76,11 @@ Pass it with `-c`:
 ```sh
 pnpr -c ./pnpr.yaml
 ```
+
+## License
+
+Source-available under the [PolyForm Shield License 1.0.0](https://github.com/pnpm/pnpm/blob/main/pnpr/LICENSE.md) — **not** open source. You may run, modify, and self-host pnpr for any purpose except providing a product that competes with it. Commercial / non-compete licenses are available from Zoltan Kochan (<https://kochan.io>).
+
+## Trademark notice
+
+pnpr is not affiliated with, endorsed by, or sponsored by npm, Inc., GitHub, or Microsoft. "npm" is a trademark of npm, Inc., used here only to describe compatibility with the npm registry protocol.
