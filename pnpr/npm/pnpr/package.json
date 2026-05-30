@@ -6,7 +6,7 @@
     "npm",
     "registry"
   ],
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
   "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpr",
   "bugs": "https://github.com/pnpm/pnpm/issues",
   "repository": {
@@ -19,6 +19,7 @@
     "node": ">=18.*"
   },
   "files": [
-    "bin/pnpr"
+    "bin/pnpr",
+    "LICENSE.md"
   ]
 }
