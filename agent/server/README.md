@@ -170,3 +170,14 @@ That's it. pnpm will resolve dependencies on the server, download only the files
 [file entries: 64B digest + 4B size + 1B mode + content, repeated]
 [64 zero bytes: end marker]
 ```
+
+## License
+
+Source-available under the [PolyForm Shield License 1.0.0](./LICENSE.md) —
+**not** open source. You may run, modify, and self-host `pnpm-agent` for any
+purpose except providing a product that competes with it (or with a product the
+licensor provides using it). Commercial / non-compete licenses are available
+from Zoltan Kochan (<https://kochan.io>).
+
+The rest of the pnpm monorepo is MIT licensed; `pnpm-agent` and the `pnpr/`
+registry server are the source-available exceptions.

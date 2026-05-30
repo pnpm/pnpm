@@ -22,6 +22,13 @@ const EXPERIMENTAL_PKGS = new Set([
   'pnpm-agent',
 ])
 
+// Packages that are source-available under the PolyForm Shield License
+// rather than MIT. Their `license` field points at a bundled LICENSE.md
+// instead of being normalized to `MIT`.
+const SOURCE_AVAILABLE_PKGS = new Set([
+  'pnpm-agent',
+])
+
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
 // `@pnpm/exe` ships the same `dist/` tree as `pnpm`, so the two manifests'
 // `publishConfig.executableFiles` lists must stay identical — otherwise the
@@ -435,7 +442,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     files,
     funding: 'https://opencollective.com/pnpm',
     homepage,
-    license: 'MIT',
+    license: SOURCE_AVAILABLE_PKGS.has(manifest.name!) ? 'SEE LICENSE IN LICENSE.md' : 'MIT',
     repository,
     scripts,
     exports: {
