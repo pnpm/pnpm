@@ -1,6 +1,6 @@
 [package]
 name                 = "pacquet-pnpr-client"
-description          = "Client for the pnpr fast-path endpoints exposed by pnpr"
+description          = "Client for pnpr's server-accelerated installs"
 version              = "0.0.1"
 edition.workspace    = true
 license.workspace    = true

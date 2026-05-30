@@ -1,4 +1,4 @@
-//! Client for the pnpr fast-path endpoints exposed by pnpr.
+//! Client for pnpr's server-accelerated installs.
 //!
 //! Port of the TypeScript `@pnpm/agent.client` (`fetchFromPnpmRegistry`)
 //! plus the `fetch-and-write-cafs` worker. Given a set of dependencies
