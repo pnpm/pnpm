@@ -365,6 +365,53 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
     drop((root, mock_instance)); // cleanup
 }
 
+/// `peer-diamond-plugin` peer-depends both `peer-diamond-parser` and
+/// `peer-diamond-ts`, and `peer-diamond-parser` peer-depends
+/// `peer-diamond-ts`. The plugin's parser and its ts must agree: when
+/// the plugin resolves `ts@1.0.0`, its parser peer must also be the
+/// `ts@1.0.0` instance, not a `ts@2.0.0` parser hoisted at the root.
+///
+/// This is the scenario behind the pnpm regression in
+/// [pnpm/pnpm#12079](https://github.com/pnpm/pnpm/issues/12079). pacquet
+/// resolves it consistently — `bump_occurrence_on_shadow` always prefers
+/// the node's own child over an inherited same-version instance, so it
+/// never reuses the root-level `ts@2.0.0` parser for the nested plugin.
+/// Mirrors the upstream coverage in
+/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/762e80be49/installing/deps-installer/test/install/peerDependencies.ts).
+#[test]
+fn peer_shared_through_a_diamond_is_resolved_consistently() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/peer-diamond-ts": "2.0.0",
+            "@pnpm.e2e/peer-diamond-parser": "1.0.0",
+            "@pnpm.e2e/peer-diamond-app": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let consistent = "@pnpm.e2e/peer-diamond-plugin@1.0.0(@pnpm.e2e/peer-diamond-parser@1.0.0(@pnpm.e2e/peer-diamond-ts@1.0.0))(@pnpm.e2e/peer-diamond-ts@1.0.0)";
+    let inconsistent = "@pnpm.e2e/peer-diamond-plugin@1.0.0(@pnpm.e2e/peer-diamond-parser@1.0.0(@pnpm.e2e/peer-diamond-ts@2.0.0))";
+    assert!(
+        lockfile.contains(consistent),
+        "expected the plugin to share ts@1.0.0 with its parser; lockfile:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains(inconsistent),
+        "the plugin must not be paired with a ts@2.0.0 parser; lockfile:\n{lockfile}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
 /// `catalog:` on a direct dep should be dereferenced through
 /// `pnpm-workspace.yaml`'s `catalog` section before the npm resolver
 /// sees it. The fetched virtual-store entry is the catalog's resolved
