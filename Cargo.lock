@@ -2089,6 +2089,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
+name = "pacquet-agent-client"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "flate2",
+ "pacquet-lockfile",
+ "pacquet-store-dir",
+ "pacquet-testing-utils",
+ "pnpr",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-catalogs-config"
 version = "0.0.1"
 dependencies = [

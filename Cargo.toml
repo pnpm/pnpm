@@ -13,6 +13,7 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
+pacquet-agent-client                      = { path = "pacquet/crates/agent-client" }
 pacquet-catalogs-config                   = { path = "pacquet/crates/catalogs-config" }
 pacquet-catalogs-protocol-parser          = { path = "pacquet/crates/catalogs-protocol-parser" }
 pacquet-catalogs-resolver                 = { path = "pacquet/crates/catalogs-resolver" }
