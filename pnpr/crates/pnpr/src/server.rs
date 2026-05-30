@@ -57,10 +57,10 @@ struct AppInner {
     upstreams: IndexMap<String, Upstream>,
     config: Config,
     auth: AuthState,
-    /// Lazily-built pacquet runtime backing the `/v1/install` and
-    /// `/v1/files` fast-path endpoints. Built on first fast-path request so
-    /// servers that never receive one pay nothing.
-    fast_path_runtime: std::sync::OnceLock<crate::fast_path::FastPathRuntime>,
+    /// Lazily-built engine backing the `/v1/install` and `/v1/files`
+    /// endpoints. Built on first fast-path request so servers that never
+    /// receive one pay nothing.
+    install_accelerator: std::sync::OnceLock<crate::fast_path::InstallAccelerator>,
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
@@ -94,7 +94,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
             upstreams,
             config,
             auth,
-            fast_path_runtime: std::sync::OnceLock::new(),
+            install_accelerator: std::sync::OnceLock::new(),
         }),
     };
     Router::new()
@@ -1516,16 +1516,16 @@ async fn serve_fast_path_install(
     State(state): State<AppState>,
     body: axum::body::Bytes,
 ) -> Response {
-    let runtime = crate::fast_path::FastPathRuntime::get_or_init(
-        &state.inner.fast_path_runtime,
+    let runtime = crate::fast_path::InstallAccelerator::get_or_init(
+        &state.inner.install_accelerator,
         &state.inner.config,
     );
     crate::fast_path::handle_install(runtime, body).await
 }
 
 async fn serve_fast_path_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    let runtime = crate::fast_path::FastPathRuntime::get_or_init(
-        &state.inner.fast_path_runtime,
+    let runtime = crate::fast_path::InstallAccelerator::get_or_init(
+        &state.inner.install_accelerator,
         &state.inner.config,
     );
     crate::fast_path::handle_files(runtime, body).await

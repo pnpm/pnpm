@@ -50,17 +50,19 @@ use pacquet_store_dir::{StoreDir, StoreIndex};
 
 use self::protocol::{FilesRequest, InstallRequest, is_valid_sha512_hex};
 
-/// Per-server pacquet runtime backing the pnpr fast-path endpoints. The
-/// store and cache dirs are fixed for the server's lifetime; the
-/// *registries* come from each client request (the server resolves
-/// against the client's registries, not its own), so the `&'static
-/// Config` the install path requires is interned per distinct client
-/// registry configuration rather than leaked once or per request.
+/// Per-server engine backing the pnpr install endpoints: it holds the
+/// store, cache, and HTTP client used to resolve a client's project and
+/// serve the files its store is missing. The store and cache dirs are
+/// fixed for the server's lifetime; the *registries* come from each
+/// client request (the server resolves against the client's registries,
+/// not its own), so the `&'static Config` the install path requires is
+/// interned per distinct client registry configuration rather than
+/// leaked once or per request.
 ///
 /// Held lazily in a [`OnceLock`] on the server's state so servers that
 /// never receive a fast-path request pay nothing, and so each server in
 /// a multi-server test process keeps its own store.
-pub(crate) struct FastPathRuntime {
+pub(crate) struct InstallAccelerator {
     store_dir: StoreDir,
     cache_dir: PathBuf,
     client: Arc<ThrottledClient>,
@@ -70,20 +72,20 @@ pub(crate) struct FastPathRuntime {
     configs: Mutex<HashMap<String, &'static PacquetConfig>>,
 }
 
-impl FastPathRuntime {
+impl InstallAccelerator {
     pub(crate) fn get_or_init<'a>(
-        cell: &'a OnceLock<FastPathRuntime>,
+        cell: &'a OnceLock<InstallAccelerator>,
         config: &RegistryConfig,
-    ) -> &'a FastPathRuntime {
-        cell.get_or_init(|| FastPathRuntime::build(config))
+    ) -> &'a InstallAccelerator {
+        cell.get_or_init(|| InstallAccelerator::build(config))
     }
 
-    fn build(config: &RegistryConfig) -> FastPathRuntime {
+    fn build(config: &RegistryConfig) -> InstallAccelerator {
         let store_dir = config.storage.join("pnpr-store");
         let cache_dir = config.storage.join("pnpr-cache");
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
-        FastPathRuntime {
+        InstallAccelerator {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
             client: Arc::new(ThrottledClient::new_for_installs()),
@@ -132,7 +134,7 @@ impl FastPathRuntime {
 }
 
 /// Handle `POST /v1/install`.
-pub(crate) async fn handle_install(runtime: &FastPathRuntime, body: Bytes) -> Response {
+pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) -> Response {
     let request: InstallRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
@@ -215,7 +217,7 @@ pub(crate) async fn handle_install(runtime: &FastPathRuntime, body: Bytes) -> Re
 }
 
 /// Handle `POST /v1/files`.
-pub(crate) async fn handle_files(runtime: &FastPathRuntime, body: Bytes) -> Response {
+pub(crate) async fn handle_files(runtime: &InstallAccelerator, body: Bytes) -> Response {
     let request: FilesRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
