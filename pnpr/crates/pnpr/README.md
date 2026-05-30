@@ -13,3 +13,6 @@ licensor provides using it). Commercial / non-compete licenses are available
 from Zoltan Kochan (<https://kochan.io>).
 
 This is the only part of the pnpm monorepo that is not MIT licensed.
+
+Contributions to `pnpr/` are accepted under separate terms — see
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md).

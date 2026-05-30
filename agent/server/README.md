@@ -181,3 +181,6 @@ from Zoltan Kochan (<https://kochan.io>).
 
 The rest of the pnpm monorepo is MIT licensed; `pnpm-agent` and the `pnpr/`
 registry server are the source-available exceptions.
+
+Contributions to `agent/server/` are accepted under separate terms — see
+[`CONTRIBUTING.md`](./CONTRIBUTING.md).
