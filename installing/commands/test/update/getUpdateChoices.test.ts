@@ -349,6 +349,7 @@ test('getUpdateChoices() with provenance column', () => {
         choices: [
           {
             name: 'Package                                                    Current   Target            URL                Provenance ',
+            message: 'Package                                                    Current   Target            URL                Provenance ',
             disabled: true,
             hint: '',
             value: '',
@@ -366,6 +367,7 @@ test('getUpdateChoices() with provenance column', () => {
         choices: [
           {
             name: 'Package                                                    Current   Target            URL   Provenance       ',
+            message: 'Package                                                    Current   Target            URL   Provenance       ',
             disabled: true,
             hint: '',
             value: '',
@@ -398,6 +400,7 @@ test('getUpdateChoices() with provenance column', () => {
         choices: [
           {
             name: 'Package                                                    Current   Target            URL   Provenance       ',
+            message: 'Package                                                    Current   Target            URL   Provenance       ',
             disabled: true,
             hint: '',
             value: '',

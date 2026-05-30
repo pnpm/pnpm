@@ -171,6 +171,14 @@ export async function outdated (
                 alias,
                 belongsTo: depType,
                 current,
+                currentManifest: await getCurrentManifestForTrustPolicy({
+                  trustPolicy: opts.trustPolicy,
+                  resolveLatest: opts.resolveLatest,
+                  resolveOpts,
+                  alias,
+                  packageName,
+                  current,
+                }),
                 latestManifest: undefined,
                 packageName,
                 wanted,
@@ -195,6 +203,14 @@ export async function outdated (
               alias,
               belongsTo: depType,
               current,
+              currentManifest: await getCurrentManifestForTrustPolicy({
+                trustPolicy: opts.trustPolicy,
+                resolveLatest: opts.resolveLatest,
+                resolveOpts,
+                alias,
+                packageName,
+                current,
+              }),
               latestManifest,
               packageName,
               wanted,
@@ -244,6 +260,38 @@ function displayVersion (ref: string, relativeDepPath: DepPath | null, snapshotV
 function isLowerVersion (current: string, latest: string): boolean {
   if (!semver.valid(current) || !semver.valid(latest)) return false
   return semver.lt(current, latest)
+}
+
+async function getCurrentManifestForTrustPolicy (
+  opts: {
+    trustPolicy?: 'no-downgrade' | 'off'
+    resolveLatest: ResolveLatestDispatcher
+    resolveOpts: {
+      lockfileDir: string
+      preferredVersions: Record<string, never>
+      projectDir: string
+      publishedBy?: Date
+      publishedByExclude?: PackageVersionPolicy
+    }
+    alias: string
+    packageName: string
+    current?: string
+  }
+): Promise<OutdatedPackageManifest | undefined> {
+  if (opts.trustPolicy !== 'no-downgrade' || opts.current == null || !semver.valid(opts.current)) {
+    return undefined
+  }
+
+  const wantedDependency = opts.packageName === opts.alias
+    ? { alias: opts.packageName, bareSpecifier: opts.current }
+    : { alias: opts.alias, bareSpecifier: `npm:${opts.packageName}@${opts.current}` }
+
+  try {
+    const result = await opts.resolveLatest({ wantedDependency, compatible: false }, opts.resolveOpts)
+    return result?.latestManifest
+  } catch {
+    return undefined
+  }
 }
 
 function replaceCatalogProtocolIfNecessary (catalogs: Catalogs, wantedDependency: WantedDependency) {

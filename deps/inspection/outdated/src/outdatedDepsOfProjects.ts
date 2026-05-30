@@ -62,7 +62,6 @@ export async function outdatedDepsOfProjects (
     filterMetadata: false,
     fullMetadata: opts.fullMetadata === true || Boolean(opts.minimumReleaseAge) || opts.trustPolicy === 'no-downgrade',
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
-    lockfileDir,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
   })

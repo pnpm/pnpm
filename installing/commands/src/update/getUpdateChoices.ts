@@ -26,14 +26,20 @@ const trustLevels = {
   none: 0,
   provenance: 1,
   trustedPublisher: 2,
+  stagedPublish: 3,
+}
+
+function getTrustEvidenceFromOutdatedManifest (manifest: OutdatedPackage['currentManifest']): ReturnType<typeof getTrustEvidence> | undefined {
+  if (manifest == null) return undefined
+  return getTrustEvidence(manifest as Parameters<typeof getTrustEvidence>[0])
 }
 
 function trustPolicyChange (outdatedPkg: OutdatedPackage): string {
   const currentTrustEvidence = outdatedPkg.currentManifest != null
-    ? getTrustEvidence(outdatedPkg.currentManifest) ?? 'none'
+    ? getTrustEvidenceFromOutdatedManifest(outdatedPkg.currentManifest) ?? 'none'
     : 'none'
   const latestTrustEvidence = outdatedPkg.latestManifest != null
-    ? getTrustEvidence(outdatedPkg.latestManifest) ?? 'none'
+    ? getTrustEvidenceFromOutdatedManifest(outdatedPkg.latestManifest) ?? 'none'
     : 'none'
   const currentLevel = trustLevels[currentTrustEvidence]
   const latestLevel = trustLevels[latestTrustEvidence]
