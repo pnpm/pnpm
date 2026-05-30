@@ -429,7 +429,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const _parentPkgsMatch = parentPkgsMatch.bind(null, ctx.dependenciesTree)
     for (const [newParentPkgName, newParentPkg] of Object.entries(newParentPkgs)) {
       if (parentPkgs[newParentPkgName]) {
-        if (!_parentPkgsMatch(parentPkgs[newParentPkgName], newParentPkg)) {
+        if (
+          !_parentPkgsMatch(parentPkgs[newParentPkgName], newParentPkg) ||
+          inheritedParentPkgBreaksPeerDiamond(ctx, parentPkgs, parentPkgs[newParentPkgName], newParentPkg, children)
+        ) {
           newParentPkg.occurrence = parentPkgs[newParentPkgName].occurrence + 1
           parentPkgs[newParentPkgName] = newParentPkg
         }
@@ -662,6 +665,68 @@ function parentPkgsMatch<T> (
   const newParentResolvedPkg = newParentPkg.nodeId && dependenciesTree.get(newParentPkg.nodeId)?.resolvedPackage
   if (newParentResolvedPkg == null) return true
   return currentParentResolvedPkg.name === newParentResolvedPkg.name
+}
+
+// A package that is both inherited from an ancestor and present among the
+// current node's own children is normally not duplicated: the inherited
+// instance is reused (see https://github.com/pnpm/pnpm/issues/8370). That reuse
+// is unsafe when a sibling peer-depends both this package and one of this
+// package's own peer dependencies. The sibling must see a single, consistent
+// instance of that shared peer, but the inherited instance resolved it in a
+// different context. In that case the node's own child has to be used instead.
+// See https://github.com/pnpm/pnpm/issues/12079
+function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
+  ctx: {
+    dependenciesTree: DependenciesTree<T>
+    parentPkgsOfNode: ParentPkgsOfNode
+    allPeerDepNames: Set<string>
+  },
+  parentPkgs: ParentRefs,
+  inheritedParentPkg: ParentRef,
+  ownChildParentPkg: ParentRef,
+  children: ChildrenMap
+): boolean {
+  if (inheritedParentPkg.nodeId == null || ownChildParentPkg.nodeId == null) return false
+  if (inheritedParentPkg.nodeId === ownChildParentPkg.nodeId) return false
+  const inheritedContext = ctx.parentPkgsOfNode.get(inheritedParentPkg.nodeId)
+  if (inheritedContext == null) return false
+  const parentPkg = ctx.dependenciesTree.get(ownChildParentPkg.nodeId)?.resolvedPackage as T | undefined
+  if (parentPkg == null) return false
+
+  const conflictingPeers = new Set<string>()
+  for (const peerName of Object.keys(parentPkg.peerDependencies)) {
+    if (!ctx.allPeerDepNames.has(peerName)) continue
+    const inheritedPeer = inheritedContext[peerName]
+    const currentPeer = parentPkgs[peerName]
+    if (inheritedPeer == null || currentPeer == null) continue
+    if (parentPeerDiffers(ctx.dependenciesTree, currentPeer, inheritedPeer)) {
+      conflictingPeers.add(peerName)
+    }
+  }
+  if (conflictingPeers.size === 0) return false
+
+  for (const childNodeId of Object.values(children)) {
+    const childPeerDependencies = (ctx.dependenciesTree.get(childNodeId)?.resolvedPackage as T | undefined)?.peerDependencies
+    if (childPeerDependencies == null || childPeerDependencies[parentPkg.name] == null) continue
+    for (const peerName of conflictingPeers) {
+      if (childPeerDependencies[peerName] != null) return true
+    }
+  }
+  return false
+}
+
+function parentPeerDiffers<T extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<T>,
+  currentPeer: ParentRef,
+  inheritedPeer: ParentPkgInfo
+): boolean {
+  if (inheritedPeer.pkgIdWithPatchHash != null) {
+    if (currentPeer.nodeId == null || (typeof currentPeer.nodeId === 'string' && currentPeer.nodeId.startsWith('link:'))) {
+      return true
+    }
+    return (dependenciesTree.get(currentPeer.nodeId)?.resolvedPackage as T | undefined)?.pkgIdWithPatchHash !== inheritedPeer.pkgIdWithPatchHash
+  }
+  return currentPeer.version !== inheritedPeer.version
 }
 
 function findHit<T extends PartialResolvedPackage> (ctx: {

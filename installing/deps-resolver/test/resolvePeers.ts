@@ -925,4 +925,130 @@ describe('dedupePeers', () => {
     expect(dependenciesByProjectId['project-a'].get('plugin')).toBe('plugin/1.0.0(react@17.0.0)')
     expect(dependenciesByProjectId['project-b'].get('plugin')).toBe('plugin/1.0.0(react@18.0.0)')
   })
+
+  // https://github.com/pnpm/pnpm/issues/12079
+  test("a peer's own peer is shared with a sibling that peer-depends both", async () => {
+    // plugin peer-depends both parser and typescript; parser peer-depends typescript.
+    // So plugin's parser and plugin's typescript must agree. A top-level parser that
+    // resolved typescript@2.0.0 must not shadow umbrella's own parser, which resolves
+    // typescript@1.0.0 — the version that plugin itself uses.
+    const ts1Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const ts2Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
+      version: '2.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const parserPkg = {
+      name: 'parser',
+      pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const umbrellaPkg = {
+      name: 'umbrella',
+      pkgIdWithPatchHash: 'umbrella/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const appPkg = {
+      name: 'app',
+      pkgIdWithPatchHash: 'app/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['typescript', 'parser']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['typescript', '>typescript/2.0.0>' as NodeId],
+            ['parser', '>parser/1.0.0>' as NodeId],
+            ['app', '>app/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>typescript/2.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts2Pkg,
+          depth: 0,
+        }],
+        ['>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 0,
+        }],
+        ['>app/1.0.0>' as NodeId, {
+          children: {
+            typescript: '>app/1.0.0>typescript/1.0.0>' as NodeId,
+            umbrella: '>app/1.0.0>umbrella/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: appPkg,
+          depth: 0,
+        }],
+        ['>app/1.0.0>typescript/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts1Pkg,
+          depth: 1,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>' as NodeId, {
+          children: {
+            plugin: '>app/1.0.0>umbrella/1.0.0>plugin/1.0.0>' as NodeId,
+            parser: '>app/1.0.0>umbrella/1.0.0>parser/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: umbrellaPkg,
+          depth: 1,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 2,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    // plugin and its parser both use typescript@1.0.0; the typescript@2.0.0 parser
+    // from the top level is not pulled into plugin.
+    const depPaths = Object.keys(dependenciesGraph)
+    expect(depPaths).toContain('plugin/1.0.0(parser/1.0.0(typescript/1.0.0))(typescript/1.0.0)')
+    expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
+  })
 })
