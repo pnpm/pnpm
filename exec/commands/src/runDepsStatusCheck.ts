@@ -7,6 +7,7 @@ import { globalWarn } from '@pnpm/logger'
 
 export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
   dir: string
+  filter?: Config['filter']
   reporter?: Config['reporter']
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
 }
@@ -20,7 +21,8 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (upToDate) return
 
-  const command = ['install', ...createInstallArgs(workspaceState?.settings)]
+  const filterArgs = (opts.filter ?? []).map(f => `--filter=${f}`)
+  const command = ['install', ...filterArgs, ...createInstallArgs(workspaceState?.settings)]
   const install = runPnpmCli.bind(null, command, { cwd: opts.dir, reporter: opts.reporter })
 
   switch (opts.verifyDepsBeforeRun) {
