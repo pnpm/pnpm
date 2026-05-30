@@ -16,11 +16,18 @@
 //!   keep the original URL so subsequent installs revalidate the
 //!   moving target.
 //!
-//! The resolver doesn't compute or stamp `integrity` — that work
-//! happens later in the package-requester after the tarball is
-//! downloaded. See pnpm's
+//! Unlike pnpm — which defers the tarball download (and thus the
+//! manifest read + integrity computation) to the package-requester
+//! after resolution — pacquet builds the lockfile *before* the
+//! install/fetch pass, so for a remote (non-registry) tarball *direct*
+//! dependency the resolver must learn name/version/integrity here.
+//! When a [`TarballFetchContext`] is supplied, the resolver downloads
+//! the tarball, computes its sha512 integrity, extracts it to the
+//! store, and reads its bundled manifest, warming the shared mem cache
+//! so the install pass reuses the extraction without re-downloading.
+//! See pnpm's
 //! [`packageRequester.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/installing/package-requester/src/packageRequester.ts).
 
 mod tarball_resolver;
 
-pub use tarball_resolver::TarballResolver;
+pub use tarball_resolver::{TarballFetchContext, TarballResolver};

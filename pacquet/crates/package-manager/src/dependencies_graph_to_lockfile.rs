@@ -14,9 +14,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use pacquet_lockfile::{
-    ComVer, ImporterDepVersion, Lockfile, LockfileSettings, LockfileVersion, PackageKey,
-    PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings, LockfileVersion,
+    PackageKey, PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer,
+    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -334,7 +334,33 @@ fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDe
 /// uses in the resolve-peers walker — and the same shape the
 /// `name_ver` field carries upstream.
 fn real_name(result: &ResolveResult) -> Option<String> {
-    Some(result.name_ver.as_ref()?.name.to_string())
+    if let Some(name_ver) = result.name_ver.as_ref() {
+        return Some(name_ver.name.to_string());
+    }
+    // A remote (non-registry, non-git) http(s) tarball direct dep leaves
+    // `name_ver` unset and carries its name in the fetched manifest.
+    // Reading it lets `importer_dep_version` strip the `name@` prefix off
+    // the depPath so the importer records just the URL (`version: <url>`),
+    // matching pnpm's `depPathToRef`. Other manifest-only resolutions
+    // (`file:` / git) are deliberately left to the `None` path so their
+    // importer entries keep pacquet's current prefixed shape — bringing
+    // those in line with `depPathToRef` is separate from
+    // <https://github.com/pnpm/pnpm/issues/12053>.
+    let LockfileResolution::Tarball(tarball) = &result.resolution else {
+        return None;
+    };
+    if tarball.git_hosted == Some(true) || !is_remote_http_tarball(&tarball.tarball) {
+        return None;
+    }
+    result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
+}
+
+/// `true` for an `http(s)://` tarball URL — the remote tarball deps
+/// covered by <https://github.com/pnpm/pnpm/issues/12053>. Excludes
+/// `file:` tarballs and registry-reconstructed resolutions that carry
+/// no URL.
+fn is_remote_http_tarball(tarball: &str) -> bool {
+    tarball.starts_with("http:") || tarball.starts_with("https:")
 }
 
 /// Walk the depPath-keyed [`DependenciesGraph`] and emit the matching

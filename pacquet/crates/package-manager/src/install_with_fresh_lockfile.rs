@@ -34,7 +34,7 @@ use pacquet_resolving_npm_resolver::{
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
 };
-use pacquet_resolving_tarball_resolver::TarballResolver;
+use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
 use pacquet_tarball::MemCache;
 use std::{
@@ -451,6 +451,36 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // every occurrence of a shared dep in the tree.
         let picked_manifest_cache = shared_picked_manifest_cache();
 
+        // Open the read-only SQLite index, spawn the batched writer, and
+        // allocate the install-scoped `verifiedFilesCache` *before* the
+        // resolver chain is built. Both the `TarballResolver` (which
+        // fetches a remote tarball direct dep during resolution to learn
+        // its name/version/integrity) and the [`PrefetchingResolver`]
+        // need these at construction time so the store-index / writer /
+        // verify cache they touch is the same one the install pass uses
+        // once resolution is done. Mirrors pnpm's `packageRequester`
+        // shape: the fetch begins as soon as the resolver returns,
+        // before any further tree walk.
+        let store_index =
+            match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))
+                .await
+            {
+                Ok(store_index) => store_index,
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        "store-index open task failed; continuing without a shared cache index",
+                    );
+                    None
+                }
+            };
+        let store_index_ref = store_index.as_ref();
+
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
+
+        let verified_files_cache = SharedVerifiedFilesCache::default();
+
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
             named_registries: merged_named_registries.clone(),
@@ -476,7 +506,25 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
             Arc::new(RealGitRunner::new()),
         );
-        let tarball_resolver = TarballResolver { http_client: Arc::clone(&http_client_arc) };
+        // A remote (non-registry) tarball *direct* dependency carries no
+        // name/version/integrity at resolve time — they live in the
+        // tarball's `package.json`. The resolver downloads + extracts it
+        // here (warming `tarball_mem_cache` keyed by URL) so the lockfile
+        // builder gets the manifest + integrity and the install pass
+        // reuses the extraction without a second download. Wired in both
+        // the materializing and `--lockfile-only` paths: the lockfile
+        // needs the integrity regardless of whether `node_modules` is
+        // built.
+        let tarball_resolver = TarballResolver {
+            http_client: Arc::clone(&http_client_arc),
+            fetch_context: Some(TarballFetchContext {
+                store_dir,
+                store_index_writer: Some(Arc::clone(&store_index_writer)),
+                mem_cache: Some(Arc::clone(&tarball_mem_cache)),
+                auth_headers: Arc::clone(&config.auth_headers),
+                retry_opts: crate::retry_config::retry_opts_from_config(config),
+            }),
+        };
         // `preserveAbsolutePaths` is wired through `Config`; thread the
         // current value into the local-resolver context so absolute
         // `file:` / `link:` specs round-trip the same shape upstream
@@ -528,36 +576,6 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             Box::new(named_registry_resolver),
             Box::new(local_path_resolver),
         ]));
-
-        // Open the read-only SQLite index, spawn the batched writer,
-        // and allocate the install-scoped `verifiedFilesCache` *before*
-        // the resolver chain runs. These were originally opened after
-        // `resolve_importer` returned, but the
-        // [`PrefetchingResolver`] needs them at construction time so
-        // the per-resolve `tokio::spawn`ed [`DownloadTarballToStore`]
-        // shares the same store-index / writer / verify cache as the
-        // install pass that runs once resolution is done. Mirrors
-        // pnpm's `packageRequester` shape: the fetch begins as soon as
-        // the resolver returns, before any further tree walk.
-        let store_index =
-            match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))
-                .await
-            {
-                Ok(store_index) => store_index,
-                Err(error) => {
-                    tracing::warn!(
-                        target: "pacquet::install",
-                        ?error,
-                        "store-index open task failed; continuing without a shared cache index",
-                    );
-                    None
-                }
-            };
-        let store_index_ref = store_index.as_ref();
-
-        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
-
-        let verified_files_cache = SharedVerifiedFilesCache::default();
 
         // Wrap the resolver chain so each tarball-shaped result fires a
         // background download into `tarball_mem_cache` while the
@@ -842,12 +860,18 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // were written, mirroring the drain at the tail of the
             // materializing path.
             drop(store_index_writer);
-            if let Err(error) = writer_task.await {
-                tracing::warn!(
+            match writer_task.await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => tracing::warn!(
                     target: "pacquet::install",
                     ?error,
-                    "store-index writer task failed during a lockfile-only install",
-                );
+                    "store-index writer task returned an error during a lockfile-only install",
+                ),
+                Err(error) => tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "store-index writer task panicked during a lockfile-only install",
+                ),
             }
 
             Reporter::emit(&LogEvent::Stage(StageLog {
@@ -1304,12 +1328,13 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 /// batch hits the same rows pnpm or pacquet wrote on the prior
 /// install.
 ///
-/// Skips nodes whose resolver result isn't a tarball with both
-/// `integrity` and a structured `name@version`: git-hosted tarballs
-/// and directory / git / binary resolutions use a different key
-/// shape (`pkg_id`-only) and route through the cold path. Today's
-/// `install_subtree` only handles tarball+integrity anyway, so the
-/// skipped entries can't be served from the prefetch either way.
+/// Skips nodes whose resolver result isn't a non-git-hosted tarball
+/// with an `integrity` and a resolvable `name@version` (from `name_ver`
+/// or, for remote-tarball direct deps, the fetched manifest):
+/// git-hosted tarballs and directory / git / binary resolutions use a
+/// different key shape (`pkg_id`-only) and route through the cold path.
+/// Today's `install_subtree` only handles tarball+integrity anyway, so
+/// the skipped entries can't be served from the prefetch either way.
 fn collect_prefetch_cache_keys_from_graph(
     graph: &pacquet_resolving_deps_resolver::DependenciesGraph,
 ) -> Vec<String> {
@@ -1325,8 +1350,19 @@ fn collect_prefetch_cache_keys_from_graph(
                 return None;
             }
             let integrity = tarball.integrity.as_ref()?.to_string();
-            let name_ver = node.resolve_result.name_ver.as_ref()?;
-            let pkg_id = format!("{}@{}", name_ver.name, name_ver.suffix);
+            // `name_ver` when the resolver produced one (npm registry);
+            // otherwise the manifest's `name@version` — remote-tarball
+            // direct deps learn both from `package.json`, and the
+            // resolve-time fetch keyed the store-index row the same way.
+            let pkg_id = match node.resolve_result.name_ver.as_ref() {
+                Some(name_ver) => format!("{}@{}", name_ver.name, name_ver.suffix),
+                None => {
+                    let manifest = node.resolve_result.manifest.as_deref()?;
+                    let name = manifest.get("name")?.as_str()?;
+                    let version = manifest.get("version")?.as_str()?;
+                    format!("{name}@{version}")
+                }
+            };
             Some(pacquet_store_dir::store_index_key(&integrity, &pkg_id))
         })
         .collect();
