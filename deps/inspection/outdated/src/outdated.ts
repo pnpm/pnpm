@@ -167,18 +167,19 @@ export async function outdated (
           // the refs, so a commit/path change still fires correctly.
           if (latestManifest == null) {
             if (wanted !== current) {
+              const currentManifest = await getCurrentManifestForTrustPolicy({
+                trustPolicy: opts.trustPolicy,
+                resolveLatest: opts.resolveLatest,
+                resolveOpts,
+                alias,
+                packageName,
+                current,
+              })
               outdated.push({
                 alias,
                 belongsTo: depType,
                 current,
-                currentManifest: await getCurrentManifestForTrustPolicy({
-                  trustPolicy: opts.trustPolicy,
-                  resolveLatest: opts.resolveLatest,
-                  resolveOpts,
-                  alias,
-                  packageName,
-                  current,
-                }),
+                ...(currentManifest != null ? { currentManifest } : {}),
                 latestManifest: undefined,
                 packageName,
                 wanted,
@@ -199,18 +200,19 @@ export async function outdated (
             return
           }
           if (wanted !== current || isLowerVersion(wanted, latestManifest.version) || latestManifest.deprecated) {
+            const currentManifest = await getCurrentManifestForTrustPolicy({
+              trustPolicy: opts.trustPolicy,
+              resolveLatest: opts.resolveLatest,
+              resolveOpts,
+              alias,
+              packageName,
+              current,
+            })
             outdated.push({
               alias,
               belongsTo: depType,
               current,
-              currentManifest: await getCurrentManifestForTrustPolicy({
-                trustPolicy: opts.trustPolicy,
-                resolveLatest: opts.resolveLatest,
-                resolveOpts,
-                alias,
-                packageName,
-                current,
-              }),
+              ...(currentManifest != null ? { currentManifest } : {}),
               latestManifest,
               packageName,
               wanted,
