@@ -2089,26 +2089,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
-name = "pacquet-agent-client"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "derive_more",
- "flate2",
- "mockito",
- "pacquet-lockfile",
- "pacquet-store-dir",
- "pacquet-testing-utils",
- "pnpr",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "pacquet-catalogs-config"
 version = "0.0.1"
 dependencies = [
@@ -2151,7 +2131,6 @@ dependencies = [
  "home",
  "insta",
  "miette 7.6.0",
- "pacquet-agent-client",
  "pacquet-config",
  "pacquet-diagnostics",
  "pacquet-executor",
@@ -2161,6 +2140,7 @@ dependencies = [
  "pacquet-package-is-installable",
  "pacquet-package-manager",
  "pacquet-package-manifest",
+ "pacquet-pnpr-client",
  "pacquet-registry",
  "pacquet-reporter",
  "pacquet-store-dir",
@@ -2667,6 +2647,26 @@ dependencies = [
  "sha2",
  "tempfile",
  "text-block-macros",
+]
+
+[[package]]
+name = "pacquet-pnpr-client"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "flate2",
+ "mockito",
+ "pacquet-lockfile",
+ "pacquet-store-dir",
+ "pacquet-testing-utils",
+ "pnpr",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

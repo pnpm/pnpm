@@ -1,4 +1,4 @@
-//! Client for the pnpm-agent fast-path endpoints exposed by pnpr.
+//! Client for the pnpr fast-path endpoints exposed by pnpr.
 //!
 //! Port of the TypeScript `@pnpm/agent.client` (`fetchFromPnpmRegistry`)
 //! plus the `fetch-and-write-cafs` worker. Given a set of dependencies
@@ -33,9 +33,9 @@ use serde::Deserialize;
 /// Dependency map (`name` -> `version range`).
 pub type DepMap = BTreeMap<String, String>;
 
-/// A client bound to one pnpm-agent server.
+/// A client bound to one pnpr server.
 #[must_use]
-pub struct AgentClient {
+pub struct PnprClient {
     http: Client,
     base_url: String,
 }
@@ -59,7 +59,7 @@ pub struct InstallOptions<'a> {
     pub minimum_release_age: Option<u64>,
 }
 
-/// Result of [`AgentClient::install`].
+/// Result of [`PnprClient::install`].
 #[must_use]
 pub struct InstallOutcome {
     /// The resolved lockfile, ready for a headless install.
@@ -86,15 +86,15 @@ pub struct Stats {
 }
 
 #[derive(Debug, Display, Error, From)]
-pub enum AgentClientError {
-    #[display("agent request failed: {_0}")]
+pub enum PnprClientError {
+    #[display("pnpr request failed: {_0}")]
     Http(reqwest::Error),
 
-    #[display("agent server error: {_0}")]
+    #[display("pnpr server error: {_0}")]
     #[from(ignore)]
     Server(#[error(not(source))] String),
 
-    #[display("malformed agent response: {_0}")]
+    #[display("malformed pnpr response: {_0}")]
     #[from(ignore)]
     Protocol(#[error(not(source))] String),
 
@@ -118,22 +118,22 @@ struct HandshakeCapability {
     versions: Vec<u32>,
 }
 
-impl AgentClient {
+impl PnprClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         let mut base_url = base_url.into();
         if !base_url.ends_with('/') {
             base_url.push('/');
         }
-        AgentClient { http: Client::new(), base_url }
+        PnprClient { http: Client::new(), base_url }
     }
 
     /// Confirm the server speaks a compatible protocol version. Errors
     /// if it's unreachable, isn't a pnpr (404 at `/-/pnpr`), or shares
     /// no protocol version with this client.
-    pub async fn handshake(&self) -> Result<(), AgentClientError> {
+    pub async fn handshake(&self) -> Result<(), PnprClientError> {
         let response = self.http.get(format!("{}-/pnpr", self.base_url)).send().await?;
         if !response.status().is_success() {
-            return Err(AgentClientError::Server(format!(
+            return Err(PnprClientError::Server(format!(
                 "{} is not a pnpr server (GET /-/pnpr returned {})",
                 self.base_url,
                 response.status(),
@@ -141,7 +141,7 @@ impl AgentClient {
         }
         let body: HandshakeResponse = response.json().await?;
         if !body.pnpr.versions.contains(&PROTOCOL_VERSION) {
-            return Err(AgentClientError::Server(format!(
+            return Err(PnprClientError::Server(format!(
                 "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
                 body.pnpr.versions,
             )));
@@ -154,7 +154,7 @@ impl AgentClient {
     pub async fn install(
         &self,
         opts: InstallOptions<'_>,
-    ) -> Result<InstallOutcome, AgentClientError> {
+    ) -> Result<InstallOutcome, PnprClientError> {
         self.handshake().await?;
 
         let store_keys = read_store_keys(opts.store_dir);
@@ -179,7 +179,7 @@ impl AgentClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(AgentClientError::Server(format!("/v1/install returned {status}: {body}")));
+            return Err(PnprClientError::Server(format!("/v1/install returned {status}: {body}")));
         }
         let ndjson = response.text().await?;
 
@@ -202,7 +202,7 @@ impl AgentClient {
         &self,
         store_dir: &StoreDir,
         digests: &[MissingFile],
-    ) -> Result<usize, AgentClientError> {
+    ) -> Result<usize, PnprClientError> {
         if digests.is_empty() {
             return Ok(0);
         }
@@ -222,7 +222,7 @@ impl AgentClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(AgentClientError::Server(format!("/v1/files returned {status}: {body}")));
+            return Err(PnprClientError::Server(format!("/v1/files returned {status}: {body}")));
         }
 
         let raw = response.bytes().await?;
@@ -238,7 +238,7 @@ impl AgentClient {
             raw.to_vec()
         };
 
-        // Guard against an agent that streams entries we never asked for,
+        // Guard against a server that streams entries we never asked for,
         // which would otherwise write unbounded files into our CAFS.
         let mut requested: HashSet<(String, bool)> =
             digests.iter().map(|file| (file.digest.clone(), file.executable)).collect();
@@ -259,7 +259,7 @@ struct MissingFile {
     executable: bool,
 }
 
-fn parse_install_response(ndjson: &str) -> Result<ParsedInstall, AgentClientError> {
+fn parse_install_response(ndjson: &str) -> Result<ParsedInstall, PnprClientError> {
     let mut missing_files = Vec::new();
     let mut index_entries = Vec::new();
     let mut final_line: Option<(Lockfile, Stats)> = None;
@@ -279,30 +279,30 @@ fn parse_install_response(ndjson: &str) -> Result<ParsedInstall, AgentClientErro
                 // `integrity \t pkgId \t base64`; the index key is
                 // `integrity \t pkgId` (everything before the last tab).
                 let Some((key, encoded)) = rest.rsplit_once('\t') else {
-                    return Err(AgentClientError::Protocol("malformed I line".to_string()));
+                    return Err(PnprClientError::Protocol("malformed I line".to_string()));
                 };
                 let raw = BASE64
                     .decode(encoded)
-                    .map_err(|err| AgentClientError::Protocol(err.to_string()))?;
+                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
                 index_entries.push((key.to_string(), raw));
             }
             "L" => {
                 let payload: LPayload = serde_json::from_str(rest)
-                    .map_err(|err| AgentClientError::Protocol(err.to_string()))?;
+                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
                 final_line = Some((payload.lockfile, payload.stats));
             }
             "E" => {
                 let message = serde_json::from_str::<EPayload>(rest)
                     .map(|payload| payload.error)
                     .unwrap_or_else(|_| rest.to_string());
-                return Err(AgentClientError::Server(message));
+                return Err(PnprClientError::Server(message));
             }
             _ => {}
         }
     }
 
     let (lockfile, stats) = final_line.ok_or_else(|| {
-        AgentClientError::Protocol("response had no lockfile (L line)".to_string())
+        PnprClientError::Protocol("response had no lockfile (L line)".to_string())
     })?;
 
     Ok(ParsedInstall { lockfile, stats, missing_files, index_entries })
@@ -327,9 +327,9 @@ fn write_files_payload(
     store_dir: &StoreDir,
     payload: &[u8],
     requested: &mut HashSet<(String, bool)>,
-) -> Result<usize, AgentClientError> {
+) -> Result<usize, PnprClientError> {
     if payload.len() < 4 {
-        return Err(AgentClientError::Protocol("files payload too short".to_string()));
+        return Err(PnprClientError::Protocol("files payload too short".to_string()));
     }
     let json_len = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as usize;
     let mut offset = 4 + json_len;
@@ -337,14 +337,14 @@ fn write_files_payload(
 
     loop {
         if offset + 64 > payload.len() {
-            return Err(AgentClientError::Protocol("truncated files payload".to_string()));
+            return Err(PnprClientError::Protocol("truncated files payload".to_string()));
         }
         let digest_bytes = &payload[offset..offset + 64];
         if digest_bytes.iter().all(|byte| *byte == 0) {
             break; // end-of-stream marker
         }
         if offset + 69 > payload.len() {
-            return Err(AgentClientError::Protocol("truncated file header".to_string()));
+            return Err(PnprClientError::Protocol("truncated file header".to_string()));
         }
         let size = u32::from_be_bytes([
             payload[offset + 64],
@@ -356,13 +356,13 @@ fn write_files_payload(
         let content_start = offset + 69;
         let content_end = content_start + size;
         if content_end > payload.len() {
-            return Err(AgentClientError::Protocol("truncated file content".to_string()));
+            return Err(PnprClientError::Protocol("truncated file content".to_string()));
         }
         let content = &payload[content_start..content_end];
         let digest = hex_encode(digest_bytes);
 
         if !requested.remove(&(digest.clone(), executable)) {
-            return Err(AgentClientError::Server(format!(
+            return Err(PnprClientError::Server(format!(
                 "/v1/files returned an entry that was not requested: {digest}",
             )));
         }
@@ -376,7 +376,7 @@ fn write_files_payload(
 }
 
 /// Write `content` to its content-addressed path. The digest is trusted
-/// (the agent path skips re-hashing); a complete file already on disk is
+/// (the fast path skips re-hashing); a complete file already on disk is
 /// left as-is, and a truncated one is replaced atomically — mirroring
 /// the TypeScript `fetch-and-write-cafs` worker.
 fn write_cas_file(
@@ -384,11 +384,11 @@ fn write_cas_file(
     digest: &str,
     executable: bool,
     content: &[u8],
-) -> Result<(), AgentClientError> {
+) -> Result<(), PnprClientError> {
     let mode = if executable { 0o755 } else { 0o644 };
     let path = store_dir
         .cas_file_path_by_mode(digest, mode)
-        .ok_or_else(|| AgentClientError::Protocol(format!("invalid digest: {digest}")))?;
+        .ok_or_else(|| PnprClientError::Protocol(format!("invalid digest: {digest}")))?;
 
     if let Ok(metadata) = std::fs::metadata(&path)
         && metadata.len() == content.len() as u64

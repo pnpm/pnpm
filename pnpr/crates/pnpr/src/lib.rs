@@ -7,11 +7,11 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
-mod agent;
 mod auth;
 mod cache;
 mod config;
 mod error;
+mod fast_path;
 mod package_name;
 mod policy;
 mod publish;

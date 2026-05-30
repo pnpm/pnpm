@@ -75,7 +75,7 @@ fn is_executable(mode: u32) -> bool {
 ///
 /// The server's store index keys are `{integrity}\t{pkgId}`; we key by
 /// the integrity half and keep the first occurrence, matching
-/// `buildIntegrityIndex` in the TypeScript agent.
+/// `buildIntegrityIndex` in the TypeScript proof of concept.
 fn build_integrity_index(
     store: &StoreIndex,
     needed: &HashSet<String>,
@@ -94,7 +94,7 @@ fn build_integrity_index(
 }
 
 /// Compute the file-level diff. Mirrors `computeDiff` in the
-/// TypeScript agent: union the client's existing file digests, then
+/// TypeScript proof of concept: union the client's existing file digests, then
 /// for every resolved package not already in the client's store emit
 /// the files it doesn't yet have (deduped across the whole response).
 pub fn compute_diff(

@@ -60,7 +60,7 @@ use self::protocol::{FilesRequest, InstallRequest, is_valid_sha512_hex};
 /// Held lazily in a [`OnceLock`] on the server's state so servers that
 /// never receive a fast-path request pay nothing, and so each server in
 /// a multi-server test process keeps its own store.
-pub(crate) struct AgentRuntime {
+pub(crate) struct FastPathRuntime {
     store_dir: StoreDir,
     cache_dir: PathBuf,
     client: Arc<ThrottledClient>,
@@ -70,20 +70,20 @@ pub(crate) struct AgentRuntime {
     configs: Mutex<HashMap<String, &'static PacquetConfig>>,
 }
 
-impl AgentRuntime {
+impl FastPathRuntime {
     pub(crate) fn get_or_init<'a>(
-        cell: &'a OnceLock<AgentRuntime>,
+        cell: &'a OnceLock<FastPathRuntime>,
         config: &RegistryConfig,
-    ) -> &'a AgentRuntime {
-        cell.get_or_init(|| AgentRuntime::build(config))
+    ) -> &'a FastPathRuntime {
+        cell.get_or_init(|| FastPathRuntime::build(config))
     }
 
-    fn build(config: &RegistryConfig) -> AgentRuntime {
-        let store_dir = config.storage.join("agent-store");
-        let cache_dir = config.storage.join("agent-cache");
+    fn build(config: &RegistryConfig) -> FastPathRuntime {
+        let store_dir = config.storage.join("pnpr-store");
+        let cache_dir = config.storage.join("pnpr-cache");
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
-        AgentRuntime {
+        FastPathRuntime {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
             client: Arc::new(ThrottledClient::new_for_installs()),
@@ -110,7 +110,7 @@ impl AgentRuntime {
         })
         .to_string();
 
-        let mut configs = self.configs.lock().expect("agent config cache poisoned");
+        let mut configs = self.configs.lock().expect("config cache poisoned");
         if let Some(config) = configs.get(&key) {
             return config;
         }
@@ -132,7 +132,7 @@ impl AgentRuntime {
 }
 
 /// Handle `POST /v1/install`.
-pub(crate) async fn handle_install(runtime: &AgentRuntime, body: Bytes) -> Response {
+pub(crate) async fn handle_install(runtime: &FastPathRuntime, body: Bytes) -> Response {
     let request: InstallRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
@@ -141,7 +141,7 @@ pub(crate) async fn handle_install(runtime: &AgentRuntime, body: Bytes) -> Respo
     if request.project_count() > 1 {
         return json_error(
             StatusCode::BAD_REQUEST,
-            "multi-project workspace resolution is not yet supported by the agent",
+            "multi-project workspace resolution is not yet supported by the pnpr server",
         );
     }
 
@@ -215,7 +215,7 @@ pub(crate) async fn handle_install(runtime: &AgentRuntime, body: Bytes) -> Respo
 }
 
 /// Handle `POST /v1/files`.
-pub(crate) async fn handle_files(runtime: &AgentRuntime, body: Bytes) -> Response {
+pub(crate) async fn handle_files(runtime: &FastPathRuntime, body: Bytes) -> Response {
     let request: FilesRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),

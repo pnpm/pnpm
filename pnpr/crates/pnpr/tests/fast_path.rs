@@ -1,4 +1,4 @@
-//! Integration tests for the pnpm-agent fast-path endpoints.
+//! Integration tests for the pnpr fast-path endpoints.
 //!
 //! `/v1/install` resolves against an upstream registry and is covered
 //! by the broader install suite; these tests exercise the network-free
@@ -55,10 +55,10 @@ async fn files_endpoint_serves_a_cafs_file_by_digest() {
     let tmp = TempDir::new().unwrap();
     let config = config_for(tmp.path().to_path_buf());
 
-    // Seed a file into the same content-addressable store the agent
-    // runtime reads from (`<storage>/agent-store`).
-    let store = StoreDir::new(tmp.path().join("agent-store"));
-    let content = b"console.log('hello from the agent')\n";
+    // Seed a file into the same content-addressable store the pnpr
+    // runtime reads from (`<storage>/pnpr-store`).
+    let store = StoreDir::new(tmp.path().join("pnpr-store"));
+    let content = b"console.log('hello from pnpr')\n";
     let (_path, hash) = store.write_cas_file(content, false).expect("write cas file");
     let digest = format!("{hash:x}");
 

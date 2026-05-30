@@ -1,4 +1,4 @@
-//! End-to-end tests for the agent client against a real pnpr server.
+//! End-to-end tests for the pnpr client against a real pnpr server.
 //!
 //! Topology: a shared [`TestRegistry`] serves the package fixtures; a
 //! per-test in-process `pnpr` hosts the `/-/pnpr` handshake +
@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use pacquet_agent_client::{AgentClient, InstallOptions};
+use pacquet_pnpr_client::{InstallOptions, PnprClient};
 use pacquet_store_dir::StoreDir;
 use pacquet_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
@@ -73,7 +73,7 @@ async fn resolves_and_downloads_a_package() {
 
     let client_store = TempDir::new().unwrap();
     let store = StoreDir::new(client_store.path().to_path_buf());
-    let client = AgentClient::new(pnpr_url);
+    let client = PnprClient::new(pnpr_url);
 
     let outcome = client
         .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
@@ -109,7 +109,7 @@ async fn warm_store_skips_already_present_files() {
 
     let client_store = TempDir::new().unwrap();
     let store = StoreDir::new(client_store.path().to_path_buf());
-    let client = AgentClient::new(pnpr_url);
+    let client = PnprClient::new(pnpr_url);
 
     let cold = client
         .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
@@ -134,7 +134,7 @@ async fn resolves_a_multi_file_package() {
 
     let client_store = TempDir::new().unwrap();
     let store = StoreDir::new(client_store.path().to_path_buf());
-    let client = AgentClient::new(pnpr_url);
+    let client = PnprClient::new(pnpr_url);
 
     let outcome = client
         .install(options(
@@ -160,7 +160,7 @@ async fn handshake_rejects_a_non_pnpr_server() {
     let mut server = mockito::Server::new_async().await;
     let mock = server.mock("GET", "/-/pnpr").with_status(404).create_async().await;
 
-    let client = AgentClient::new(server.url());
+    let client = PnprClient::new(server.url());
     let err = client.handshake().await.expect_err("a non-pnpr server should be rejected");
     assert!(err.to_string().contains("not a pnpr server"), "got: {err}");
     mock.assert_async().await;

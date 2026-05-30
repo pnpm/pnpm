@@ -1,11 +1,11 @@
 use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::{Args, ValueEnum};
 use miette::Context;
-use pacquet_agent_client::{AgentClient, InstallOptions as AgentInstallOptions};
 use pacquet_config::{NodeLinker, TrustPolicy};
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manager::Install;
 use pacquet_package_manifest::DependencyGroup;
+use pacquet_pnpr_client::{InstallOptions, PnprClient};
 use pacquet_reporter::Reporter;
 
 /// `--node-linker` value parser. CLI mirror of
@@ -317,7 +317,7 @@ impl InstallArgs {
             return install_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
-                AgentLink {
+                PnprLink {
                     dependency_groups: dependency_options.dependency_groups().collect(),
                     supported_architectures,
                     node_linker,
@@ -380,7 +380,7 @@ impl InstallArgs {
 
 /// Per-invocation install knobs forwarded to the frozen link pass,
 /// already resolved from the CLI flags + config by [`InstallArgs::run`].
-struct AgentLink<'a> {
+struct PnprLink<'a> {
     dependency_groups: Vec<DependencyGroup>,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
     node_linker: NodeLinker,
@@ -399,7 +399,7 @@ struct AgentLink<'a> {
 async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
-    link: AgentLink<'_>,
+    link: PnprLink<'_>,
 ) -> miette::Result<()> {
     // The server resolves remotely, so the local resolver-side
     // `trustPolicy: no-downgrade` check can't run. Refuse rather than
@@ -425,8 +425,8 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     let overrides =
         state.config.overrides.as_ref().and_then(|overrides| serde_json::to_value(overrides).ok());
 
-    let outcome = AgentClient::new(pnpr_server)
-        .install(AgentInstallOptions {
+    let outcome = PnprClient::new(pnpr_server)
+        .install(InstallOptions {
             store_dir: &state.config.store_dir,
             dependencies,
             dev_dependencies,
@@ -446,7 +446,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             .lockfile
             .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
             .map_err(|err| miette::miette!("{err}"))
-            .wrap_err("writing the agent-resolved lockfile")?;
+            .wrap_err("writing the pnpr-resolved lockfile")?;
     }
 
     Install {

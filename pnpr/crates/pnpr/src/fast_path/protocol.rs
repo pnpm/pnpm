@@ -1,4 +1,4 @@
-//! Wire types for the agent endpoints, matching the pnpm-agent
+//! Wire types for the pnpr fast-path endpoints, matching the pnpm-agent
 //! TypeScript client's request shapes.
 
 use std::collections::BTreeMap;

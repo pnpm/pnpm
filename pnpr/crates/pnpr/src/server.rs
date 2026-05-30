@@ -58,9 +58,9 @@ struct AppInner {
     config: Config,
     auth: AuthState,
     /// Lazily-built pacquet runtime backing the `/v1/install` and
-    /// `/v1/files` agent endpoints. Built on first agent request so
+    /// `/v1/files` fast-path endpoints. Built on first fast-path request so
     /// servers that never receive one pay nothing.
-    agent_runtime: std::sync::OnceLock<crate::agent::AgentRuntime>,
+    fast_path_runtime: std::sync::OnceLock<crate::fast_path::FastPathRuntime>,
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
@@ -94,7 +94,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
             upstreams,
             config,
             auth,
-            agent_runtime: std::sync::OnceLock::new(),
+            fast_path_runtime: std::sync::OnceLock::new(),
         }),
     };
     Router::new()
@@ -103,8 +103,8 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // registry core. Non-pnpm clients never touch these. `/-/pnpr`
         // is the capability handshake (404 on a plain registry).
         .route("/-/pnpr", get(serve_pnpr_handshake))
-        .route("/v1/install", post(serve_agent_install))
-        .route("/v1/files", post(serve_agent_files))
+        .route("/v1/install", post(serve_fast_path_install))
+        .route("/v1/files", post(serve_fast_path_files))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -1512,14 +1512,21 @@ async fn serve_pnpr_handshake() -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
 }
 
-async fn serve_agent_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    let runtime =
-        crate::agent::AgentRuntime::get_or_init(&state.inner.agent_runtime, &state.inner.config);
-    crate::agent::handle_install(runtime, body).await
+async fn serve_fast_path_install(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> Response {
+    let runtime = crate::fast_path::FastPathRuntime::get_or_init(
+        &state.inner.fast_path_runtime,
+        &state.inner.config,
+    );
+    crate::fast_path::handle_install(runtime, body).await
 }
 
-async fn serve_agent_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    let runtime =
-        crate::agent::AgentRuntime::get_or_init(&state.inner.agent_runtime, &state.inner.config);
-    crate::agent::handle_files(runtime, body).await
+async fn serve_fast_path_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime = crate::fast_path::FastPathRuntime::get_or_init(
+        &state.inner.fast_path_runtime,
+        &state.inner.config,
+    );
+    crate::fast_path::handle_files(runtime, body).await
 }

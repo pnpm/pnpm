@@ -67,11 +67,11 @@ pub async fn resolve(
 ) -> Result<Lockfile, ResolveError> {
     let project = request.single_project();
 
-    let temp = tempfile::Builder::new().prefix("pnpr-agent-").tempdir()?;
+    let temp = tempfile::Builder::new().prefix("pnpr-resolve-").tempdir()?;
     let dir = temp.path();
     let manifest_path = dir.join("package.json");
     let manifest_json = serde_json::json!({
-        "name": "pnpr-agent-resolve",
+        "name": "pnpr-resolve",
         "version": "0.0.0",
         "dependencies": project.dependencies,
         "devDependencies": project.dev_dependencies,
@@ -143,7 +143,7 @@ pub fn collect_packages(lockfile: &Lockfile, registry: &str) -> Vec<ResolvedPkg>
 
 /// Fetch into the shared store every package whose store-index row is
 /// absent, populating its `PackageFilesIndex` as a side effect. Cached
-/// packages are skipped, matching the agent's hot-server no-op.
+/// packages are skipped, matching the server hot-cache no-op.
 pub async fn fetch_uncached(
     config: &'static Config,
     client: &Arc<ThrottledClient>,
@@ -191,7 +191,7 @@ pub async fn fetch_uncached(
                 package_url: &pkg.tarball_url,
                 package_id: &pkg.pkg_id,
                 auth_headers: &config.auth_headers,
-                requester: "pnpr-agent",
+                requester: "pnpr",
                 prefetched_cas_paths: None,
                 retry_opts: RetryOpts::default(),
                 ignore_file_pattern: None,
@@ -217,7 +217,7 @@ pub async fn fetch_uncached(
 /// Derive `(integrity, tarball_url)` for a resolution, mirroring
 /// pacquet's `tarball_url_and_integrity`. Returns `None` for git,
 /// directory, binary, and variations resolutions (not served by the
-/// agent fast path).
+/// pnpr fast path).
 fn fetch_info(
     resolution: &LockfileResolution,
     pkg_id: &str,
