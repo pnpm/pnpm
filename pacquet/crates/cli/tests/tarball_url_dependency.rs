@@ -42,10 +42,20 @@ fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
         let trimmed = line.trim().trim_end_matches(':');
         trimmed == package_key || trimmed.trim_matches('"') == package_key
     };
-    lockfile
-        .lines()
-        .skip_while(|line| !is_header(line))
-        .take_while(|line| !line.trim_start().starts_with("snapshots:"))
+    let mut lines = lockfile.lines().skip_while(|line| !is_header(line));
+    let header = lines.next()?;
+    let header_indent = header.len() - header.trim_start().len();
+
+    // Stop at the next sibling entry (a key at the header's indent or
+    // shallower, e.g. the next `packages:` member or `snapshots:`) so a
+    // tarball entry that lost its own `integrity:` can't borrow another
+    // package's.
+    lines
+        .take_while(|line| {
+            let trimmed = line.trim_start();
+            !trimmed.starts_with("snapshots:")
+                && (!trimmed.ends_with(':') || (line.len() - trimmed.len()) > header_indent)
+        })
         .find_map(|line| line.trim().strip_prefix("integrity:").map(|rest| rest.trim().to_string()))
 }
 

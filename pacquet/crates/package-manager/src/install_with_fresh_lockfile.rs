@@ -860,12 +860,18 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // were written, mirroring the drain at the tail of the
             // materializing path.
             drop(store_index_writer);
-            if let Err(error) = writer_task.await {
-                tracing::warn!(
+            match writer_task.await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => tracing::warn!(
                     target: "pacquet::install",
                     ?error,
-                    "store-index writer task failed during a lockfile-only install",
-                );
+                    "store-index writer task returned an error during a lockfile-only install",
+                ),
+                Err(error) => tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "store-index writer task panicked during a lockfile-only install",
+                ),
             }
 
             Reporter::emit(&LogEvent::Stage(StageLog {

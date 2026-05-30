@@ -87,11 +87,18 @@ impl TarballResolver {
             reqwest::Url::parse(bare).map_err(|err| Box::new(err) as ResolveError)?.to_string();
 
         let client = self.http_client.acquire_for_url(&normalized_bare_specifier).await;
-        let response = client
-            .head(&normalized_bare_specifier)
-            .send()
-            .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
+        let mut request = client.head(&normalized_bare_specifier);
+        // Authenticate the preflight the same way the resolve-time GET
+        // does (`auth_headers.for_url`), so a private tarball host isn't
+        // rejected here before `FetchTarballForResolution` runs.
+        if let Some(value) = self
+            .fetch_context
+            .as_ref()
+            .and_then(|ctx| ctx.auth_headers.for_url(&normalized_bare_specifier))
+        {
+            request = request.header("authorization", value);
+        }
+        let response = request.send().await.map_err(|err| Box::new(err) as ResolveError)?;
 
         // If the upstream marks the response immutable, store the
         // *post-redirect* URL so subsequent installs hit the
