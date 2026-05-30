@@ -75,7 +75,7 @@ export interface Config extends OptionsFromRootManifest {
   filter: string[]
   filterProd: string[]
   authConfig: Record<string, any>, // eslint-disable-line
-  dryRun?: boolean // This option might be not supported ever
+  dryRun?: boolean // Supported for pack/publish and serve commands
   global?: boolean
   dir: string
   bin: string

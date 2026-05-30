@@ -23,6 +23,18 @@ const NETWORK_INI_KEYS = [
   'strict-ssl',
 ]
 
+/**
+ * Feature-flag / behavioral keys that are safe to read from .npmrc.
+ * These are neither auth nor network — they change *how* a command runs
+ * without altering *where* packages come from or whether the operation
+ * succeeds. Keeping them behind `isNpmrcReadableKey` prevents accidental
+ * clobbering of CLI-only flags while still letting users set them in
+ * project-level or user-level .npmrc.
+ */
+const NPM_BEHAVIOR_INI_KEYS = [
+  'dry-run',
+]
+
 const RAW_AUTH_CFG_KEY_SUFFIXES = [
   ':ca',
   ':cafile',
@@ -195,7 +207,7 @@ export const isIniConfigKey = (key: string): boolean =>
  * for easier migration from npm, but are written to YAML config files).
  */
 export const isNpmrcReadableKey = (key: string): boolean =>
-  isIniConfigKey(key) || NETWORK_INI_KEYS.includes(key)
+  isIniConfigKey(key) || NETWORK_INI_KEYS.includes(key) || NPM_BEHAVIOR_INI_KEYS.includes(key)
 
 /**
  * Filter keys that are allowed to be read from an INI config file.
