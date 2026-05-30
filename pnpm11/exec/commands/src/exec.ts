@@ -140,6 +140,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'extendNodePath'
 | 'extraBinPaths'
 | 'extraEnv'
+| 'filter'
 | 'lockfileDir'
 | 'loglevel'
 | 'modulesDir'
@@ -153,7 +154,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'userAgent'
 | 'verifyDepsBeforeRun'
 | 'workspaceDir'
-> & Pick<Config, 'ignoreWorkspaceCycles'> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & CheckDepsStatusOptions
+> & Pick<Config, 'ignoreWorkspaceCycles'> & Partial<Pick<Config, 'filterProd'>> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,

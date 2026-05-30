@@ -187,6 +187,7 @@ export type RunOpts =
   | 'extendNodePath'
   | 'extraBinPaths'
   | 'extraEnv'
+  | 'filter'
   | 'nodeOptions'
   | 'nodeExperimentalPackageMap'
   | 'pnpmHomeDir'
@@ -199,6 +200,7 @@ export type RunOpts =
   | 'syncInjectedDepsAfterScripts'
   | 'userAgent'
   >
+  & Partial<Pick<Config, 'filterProd'>>
   & Pick<ConfigContext, 'cliOptions'>
   & (
     | { recursive?: false } & Partial<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>

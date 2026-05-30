@@ -73,3 +73,135 @@ test('installs when dependency status is unavailable for an unexpected reason', 
     reporter: undefined,
   })
 })
+
+const baseOpts = {
+  dir: process.cwd(),
+  excludeLinksFromLockfile: false,
+  linkWorkspacePackages: false,
+  preferWorkspacePackages: false,
+  pnpmfile: [],
+  rootProjectManifestDir: process.cwd(),
+  verifyDepsBeforeRun: 'install' as const,
+}
+
+test('includes --filter args with dependency selector in the install command when filter is set', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    ...baseOpts,
+    filter: ['foo', 'bar...'],
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(
+    ['install', '--filter=foo...', '--filter=bar...'],
+    {
+      cwd: process.cwd(),
+      reporter: undefined,
+    }
+  )
+})
+
+test('preserves exclusion filter args in the install command', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    ...baseOpts,
+    filter: ['foo', '!bar'],
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(
+    ['install', '--filter=foo...', '--filter=!bar'],
+    {
+      cwd: process.cwd(),
+      reporter: undefined,
+    }
+  )
+})
+
+test('does not add --filter args when filter is empty', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    ...baseOpts,
+    filter: [],
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(
+    ['install'],
+    {
+      cwd: process.cwd(),
+      reporter: undefined,
+    }
+  )
+})
+
+test('does not add --filter args when filter is undefined', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    ...baseOpts,
+    filter: undefined,
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(
+    ['install'],
+    {
+      cwd: process.cwd(),
+      reporter: undefined,
+    }
+  )
+})
+
+test('includes --filter-prod args in the install command when filterProd is set', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    ...baseOpts,
+    filterProd: ['foo', '!bar'],
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(
+    ['install', '--filter-prod=foo...', '--filter-prod=!bar'],
+    {
+      cwd: process.cwd(),
+      reporter: undefined,
+    }
+  )
+})
+
+test('includes both --filter and --filter-prod args when both are set', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    ...baseOpts,
+    filter: ['foo'],
+    filterProd: ['bar'],
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(
+    ['install', '--filter=foo...', '--filter-prod=bar...'],
+    {
+      cwd: process.cwd(),
+      reporter: undefined,
+    }
+  )
+})
+

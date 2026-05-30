@@ -23,6 +23,8 @@ const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
 export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
   dir: string
+  filter?: Config['filter']
+  filterProd?: Config['filterProd']
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
@@ -37,7 +39,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (!needsInstall(upToDate, opts)) return
 
-  const command = ['install', ...createInstallArgs(workspaceState?.settings)]
+  const command = ['install', ...createFilterArgs(opts.filter, opts.filterProd), ...createInstallArgs(workspaceState?.settings)]
   const install = lockedInstall.bind(null, opts, command)
 
   switch (opts.verifyDepsBeforeRun) {
@@ -112,7 +114,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
     if (waited) {
       const { upToDate, workspaceState } = await checkDepsStatus(opts)
       if (!needsInstall(upToDate, opts)) return
-      command = ['install', ...createInstallArgs(workspaceState?.settings)]
+      command = ['install', ...createFilterArgs(opts.filter, opts.filterProd), ...createInstallArgs(workspaceState?.settings)]
     }
     const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
     runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
@@ -130,6 +132,19 @@ async function installLockPath (root: string): Promise<string> {
     throw new Error(`${lockDir} is not a private directory of the current user`)
   }
   return path.join(lockDir, `${createHexHash(await realpathMissing(root))}.lock`)
+}
+
+export function createFilterArgs (filter?: string[], filterProd?: string[]): string[] {
+  const filterArgs = (filter ?? []).map(f => toInstallFilterArg('--filter', f))
+  const filterProdArgs = (filterProd ?? []).map(f => toInstallFilterArg('--filter-prod', f))
+  return [...filterArgs, ...filterProdArgs]
+}
+
+function toInstallFilterArg (flag: '--filter' | '--filter-prod', filter: string): string {
+  if (filter.startsWith('!') || filter.endsWith('...')) {
+    return `${flag}=${filter}`
+  }
+  return `${flag}=${filter}...`
 }
 
 export function createInstallArgs (opts: Pick<WorkspaceStateSettings, 'dev' | 'optional' | 'production'> | undefined): string[] {
