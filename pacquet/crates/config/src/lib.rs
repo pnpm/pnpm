@@ -863,6 +863,13 @@ pub struct Config {
     #[default(_code = "default_user_agent()")]
     pub user_agent: String,
 
+    /// URL of a pnpm agent server. When set, `pacquet install` resolves
+    /// dependencies server-side through the agent's `/v1/install` +
+    /// `/v1/files` endpoints instead of resolving locally, then links
+    /// `node_modules` from the agent-produced lockfile. Mirrors pnpm's
+    /// `agent` setting. `None` runs the normal local resolution flow.
+    pub agent: Option<String>,
+
     /// Path to the user-level `.npmrc` to read auth from, overriding the
     /// default `~/.npmrc`. Mirrors pnpm's `npmrcAuthFile` (and the
     /// `--userconfig` alias). Resolved in [`Config::current`] from this

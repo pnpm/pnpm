@@ -1,7 +1,9 @@
 use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::{Args, ValueEnum};
 use miette::Context;
-use pacquet_config::NodeLinker;
+use pacquet_agent_client::{AgentClient, InstallOptions as AgentInstallOptions};
+use pacquet_config::{NodeLinker, TrustPolicy};
+use pacquet_lockfile::Lockfile;
 use pacquet_package_manager::Install;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
@@ -223,6 +225,14 @@ pub struct InstallArgs {
     /// Applied to [`pacquet_config::Config::user_agent`].
     #[clap(long = "user-agent")]
     pub user_agent: Option<String>,
+
+    /// URL of a pnpm agent server to resolve through. Mirrors pnpm's
+    /// `--agent`; overrides `agent` for this invocation. When set,
+    /// resolution runs server-side and `node_modules` is linked from the
+    /// agent-produced lockfile. Applied to
+    /// [`pacquet_config::Config::agent`].
+    #[clap(long)]
+    pub agent: Option<String>,
 }
 
 impl InstallArgs {
@@ -247,6 +257,9 @@ impl InstallArgs {
             network_concurrency: _,
             fetch_timeout: _,
             user_agent: _,
+            // Read from `config.agent` (the CLI flag was already merged in
+            // by the dispatch in `cli_args.rs`), not from this field.
+            agent: _,
         } = self;
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
@@ -295,6 +308,27 @@ impl InstallArgs {
             .path()
             .parent()
             .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
+
+        // pnpm-agent fast path: when an `agent` URL is configured, resolve
+        // server-side through the agent, then link `node_modules` from the
+        // agent-produced lockfile via the normal frozen install. Mirrors
+        // pnpm's `install()` delegating to `installFromPnpmRegistry`.
+        if let Some(agent_url) = config.agent.as_deref() {
+            return install_via_agent::<Reporter>(
+                &state,
+                agent_url,
+                AgentLink {
+                    dependency_groups: dependency_options.dependency_groups().collect(),
+                    supported_architectures,
+                    node_linker,
+                    skip_runtimes,
+                    trust_lockfile,
+                    lockfile_path: lockfile_path.as_deref(),
+                },
+            )
+            .await;
+        }
+
         Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
@@ -342,6 +376,97 @@ impl InstallArgs {
             None => config_value,
         }
     }
+}
+
+/// Resolve a single project through the pnpm agent, then link it.
+///
+/// Populates the local store and writes the agent-produced lockfile,
+/// then runs a frozen install to materialize `node_modules` from it —
+/// the equivalent of pnpm's `installFromPnpmRegistry` handing off to
+/// `headlessInstall`.
+/// Per-invocation install knobs forwarded to the frozen link pass,
+/// already resolved from the CLI flags + config by [`InstallArgs::run`].
+struct AgentLink<'a> {
+    dependency_groups: Vec<DependencyGroup>,
+    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    node_linker: NodeLinker,
+    skip_runtimes: bool,
+    trust_lockfile: bool,
+    lockfile_path: Option<&'a std::path::Path>,
+}
+
+async fn install_via_agent<Reporter: self::Reporter + 'static>(
+    state: &State,
+    agent_url: &str,
+    link: AgentLink<'_>,
+) -> miette::Result<()> {
+    // The agent resolves server-side, so the local resolver-side
+    // `trustPolicy: no-downgrade` check can't run. Refuse rather than
+    // silently link a lockfile the local verifier would reject — mirrors
+    // pnpm's `TRUST_POLICY_INCOMPATIBLE_WITH_AGENT` guard.
+    if state.config.trust_policy == TrustPolicy::NoDowngrade {
+        return Err(miette::miette!(
+            "The pnpm agent does not enforce `trustPolicy: no-downgrade`; unset it or disable the agent so resolution runs locally."
+        ));
+    }
+
+    let dependencies = state
+        .manifest
+        .dependencies([DependencyGroup::Prod])
+        .map(|(name, spec)| (name.to_string(), spec.to_string()))
+        .collect();
+    let dev_dependencies = state
+        .manifest
+        .dependencies([DependencyGroup::Dev])
+        .map(|(name, spec)| (name.to_string(), spec.to_string()))
+        .collect();
+
+    let outcome = AgentClient::new(agent_url)
+        .install(AgentInstallOptions {
+            store_dir: &state.config.store_dir,
+            dependencies,
+            dev_dependencies,
+        })
+        .await
+        .map_err(|err| miette::miette!("{err}"))
+        .wrap_err("resolving dependencies via the pnpm agent")?;
+
+    if state.config.lockfile {
+        let lockfile_dir =
+            state.manifest.path().parent().expect("manifest path always has a parent dir");
+        outcome
+            .lockfile
+            .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
+            .map_err(|err| miette::miette!("{err}"))
+            .wrap_err("writing the agent-resolved lockfile")?;
+    }
+
+    Install {
+        tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+        http_client: &state.http_client,
+        http_client_arc: std::sync::Arc::clone(&state.http_client),
+        config: state.config,
+        manifest: &state.manifest,
+        lockfile: Some(&outcome.lockfile),
+        lockfile_path: link.lockfile_path,
+        dependency_groups: link.dependency_groups,
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: link.skip_runtimes,
+        trust_lockfile: link.trust_lockfile,
+        update_checksums: false,
+        is_full_install: true,
+        resolved_packages: &state.resolved_packages,
+        supported_architectures: link.supported_architectures,
+        node_linker: link.node_linker,
+        lockfile_only: false,
+    }
+    .run::<Reporter>()
+    .await
+    .wrap_err("linking dependencies resolved via the pnpm agent")?;
+
+    Ok(())
 }
 
 #[cfg(test)]

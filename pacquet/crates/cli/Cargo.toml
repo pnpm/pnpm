@@ -15,6 +15,7 @@ name = "pacquet"
 path = "src/bin/main.rs"
 
 [dependencies]
+pacquet-agent-client           = { workspace = true }
 pacquet-executor               = { workspace = true }
 pacquet-fs                     = { workspace = true }
 pacquet-lockfile               = { workspace = true }
@@ -40,6 +41,7 @@ tokio       = { workspace = true }
 [dev-dependencies]
 pacquet-store-dir     = { workspace = true }
 pacquet-testing-utils = { workspace = true }
+pnpr                  = { workspace = true }
 
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
