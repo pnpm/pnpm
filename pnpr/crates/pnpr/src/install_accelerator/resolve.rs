@@ -217,7 +217,7 @@ pub async fn fetch_uncached(
 /// Derive `(integrity, tarball_url)` for a resolution, mirroring
 /// pacquet's `tarball_url_and_integrity`. Returns `None` for git,
 /// directory, binary, and variations resolutions (not served by the
-/// pnpr fast path).
+/// pnpr install accelerator).
 fn fetch_info(
     resolution: &LockfileResolution,
     pkg_id: &str,

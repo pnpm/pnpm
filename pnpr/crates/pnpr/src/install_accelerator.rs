@@ -1,4 +1,4 @@
-//! pnpr fast path: server-side dependency resolution plus file-level
+//! pnpr install accelerator: server-side dependency resolution plus file-level
 //! store deduplication, exposed as an additive, opt-in protocol
 //! alongside pnpr's npm-compatible API. The handshake + endpoints are
 //! served under one base URL (the `pnprServer`).
@@ -60,7 +60,7 @@ use self::protocol::{FilesRequest, InstallRequest, is_valid_sha512_hex};
 /// leaked once or per request.
 ///
 /// Held lazily in a [`OnceLock`] on the server's state so servers that
-/// never receive a fast-path request pay nothing, and so each server in
+/// never receive such a request pay nothing, and so each server in
 /// a multi-server test process keeps its own store.
 pub(crate) struct InstallAccelerator {
     store_dir: StoreDir,

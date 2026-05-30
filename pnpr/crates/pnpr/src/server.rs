@@ -58,9 +58,9 @@ struct AppInner {
     config: Config,
     auth: AuthState,
     /// Lazily-built engine backing the `/v1/install` and `/v1/files`
-    /// endpoints. Built on first fast-path request so servers that never
+    /// endpoints. Built on first such request so servers that never
     /// receive one pay nothing.
-    install_accelerator: std::sync::OnceLock<crate::fast_path::InstallAccelerator>,
+    install_accelerator: std::sync::OnceLock<crate::install_accelerator::InstallAccelerator>,
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
@@ -99,12 +99,12 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     };
     Router::new()
         .route("/-/ping", get(serve_ping))
-        // pnpr fast path: opt-in, versioned endpoints layered on the
+        // pnpr install accelerator: opt-in, versioned endpoints layered on the
         // registry core. Non-pnpm clients never touch these. `/-/pnpr`
         // is the capability handshake (404 on a plain registry).
         .route("/-/pnpr", get(serve_pnpr_handshake))
-        .route("/v1/install", post(serve_fast_path_install))
-        .route("/v1/files", post(serve_fast_path_files))
+        .route("/v1/install", post(serve_install))
+        .route("/v1/files", post(serve_files))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -1504,7 +1504,7 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
 }
 
-/// `GET /-/pnpr` — capability handshake for the pnpr fast-path
+/// `GET /-/pnpr` — capability handshake for the pnpr install-accelerator
 /// protocol. A plain npm registry has no such route and 404s, so a
 /// client can fail fast against a misconfigured server. `versions`
 /// lists the `/vN/install` protocol versions this server speaks.
@@ -1512,21 +1512,18 @@ async fn serve_pnpr_handshake() -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
 }
 
-async fn serve_fast_path_install(
-    State(state): State<AppState>,
-    body: axum::body::Bytes,
-) -> Response {
-    let runtime = crate::fast_path::InstallAccelerator::get_or_init(
+async fn serve_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
         &state.inner.install_accelerator,
         &state.inner.config,
     );
-    crate::fast_path::handle_install(runtime, body).await
+    crate::install_accelerator::handle_install(runtime, body).await
 }
 
-async fn serve_fast_path_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    let runtime = crate::fast_path::InstallAccelerator::get_or_init(
+async fn serve_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
         &state.inner.install_accelerator,
         &state.inner.config,
     );
-    crate::fast_path::handle_files(runtime, body).await
+    crate::install_accelerator::handle_files(runtime, body).await
 }

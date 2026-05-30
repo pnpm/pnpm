@@ -1,4 +1,4 @@
-//! Integration tests for the pnpr fast-path endpoints.
+//! Integration tests for the pnpr install-accelerator endpoints.
 //!
 //! `/v1/install` resolves against an upstream registry and is covered
 //! by the broader install suite; these tests exercise the network-free

@@ -11,7 +11,7 @@ mod auth;
 mod cache;
 mod config;
 mod error;
-mod fast_path;
+mod install_accelerator;
 mod package_name;
 mod policy;
 mod publish;
