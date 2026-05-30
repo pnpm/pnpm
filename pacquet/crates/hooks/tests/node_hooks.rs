@@ -171,7 +171,7 @@ function readPackage(pkg) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks { file: pnpmfile_path };
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks { file: pnpmfile_path.clone() };
 
     let manifest = serde_json::json!({
         "name": "foo",
