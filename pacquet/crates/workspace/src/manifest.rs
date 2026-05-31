@@ -49,12 +49,13 @@ pub struct WorkspaceManifest {
     /// the workspace dir.
     ///
     /// `Option` rather than `Vec` so callers can distinguish three
-    /// states: `None` (the `packages` key is absent — fall back to the
-    /// default `['.', '**']` patterns, matching upstream's
-    /// `opts.patterns ?? defaults`), `Some(vec![])` (explicit empty
-    /// array — enumerate only the workspace root), and `Some(...)`
-    /// (the user's patterns). Collapsing the first two would silently
-    /// promote `packages: []` into a recursive scan.
+    /// states: `None` (the `packages` key is absent), `Some(vec![])`
+    /// (explicit empty array), and `Some(...)` (the user's patterns).
+    /// Callers that enumerate a real workspace should pass this through
+    /// [`workspace_package_patterns`], while direct `findPackages`-style
+    /// callers can still choose the lower-level recursive default.
+    /// Collapsing the first two would silently lose the difference
+    /// between omitted and explicitly-empty `packages`.
     #[serde(default)]
     pub packages: Option<Vec<String>>,
 
@@ -111,6 +112,17 @@ pub enum ReadWorkspaceManifestError {
 /// Returns `Ok(None)` when the file does not exist (matching upstream's
 /// `ENOENT`-as-undefined contract). Every other read or parse failure
 /// propagates.
+/// Resolve `pnpm-workspace.yaml` `packages:` into pnpm's workspace
+/// package pattern default.
+///
+/// Mirrors config-reader's `workspacePackagePatterns` fallback:
+/// `workspaceManifest?.packages ?? ['.']`. A settings-only workspace
+/// manifest therefore enumerates the root project only; it does not use
+/// the lower-level `findPackages` recursive default.
+pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
+    manifest.packages.clone().unwrap_or_else(|| vec![".".to_string()])
+}
+
 pub fn read_workspace_manifest(
     dir: &Path,
 ) -> Result<Option<WorkspaceManifest>, ReadWorkspaceManifestError> {
