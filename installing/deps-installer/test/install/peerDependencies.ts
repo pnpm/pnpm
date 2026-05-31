@@ -2044,6 +2044,26 @@ test('peer dependency cache is invalidated correctly when the peer of a peer mis
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@2.0.0))']).toBeTruthy()
 })
 
+// https://github.com/pnpm/pnpm/issues/12079
+// peer-diamond-plugin peer-depends both peer-diamond-parser and peer-diamond-ts,
+// and peer-diamond-parser peer-depends peer-diamond-ts. The plugin's parser and
+// its ts must agree. A top-level parser resolved against ts@2.0.0 must not be
+// reused for the plugin, which is nested under ts@1.0.0.
+test('a peer shared through a diamond is resolved consistently', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/peer-diamond-ts@2.0.0',
+    '@pnpm.e2e/peer-diamond-parser@1.0.0',
+    '@pnpm.e2e/peer-diamond-app@1.0.0',
+  ], testDefaults({ autoInstallPeers: true }))
+
+  const lockfile = project.readLockfile()
+  const pluginSnapshots = Object.keys(lockfile.snapshots).filter((key) => key.includes('peer-diamond-plugin'))
+  expect(pluginSnapshots).toStrictEqual([
+    '@pnpm.e2e/peer-diamond-plugin@1.0.0(@pnpm.e2e/peer-diamond-parser@1.0.0(@pnpm.e2e/peer-diamond-ts@1.0.0))(@pnpm.e2e/peer-diamond-ts@1.0.0)',
+  ])
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/8759
 test('detection of circular peer dependencies should not crash with aliased dependencies', async () => {
   prepareEmpty()
