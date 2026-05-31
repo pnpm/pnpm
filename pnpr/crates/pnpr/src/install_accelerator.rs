@@ -83,6 +83,9 @@ impl InstallAccelerator {
     fn build(config: &RegistryConfig) -> InstallAccelerator {
         let store_dir = config.storage.join("pnpr-store");
         let cache_dir = config.storage.join("pnpr-cache");
+        // Best-effort: a real failure here (e.g. a permission problem)
+        // resurfaces with a precise error on the first store/cache write
+        // during resolution, so there's nothing actionable to report yet.
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
         InstallAccelerator {
@@ -257,8 +260,17 @@ pub(crate) async fn handle_files(runtime: &InstallAccelerator, body: Bytes) -> R
         let Some(digest_bytes) = hex_to_bytes(&file.digest) else {
             return json_error(StatusCode::BAD_REQUEST, "invalid digest");
         };
+        // The wire framing encodes the size as a u32; a >4 GiB file would
+        // truncate. npm files never approach this, but fail cleanly rather
+        // than corrupt the stream.
+        let Ok(content_len) = u32::try_from(content.len()) else {
+            return json_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &format!("{}: file too large for the protocol", file.digest),
+            );
+        };
         payload.extend_from_slice(&digest_bytes);
-        payload.extend_from_slice(&(content.len() as u32).to_be_bytes());
+        payload.extend_from_slice(&content_len.to_be_bytes());
         payload.push(u8::from(file.executable));
         payload.extend_from_slice(&content);
     }

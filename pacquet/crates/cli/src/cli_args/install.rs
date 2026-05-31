@@ -422,8 +422,13 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         .map(|(name, spec)| (name.to_string(), spec.to_string()))
         .collect();
 
-    let overrides =
-        state.config.overrides.as_ref().and_then(|overrides| serde_json::to_value(overrides).ok());
+    let overrides = state
+        .config
+        .overrides
+        .as_ref()
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|err| miette::miette!("failed to serialize overrides: {err}"))?;
 
     let outcome = PnprClient::new(pnpr_server)
         .install(InstallOptions {

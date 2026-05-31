@@ -229,13 +229,16 @@ impl PnprClient {
         // The server sets `Content-Encoding: gzip`. Decompress unless the
         // HTTP stack already did (detected via the gzip magic bytes), so
         // the client works whether or not reqwest's `gzip` feature is on.
-        let payload = if raw.starts_with(&[0x1f, 0x8b]) {
+        // Borrow `raw` directly when it's already decompressed.
+        let decompressed: Vec<u8>;
+        let payload: &[u8] = if raw.starts_with(&[0x1f, 0x8b]) {
             let mut decoder = GzDecoder::new(&raw[..]);
             let mut out = Vec::new();
             decoder.read_to_end(&mut out)?;
-            out
+            decompressed = out;
+            &decompressed
         } else {
-            raw.to_vec()
+            &raw
         };
 
         // Guard against a server that streams entries we never asked for,
@@ -243,7 +246,7 @@ impl PnprClient {
         let mut requested: HashSet<(String, bool)> =
             digests.iter().map(|file| (file.digest.clone(), file.executable)).collect();
 
-        write_files_payload(store_dir, &payload, &mut requested)
+        write_files_payload(store_dir, payload, &mut requested)
     }
 }
 
