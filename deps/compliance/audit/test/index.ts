@@ -2,6 +2,7 @@ import { describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { audit, buildAuditPathIndex, lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
+import type { PackageSnapshots } from '@pnpm/lockfile.types'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
@@ -81,6 +82,68 @@ describe('audit', () => {
     const info = result['lodash']!.get('4.0.0')!
     expect(info.paths).toHaveLength(2)
     expect(info.paths).toEqual(expect.arrayContaining(['.>a>lodash', '.>b>lodash']))
+  })
+
+  test('buildAuditPathIndex() prunes non-vulnerable subtrees while enumerating paths', () => {
+    let coldReads = 0
+    const importers: Record<ProjectId, { dependencies: Record<string, string>, specifiers: Record<string, string> }> = {}
+    const packages: PackageSnapshots = {
+      ['vuln@1.0.0' as DepPath]: { resolution: { integrity: 'vuln-integrity' } },
+    }
+    Object.defineProperty(packages, 'cold@1.0.0', {
+      enumerable: true,
+      get: () => {
+        coldReads++
+        return { dependencies: { 'cold-leaf': '1.0.0' }, resolution: { integrity: 'cold-integrity' } }
+      },
+    })
+    packages['cold-leaf@1.0.0' as DepPath] = { resolution: { integrity: 'cold-leaf-integrity' } }
+    for (let i = 0; i < 50; i++) {
+      const parentName = `parent-${i}`
+      importers[`.${i}` as ProjectId] = {
+        dependencies: { [parentName]: '1.0.0' },
+        specifiers: { [parentName]: '1.0.0' },
+      }
+      packages[`${parentName}@1.0.0` as DepPath] = {
+        dependencies: { cold: '1.0.0', vuln: '1.0.0' },
+        resolution: { integrity: `${parentName}-integrity` },
+      }
+    }
+    const result = buildAuditPathIndex({
+      importers,
+      lockfileVersion: LOCKFILE_VERSION,
+      packages,
+    }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
+
+    expect(result['vuln']!.get('1.0.0')!.paths).toHaveLength(50)
+    expect(coldReads).toBe(1)
+  })
+
+  test('buildAuditPathIndex() stops reading saturated vulnerable nodes', () => {
+    let vulnReads = 0
+    const importers: Record<ProjectId, { dependencies: Record<string, string>, specifiers: Record<string, string> }> = {}
+    const packages: PackageSnapshots = {}
+    Object.defineProperty(packages, 'vuln@1.0.0', {
+      enumerable: true,
+      get: () => {
+        vulnReads++
+        return { resolution: { integrity: 'vuln-integrity' } }
+      },
+    })
+    for (let i = 0; i < 150; i++) {
+      importers[`.${i}` as ProjectId] = {
+        dependencies: { vuln: '1.0.0' },
+        specifiers: { vuln: '1.0.0' },
+      }
+    }
+    const result = buildAuditPathIndex({
+      importers,
+      lockfileVersion: LOCKFILE_VERSION,
+      packages,
+    }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
+
+    expect(result['vuln']!.get('1.0.0')!.paths).toHaveLength(100)
+    expect(vulnReads).toBe(101)
   })
 
   test('buildAuditPathIndex() classifies as optional when the only non-optional path runs through an excluded devDependency', () => {

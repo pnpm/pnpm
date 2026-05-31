@@ -189,12 +189,15 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   const includeDevDeps = include?.devDependencies !== false
   const includeOptDeps = include?.optionalDependencies !== false
   const packages = lockfile.packages ?? {}
+  const reachableVulnerabilities = createReachableVulnerabilitiesGetter(lockfile, vulnerableNames, includeOptDeps)
 
   // Reused across every root to avoid per-node Set cloning. visit adds the
   // current depPath before recursing and removes it on the way back, so the
   // set always reflects the current trail.
   const inTrail = new Set<DepPath>()
   const visit = (edge: { name: string, depPath: DepPath }, trail: string[]): void => {
+    const reachable = reachableVulnerabilities(edge)
+    if (reachable.size === 0 || allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
     if (inTrail.has(edge.depPath)) return
     const pkgSnapshot = packages[edge.depPath]
     if (pkgSnapshot == null) return
@@ -206,6 +209,7 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
         depTypes[edge.depPath] === DepType.DevOnly,
         optionalOnly.has(edge.depPath))
     }
+    if (allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
     inTrail.add(edge.depPath)
     try {
       for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {})) {
@@ -230,6 +234,74 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
     for (const root of roots) {
       visit(root, trail)
     }
+  }
+}
+
+function createReachableVulnerabilitiesGetter (
+  lockfile: LockfileObject,
+  vulnerableNames: Set<string>,
+  includeOptDeps: boolean
+): (edge: { name: string, depPath: DepPath }) => Set<string> {
+  const packages = lockfile.packages ?? {}
+  const memo = new Map<DepPath, Set<string>>()
+  const inTrail = new Set<DepPath>()
+  const get = (edge: { name: string, depPath: DepPath }): Set<string> => {
+    const cached = memo.get(edge.depPath)
+    if (cached) return cached
+    if (inTrail.has(edge.depPath)) return new Set()
+    const pkgSnapshot = packages[edge.depPath]
+    if (pkgSnapshot == null) return new Set()
+
+    inTrail.add(edge.depPath)
+    const result = new Set<string>()
+    const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
+    const resolvedName = name ?? edge.name
+    if (version && vulnerableNames.has(resolvedName)) {
+      result.add(vulnerabilityKey(resolvedName, version, edge.depPath))
+    }
+    for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {})) {
+      addAll(result, get(child))
+    }
+    if (includeOptDeps) {
+      for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {})) {
+        addAll(result, get(child))
+      }
+    }
+    inTrail.delete(edge.depPath)
+    memo.set(edge.depPath, result)
+    return result
+  }
+  return get
+}
+
+function allReachableVulnerabilitiesSaturated (
+  paths: AuditPathIndex,
+  reachable: Set<string>,
+  depTypes: DepTypes,
+  optionalOnly: Set<DepPath>
+): boolean {
+  for (const key of reachable) {
+    const { name, version, depPath } = parseVulnerabilityKey(key)
+    const info = paths[name]?.get(version)
+    if (!info || info.paths.length < MAX_PATHS_PER_FINDING) return false
+    if (depTypes[depPath] !== DepType.DevOnly && info.dev) return false
+    if (!optionalOnly.has(depPath) && info.optional) return false
+  }
+  return true
+}
+
+function vulnerabilityKey (name: string, version: string, depPath: DepPath): string {
+  return `${name}\0${version}\0${depPath}`
+}
+
+function parseVulnerabilityKey (key: string): { name: string, version: string, depPath: DepPath } {
+  const [name, version, depPath] = key.split('\0')
+  return { name, version, depPath: depPath as DepPath }
+}
+
+function addAll<T> (target: Set<T>, source: Set<T>): void {
+  for (const value of source) {
+    target.add(value)
   }
 }
 
