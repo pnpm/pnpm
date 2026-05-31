@@ -2140,12 +2140,14 @@ dependencies = [
  "pacquet-package-is-installable",
  "pacquet-package-manager",
  "pacquet-package-manifest",
+ "pacquet-pnpr-client",
  "pacquet-registry",
  "pacquet-reporter",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
  "pipe-trait",
+ "pnpr",
  "pretty_assertions",
  "rayon",
  "serde-saphyr",
@@ -2648,6 +2650,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-pnpr-client"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "flate2",
+ "mockito",
+ "pacquet-lockfile",
+ "pacquet-store-dir",
+ "pacquet-testing-utils",
+ "pnpr",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-real-hoist"
 version = "0.0.1"
 dependencies = [
@@ -3100,16 +3122,25 @@ dependencies = [
  "base64 0.22.1",
  "bcrypt",
  "clap",
+ "dashmap",
  "derive_more",
+ "flate2",
  "futures-util",
  "getrandom 0.4.2",
  "home",
  "indexmap",
  "miette 7.6.0",
  "mockito",
+ "pacquet-config",
  "pacquet-config-dir",
  "pacquet-env-replace",
+ "pacquet-lockfile",
  "pacquet-network",
+ "pacquet-package-manager",
+ "pacquet-package-manifest",
+ "pacquet-reporter",
+ "pacquet-store-dir",
+ "pacquet-tarball",
  "pipe-trait",
  "reqwest",
  "rusqlite",

@@ -1,9 +1,11 @@
 use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::{Args, ValueEnum};
 use miette::Context;
-use pacquet_config::NodeLinker;
+use pacquet_config::{NodeLinker, TrustPolicy};
+use pacquet_lockfile::Lockfile;
 use pacquet_package_manager::Install;
 use pacquet_package_manifest::DependencyGroup;
+use pacquet_pnpr_client::{InstallOptions, PnprClient};
 use pacquet_reporter::Reporter;
 
 /// `--node-linker` value parser. CLI mirror of
@@ -223,6 +225,14 @@ pub struct InstallArgs {
     /// Applied to [`pacquet_config::Config::user_agent`].
     #[clap(long = "user-agent")]
     pub user_agent: Option<String>,
+
+    /// URL of a `pnpr` server to offload resolution + file fetching to.
+    /// Overrides the `pnprServer` setting for this invocation. When set,
+    /// the server resolves against the client's registries and
+    /// `node_modules` is linked locally from the server-produced
+    /// lockfile. Applied to [`pacquet_config::Config::pnpr_server`].
+    #[clap(long = "pnpr-server")]
+    pub pnpr_server: Option<String>,
 }
 
 impl InstallArgs {
@@ -247,6 +257,9 @@ impl InstallArgs {
             network_concurrency: _,
             fetch_timeout: _,
             user_agent: _,
+            // Read from `config.pnpr_server` (the CLI flag was already
+            // merged in by the dispatch in `cli_args.rs`), not from here.
+            pnpr_server: _,
         } = self;
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
@@ -295,6 +308,27 @@ impl InstallArgs {
             .path()
             .parent()
             .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
+
+        // pnpr fast path: when a `pnprServer` URL is configured, offload
+        // resolution + fetching to it, then link `node_modules` from the
+        // server-produced lockfile via the normal frozen install. Mirrors
+        // pnpm's `install()` delegating to `installFromPnpmRegistry`.
+        if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+            return install_via_pnpr::<Reporter>(
+                &state,
+                pnpr_server,
+                PnprLink {
+                    dependency_groups: dependency_options.dependency_groups().collect(),
+                    supported_architectures,
+                    node_linker,
+                    skip_runtimes,
+                    trust_lockfile,
+                    lockfile_path: lockfile_path.as_deref(),
+                },
+            )
+            .await;
+        }
+
         Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
             http_client,
@@ -342,6 +376,110 @@ impl InstallArgs {
             None => config_value,
         }
     }
+}
+
+/// Per-invocation install knobs forwarded to the frozen link pass,
+/// already resolved from the CLI flags + config by [`InstallArgs::run`].
+struct PnprLink<'a> {
+    dependency_groups: Vec<DependencyGroup>,
+    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    node_linker: NodeLinker,
+    skip_runtimes: bool,
+    trust_lockfile: bool,
+    lockfile_path: Option<&'a std::path::Path>,
+}
+
+/// Resolve a single project through a `pnpr` server, then link it.
+///
+/// Sends the client's registries to the server, which resolves against
+/// them and streams back the missing files; writes the server-produced
+/// lockfile, then runs a frozen install to materialize `node_modules`
+/// from it — the equivalent of pnpm's `installFromPnpmRegistry` handing
+/// off to `headlessInstall`.
+async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
+    state: &State,
+    pnpr_server: &str,
+    link: PnprLink<'_>,
+) -> miette::Result<()> {
+    // The server resolves remotely, so the local resolver-side
+    // `trustPolicy: no-downgrade` check can't run. Refuse rather than
+    // silently link a lockfile the local verifier would reject — mirrors
+    // pnpm's `TRUST_POLICY_INCOMPATIBLE_WITH_AGENT` guard.
+    if state.config.trust_policy == TrustPolicy::NoDowngrade {
+        return Err(miette::miette!(
+            "A pnprServer does not enforce `trustPolicy: no-downgrade`; unset it or unset pnprServer so resolution runs locally."
+        ));
+    }
+
+    let dependencies = state
+        .manifest
+        .dependencies([DependencyGroup::Prod])
+        .map(|(name, spec)| (name.to_string(), spec.to_string()))
+        .collect();
+    let dev_dependencies = state
+        .manifest
+        .dependencies([DependencyGroup::Dev])
+        .map(|(name, spec)| (name.to_string(), spec.to_string()))
+        .collect();
+
+    let overrides = state
+        .config
+        .overrides
+        .as_ref()
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|err| miette::miette!("failed to serialize overrides: {err}"))?;
+
+    let outcome = PnprClient::new(pnpr_server)
+        .install(InstallOptions {
+            store_dir: &state.config.store_dir,
+            dependencies,
+            dev_dependencies,
+            registry: state.config.registry.clone(),
+            named_registries: state.config.named_registries.clone(),
+            overrides,
+            minimum_release_age: state.config.minimum_release_age,
+        })
+        .await
+        .map_err(|err| miette::miette!("{err}"))
+        .wrap_err("resolving dependencies via the pnpr server")?;
+
+    if state.config.lockfile {
+        let lockfile_dir =
+            state.manifest.path().parent().expect("manifest path always has a parent dir");
+        outcome
+            .lockfile
+            .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
+            .map_err(|err| miette::miette!("{err}"))
+            .wrap_err("writing the pnpr-resolved lockfile")?;
+    }
+
+    Install {
+        tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+        http_client: &state.http_client,
+        http_client_arc: std::sync::Arc::clone(&state.http_client),
+        config: state.config,
+        manifest: &state.manifest,
+        lockfile: Some(&outcome.lockfile),
+        lockfile_path: link.lockfile_path,
+        dependency_groups: link.dependency_groups,
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: link.skip_runtimes,
+        trust_lockfile: link.trust_lockfile,
+        update_checksums: false,
+        is_full_install: true,
+        resolved_packages: &state.resolved_packages,
+        supported_architectures: link.supported_architectures,
+        node_linker: link.node_linker,
+        lockfile_only: false,
+    }
+    .run::<Reporter>()
+    .await
+    .wrap_err("linking dependencies resolved via the pnpr server")?;
+
+    Ok(())
 }
 
 #[cfg(test)]

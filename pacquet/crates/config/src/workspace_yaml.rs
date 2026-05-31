@@ -124,6 +124,7 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+    pub pnpr_server: Option<String>,
 
     /// User-defined named-registry aliases. Outer key is the alias
     /// name (`gh`, `work`, ...); inner string is the registry URL the
@@ -716,6 +717,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.registry {
             config.registry = if v.ends_with('/') { v } else { format!("{v}/") };
+        }
+        if let Some(v) = self.pnpr_server {
+            config.pnpr_server = Some(v);
         }
         if let Some(v) = self.named_registries {
             config.named_registries = v;

@@ -21,7 +21,7 @@ use axum::{
     extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{delete, get},
+    routing::{delete, get, post},
 };
 use indexmap::IndexMap;
 use serde_json::{Value, json};
@@ -57,6 +57,10 @@ struct AppInner {
     upstreams: IndexMap<String, Upstream>,
     config: Config,
     auth: AuthState,
+    /// Lazily-built engine backing the `/v1/install` and `/v1/files`
+    /// endpoints. Built on first such request so servers that never
+    /// receive one pay nothing.
+    install_accelerator: std::sync::OnceLock<crate::install_accelerator::InstallAccelerator>,
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
@@ -84,9 +88,23 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         .iter()
         .map(|(name, uplink)| (name.clone(), Upstream::new(uplink.url.clone())))
         .collect();
-    let state = AppState { inner: Arc::new(AppInner { cache, upstreams, config, auth }) };
+    let state = AppState {
+        inner: Arc::new(AppInner {
+            cache,
+            upstreams,
+            config,
+            auth,
+            install_accelerator: std::sync::OnceLock::new(),
+        }),
+    };
     Router::new()
         .route("/-/ping", get(serve_ping))
+        // pnpr install accelerator: opt-in, versioned endpoints layered on the
+        // registry core. Non-pnpm clients never touch these. `/-/pnpr`
+        // is the capability handshake (404 on a plain registry).
+        .route("/-/pnpr", get(serve_pnpr_handshake))
+        .route("/v1/install", post(serve_install))
+        .route("/v1/files", post(serve_files))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -1484,4 +1502,28 @@ fn error_response(err: &RegistryError) -> Response {
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
+}
+
+/// `GET /-/pnpr` — capability handshake for the pnpr install-accelerator
+/// protocol. A plain npm registry has no such route and 404s, so a
+/// client can fail fast against a misconfigured server. `versions`
+/// lists the `/vN/install` protocol versions this server speaks.
+async fn serve_pnpr_handshake() -> Response {
+    (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
+}
+
+async fn serve_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
+        &state.inner.install_accelerator,
+        &state.inner.config,
+    );
+    crate::install_accelerator::handle_install(runtime, body).await
+}
+
+async fn serve_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
+        &state.inner.install_accelerator,
+        &state.inner.config,
+    );
+    crate::install_accelerator::handle_files(runtime, body).await
 }
