@@ -294,24 +294,34 @@ async function iterateLockfileViolations (
 ): Promise<ResolutionPolicyViolation[]> {
   const violations: ResolutionPolicyViolation[] = []
   let checked = 0
+  let aborted = false
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   await Promise.all(
     Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {
+      if (aborted) return
       // Fan out across every active verifier; each handles its own
       // protocol short-circuit (e.g. the npm verifier returns ok:true for
       // git resolutions). We stop at the first failure per entry so a
       // multi-verifier setup doesn't produce duplicate violations for the
       // same (name, version).
-      for (const verifier of verifiers) {
-        // eslint-disable-next-line no-await-in-loop
-        const result = await verifier.verify(resolution, { name, version })
-        if (!result.ok) {
-          violations.push({ name, version, resolution, code: result.code, reason: result.reason })
-          break
+      try {
+        for (const verifier of verifiers) {
+          // eslint-disable-next-line no-await-in-loop
+          const result = await verifier.verify(resolution, { name, version })
+          if (!result.ok) {
+            violations.push({ name, version, resolution, code: result.code, reason: result.reason })
+            break
+          }
+        }
+      } catch (error) {
+        aborted = true
+        throw error
+      } finally {
+        if (!aborted) {
+          checked++
+          onEntryChecked?.(checked)
         }
       }
-      checked++
-      onEntryChecked?.(checked)
     }))
   )
   return violations

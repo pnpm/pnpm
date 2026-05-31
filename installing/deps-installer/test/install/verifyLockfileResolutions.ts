@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
+import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
@@ -217,6 +218,37 @@ test('runs every active verifier per entry and stops at the first failure', asyn
     .rejects.toMatchObject({ code: 'ERR_PNPM_SECOND_POLICY' })
   // Both verifiers ran on the entry; ordering follows the list.
   expect(calls).toEqual(['first', 'second'])
+})
+
+test('does not emit progress after an unexpected verifier failure', async () => {
+  const lockfile = makeLockfile({
+    'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    'b@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  let releaseSlowTask!: () => void
+  const slowTask = new Promise<void>((resolve) => {
+    releaseSlowTask = resolve
+  })
+  const verifier = wrap(async (_, { name }) => {
+    if (name === 'a') {
+      throw new Error('boom')
+    }
+    await slowTask
+    return { ok: true }
+  })
+  const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug').mockImplementation(() => {})
+
+  try {
+    await expect(verifyLockfileResolutions(lockfile, [verifier], { concurrency: 2 }))
+      .rejects.toThrow('boom')
+
+    releaseSlowTask()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(debugSpy.mock.calls.map(([message]) => message?.status)).toEqual(['started', 'failed'])
+  } finally {
+    debugSpy.mockRestore()
+  }
 })
 
 function exampleSlot (current: number): Omit<ResolutionVerifier, 'verify'> {
