@@ -29,26 +29,35 @@ export function reportLockfileVerification (
   return Rx.of(lockfileVerification$.pipe(
     map((log) => {
       const path_ = formatLockfilePath(log.lockfilePath, opts.cwd, expectedDir)
-      const entries = `${log.entries} ${log.entries === 1 ? 'entry' : 'entries'}`
+      const progress = formatProgress(log)
       switch (log.status) {
         case 'started':
           return {
-            msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${entries})...`,
+            msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${progress})...`,
+          }
+        case 'progress':
+          return {
+            msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${progress})...`,
           }
         case 'done':
           return {
-            msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${entries} in ${prettyMs(log.elapsedMs)})`,
+            msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${progress} in ${prettyMs(log.elapsedMs)})`,
           }
         case 'failed':
           // Brief one-liner so the transient `started` frame doesn't
           // stay on screen above the detailed PnpmError block that the
           // error reporter prints next.
           return {
-            msg: `${chalk.red('✗')} Lockfile${path_} failed supply-chain policy check (${entries} in ${prettyMs(log.elapsedMs)})`,
+            msg: `${chalk.red('✗')} Lockfile${path_} failed supply-chain policy check (${progress} in ${prettyMs(log.elapsedMs)})`,
           }
       }
     })
   ))
+}
+
+function formatProgress (log: LockfileVerificationLog): string {
+  const checked = log.status === 'started' ? 0 : log.checked
+  return `${checked}/${log.entries} ${log.entries === 1 ? 'entry' : 'entries'}`
 }
 
 // Returns a leading-space-prefixed `at <path>` suffix only when the

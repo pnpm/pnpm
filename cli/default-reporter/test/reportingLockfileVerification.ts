@@ -27,13 +27,14 @@ test('prints lockfile verification in-progress and completion messages', async (
   lockfileVerificationLogger.debug({
     status: 'done',
     entries: 234,
+    checked: 234,
     elapsedMs: 1234,
     lockfilePath,
   })
 
   const [started, done] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (234 entries)...')
-  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (234 entries in 1.2s)')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (0/234 entries)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (234/234 entries in 1.2s)')
 })
 
 test('uses singular noun for one entry', async () => {
@@ -48,12 +49,13 @@ test('uses singular noun for one entry', async () => {
   lockfileVerificationLogger.debug({
     status: 'done',
     entries: 1,
+    checked: 1,
     elapsedMs: 42,
   })
 
   const [started, done] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (1 entry)...')
-  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (1 entry in 42ms)')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (0/1 entry)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (1/1 entry in 42ms)')
 })
 
 test('prints relative path when lockfile lives outside the workspace root', async () => {
@@ -75,13 +77,14 @@ test('prints relative path when lockfile lives outside the workspace root', asyn
   lockfileVerificationLogger.debug({
     status: 'done',
     entries: 5,
+    checked: 5,
     elapsedMs: 200,
     lockfilePath,
   })
 
   const [started, done] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile at ../../locks/pnpm-lock.yaml against supply-chain policies (5 entries)...')
-  expect(stripAnsi(done)).toBe('✓ Lockfile at ../../locks/pnpm-lock.yaml passes supply-chain policies (5 entries in 200ms)')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile at ../../locks/pnpm-lock.yaml against supply-chain policies (0/5 entries)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile at ../../locks/pnpm-lock.yaml passes supply-chain policies (5/5 entries in 200ms)')
 })
 
 test('does not print path when running from workspace subdir and lockfile is at workspace root', async () => {
@@ -101,7 +104,7 @@ test('does not print path when running from workspace subdir and lockfile is at 
   lockfileVerificationLogger.debug({ status: 'started', entries: 10, lockfilePath })
 
   const [started] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (10 entries)...')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (0/10 entries)...')
 })
 
 test('suppresses path when workspaceDir has a trailing separator', async () => {
@@ -126,7 +129,23 @@ test('suppresses path when workspaceDir has a trailing separator', async () => {
   })
 
   const [started] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (3 entries)...')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (0/3 entries)...')
+})
+
+test('prints progress updates with checked and total entries', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'started', entries: 12 })
+  lockfileVerificationLogger.debug({ status: 'progress', entries: 12, checked: 7 })
+
+  const [started, progress] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (0/12 entries)...')
+  expect(stripAnsi(progress)).toBe('? Verifying lockfile against supply-chain policies (7/12 entries)...')
 })
 
 test('emits a brief failure line on failed status', async () => {
@@ -141,10 +160,11 @@ test('emits a brief failure line on failed status', async () => {
   lockfileVerificationLogger.debug({
     status: 'failed',
     entries: 12,
+    checked: 4,
     elapsedMs: 800,
   })
 
   const [started, failed] = await frames
-  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
-  expect(stripAnsi(failed)).toBe('✗ Lockfile failed supply-chain policy check (12 entries in 800ms)')
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (0/12 entries)...')
+  expect(stripAnsi(failed)).toBe('✗ Lockfile failed supply-chain policy check (4/12 entries in 800ms)')
 })

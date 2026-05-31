@@ -30,6 +30,7 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 // (Math.min(64, Math.max(workers*3, 16))); keep them aligned so the
 // verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 16
+const PROGRESS_REPORT_INTERVAL_MS = 250
 
 export interface VerifyLockfileResolutionsOptions {
   concurrency?: number
@@ -132,6 +133,9 @@ export async function verifyLockfileResolutions (
     return
   }
   const startedAt = Date.now()
+  let checkedEntries = 0
+  let lastProgressReportedAt = startedAt
+  let lastReportedChecked = 0
   lockfileVerificationLogger.debug({
     status: 'started',
     entries: candidates.size,
@@ -145,9 +149,30 @@ export async function verifyLockfileResolutions (
   // failure output.
   let terminalStatus: 'done' | 'failed' = 'failed'
   try {
-    const violations = await iterateLockfileViolations(candidates, verifiers, options?.concurrency)
+    const violations = await iterateLockfileViolations(
+      candidates,
+      verifiers,
+      options?.concurrency,
+      (checked) => {
+        checkedEntries = checked
+        const now = Date.now()
+        // In append-only terminals, avoid writing one line per package.
+        // ansi-diff mode still gets smooth updates from these checkpoints.
+        if (checked === lastReportedChecked) return
+        if (checked !== candidates.size && now - lastProgressReportedAt < PROGRESS_REPORT_INTERVAL_MS) return
+        lastReportedChecked = checked
+        lastProgressReportedAt = now
+        lockfileVerificationLogger.debug({
+          status: 'progress',
+          entries: candidates.size,
+          checked,
+          lockfilePath: options?.lockfilePath,
+        })
+      }
+    )
     if (violations.length === 0) {
       terminalStatus = 'done'
+      checkedEntries = candidates.size
       // Persist the success so the next install can stat-only the lockfile.
       if (cache) {
         recordVerification(cache.cacheDir, {
@@ -163,6 +188,7 @@ export async function verifyLockfileResolutions (
     lockfileVerificationLogger.debug({
       status: terminalStatus,
       entries: candidates.size,
+      checked: terminalStatus === 'done' ? candidates.size : checkedEntries,
       elapsedMs: Date.now() - startedAt,
       lockfilePath: options?.lockfilePath,
     })
@@ -263,9 +289,11 @@ function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
 async function iterateLockfileViolations (
   candidates: Map<string, Candidate>,
   verifiers: readonly ResolutionVerifier[],
-  concurrency: number | undefined
+  concurrency: number | undefined,
+  onEntryChecked?: (checked: number) => void
 ): Promise<ResolutionPolicyViolation[]> {
   const violations: ResolutionPolicyViolation[] = []
+  let checked = 0
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   await Promise.all(
     Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {
@@ -282,6 +310,8 @@ async function iterateLockfileViolations (
           break
         }
       }
+      checked++
+      onEntryChecked?.(checked)
     }))
   )
   return violations
