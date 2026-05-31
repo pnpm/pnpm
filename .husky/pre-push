@@ -1,1 +1,31 @@
-pnpm run compile-only && pnpm run lint --quiet
+#!/usr/bin/env sh
+remote="$1"
+zero=$(git hash-object --stdin </dev/null | tr '0-9a-f' '0')
+
+# The expensive cargo checks only matter for changes under pacquet/ or pnpr/.
+# Detect whether any commit being pushed touches those sources.
+rust_changed=
+while read -r local_ref local_oid remote_ref remote_oid; do
+  [ "$local_oid" = "$zero" ] && continue # branch deletion, nothing to check
+
+  if [ "$remote_oid" = "$zero" ]; then
+    # New branch on the remote: inspect every commit not already pushed anywhere.
+    range="$local_oid --not --remotes=$remote"
+  else
+    range="$remote_oid..$local_oid"
+  fi
+
+  if git log --pretty=format: --name-only $range -- pacquet pnpr 2>/dev/null | grep -q .; then
+    rust_changed=1
+    break
+  fi
+done
+
+pnpm run compile-only && pnpm run lint --quiet || exit 1
+
+if [ -z "$rust_changed" ]; then
+  echo "✓ No changes under pacquet/ or pnpr/ — skipping Rust pre-push checks."
+  exit 0
+fi
+
+bash pacquet/scripts/pre-push-rust.sh

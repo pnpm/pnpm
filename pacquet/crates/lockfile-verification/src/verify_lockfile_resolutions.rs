@@ -75,7 +75,7 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
 /// non-empty path, a `Started` always pairs with exactly one
 /// terminal `Done` (success) or `Failed` (rejection), even if the
 /// fan-out panics; the failure variant of the emit is fired from the
-/// drop guard so the reporter never leaves a hanging "Verifying…"
+/// drop guard so the reporter never leaves a hanging "Verifying..."
 /// frame.
 pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     lockfile: &Lockfile,

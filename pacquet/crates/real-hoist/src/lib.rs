@@ -248,8 +248,8 @@ impl<Inner> std::ops::Deref for RcByPtr<Inner> {
     }
 }
 
-impl<T> From<Rc<T>> for RcByPtr<T> {
-    fn from(rc: Rc<T>) -> Self {
+impl<Inner> From<Rc<Inner>> for RcByPtr<Inner> {
+    fn from(rc: Rc<Inner>) -> Self {
         Self(rc)
     }
 }
@@ -515,15 +515,17 @@ fn collect_snapshot_deps(
     Ok(())
 }
 
-/// Encode an importer id for use as a child node's `name`. Upstream
-/// uses `encodeURIComponent`, which percent-encodes everything
-/// except `A-Z a-z 0-9 - _ . ! ~ * ' ( )`. Pacquet workspace
-/// importers are filesystem-relative paths, so the common case is
-/// alphanumeric + `/` + `-` + `_`. Encode `/` (since it would
-/// confuse `node_modules` directory parsing) and pass the rest
-/// through; if a richer set ever shows up the function can switch
-/// to a full encoder without touching call sites.
-fn percent_encode_path(text: &str) -> String {
+/// Encode an importer id for use as a child node's `name` (and in
+/// the hoisting-limits locator keys built by
+/// `pacquet_package_manager::get_hoisting_limits`). Upstream uses
+/// `encodeURIComponent`, which percent-encodes everything except
+/// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`. Pacquet workspace importers are
+/// filesystem-relative paths, so the common case is alphanumeric +
+/// `/` + `-` + `_`. Encode `/` (since it would confuse
+/// `node_modules` directory parsing) and pass the rest through; if a
+/// richer set ever shows up the function can switch to a full
+/// encoder without touching call sites.
+pub fn percent_encode_path(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
         match ch {
@@ -593,8 +595,9 @@ fn percent_encode_path(text: &str) -> String {
 /// What this models today (continued):
 ///
 /// * `hoistingLimits` borders. Names in
-///   `opts.hoisting_limits[root_locator]` are kept out of the
-///   root's `node_modules` (`AbsorbDecision::Border`). Mirrors
+///   `opts.hoisting_limits[root_locator]` mark hoisting borders: a
+///   bordered node's descendants stay nested beneath it rather than
+///   hoisting to the root (`AbsorbDecision::Border`). Mirrors
 ///   upstream's `isHoistBorder` flag.
 /// * `externalDependencies` placeholders — the wrapper adds them
 ///   as zero-children `ExternalSoftLink` nodes at the root, and
@@ -608,10 +611,12 @@ fn percent_encode_path(text: &str) -> String {
 ///   alias, pacquet picks the first-visited; upstream picks the
 ///   one with more incoming references. Outcome differs for the
 ///   handful of upstream test cases that exercise the tie-break.
-/// * Multi-importer (workspace) hoist trees — pacquet's wrapper
-///   refuses lockfiles with non-root importers upfront via
-///   `UnsupportedWorkspace`. Workspace-aware hoisting requires
-///   per-importer roots and a different output shape.
+/// * Per-importer roots and the multi-level output shape upstream
+///   produces for workspaces. [`hoist`] does attach every non-root
+///   importer as a `Workspace`-kind child of the virtual `.` root
+///   when [`HoistOpts::hoist_workspace_packages`] is enabled, but the
+///   algorithm still hoists into that single `.` root rather than
+///   giving each importer its own hoisting root.
 /// * `ExternalSoftLink` descendants — pacquet creates soft-links
 ///   only as zero-children placeholders, so upstream's
 ///   "only-hoist-when-all-descendants-hoist" rule has nothing to
@@ -666,12 +671,14 @@ enum AbsorbDecision {
     /// [peer-shadow-root]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L414
     /// [peer-path]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L454-L479
     PeerShadow,
-    /// The candidate's name is in `opts.hoisting_limits` for the
-    /// current root locator. The caller asked us to keep this name
-    /// out of the root's `node_modules`, so the candidate stays
-    /// nested under its parent. Mirrors upstream's `isHoistBorder`
-    /// flag set during `cloneTree` from
-    /// [`hoist.ts:707`][hoist-border].
+    /// The candidate sits beneath a hoisting border — its parent (or
+    /// a higher ancestor) has a name listed in
+    /// `opts.hoisting_limits` for the root locator. A bordered node's
+    /// descendants stay nested beneath it rather than hoisting to the
+    /// root, so the candidate stays under its parent. Mirrors
+    /// upstream's `isHoistBorder` flag set during `cloneTree` from
+    /// [`hoist.ts:707`][hoist-border], which blocks a bordered node's
+    /// children from hoisting past it (not the bordered node itself).
     ///
     /// [hoist-border]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L707
     Border,
@@ -714,19 +721,21 @@ fn hoist_into_root(root: &Rc<HoisterResult>, root_locator: &str, opts: &HoistOpt
     let mut root_index: HashMap<String, RcByPtr<HoisterResult>> =
         root.dependencies.borrow().iter().map(|dep| (dep.0.name.clone(), dep.clone())).collect();
 
-    // Look up the names the caller asked us not to hoist to *this*
-    // root. Upstream stores this on each child as `isHoistBorder`
-    // during `cloneTree`; pacquet stays DAG-shaped and looks the
-    // names up by-name at decision time, which is equivalent since
-    // there's only one root locator. An empty fallback set means
-    // the check is effectively a no-op when no limits are configured.
+    // Look up the border names for *this* root locator: a node whose
+    // name is in this set is a hoisting border, so its descendants
+    // stay nested beneath it. Upstream stores the flag on each node
+    // as `isHoistBorder` during `cloneTree`; pacquet stays DAG-shaped
+    // and looks the names up by-name at decision time, which is
+    // equivalent since there's only one root locator. An empty
+    // fallback set means the check is a no-op when no limits are set.
     let empty_set: BTreeSet<String> = BTreeSet::new();
     let border_names: &BTreeSet<String> =
         opts.hoisting_limits.get(root_locator).unwrap_or(&empty_set);
 
     loop {
         let mut visited: HashSet<*const HoisterResult> = HashSet::new();
-        let changed = hoist_subtree(root, &[], root, &mut root_index, &mut visited, border_names);
+        let changed =
+            hoist_subtree(root, &[], root, &mut root_index, &mut visited, border_names, false);
         if !changed {
             break;
         }
@@ -746,12 +755,23 @@ fn hoist_subtree(
     root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
     visited: &mut HashSet<*const HoisterResult>,
     border_names: &BTreeSet<String>,
+    under_border: bool,
 ) -> bool {
     let root_ptr = Rc::as_ptr(root);
     if !visited.insert(Rc::as_ptr(node)) {
         return false;
     }
     let mut changed_in_subtree = false;
+
+    // A node whose name is in `border_names` is a hoisting border:
+    // its descendants are kept nested beneath it rather than hoisted
+    // to the root. `under_border` carries that boundary down the
+    // recursion — once any proper ancestor of a node is a border,
+    // the node (and everything below it) stays put. Mirrors
+    // upstream's `isHoistBorder` flag, which blocks a bordered
+    // node's *children* from hoisting past it, not the bordered
+    // node itself.
+    let children_blocked = under_border || border_names.contains(&node.name);
 
     // Snapshot the current children so we can mutate
     // `node.dependencies` mid-iteration without invalidating the
@@ -775,18 +795,20 @@ fn hoist_subtree(
             continue;
         }
 
-        let mut decision = match root_index.get(&child.0.name) {
-            None => AbsorbDecision::Free,
-            Some(existing) if Rc::ptr_eq(&existing.0, &child.0) => AbsorbDecision::SameNode,
-            Some(_) => AbsorbDecision::Conflict,
+        // A hoisting border on this `node` (or any ancestor) keeps
+        // every descendant nested, so the child stays under its
+        // parent regardless of whether the root slot is free. Decided
+        // before the free/dedup/conflict lookup because the border
+        // wins outright.
+        let mut decision = if children_blocked {
+            AbsorbDecision::Border
+        } else {
+            match root_index.get(&child.0.name) {
+                None => AbsorbDecision::Free,
+                Some(existing) if Rc::ptr_eq(&existing.0, &child.0) => AbsorbDecision::SameNode,
+                Some(_) => AbsorbDecision::Conflict,
+            }
         };
-
-        // Hoisting limits ride on top of the basic decision: even
-        // if the slot is free and no peer would shadow, the caller
-        // may have asked us to keep this name out of the root.
-        if matches!(decision, AbsorbDecision::Free) && border_names.contains(&child.0.name) {
-            decision = AbsorbDecision::Border;
-        }
 
         // Peer-aware refusal layered on top of the basic
         // free / dedup / conflict decision. `Conflict` already
@@ -833,19 +855,27 @@ fn hoist_subtree(
                 AbsorbDecision::Conflict | AbsorbDecision::PeerShadow | AbsorbDecision::Border => {
                     // Stays at the current parent. The version
                     // already at root wins the slot, hoisting would
-                    // shadow a peer dependency, or the caller's
-                    // `hoisting_limits` blocked the name. Child's
+                    // shadow a peer dependency, or the candidate sits
+                    // beneath a `hoisting_limits` border. Child's
                     // ancestor path is the path through `node`; a
                     // later round may revisit this candidate with a
-                    // different peer / conflict context (limits are
-                    // fixed so the Border verdict won't change).
+                    // different peer / conflict context (the border
+                    // boundary is fixed so the Border verdict won't
+                    // change).
                     path_for_children.clone()
                 }
             }
         };
 
-        let child_changed =
-            hoist_subtree(&child.0, &child_recursion_path, root, root_index, visited, border_names);
+        let child_changed = hoist_subtree(
+            &child.0,
+            &child_recursion_path,
+            root,
+            root_index,
+            visited,
+            border_names,
+            children_blocked,
+        );
         changed_in_subtree |= child_changed;
     }
     changed_in_subtree

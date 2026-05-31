@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 1101.1.7
+
+### Patch Changes
+
+- Updated dependencies [3cf2b86]
+- Updated dependencies [a39a83d]
+  - @pnpm/installing.package-requester@1101.0.10
+  - @pnpm/installing.linking.real-hoist@1100.1.0
+  - @pnpm/building.during-install@1101.0.15
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/fs.symlink-dependency@1100.0.6
+
 ## 1101.1.6
 
 ### Patch Changes

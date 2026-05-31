@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.commands",
-  "version": "1100.3.1",
+  "version": "1100.3.2",
   "description": "The list, ll, why, and outdated commands of pnpm",
   "keywords": [
     "pnpm",
@@ -73,7 +73,6 @@
     "@pnpm/deps.inspection.commands": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/testing.registry-mock": "workspace:*",

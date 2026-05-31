@@ -1,6 +1,6 @@
+use crate::registry::TestRegistry;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_registry_mock::AutoMockInstance;
 use std::{fs, path::PathBuf, process::Command};
 use tempfile::{TempDir, tempdir};
 use text_block_macros::text_block_fnl;
@@ -44,8 +44,8 @@ pub struct AddMockedRegistry {
     pub store_dir: PathBuf,
     /// Absolute path to the cache directory as defined by the `.npmrc` file.
     pub cache_dir: PathBuf,
-    /// Anchor to a mocked registry instance. The server will be stop when [dropped](Drop).
-    pub mock_instance: AutoMockInstance,
+    /// Handle to the process-scoped mocked registry used by this test.
+    pub mock_instance: TestRegistry,
 }
 
 impl CommandTempCwd<()> {
@@ -61,7 +61,7 @@ impl CommandTempCwd<()> {
             "store-dir=../pacquet-store"
             "cache-dir=../pacquet-cache"
         };
-        let mock_instance = AutoMockInstance::load_or_init();
+        let mock_instance = TestRegistry::start();
         let mocked_registry = mock_instance.url();
         let npmrc_text = format!("registry={mocked_registry}\n{npmrc_text}");
         fs::write(&npmrc_path, npmrc_text).expect("write to .npmrc");

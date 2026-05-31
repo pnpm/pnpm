@@ -278,7 +278,7 @@ impl<'a> LinkVirtualStoreBins<'a> {
         } else {
             // No snapshots (lockfile absent or empty): fall back to a
             // `read_dir` enumeration. This path only fires for non-
-            // frozen installs, which #432 doesn't activate GVS for, so
+            // frozen installs, which <https://github.com/pnpm/pacquet/issues/432> doesn't activate GVS for, so
             // reading from `layout.package_store_dir()` reproduces
             // today's behaviour exactly when GVS is off.
             run_with_readdir::<Sys>(layout.package_store_dir())

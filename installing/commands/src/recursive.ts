@@ -66,6 +66,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'depth'
 | 'globalPnpmfile'
 | 'hoistPattern'
+| 'hoistingLimits'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'

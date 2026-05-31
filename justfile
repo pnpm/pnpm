@@ -13,11 +13,6 @@ alias t := test
 # or install via `cargo install cargo-binstall`
 init:
   cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov -y
-  just install-hooks
-
-# Point git at pacquet/.githooks/ so the tracked pre-push format check runs on `git push`.
-install-hooks:
-  git config core.hooksPath pacquet/.githooks
 
 # When ready, run the same CI commands
 ready:
@@ -84,10 +79,10 @@ codecov:
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
-# Manage registry-mock. The launcher spawns `pnpm-registry`; on
+# Manage registry-mock. The launcher spawns `pnpr`; on
 # Windows you can't overwrite a running .exe, so we pre-build all
 # the test artifacts a subsequent `just test` will need with the
-# exact same invocation. A `-p pnpm-registry`-scoped pre-build is
+# exact same invocation. A `-p pnpr`-scoped pre-build is
 # not enough — workspace-wide feature unification gives a
 # different fingerprint and nextest would still try to re-link the
 # running binary, failing with `os error 5` on Windows MSVC.
@@ -96,14 +91,14 @@ registry-mock +args:
   cargo run --bin=pacquet-registry-mock -- {{args}}
 
 # The benchmark may auto-spawn the registry mock (via
-# `AutoMockInstance::load_or_init()`), so make sure `pnpm-registry`
+# `AutoMockInstance::load_or_init()`), so make sure `pnpr`
 # is built before the executor runs — otherwise the spawn step
 # aborts with "binary not found". Built with `--release` so the
 # mock serves at optimized perf; a debug build would put the
 # Rust mock at a multi-second handicap vs verdaccio, which V8
 # always JITs, polluting the install-perf signal.
 integrated-benchmark +args:
-  cargo build --release --bin=pnpm-registry
+  cargo build --release --bin=pnpr
   cargo run --bin=integrated-benchmark -- {{args}}
 
 cli +args:

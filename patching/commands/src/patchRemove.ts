@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { checkbox } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
-import enquirer from 'enquirer'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -40,17 +40,22 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
   if (!params.length) {
     const allPatches = Object.keys(patchedDependencies)
     if (allPatches.length) {
-      ({ patches: patchesToRemove } = await enquirer.prompt<{
-        patches: string[]
-      }>({
-        type: 'multiselect',
-        name: 'patches',
-        message: 'Select the patch to be removed',
-        choices: allPatches,
-        validate (value) {
-          return value.length === 0 ? 'Select at least one option.' : true
-        },
-      }))
+      try {
+        patchesToRemove = await checkbox({
+          choices: allPatches.map((name) => ({ name, value: name })),
+          message: 'Select the patch to be removed',
+          required: true,
+          validate: (values) => {
+            return values.length === 0 ? 'Select at least one option.' : true
+          },
+          theme: { keybindings: ['vim'] },
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          throw new PnpmError('PATCH_REMOVE_CANCELED', 'Canceled')
+        }
+        throw err
+      }
     }
   }
 

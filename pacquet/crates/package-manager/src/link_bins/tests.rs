@@ -214,7 +214,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
 ///
 /// Slot name shape verified against
 /// `pacquet_lockfile::pkg_name_ver_peer::tests::to_virtual_store_name`.
-/// Pins review finding #5.
+/// Pins review finding `#5`.
 #[test]
 fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
     let tmp = tempdir().unwrap();
@@ -499,7 +499,10 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
     impl FsWalkFiles for DenyVirtualStore {
         fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
             unreachable!("directories.bin not exercised by this test");
-            #[expect(unreachable_code)]
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
             Ok(empty())
         }
     }

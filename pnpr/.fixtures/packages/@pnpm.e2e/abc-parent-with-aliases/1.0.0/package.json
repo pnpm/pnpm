@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/abc-parent-with-aliases",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/abc": "^1.0.0",
+    "a": "npm:@pnpm.e2e/peer-a@^1.0.0",
+    "b": "npm:@pnpm.e2e/peer-b@^1.0.0",
+    "@pnpm.e2e/peer-c": "^1.0.0"
+  }
+}

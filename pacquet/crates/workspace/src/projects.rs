@@ -21,7 +21,7 @@
 //!
 //! Out of scope (tracked as upstream parity follow-ups):
 //!
-//! - `engines` / `os` / `cpu` installability filtering. Issue #431
+//! - `engines` / `os` / `cpu` installability filtering. Issue [#431]
 //!   explicitly defers this.
 //! - The `resolutions`-on-non-root warning. Single-line emission that
 //!   can land when the reporter side is in place.
@@ -29,6 +29,8 @@
 //!   filesystems. Same divergence as [`root_finder`].
 //!
 //! [`root_finder`]: super::root_finder
+//!
+//! [#431]: https://github.com/pnpm/pacquet/issues/431
 
 use crate::project_manifest::{ReadProjectManifestError, read_exact_project_manifest};
 use derive_more::{Display, Error};
@@ -102,9 +104,11 @@ pub enum FindWorkspaceProjectsError {
 /// [`findWorkspaceProjects`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts)
 /// except for the per-project `packageIsInstallable` /
 /// `checkNonRootProjectManifest` validations, which are explicitly
-/// deferred by #431. When validation lands, this entry point grows
+/// deferred by [#431]. When validation lands, this entry point grows
 /// the filter; today it's a thin wrapper over
 /// [`find_workspace_projects_no_check`].
+///
+/// [#431]: https://github.com/pnpm/pacquet/issues/431
 pub fn find_workspace_projects(
     workspace_root: &Path,
     opts: &FindWorkspaceProjectsOpts,
@@ -124,7 +128,7 @@ pub fn find_workspace_projects_no_check(
     // fallback fires only on `None`, not on `Some(vec![])` — an explicit
     // empty array means "enumerate only the workspace root" (which is
     // unconditionally added below per upstream's
-    // https://github.com/pnpm/pnpm/issues/1986 rule).
+    // <https://github.com/pnpm/pnpm/issues/1986> rule).
     let default_patterns = [".".to_string(), "**".to_string()];
     let patterns: &[String] = match opts.patterns.as_deref() {
         Some(p) => p,

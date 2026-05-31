@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/requires-itself",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/requires-itself": "1.0.0",
+    "is-positive": "^1.0.0"
+  }
+}

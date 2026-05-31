@@ -1,8 +1,10 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    Config, LinkWorkspacePackages, NodeLinker, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, ResolutionMode,
+    ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
@@ -14,6 +16,8 @@ storeDir: ../my-store
 registry: https://reg.example
 lockfile: false
 autoInstallPeers: true
+dedupePeers: true
+preferWorkspacePackages: true
 nodeLinker: hoisted
 packages:
   - packages/*
@@ -23,6 +27,8 @@ packages:
     assert_eq!(settings.registry.as_deref(), Some("https://reg.example"));
     assert_eq!(settings.lockfile, Some(false));
     assert_eq!(settings.auto_install_peers, Some(true));
+    assert_eq!(settings.dedupe_peers, Some(true));
+    assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
 }
 
@@ -106,6 +112,28 @@ fetchRetryMaxtimeout: 4000
     assert_eq!(config.fetch_retry_factor, 3);
     assert_eq!(config.fetch_retry_mintimeout, 1000);
     assert_eq!(config.fetch_retry_maxtimeout, 4000);
+}
+
+/// `networkConcurrency` / `fetchTimeout` / `userAgent` parse from
+/// `pnpm-workspace.yaml` as camelCase keys and `apply_to` pushes them
+/// onto the `Config`, matching pnpm.
+#[test]
+fn parses_network_settings_from_yaml_and_applies() {
+    let yaml = r#"
+networkConcurrency: 8
+fetchTimeout: 120000
+userAgent: my-agent/2.0
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.network_concurrency, Some(8));
+    assert_eq!(settings.fetch_timeout, Some(120_000));
+    assert_eq!(settings.user_agent.as_deref(), Some("my-agent/2.0"));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.network_concurrency, 8);
+    assert_eq!(config.fetch_timeout, 120_000);
+    assert_eq!(config.user_agent, "my-agent/2.0");
 }
 
 /// `namedRegistries` is the per-alias registry-URL map from
@@ -299,6 +327,65 @@ patchedDependencies:
     assert_eq!(map.get("lodash@4.17.21").map(String::as_str), Some("patches/lodash@4.17.21.patch"));
 }
 
+/// `configDependencies` is a map of package name → version-with-integrity
+/// spec. pacquet records it into the workspace-state file so pnpm's
+/// `checkDepsStatus` doesn't treat the install as stale on the next
+/// `pnpm run` / `pnpm node`. Guards the camelCase rename, optionality,
+/// and `apply_to` wiring.
+#[test]
+fn parses_config_dependencies_from_yaml_and_applies() {
+    let yaml = r#"
+configDependencies:
+  "@pnpm/pacquet": 0.2.2-14
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let expected = settings.config_dependencies.clone();
+    assert_eq!(
+        expected.as_ref().and_then(|m| m.get("@pnpm/pacquet")),
+        Some(&ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string())),
+    );
+
+    let mut config = Config::new();
+    assert!(config.config_dependencies.is_none(), "default is None");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.config_dependencies, expected);
+}
+
+/// pnpm's `configDependencies` value can also be the `{ tarball?, integrity }`
+/// object form. It must parse (not error) and round-trip, otherwise an
+/// upstream-supported manifest becomes a hard config-load failure.
+#[test]
+fn parses_object_form_config_dependencies() {
+    let yaml = r#"
+configDependencies:
+  "@scope/dep":
+    integrity: sha512-abc
+    tarball: https://example.test/dep.tgz
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let map = settings.config_dependencies.expect("field present");
+    assert_eq!(
+        map.get("@scope/dep"),
+        Some(&ConfigDependency::Detailed(ConfigDependencyDetail {
+            integrity: "sha512-abc".to_string(),
+            tarball: Some("https://example.test/dep.tgz".to_string()),
+        })),
+    );
+}
+
+/// `configDependencies` is workspace-only: it must not be honored from
+/// the global `config.yaml`, matching pnpm's `isConfigFileKey` filter.
+#[test]
+fn config_dependencies_cleared_as_workspace_only_field() {
+    let yaml = r#"
+configDependencies:
+  "@pnpm/pacquet": 0.2.2-14
+"#;
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.config_dependencies.is_none());
+}
+
 /// `allowBuilds` is a map of `name[@version]` → bool. Same camelCase
 /// rename + `apply_to` wiring as the other yaml-sourced settings.
 /// pnpm 10+ moved this out of `package.json#pnpm` (matches
@@ -406,6 +493,42 @@ fn parses_link_workspace_packages_deep_from_yaml() {
 fn rejects_invalid_link_workspace_packages() {
     let yaml = "linkWorkspacePackages: shallow\n";
     serde_saphyr::from_str::<WorkspaceSettings>(yaml).expect_err("must reject");
+}
+
+/// `injectWorkspacePackages: true` propagates from yaml to
+/// `Config.inject_workspace_packages`. Mirrors upstream's
+/// [`Config.injectWorkspacePackages`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L190).
+#[test]
+fn parses_inject_workspace_packages_true_from_yaml() {
+    let yaml = "injectWorkspacePackages: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.inject_workspace_packages, Some(true));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.inject_workspace_packages);
+}
+
+#[test]
+fn parses_inject_workspace_packages_false_from_yaml() {
+    let yaml = "injectWorkspacePackages: false\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.inject_workspace_packages, Some(false));
+
+    let mut config = Config::new();
+    config.inject_workspace_packages = true;
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.inject_workspace_packages);
+}
+
+#[test]
+fn inject_workspace_packages_defaults_off_when_absent() {
+    let yaml = "linkWorkspacePackages: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.inject_workspace_packages, None);
+
+    let config = Config::new();
+    assert!(!config.inject_workspace_packages);
 }
 
 /// `unsafePerm: false` from yaml propagates to `Config.unsafe_perm`
@@ -868,30 +991,87 @@ fn omitting_overrides_keeps_default() {
     assert!(config.overrides.is_none());
 }
 
-/// `hoistingLimits` deserializes as a map keyed by importer
-/// locator (e.g. `'.@'`); inner value is a list of alias names.
-/// Mirrors upstream's [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10)
-/// shape and threads straight into [`pacquet_real_hoist::HoistOpts`]
-/// via the install pipeline. Yaml-empty / missing keeps the
-/// `Config` field at its `BTreeMap::default()` empty value.
+/// `packageExtensions` parses as an ordered `selector → entry` map
+/// and applies onto [`Config::package_extensions`]. The entry uses
+/// camelCase field names so inner sections like
+/// `optionalDependencies` and `peerDependenciesMeta` round-trip
+/// through the deserializer.
 #[test]
-fn parses_hoisting_limits_from_yaml_and_applies() {
+fn parses_package_extensions_from_yaml_and_applies() {
     let yaml = r#"
-hoistingLimits:
-  ".@":
-    - foo
-    - bar
+packageExtensions:
+  is-positive:
+    dependencies:
+      "@pnpm.e2e/bar": 100.1.0
+  "@scope/foo@^2":
+    peerDependencies:
+      react: ">=16"
+    peerDependenciesMeta:
+      react:
+        optional: true
 "#;
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    let raw = settings.hoisting_limits.clone().expect("field present");
-    let aliases = raw.get(".@").expect("locator present");
-    assert!(aliases.contains("foo") && aliases.contains("bar"));
+    let extensions = settings.package_extensions.as_ref().expect("packageExtensions parsed");
+    let is_positive = extensions.get("is-positive").expect("is-positive entry");
+    assert_eq!(
+        is_positive
+            .dependencies
+            .as_ref()
+            .and_then(|map| map.get("@pnpm.e2e/bar"))
+            .map(String::as_str),
+        Some("100.1.0"),
+    );
+    let scoped = extensions.get("@scope/foo@^2").expect("scoped entry");
+    assert_eq!(
+        scoped.peer_dependencies.as_ref().and_then(|map| map.get("react")).map(String::as_str),
+        Some(">=16"),
+    );
+    let meta = scoped
+        .peer_dependencies_meta
+        .as_ref()
+        .and_then(|map| map.get("react"))
+        .expect("react peerDependenciesMeta entry");
+    assert_eq!(meta.optional, Some(true));
 
     let mut config = Config::new();
-    assert!(config.hoisting_limits.is_empty(), "default is empty");
+    assert!(config.package_extensions.is_none(), "default is None");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    let aliases = config.hoisting_limits.get(".@").expect("locator present in config");
-    assert!(aliases.contains("foo") && aliases.contains("bar"));
+    let applied = config.package_extensions.expect("package_extensions applied");
+    assert_eq!(applied.len(), 2);
+}
+
+/// An empty `packageExtensions:` map collapses to `None` on
+/// `Config`, mirroring the `overrides` behavior. Without this
+/// collapse, an empty `{}` would diverge from "no key set" at the
+/// workspace-state drift comparison.
+#[test]
+fn empty_package_extensions_map_collapses_to_none() {
+    let yaml = "packageExtensions: {}\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert!(settings.package_extensions.as_ref().is_some_and(indexmap::IndexMap::is_empty));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.package_extensions.is_none(), "empty map collapses to None");
+}
+
+/// `hoistingLimits` deserializes as one of the `none` / `workspaces`
+/// / `dependencies` modes. Mirrors upstream's
+/// [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/89812a9353/installing/linking/real-hoist/src/index.ts)
+/// shape; the install pipeline translates the mode into the
+/// per-locator border map via `pacquet_package_manager::get_hoisting_limits`.
+/// Yaml-empty / missing keeps the `Config` field at its
+/// [`HoistingLimits::None`] default.
+#[test]
+fn parses_hoisting_limits_from_yaml_and_applies() {
+    let yaml = "hoistingLimits: dependencies\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.hoisting_limits, Some(HoistingLimits::Dependencies));
+
+    let mut config = Config::new();
+    assert_eq!(config.hoisting_limits, HoistingLimits::None, "default is None");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.hoisting_limits, HoistingLimits::Dependencies);
 }
 
 /// `externalDependencies` deserializes as a flat list of names.
@@ -928,7 +1108,7 @@ fn omitting_hoisting_limits_and_external_dependencies_keeps_defaults() {
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(config.hoisting_limits.is_empty());
+    assert_eq!(config.hoisting_limits, HoistingLimits::None);
     assert!(config.external_dependencies.is_empty());
 }
 
@@ -1005,4 +1185,116 @@ fn trust_policy_yaml_values_round_trip() {
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.trust_policy, TrustPolicy::Off, "default stays off when key is absent");
+}
+
+/// `resolutionMode` accepts the three upstream string values; an
+/// absent key leaves the [`ResolutionMode::Highest`] default in place.
+#[test]
+fn resolution_mode_yaml_values_round_trip() {
+    for (yaml, expected) in [
+        ("resolutionMode: highest\n", ResolutionMode::Highest),
+        ("resolutionMode: time-based\n", ResolutionMode::TimeBased),
+        ("resolutionMode: lowest-direct\n", ResolutionMode::LowestDirect),
+    ] {
+        let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        assert_eq!(settings.resolution_mode, Some(expected));
+        let mut config = Config::new();
+        settings.apply_to(&mut config, Path::new("/irrelevant"));
+        assert_eq!(config.resolution_mode, expected);
+    }
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str("").unwrap();
+    assert!(settings.resolution_mode.is_none());
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.resolution_mode,
+        ResolutionMode::Highest,
+        "default stays highest when the key is absent",
+    );
+}
+
+/// `registrySupportsTimeField` is a camelCase boolean; default `false`.
+#[test]
+fn parses_registry_supports_time_field_from_yaml_and_applies() {
+    let yaml = "registrySupportsTimeField: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.registry_supports_time_field, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.registry_supports_time_field, "the default is `false`");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.registry_supports_time_field, "yaml override wins");
+}
+
+/// `allowedDeprecatedVersions` is a `name → semver-range` map parsed
+/// from camelCase yaml and applied verbatim onto `Config`.
+#[test]
+fn parses_allowed_deprecated_versions_from_yaml_and_applies() {
+    let yaml = r#"
+allowedDeprecatedVersions:
+  request: "^2.88.0"
+  lodash: "<5.0.0"
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    assert!(config.allowed_deprecated_versions.is_empty(), "default is empty");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.allowed_deprecated_versions.get("request").map(String::as_str),
+        Some("^2.88.0"),
+    );
+    assert_eq!(
+        config.allowed_deprecated_versions.get("lodash").map(String::as_str),
+        Some("<5.0.0"),
+    );
+}
+
+/// `updateConfig.ignoreDependencies` parses from the nested camelCase
+/// shape and lands on `Config.update_config`.
+#[test]
+fn parses_update_config_ignore_dependencies_from_yaml_and_applies() {
+    let yaml = r#"
+updateConfig:
+  ignoreDependencies:
+    - "@pnpm.e2e/foo"
+    - "@pnpm.e2e/bar"
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    assert!(config.update_config.ignore_dependencies.is_none(), "default is unset");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.update_config.ignore_dependencies.as_deref(),
+        Some(&["@pnpm.e2e/foo".to_string(), "@pnpm.e2e/bar".to_string()][..]),
+    );
+}
+
+/// `peerDependencyRules` parses its three sub-fields from camelCase
+/// yaml and lands on `Config.peer_dependency_rules`.
+#[test]
+fn parses_peer_dependency_rules_from_yaml_and_applies() {
+    let yaml = r#"
+peerDependencyRules:
+  ignoreMissing:
+    - ajv
+  allowAny:
+    - react
+  allowedVersions:
+    bbb: "2"
+    "xxx>@foo/bar": "2"
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+
+    let mut config = Config::new();
+    assert_eq!(config.peer_dependency_rules, Default::default(), "default is empty");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    let rules = &config.peer_dependency_rules;
+    assert_eq!(rules.ignore_missing.as_deref(), Some(&["ajv".to_string()][..]));
+    assert_eq!(rules.allow_any.as_deref(), Some(&["react".to_string()][..]));
+    let allowed = rules.allowed_versions.as_ref().expect("allowedVersions set");
+    assert_eq!(allowed.get("bbb").map(String::as_str), Some("2"));
+    assert_eq!(allowed.get("xxx>@foo/bar").map(String::as_str), Some("2"));
 }

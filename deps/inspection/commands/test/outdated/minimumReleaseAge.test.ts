@@ -6,8 +6,8 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { expect, test } from '@jest/globals'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import { tempDir } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')

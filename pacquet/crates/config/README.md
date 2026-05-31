@@ -28,6 +28,7 @@ For more information, read [pnpm docs about .npmrc](https://pnpm.io/npmrc)
 |      | lockfile                     |       |
 |      | prefer_frozen_lockfile       |       |
 |      | lockfile_include_tarball_url |       |
+| ✅    | exclude_links_from_lockfile  |       |
 
 # Registry & Authentication Settings
 

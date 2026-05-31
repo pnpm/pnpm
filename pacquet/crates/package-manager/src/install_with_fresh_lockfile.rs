@@ -11,7 +11,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
-use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
+use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, TrustPolicy};
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
@@ -21,7 +21,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
-    ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions, resolve_importer,
+    ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
 };
 use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
@@ -34,7 +34,7 @@ use pacquet_resolving_npm_resolver::{
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
 };
-use pacquet_resolving_tarball_resolver::TarballResolver;
+use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
 use pacquet_tarball::MemCache;
 use std::{
@@ -65,8 +65,9 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 /// drives this path whenever no `--frozen-lockfile` was requested.
 ///
 /// **Brief overview for each package:**
-/// * Resolve the dependency through the [`NpmResolver`] chain
-///   ([`resolve_importer`] builds the full tree and hoists peers first).
+/// * Resolve every importer's dependency through the [`NpmResolver`] chain
+///   (`resolve_workspace` builds the per-importer trees, runs the
+///   cross-importer peer pass, and applies `dedupeInjectedDeps`).
 /// * Fetch a tarball of each resolved package and extract it into the
 ///   store directory.
 /// * Import (by reflink, hardlink, or copy) the files from the store
@@ -144,6 +145,25 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// from it to skip duplicate fetches when both touch the same
     /// `(registry, name)`.
     pub meta_cache: Arc<InMemoryPackageMetaCache>,
+    /// Resolved [`pacquet_config::Config::node_linker`]. Selects the
+    /// materialization shape after the virtual store is populated:
+    /// under [`NodeLinker::Hoisted`] the freshly-built lockfile is
+    /// routed through [`crate::lockfile_to_hoisted_dep_graph`] +
+    /// [`crate::link_hoisted_modules()`] instead of the isolated
+    /// symlink layout.
+    pub node_linker: NodeLinker,
+    /// CLI-merged `supportedArchitectures` (`pnpm-workspace.yaml` +
+    /// `--cpu`/`--os`/`--libc`). Threaded into the hoisted-linker
+    /// walker so its installability filter honors user-supplied
+    /// accept lists. `None` when no architectures are configured.
+    pub supported_architectures: Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    /// When `true`, resolve the graph and write `pnpm-lock.yaml`, then
+    /// return — skipping the tarball prefetch, virtual-store
+    /// materialization, symlinks, hoisting, and bin linking. The store
+    /// stays untouched (no tarball is fetched), matching pnpm's
+    /// `dryRun: opts.lockfileOnly` resolve pass. See
+    /// [`crate::Install::lockfile_only`].
+    pub lockfile_only: bool,
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -158,8 +178,35 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
 
+    /// Surfaces failures from [`crate::lockfile_to_hoisted_dep_graph`]
+    /// when a fresh install runs under `nodeLinker: hoisted`. Same
+    /// shape the frozen-lockfile path surfaces — see
+    /// `InstallFrozenLockfileError::HoistedDepGraph`.
+    #[diagnostic(transparent)]
+    HoistedDepGraph(#[error(source)] crate::HoistedDepGraphError),
+
+    /// Surfaces failures from [`crate::link_hoisted_modules()`] while
+    /// materializing the on-disk hoisted tree on the fresh path. Same
+    /// shape the frozen-lockfile path surfaces — see
+    /// `InstallFrozenLockfileError::LinkHoistedModules`.
+    #[diagnostic(transparent)]
+    LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
+
     #[diagnostic(transparent)]
     LinkBins(#[error(source)] LinkBinsError),
+
+    /// Surfaces a failure to create one of the hoist symlinks
+    /// (`<private_hoisted_modules_dir>/<alias>` or
+    /// `<public_hoisted_modules_dir>/<alias>`). EEXIST is
+    /// already swallowed by the hoist helper, so this only fires
+    /// on real I/O failures.
+    #[diagnostic(transparent)]
+    HoistSymlink(#[error(source)] crate::SymlinkPackageError),
+
+    /// Surfaces a failure to link bins of privately-hoisted aliases
+    /// into the virtual-store-local `<vs>/node_modules/.bin`.
+    #[diagnostic(transparent)]
+    HoistLinkBins(#[error(source)] LinkBinsError),
 
     #[diagnostic(transparent)]
     LinkVirtualStoreBins(#[error(source)] LinkVirtualStoreBinsError),
@@ -184,6 +231,12 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 
+    /// `trustPolicyExclude` patterns rejected at compile time.
+    /// Mirrors upstream's `ERR_PNPM_INVALID_TRUST_POLICY_EXCLUDE`.
+    #[display("Invalid value in trustPolicyExclude: {_0}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_TRUST_POLICY_EXCLUDE))]
+    TrustPolicyExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
+
     /// `allowBuilds` patterns in `pnpm-workspace.yaml` couldn't be
     /// parsed. Same `VersionPolicyError` shape the frozen-lockfile
     /// path surfaces — see `InstallFrozenLockfileError::VersionPolicy`
@@ -203,6 +256,18 @@ pub enum InstallWithFreshLockfileError {
     /// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
     #[diagnostic(transparent)]
     InvalidNamedRegistry(#[error(source)] MergeNamedRegistriesError),
+
+    /// A `packageExtensions` selector's `@<range>` half failed to
+    /// parse as a `node-semver` range. Mirrors upstream's behavior —
+    /// pnpm hands the raw range to `semver.satisfies`, which throws
+    /// a `TypeError` on a malformed range; pacquet surfaces the same
+    /// failure mode earlier (install start, not first per-manifest
+    /// match) so the user sees the bad selector before any tarballs
+    /// are fetched.
+    #[diagnostic(transparent)]
+    InvalidPackageExtensionSelector(
+        #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
+    ),
 
     /// The first writer of a shared `(name, version)` slot dropped its
     /// completion signal without sending `true`. In practice this only
@@ -227,6 +292,23 @@ pub enum InstallWithFreshLockfileError {
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 }
 
+impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFreshLockfileError {
+    fn from(error: crate::install_frozen_lockfile::HoistedLinkerError) -> Self {
+        use crate::install_frozen_lockfile::HoistedLinkerError;
+        match error {
+            HoistedLinkerError::HoistedDepGraph(error) => {
+                InstallWithFreshLockfileError::HoistedDepGraph(error)
+            }
+            HoistedLinkerError::LinkHoistedModules(error) => {
+                InstallWithFreshLockfileError::LinkHoistedModules(error)
+            }
+            HoistedLinkerError::SymlinkDirectDependencies(error) => {
+                InstallWithFreshLockfileError::SymlinkDirectDependencies(error)
+            }
+        }
+    }
+}
+
 /// Output of [`InstallWithFreshLockfile::run`].
 ///
 /// Returns the hoist-graph slot the dispatch already consumed plus the
@@ -238,6 +320,14 @@ pub enum InstallWithFreshLockfileError {
 #[must_use]
 pub struct InstallWithFreshLockfileResult {
     pub hoisted_dependencies: HoistedDependencies,
+    /// Per-depPath list of lockfile-relative directory paths the
+    /// hoisted linker placed each package at. Empty under the
+    /// isolated linker (the field is hoisted-only on disk). The
+    /// caller persists it into
+    /// [`pacquet_modules_yaml::Modules::hoisted_locations`] so a
+    /// follow-up install or rebuild can locate every package without
+    /// re-running the walker.
+    pub hoisted_locations: BTreeMap<String, Vec<String>>,
     /// `Some` when the install resolved a graph that was written to
     /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
     /// `config.lockfile=false`). The caller mirrors the same gate when
@@ -248,13 +338,11 @@ pub struct InstallWithFreshLockfileResult {
 impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Execute the subroutine.
     ///
-    /// The fresh-lockfile path's [`HoistedDependencies`] slot is always
-    /// empty. Hoisting needs the resolved snapshot graph the lockfile
-    /// carries; this path serializes the graph into `pnpm-lock.yaml`
-    /// itself, but the hoist pass still runs only inside the
-    /// frozen-lockfile install ([`crate::InstallFrozenLockfile::run`]).
-    /// The signature symmetry keeps `Install::run` from branching on
-    /// which sub-path produced the result.
+    /// Under the isolated linker the [`HoistedDependencies`] result
+    /// carries the publicly/privately-hoisted alias map; under
+    /// `nodeLinker: hoisted` it is empty (the hoisted linker writes the
+    /// on-disk tree directly and reports its placements through
+    /// [`InstallWithFreshLockfileResult::hoisted_locations`] instead).
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError>
@@ -288,7 +376,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             update_checksums,
             wanted_lockfile,
             meta_cache,
+            node_linker,
+            supported_architectures,
+            lockfile_only,
         } = self;
+        let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
         // the iterator) and `SymlinkDirectDependencies` (needs to walk
@@ -331,6 +423,19 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         let named_registry_aliases: std::collections::HashSet<String> =
             merged_named_registries.keys().cloned().collect();
 
+        // `resolutionMode` derivations. `time_based` and
+        // `pick_lowest_direct` steer the deps-resolver's per-depth
+        // version pick; `full_metadata` forces the npm resolver to
+        // fetch per-version `time` fields so the time-based cutoff (and
+        // the no-downgrade trust check) have publication dates to work
+        // with. Mirrors pnpm's
+        // [`fullMetadata`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/connection-manager/src/createNewStoreController.ts#L69-L74)
+        // expression: `(time-based || no-downgrade) && !registrySupportsTimeField`.
+        let time_based = config.resolution_mode == ResolutionMode::TimeBased;
+        let pick_lowest_direct = config.resolution_mode.picks_lowest_direct();
+        let full_metadata = (time_based || config.trust_policy == TrustPolicy::NoDowngrade)
+            && !config.registry_supports_time_field;
+
         // One per-cache-key packument fetch serializer shared between
         // the npm and named-registry resolvers. Ports upstream's
         // [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L42-L44):
@@ -346,6 +451,36 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // every occurrence of a shared dep in the tree.
         let picked_manifest_cache = shared_picked_manifest_cache();
 
+        // Open the read-only SQLite index, spawn the batched writer, and
+        // allocate the install-scoped `verifiedFilesCache` *before* the
+        // resolver chain is built. Both the `TarballResolver` (which
+        // fetches a remote tarball direct dep during resolution to learn
+        // its name/version/integrity) and the [`PrefetchingResolver`]
+        // need these at construction time so the store-index / writer /
+        // verify cache they touch is the same one the install pass uses
+        // once resolution is done. Mirrors pnpm's `packageRequester`
+        // shape: the fetch begins as soon as the resolver returns,
+        // before any further tree walk.
+        let store_index =
+            match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))
+                .await
+            {
+                Ok(store_index) => store_index,
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        "store-index open task failed; continuing without a shared cache index",
+                    );
+                    None
+                }
+            };
+        let store_index_ref = store_index.as_ref();
+
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
+
+        let verified_files_cache = SharedVerifiedFilesCache::default();
+
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
             named_registries: merged_named_registries.clone(),
@@ -358,20 +493,38 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             offline: config.offline,
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-            // Default to abbreviated metadata at resolve time and let
-            // [`pick_package`] upgrade per-call when `published_by` or
-            // `optional` demand it. Mirrors upstream's
-            // [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175)
-            // default. Pacquet's `Config` doesn't surface a
-            // `fullMetadata` knob; if one lands later, thread it
-            // here.
-            full_metadata: false,
+            // Abbreviated metadata at resolve time unless `time-based`
+            // resolution or the `no-downgrade` trust policy needs the
+            // per-version `time` field (and the registry doesn't serve
+            // it in abbreviated form). When `false`, [`pick_package`]
+            // still upgrades per-call where `published_by` / `optional`
+            // demand it. Mirrors upstream's
+            // [`fullMetadata`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/connection-manager/src/createNewStoreController.ts#L69-L74).
+            full_metadata,
         });
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
             Arc::new(RealGitRunner::new()),
         );
-        let tarball_resolver = TarballResolver { http_client: Arc::clone(&http_client_arc) };
+        // A remote (non-registry) tarball *direct* dependency carries no
+        // name/version/integrity at resolve time — they live in the
+        // tarball's `package.json`. The resolver downloads + extracts it
+        // here (warming `tarball_mem_cache` keyed by URL) so the lockfile
+        // builder gets the manifest + integrity and the install pass
+        // reuses the extraction without a second download. Wired in both
+        // the materializing and `--lockfile-only` paths: the lockfile
+        // needs the integrity regardless of whether `node_modules` is
+        // built.
+        let tarball_resolver = TarballResolver {
+            http_client: Arc::clone(&http_client_arc),
+            fetch_context: Some(TarballFetchContext {
+                store_dir,
+                store_index_writer: Some(Arc::clone(&store_index_writer)),
+                mem_cache: Some(Arc::clone(&tarball_mem_cache)),
+                auth_headers: Arc::clone(&config.auth_headers),
+                retry_opts: crate::retry_config::retry_opts_from_config(config),
+            }),
+        };
         // `preserveAbsolutePaths` is wired through `Config`; thread the
         // current value into the local-resolver context so absolute
         // `file:` / `link:` specs round-trip the same shape upstream
@@ -400,7 +553,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             // Same rationale as `NpmResolver.full_metadata` above.
-            full_metadata: false,
+            full_metadata,
         };
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:
@@ -424,36 +577,6 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             Box::new(local_path_resolver),
         ]));
 
-        // Open the read-only SQLite index, spawn the batched writer,
-        // and allocate the install-scoped `verifiedFilesCache` *before*
-        // the resolver chain runs. These were originally opened after
-        // `resolve_importer` returned, but the
-        // [`PrefetchingResolver`] needs them at construction time so
-        // the per-resolve `tokio::spawn`ed [`DownloadTarballToStore`]
-        // shares the same store-index / writer / verify cache as the
-        // install pass that runs once resolution is done. Mirrors
-        // pnpm's `packageRequester` shape: the fetch begins as soon as
-        // the resolver returns, before any further tree walk.
-        let store_index =
-            match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))
-                .await
-            {
-                Ok(store_index) => store_index,
-                Err(error) => {
-                    tracing::warn!(
-                        target: "pacquet::install",
-                        ?error,
-                        "store-index open task failed; continuing without a shared cache index",
-                    );
-                    None
-                }
-            };
-        let store_index_ref = store_index.as_ref();
-
-        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
-
-        let verified_files_cache = SharedVerifiedFilesCache::default();
-
         // Wrap the resolver chain so each tarball-shaped result fires a
         // background download into `tarball_mem_cache` while the
         // deps-resolver continues to walk the tree. The install pass
@@ -464,18 +587,28 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // download's `pnpm:progress` emits route through the same
         // reporter the install pass uses. See
         // `prefetching_resolver.rs` for the full design rationale.
-        let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
-            inner_resolver,
-            PrefetchContext {
-                http_client: &http_client_arc,
-                mem_cache: &tarball_mem_cache,
-                store_index: store_index_ref,
-                store_index_writer: Some(&store_index_writer),
-                verified_files_cache: &verified_files_cache,
-                config,
-                requester,
-            },
-        ));
+        //
+        // Skipped entirely under `--lockfile-only`: that path writes only
+        // `pnpm-lock.yaml` and must not touch the store, so resolution
+        // runs through the bare chain with no background download.
+        // Mirrors pnpm's `dryRun: opts.lockfileOnly` at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1432>.
+        let resolver: Box<dyn Resolver> = if lockfile_only {
+            inner_resolver
+        } else {
+            Box::new(PrefetchingResolver::<Reporter>::new(
+                inner_resolver,
+                PrefetchContext {
+                    http_client: &http_client_arc,
+                    mem_cache: &tarball_mem_cache,
+                    store_index: store_index_ref,
+                    store_index_writer: Some(&store_index_writer),
+                    verified_files_cache: &verified_files_cache,
+                    config,
+                    requester,
+                },
+            ))
+        };
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)
         // for the resolve pass. Mirrors the verifier wiring in
@@ -488,7 +621,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // wall-clock subtraction. On overflow we leave the policy
         // inactive for this install — better than silently producing
         // a cutoff in the wrong direction.
-        let published_by = config.minimum_release_age.and_then(|minutes| {
+        let published_by = config.resolved_minimum_release_age().and_then(|minutes| {
             let duration = chrono::Duration::try_minutes(i64::try_from(minutes).ok()?)?;
             chrono::Utc::now().checked_sub_signed(duration)
         });
@@ -499,6 +632,23 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .map(pacquet_config::version_policy::create_package_version_policy)
             .transpose()
             .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
+
+        // `trustPolicy='no-downgrade'` config, threaded into every
+        // resolve so the npm resolver re-applies the downgrade gate to
+        // freshly picked versions. `full_metadata` above is already
+        // forced on under this policy, so the picker hands the resolver
+        // the per-version `time` + trust evidence the check reads.
+        let trust_policy = match config.trust_policy {
+            TrustPolicy::Off => None,
+            TrustPolicy::NoDowngrade => Some(TrustPolicy::NoDowngrade),
+        };
+        let trust_policy_exclude = config
+            .trust_policy_exclude
+            .as_deref()
+            .filter(|patterns| !patterns.is_empty())
+            .map(pacquet_config::version_policy::create_package_version_policy)
+            .transpose()
+            .map_err(InstallWithFreshLockfileError::TrustPolicyExclude)?;
 
         // Seed `allPreferredVersions` from every importer's manifest +
         // the wanted lockfile's snapshots (when an existing one is
@@ -529,6 +679,23 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
             .map(Arc::new);
 
+        // Build the `packageExtensions` hook once per install. The
+        // closure captures an `Arc<PackageExtender>` so every importer
+        // and every concurrent resolve clones the same grouped-by-name
+        // lookup table. `None` when no extensions are configured so the
+        // resolver hot path skips the per-resolve dispatch.
+        //
+        // An invalid `@<range>` in any selector surfaces here, before
+        // the resolver runs — same intent as upstream's TypeError out
+        // of `semver.satisfies`, but lifted to install start so the
+        // user sees the bad selector before any tarballs are fetched.
+        let package_extensions_hook = match config.package_extensions.as_ref() {
+            Some(extensions) => crate::PackageExtender::new(extensions)
+                .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?
+                .into_manifest_hook(),
+            None => None,
+        };
+
         // Loop per workspace project. Each importer gets its own
         // resolve_importer call with its own `project_dir` so
         // `workspace:` / `link:` resolutions compute paths relative
@@ -540,85 +707,105 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // iteration: one shared resolution context, per-importer
         // direct-deps slices.
         let phase_start = std::time::Instant::now();
-        let mut merged_graph: pacquet_resolving_deps_resolver::DependenciesGraph =
-            std::collections::HashMap::new();
-        let mut direct_by_importer: BTreeMap<
-            String,
-            BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>,
-        > = BTreeMap::new();
-        let mut total_nodes = 0usize;
-        for (importer_id, importer_manifest) in &importer_manifests {
-            let project_dir = importer_manifest
-                .path()
-                .parent()
-                .expect("manifest path always has a parent dir")
-                .to_path_buf();
-            let importer_opts = ResolveImporterOptions {
-                auto_install_peers: config.auto_install_peers,
-                auto_install_peers_from_highest_match: config.auto_install_peers_from_highest_match,
-                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
-                all_preferred_versions: all_preferred_versions.clone(),
-                patched_dependencies: patched_dependencies.clone(),
-                base_opts: ResolveOptions {
-                    default_tag: Some("latest".to_string()),
-                    published_by,
-                    published_by_exclude: published_by_exclude.clone(),
-                    project_dir,
-                    lockfile_dir: lockfile_dir.to_path_buf(),
-                    workspace_packages: workspace_packages.clone(),
-                    block_exotic_subdeps: config.block_exotic_subdeps,
-                    // Pacquet's deps-resolver doesn't thread per-call
-                    // depth into the resolver yet, so the
-                    // `linkWorkspacePackages: true` (direct-only) and
-                    // `"deep"` arms both collapse onto a flag that
-                    // applies at every depth. Matches pnpm's behavior
-                    // for `"deep"`; the (rare) `true`-only case may
-                    // resolve a transitive registry dep through the
-                    // workspace when the names collide.
-                    always_try_workspace_packages: config.link_workspace_packages
-                        != LinkWorkspacePackages::Off,
-                    update_checksums,
-                    ..ResolveOptions::default()
-                },
-                catalogs: catalogs.clone(),
-            };
-            let importer_result = resolve_importer(
-                &*resolver,
-                importer_manifest,
-                dependency_groups.iter().copied(),
-                importer_opts,
-            )
-            .await
-            .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
-            total_nodes += importer_result.peers_result.graph.len();
-            // Merge this importer's per-id graph into the shared
-            // graph; identical depPaths collapse onto the existing
-            // entry. Two importers depending on the same package
-            // version produce equivalent nodes by construction of the
-            // (deterministic) resolver, so a first-writer-wins merge
-            // is safe.
-            for (key, node) in importer_result.peers_result.graph {
-                merged_graph.entry(key).or_insert(node);
-            }
-            direct_by_importer.insert(
-                importer_id.clone(),
-                importer_result.peers_result.direct_dependencies_by_alias,
+        let workspace_importers: Vec<pacquet_resolving_deps_resolver::WorkspaceImporter<'_>> =
+            importer_manifests
+                .iter()
+                .map(|(id, manifest)| pacquet_resolving_deps_resolver::WorkspaceImporter {
+                    id: id.clone(),
+                    manifest,
+                })
+                .collect();
+        let peers_suffix_max_length =
+            usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
+        let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
+            dedupe_peers: config.dedupe_peers,
+            dedupe_injected_deps: config.dedupe_injected_deps,
+            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+            lockfile_dir: lockfile_dir.to_path_buf(),
+            peers_suffix_max_length,
+            manifest_hook: package_extensions_hook.clone(),
+            pick_lowest_direct,
+            time_based,
+        };
+        let modules_basename = config
+            .modules_dir
+            .file_name()
+            .map(std::ffi::OsStr::to_os_string)
+            .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
+        let workspace_result = pacquet_resolving_deps_resolver::resolve_workspace(
+            &*resolver,
+            &workspace_importers,
+            &dependency_groups,
+            workspace_opts,
+            |importer| {
+                let project_dir = importer
+                    .manifest
+                    .path()
+                    .parent()
+                    .expect("manifest path always has a parent dir")
+                    .to_path_buf();
+                let importer_modules_dir = project_dir.join(&modules_basename);
+                ResolveImporterOptions {
+                    auto_install_peers: config.auto_install_peers,
+                    auto_install_peers_from_highest_match: config
+                        .auto_install_peers_from_highest_match,
+                    resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+                    dedupe_peers: config.dedupe_peers,
+                    all_preferred_versions: all_preferred_versions.clone(),
+                    patched_dependencies: patched_dependencies.clone(),
+                    // `pick_lowest_direct` / `subdep_published_by` are
+                    // authoritative from `resolve_workspace` (it computes
+                    // the workspace-wide time-based cutoff and overrides
+                    // both per importer); the values here just satisfy
+                    // the struct. `subdep_published_by` defaults to the
+                    // `minimumReleaseAge` cutoff so non-time-based modes
+                    // leave subdep resolution unchanged.
+                    pick_lowest_direct,
+                    subdep_published_by: published_by,
+                    base_opts: ResolveOptions {
+                        default_tag: Some("latest".to_string()),
+                        published_by,
+                        published_by_exclude: published_by_exclude.clone(),
+                        trust_policy,
+                        trust_policy_exclude: trust_policy_exclude.clone(),
+                        trust_policy_ignore_after: config.trust_policy_ignore_after,
+                        project_dir,
+                        lockfile_dir: lockfile_dir.to_path_buf(),
+                        workspace_packages: workspace_packages.clone(),
+                        block_exotic_subdeps: config.block_exotic_subdeps,
+                        always_try_workspace_packages: config.link_workspace_packages
+                            != LinkWorkspacePackages::Off,
+                        inject_workspace_packages: config.inject_workspace_packages,
+                        prefer_workspace_packages: config.prefer_workspace_packages,
+                        update_checksums,
+                        ..ResolveOptions::default()
+                    },
+                    catalogs: catalogs.clone(),
+                    exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                    lockfile_dir: Some(lockfile_dir.to_path_buf()),
+                    modules_dir: Some(importer_modules_dir),
+                    peers_suffix_max_length,
+                    manifest_hook: package_extensions_hook.clone(),
+                }
+            },
+        )
+        .await
+        .map_err(InstallWithFreshLockfileError::ResolveImporter)?;
+        let total_nodes = workspace_result.peers.graph.len();
+        for (importer_id, issues) in &workspace_result.peers.peer_dependency_issues_by_importer {
+            tracing::warn!(
+                target: "pacquet::install",
+                importer_id = %importer_id,
+                missing = issues.missing.len(),
+                bad = issues.bad.len(),
+                "Peer dependency issues detected (issue renderer not ported yet)",
             );
-            if !importer_result.peers_result.peer_dependency_issues.missing.is_empty()
-                || !importer_result.peers_result.peer_dependency_issues.bad.is_empty()
-            {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    importer_id = %importer_id,
-                    missing = importer_result.peers_result.peer_dependency_issues.missing.len(),
-                    bad = importer_result.peers_result.peer_dependency_issues.bad.len(),
-                    "Peer dependency issues detected (issue renderer not ported yet)",
-                );
-            }
         }
+        let merged_graph = workspace_result.peers.graph;
+        let direct_by_importer = workspace_result.peers.direct_dependencies_by_importer;
         tracing::info!(
             target: "pacquet::install::phase",
-            phase = "resolve_importer",
+            phase = "resolve_workspace",
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             importers = importer_manifests.len(),
             nodes = total_nodes,
@@ -646,6 +833,58 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         drop(meta_cache);
         drop(fetch_locker);
         drop(picked_manifest_cache);
+
+        // `--lockfile-only`: the graph is resolved, so build and write
+        // `pnpm-lock.yaml` and return before any materialization. No
+        // tarball was prefetched (the resolver ran without the
+        // `PrefetchingResolver` wrapper), so the store is untouched and
+        // there is no `node_modules`, `.modules.yaml`, or current
+        // lockfile — matching pnpm's lockfileOnly resolve pass.
+        if lockfile_only {
+            let built_lockfile = build_fresh_lockfile(
+                config,
+                &importer_manifests,
+                &merged_graph,
+                &direct_by_importer,
+            );
+            let wanted_lockfile = if config.lockfile {
+                built_lockfile
+                    .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
+                    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+                Some(built_lockfile)
+            } else {
+                None
+            };
+
+            // Close the store-index writer cleanly even though no rows
+            // were written, mirroring the drain at the tail of the
+            // materializing path.
+            drop(store_index_writer);
+            match writer_task.await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "store-index writer task returned an error during a lockfile-only install",
+                ),
+                Err(error) => tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "store-index writer task panicked during a lockfile-only install",
+                ),
+            }
+
+            Reporter::emit(&LogEvent::Stage(StageLog {
+                level: LogLevel::Debug,
+                prefix: requester.to_string(),
+                stage: Stage::ImportingDone,
+            }));
+            return Ok(InstallWithFreshLockfileResult {
+                hoisted_dependencies: HoistedDependencies::new(),
+                hoisted_locations: BTreeMap::new(),
+                wanted_lockfile,
+            });
+        }
 
         // Warm-cache batched prefetch: collect every `(integrity,
         // pkg_id)` pair the resolver produced, run one batched SQL
@@ -772,20 +1011,26 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // warm snapshot at once, which closes the ~94% wall-time gap
         // to pnpm on the full-resolution-warm scenario without
         // regressing the cold-cache or frozen-lockfile paths. See
-        // #11866 for the architectural diagnosis and the bench data.
+        // <https://github.com/pnpm/pnpm/issues/11866> for the architectural diagnosis and the bench data.
         //
         // The fresh-lockfile path has no installability check yet
         // (the resolver's `PackageVersion` deserializer doesn't carry
         // engine / cpu / os / libc constraints to gate on), so the
-        // skip set is empty. A future port of `compute_skipped_snapshots`
-        // for fresh-lockfile would route through here too.
-        let empty_skipped = SkippedSnapshots::new();
+        // skip set starts empty. A future port of
+        // `compute_skipped_snapshots` for fresh-lockfile would route
+        // through here too. Under `nodeLinker: hoisted` the
+        // hoisted-linker walker may fold its own installability skips
+        // into this set, so it is `mut`.
+        let mut skipped = SkippedSnapshots::new();
         let phase_start = std::time::Instant::now();
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot: _,
             fetch_failed: _,
-            cas_paths_by_pkg_id: _,
+            // Populated only under `node_linker == Hoisted`; consumed by
+            // the hoisted-linker pass below to materialize the on-disk
+            // tree. `None` for the isolated linker.
+            cas_paths_by_pkg_id,
         } = CreateVirtualStore {
             http_client,
             config,
@@ -798,9 +1043,9 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             requester,
             store_index_writer: &store_index_writer,
             allow_build_policy: &allow_build_policy,
-            skipped: &empty_skipped,
+            skipped: &skipped,
             workspace_root: lockfile_dir,
-            node_linker: NodeLinker::Isolated,
+            node_linker,
         }
         .run::<Reporter>()
         .await
@@ -854,72 +1099,177 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // (`.modules.yaml`, `LinkVirtualStoreBins`, etc.) already
         // writes.
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
-        SymlinkDirectDependencies {
-            config,
-            layout: &layout,
-            importers: &built_lockfile.importers,
-            dependency_groups: dependency_groups.iter().copied(),
-            workspace_root: symlink_root,
-            skipped: &empty_skipped,
-            link_only: false,
-        }
-        .run::<Reporter>()
-        .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
 
-        // Link bins. Direct dependencies first (each importer's
-        // `node_modules/.bin`) and then per-slot children inside the
-        // virtual store. Mirrors the same two-call shape as
-        // `install_frozen_lockfile.rs`. We re-walk `<modules_dir>` instead
-        // of replaying the manifest because the `dependency_groups`
-        // iterator was already consumed above; pnpm's own
-        // `linkBins(modulesDir, binsDir)` overload uses the same
-        // strategy. One pass per importer so sibling workspace projects
-        // get their own `.bin/` populated, mirroring upstream's
-        // per-importer `linkBinsOfImporter` at
-        // <https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-installer/src/install/link.ts>.
-        let modules_basename = config
-            .modules_dir
-            .file_name()
-            .map(std::ffi::OsStr::to_os_string)
-            .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
-        for importer_id in importer_manifests.keys() {
-            let project_dir =
-                crate::symlink_direct_dependencies::importer_root_dir(symlink_root, importer_id);
-            let modules_dir = project_dir.join(&modules_basename);
-            let bins_dir = modules_dir.join(".bin");
-            link_bins::<Host>(&modules_dir, &bins_dir)
-                .map_err(InstallWithFreshLockfileError::LinkBins)?;
-        }
+        // Under `nodeLinker: hoisted` the regular deps live as real
+        // directories materialized by the hoisted linker, not as
+        // symlinks into the virtual store. Route through the same
+        // walker + linker + `link_only` symlink pass the frozen path
+        // uses (shared via `run_hoisted_linker`), then skip the
+        // isolated-linker public/private hoist and `LinkVirtualStoreBins`
+        // passes entirely — the hoisted linker writes per-`node_modules`
+        // bins while walking the hierarchy. `hoisted_dependencies` stays
+        // empty (the hoisted linker has no isolated-mode alias→kind
+        // adapter shape); `hoisted_locations` carries the walker's
+        // placements so `.modules.yaml` round-trips them.
+        let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
+            let output = crate::install_frozen_lockfile::run_hoisted_linker::<Reporter>(
+                crate::install_frozen_lockfile::HoistedLinkerInputs {
+                    config,
+                    lockfile: &built_lockfile,
+                    // No previous-install `<virtual_store_dir>/lock.yaml`
+                    // is threaded into the fresh path yet (<https://github.com/pnpm/pnpm/issues/11871>), so the
+                    // walker runs without an orphan diff.
+                    current_lockfile: None,
+                    layout: &layout,
+                    importers: &built_lockfile.importers,
+                    dependency_groups: &dependency_groups,
+                    walker_lockfile_dir: lockfile_dir,
+                    symlink_workspace_root: symlink_root,
+                    // No installability host was probed on the fresh
+                    // path (the resolver's `PackageVersion` carries no
+                    // engine/cpu/os/libc constraints), so the walker
+                    // falls back to its default host triple.
+                    host_node: None,
+                    supported_architectures,
+                    cas_paths_by_pkg_id,
+                    logged_methods,
+                    requester,
+                },
+                &mut skipped,
+            )
+            .map_err(InstallWithFreshLockfileError::from)?;
+            (HoistedDependencies::new(), output.hoisted_locations)
+        } else {
+            // Pre-compute the hoist plan so the dedupe pass in
+            // `SymlinkDirectDependencies` can fold publicly-hoisted
+            // aliases into root's target map — same shape as the
+            // frozen-lockfile path. The `HoistResult` is reused for
+            // the on-disk hoist phase below, so the BFS runs once.
+            let pre_hoist = crate::install_frozen_lockfile::compute_hoist_plan(
+                config,
+                built_lockfile.snapshots.as_ref(),
+                built_lockfile.packages.as_ref(),
+                &built_lockfile.importers,
+                &dependency_groups,
+                &skipped,
+                false,
+            );
+            let public_hoist_targets: Option<
+                std::collections::BTreeMap<String, std::path::PathBuf>,
+            > = pre_hoist.as_ref().map(|plan| {
+                crate::install_frozen_lockfile::collect_public_hoist_targets(
+                    &plan.result,
+                    &plan.graph,
+                    &layout,
+                    &plan.skipped,
+                )
+            });
 
-        // Drive the lockfile-driven `LinkVirtualStoreBins` path. The
-        // bin linker iterates `snapshots:` (no per-slot `read_dir`)
-        // and reads each child's manifest from `package_manifests`
-        // (no per-child `package.json` disk read on warm hits).
-        // `package_manifests` is now produced by `CreateVirtualStore`
-        // directly — its prefetch + cold-batch passes both feed into
-        // the same map.
-        //
-        // `packages: None` on purpose: the freshly-built lockfile's
-        // `packages:` rows carry an incomplete `has_bin` because the
-        // resolver's `PackageVersion` deserializer does not include
-        // the `bin` field. Trusting the empty-by-omission
-        // `has_bin_set` here would filter out every child and skip
-        // bin linking entirely. With `packages: None` the bin linker
-        // falls through to "process every child" and lets each
-        // child's actual manifest (`bin` present or not) decide.
-        // Threading `bin` through `PackageVersion` is the proper
-        // fix; once that lands, pass
-        // `built_lockfile.packages.as_ref()` here to recover the
-        // ~95% slot short-circuit the frozen path enjoys.
-        LinkVirtualStoreBins {
-            layout: &layout,
-            snapshots: built_lockfile.snapshots.as_ref(),
-            packages: None,
-            package_manifests: &package_manifests,
-            skipped: &empty_skipped,
-        }
-        .run()
-        .map_err(InstallWithFreshLockfileError::LinkVirtualStoreBins)?;
+            SymlinkDirectDependencies {
+                config,
+                layout: &layout,
+                importers: &built_lockfile.importers,
+                dependency_groups: dependency_groups.iter().copied(),
+                workspace_root: symlink_root,
+                skipped: &skipped,
+                link_only: false,
+                public_hoist_targets: public_hoist_targets.as_ref(),
+            }
+            .run::<Reporter>()
+            .map_err(InstallWithFreshLockfileError::SymlinkDirectDependencies)?;
+
+            // On-disk hoist phase. Mirrors the frozen-install block at
+            // `install_frozen_lockfile.rs`: symlink the publicly +
+            // privately hoisted aliases into their target dirs, then
+            // link private-side bins into `<vs>/node_modules/.bin`.
+            // Public-side bin precedence is handled implicitly by the
+            // per-importer `link_bins` pass below, which now walks both
+            // direct-dep and public-hoist symlinks in root's
+            // `node_modules/`.
+            let hoisted_dependencies = if let Some(plan) = pre_hoist {
+                let crate::install_frozen_lockfile::HoistPlan {
+                    graph,
+                    result,
+                    skipped: hoist_skipped,
+                    ..
+                } = plan;
+                let private_dir = config.virtual_store_dir.join("node_modules");
+                let public_dir = config.modules_dir.clone();
+                crate::symlink_hoisted_dependencies(
+                    &result.hoisted_dependencies_by_node_id,
+                    &graph,
+                    &layout,
+                    &private_dir,
+                    &public_dir,
+                    &hoist_skipped,
+                )
+                .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
+                crate::link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
+                    .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
+                result.hoisted_dependencies
+            } else {
+                HoistedDependencies::new()
+            };
+
+            // Link bins. Direct dependencies first (each importer's
+            // `node_modules/.bin`) and then per-slot children inside the
+            // virtual store. Mirrors the same two-call shape as
+            // `install_frozen_lockfile.rs`. We re-walk `<modules_dir>`
+            // instead of replaying the manifest because the
+            // `dependency_groups` iterator was already consumed above;
+            // pnpm's own `linkBins(modulesDir, binsDir)` overload uses
+            // the same strategy. One pass per importer so sibling
+            // workspace projects get their own `.bin/` populated,
+            // mirroring upstream's per-importer `linkBinsOfImporter` at
+            // <https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-installer/src/install/link.ts>.
+            let modules_basename = config
+                .modules_dir
+                .file_name()
+                .map(std::ffi::OsStr::to_os_string)
+                .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
+            for importer_id in importer_manifests.keys() {
+                let project_dir = crate::symlink_direct_dependencies::importer_root_dir(
+                    symlink_root,
+                    importer_id,
+                );
+                let modules_dir = project_dir.join(&modules_basename);
+                let bins_dir = modules_dir.join(".bin");
+                link_bins::<Host>(&modules_dir, &bins_dir)
+                    .map_err(InstallWithFreshLockfileError::LinkBins)?;
+            }
+
+            // Drive the lockfile-driven `LinkVirtualStoreBins` path. The
+            // bin linker iterates `snapshots:` (no per-slot `read_dir`)
+            // and reads each child's manifest from `package_manifests`
+            // (no per-child `package.json` disk read on warm hits).
+            // `package_manifests` is now produced by `CreateVirtualStore`
+            // directly — its prefetch + cold-batch passes both feed into
+            // the same map.
+            //
+            // `packages: None` on purpose: the freshly-built lockfile's
+            // `packages:` rows carry an incomplete `has_bin` because the
+            // resolver's `PackageVersion` deserializer does not include
+            // the `bin` field. Trusting the empty-by-omission
+            // `has_bin_set` here would filter out every child and skip
+            // bin linking entirely. With `packages: None` the bin linker
+            // falls through to "process every child" and lets each
+            // child's actual manifest (`bin` present or not) decide.
+            // Threading `bin` through `PackageVersion` is the proper
+            // fix; once that lands, pass
+            // `built_lockfile.packages.as_ref()` here to recover the
+            // ~95% slot short-circuit the frozen path enjoys.
+            LinkVirtualStoreBins {
+                layout: &layout,
+                snapshots: built_lockfile.snapshots.as_ref(),
+                packages: None,
+                package_manifests: &package_manifests,
+                skipped: &skipped,
+            }
+            .run()
+            .map_err(InstallWithFreshLockfileError::LinkVirtualStoreBins)?;
+
+            (hoisted_dependencies, BTreeMap::new())
+        };
 
         // Write `pnpm-lock.yaml` from the resolved graph. Mirrors
         // upstream's
@@ -962,7 +1312,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         }));
 
         Ok(InstallWithFreshLockfileResult {
-            hoisted_dependencies: BTreeMap::new(),
+            hoisted_dependencies,
+            hoisted_locations,
             wanted_lockfile,
         })
     }
@@ -977,12 +1328,13 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 /// batch hits the same rows pnpm or pacquet wrote on the prior
 /// install.
 ///
-/// Skips nodes whose resolver result isn't a tarball with both
-/// `integrity` and a structured `name@version`: git-hosted tarballs
-/// and directory / git / binary resolutions use a different key
-/// shape (`pkg_id`-only) and route through the cold path. Today's
-/// `install_subtree` only handles tarball+integrity anyway, so the
-/// skipped entries can't be served from the prefetch either way.
+/// Skips nodes whose resolver result isn't a non-git-hosted tarball
+/// with an `integrity` and a resolvable `name@version` (from `name_ver`
+/// or, for remote-tarball direct deps, the fetched manifest):
+/// git-hosted tarballs and directory / git / binary resolutions use a
+/// different key shape (`pkg_id`-only) and route through the cold path.
+/// Today's `install_subtree` only handles tarball+integrity anyway, so
+/// the skipped entries can't be served from the prefetch either way.
 fn collect_prefetch_cache_keys_from_graph(
     graph: &pacquet_resolving_deps_resolver::DependenciesGraph,
 ) -> Vec<String> {
@@ -998,8 +1350,19 @@ fn collect_prefetch_cache_keys_from_graph(
                 return None;
             }
             let integrity = tarball.integrity.as_ref()?.to_string();
-            let name_ver = node.resolve_result.name_ver.as_ref()?;
-            let pkg_id = format!("{}@{}", name_ver.name, name_ver.suffix);
+            // `name_ver` when the resolver produced one (npm registry);
+            // otherwise the manifest's `name@version` — remote-tarball
+            // direct deps learn both from `package.json`, and the
+            // resolve-time fetch keyed the store-index row the same way.
+            let pkg_id = match node.resolve_result.name_ver.as_ref() {
+                Some(name_ver) => format!("{}@{}", name_ver.name, name_ver.suffix),
+                None => {
+                    let manifest = node.resolve_result.manifest.as_deref()?;
+                    let name = manifest.get("name")?.as_str()?;
+                    let version = manifest.get("version")?.as_str()?;
+                    format!("{name}@{version}")
+                }
+            };
             Some(pacquet_store_dir::store_index_key(&integrity, &pkg_id))
         })
         .collect();
@@ -1037,16 +1400,34 @@ fn build_fresh_lockfile(
         importers,
         graph,
         auto_install_peers: config.auto_install_peers,
-        // `excludeLinksFromLockfile` isn't ported to pacquet's `Config`
-        // yet. Default to `false` — matches upstream's default and
-        // round-trips cleanly through `@pnpm/lockfile.settings-checker`.
-        exclude_links_from_lockfile: false,
+        dedupe_peers: config.dedupe_peers,
+        exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+        inject_workspace_packages: config.inject_workspace_packages,
+        peers_suffix_max_length: (config.peers_suffix_max_length
+            != pacquet_config::default_peers_suffix_max_length())
+        .then_some(config.peers_suffix_max_length),
         overrides: config
             .overrides
             .as_ref()
             .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        package_extensions_checksum: compute_package_extensions_checksum(config),
     })
+}
+
+/// Hash `Config::package_extensions` into the prefixed sha256 string
+/// pnpm writes to `pnpm-lock.yaml#packageExtensionsChecksum`.
+/// Mirrors upstream's
+/// [`hashObjectNullableWithPrefix(opts.packageExtensions)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L545)
+/// call at install time. Returns `None` when no extensions are
+/// configured so the field is omitted from the on-disk lockfile, the
+/// same way pnpm omits `packageExtensionsChecksum` when the input is
+/// `undefined` or `{}`.
+fn compute_package_extensions_checksum(config: &Config) -> Option<String> {
+    let extensions =
+        config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
+    let value = serde_json::to_value(extensions).ok()?;
+    pacquet_graph_hasher::hash_object_nullable_with_prefix(&value)
 }
 
 /// [`Resolver`] adapter that delegates to a shared `Arc<dyn Resolver>`.
@@ -1077,3 +1458,6 @@ impl Resolver for ArcResolver {
         self.0.resolve_latest(query, opts)
     }
 }
+
+#[cfg(test)]
+mod tests;

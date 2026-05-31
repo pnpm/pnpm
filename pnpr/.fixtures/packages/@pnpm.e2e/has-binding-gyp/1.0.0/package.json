@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/has-binding-gyp",
+  "version": "1.0.0",
+  "os": [
+    "this-os-does-not-exist"
+  ]
+}

@@ -13,9 +13,14 @@ repository.workspace  = true
 [dependencies]
 pacquet-lockfile                = { workspace = true }
 pacquet-network                 = { workspace = true }
+pacquet-reporter                = { workspace = true }
 pacquet-resolving-resolver-base = { workspace = true }
+pacquet-store-dir               = { workspace = true }
+pacquet-tarball                 = { workspace = true }
 
-reqwest = { workspace = true }
+reqwest    = { workspace = true }
+serde_json = { workspace = true }
+ssri       = { workspace = true }
 
 [dev-dependencies]
 mockito           = { workspace = true }

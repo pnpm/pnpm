@@ -2,7 +2,6 @@ use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
 use pacquet_config::Config;
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_network::ThrottledClient;
-use pacquet_registry_mock::AutoMockInstance;
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
@@ -10,6 +9,7 @@ use pacquet_resolving_npm_resolver::{
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pacquet_testing_utils::registry::TestRegistry;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use std::{
@@ -35,6 +35,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         package_import_method: Default::default(),
         modules_cache_max_age: 0,
         virtual_store_dir_max_length: pacquet_config::default_virtual_store_dir_max_length(),
+        peers_suffix_max_length: pacquet_config::default_peers_suffix_max_length(),
         lockfile: false,
         prefer_frozen_lockfile: false,
         optimistic_repeat_install: false,
@@ -46,11 +47,17 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         named_registries: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,
+        exclude_links_from_lockfile: false,
         hoist_workspace_packages: true,
         hoisting_limits: Default::default(),
         link_workspace_packages: Default::default(),
+        inject_workspace_packages: false,
+        prefer_workspace_packages: false,
         external_dependencies: Default::default(),
         dedupe_peer_dependents: false,
+        dedupe_peers: false,
+        dedupe_direct_deps: true,
+        dedupe_injected_deps: false,
         strict_peer_dependencies: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
@@ -61,8 +68,13 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         fetch_retry_factor: 10,
         fetch_retry_mintimeout: 10_000,
         fetch_retry_maxtimeout: 60_000,
+        network_concurrency: pacquet_network::default_network_concurrency(),
+        fetch_timeout: 60_000,
+        user_agent: "pnpm".to_string(),
+        npmrc_auth_file: None,
         workspace_dir: None,
         patched_dependencies: None,
+        config_dependencies: None,
         allow_builds: Default::default(),
         dangerously_allow_all_builds: false,
         scripts_prepend_node_path: Default::default(),
@@ -70,10 +82,13 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         child_concurrency: 1,
         workspace_concurrency: 1,
         recursive: false,
+        filter: Vec::new(),
+        filter_prod: Vec::new(),
         git_shallow_hosts: pacquet_config::default_git_shallow_hosts(),
         supported_architectures: None,
         ignored_optional_dependencies: None,
         overrides: None,
+        package_extensions: None,
         cache_dir: tempdir().unwrap().keep(),
         minimum_release_age: None,
         minimum_release_age_exclude: None,
@@ -83,6 +98,11 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         trust_policy: Default::default(),
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
+        resolution_mode: Default::default(),
+        registry_supports_time_field: false,
+        allowed_deprecated_versions: Default::default(),
+        update_config: Default::default(),
+        peer_dependency_rules: Default::default(),
         auth_headers: Default::default(),
         proxy: Default::default(),
         tls: Default::default(),
@@ -127,7 +147,7 @@ async fn resolve_via_mock(
 
 #[tokio::test]
 pub async fn should_install_package_from_pre_resolved_result() {
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
     let store_dir = tempdir().unwrap();
     let modules_dir = tempdir().unwrap();
     let virtual_store_dir = tempdir().unwrap();
@@ -210,7 +230,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         }
     }
 
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
     let store_dir = tempdir().unwrap();
     let modules_dir = tempdir().unwrap();
     let second_parent_dir = tempdir().unwrap();
@@ -326,7 +346,7 @@ async fn install_emits_progress_sequence() {
         }
     }
 
-    let mock_instance = AutoMockInstance::load_or_init();
+    let mock_instance = TestRegistry::start();
 
     let store_dir = tempdir().unwrap();
     let modules_dir = tempdir().unwrap();

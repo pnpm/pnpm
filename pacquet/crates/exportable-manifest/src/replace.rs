@@ -45,7 +45,7 @@ pub enum ReplaceWorkspaceProtocolError {
     CannotResolve(#[error(source)] CannotResolveWorkspaceProtocolError),
 
     /// Reading `<dep>/package.json` itself failed (malformed JSON, IO
-    /// error other than ENOENT, …). Propagated so the caller can
+    /// error other than ENOENT, ...). Propagated so the caller can
     /// surface the underlying cause.
     ReadManifest(#[error(source)] PackageManifestError),
 }

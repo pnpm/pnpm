@@ -1,5 +1,7 @@
-use crate::key::parse_key;
-use crate::types::{ExtendedPatchInfo, PatchGroupRangeItem, PatchGroupRecord};
+use crate::{
+    key::parse_key,
+    types::{ExtendedPatchInfo, PatchGroupRangeItem, PatchGroupRecord},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Range;

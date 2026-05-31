@@ -1,0 +1,25 @@
+{
+  "name": "@pnpm/pnpr",
+  "description": "pnpm-compatible npm registry server, written in Rust",
+  "keywords": [
+    "pnpm",
+    "npm",
+    "registry"
+  ],
+  "license": "SEE LICENSE IN LICENSE.md",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpr",
+  "bugs": "https://github.com/pnpm/pnpm/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm",
+    "directory": "pnpr/npm/pnpr"
+  },
+  "bin": "bin/pnpr",
+  "engines": {
+    "node": ">=18.*"
+  },
+  "files": [
+    "bin/pnpr",
+    "LICENSE.md"
+  ]
+}

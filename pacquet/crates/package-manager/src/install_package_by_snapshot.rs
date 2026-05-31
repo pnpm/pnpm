@@ -355,7 +355,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
                 .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
                 output.files_map
             }
-            // Slice A of #437 wires the lockfile types; the install
+            // Slice A of <https://github.com/pnpm/pacquet/issues/437> wires the lockfile types; the install
             // dispatch for `Binary` / `Variations` lands in Slice D.
             // Until then, surface the kind via the typed
             // `UnsupportedResolution` error so a v11 lockfile with a

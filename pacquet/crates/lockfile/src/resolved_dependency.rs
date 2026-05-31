@@ -41,6 +41,12 @@ pub struct ResolvedDependencySpec {
 ///   sibling at `<path>` relative to the importer's `rootDir`. The
 ///   workspace project is not duplicated in the virtual store — pnpm
 ///   creates a direct symlink to the sibling's directory.
+/// - A `file:<path>` value (with an optional `(peer@suffix)` tail),
+///   meaning the dependency is an injected workspace package (or
+///   plain tarball / directory `file:` dep) materialised into the
+///   virtual store by copy. The path lives verbatim after the
+///   `file:` prefix; the peer suffix, when present, identifies a
+///   peer-specific snapshot variant in `snapshots:`.
 ///
 /// `ImporterDepVersion` encodes the distinction so consumers (the
 /// installer, the build-sequence builder, the reporter) can branch on
@@ -69,6 +75,14 @@ pub enum ImporterDepVersion {
     /// importer's `rootDir`, or absolute) — interpreting it is the
     /// installer's job, not this layer's.
     Link(String),
+
+    /// `file:<path>` (possibly with a `(peer@suffix)` tail). Mirrors
+    /// upstream's importer-level emit for injected workspace
+    /// dependencies that didn't dedupe back to `link:`. The full
+    /// payload after `file:` is stored verbatim so the
+    /// `snapshots:`-level depPath lookup uses the same key as the
+    /// snapshot writer.
+    File(String),
 }
 
 impl ImporterDepVersion {
@@ -84,7 +98,9 @@ impl ImporterDepVersion {
     pub fn as_regular(&self) -> Option<&'_ PkgVerPeer> {
         match self {
             ImporterDepVersion::Regular(v) => Some(v),
-            ImporterDepVersion::Alias(_) | ImporterDepVersion::Link(_) => None,
+            ImporterDepVersion::Alias(_)
+            | ImporterDepVersion::Link(_)
+            | ImporterDepVersion::File(_) => None,
         }
     }
 
@@ -94,7 +110,9 @@ impl ImporterDepVersion {
     pub fn as_alias(&self) -> Option<&'_ PkgNameVerPeer> {
         match self {
             ImporterDepVersion::Alias(alias) => Some(alias),
-            ImporterDepVersion::Regular(_) | ImporterDepVersion::Link(_) => None,
+            ImporterDepVersion::Regular(_)
+            | ImporterDepVersion::Link(_)
+            | ImporterDepVersion::File(_) => None,
         }
     }
 
@@ -104,8 +122,22 @@ impl ImporterDepVersion {
     /// prefix.
     pub fn as_link_target(&self) -> Option<&'_ str> {
         match self {
-            ImporterDepVersion::Regular(_) | ImporterDepVersion::Alias(_) => None,
+            ImporterDepVersion::Regular(_)
+            | ImporterDepVersion::Alias(_)
+            | ImporterDepVersion::File(_) => None,
             ImporterDepVersion::Link(target) => Some(target.as_str()),
+        }
+    }
+
+    /// `Some(payload)` when this dependency is an injected `file:` dep;
+    /// `None` otherwise. The returned string is the path (plus optional
+    /// peer suffix) *without* the `file:` prefix.
+    pub fn as_file_target(&self) -> Option<&'_ str> {
+        match self {
+            ImporterDepVersion::File(target) => Some(target.as_str()),
+            ImporterDepVersion::Regular(_)
+            | ImporterDepVersion::Alias(_)
+            | ImporterDepVersion::Link(_) => None,
         }
     }
 
@@ -115,25 +147,32 @@ impl ImporterDepVersion {
     /// inside `node_modules`). For [`Self::Regular`] the resolved key
     /// is `(importer_key, version)`; for [`Self::Alias`] it's the
     /// alias's own `(name, suffix)` pair, mirroring upstream's
-    /// `refToRelative`.
+    /// `refToRelative`. For [`Self::File`] the key is `(importer_key,
+    /// file:<payload>)` because the `file:` prefix is part of the
+    /// snapshot key in `snapshots:`.
     pub fn resolved_key(&self, importer_key: &PkgName) -> Option<PkgNameVerPeer> {
         match self {
             ImporterDepVersion::Regular(ver) => {
                 Some(PkgNameVerPeer::new(importer_key.clone(), ver.clone()))
             }
             ImporterDepVersion::Alias(alias) => Some(alias.clone()),
+            ImporterDepVersion::File(payload) => format!("file:{payload}")
+                .parse::<PkgVerPeer>()
+                .ok()
+                .map(|ver| PkgNameVerPeer::new(importer_key.clone(), ver)),
             ImporterDepVersion::Link(_) => None,
         }
     }
 
     /// The version-with-peer portion of this dependency, or `None` for
-    /// `link:` siblings. For [`Self::Alias`] this returns the alias's
-    /// suffix, matching the version present in the snapshot key.
+    /// `link:` / `file:` siblings. For [`Self::Alias`] this returns the
+    /// alias's suffix, matching the version present in the snapshot
+    /// key.
     pub fn ver_peer(&self) -> Option<&'_ PkgVerPeer> {
         match self {
             ImporterDepVersion::Regular(ver) => Some(ver),
             ImporterDepVersion::Alias(alias) => Some(&alias.suffix),
-            ImporterDepVersion::Link(_) => None,
+            ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => None,
         }
     }
 }
@@ -187,6 +226,9 @@ impl FromStr for ImporterDepVersion {
         if let Some(target) = value.strip_prefix("link:") {
             return Ok(ImporterDepVersion::Link(target.to_string()));
         }
+        if let Some(target) = value.strip_prefix("file:") {
+            return Ok(ImporterDepVersion::File(target.to_string()));
+        }
         if looks_like_alias(value) {
             return value.parse::<PkgNameVerPeer>().map(ImporterDepVersion::Alias).map_err(
                 |source| ParseImporterDepVersionError::ParseAlias {
@@ -214,6 +256,7 @@ impl From<ImporterDepVersion> for String {
             ImporterDepVersion::Regular(v) => v.to_string(),
             ImporterDepVersion::Alias(alias) => alias.to_string(),
             ImporterDepVersion::Link(target) => format!("link:{target}"),
+            ImporterDepVersion::File(target) => format!("file:{target}"),
         }
     }
 }
@@ -228,6 +271,10 @@ impl Serialize for ImporterDepVersion {
             ImporterDepVersion::Alias(alias) => serializer.serialize_str(&alias.to_string()),
             ImporterDepVersion::Link(target) => {
                 let formatted = format!("link:{target}");
+                serializer.serialize_str(&formatted)
+            }
+            ImporterDepVersion::File(target) => {
+                let formatted = format!("file:{target}");
                 serializer.serialize_str(&formatted)
             }
         }
@@ -262,6 +309,7 @@ impl Display for ImporterDepVersion {
             ImporterDepVersion::Regular(v) => Display::fmt(v, f),
             ImporterDepVersion::Alias(alias) => Display::fmt(alias, f),
             ImporterDepVersion::Link(target) => write!(f, "link:{target}"),
+            ImporterDepVersion::File(target) => write!(f, "file:{target}"),
         }
     }
 }

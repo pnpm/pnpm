@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/jest-config",
-  "version": "1100.0.11",
+  "version": "1100.0.12",
   "private": true,
   "main": "jest-preset.js",
   "type": "module",
@@ -8,12 +8,10 @@
     "@babel/core": "catalog:",
     "@babel/plugin-transform-explicit-resource-management": "catalog:",
     "@pnpm/pnpr": "catalog:",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "amaro": "catalog:",
     "get-port": "catalog:",
-    "read-yaml-file": "catalog:",
     "tree-kill": "catalog:"
   },
   "devDependencies": {

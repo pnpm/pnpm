@@ -9,7 +9,7 @@
 //! declares, with any per-test scenario data stored in a `static`
 //! inside the test fn.
 //!
-//! Trait names keep their domain prefix (`Env*`, `Get*`, …) so a
+//! Trait names keep their domain prefix (`Env*`, `Get*`, ...) so a
 //! reader can identify which side effect a generic bound belongs to
 //! without chasing definitions. See the
 //! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
@@ -23,19 +23,10 @@ use std::{
 
 /// Capability: read a process environment variable as a UTF-8 string.
 ///
-/// `pnpm` resolves `${VAR}` placeholders inside `.npmrc` against the
-/// process environment in
-/// [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/loadNpmrcFiles.ts#L156-L162);
-/// pacquet routes that lookup through this trait so unit tests can
-/// drive every branch (set, unset, empty) with local fakes instead
-/// of mutating the real process environment.
-pub trait EnvVar {
-    /// Return the value of the named environment variable, or `None`
-    /// when it is unset. Implementations should treat invalid UTF-8
-    /// as `None` to match `std::env::var`'s behaviour, which is what
-    /// pnpm itself observes via Node's `process.env`.
-    fn var(name: &str) -> Option<String>;
-}
+/// Defined in the `pacquet-env-replace` crate and re-exported here so
+/// this crate's callers keep importing it from `pacquet_config` alongside
+/// the other capability traits. [`Host`] implements it for production code.
+pub use pacquet_env_replace::EnvVar;
 
 /// Capability: read a process environment variable as a raw
 /// [`OsString`]. Used for env vars whose value is a filesystem path
@@ -93,7 +84,7 @@ pub trait GetCurrentDir {
 ///
 /// "Linkable" means
 /// [`std::fs::hard_link`] returns `Ok(())`; everything else (EXDEV,
-/// EACCES, EPERM, ENOSPC, missing parent dir, …) is treated as "not
+/// EACCES, EPERM, ENOSPC, missing parent dir, ...) is treated as "not
 /// linkable" and the caller falls through to the next branch.
 /// Mirrors pnpm's
 /// [`canLink`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L3-L18)

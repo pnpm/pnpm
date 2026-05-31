@@ -1,5 +1,4 @@
-use crate::State;
-use crate::cli_args::supported_architectures::SupportedArchitecturesArgs;
+use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::{Args, ValueEnum};
 use miette::Context;
 use pacquet_config::NodeLinker;
@@ -80,6 +79,13 @@ pub struct InstallArgs {
     #[clap(long)]
     pub frozen_lockfile: bool,
 
+    /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is
+    /// updated. Resolution still runs, but nothing is fetched into the
+    /// store and no `node_modules` is created. Mirrors pnpm's
+    /// `--lockfile-only`.
+    #[clap(long = "lockfile-only")]
+    pub lockfile_only: bool,
+
     /// Force-enable `preferFrozenLockfile` for this invocation.
     /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
     /// Mirrors pnpm's `--prefer-frozen-lockfile`. Conflicts with
@@ -109,7 +115,7 @@ pub struct InstallArgs {
     /// Narrow on purpose: only gates
     /// [`pacquet_lockfile::satisfies_package_manifest`]. Settings
     /// drift (`overrides`, `ignoredOptionalDependencies`,
-    /// `pnpmfileChecksum`, …) still aborts. A future broader flag
+    /// `pnpmfileChecksum`, ...) still aborts. A future broader flag
     /// matching pnpm's internal `ignorePackageManifest` (used by
     /// `pnpm fetch`) would skip linking / hoisting / pruning too;
     /// that's deliberately a separate name.
@@ -194,6 +200,29 @@ pub struct InstallArgs {
     /// field for why it has no consumption point on `install` yet.
     #[clap(long = "workspace-concurrency")]
     pub workspace_concurrency: Option<i32>,
+
+    /// Maximum number of concurrent network requests during install.
+    /// Mirrors pnpm's `--network-concurrency`; overrides the
+    /// `networkConcurrency` value resolved from `pnpm-workspace.yaml` /
+    /// global `config.yaml` / `PNPM_CONFIG_NETWORK_CONCURRENCY` for this
+    /// invocation. `None` (flag absent) leaves the config-resolved
+    /// value in place. Applied to
+    /// [`pacquet_config::Config::network_concurrency`] at the CLI
+    /// dispatch in [`crate::cli_args::CliArgs::run`].
+    #[clap(long = "network-concurrency")]
+    pub network_concurrency: Option<usize>,
+
+    /// Per-request network timeout in milliseconds. Mirrors pnpm's
+    /// `--fetch-timeout`; overrides `fetchTimeout` for this invocation.
+    /// Applied to [`pacquet_config::Config::fetch_timeout`].
+    #[clap(long = "fetch-timeout")]
+    pub fetch_timeout: Option<u64>,
+
+    /// `User-Agent` header sent on registry requests. Mirrors pnpm's
+    /// `--user-agent`; overrides `userAgent` for this invocation.
+    /// Applied to [`pacquet_config::Config::user_agent`].
+    #[clap(long = "user-agent")]
+    pub user_agent: Option<String>,
 }
 
 impl InstallArgs {
@@ -204,6 +233,7 @@ impl InstallArgs {
             dependency_options,
             supported_architectures,
             frozen_lockfile,
+            lockfile_only,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
             ignore_manifest_check,
@@ -214,6 +244,9 @@ impl InstallArgs {
             trust_lockfile,
             update_checksums,
             workspace_concurrency: _,
+            network_concurrency: _,
+            fetch_timeout: _,
+            user_agent: _,
         } = self;
 
         // `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
@@ -277,9 +310,14 @@ impl InstallArgs {
             skip_runtimes,
             trust_lockfile,
             update_checksums,
+            // `pacquet install` is always a full install (it takes no
+            // package arguments), so the project's own lifecycle
+            // scripts run. `pacquet add` sets this to `false`.
+            is_full_install: true,
             resolved_packages,
             supported_architectures,
             node_linker,
+            lockfile_only,
         }
         .run::<Reporter>()
         .await

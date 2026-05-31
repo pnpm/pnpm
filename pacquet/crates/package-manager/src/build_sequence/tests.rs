@@ -23,7 +23,7 @@ fn key(name_text: &str, version: &str) -> PackageKey {
 /// Build a `requires_build` map for tests from a list of (key, requires_build)
 /// pairs. Mirrors the per-snapshot map the runtime computes from each
 /// extracted package's `pkg_requires_build`.
-fn requires<const N: usize>(entries: [(PackageKey, bool); N]) -> HashMap<PackageKey, bool> {
+fn requires<const LEN: usize>(entries: [(PackageKey, bool); LEN]) -> HashMap<PackageKey, bool> {
     entries.into_iter().collect()
 }
 
@@ -199,11 +199,13 @@ fn parallel_build_leaves_share_chunk() {
 /// build itself nor has a buildable descendant that's exclusive to
 /// it (its descendant `c` is already scheduled via `a`).
 ///
-/// This is the subgraph-trim case for #397 item #16. Pacquet's
+/// This is the subgraph-trim case for [#397] item `#16`. Pacquet's
 /// existing `unrelated_subgraph_excluded` covers a stronger
 /// scenario (an entirely unreachable subgraph); this one pins the
 /// upstream-equivalent behavior where an importer that's still in
 /// the install set gets dropped from the build sequence.
+///
+/// [#397]: https://github.com/pnpm/pacquet/issues/397
 #[test]
 fn non_builder_importer_with_shared_builder_child_is_trimmed() {
     let snapshots = HashMap::from([

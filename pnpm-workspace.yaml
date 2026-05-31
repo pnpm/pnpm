@@ -79,6 +79,7 @@ catalog:
   '@commitlint/prompt-cli': ^20.5.3
   '@cyclonedx/cyclonedx-library': 10.0.0
   '@eslint/js': ^10.0.1
+  '@inquirer/prompts': ^8.4.3
   '@jest/globals': 30.3.0
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
@@ -95,7 +96,6 @@ catalog:
   '@pnpm/os.env.path-extender': ^3.0.1
   '@pnpm/patch-package': 0.0.1
   '@pnpm/pnpr': 0.0.0-26052601
-  '@pnpm/registry-mock': 6.0.0
   '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
@@ -183,7 +183,6 @@ catalog:
   dir-is-case-sensitive: ^3.0.0
   empathic: ^2.0.0
   encode-registry: ^3.0.1
-  enquirer: ^2.4.1
   esbuild: ^0.27.7
   escape-string-regexp: ^5.0.0
   eslint: ^10.4.0
@@ -329,7 +328,7 @@ catalogMode: strict
 cleanupUnusedCatalogs: true
 
 configDependencies:
-  '@pnpm/pacquet': 0.2.8
+  '@pnpm/pacquet': 0.2.2-15
 
 enableGlobalVirtualStore: true
 
@@ -450,14 +449,6 @@ packageExtensions:
   '@babel/parser':
     peerDependencies:
       '@babel/types': '*'
-  # pnpm's test harness launches `pnpm-registry` (the in-tree Rust
-  # crate) instead of verdaccio, so `@pnpm/registry-mock`'s verdaccio
-  # peer is dead weight here. Mark it optional to keep pnpm from
-  # auto-installing verdaccio + its tree across the workspace.
-  '@pnpm/registry-mock':
-    peerDependenciesMeta:
-      verdaccio:
-        optional: true
   jest-circus:
     dependencies:
       slash: '3'

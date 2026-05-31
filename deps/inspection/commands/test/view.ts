@@ -5,7 +5,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { view } from '@pnpm/deps.inspection.commands'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -41,9 +41,18 @@ test('view: rcOptionsTypes should return object', () => {
 })
 
 test('view: missing package name throws error', async () => {
-  await expect(
-    view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
-  ).rejects.toMatchObject({ code: 'ERR_PNPM_MISSING_PACKAGE_NAME' })
+  const cwd = process.cwd()
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
+
+  try {
+    process.chdir(tmpDir)
+    await expect(
+      view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_MISSING_PACKAGE_NAME' })
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
 })
 
 test('view: non-registry spec throws error', async () => {
@@ -278,5 +287,43 @@ test('view: package.json without name field throws error', async () => {
   } finally {
     process.chdir(cwd)
     fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('view: package.json with non-object JSON throws error', async () => {
+  const cwd = process.cwd()
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
+  const pkgJsonPath = path.join(tmpDir, 'package.json')
+
+  try {
+    fs.writeFileSync(pkgJsonPath, 'null')
+    process.chdir(tmpDir)
+
+    await expect(
+      view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_PACKAGE_JSON' })
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('view: resolves package.json from opts.dir when cwd differs', async () => {
+  const cwd = process.cwd()
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
+  const pkgJsonPath = path.join(tmpDir, 'package.json')
+  const otherDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-other-'))
+
+  try {
+    fs.writeFileSync(pkgJsonPath, JSON.stringify({ name: 'is-negative' }))
+    process.chdir(otherDir)
+
+    const result = await view.handler({ ...VIEW_OPTIONS, dir: tmpDir } as unknown as Config & ConfigContext, [])
+    expect(typeof result).toBe('string')
+    expect(result).toContain('is-negative')
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+    fs.rmSync(otherDir, { recursive: true, force: true })
   }
 })

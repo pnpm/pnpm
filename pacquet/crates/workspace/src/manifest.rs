@@ -4,7 +4,7 @@
 //! [`readWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/index.ts).
 //!
 //! Pacquet already has `pacquet_config::WorkspaceSettings` parsing
-//! the file for *settings* (`storeDir`, `registry`, …). That stays the
+//! the file for *settings* (`storeDir`, `registry`, ...). That stays the
 //! authoritative settings parser; this module is concerned only with
 //! the workspace-shape fields (`packages:`, catalogs) that drive
 //! project enumeration. Splitting them mirrors upstream's package
@@ -37,7 +37,7 @@ pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 
 /// Subset of `pnpm-workspace.yaml` consumed by project enumeration.
 ///
-/// The settings half (`storeDir`, `registry`, lifecycle policies, …)
+/// The settings half (`storeDir`, `registry`, lifecycle policies, ...)
 /// is read separately by `pacquet_config::WorkspaceSettings`.
 /// Splitting along the upstream package boundary keeps each reader
 /// focused on the shape its callers actually need and avoids a

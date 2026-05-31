@@ -1,5 +1,17 @@
 # @pnpm/deps.status
 
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/workspace.state@1100.0.17
+  - @pnpm/lockfile.verification@1100.0.14
+  - @pnpm/lockfile.settings-checker@1100.0.14
+
 ## 1100.0.19
 
 ### Patch Changes

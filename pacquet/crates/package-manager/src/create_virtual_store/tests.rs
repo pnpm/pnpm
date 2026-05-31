@@ -104,9 +104,9 @@ fn snapshot_deps_equal_treats_absent_and_empty_alike() {
 /// transitive.
 #[test]
 fn snapshot_deps_equal_distinguishes_different_dependency_values() {
-    let a = snapshot_with_dep("react", "17.0.2");
-    let b = snapshot_with_dep("react", "18.0.0");
-    assert!(!snapshot_deps_equal(&a, &b));
+    let entry_a = snapshot_with_dep("react", "17.0.2");
+    let entry_b = snapshot_with_dep("react", "18.0.0");
+    assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
 /// `optionalDependencies` participate in the comparison the same way
@@ -115,15 +115,15 @@ fn snapshot_deps_equal_distinguishes_different_dependency_values() {
 #[test]
 fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
     let dep_ref: SnapshotDepRef = "1.0.0".parse().expect("parse dep ref");
-    let a = SnapshotEntry {
+    let entry_a = SnapshotEntry {
         optional_dependencies: Some(HashMap::from([(name("react"), dep_ref.clone())])),
         ..Default::default()
     };
-    let b = SnapshotEntry {
+    let entry_b = SnapshotEntry {
         optional_dependencies: Some(HashMap::from([(name("react-dom"), dep_ref)])),
         ..Default::default()
     };
-    assert!(!snapshot_deps_equal(&a, &b));
+    assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
 /// `integrity_equal` mirrors upstream's `isIntegrityEqual` —
@@ -132,24 +132,24 @@ fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
 /// force a re-fetch.
 #[test]
 fn integrity_equal_matches_when_integrities_agree() {
-    let a = metadata_with_integrity(
+    let entry_a = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    let b = metadata_with_integrity(
+    let entry_b = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    assert!(integrity_equal(Some(&a), Some(&b)));
+    assert!(integrity_equal(Some(&entry_a), Some(&entry_b)));
 }
 
 #[test]
 fn integrity_equal_distinguishes_changed_integrities() {
-    let a = metadata_with_integrity(
+    let entry_a = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    let b = metadata_with_integrity(
+    let entry_b = metadata_with_integrity(
         "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
     );
-    assert!(!integrity_equal(Some(&a), Some(&b)));
+    assert!(!integrity_equal(Some(&entry_a), Some(&entry_b)));
 }
 
 /// Missing metadata on either side (a malformed lockfile, or the

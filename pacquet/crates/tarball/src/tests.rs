@@ -875,8 +875,8 @@ fn extract_rejects_parent_dir_component_in_entry_path() {
         let raw = header.as_mut_bytes();
         let name = b"package/../evil.txt";
         raw[..name.len()].copy_from_slice(name);
-        for b in &mut raw[name.len()..100] {
-            *b = 0;
+        for result_b in &mut raw[name.len()..100] {
+            *result_b = 0;
         }
         header.set_cksum();
         builder.append(&header, &b"evil!"[..]).expect("append entry");
@@ -985,7 +985,9 @@ fn retry_opts_delay_does_not_overflow() {
 /// which doesn't apply to registry tarballs). Every other failure
 /// — arbitrary 4xx, 5xx, network reset, integrity mismatch, gzip
 /// or tar parse error — falls through to `op.retry(error)` and is
-/// retried. Diverging here was the original bug behind #259.
+/// retried. Diverging here was the original bug behind [#259].
+///
+/// [#259]: https://github.com/pnpm/pacquet/issues/259
 #[test]
 fn retry_classification_matches_pnpm_policy() {
     let url = "https://example.test/pkg.tgz".to_string();
@@ -1043,7 +1045,7 @@ fn fast_retry_opts() -> RetryOpts {
 /// retry returns 200 with the real fastify-error tarball. The
 /// retry loop must drive the full pipeline — network → integrity
 /// → extract — to completion on the second attempt, which is the
-/// core fix for #259.
+/// core fix for [#259](https://github.com/pnpm/pacquet/issues/259).
 #[tokio::test]
 async fn retries_then_succeeds_on_transient_5xx() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1061,10 +1063,10 @@ async fn retries_then_succeeds_on_transient_5xx() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    let (cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1112,7 +1114,7 @@ async fn retries_integrity_mismatch_until_exhausted() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1144,7 +1146,7 @@ async fn fails_fast_on_404() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1185,7 +1187,7 @@ async fn retries_other_4xx_codes() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1220,7 +1222,7 @@ async fn retry_exhaustion_returns_last_error() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1414,7 +1416,7 @@ async fn zero_retries_makes_a_single_attempt() {
     fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1456,10 +1458,10 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
         None,
     );
 
-    let (cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1510,10 +1512,10 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
         None,
     );
 
-    let (cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -1762,15 +1764,15 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     .expect("run_with_mem_cache deadlocked on owner-error path");
 
     let (a_result, b_result) = join;
-    let a = a_result.expect("task_a join");
-    let b = b_result.expect("task_b join");
+    let result_a = a_result.expect("task_a join");
+    let result_b = b_result.expect("task_b join");
 
     // Both must surface an error — exact variant depends on which
     // task drove the network fetch (gets HttpStatus 404) and which
     // parked on Notify (gets SiblingFetchFailed). Pin only the
     // "both errored, neither hung" invariant.
-    assert!(a.is_err(), "task_a must surface the 404 (or sibling failure)");
-    assert!(b.is_err(), "task_b must surface the 404 (or sibling failure)");
+    assert!(result_a.is_err(), "task_a must surface the 404 (or sibling failure)");
+    assert!(result_b.is_err(), "task_b must surface the 404 (or sibling failure)");
 
     drop(store_dir_keep);
 }
@@ -1826,7 +1828,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "@fastify/error@3.3.0",
         "",
@@ -1855,14 +1857,14 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
             _ => None,
         })
         .collect();
-    let attempts: Vec<u32> = started.iter().map(|(a, _)| *a).collect();
+    let attempts: Vec<u32> = started.iter().map(|(result_a, _)| *result_a).collect();
     assert_eq!(attempts, vec![1, 2], "started must fire once per attempt; got {captured:?}");
     // Both attempts have a response head (mockito sends Content-Length
     // for `with_body(...)` and `with_status(503)` likewise), so both
     // `started` events must carry a populated `size`. Pinning this
     // here so the previous regression — emit-before-send leaving
     // `size` always-`null` — can't sneak back in (Copilot review on
-    // #372).
+    // <https://github.com/pnpm/pacquet/pull/372>).
     for (attempt, size) in &started {
         assert!(size.is_some(), "attempt {attempt} should expose Content-Length, got null");
     }
@@ -1916,7 +1918,7 @@ async fn started_fires_for_connection_level_failures() {
     let _ = fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         "http://127.0.0.1:1/pkg.tgz", // port 1 is reserved → connect-refused
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "/proj",
@@ -2123,7 +2125,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         &url,
-        &pkg_integrity,
+        Some(&pkg_integrity),
         None,
         "test-pkg",
         "",
@@ -2310,7 +2312,7 @@ fn extract_zip_rejects_parent_dir_component() {
 /// directory either way (the CAS write path is gated on file
 /// entries), but rejecting outright keeps the "no unsafe entry
 /// accepted" contract intact for tooling that inspects the error
-/// code (Caught by CodeRabbit on #472).
+/// code (Caught by CodeRabbit on [#472](https://github.com/pnpm/pacquet/pull/472)).
 #[test]
 fn extract_zip_rejects_directory_entry_with_parent_component() {
     let (tempdir, store_path) = tempdir_with_leaked_path();

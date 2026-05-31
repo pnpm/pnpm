@@ -13,8 +13,10 @@ const TEST_CONTEXT: LoginContext = {
     once: () => {},
     close: () => {},
   }),
-  enquirer: { prompt: async () => {
-    throw new Error('Unexpected call to enquirer.prompt')
+  enquirer: { input: async () => {
+    throw new Error('Unexpected call to enquirer.input')
+  }, password: async () => {
+    throw new Error('Unexpected call to enquirer.password')
   } },
   fetch: async url => {
     throw new Error(`Unexpected call to fetch: ${url}`)
@@ -269,11 +271,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'john' }
-          if (opts.name === 'password') return { password: 'secret' }
-          if (opts.name === 'email') return { email: 'john@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'john'
+          if (opts.message === 'Email (this IS public):') return 'john@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'secret'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -325,12 +330,15 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'alice' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'alice@example.com' }
-          if (opts.name === 'otp') return { otp: '999999' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'alice'
+          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
+          if (opts.message === 'This operation requires a one-time password.\nEnter OTP:') return '999999'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -388,11 +396,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'bob' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'bob@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'bob'
+          if (opts.message === 'Email (this IS public):') return 'bob@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -424,15 +435,18 @@ describe('login', () => {
         })
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'alice' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'alice@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'alice'
+          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
-    const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const promise = login({ context, opts })
     await expect(promise).rejects.toHaveProperty(['code'], 'ERR_PNPM_LOGIN_FAILED')
     await expect(promise).rejects.toHaveProperty(['message'], 'Login failed (HTTP 403): Forbidden')
@@ -453,11 +467,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: '' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'a@b.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return ''
+          if (opts.message === 'Email (this IS public):') return 'a@b.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -489,11 +506,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'alice' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'alice@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'alice'
+          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -551,11 +571,14 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'jane' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'jane@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'jane'
+          if (opts.message === 'Email (this IS public):') return 'jane@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })
@@ -589,11 +612,14 @@ describe('login', () => {
         })
       },
       enquirer: {
-        prompt: async (opts: { message: string, name: string, type: string }): Promise<Record<string, string>> => {
-          if (opts.name === 'username') return { username: 'alice' }
-          if (opts.name === 'password') return { password: 'pass' }
-          if (opts.name === 'email') return { email: 'alice@example.com' }
-          throw new Error(`Unexpected call to enquirer.prompt: ${opts.name}`)
+        input: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Username:') return 'alice'
+          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
+          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+        },
+        password: async (opts: { message: string }): Promise<string> => {
+          if (opts.message === 'Password:') return 'pass'
+          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
         },
       },
     })

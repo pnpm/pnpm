@@ -1,11 +1,12 @@
 use derive_more::{Display, Error};
 use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
 use miette::Diagnostic;
-use std::fs::{OpenOptions, Permissions};
-use std::io::Write;
-use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::{fs, io};
+use std::{
+    fs::{self, OpenOptions, Permissions},
+    io::{self, Write},
+    path::{Component, Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 /// Error from [`apply_patch_to_dir`].
 ///

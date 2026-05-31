@@ -1,5 +1,3 @@
-use std::{collections::BTreeMap, path::Path, sync::Arc, sync::atomic::AtomicU8, time::SystemTime};
-
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, ResolvedPackages,
@@ -13,6 +11,10 @@ use pacquet_catalogs_config::{
 };
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, NodeLinker};
+use pacquet_executor::{
+    LifecycleScriptError, RunPostinstallHooks,
+    ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
+};
 use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
 };
@@ -33,6 +35,12 @@ use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_state::{
     ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{Arc, atomic::AtomicU8},
+    time::SystemTime,
 };
 
 /// This subroutine does everything `pacquet install` is supposed to do.
@@ -85,7 +93,7 @@ where
     /// CLI's `configDependencies` delegation path, where pnpm has
     /// just resolved and written the lockfile but hasn't yet written
     /// the updated manifest. Settings-drift checks (`overrides`,
-    /// `ignoredOptionalDependencies`, …) still run — they don't
+    /// `ignoredOptionalDependencies`, ...) still run — they don't
     /// inspect the manifest and the bug this flag addresses is
     /// specifically the per-dep specifier mismatch from
     /// <https://github.com/pnpm/pnpm/issues/11797>.
@@ -111,6 +119,15 @@ where
     /// frozen-lockfile path so the fresh-resolve path rewrites them.
     /// Mirrors pnpm's `--update-checksums`.
     pub update_checksums: bool,
+    /// Whether this is a full project install (`pacquet install`,
+    /// pnpm's `mutation: 'install'`) rather than a partial one
+    /// (`pacquet add`, pnpm's `mutation: 'installSome'`). Gates the
+    /// project's own lifecycle scripts: pnpm only runs them for the
+    /// full install via the `mutation === 'install'` filter at
+    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1524>,
+    /// so a named install such as `pacquet add foo` does not fire
+    /// the root project's preinstall/postinstall/prepare/etc.
+    pub is_full_install: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
     /// with the CLI per-axis overrides (`--cpu` / `--os` / `--libc`).
@@ -137,6 +154,19 @@ where
     /// Used today for the `.modules.yaml.nodeLinker` write and
     /// (in Slice 6) for the install-pipeline branch.
     pub node_linker: pacquet_config::NodeLinker,
+    /// When `true`, resolve dependencies and (re)write `pnpm-lock.yaml`
+    /// but skip every materialization step: no tarball is fetched into
+    /// the store, no `node_modules` is linked, and neither
+    /// `.modules.yaml` nor the current lockfile
+    /// (`<virtual_store_dir>/lock.yaml`) nor the workspace-state file
+    /// is written. Surfaced as `--lockfile-only` on the CLI. A pure
+    /// per-invocation flag (no `pnpm-workspace.yaml` / `config.yaml`
+    /// counterpart — upstream lists `lockfile-only` in `excludedPnpmKeys`),
+    /// so it is threaded straight from the CLI like
+    /// [`Self::frozen_lockfile`]. Mirrors pnpm's
+    /// [`lockfileOnly`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L170)
+    /// (`like npm's --package-lock-only`).
+    pub lockfile_only: bool,
 }
 
 /// Error type of [`Install`].
@@ -150,22 +180,6 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
-
-    /// Requested `nodeLinker` value isn't supported on the
-    /// fresh-lockfile path yet. Pacquet's hoist pass runs only over
-    /// a loaded lockfile's snapshots (`link_hoisted_modules`); a
-    /// non-frozen install with `nodeLinker: hoisted` would produce
-    /// an isolated layout silently, which doesn't match the user's
-    /// intent. Re-run with `--frozen-lockfile`, or set
-    /// `nodeLinker: isolated`.
-    #[display(
-        "nodeLinker: {node_linker:?} is not supported without --frozen-lockfile yet. Re-run with --frozen-lockfile against an existing pnpm-lock.yaml, or set nodeLinker: isolated."
-    )]
-    #[diagnostic(code(pacquet_package_manager::unsupported_fresh_install_node_linker))]
-    UnsupportedFreshInstallNodeLinker {
-        #[error(not(source))]
-        node_linker: NodeLinker,
-    },
 
     /// `--no-runtime` (or `config.skip_runtimes`) is honored only on
     /// the frozen-lockfile path today, where the runtime filter runs
@@ -181,6 +195,14 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
+
+    /// A workspace project's own lifecycle script
+    /// (preinstall/install/postinstall/preprepare/prepare/postprepare)
+    /// exited non-zero. Unlike a dependency build failure — which
+    /// `BuildModules` can swallow for optional deps — a project script
+    /// failure always fails the install, matching pnpm.
+    #[diagnostic(transparent)]
+    ProjectLifecycleScript(#[error(source)] LifecycleScriptError),
 
     #[diagnostic(transparent)]
     WriteModules(#[error(source)] WriteModulesError),
@@ -292,6 +314,18 @@ pub enum InstallError {
     /// [`config/parse-overrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts).
     #[diagnostic(transparent)]
     InvalidOverrides(#[error(source)] pacquet_config_parse_overrides::ParseOverridesError),
+
+    /// `--lockfile-only` was requested together with `lockfile: false`
+    /// (pnpm's `useLockfile: false`). There is nothing left to do — the
+    /// only output `--lockfile-only` produces is the lockfile, and that
+    /// write is disabled — so the combination is a user-config conflict
+    /// rather than a silent no-op. Mirrors pnpm's
+    /// `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE` thrown
+    /// from
+    /// <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/extendInstallOptions.ts#L410-L415>.
+    #[display("Cannot generate a pnpm-lock.yaml because lockfile is set to false")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE))]
+    ConfigConflictLockfileOnlyWithNoLockfile,
 }
 
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
@@ -316,9 +350,20 @@ where
             skip_runtimes,
             trust_lockfile,
             update_checksums,
+            is_full_install,
             supported_architectures,
             node_linker,
+            lockfile_only,
         } = self;
+
+        // `--lockfile-only` with `lockfile: false` (pnpm's
+        // `useLockfile: false`) is a config conflict: the only output the
+        // flag produces is the lockfile, and that write is disabled.
+        // Fail fast rather than run a resolve that writes nothing.
+        // Mirrors pnpm's `extendInstallOptions` guard.
+        if lockfile_only && !config.lockfile {
+            return Err(InstallError::ConfigConflictLockfileOnlyWithNoLockfile);
+        }
 
         // Resolve the effective `preferFrozenLockfile` for the
         // dispatch: a per-invocation CLI flag wins over
@@ -347,7 +392,7 @@ where
         // any ancestor, matching upstream's single-project behavior.
         // Closes pnpm/pacquet#357.
         //
-        // [bunyan]: https://github.com/trentm/node-bunyan
+        // [bunyan]: <https://github.com/trentm/node-bunyan>
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
@@ -536,14 +581,16 @@ where
         // <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/index.ts#L355-L383>.
         // `lockfile.is_none()` (writable-lockfile path) skips the
         // gate entirely — fresh local resolution is already filtered
-        // by the resolver's per-version gate (when pacquet's
-        // resolver lands). `trust_lockfile` (the OR of yaml's
+        // by the resolver's per-version gate (`minimumReleaseAge` via
+        // `ResolveResult::policy_violation`, `trustPolicy='no-downgrade'`
+        // via the npm resolver's `fail_if_trust_downgraded_for_pick`).
+        // `trust_lockfile` (the OR of yaml's
         // `trustLockfile` and the `--trust-lockfile` CLI flag,
         // resolved in [`crate::cli_args::install::InstallArgs::run`])
         // is the opt-out for environments where the install can
         // treat the on-disk lockfile as already-trusted (see [#11860]).
         //
-        // [#11860]: https://github.com/pnpm/pnpm/issues/11860
+        // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
         // One per-install packument cache shared with both the
         // lockfile-verifier (below) and the resolver in
         // `install_with_fresh_lockfile` (further down). The
@@ -690,6 +737,36 @@ where
             false
         };
 
+        // `--lockfile-only`: resolve and (re)write `pnpm-lock.yaml`, then
+        // stop — never materialize `node_modules`, `.modules.yaml`, the
+        // current lockfile, or the workspace-state file. Mirrors pnpm's
+        // lockfileOnly short-circuits: the frozen / up-to-date path writes
+        // the wanted lockfile and returns at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L979-L986>,
+        // and the fresh-resolve path skips `linkPackages` at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1543>.
+        if lockfile_only && take_frozen_path {
+            // Frozen (`--frozen-lockfile`) or auto-frozen
+            // (`preferFrozenLockfile`) + `--lockfile-only`: the freshness
+            // gate folded into `take_frozen_path` already validated the
+            // on-disk lockfile (a stale one surfaced `OutdatedLockfile`).
+            // Re-persist it so a brand-new project still lands a file, then
+            // return without touching `node_modules`.
+            let lockfile = lockfile.expect("frozen dispatch verified lockfile is present");
+            if config.lockfile {
+                lockfile
+                    .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                    .map_err(InstallError::SaveWantedLockfile)?;
+            }
+            Reporter::emit(&LogEvent::Stage(StageLog {
+                level: LogLevel::Debug,
+                prefix: prefix.clone(),
+                stage: Stage::ImportingDone,
+            }));
+            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+            return Ok(());
+        }
+
         // No-op short-circuit. When the frozen-lockfile dispatch is
         // eligible, the on-disk `.modules.yaml` agrees with the current
         // config, and `<virtual_store_dir>/lock.yaml` is byte-equal to
@@ -778,22 +855,19 @@ where
             // auto-frozen install (state 2 of [`Install::run`]) doesn't
             // get rejected up front:
             //
-            // - `nodeLinker: hoisted` on the fresh path would need a
-            //   port of upstream's hoist pass against the freshly-built
-            //   graph (the frozen path uses `link_hoisted_modules` over
-            //   the lockfile's snapshots). Falling through to the
-            //   isolated linker would lay out `node_modules` in the
-            //   wrong shape, so refuse the install instead.
             // - `skip_runtimes` (CLI `--no-runtime`) on the fresh path
             //   would need a runtime-filter at the materialization step
             //   matching the frozen path's
             //   [`installing/deps-installer/src/install/index.ts:1374-1387`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L1374-L1387)
             //   filter. Without it, runtime archives get fetched +
             //   materialized despite the opt-out.
-            if matches!(node_linker, NodeLinker::Hoisted) {
-                return Err(InstallError::UnsupportedFreshInstallNodeLinker { node_linker });
-            }
-            if skip_runtimes {
+            //
+            // Bypassed under `--lockfile-only`: that path writes only
+            // `pnpm-lock.yaml` and never materializes, so the runtime
+            // filter is irrelevant to its output. Mirrors pnpm gating its
+            // lockfileOnly-specific handling on `!opts.lockfileOnly` at
+            // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1957>.
+            if !lockfile_only && skip_runtimes {
                 return Err(InstallError::UnsupportedFreshInstallSkipRuntimes);
             }
 
@@ -865,6 +939,9 @@ where
                 // upstream's `update: false` mode. State 4 (no
                 // lockfile) passes `None`.
                 wanted_lockfile: lockfile,
+                node_linker,
+                supported_architectures: supported_architectures.as_ref(),
+                lockfile_only,
             }
             .run::<Reporter>()
             .await
@@ -872,13 +949,28 @@ where
 
             (
                 fresh_result.hoisted_dependencies,
-                BTreeMap::new(),
+                fresh_result.hoisted_locations,
                 crate::SkippedSnapshots::new(),
                 fresh_result.wanted_lockfile,
             )
         };
 
         tracing::info!(target: "pacquet::install", "Complete all");
+
+        // Fresh-resolve `--lockfile-only` already wrote `pnpm-lock.yaml` and
+        // emitted `importing_done` inside `InstallWithFreshLockfile::run`.
+        // Skip `.modules.yaml`, the current lockfile, and the
+        // workspace-state file: there is no `node_modules` to describe, and
+        // writing the workspace-state file would make the next install's
+        // up-to-date check believe materialization happened. Mirrors pnpm
+        // writing only the wanted lockfile at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1784>
+        // and skipping `updateWorkspaceState` when `lockfileOnly` at
+        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/commands/src/installDeps.ts#L515>.
+        if lockfile_only {
+            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+            return Ok(());
+        }
 
         // `Stage::ImportingDone` is emitted inside the install paths
         // (`InstallFrozenLockfile` between symlink and build, and
@@ -917,12 +1009,12 @@ where
         // a manifest failure can't leave a fresh current-lockfile
         // pointing at incomplete install state — the next frozen
         // reinstall would otherwise diff against a graph that never
-        // finished committing (review on #442).
+        // finished committing (review on <https://github.com/pnpm/pacquet/pull/442>).
         //
-        // Workspace installs (#431) ship every importer's section of
+        // Workspace installs (<https://github.com/pnpm/pacquet/issues/431>) ship every importer's section of
         // the wanted lockfile unchanged because the install fans out
         // across all of them. Once `--filter` lands (Stage 2 of
-        // #299), this needs to narrow to the filtered lockfile
+        // <https://github.com/pnpm/pacquet/issues/299>), this needs to narrow to the filtered lockfile
         // (selected importers × engine filter) so the saved current
         // lockfile reflects only what was actually materialized.
         if frozen_lockfile && let Some(lockfile) = lockfile {
@@ -967,6 +1059,26 @@ where
             synthesized
                 .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                 .map_err(InstallError::SaveWantedLockfile)?;
+        }
+
+        // Run each workspace project's own lifecycle scripts now that
+        // the dependency graph is materialized, bins are linked, and
+        // `.modules.yaml` / the current lockfile are written. Mirrors
+        // pnpm's `runLifecycleHooksConcurrently(['preinstall', ...])`
+        // emit point near the end of the install at
+        // <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1517-L1530>.
+        // The `pnpm:lifecycle` events these scripts produce render
+        // before the closing `pnpm:summary` below, matching pnpm.
+        //
+        // Skipped for partial installs (`pacquet add`): pnpm filters
+        // to `mutation === 'install'` so a named install does not fire
+        // the project's own scripts (see [`Install::is_full_install`]).
+        if is_full_install {
+            run_projects_lifecycle_scripts::<Reporter>(
+                &project_manifests,
+                config,
+                &workspace_root,
+            )?;
         }
 
         // Write `node_modules/.pnpm-workspace-state-v1.json`. Mirrors
@@ -1025,7 +1137,7 @@ fn check_lockfile_freshness(
     catalogs: &Catalogs,
     ignore_manifest_check: bool,
 ) -> Result<(), FreshnessCheckError> {
-    // Pacquet has only one importer today (#431 tracks workspaces),
+    // Pacquet has only one importer today (<https://github.com/pnpm/pacquet/issues/431> tracks workspaces),
     // so the root project is the only thing to verify; once
     // workspaces land this becomes a per-project loop over
     // `lockfile.importers`.
@@ -1052,15 +1164,26 @@ fn check_lockfile_freshness(
         .as_deref()
         .map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
 
-    // Outdated-settings gate (umbrella #434 slice 7): check
-    // `ignoredOptionalDependencies` + `overrides` drift between the
-    // lockfile-recorded set and the current config before the
-    // per-importer specifier check. Mirrors upstream's
+    // Outdated-settings gate (umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7): check
+    // `ignoredOptionalDependencies` + `overrides` +
+    // `packageExtensionsChecksum` drift between the lockfile-recorded
+    // values and the current config before the per-importer specifier
+    // check. Mirrors upstream's
     // [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
+    let package_extensions_checksum = config
+        .package_extensions
+        .as_ref()
+        .filter(|extensions| !extensions.is_empty())
+        .and_then(|extensions| serde_json::to_value(extensions).ok())
+        .as_ref()
+        .and_then(pacquet_graph_hasher::hash_object_nullable_with_prefix);
     pacquet_lockfile::check_lockfile_settings(
         lockfile,
         overrides_map.as_ref(),
+        package_extensions_checksum.as_deref(),
         config.ignored_optional_dependencies.as_deref(),
+        config.inject_workspace_packages,
+        config.peers_suffix_max_length,
     )
     .map_err(FreshnessCheckError::Stale)?;
 
@@ -1311,6 +1434,62 @@ fn load_workspace_projects(
     pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 
+/// Run every workspace project's own lifecycle scripts after the
+/// dependency graph is materialized and bins are linked. Ports the
+/// `runLifecycleHooksConcurrently(['preinstall', ...])` call pnpm fires
+/// near the end of the install, gated on `!ignoreScripts`:
+/// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1517-L1530>.
+///
+/// pacquet has no `ignoreScripts` toggle yet (it hardcodes
+/// `ignore_scripts: false` throughout the dependency-build path), so
+/// this always runs — matching pnpm's default. Projects are visited
+/// root-first; pnpm orders them by `buildIndex` (workspace
+/// topological order) and re-links each project's bins between groups
+/// so a later project's `prepare` can consume a dependency workspace
+/// package's freshly-built output. That ordering — and running
+/// projects concurrently under `child_concurrency` — is a follow-up
+/// once pacquet computes a per-importer build index; the common
+/// single-project case is unaffected.
+fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    config: &Config,
+    workspace_root: &Path,
+) -> Result<(), InstallError> {
+    let modules_dir_basename =
+        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    // Same tri-state mapping the dependency-build path applies; see
+    // the doc on [`pacquet_config::ScriptsPrependNodePath`].
+    let scripts_prepend_node_path = match config.scripts_prepend_node_path {
+        pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
+        pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
+        pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
+    };
+    let extra_env = std::collections::HashMap::new();
+    for (project_dir, _manifest) in project_manifests {
+        let root_modules_dir = project_dir.join(modules_dir_basename);
+        let dep_path = project_dir.to_string_lossy();
+        run_project_lifecycle_scripts::<Reporter>(RunPostinstallHooks {
+            dep_path: &dep_path,
+            pkg_root: project_dir,
+            root_modules_dir: &root_modules_dir,
+            init_cwd: workspace_root,
+            extra_bin_paths: &[],
+            extra_env: &extra_env,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            unsafe_perm: config.unsafe_perm,
+            node_gyp_bin: None,
+            scripts_prepend_node_path,
+            script_shell: None,
+            optional: false,
+        })
+        .map_err(InstallError::ProjectLifecycleScript)?;
+    }
+    Ok(())
+}
+
 /// Assemble the `(root_dir, manifest)` list every importer the
 /// install would walk. Always includes the root manifest; adds each
 /// sibling project from `workspace_projects` when present. The root
@@ -1401,8 +1580,8 @@ fn build_projects_map(
 /// Records the projects pacquet just materialized plus the resolved
 /// settings the install used. Mirrors upstream's `createWorkspaceState`
 /// at <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/createWorkspaceState.ts>.
-/// Settings pacquet does not track yet (e.g. `dedupeDirectDeps`,
-/// `peersSuffixMaxLength`) are omitted; pnpm's `checkDepsStatus`
+/// Settings pacquet does not track yet (e.g. `peersSuffixMaxLength`)
+/// are omitted; pnpm's `checkDepsStatus`
 /// only iterates fields present in the serialized object, so an
 /// absent key is silently skipped rather than treated as a drift.
 fn build_workspace_state(
@@ -1418,11 +1597,11 @@ fn build_workspace_state(
         // pnpm's `patchesOrHooksAreModified` doesn't trip on a missing
         // field.
         pnpmfiles: Vec::new(),
-        // Pacquet has no `--filter` yet (issue #299 stage 2). Hard-code
+        // Pacquet has no `--filter` yet (issue <https://github.com/pnpm/pacquet/issues/299> stage 2). Hard-code
         // `false` so pnpm doesn't treat the install as partial and
         // skip the cache.
         filtered_install: false,
-        config_dependencies: None,
+        config_dependencies: config.config_dependencies.clone(),
         // Settings construction is shared with
         // `optimistic_repeat_install::current_settings` so the
         // freshness check sees the same byte shape this writer

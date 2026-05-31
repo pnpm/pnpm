@@ -21,11 +21,11 @@ fn fake_resolution() -> LockfileResolution {
 /// per-policy constants can flow through without allocation.
 #[test]
 fn resolution_verification_err_round_trip() {
-    let v = ResolutionVerification::Err {
+    let verification = ResolutionVerification::Err {
         code: "MINIMUM_RELEASE_AGE_VIOLATION",
         reason: "was published yesterday".to_string(),
     };
-    match v {
+    match verification {
         ResolutionVerification::Err { code, reason } => {
             assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
             assert_eq!(reason, "was published yesterday");

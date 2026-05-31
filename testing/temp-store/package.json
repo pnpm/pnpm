@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.temp-store",
-  "version": "1100.1.4",
+  "version": "1100.1.5",
   "description": "A temporary store for testing purposes",
   "keywords": [
     "pnpm",
@@ -33,11 +33,11 @@
   },
   "dependencies": {
     "@pnpm/installing.client": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
-    "@pnpm/store.index": "workspace:*"
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/testing.temp-store": "workspace:*"

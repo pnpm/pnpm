@@ -24,20 +24,21 @@
 //!
 //! [`ResolutionVerifier::can_trust_past_check`]: pacquet_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
 
+use chrono::{SecondsFormat, Utc};
+use pacquet_resolving_resolver_base::ResolutionVerifier;
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use std::{
     collections::HashMap,
     fs::{self, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::Arc,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::SystemTime,
 };
-
-use chrono::{SecondsFormat, Utc};
-use pacquet_resolving_resolver_base::ResolutionVerifier;
-use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 
 /// File name of the cache, relative to `cache_dir`. Matches
 /// upstream's `CACHE_FILE_NAME` so a pnpm-populated cache file is

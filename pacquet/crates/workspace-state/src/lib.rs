@@ -4,7 +4,7 @@
 //! <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/index.ts>.
 //!
 //! The file records what an install actually used (project list,
-//! resolved settings, pnpmfiles, …) so the next `pnpm run` invocation
+//! resolved settings, pnpmfiles, ...) so the next `pnpm run` invocation
 //! can decide whether `node_modules` is still up to date without
 //! re-resolving anything. Mirroring the on-disk shape byte-for-byte
 //! lets pnpm read state written by pacquet — that's what closes the
@@ -45,6 +45,27 @@ pub struct ProjectEntry {
     pub version: Option<String>,
 }
 
+/// A single `configDependencies` value. Mirrors pnpm's
+/// `VersionWithIntegrity | { tarball?, integrity }` at
+/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/core/types/src/package.ts>.
+/// Untagged so it round-trips both shapes verbatim; pnpm compares the
+/// recorded value against the live config with a deep, order-independent
+/// equality check.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ConfigDependency {
+    VersionWithIntegrity(String),
+    Detailed(ConfigDependencyDetail),
+}
+
+/// The `{ tarball?, integrity }` form of a [`ConfigDependency`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConfigDependencyDetail {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tarball: Option<String>,
+    pub integrity: String,
+}
+
 /// Typed view of `.pnpm-workspace-state-v1.json`.
 ///
 /// Mirrors upstream's [`WorkspaceState`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/types.ts).
@@ -59,7 +80,7 @@ pub struct WorkspaceState {
     pub pnpmfiles: Vec<String>,
     pub filtered_install: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config_dependencies: Option<BTreeMap<String, String>>,
+    pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
     pub settings: WorkspaceStateSettings,
 }
 

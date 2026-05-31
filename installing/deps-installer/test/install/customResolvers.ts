@@ -2,7 +2,7 @@ import { expect, test } from '@jest/globals'
 import type { CustomResolver } from '@pnpm/hooks.types'
 import { addDependenciesToPackage } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 import { testDefaults } from '../utils/index.js'
 

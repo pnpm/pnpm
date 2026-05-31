@@ -5,6 +5,7 @@ use std::{
 };
 
 use chrono::TimeZone;
+use pacquet_config::TrustPolicy;
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_resolving_resolver_base::{
@@ -108,6 +109,48 @@ const JSR_PACKAGE_BODY: &str = r#"{
                 "integrity": "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD==",
                 "shasum": "3333333333333333333333333333333333333333",
                 "tarball": "https://registry/foo__bar-1.1.0.tgz"
+            }
+        }
+    }
+}"#;
+
+/// Packument where the earlier-published `1.0.0` carries the strongest
+/// trust evidence available here (`trustedPublisher` + provenance) and
+/// the later `1.1.0` carries none — a trust downgrade. Resolving
+/// `^1.0.0` picks `1.1.0` (the max), so the resolver-time gate must
+/// reject it under `trustPolicy='no-downgrade'`.
+const TRUST_DOWNGRADE_PACKAGE_BODY: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.1.0" },
+    "modified": "2025-01-15T12:00:00.000Z",
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z",
+        "1.1.0": "2024-12-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "_npmUser": {
+                "name": "alice",
+                "trustedPublisher": { "id": "github", "oidcConfigId": "release" }
+            },
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/acme-1.0.0.tgz",
+                "attestations": {
+                    "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+                }
+            }
+        },
+        "1.1.0": {
+            "name": "acme",
+            "version": "1.1.0",
+            "dist": {
+                "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                "shasum": "1111111111111111111111111111111111111111",
+                "tarball": "https://registry/acme-1.1.0.tgz"
             }
         }
     }
@@ -218,6 +261,57 @@ async fn surfaces_min_release_age_violation_inline() {
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
     let violation = result.policy_violation.expect("violation surfaced");
     assert_eq!(violation.code, MINIMUM_RELEASE_AGE_VIOLATION_CODE);
+}
+
+#[tokio::test]
+async fn trust_downgrade_at_resolve_time_fails_under_no_downgrade() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(TRUST_DOWNGRADE_PACKAGE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // `^1.0.0` picks 1.1.0 (the max), which has no trust evidence while
+    // the earlier 1.0.0 shipped a trusted publisher — a downgrade. The
+    // resolver-time gate must reject it as a hard error.
+    let opts = ResolveOptions {
+        trust_policy: Some(TrustPolicy::NoDowngrade),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver.resolve(&wanted, &opts).await.expect_err("trust downgrade should fail");
+    assert!(err.to_string().contains("trust downgrade"), "got {err}");
+}
+
+#[tokio::test]
+async fn trust_downgrade_ignored_when_trust_policy_off() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(TRUST_DOWNGRADE_PACKAGE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Same downgrade history, but without `trustPolicy='no-downgrade'`
+    // the gate never runs and 1.1.0 resolves cleanly.
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
 }
 
 #[tokio::test]
@@ -601,8 +695,10 @@ fn workspace_resolve_options(packages: WorkspacePackages) -> ResolveOptions {
 }
 
 /// Ports pnpm's [`index.ts#L1442-L1491`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1442-L1491);
-/// this is the case behind #11929 (babylon's `@dev/build-tools`
+/// this is the case behind [#11929] (babylon's `@dev/build-tools`
 /// isn't on npm, so bare-semver must resolve via the workspace).
+///
+/// [#11929]: https://github.com/pnpm/pnpm/issues/11929
 #[tokio::test]
 async fn falls_back_to_workspace_when_registry_returns_404() {
     let mut server = mockito::Server::new_async().await;

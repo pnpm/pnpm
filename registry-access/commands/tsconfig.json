@@ -25,6 +25,9 @@
       "path": "../../core/error"
     },
     {
+      "path": "../../core/logger"
+    },
+    {
       "path": "../../core/types"
     },
     {
@@ -32,6 +35,9 @@
     },
     {
       "path": "../../network/fetch"
+    },
+    {
+      "path": "../../network/web-auth"
     },
     {
       "path": "../../releasing/commands"
@@ -44,6 +50,9 @@
     },
     {
       "path": "../../testing/mock-agent"
+    },
+    {
+      "path": "../../testing/registry-mock"
     },
     {
       "path": "../client"

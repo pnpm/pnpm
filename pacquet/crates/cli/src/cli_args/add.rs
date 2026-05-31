@@ -1,5 +1,4 @@
-use crate::State;
-use crate::cli_args::supported_architectures::SupportedArchitecturesArgs;
+use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::Args;
 use miette::Context;
 use pacquet_package_manager::Add;
@@ -82,6 +81,11 @@ pub struct AddArgs {
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
+    /// Dependencies are not downloaded. The package is added to the
+    /// manifest and only `pnpm-lock.yaml` is updated; no `node_modules`
+    /// is created. Mirrors pnpm's `--lockfile-only`.
+    #[clap(long = "lockfile-only")]
+    pub lockfile_only: bool,
     /// The directory with links to the store (default is node_modules/.pacquet).
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]
@@ -124,6 +128,7 @@ impl AddArgs {
             save_exact: self.save_exact,
             resolved_packages,
             supported_architectures,
+            lockfile_only: self.lockfile_only,
         }
         .run::<Reporter>()
         .await

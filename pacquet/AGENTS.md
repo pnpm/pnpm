@@ -186,13 +186,15 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 ## Tests
 
 - Tests live alongside the code they exercise (standard Cargo layout) plus
-  integration tests under each crate's `tests/`. Shared test fixtures live
-  under `crates/testing-utils/src/fixtures/`.
+  integration tests under each crate's `tests/`. Shared pacquet fixtures live
+  under `crates/testing-utils/src/fixtures/`; registry package fixtures live
+  under `../pnpr/.fixtures/packages/`.
 - Snapshot tests use `insta`. When an intentional change alters a snapshot,
   review the diff carefully, then accept with `cargo insta review`. Never
   accept snapshot changes blindly.
-- Some tests require the mocked registry. Start it with
-  `just registry-mock launch` if a test needs it.
+- Tests that need the mocked registry start `pnpr` through
+  `pacquet-testing-utils`; `cargo test` / `cargo nextest run` should not
+  require a separate `just registry-mock launch` step.
 - When porting behavior from pnpm, port the relevant pnpm tests too (as Rust
   tests) whenever they translate. Matching test coverage is the easiest way
   to prove behavioral parity.
@@ -377,9 +379,11 @@ are part of the public contract, not implementation detail. See
   reformat unrelated code.
 - Reference the upstream pnpm commit/PR you ported from, when applicable.
 - Run `just ready` before pushing.
-- The repo installs a pre-push hook via `just install-hooks` that runs
-  `rustfmt` and `taplo`. Make sure your environment can run cargo (the
-  hook needs it) before pushing.
+- The repo-wide husky `pre-push` hook runs `pacquet/scripts/pre-push-rust.sh`,
+  which checks `rustfmt`, `taplo`, `cargo doc` (with
+  `RUSTDOCFLAGS=-D warnings`), and `cargo dylint`. Make sure your environment
+  can run cargo (the hook needs it) before pushing; `cargo-dylint` is
+  detected at runtime and skipped with a warning if not installed.
 
 ### Commit messages
 

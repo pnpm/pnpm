@@ -1,12 +1,12 @@
 {
   "name": "pnpm-agent",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "description": "pnpm agent server for server-side resolution and store-aware downloads",
   "keywords": [
     "pnpm",
     "pnpm11"
   ],
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
   "funding": "https://opencollective.com/pnpm",
   "repository": "https://github.com/pnpm/pnpm/tree/main/agent/server",
   "homepage": "https://github.com/pnpm/pnpm/tree/main/agent/server#readme",
@@ -52,7 +52,7 @@
     "@jest/globals": "catalog:",
     "@pnpm/agent.client": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "cross-env": "catalog:",
     "pnpm-agent": "workspace:*"
   },

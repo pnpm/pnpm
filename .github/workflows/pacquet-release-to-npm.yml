@@ -82,17 +82,17 @@ jobs:
             exit 1
           fi
 
-      - name: Inject version into pacquet/crates/cli/src/cli_args.rs
-        # The version reported by `pacquet --version` is a hardcoded clap
-        # attribute. Patch it here so the binary built for the matrix leg
-        # reports the version we're about to publish.
+      - name: Inject version into pacquet/crates/config/src/defaults.rs
+        # `pacquet --version` and the default User-Agent both read the
+        # PACQUET_VERSION constant. Patch it here so the binary built for the
+        # matrix leg reports the version we're about to publish.
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          file=pacquet/crates/cli/src/cli_args.rs
-          perl -i -pe 's/#\[clap\(version = "[^"]*"\)\]/#[clap(version = "'"$VERSION"'")]/' "$file"
-          grep -F "version = \"$VERSION\"" "$file"
+          file=pacquet/crates/config/src/defaults.rs
+          perl -i -pe 's/(pub const PACQUET_VERSION: &str = )"[^"]*";/${1}"'"$VERSION"'";/' "$file"
+          grep -F "PACQUET_VERSION: &str = \"$VERSION\"" "$file"
 
       - name: Build with cross
         run: cross build -p pacquet-cli --bin pacquet --release --target=${{ matrix.target }}

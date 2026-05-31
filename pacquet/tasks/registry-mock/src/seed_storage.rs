@@ -7,9 +7,7 @@
 //! target filesystem (cross-device, ACL, etc.).
 
 use crate::{registry_mock_storage, runtime_storage};
-use std::fs;
-use std::io;
-use std::path::Path;
+use std::{fs, io, path::Path};
 use walkdir::WalkDir;
 
 /// Mirror every file under `registry_mock_storage()` into
@@ -19,9 +17,9 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
     let src = registry_mock_storage();
     let dest = runtime_storage();
     if !src.exists() {
-        // The launcher needs registry-mock installed via pnpm — if
-        // it isn't, fall through with zero seeded and let
-        // pnpm-registry's own startup fail with a clear message.
+        // `registry_mock_storage` builds the fixture storage on first
+        // call, so this is unreachable in practice; guard anyway and
+        // let pnpr's own startup surface any problem.
         return Ok(0);
     }
     fs::create_dir_all(dest)?;
