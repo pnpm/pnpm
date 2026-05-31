@@ -244,16 +244,14 @@ function createReachableVulnerabilitiesGetter (
 ): (edge: { name: string, depPath: DepPath }) => Set<string> {
   const packages = lockfile.packages ?? {}
   const memo = new Map<DepPath, Set<string>>()
-  const inTrail = new Set<DepPath>()
   const get = (edge: { name: string, depPath: DepPath }): Set<string> => {
     const cached = memo.get(edge.depPath)
     if (cached) return cached
-    if (inTrail.has(edge.depPath)) return new Set()
     const pkgSnapshot = packages[edge.depPath]
     if (pkgSnapshot == null) return new Set()
 
-    inTrail.add(edge.depPath)
     const result = new Set<string>()
+    memo.set(edge.depPath, result)
     const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
     const resolvedName = name ?? edge.name
     if (version && vulnerableNames.has(resolvedName)) {
@@ -267,8 +265,6 @@ function createReachableVulnerabilitiesGetter (
         addAll(result, get(child))
       }
     }
-    inTrail.delete(edge.depPath)
-    memo.set(edge.depPath, result)
     return result
   }
   return get

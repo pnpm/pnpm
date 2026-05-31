@@ -210,6 +210,73 @@ describe('audit', () => {
     })
   })
 
+  test('buildAuditPathIndex() preserves reachability across cyclic dependencies', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { a: '1.0.0' },
+          specifiers: { a: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['a@1.0.0' as DepPath]: {
+          dependencies: { b: '1.0.0' },
+          resolution: { integrity: 'a-integrity' },
+        },
+        ['b@1.0.0' as DepPath]: {
+          dependencies: { a: '1.0.0' },
+          resolution: { integrity: 'b-integrity' },
+        },
+      } as PackageSnapshots,
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['a', 'b']), {})
+
+    expect(result['a']!.get('1.0.0')).toEqual({
+      paths: ['.>a'],
+      dev: false,
+      optional: false,
+    })
+    expect(result['b']!.get('1.0.0')).toEqual({
+      paths: ['.>a>b'],
+      dev: false,
+      optional: false,
+    })
+  })
+
+  test('buildAuditPathIndex() preserves vulnerability reachability when cycle root is queried second', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { root: '1.0.0' },
+          specifiers: { root: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['root@1.0.0' as DepPath]: {
+          dependencies: { b: '1.0.0' },
+          resolution: { integrity: 'root-integrity' },
+        },
+        ['a@1.0.0' as DepPath]: {
+          dependencies: { b: '1.0.0' },
+          resolution: { integrity: 'a-integrity' },
+        },
+        ['b@1.0.0' as DepPath]: {
+          dependencies: { a: '1.0.0' },
+          resolution: { integrity: 'b-integrity' },
+        },
+      } as PackageSnapshots,
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['a']), {})
+
+    expect(result['a']!.get('1.0.0')).toEqual({
+      paths: ['.>root>b>a'],
+      dev: false,
+      optional: false,
+    })
+  })
+
   test('buildAuditPathIndex() replaces slashes in workspace importer ids', () => {
     const lockfile = {
       importers: {
