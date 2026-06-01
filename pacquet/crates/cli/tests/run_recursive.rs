@@ -523,10 +523,16 @@ fn recursive_run_recursion_guard_skips_originating_project() {
 
     // Pretend we're already inside `project-1`'s `build` lifecycle —
     // pnpm's recursion guard should leave `project-1` alone while
-    // still running `project-2`.
+    // still running `project-2`. Canonicalize the path so the env-var
+    // value matches what `find_workspace_projects` derives internally:
+    // on macOS the tempdir lives under `/var/folders/…` (a symlink to
+    // `/private/var/folders/…`) and the CLI canonicalizes its `--dir`,
+    // so the project roots pacquet compares against are the
+    // `/private/…` form.
+    let project_1 = fs::canonicalize(workspace.join("project-1")).expect("canonicalize project-1");
     pacquet
         .with_env("npm_lifecycle_event", "build")
-        .with_env("PNPM_SCRIPT_SRC_DIR", workspace.join("project-1").to_string_lossy().as_ref())
+        .with_env("PNPM_SCRIPT_SRC_DIR", project_1.to_string_lossy().as_ref())
         .with_arg("-r")
         .with_arg("run")
         .with_arg("build")
