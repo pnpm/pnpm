@@ -1,5 +1,6 @@
 pub mod add;
 pub mod install;
+pub mod remove;
 pub mod run;
 pub mod store;
 pub mod supported_architectures;
@@ -15,6 +16,7 @@ use pacquet_config::{Config, Host};
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use remove::RemoveArgs;
 use run::RunArgs;
 use std::path::PathBuf;
 use store::StoreCommand;
@@ -105,6 +107,11 @@ pub enum CliCommand {
     /// Update packages to their newest version based on the specified range
     #[clap(visible_aliases = ["up", "upgrade"])]
     Update(UpdateArgs),
+    /// Removes packages from `node_modules` and from the project's `package.json`.
+    // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
+    // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
+    #[clap(visible_aliases = ["uninstall", "rm", "un", "uni"])]
+    Remove(RemoveArgs),
     /// Runs a package's "test" script, if one was provided.
     Test,
     /// Runs a defined package script.
@@ -193,6 +200,10 @@ impl CliArgs {
                 ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
             },
             CliCommand::Update(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+            },
+            CliCommand::Remove(args) => match reporter {
                 ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
                 ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
             },
