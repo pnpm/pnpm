@@ -15,7 +15,7 @@ use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, 
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_lockfile::{Lockfile, SaveLockfileError};
+use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
@@ -35,7 +35,7 @@ use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
 };
 use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
-use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
+use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::MemCache;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -549,6 +549,30 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // the materializing and `--lockfile-only` paths: the lockfile
         // needs the integrity regardless of whether `node_modules` is
         // built.
+        // Map every remote-tarball URL the prior lockfile recorded (with an
+        // integrity) to its `<integrity>\t<pkg_id>` store-index key, keyed
+        // exactly as `snapshot_cache_key` / the install pass address the row.
+        // The `TarballResolver` uses it to reuse a warm store entry instead
+        // of re-downloading on re-resolution. Git-hosted tarballs are skipped
+        // (they key by `gitHostedStoreIndexKey`, not the integrity) and just
+        // re-fetch as before. Empty on a first install.
+        let prior_tarball_entries: HashMap<String, (ssri::Integrity, String)> = wanted_lockfile
+            .and_then(|lockfile| lockfile.packages.as_ref())
+            .map(|packages| {
+                packages
+                    .iter()
+                    .filter_map(|(key, metadata)| match &metadata.resolution {
+                        LockfileResolution::Tarball(t) if t.git_hosted != Some(true) => {
+                            let integrity = t.integrity.clone()?;
+                            let cache_key =
+                                store_index_key(&integrity.to_string(), &key.to_string());
+                            Some((t.tarball.clone(), (integrity, cache_key)))
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let tarball_resolver = TarballResolver {
             http_client: Arc::clone(&http_client_arc),
             fetch_context: Some(TarballFetchContext {
@@ -557,6 +581,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 mem_cache: Some(Arc::clone(&tarball_mem_cache)),
                 auth_headers: Arc::clone(&config.auth_headers),
                 retry_opts: crate::retry_config::retry_opts_from_config(config),
+                store_index: store_index.clone(),
+                verify_store_integrity: config.verify_store_integrity,
+                verified_files_cache: Arc::clone(&verified_files_cache),
+                prior_tarball_entries: Arc::new(prior_tarball_entries),
             }),
         };
         // `preserveAbsolutePaths` is wired through `Config`; thread the
