@@ -35,9 +35,11 @@ style) instead of re-resolving from the parent manifest**, and need neither the
 parent's package.json nor its child *ranges*. `install_frozen_lockfile.rs` already
 performs this snapshot→graph walk and is the reusable building block.
 
-(Caveat to handle later: a *changed* `readPackageHook`/`packageExtensions` config must
-invalidate reuse — pnpm invalidates the lockfile in that case. Out of scope for the
-first cut; note it.)
+A *changed* `readPackageHook`/`packageExtensions` config invalidates reuse: the install
+withholds the prior lockfile from the reuse path when its `packageExtensionsChecksum` no
+longer matches the config, so the stale subtree is re-resolved (mirrors pnpm invalidating
+the lockfile on a settings change). `overrides` drift is not yet guarded for transitive
+reuse — see follow-ups.
 
 ## Design: hybrid resolve
 
@@ -105,7 +107,8 @@ pass and the `updated`-propagation boundary are the subtlest parts.
 - **`overrides` drift** isn't yet guarded for transitive reuse (only
   `packageExtensions` is). An `overrides` change that rewrites a transitive
   dep's version should invalidate that subtree's reuse.
-- **`pacquet update` target inside a dependency cycle** can be missed by the
-  `subtree_fully_reusable` cycle-break memoization (reuses a still-valid but
-  un-bumped version).
+- **Dependency cycles conservatively re-resolve.** `subtree_fully_reusable` treats a
+  still-in-progress back-edge as non-reusable, so any subtree containing a cycle is
+  re-resolved rather than reused (correct, but a perf limitation). SCC-aware reuse of
+  acyclic-equivalent cycles is a possible future optimization.
 - vlt.sh before/after benchmark for the perf number.
