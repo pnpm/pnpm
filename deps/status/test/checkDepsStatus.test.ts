@@ -602,13 +602,29 @@ describe('checkDepsStatus - lockfile modification', () => {
         }
         return undefined
       })
-      jest.mocked(fsUtils.safeStat).mockResolvedValue(undefined)
+      jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
+        if (filePath.endsWith('pnpm-lock.yaml')) {
+          return {
+            mtime: new Date(afterLastValidation),
+            mtimeMs: afterLastValidation,
+          } as Stats
+        }
+        return undefined
+      })
       jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue({
         mtime: new Date(beforeLastValidation),
         mtimeMs: beforeLastValidation,
       } as Stats)
+      const wantedLockfile: LockfileObject = {
+        lockfileVersion: '9.0',
+        importers: {
+          ['.' as ProjectId]: {
+            specifiers: { foo: '1.0.0' },
+          },
+        },
+      }
       jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
-      jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
+      jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(wantedLockfile)
 
       const opts: CheckDepsStatusOptions = {
         allProjects: [{
@@ -629,7 +645,7 @@ describe('checkDepsStatus - lockfile modification', () => {
       const result = await checkDepsStatus(opts)
 
       expect(result.upToDate).toBe(false)
-      expect(lockfileFs.readWantedLockfile).toHaveBeenCalled()
+      expect(result.issue).toBe(`The installed dependencies in the modules directory is not up-to-date with the lockfile in ${workspaceDir}.`)
     } finally {
       await fs.rm(workspaceDir, { force: true, recursive: true })
     }
