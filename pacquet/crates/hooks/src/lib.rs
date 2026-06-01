@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 pub mod finder;
 pub mod node_runtime;
+pub mod worker;
 
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
@@ -14,7 +15,7 @@ pub type ReadPackageResult = Arc<Value>;
 /// Mirrors pnpm's `PNPMFILE_FAIL` / `BAD_READ_PACKAGE_HOOK_RESULT` errors: a
 /// throwing or syntactically invalid pnpmfile, or a `readPackage` hook that
 /// returns something that is not a package manifest, aborts the install.
-#[derive(Debug, Display)]
+#[derive(Debug, Display, Clone)]
 pub enum HookError {
     #[display("pnpmfile hook '{_0}' timed out after {_1} seconds")]
     Timeout(String, u64),

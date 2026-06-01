@@ -1,148 +1,44 @@
-use crate::HookError;
+use crate::{HookError, worker::NodeWorker};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
     io::AsyncWriteExt,
     process::Command,
+    sync::OnceCell,
     time::{Duration, timeout},
 };
 
+/// Runs `.pnpmfile.{cjs,mjs}` hooks via Node.js.
+///
+/// `readPackage`, `afterAllResolved`, and `filterLog` are served by a
+/// long-lived [`NodeWorker`] (spawned lazily, once per pnpmfile) so the
+/// per-package `readPackage` calls on the resolution hot path don't each pay a
+/// `node` startup. `preResolution` keeps a one-shot `node -e` invocation: it
+/// runs once per install and needs an `info`/`warn` logger rather than the
+/// worker's `context.log`.
 pub struct NodeJsHooks {
     pub file: PathBuf,
+    worker: OnceCell<Result<Arc<NodeWorker>, HookError>>,
 }
 
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl NodeJsHooks {
-    fn pnpmfile_path(&self) -> String {
-        self.file.to_string_lossy().into_owned()
+    pub fn new(file: PathBuf) -> Self {
+        NodeJsHooks { file, worker: OnceCell::new() }
     }
 
-    fn execution_error(&self, message: impl Into<String>) -> HookError {
-        HookError::Execution { pnpmfile: self.pnpmfile_path(), message: message.into() }
+    /// The worker process, spawned on first use and reused thereafter. A spawn
+    /// failure is cached and surfaced to every hook call.
+    async fn worker(&self) -> Result<Arc<NodeWorker>, HookError> {
+        self.worker.get_or_init(|| NodeWorker::spawn(&self.file)).await.clone()
     }
 
-    /// Runs `node` with the given wrapper script and returns trimmed stdout.
-    ///
-    /// A non-zero exit (a thrown hook, a syntax error, a missing `require`) is
-    /// turned into [`HookError::Execution`] carrying the child's stderr, so the
-    /// caller can abort the install with a meaningful message like pnpm does.
-    async fn run_node(
-        &self,
-        func: &str,
-        input_type: &str,
-        wrapper: &str,
-    ) -> Result<String, HookError> {
-        let output = timeout(
-            HOOK_TIMEOUT,
-            Command::new("node")
-                .arg("--input-type")
-                .arg(input_type)
-                .arg("-e")
-                .arg(wrapper)
-                .kill_on_drop(true)
-                .output(),
-        )
-        .await
-        .map_err(|_| HookError::Timeout(func.to_string(), HOOK_TIMEOUT.as_secs()))?
-        .map_err(|err| self.execution_error(err.to_string()))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(self.execution_error(stderr.trim()));
-        }
-
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-    }
-
-    async fn call_node(&self, func: &str, args: Value) -> Result<Value, HookError> {
-        let payload =
-            serde_json::to_string(&args).map_err(|err| self.execution_error(err.to_string()))?;
-        let file_path = self.file.to_string_lossy();
-        let file_path_escaped = serde_json::to_string(&file_path)
-            .map_err(|err| self.execution_error(err.to_string()))?;
-
-        let (input_type, wrapper) = if file_path.ends_with(".mjs") {
-            (
-                "module",
-                format!(
-                    r#"const hooks = await import({file_path_escaped});
-const res = await (hooks.hooks && hooks.hooks['{func}'])?.({payload});
-console.log(JSON.stringify(res));
-"#,
-                ),
-            )
-        } else {
-            (
-                "commonjs",
-                format!(
-                    r#"(async () => {{
-  const hooks = require({file_path_escaped});
-  const res = await (hooks.hooks && hooks.hooks['{func}'])?.({payload});
-  console.log(JSON.stringify(res));
-}})();
-"#,
-                ),
-            )
-        };
-
-        let stdout = self.run_node(func, input_type, &wrapper).await?;
-        if stdout == "null" || stdout == "undefined" {
-            return Ok(Value::Null);
-        }
-        serde_json::from_str(&stdout).map_err(|err| self.execution_error(err.to_string()))
-    }
-
-    /// Runs the `readPackage` hook, mirroring pnpm's `requirePnpmfile` wrapper:
-    /// the four dependency fields are defaulted to `{}` before the call, and the
-    /// returned manifest is validated (must be a non-null object whose dependency
-    /// fields, when present, are objects rather than arrays). A pnpmfile without a
-    /// `readPackage` hook returns the manifest unchanged.
-    async fn call_read_package(&self, pkg: Value) -> Result<Value, HookError> {
-        let payload =
-            serde_json::to_string(&pkg).map_err(|err| self.execution_error(err.to_string()))?;
-        let file_path = self.file.to_string_lossy();
-        let file_path_escaped = serde_json::to_string(&file_path)
-            .map_err(|err| self.execution_error(err.to_string()))?;
-
-        let body = format!(
-            r#"const pkg = {payload};
-const fn = mod.hooks && mod.hooks['readPackage'];
-if (typeof fn !== 'function') {{ console.log(JSON.stringify(pkg)); }} else {{
-  pkg.dependencies = pkg.dependencies ?? {{}};
-  pkg.devDependencies = pkg.devDependencies ?? {{}};
-  pkg.optionalDependencies = pkg.optionalDependencies ?? {{}};
-  pkg.peerDependencies = pkg.peerDependencies ?? {{}};
-  const newPkg = await fn(pkg, {{ log() {{}} }});
-  if (!newPkg) {{
-    throw new Error("readPackage hook did not return a package manifest object. Hook imported via " + {file_path_escaped});
-  }}
-  for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {{
-    const v = newPkg[dep];
-    if (v != null && (typeof v !== "object" || Array.isArray(v))) {{
-      throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + {file_path_escaped});
-    }}
-  }}
-  console.log(JSON.stringify(newPkg));
-}}"#,
-        );
-
-        let (input_type, wrapper) = if file_path.ends_with(".mjs") {
-            ("module", format!("const mod = await import({file_path_escaped});\n{body}"))
-        } else {
-            (
-                "commonjs",
-                format!(
-                    "(async () => {{\nconst mod = require({file_path_escaped});\n{body}\n}})().catch((err) => {{ console.error(err && err.stack ? err.stack : String(err)); process.exit(1); }});",
-                ),
-            )
-        };
-
-        let stdout = self.run_node("readPackage", input_type, &wrapper).await?;
-        serde_json::from_str(&stdout).map_err(|err| self.execution_error(err.to_string()))
-    }
-
+    /// Runs a side-effecting hook (`preResolution`) in a one-shot `node`
+    /// process, piping the JSON context on stdin and exposing an
+    /// `info`/`warn` logger. Failures are reported through `logger.warn`
+    /// rather than aborting, matching the hook's advisory role.
     async fn call_node_void(
         &self,
         func: &str,
@@ -237,17 +133,17 @@ impl crate::PnpmfileHooks for NodeJsHooks {
     async fn read_package(
         &self,
         pkg: Value,
-        _ctx: crate::HookContext,
+        ctx: crate::HookContext,
     ) -> Result<crate::ReadPackageResult, HookError> {
-        self.call_read_package(pkg).await.map(Arc::new)
+        self.worker().await?.call("readPackage", pkg, ctx.log).await.map(Arc::new)
     }
 
     async fn after_all_resolved(
         &self,
         lockfile: Value,
-        _ctx: crate::HookContext,
+        ctx: crate::HookContext,
     ) -> Result<Value, HookError> {
-        self.call_node("afterAllResolved", lockfile).await
+        self.worker().await?.call("afterAllResolved", lockfile, ctx.log).await
     }
 
     async fn pre_resolution(
@@ -269,12 +165,10 @@ impl crate::PnpmfileHooks for NodeJsHooks {
     }
 
     async fn filter_log(&self, log: Value, ctx: crate::HookContext) -> bool {
-        match self.call_node("filterLog", log).await {
-            Ok(v) => v.as_bool().unwrap_or(true),
-            Err(err) => {
-                (ctx.log)(format!("pnpmfile hook filterLog failed: {}", err));
-                true
-            }
+        let Ok(worker) = self.worker().await else { return true };
+        match worker.call("filterLog", log, ctx.log).await {
+            Ok(value) => value.as_bool().unwrap_or(true),
+            Err(_) => true,
         }
     }
 }

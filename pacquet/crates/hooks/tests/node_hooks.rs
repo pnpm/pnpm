@@ -59,7 +59,7 @@ function readPackage(pkg) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks { file: pnpmfile_path };
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let manifest = serde_json::json!({
         "name": "foo",
@@ -92,7 +92,7 @@ function readPackage(pkg) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks { file: pnpmfile_path };
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let manifest = serde_json::json!({
         "name": "baz",
@@ -125,7 +125,7 @@ function filterLog(log) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks { file: pnpmfile_path };
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let debug_log = serde_json::json!({
         "level": "debug",
@@ -169,7 +169,7 @@ function readPackage(pkg) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks { file: pnpmfile_path.clone() };
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path.clone());
 
     let manifest = serde_json::json!({
         "name": "foo",
@@ -211,7 +211,7 @@ function preResolution(ctx, logger) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks { file: pnpmfile_path };
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let ctx = pacquet_hooks::PreResolutionHookContext {
         wanted_lockfile: serde_json::json!({}),
@@ -255,7 +255,7 @@ function preResolution(ctx, logger) {
     )
     .expect("write pnpmfile");
 
-    let hooks = pacquet_hooks::node_runtime::NodeJsHooks { file: pnpmfile_path };
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
     let ctx = pacquet_hooks::PreResolutionHookContext {
         wanted_lockfile: serde_json::json!({}),
@@ -285,7 +285,7 @@ fn cjs_hooks(source: &str) -> (pacquet_hooks::node_runtime::NodeJsHooks, TempDir
     let tmp = TempDir::new().expect("temp dir");
     let path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(&path, source).expect("write pnpmfile");
-    (pacquet_hooks::node_runtime::NodeJsHooks { file: path }, tmp)
+    (pacquet_hooks::node_runtime::NodeJsHooks::new(path), tmp)
 }
 
 async fn read_package_err(source: &str) -> String {
@@ -376,4 +376,64 @@ async fn read_package_fails_when_pnpmfile_requires_missing_module() {
     let err = read_package_err("module.exports = require('./this-does-not-exist')").await;
     eprintln!("err = {err}");
     assert!(err.contains("Error during pnpmfile execution"));
+}
+
+// The worker multiplexes concurrent readPackage calls by request id: each
+// concurrent call must get back the manifest it sent, not another call's.
+#[tokio::test]
+async fn worker_multiplexes_concurrent_read_package_calls() {
+    let (hooks, _tmp) = cjs_hooks(
+        r#"module.exports = { hooks: { readPackage (pkg) {
+  pkg.dependencies['self'] = pkg.name;
+  return pkg;
+} } }"#,
+    );
+    let hooks = Arc::new(hooks);
+
+    let mut set = tokio::task::JoinSet::new();
+    for i in 0..32u32 {
+        let hooks = Arc::clone(&hooks);
+        set.spawn(async move {
+            let name = format!("pkg-{i}");
+            let updated = hooks
+                .read_package(
+                    serde_json::json!({ "name": name, "version": "1.0.0" }),
+                    pacquet_hooks::HookContext { log: Arc::new(|_| {}) },
+                )
+                .await
+                .expect("readPackage should succeed");
+            (name, updated["dependencies"]["self"].as_str().unwrap().to_string())
+        });
+    }
+
+    while let Some(joined) = set.join_next().await {
+        let (sent, echoed) = joined.expect("task should not panic");
+        assert_eq!(sent, echoed, "a concurrent call received another call's response");
+    }
+}
+
+// A `context.log(...)` call inside readPackage is forwarded to the
+// HookContext's log callback.
+#[tokio::test]
+async fn worker_forwards_read_package_context_log() {
+    let (hooks, _tmp) = cjs_hooks(
+        r#"module.exports = { hooks: { readPackage (pkg, context) {
+  context.log('hello from ' + pkg.name);
+  return pkg;
+} } }"#,
+    );
+
+    let logs = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = Arc::clone(&logs);
+    hooks
+        .read_package(
+            serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+            pacquet_hooks::HookContext {
+                log: Arc::new(move |message| sink.lock().unwrap().push(message)),
+            },
+        )
+        .await
+        .expect("readPackage should succeed");
+
+    assert_eq!(logs.lock().unwrap().as_slice(), &["hello from foo".to_string()]);
 }

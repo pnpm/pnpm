@@ -16,5 +16,5 @@ pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
 
 pub fn load_pnpmfile(root: &Path) -> Option<Arc<dyn PnpmfileHooks>> {
     let file = find_pnpmfile(root)?;
-    Some(Arc::new(super::node_runtime::NodeJsHooks { file }))
+    Some(Arc::new(super::node_runtime::NodeJsHooks::new(file)))
 }
