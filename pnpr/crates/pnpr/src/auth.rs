@@ -137,13 +137,7 @@ impl UserStore {
             users.get(username).cloned()
         };
         if let Some(stored) = existing_hash {
-            return verify_bcrypt(password.to_string(), stored).await.and_then(|ok| {
-                if ok {
-                    Ok(UpsertOutcome::LoggedIn)
-                } else {
-                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-                }
-            });
+            return verify_returning_user(username, password, stored).await;
         }
 
         // Brand-new user — check the registration cap before doing
@@ -188,15 +182,7 @@ impl UserStore {
                 Ok(UpsertOutcome::Created)
             }
             NextStep::VerifyExisting(stored) => {
-                verify_bcrypt(password.to_string(), stored).await.and_then(|ok| {
-                    if ok {
-                        Ok(UpsertOutcome::LoggedIn)
-                    } else {
-                        Err(RegistryError::Unauthenticated {
-                            resource: format!("user {username:?}"),
-                        })
-                    }
-                })
+                verify_returning_user(username, password, stored).await
             }
         }
     }
@@ -551,6 +537,21 @@ async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
         bcrypt::verify(&password, &hash).map_err(RegistryError::from)
     })
     .await?
+}
+
+/// Verify `password` against an existing user's `stored` hash,
+/// mapping the result to the login outcome a returning user expects:
+/// `LoggedIn` on a match, `Unauthenticated` otherwise.
+async fn verify_returning_user(
+    username: &str,
+    password: &str,
+    stored: String,
+) -> Result<UpsertOutcome> {
+    if verify_bcrypt(password.to_string(), stored).await? {
+        Ok(UpsertOutcome::LoggedIn)
+    } else {
+        Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+    }
 }
 
 // ---------------------------------------------------------------

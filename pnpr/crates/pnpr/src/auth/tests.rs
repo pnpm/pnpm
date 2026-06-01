@@ -45,6 +45,9 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
         users: std::sync::Mutex::new(std::collections::HashMap::new()),
         path: None,
         max_users: MaxUsers::Unlimited,
+        // Higher than TEST_COST so hashing lasts long enough for both
+        // tasks to clear the initial missing-user check before either
+        // takes the lock — i.e. to actually exercise the race window.
         bcrypt_cost: 8,
     });
     let barrier = Arc::new(Barrier::new(3));
