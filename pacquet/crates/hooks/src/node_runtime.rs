@@ -1,5 +1,5 @@
+use crate::HookError;
 use async_trait::async_trait;
-use derive_more::Display;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
@@ -14,24 +14,54 @@ pub struct NodeJsHooks {
 
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 
-#[derive(Debug, Display)]
-pub enum HookError {
-    #[display("pnpmfile hook '{_0}' timed out after {} seconds", HOOK_TIMEOUT.as_secs())]
-    Timeout(String),
-
-    ExecutionFailed(String),
-
-    #[display("pnpmfile hook '{_0}' execution failed: {_1}")]
-    HookFailed(String, String),
-}
-
 impl NodeJsHooks {
+    fn pnpmfile_path(&self) -> String {
+        self.file.to_string_lossy().into_owned()
+    }
+
+    fn execution_error(&self, message: impl Into<String>) -> HookError {
+        HookError::Execution { pnpmfile: self.pnpmfile_path(), message: message.into() }
+    }
+
+    /// Runs `node` with the given wrapper script and returns trimmed stdout.
+    ///
+    /// A non-zero exit (a thrown hook, a syntax error, a missing `require`) is
+    /// turned into [`HookError::Execution`] carrying the child's stderr, so the
+    /// caller can abort the install with a meaningful message like pnpm does.
+    async fn run_node(
+        &self,
+        func: &str,
+        input_type: &str,
+        wrapper: &str,
+    ) -> Result<String, HookError> {
+        let output = timeout(
+            HOOK_TIMEOUT,
+            Command::new("node")
+                .arg("--input-type")
+                .arg(input_type)
+                .arg("-e")
+                .arg(wrapper)
+                .kill_on_drop(true)
+                .output(),
+        )
+        .await
+        .map_err(|_| HookError::Timeout(func.to_string(), HOOK_TIMEOUT.as_secs()))?
+        .map_err(|err| self.execution_error(err.to_string()))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(self.execution_error(stderr.trim()));
+        }
+
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+
     async fn call_node(&self, func: &str, args: Value) -> Result<Value, HookError> {
-        let payload = serde_json::to_string(&args)
-            .map_err(|err| HookError::HookFailed(func.to_string(), err.to_string()))?;
+        let payload =
+            serde_json::to_string(&args).map_err(|err| self.execution_error(err.to_string()))?;
         let file_path = self.file.to_string_lossy();
         let file_path_escaped = serde_json::to_string(&file_path)
-            .map_err(|err| HookError::HookFailed(func.to_string(), err.to_string()))?;
+            .map_err(|err| self.execution_error(err.to_string()))?;
 
         let (input_type, wrapper) = if file_path.ends_with(".mjs") {
             (
@@ -41,7 +71,6 @@ impl NodeJsHooks {
 const res = await (hooks.hooks && hooks.hooks['{func}'])?.({payload});
 console.log(JSON.stringify(res));
 "#,
-                    file_path_escaped = file_path_escaped,
                 ),
             )
         } else {
@@ -54,39 +83,64 @@ console.log(JSON.stringify(res));
   console.log(JSON.stringify(res));
 }})();
 "#,
-                    file_path_escaped = file_path_escaped,
                 ),
             )
         };
 
-        let output = timeout(
-            HOOK_TIMEOUT,
-            Command::new("node")
-                .arg("--input-type")
-                .arg(input_type)
-                .arg("-e")
-                .arg(&wrapper)
-                .kill_on_drop(true)
-                .output(),
-        )
-        .await
-        .map_err(|_| HookError::Timeout(func.to_string()))?
-        .map_err(|err| HookError::ExecutionFailed(err.to_string()))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(HookError::HookFailed(func.to_string(), stderr.to_string()));
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stdout = stdout.trim();
-
+        let stdout = self.run_node(func, input_type, &wrapper).await?;
         if stdout == "null" || stdout == "undefined" {
             return Ok(Value::Null);
         }
+        serde_json::from_str(&stdout).map_err(|err| self.execution_error(err.to_string()))
+    }
 
-        serde_json::from_str(stdout)
-            .map_err(|err| HookError::HookFailed(func.to_string(), err.to_string()))
+    /// Runs the `readPackage` hook, mirroring pnpm's `requirePnpmfile` wrapper:
+    /// the four dependency fields are defaulted to `{}` before the call, and the
+    /// returned manifest is validated (must be a non-null object whose dependency
+    /// fields, when present, are objects rather than arrays). A pnpmfile without a
+    /// `readPackage` hook returns the manifest unchanged.
+    async fn call_read_package(&self, pkg: Value) -> Result<Value, HookError> {
+        let payload =
+            serde_json::to_string(&pkg).map_err(|err| self.execution_error(err.to_string()))?;
+        let file_path = self.file.to_string_lossy();
+        let file_path_escaped = serde_json::to_string(&file_path)
+            .map_err(|err| self.execution_error(err.to_string()))?;
+
+        let body = format!(
+            r#"const pkg = {payload};
+const fn = mod.hooks && mod.hooks['readPackage'];
+if (typeof fn !== 'function') {{ console.log(JSON.stringify(pkg)); }} else {{
+  pkg.dependencies = pkg.dependencies ?? {{}};
+  pkg.devDependencies = pkg.devDependencies ?? {{}};
+  pkg.optionalDependencies = pkg.optionalDependencies ?? {{}};
+  pkg.peerDependencies = pkg.peerDependencies ?? {{}};
+  const newPkg = await fn(pkg, {{ log() {{}} }});
+  if (!newPkg) {{
+    throw new Error("readPackage hook did not return a package manifest object. Hook imported via " + {file_path_escaped});
+  }}
+  for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {{
+    const v = newPkg[dep];
+    if (v != null && (typeof v !== "object" || Array.isArray(v))) {{
+      throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + {file_path_escaped});
+    }}
+  }}
+  console.log(JSON.stringify(newPkg));
+}}"#,
+        );
+
+        let (input_type, wrapper) = if file_path.ends_with(".mjs") {
+            ("module", format!("const mod = await import({file_path_escaped});\n{body}"))
+        } else {
+            (
+                "commonjs",
+                format!(
+                    "(async () => {{\nconst mod = require({file_path_escaped});\n{body}\n}})().catch((err) => {{ console.error(err && err.stack ? err.stack : String(err)); process.exit(1); }});"
+                ),
+            )
+        };
+
+        let stdout = self.run_node("readPackage", input_type, &wrapper).await?;
+        serde_json::from_str(&stdout).map_err(|err| self.execution_error(err.to_string()))
     }
 
     async fn call_node_void(
@@ -183,16 +237,9 @@ impl crate::PnpmfileHooks for NodeJsHooks {
     async fn read_package(
         &self,
         pkg: Value,
-        ctx: crate::HookContext,
-    ) -> Option<crate::ReadPackageResult> {
-        match self.call_node("readPackage", pkg).await {
-            Ok(v) if v.is_null() => None,
-            Ok(v) => Some(Arc::new(v)),
-            Err(err) => {
-                (ctx.log)(format!("pnpmfile hook readPackage failed: {}", err));
-                None
-            }
-        }
+        _ctx: crate::HookContext,
+    ) -> Result<crate::ReadPackageResult, HookError> {
+        self.call_read_package(pkg).await.map(Arc::new)
     }
 
     async fn after_all_resolved(&self, lockfile: Value, ctx: crate::HookContext) -> Option<Value> {

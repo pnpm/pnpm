@@ -70,8 +70,7 @@ function readPackage(pkg) {
         .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}) })
         .await;
 
-    assert!(result.is_some());
-    let updated = result.unwrap();
+    let updated = result.expect("readPackage should succeed");
     assert_eq!(updated["dependencies"]["bar"], "100.0.0");
 }
 
@@ -104,8 +103,7 @@ function readPackage(pkg) {
         .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}) })
         .await;
 
-    assert!(result.is_some());
-    let updated = result.unwrap();
+    let updated = result.expect("readPackage should succeed");
     assert_eq!(updated["name"], "baz");
 }
 
@@ -182,12 +180,12 @@ function readPackage(pkg) {
         .read_package(manifest.clone(), pacquet_hooks::HookContext { log: Arc::new(|_| {}) })
         .await;
 
-    assert!(
-        result.is_some(),
-        "readPackage returned None; the Node.js subprocess likely failed to load the .mjs file at {}",
-        pnpmfile_path.display(),
-    );
-    let updated = result.unwrap();
+    let updated = result.unwrap_or_else(|err| {
+        panic!(
+            "readPackage failed; the Node.js subprocess likely could not load the .mjs file at {}: {err}",
+            pnpmfile_path.display(),
+        )
+    });
     assert_eq!(updated["dependencies"]["bar"], "100.0.0");
 }
 
@@ -279,4 +277,103 @@ function preResolution(ctx, logger) {
             },
         )
         .await;
+}
+
+/// Helper: write `source` to a `.pnpmfile.cjs` in a fresh temp dir and return
+/// the hooks bridge plus the dir (kept alive for the file's lifetime).
+fn cjs_hooks(source: &str) -> (pacquet_hooks::node_runtime::NodeJsHooks, TempDir) {
+    let tmp = TempDir::new().expect("temp dir");
+    let path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(&path, source).expect("write pnpmfile");
+    (pacquet_hooks::node_runtime::NodeJsHooks { file: path }, tmp)
+}
+
+async fn read_package_err(source: &str) -> String {
+    let (hooks, _tmp) = cjs_hooks(source);
+    hooks
+        .read_package(
+            serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}) },
+        )
+        .await
+        .expect_err("readPackage should fail")
+        .to_string()
+}
+
+#[tokio::test]
+async fn read_package_fails_when_hook_returns_undefined() {
+    let err = read_package_err("module.exports = { hooks: { readPackage (pkg) {} } }").await;
+    eprintln!("err = {err}");
+    assert!(err.contains("readPackage hook did not return a package manifest object."));
+}
+
+#[tokio::test]
+async fn read_package_fails_when_dependencies_is_not_an_object() {
+    let err = read_package_err(
+        "module.exports = { hooks: { readPackage: (pkg) => ({ ...pkg, dependencies: 'nope' }) } }",
+    )
+    .await;
+    eprintln!("err = {err}");
+    assert!(err.contains("property 'dependencies' must be an object."));
+}
+
+#[tokio::test]
+async fn read_package_fails_when_dev_dependencies_is_not_an_object() {
+    let err = read_package_err(
+        "module.exports = { hooks: { readPackage: (pkg) => ({ ...pkg, devDependencies: 1 }) } }",
+    )
+    .await;
+    eprintln!("err = {err}");
+    assert!(err.contains("property 'devDependencies' must be an object."));
+}
+
+#[tokio::test]
+async fn read_package_fails_when_peer_dependencies_is_an_array() {
+    let err = read_package_err(
+        "module.exports = { hooks: { readPackage: (pkg) => ({ ...pkg, peerDependencies: [] }) } }",
+    )
+    .await;
+    eprintln!("err = {err}");
+    assert!(err.contains("property 'peerDependencies' must be an object."));
+}
+
+#[tokio::test]
+async fn read_package_normalizes_missing_dependency_fields() {
+    // The manifest has no dependency fields; the hook writes into them
+    // directly, relying on pnpm's normalization that defaults each to `{}`
+    // before the hook runs.
+    let (hooks, _tmp) = cjs_hooks(
+        r#"module.exports = { hooks: { readPackage (pkg) {
+  pkg.dependencies['is-positive'] = '*';
+  pkg.optionalDependencies['is-negative'] = '*';
+  pkg.peerDependencies['is-negative'] = '*';
+  pkg.devDependencies['is-positive'] = '*';
+  return pkg;
+} } }"#,
+    );
+
+    let updated = hooks
+        .read_package(
+            serde_json::json!({ "name": "x", "version": "1.0.0" }),
+            pacquet_hooks::HookContext { log: Arc::new(|_| {}) },
+        )
+        .await
+        .expect("readPackage should succeed after normalization");
+    assert_eq!(updated["dependencies"]["is-positive"], "*");
+    assert_eq!(updated["peerDependencies"]["is-negative"], "*");
+}
+
+#[tokio::test]
+async fn read_package_fails_with_meaningful_error_on_syntax_error() {
+    let err = read_package_err("/boom").await;
+    eprintln!("err = {err}");
+    assert!(err.contains("Error during pnpmfile execution"));
+    assert!(err.contains("SyntaxError"));
+}
+
+#[tokio::test]
+async fn read_package_fails_when_pnpmfile_requires_missing_module() {
+    let err = read_package_err("module.exports = require('./this-does-not-exist')").await;
+    eprintln!("err = {err}");
+    assert!(err.contains("Error during pnpmfile execution"));
 }

@@ -179,6 +179,13 @@ pub enum ResolveDependencyTreeError {
         parent: String,
         alias: String,
     },
+
+    /// A pnpmfile hook (`readPackage`) threw, timed out, or returned an
+    /// invalid package manifest. Mirrors pnpm's `PNPMFILE_FAIL` /
+    /// `BAD_READ_PACKAGE_HOOK_RESULT`: a bad hook aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
@@ -864,13 +871,11 @@ where
             {
                 let hook_ctx = pacquet_hooks::HookContext { log: Arc::new(|_| {}) };
 
-                if let Some(updated) =
-                    pnpmfile_hook.read_package((*manifest).clone(), hook_ctx).await
-                {
-                    result_inner.manifest = Some(updated);
-                } else {
-                    result_inner.manifest = Some(manifest);
-                }
+                let updated = pnpmfile_hook
+                    .read_package((*manifest).clone(), hook_ctx)
+                    .await
+                    .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
+                result_inner.manifest = Some(updated);
             }
 
             let result = result.expect("Some-guarded above");

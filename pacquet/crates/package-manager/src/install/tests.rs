@@ -6044,3 +6044,135 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
 
     drop(dir);
 }
+
+/// Runs a fresh install in `root` with `root_deps` as direct prod
+/// dependencies and `pnpmfile_src` written to `<root>/.pnpmfile.cjs`, so the
+/// pnpmfile hooks are discovered and run during resolution.
+async fn install_with_pnpmfile(
+    registry_url: String,
+    root: &std::path::Path,
+    root_deps: &[(&str, &str)],
+    pnpmfile_src: &str,
+) -> Result<(), InstallError> {
+    let modules_dir = root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    for (name, spec) in root_deps {
+        manifest.add_dependency(name, spec, DependencyGroup::Prod).unwrap();
+    }
+    manifest.save().unwrap();
+
+    std::fs::write(root.join(".pnpmfile.cjs"), pnpmfile_src).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = root.join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = registry_url;
+    let config = config.leak();
+
+    let http_client = Default::default();
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+    }
+    .run::<SilentReporter>()
+    .await
+}
+
+// Ports pnpm's `readPackage hook` install test
+// (pnpm/test/install/hooks.ts): the hook rewrites a resolved package's
+// dependency range, and resolution honors it. `@pnpm.e2e/pkg-with-1-dep`
+// depends on `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0`, which would resolve
+// to 100.1.0; pinning it to 100.0.0 in the hook installs 100.0.0 instead.
+#[tokio::test]
+async fn read_package_hook_pins_transitive_dependency_version() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+    pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
+  }
+  return pkg;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let vsd = dir.path().join("node_modules/.pacquet");
+    assert!(
+        vsd.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0").exists(),
+        "readPackage hook should have pinned the transitive dep to 100.0.0",
+    );
+    assert!(
+        !vsd.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0").exists(),
+        "the un-pinned 100.1.0 must not be installed",
+    );
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `readPackage hook makes installation fail if it does not
+// return the modified package manifests`.
+#[tokio::test]
+async fn read_package_hook_failure_aborts_install() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let result = install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "module.exports = { hooks: { readPackage (pkg) {} } }",
+    )
+    .await;
+
+    assert!(result.is_err(), "install must fail when readPackage returns nothing");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `prints meaningful error when there is syntax error in
+// .pnpmfile.cjs`.
+#[tokio::test]
+async fn pnpmfile_syntax_error_aborts_install() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let result = install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "/boom",
+    )
+    .await;
+
+    assert!(result.is_err(), "install must fail on a pnpmfile syntax error");
+
+    drop((dir, registry));
+}

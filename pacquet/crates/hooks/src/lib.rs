@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use derive_more::Display;
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -7,6 +8,20 @@ pub mod node_runtime;
 
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
+
+/// An error raised while running a pnpmfile hook in Node.js.
+///
+/// Mirrors pnpm's `PNPMFILE_FAIL` / `BAD_READ_PACKAGE_HOOK_RESULT` errors: a
+/// throwing or syntactically invalid pnpmfile, or a `readPackage` hook that
+/// returns something that is not a package manifest, aborts the install.
+#[derive(Debug, Display)]
+pub enum HookError {
+    #[display("pnpmfile hook '{_0}' timed out after {_1} seconds")]
+    Timeout(String, u64),
+
+    #[display("Error during pnpmfile execution. pnpmfile: \"{pnpmfile}\". Error: \"{message}\".")]
+    Execution { pnpmfile: String, message: String },
+}
 
 /// Context provided to pnpmfile hooks.
 pub struct HookContext {
@@ -34,7 +49,16 @@ pub struct PreResolutionHookContext {
 #[async_trait]
 pub trait PnpmfileHooks: Send + Sync {
     /// `readPackage` hook: modifies a package manifest before it is used for resolution.
-    async fn read_package(&self, pkg: Value, ctx: HookContext) -> Option<ReadPackageResult>;
+    ///
+    /// Returns the (possibly modified) manifest. A hook that throws, or returns
+    /// something other than a package manifest object, yields a [`HookError`] so
+    /// the install fails loudly — matching pnpm, where a bad `readPackage` hook
+    /// aborts resolution.
+    async fn read_package(
+        &self,
+        pkg: Value,
+        ctx: HookContext,
+    ) -> Result<ReadPackageResult, HookError>;
 
     /// `afterAllResolved` hook: modifies the final resolved lockfile.
     async fn after_all_resolved(&self, lockfile: Value, ctx: HookContext) -> Option<Value>;
@@ -51,8 +75,12 @@ pub struct NoopHooks;
 
 #[async_trait]
 impl PnpmfileHooks for NoopHooks {
-    async fn read_package(&self, _: Value, _: HookContext) -> Option<ReadPackageResult> {
-        None
+    async fn read_package(
+        &self,
+        pkg: Value,
+        _: HookContext,
+    ) -> Result<ReadPackageResult, HookError> {
+        Ok(Arc::new(pkg))
     }
     async fn after_all_resolved(&self, _: Value, _: HookContext) -> Option<Value> {
         None
