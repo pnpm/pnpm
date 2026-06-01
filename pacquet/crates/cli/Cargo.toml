@@ -52,9 +52,12 @@ pnpr                  = { workspace = true }
 
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
+flate2            = { workspace = true }
 insta             = { workspace = true }
+mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }
+tar               = { workspace = true }
 tempfile          = { workspace = true }
 walkdir           = { workspace = true }
 
