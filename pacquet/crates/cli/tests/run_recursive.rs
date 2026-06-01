@@ -45,12 +45,16 @@ fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
         .collect()
 }
 
-fn build_writes_marker(workspace: &Path, name: &str) -> Value {
-    let marker = workspace.join(format!("ran-{name}.txt"));
+/// A package whose `build` script writes a marker via a *relative* path
+/// (`touch ran.txt`), so it lands in the script's working directory.
+/// Tests assert the marker appears under the package's own root, which
+/// only holds if each script runs with cwd == its package root rather
+/// than the workspace root.
+fn build_writes_marker(name: &str) -> Value {
     json!({
         "name": name,
         "version": "1.0.0",
-        "scripts": { "build": format!(r#"touch "{}""#, marker.display()) },
+        "scripts": { "build": "touch ran.txt" },
     })
 }
 
@@ -63,9 +67,9 @@ fn recursive_run_executes_script_in_every_project() {
     write_workspace(
         &workspace,
         &[
-            ("project-1", build_writes_marker(&workspace, "project-1")),
-            ("project-2", build_writes_marker(&workspace, "project-2")),
-            ("project-3", build_writes_marker(&workspace, "project-3")),
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+            ("project-3", build_writes_marker("project-3")),
         ],
     );
 
@@ -73,10 +77,14 @@ fn recursive_run_executes_script_in_every_project() {
 
     for name in ["project-1", "project-2", "project-3"] {
         assert!(
-            workspace.join(format!("ran-{name}.txt")).exists(),
-            "{name} build script should have run",
+            workspace.join(name).join("ran.txt").exists(),
+            "{name} build script should have run from its own package root",
         );
     }
+    assert!(
+        !workspace.join("ran.txt").exists(),
+        "scripts must run from each package root, not the workspace root",
+    );
 
     drop(root);
 }
@@ -94,14 +102,14 @@ fn recursive_run_executes_script_in_every_project() {
 fn recursive_run_resume_from_starts_at_the_given_package() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let dependent = |name: &str| {
-        let mut manifest = build_writes_marker(&workspace, name);
+        let mut manifest = build_writes_marker(name);
         manifest["dependencies"] = json!({ "project-1": "1" });
         manifest
     };
     write_workspace(
         &workspace,
         &[
-            ("project-1", build_writes_marker(&workspace, "project-1")),
+            ("project-1", build_writes_marker("project-1")),
             ("project-2", dependent("project-2")),
             ("project-3", dependent("project-3")),
         ],
@@ -117,11 +125,11 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
         .success();
 
     assert!(
-        !workspace.join("ran-project-1.txt").exists(),
+        !workspace.join("project-1").join("ran.txt").exists(),
         "project-1 sorts before the resume point and must be skipped",
     );
-    assert!(workspace.join("ran-project-2.txt").exists(), "project-2 should run");
-    assert!(workspace.join("ran-project-3.txt").exists(), "project-3 should run");
+    assert!(workspace.join("project-2").join("ran.txt").exists(), "project-2 should run");
+    assert!(workspace.join("project-3").join("ran.txt").exists(), "project-3 should run");
 
     drop(root);
 }
@@ -132,7 +140,7 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
 #[test]
 fn recursive_run_resume_from_unknown_package_errors() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("project-1", build_writes_marker(&workspace, "project-1"))]);
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
 
     let output = pacquet
         .with_arg("-r")
@@ -282,8 +290,8 @@ fn recursive_run_errors_when_no_package_has_the_script() {
     write_workspace(
         &workspace,
         &[
-            ("project-1", build_writes_marker(&workspace, "project-1")),
-            ("project-2", build_writes_marker(&workspace, "project-2")),
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
         ],
     );
 
@@ -305,7 +313,7 @@ fn recursive_run_errors_when_no_package_has_the_script() {
 #[test]
 fn recursive_run_if_present_is_a_noop_when_no_package_has_the_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("project-1", build_writes_marker(&workspace, "project-1"))]);
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
 
     pacquet
         .with_arg("-r")

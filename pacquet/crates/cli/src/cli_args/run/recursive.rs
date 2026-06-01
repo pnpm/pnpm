@@ -114,7 +114,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
             has_command += 1;
             let start = Instant::now();
             let command = format!("{script} {passed_through_args}");
-            let status = execute_shell_with_status(command.trim()).into_diagnostic()?;
+            let status = execute_shell_with_status(command.trim(), root).into_diagnostic()?;
             let duration = start.elapsed().as_secs_f64() * 1e3;
 
             if status.success() {

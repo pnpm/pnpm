@@ -13,7 +13,10 @@ pub use shell::{ScriptShellError, SelectedShell, select_shell};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use std::process::{Command, ExitStatus};
+use std::{
+    path::Path,
+    process::{Command, ExitStatus},
+};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -28,10 +31,11 @@ pub enum ExecutorError {
 }
 
 pub fn execute_shell(command: &str) -> Result<(), ExecutorError> {
-    execute_shell_with_status(command).map(|_status| ())
+    spawn_shell(command, None).map(|_status| ())
 }
 
-/// Run `command` through `sh -c` and return the child's exit status.
+/// Run `command` through `sh -c` in `current_dir` and return the child's
+/// exit status.
 ///
 /// The variant [`execute_shell`] builds on: callers that need to react
 /// to a non-zero exit (e.g. recursive run recording a per-package
@@ -39,11 +43,26 @@ pub fn execute_shell(command: &str) -> Result<(), ExecutorError> {
 /// while callers that only care about spawn / wait failures use
 /// [`execute_shell`]. A non-zero exit is *not* an [`ExecutorError`] —
 /// only a failure to spawn the shell or to wait on it is.
-pub fn execute_shell_with_status(command: &str) -> Result<ExitStatus, ExecutorError> {
-    let mut cmd =
-        Command::new("sh").arg("-c").arg(command).spawn().map_err(ExecutorError::SpawnCommand)?;
+///
+/// `current_dir` is the directory the script runs in. A recursive run
+/// passes each package's root so scripts resolve relative paths against
+/// their own project, matching pnpm's `runLifecycleHook` (which runs
+/// with `pkgRoot` as the working directory).
+pub fn execute_shell_with_status(
+    command: &str,
+    current_dir: &Path,
+) -> Result<ExitStatus, ExecutorError> {
+    spawn_shell(command, Some(current_dir))
+}
 
-    cmd.wait().map_err(ExecutorError::WaitProcess)
+fn spawn_shell(command: &str, current_dir: Option<&Path>) -> Result<ExitStatus, ExecutorError> {
+    let mut cmd = Command::new("sh");
+    cmd.arg("-c").arg(command);
+    if let Some(current_dir) = current_dir {
+        cmd.current_dir(current_dir);
+    }
+    let mut child = cmd.spawn().map_err(ExecutorError::SpawnCommand)?;
+    child.wait().map_err(ExecutorError::WaitProcess)
 }
 
 #[cfg(test)]
