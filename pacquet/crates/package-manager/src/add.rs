@@ -42,7 +42,7 @@ where
 pub enum AddError {
     #[display("Failed to add package to manifest: {_0}")]
     AddDependencyToManifest(#[error(source)] PackageManifestError),
-    #[display("Failed save the manifest file: {_0}")]
+    #[display("Failed to save the manifest file: {_0}")]
     SaveManifest(#[error(source)] PackageManifestError),
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
