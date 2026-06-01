@@ -141,11 +141,14 @@ pub fn hoist_peers(
 /// Pick an installable version for each missing optional peer, but only
 /// when at least one preferred version satisfies *every* recorded range.
 /// Returns `peer_name → version`. Mirrors pnpm's
-/// `getHoistableOptionalPeers`.
+/// [`getHoistableOptionalPeers`](https://github.com/pnpm/pnpm/blob/a1bda24c4f/installing/deps-resolver/src/hoistPeers.ts#L67-L91).
 ///
-/// Version selectors may be plain entries produced while resolving or
-/// weighted entries seeded from the wanted lockfile. Both are eligible
-/// so an already locked optional peer is not discarded during re-resolution.
+/// Version selectors may be plain entries
+/// [produced while resolving](https://github.com/pnpm/pnpm/blob/a1bda24c4f/installing/deps-resolver/src/resolveDependencies.ts#L1439-L1444)
+/// or weighted entries
+/// [seeded from the wanted lockfile](https://github.com/pnpm/pnpm/blob/a1bda24c4f/lockfile/preferred-versions/src/index.ts#L35-L55).
+/// Both are eligible so an already locked optional peer is not discarded
+/// during re-resolution.
 pub fn get_hoistable_optional_peers(
     all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
     all_preferred_versions: &PreferredVersions,
