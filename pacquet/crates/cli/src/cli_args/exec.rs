@@ -19,9 +19,11 @@ use std::{
 /// `--workspace-concurrency`, `--resume-from`, `--report-summary`) is
 /// not ported yet. pacquet now has the selection layer
 /// (`workspace-projects-filter`, `workspace-projects-graph`, and the
-/// global `--filter`/`--recursive` flags landed in #11959 and #12000),
-/// but no recursive runner to consume it — the global flags are
-/// accepted on `exec` via clap but not yet acted on.
+/// global `--filter`/`--recursive` flags landed via
+/// <https://github.com/pnpm/pnpm/pull/11959> and
+/// <https://github.com/pnpm/pnpm/pull/12000>), but no recursive runner
+/// to consume it — the global flags are accepted on `exec` via clap
+/// but not yet acted on.
 #[derive(Debug, Args)]
 pub struct ExecArgs {
     /// The command to run, followed by its arguments.
