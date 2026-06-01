@@ -68,8 +68,8 @@ function toLockfileDependency (
 
   if (
     'tarball' in lockfileResolution &&
-    lockfileResolution.type === undefined &&
-    lockfileResolution.integrity == null
+    lockfileResolution.integrity == null &&
+    lockfileResolution.type === undefined
   ) {
     const prevResolution = opts.prevSnapshot?.resolution
     if (
