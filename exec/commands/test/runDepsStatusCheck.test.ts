@@ -1,6 +1,8 @@
 import { expect, jest, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
+import { DEFAULT_OPTS } from './utils/index.js'
+
 jest.unstable_mockModule('@pnpm/deps.status', () => ({
   checkDepsStatus: jest.fn(async () => ({ upToDate: false, workspaceState: undefined })),
 }))
@@ -13,10 +15,9 @@ jest.unstable_mockModule('@pnpm/exec.pnpm-cli-runner', () => ({
 const { runDepsStatusCheck } = await import('../src/runDepsStatusCheck.js')
 
 const baseOpts = {
+  ...DEFAULT_OPTS,
   dir: process.cwd(),
   verifyDepsBeforeRun: 'install' as const,
-  pnpmfile: [],
-  linkWorkspacePackages: false,
   rootProjectManifestDir: process.cwd(),
 }
 
@@ -27,6 +28,8 @@ test('includes --filter args in the install command when filter is set', async (
 
   await runDepsStatusCheck({
     ...baseOpts,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
     filter: ['foo', 'bar'],
   })
 
@@ -39,10 +42,13 @@ test('includes --filter args in the install command when filter is set', async (
 test('does not add --filter args when filter is empty', async () => {
   prepare({ name: 'root', private: true })
 
+  mockRunPnpmCli.mockClear()
   mockRunPnpmCli.mockReturnValue(undefined)
 
   await runDepsStatusCheck({
     ...baseOpts,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
     filter: [],
   })
 
@@ -54,9 +60,15 @@ test('does not add --filter args when filter is empty', async () => {
 test('does not add --filter args when filter is undefined', async () => {
   prepare({ name: 'root', private: true })
 
+  mockRunPnpmCli.mockClear()
   mockRunPnpmCli.mockReturnValue(undefined)
 
-  await runDepsStatusCheck(baseOpts)
+  await runDepsStatusCheck({
+    ...baseOpts,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
+    filter: undefined,
+  })
 
   const calledCommand = mockRunPnpmCli.mock.calls[0]?.[0] as string[]
   expect(calledCommand).not.toEqual(expect.arrayContaining([expect.stringContaining('--filter=')]))
