@@ -205,3 +205,86 @@ fn recursive_run_report_summary_records_every_package_status() {
 
     drop(root);
 }
+
+/// With bail on (the default) and `--report-summary`, the first failing
+/// script aborts the run *after* the summary is written: the run fails
+/// with `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL`, the summary records the
+/// failed package, and a package that sorts after it stays `queued`
+/// because it never ran. Covers the bail + report-summary branch.
+#[test]
+fn recursive_run_bail_writes_summary_then_stops_at_first_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let build = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
+    write_workspace(
+        &workspace,
+        &[("project-1", build("project-1", "exit 1")), ("project-2", build("project-2", "true"))],
+    );
+
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("--report-summary")
+        .with_arg("build")
+        .output()
+        .expect("spawn pacquet");
+    assert!(!output.status.success(), "a failing script with bail on must fail the run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"),
+        "stderr should carry the bail first-fail code, got: {stderr}",
+    );
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("project-1").map(String::as_str), Some("failure"), "project-1 failed");
+    assert_eq!(
+        statuses.get("project-2").map(String::as_str),
+        Some("queued"),
+        "project-2 never ran because bail stopped at project-1",
+    );
+
+    drop(root);
+}
+
+/// A recursive run for a script no package defines fails with pnpm's
+/// `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`. Covers the no-script branch.
+#[test]
+fn recursive_run_errors_when_no_package_has_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker(&workspace, "project-1")),
+            ("project-2", build_writes_marker(&workspace, "project-2")),
+        ],
+    );
+
+    let output =
+        pacquet.with_arg("-r").with_arg("run").with_arg("lint").output().expect("spawn pacquet");
+    assert!(!output.status.success(), "a script no package defines must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT"),
+        "stderr should carry the no-script code, got: {stderr}",
+    );
+
+    drop(root);
+}
+
+/// `--if-present` turns the no-script case into a clean no-op: the run
+/// exits 0 even though no package defines the script. Guards the
+/// `!args.if_present` side of the no-script branch.
+#[test]
+fn recursive_run_if_present_is_a_noop_when_no_package_has_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker(&workspace, "project-1"))]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("--if-present")
+        .with_arg("lint")
+        .assert()
+        .success();
+
+    drop(root);
+}
