@@ -227,9 +227,12 @@ impl Update<'_> {
             // `matchDependencies(..., includeDirect)`.
             let ignore_patterns =
                 config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
-            let ignore_matcher = create_matcher(ignore_patterns);
+            // Only compile a matcher when there's something to ignore, so
+            // the common (no ignore list) path skips it entirely.
+            let ignore_matcher =
+                (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
             let is_ignored =
-                |name: &str| !ignore_patterns.is_empty() && ignore_matcher.matches(name);
+                |name: &str| ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name));
 
             for (name, group, _) in &direct {
                 if is_ignored(name) {
