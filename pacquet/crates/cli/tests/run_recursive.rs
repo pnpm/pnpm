@@ -465,3 +465,82 @@ fn recursive_run_missing_hidden_script_reports_no_script_not_hidden() {
 
     drop(root);
 }
+
+/// With `enable-pre-post-scripts=true`, `pacquet -r run build` runs
+/// `prebuild` and `postbuild` around the main `build` per project,
+/// matching pnpm's `runRecursive` which binds `runScript` with
+/// `runScriptOptions.enablePrePostScripts` (runRecursive.ts:147,156).
+#[test]
+fn recursive_run_runs_pre_and_post_when_enabled() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": {
+                    "prebuild": "touch pre.txt",
+                    "build": "touch ran.txt",
+                    "postbuild": "touch post.txt",
+                },
+            }),
+        )],
+    );
+
+    pacquet
+        .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let pkg = workspace.join("project-1");
+    assert!(pkg.join("pre.txt").exists(), "prebuild should have run");
+    assert!(pkg.join("ran.txt").exists(), "build should have run");
+    assert!(pkg.join("post.txt").exists(), "postbuild should have run");
+
+    drop(root);
+}
+
+/// Recursion guard: when `npm_lifecycle_event` matches the requested
+/// script AND `PNPM_SCRIPT_SRC_DIR` matches a project root, that
+/// project is skipped so a script that itself invokes `pacquet -r run
+/// <name>` doesn't recurse without bound. Mirrors pnpm's
+/// `runRecursive.ts:108-110`.
+#[test]
+fn recursive_run_recursion_guard_skips_originating_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+
+    // Pretend we're already inside `project-1`'s `build` lifecycle —
+    // pnpm's recursion guard should leave `project-1` alone while
+    // still running `project-2`.
+    pacquet
+        .with_env("npm_lifecycle_event", "build")
+        .with_env("PNPM_SCRIPT_SRC_DIR", workspace.join("project-1").to_string_lossy().as_ref())
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("project-1").join("ran.txt").exists(),
+        "the originating project must be recursion-guarded and skipped",
+    );
+    assert!(
+        workspace.join("project-2").join("ran.txt").exists(),
+        "other projects should still run",
+    );
+
+    drop(root);
+}

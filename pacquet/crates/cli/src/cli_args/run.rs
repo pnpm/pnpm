@@ -139,7 +139,14 @@ impl RunArgs {
             silent,
         };
         for name in &specified {
-            run_one_script(&ctx, name, &args)?;
+            if let Some(status) = run_one_script(&ctx, name, &args)?
+                && !status.success()
+            {
+                // Mirror pnpm: a failing script sets the process exit
+                // code. `run_stage` already emitted the `[ELIFECYCLE]`
+                // line for this stage.
+                std::process::exit(status.code().unwrap_or(1));
+            }
         }
         Ok(())
     }
@@ -154,14 +161,16 @@ impl RunArgs {
 
 /// Shared inputs for running a script, threaded through
 /// [`run_one_script`] and [`run_stage`] so neither grows an unwieldy
-/// argument list.
-struct RunContext<'a> {
-    manifest: &'a PackageManifest,
-    dir: &'a Path,
-    init_cwd: &'a Path,
-    config: &'a Config,
-    extra_env: &'a HashMap<String, String>,
-    silent: bool,
+/// argument list. The submodule `recursive` builds a per-project
+/// [`RunContext`] and reuses `run_one_script`, so the type and its
+/// fields are visible up to the parent module.
+pub(super) struct RunContext<'a> {
+    pub(super) manifest: &'a PackageManifest,
+    pub(super) dir: &'a Path,
+    pub(super) init_cwd: &'a Path,
+    pub(super) config: &'a Config,
+    pub(super) extra_env: &'a HashMap<String, String>,
+    pub(super) silent: bool,
 }
 
 /// Run a single named script together with its `pre`/`post` companions
@@ -175,7 +184,11 @@ struct RunContext<'a> {
 /// `node server.js` fallback instead. Replicating the upstream crash
 /// would be wrong, so the `pre`/`post` substring guard runs against the
 /// resolved `main` command here.
-fn run_one_script(ctx: &RunContext<'_>, name: &str, args: &[String]) -> miette::Result<()> {
+pub(super) fn run_one_script(
+    ctx: &RunContext<'_>,
+    name: &str,
+    args: &[String],
+) -> miette::Result<Option<std::process::ExitStatus>> {
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
             .value()
@@ -201,39 +214,60 @@ fn run_one_script(ctx: &RunContext<'_>, name: &str, args: &[String]) -> miette::
             }
             "node server.js".to_string()
         }
-        _ => return Ok(()),
+        _ => return Ok(None),
     };
 
+    // pre/main/post run in order. If any stage fails (non-zero exit),
+    // return that ExitStatus immediately so the caller can decide what
+    // to do (single-project: process::exit with the code; recursive:
+    // record Failure + bail or continue). Matches pnpm's `runScript`
+    // (run.ts:399-415), which lets a throw from `runLifecycleHook`
+    // short-circuit the post stage.
     if ctx.config.enable_pre_post_scripts {
         let pre = format!("pre{name}");
         if let Some(script) = get_script(&pre)
             && !main.contains(&pre)
+            && let Some(status) = run_stage(ctx, &pre, &script, &[])?
+            && !status.success()
         {
-            run_stage(ctx, &pre, &script, &[])?;
+            return Ok(Some(status));
         }
     }
 
-    run_stage(ctx, name, &main, args)?;
+    let main_outcome = run_stage(ctx, name, &main, args)?;
+    if let Some(status) = main_outcome
+        && !status.success()
+    {
+        return Ok(Some(status));
+    }
 
     if ctx.config.enable_pre_post_scripts {
         let post = format!("post{name}");
         if let Some(script) = get_script(&post)
             && !main.contains(&post)
+            && let Some(status) = run_stage(ctx, &post, &script, &[])?
+            && !status.success()
         {
-            run_stage(ctx, &post, &script, &[])?;
+            return Ok(Some(status));
         }
     }
 
-    Ok(())
+    Ok(main_outcome)
 }
 
-/// Run one lifecycle stage and propagate its exit code.
-fn run_stage(
+/// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
+/// no-op guards apply (empty body, or `npx only-allow pnpm` with no
+/// args), so the caller can record "didn't actually run" without
+/// inventing a synthetic ExitStatus. A non-success ExitStatus is
+/// returned to the caller — single-project `RunArgs::run` exits with
+/// the code; recursive `run_recursive` records `Failure` and decides
+/// whether to bail.
+pub(super) fn run_stage(
     ctx: &RunContext<'_>,
     stage: &str,
     script: &str,
     args: &[String],
-) -> miette::Result<()> {
+) -> miette::Result<Option<std::process::ExitStatus>> {
     // The `npx only-allow pnpm` guard script is a no-op under pnpm, so a
     // lifecycle stage whose final command is exactly that string is
     // skipped. pnpm appends args *before* this check
@@ -241,14 +275,14 @@ fn run_stage(
     // lengthen the command past the literal) is never skipped; pre/post
     // stages always pass `args = &[]`.
     if args.is_empty() && script == "npx only-allow pnpm" {
-        return Ok(());
+        return Ok(None);
     }
     // An empty script body is a no-op under pnpm, which skips any stage
     // whose (post-arg) command is falsy (runLifecycleHook.ts:100). pnpm
     // also gates pre/post on the body being truthy (run.ts:403,411), so
     // an empty `pre<name>`/`post<name>` never runs.
     if script.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
 
     let status = run_script(RunScript {
@@ -283,9 +317,8 @@ fn run_stage(
         } else {
             eprintln!("[ELIFECYCLE] Command failed.");
         }
-        std::process::exit(status.code().unwrap_or(1));
     }
-    Ok(())
+    Ok(Some(status))
 }
 
 fn exec_scripts_prepend_node_path(

@@ -16,12 +16,11 @@
 //! selected set is every workspace project, matching pacquet's
 //! currently-unfiltered `install`.
 
-use super::RunArgs;
+use super::{RunArgs, RunContext, run_one_script};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_executor::{RunScript, run_script};
 use pacquet_package_manager::graph_sequencer;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_workspace::{
@@ -117,14 +116,12 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     // through `runLifecycleHook` (runRecursive.ts:124-149), which sets up
     // `node_modules/.bin` on `PATH`, the `npm_*` env, the configured
     // `script_shell`, and the user-agent. Compute the bits that don't
-    // vary per project once.
+    // vary per project once; the per-project `RunContext` reuses them.
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
     let mut extra_env: HashMap<String, String> = HashMap::new();
     if let Some(node_options) = &config.node_options {
         extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
     }
-    let scripts_prepend_node_path =
-        super::exec_scripts_prepend_node_path(config.scripts_prepend_node_path);
 
     for chunk in &chunks {
         for root in chunk {
@@ -144,6 +141,22 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 result[root].status = Status::Skipped;
                 continue;
             }
+            // Recursion guard: pnpm's `runRecursive.ts:108-110` skips a
+            // project when `npm_lifecycle_event` matches the requested
+            // script AND `PNPM_SCRIPT_SRC_DIR` matches the project root
+            // — i.e. this very project is already executing this very
+            // script and we're now inside its child invocation. Without
+            // this, a `build` script that itself calls `pacquet -r run
+            // build` from within a workspace project recurses without
+            // bound (every child sees the same env and walks the
+            // workspace again). Status stays Queued, matching pnpm's
+            // bare `return` from the per-project closure.
+            if env::var_os("npm_lifecycle_event").is_some_and(|event| event == *script_name)
+                && env::var_os("PNPM_SCRIPT_SRC_DIR")
+                    .is_some_and(|src_dir| Path::new(&src_dir) == root)
+            {
+                continue;
+            }
             // Hidden-script gate. Mirrors `runRecursive.ts:113-115`:
             // checked *after* the truthy-body skip above so a hidden
             // name that no project defines surfaces as
@@ -159,27 +172,33 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
             result[root].status = Status::Running;
             has_command += 1;
             let start = Instant::now();
-            let status = run_script(RunScript {
-                manifest: manifest.value(),
-                stage: script_name,
-                script,
-                args: &args.args,
-                pkg_root: root,
+            // Per-project pre/main/post via the same machinery
+            // single-project `run` uses (run_one_script handles the
+            // `enablePrePostScripts` gate, the `npx only-allow pnpm`
+            // skip, the empty-body skip, and the `[ELIFECYCLE]` line on
+            // failure). Mirrors pnpm's `runRecursive.ts:147,156` calling
+            // `runScript` with `runScriptOptions.enablePrePostScripts`.
+            // The per-package failure surface comes from the
+            // ExecutionStatus summary, not the `$ <script>` echo.
+            let ctx = RunContext {
+                manifest,
+                dir: root,
                 init_cwd: &init_cwd,
-                extra_bin_paths: &config.extra_bin_paths,
-                script_shell: config.script_shell.as_deref().map(Path::new),
-                scripts_prepend_node_path,
-                node_execpath: None,
-                npm_execpath: None,
-                user_agent: Some("pnpm"),
+                config,
                 extra_env: &extra_env,
-                // The per-package failure surface comes from the
-                // ExecutionStatus summary, not a `$ <script>` echo.
                 silent: true,
-            })
-            .into_diagnostic()?;
+            };
+            let outcome = run_one_script(&ctx, script_name, &args.args)?;
             let duration = start.elapsed().as_secs_f64() * 1e3;
 
+            let Some(status) = outcome else {
+                // Defensive: pre/main/post all became no-ops. Reachable
+                // only if `run_one_script`'s internal lookups diverge
+                // from our outer `manifest.script` (e.g. a future
+                // refactor adds a state the outer guard misses).
+                result[root].status = Status::Skipped;
+                continue;
+            };
             if status.success() {
                 let entry = &mut result[root];
                 entry.status = Status::Passed;
