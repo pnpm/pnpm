@@ -33,9 +33,11 @@ pacquet-workspace-projects-graph = { workspace = true }
 
 clap        = { workspace = true }
 derive_more = { workspace = true }
+dialoguer   = { workspace = true }
 dunce       = { workspace = true }
 home        = { workspace = true }
 indexmap    = { workspace = true }
+node-semver = { workspace = true }
 miette      = { workspace = true }
 pipe-trait  = { workspace = true }
 rayon       = { workspace = true }
