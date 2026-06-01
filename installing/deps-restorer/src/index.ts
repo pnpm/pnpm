@@ -247,6 +247,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     stdio: opts.ownLifecycleHooksStdio ?? 'inherit',
     storeController: opts.storeController,
     unsafePerm: opts.unsafePerm || false,
+    userAgent: opts.userAgent,
   }
 
   if (opts.virtualStoreOnly && opts.enableModulesDir === false && !opts.enableGlobalVirtualStore) {
