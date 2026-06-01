@@ -91,13 +91,6 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     let Some(script_name) = args.command.as_deref() else {
         return Err(RecursiveRunError::ScriptNameRequired.into());
     };
-    // pnpm's `runRecursive.ts:113-115` rejects a user-typed `.hidden`
-    // script when no lifecycle event is in flight. With a single
-    // selector the `throwOrFilterHiddenScripts` call simplifies to
-    // "is the name hidden?" — error out if so.
-    if script_name.starts_with('.') && env::var_os("npm_lifecycle_event").is_none() {
-        return Err(super::RunError::HiddenScript { script: script_name.to_string() }.into());
-    }
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
     let patterns = read_workspace_manifest(workspace_root)
@@ -150,6 +143,17 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
             if script.is_empty() || (args.args.is_empty() && script == "npx only-allow pnpm") {
                 result[root].status = Status::Skipped;
                 continue;
+            }
+            // Hidden-script gate. Mirrors `runRecursive.ts:113-115`:
+            // checked *after* the truthy-body skip above so a hidden
+            // name that no project defines surfaces as
+            // `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` rather than
+            // `ERR_PNPM_HIDDEN_SCRIPT` — matching pnpm's error
+            // precedence.
+            if script_name.starts_with('.') && env::var_os("npm_lifecycle_event").is_none() {
+                return Err(
+                    super::RunError::HiddenScript { script: script_name.to_string() }.into()
+                );
             }
 
             result[root].status = Status::Running;

@@ -435,3 +435,33 @@ fn recursive_run_rejects_hidden_script_name() {
 
     drop(root);
 }
+
+/// When NO workspace project defines the requested hidden `.name`
+/// script, pnpm's `runRecursive` short-circuits at the truthy-body
+/// gate before reaching `throwOrFilterHiddenScripts`, so the error
+/// surfaces as `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` rather than
+/// `ERR_PNPM_HIDDEN_SCRIPT`. Pins the gate ordering.
+#[test]
+fn recursive_run_missing_hidden_script_reports_no_script_not_hidden() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg(".missing")
+        .output()
+        .expect("spawn pacquet");
+    assert!(!output.status.success(), "missing script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT"),
+        "expected the no-script code, got: {stderr}",
+    );
+    assert!(
+        !stderr.contains("ERR_PNPM_HIDDEN_SCRIPT"),
+        "must not raise HIDDEN_SCRIPT when no project defines the script: {stderr}",
+    );
+
+    drop(root);
+}
