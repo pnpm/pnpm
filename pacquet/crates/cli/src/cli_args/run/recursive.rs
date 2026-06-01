@@ -91,6 +91,13 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     let Some(script_name) = args.command.as_deref() else {
         return Err(RecursiveRunError::ScriptNameRequired.into());
     };
+    // pnpm's `runRecursive.ts:113-115` rejects a user-typed `.hidden`
+    // script when no lifecycle event is in flight. With a single
+    // selector the `throwOrFilterHiddenScripts` call simplifies to
+    // "is the name hidden?" — error out if so.
+    if script_name.starts_with('.') && env::var_os("npm_lifecycle_event").is_none() {
+        return Err(super::RunError::HiddenScript { script: script_name.to_string() }.into());
+    }
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
     let patterns = read_workspace_manifest(workspace_root)
@@ -133,6 +140,17 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 result[root].status = Status::Skipped;
                 continue;
             };
+            // Match pnpm's per-stage no-ops. `runRecursive.ts:107`
+            // treats an empty body (`!manifest.scripts[name]`) as
+            // absent → skip, and `runLifecycleHook.ts:100` skips
+            // when the post-args command is exactly `npx only-allow
+            // pnpm`. Without these guards the recursive loop would
+            // fork a useless shell per project and (for the npm
+            // guard) might run the wrong-package-manager warning.
+            if script.is_empty() || (args.args.is_empty() && script == "npx only-allow pnpm") {
+                result[root].status = Status::Skipped;
+                continue;
+            }
 
             result[root].status = Status::Running;
             has_command += 1;

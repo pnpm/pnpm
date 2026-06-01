@@ -362,3 +362,76 @@ fn recursive_run_resolves_local_bin_on_path_per_project() {
 
     drop(root);
 }
+
+/// `pnpm -r run <name>` skips a project whose `<name>` script body is
+/// the empty string. pnpm's `runRecursive.ts:107` gates on
+/// `!manifest.scripts[name]` (empty string is falsy in JS); pacquet
+/// has to mirror that explicitly because `manifest.script` returns
+/// `Some("")`.
+#[test]
+fn recursive_run_skips_empty_script_body() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("with-body", build_writes_marker("with-body")),
+            (
+                "empty-body",
+                json!({
+                    "name": "empty-body",
+                    "version": "1.0.0",
+                    "scripts": { "build": "" },
+                }),
+            ),
+        ],
+    );
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("--report-summary")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("with-body").map(String::as_str), Some("passed"));
+    assert_eq!(
+        statuses.get("empty-body").map(String::as_str),
+        Some("skipped"),
+        "empty `build` body should be Skipped, not Passed; got {statuses:?}",
+    );
+
+    drop(root);
+}
+
+/// `pnpm -r run .hidden` is rejected outside a lifecycle context with
+/// `ERR_PNPM_HIDDEN_SCRIPT`. Mirrors pnpm's
+/// `throwOrFilterHiddenScripts` call from `runRecursive.ts:113-115`,
+/// applied once for the user-typed script name.
+#[test]
+fn recursive_run_rejects_hidden_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": { ".secret": "true" },
+            }),
+        )],
+    );
+
+    let output =
+        pacquet.with_arg("-r").with_arg("run").with_arg(".secret").output().expect("spawn pacquet");
+    assert!(!output.status.success(), "hidden script must fail outside a lifecycle");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_HIDDEN_SCRIPT"),
+        "stderr should carry the hidden-script error code, got: {stderr}",
+    );
+
+    drop(root);
+}
