@@ -709,9 +709,18 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             UpdateSeedPolicy::DropOnly(names) => match lockfile_snapshots {
                 None => None,
                 Some(snapshots) => {
+                    // The update-target set is small (CLI selectors / direct
+                    // deps); the snapshot map is large. Parse the targets to
+                    // `PkgName` once so the per-snapshot filter compares
+                    // against `key.name` directly instead of allocating a
+                    // `String` per key.
+                    let drop: std::collections::HashSet<pacquet_lockfile::PkgName> = names
+                        .iter()
+                        .filter_map(|name| pacquet_lockfile::PkgName::parse(name.as_str()).ok())
+                        .collect();
                     filtered_snapshots = snapshots
                         .iter()
-                        .filter(|(key, _)| !names.contains(&key.name.to_string()))
+                        .filter(|(key, _)| !drop.contains(&key.name))
                         .map(|(key, entry)| (key.clone(), entry.clone()))
                         .collect::<HashMap<_, _>>();
                     Some(&filtered_snapshots)
