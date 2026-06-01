@@ -141,3 +141,33 @@ fn exec_propagates_nonzero_exit_code() {
 
     drop(root);
 }
+
+/// pnpm's `makeEnv` stamps `PNPM_PACKAGE_NAME` from the project's
+/// `package.json#name` (makeEnv.ts:30-32). Have the spawned command
+/// echo the env var to a marker file and assert it reads back the
+/// expected name. Also exercises `read_package_name` end-to-end.
+#[cfg(unix)]
+#[test]
+fn exec_stamps_pnpm_package_name_from_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = serde_json::json!({
+        "name": "@scope/mypkg",
+        "version": "0.0.0",
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    let marker = workspace.join("pkgname.txt");
+
+    pacquet
+        .with_arg("exec")
+        .with_arg("sh")
+        .with_arg("-c")
+        .with_arg(format!(r#"printf %s "$PNPM_PACKAGE_NAME" > "{}""#, marker.display()))
+        .assert()
+        .success();
+
+    let written = fs::read_to_string(&marker).expect("read marker");
+    assert_eq!(written, "@scope/mypkg");
+
+    drop(root);
+}

@@ -550,3 +550,23 @@ fn recursive_run_recursion_guard_skips_originating_project() {
 
     drop(root);
 }
+
+/// `pacquet -r run` with no script name surfaces pnpm's
+/// `ERR_PNPM_SCRIPT_NAME_IS_REQUIRED` typed error variant, matching the
+/// `PnpmError('SCRIPT_NAME_IS_REQUIRED', ...)` throw in pnpm's
+/// `runRecursive.ts:50-52`.
+#[test]
+fn recursive_run_without_script_name_errors_with_script_name_is_required() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    let output = pacquet.with_arg("-r").with_arg("run").output().expect("spawn pacquet");
+    assert!(!output.status.success(), "missing script name in recursive mode must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_SCRIPT_NAME_IS_REQUIRED"),
+        "stderr should carry the script-name-required code, got: {stderr}",
+    );
+
+    drop(root);
+}

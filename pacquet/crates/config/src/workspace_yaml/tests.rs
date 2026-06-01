@@ -1298,3 +1298,24 @@ peerDependencyRules:
     assert_eq!(allowed.get("bbb").map(String::as_str), Some("2"));
     assert_eq!(allowed.get("xxx>@foo/bar").map(String::as_str), Some("2"));
 }
+
+/// `scriptShell` and `nodeOptions` parse from `pnpm-workspace.yaml` as
+/// camelCase keys and `apply_to` writes them to the corresponding
+/// `Config` fields. Pins the explicit `if let Some(v)` blocks (they sit
+/// outside the bulk `apply!` macro because they wrap `Option<String>`
+/// rather than a plain `String`).
+#[test]
+fn parses_script_shell_and_node_options_from_yaml_and_applies() {
+    let yaml = r#"
+scriptShell: /usr/bin/bash
+nodeOptions: --max-old-space-size=4096
+"#;
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.script_shell.as_deref(), Some("/usr/bin/bash"));
+    assert_eq!(settings.node_options.as_deref(), Some("--max-old-space-size=4096"));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.script_shell.as_deref(), Some("/usr/bin/bash"));
+    assert_eq!(config.node_options.as_deref(), Some("--max-old-space-size=4096"));
+}
