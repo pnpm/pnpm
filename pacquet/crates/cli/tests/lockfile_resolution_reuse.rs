@@ -108,3 +108,52 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
 
     drop((root, mock_instance));
 }
+
+/// A lockfile produced via the reuse path is byte-identical to one
+/// produced by resolving the same manifest entirely from scratch.
+///
+/// The discriminating test above proves reuse *fires*; this proves it's
+/// *correct* — that reusing an unchanged subtree yields the same tree a
+/// fresh resolve would, so reuse can never silently drift the lockfile.
+/// Reaching the same final manifest two ways:
+///   A. install `pkg-with-1-dep`, then add `foo` — the second install
+///      reuses `pkg-with-1-dep`'s subtree and resolves only `foo`;
+///   B. install both from scratch — no prior lockfile, nothing reused.
+/// The two `pnpm-lock.yaml` files must match exactly.
+#[test]
+fn a_reused_tree_is_byte_identical_to_a_fresh_resolve() {
+    let both = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0", "@pnpm.e2e/foo": "100.0.0" }
+    })
+    .to_string();
+
+    // Scenario A: reuse path.
+    let reused = CommandTempCwd::init().add_mocked_registry();
+    let reused_manifest = reused.workspace.join("package.json");
+    fs::write(
+        &reused_manifest,
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } })
+            .to_string(),
+    )
+    .expect("write the reuse scenario's initial manifest");
+    pacquet_at(&reused.workspace).with_arg("install").assert().success();
+    fs::write(&reused_manifest, &both).expect("add the second dep to the reuse scenario");
+    pacquet_at(&reused.workspace).with_arg("install").assert().success();
+    let reused_lockfile =
+        fs::read_to_string(reused.workspace.join("pnpm-lock.yaml")).expect("read reused lockfile");
+
+    // Scenario B: fresh resolve of the same final manifest.
+    let fresh = CommandTempCwd::init().add_mocked_registry();
+    fs::write(fresh.workspace.join("package.json"), &both).expect("write the fresh manifest");
+    pacquet_at(&fresh.workspace).with_arg("install").assert().success();
+    let fresh_lockfile =
+        fs::read_to_string(fresh.workspace.join("pnpm-lock.yaml")).expect("read fresh lockfile");
+
+    pretty_assertions::assert_eq!(
+        reused_lockfile,
+        fresh_lockfile,
+        "a lockfile built via subtree reuse must equal one resolved from scratch",
+    );
+
+    drop((reused, fresh));
+}
