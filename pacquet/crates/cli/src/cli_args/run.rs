@@ -11,6 +11,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod recursive;
+
 #[derive(Debug, Args)]
 pub struct RunArgs {
     /// A pre-defined package script. When omitted, the available scripts
@@ -24,6 +26,26 @@ pub struct RunArgs {
     /// Avoid exiting with a non-zero exit code when the script is undefined.
     #[clap(long)]
     pub if_present: bool,
+
+    /// Run the script starting from the given package, skipping every
+    /// package that sorts before it. Only meaningful together with the
+    /// global `-r` / `--recursive` flag. Mirrors pnpm's `--resume-from`.
+    #[clap(long = "resume-from")]
+    pub resume_from: Option<String>,
+
+    /// Save the execution result of every package to
+    /// `pnpm-exec-summary.json`. Only meaningful together with the
+    /// global `-r` / `--recursive` flag. Mirrors pnpm's
+    /// `--report-summary`.
+    #[clap(long = "report-summary")]
+    pub report_summary: bool,
+
+    /// Keep running the remaining packages after a script fails instead
+    /// of aborting on the first failure. Only meaningful together with
+    /// the global `-r` / `--recursive` flag. Mirrors pnpm's `--no-bail`
+    /// (recursive runs bail by default).
+    #[clap(long = "no-bail")]
+    pub no_bail: bool,
 }
 
 /// Errors from `pacquet run`.
@@ -68,8 +90,12 @@ impl RunArgs {
     /// On a non-zero script exit code this terminates the process with
     /// the same code, matching pnpm where a failing script sets the
     /// process exit code.
+    ///
+    /// The `resume_from` / `report_summary` / `no_bail` fields are only
+    /// meaningful for the recursive path (see [`Self::run_recursive`])
+    /// and are ignored here.
     pub fn run(self, dir: &Path, config: &Config, silent: bool) -> miette::Result<()> {
-        let RunArgs { command, args, if_present } = self;
+        let RunArgs { command, args, if_present, .. } = self;
         let manifest =
             PackageManifest::from_path(dir.join("package.json")).map_err(RunError::Manifest)?;
 
@@ -116,6 +142,13 @@ impl RunArgs {
             run_one_script(&ctx, name, &args)?;
         }
         Ok(())
+    }
+
+    /// Execute the subcommand for every project in the workspace, in
+    /// topological order. The recursive counterpart of [`Self::run`],
+    /// selected when the global `-r` / `--recursive` flag is set.
+    pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        recursive::run_recursive(self, config, dir)
     }
 }
 

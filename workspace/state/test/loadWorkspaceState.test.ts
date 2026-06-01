@@ -71,3 +71,15 @@ test('loadWorkspaceState() when cache file exists and is correct', async () => {
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(workspaceState)
   expect(jest.mocked(logger.debug).mock.calls).toStrictEqual(expectedLoggerCalls)
 })
+
+test('loadWorkspaceState() when cache file contains partial JSON', async () => {
+  prepareEmpty()
+
+  const workspaceDir = process.cwd()
+  const cacheFile = getFilePath(workspaceDir)
+  fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
+  fs.writeFileSync(cacheFile, '{\n  "settings": ')
+
+  expect(loadWorkspaceState(workspaceDir)).toBeUndefined()
+  expect(jest.mocked(logger.debug).mock.calls).toStrictEqual(expectedLoggerCalls)
+})

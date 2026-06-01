@@ -5,6 +5,8 @@ pub mod install;
 pub mod run;
 pub mod store;
 pub mod supported_architectures;
+pub mod update;
+pub mod update_interactive;
 
 use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
@@ -20,6 +22,7 @@ use pacquet_reporter::{NdjsonReporter, SilentReporter};
 use run::RunArgs;
 use std::path::PathBuf;
 use store::StoreCommand;
+use update::UpdateArgs;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
@@ -103,6 +106,9 @@ pub enum CliCommand {
     Add(AddArgs),
     /// Install packages
     Install(InstallArgs),
+    /// Update packages to their newest version based on the specified range
+    #[clap(visible_aliases = ["up", "upgrade"])]
+    Update(UpdateArgs),
     /// Runs a package's "test" script, if one was provided.
     Test,
     /// Runs a defined package script.
@@ -194,6 +200,10 @@ impl CliArgs {
                 ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
                 ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
             },
+            CliCommand::Update(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+            },
             CliCommand::Install(args) => {
                 // CLI overrides for `offline` / `prefer_offline` live
                 // alongside `--frozen-lockfile`: they upgrade an
@@ -242,7 +252,11 @@ impl CliArgs {
                 }
             }
             CliCommand::Run(args) => {
-                args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?
+                if recursive {
+                    args.run_recursive(config()?, &dir)?;
+                } else {
+                    args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
+                }
             }
             CliCommand::Exec(args) => args.run(&dir, config()?)?,
             CliCommand::Dlx(args) => match reporter {

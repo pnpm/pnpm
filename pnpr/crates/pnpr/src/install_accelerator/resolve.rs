@@ -111,6 +111,7 @@ pub async fn resolve(
         supported_architectures: None,
         node_linker: NodeLinker::Isolated,
         lockfile_only: true,
+        update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await

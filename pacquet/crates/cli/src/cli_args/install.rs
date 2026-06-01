@@ -3,7 +3,7 @@ use clap::{Args, ValueEnum};
 use miette::Context;
 use pacquet_config::{NodeLinker, TrustPolicy};
 use pacquet_lockfile::Lockfile;
-use pacquet_package_manager::Install;
+use pacquet_package_manager::{Install, UpdateSeedPolicy};
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{InstallOptions, PnprClient};
 use pacquet_reporter::Reporter;
@@ -352,6 +352,7 @@ impl InstallArgs {
             supported_architectures,
             node_linker,
             lockfile_only,
+            update_seed_policy: UpdateSeedPolicy::KeepAll,
         }
         .run::<Reporter>()
         .await
@@ -474,6 +475,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         supported_architectures: link.supported_architectures,
         node_linker: link.node_linker,
         lockfile_only: false,
+        update_seed_policy: UpdateSeedPolicy::KeepAll,
     }
     .run::<Reporter>()
     .await

@@ -18,5 +18,12 @@ export function loadWorkspaceState (workspaceDir: string): WorkspaceState | unde
     }
     throw error
   }
-  return JSON.parse(cacheFileContent) as WorkspaceState
+  try {
+    return JSON.parse(cacheFileContent) as WorkspaceState
+  } catch (error) {
+    if (util.types.isNativeError(error) && error.name === 'SyntaxError') {
+      return undefined
+    }
+    throw error
+  }
 }

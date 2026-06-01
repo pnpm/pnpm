@@ -15,15 +15,16 @@ use std::{
 /// Ports the single-project (non-recursive) path of pnpm's `exec`
 /// command from
 /// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/exec.ts>.
-/// The recursive / workspace-filtered variant (topological scheduler,
-/// `--workspace-concurrency`, `--resume-from`, `--report-summary`) is
-/// not ported yet. pacquet now has the selection layer
-/// (`workspace-projects-filter`, `workspace-projects-graph`, and the
-/// global `--filter`/`--recursive` flags landed via
-/// <https://github.com/pnpm/pnpm/pull/11959> and
-/// <https://github.com/pnpm/pnpm/pull/12000>), but no recursive runner
-/// to consume it — the global flags are accepted on `exec` via clap
-/// but not yet acted on.
+/// pacquet now has the selection layer (`workspace-projects-filter`,
+/// `workspace-projects-graph`, and the global `--filter` / `--recursive`
+/// flags landed via <https://github.com/pnpm/pnpm/pull/11959> and
+/// <https://github.com/pnpm/pnpm/pull/12000>), and `run` got a recursive
+/// runner with `--resume-from` / `--report-summary` / `--no-bail` via
+/// <https://github.com/pnpm/pnpm/pull/12093>. `exec` has no equivalent
+/// recursive variant yet — the global `--filter` / `--recursive` flags
+/// are accepted on `exec` via clap but not consumed, and exec-side
+/// recursive options (`--workspace-concurrency`, `--resume-from`,
+/// `--report-summary`, `--no-bail`) are not wired.
 #[derive(Debug, Args)]
 pub struct ExecArgs {
     /// The command to run, followed by its arguments.

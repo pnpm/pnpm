@@ -15,7 +15,7 @@ use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, 
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_lockfile::{Lockfile, SaveLockfileError};
+use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
@@ -35,7 +35,7 @@ use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver, WantedDependency,
 };
 use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
-use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
+use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
 use pacquet_tarball::MemCache;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -164,6 +164,39 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// `dryRun: opts.lockfileOnly` resolve pass. See
     /// [`crate::Install::lockfile_only`].
     pub lockfile_only: bool,
+    /// Which lockfile pins to withhold from the preferred-versions seed
+    /// so the affected names re-resolve to the highest version
+    /// satisfying their manifest range. Drives `pacquet update`'s
+    /// compatible bump; see [`UpdateSeedPolicy`].
+    pub update_seed_policy: UpdateSeedPolicy,
+}
+
+/// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
+/// preferred-versions tie-break seed [`InstallWithFreshLockfile`] builds
+/// via `get_preferred_versions_from_lockfile_and_manifests`.
+///
+/// A name whose pin is withheld no longer carries its previously-locked
+/// version at the existing-version weight, so the resolver falls back to
+/// picking the highest version satisfying the manifest range — the
+/// compatible re-resolution `pacquet update` performs. Mirrors pnpm's
+/// `update: 'compatible'` resolver mode, which ignores the lockfile
+/// version for the dependency being updated
+/// (<https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L823-L827>).
+///
+/// `KeepAll` is the install/add default (every pin seeds the table, so
+/// unrelated entries keep their resolutions on a rewrite).
+#[derive(Debug, Default, Clone)]
+pub enum UpdateSeedPolicy {
+    /// Seed every lockfile pin. `pacquet install` / `pacquet add`.
+    #[default]
+    KeepAll,
+    /// Withhold every lockfile pin. `pacquet update` with no package
+    /// selectors — the whole graph re-resolves to highest-in-range.
+    DropAll,
+    /// Withhold only the named packages' pins. `pacquet update <pattern>`
+    /// — matched names (at any depth) re-resolve while everything else
+    /// keeps its pin. Keyed by package name (scope included).
+    DropOnly(std::collections::HashSet<String>),
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -379,6 +412,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             node_linker,
             supported_architectures,
             lockfile_only,
+            update_seed_policy,
         } = self;
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
@@ -515,6 +549,30 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // the materializing and `--lockfile-only` paths: the lockfile
         // needs the integrity regardless of whether `node_modules` is
         // built.
+        // Map every remote-tarball URL the prior lockfile recorded (with an
+        // integrity) to its `<integrity>\t<pkg_id>` store-index key, keyed
+        // exactly as `snapshot_cache_key` / the install pass address the row.
+        // The `TarballResolver` uses it to reuse a warm store entry instead
+        // of re-downloading on re-resolution. Git-hosted tarballs are skipped
+        // (they key by `gitHostedStoreIndexKey`, not the integrity) and just
+        // re-fetch as before. Empty on a first install.
+        let prior_tarball_entries: HashMap<String, (ssri::Integrity, String)> = wanted_lockfile
+            .and_then(|lockfile| lockfile.packages.as_ref())
+            .map(|packages| {
+                packages
+                    .iter()
+                    .filter_map(|(key, metadata)| match &metadata.resolution {
+                        LockfileResolution::Tarball(t) if t.git_hosted != Some(true) => {
+                            let integrity = t.integrity.clone()?;
+                            let cache_key =
+                                store_index_key(&integrity.to_string(), &key.to_string());
+                            Some((t.tarball.clone(), (integrity, cache_key)))
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let tarball_resolver = TarballResolver {
             http_client: Arc::clone(&http_client_arc),
             fetch_context: Some(TarballFetchContext {
@@ -523,6 +581,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 mem_cache: Some(Arc::clone(&tarball_mem_cache)),
                 auth_headers: Arc::clone(&config.auth_headers),
                 retry_opts: crate::retry_config::retry_opts_from_config(config),
+                store_index: store_index.clone(),
+                verify_store_integrity: config.verify_store_integrity,
+                verified_files_cache: Arc::clone(&verified_files_cache),
+                prior_tarball_entries: Arc::new(prior_tarball_entries),
             }),
         };
         // `preserveAbsolutePaths` is wired through `Config`; thread the
@@ -662,9 +724,40 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // recorded pins; see <https://pnpm.io/settings#preferfrozenlockfile>.
         let manifests_for_preferred: Vec<&PackageManifest> =
             importer_manifests.values().copied().collect();
+        // `pacquet update` withholds the lockfile pins for the names it
+        // is bumping so they re-resolve to highest-in-range; everything
+        // else keeps its pin. `DropOnly` builds a filtered snapshot map
+        // (owned, so it outlives the seed build) excluding the matched
+        // names; `DropAll` passes `None` so no pin seeds the table.
+        let lockfile_snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
+        let filtered_snapshots;
+        let seed_snapshots = match &update_seed_policy {
+            UpdateSeedPolicy::KeepAll => lockfile_snapshots,
+            UpdateSeedPolicy::DropAll => None,
+            UpdateSeedPolicy::DropOnly(names) => match lockfile_snapshots {
+                None => None,
+                Some(snapshots) => {
+                    // The update-target set is small (CLI selectors / direct
+                    // deps); the snapshot map is large. Parse the targets to
+                    // `PkgName` once so the per-snapshot filter compares
+                    // against `key.name` directly instead of allocating a
+                    // `String` per key.
+                    let drop: std::collections::HashSet<pacquet_lockfile::PkgName> = names
+                        .iter()
+                        .filter_map(|name| pacquet_lockfile::PkgName::parse(name.as_str()).ok())
+                        .collect();
+                    filtered_snapshots = snapshots
+                        .iter()
+                        .filter(|(key, _)| !drop.contains(&key.name))
+                        .map(|(key, entry)| (key.clone(), entry.clone()))
+                        .collect::<HashMap<_, _>>();
+                    Some(&filtered_snapshots)
+                }
+            },
+        };
         let all_preferred_versions =
             pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
-                wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
+                seed_snapshots,
                 manifests_for_preferred.as_slice(),
             );
 

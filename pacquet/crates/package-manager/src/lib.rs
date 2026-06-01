@@ -31,6 +31,7 @@ mod retry_config;
 mod store_init;
 mod symlink_direct_dependencies;
 mod symlink_package;
+mod update;
 mod version_policy;
 mod virtual_store_layout;
 
@@ -65,5 +66,6 @@ pub use package_extender::*;
 pub use prefetching_resolver::*;
 pub use symlink_direct_dependencies::*;
 pub use symlink_package::*;
+pub use update::*;
 pub use version_policy::*;
 pub use virtual_store_layout::*;

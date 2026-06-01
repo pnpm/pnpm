@@ -9957,6 +9957,9 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      write-file-atomic:
+        specifier: 'catalog:'
+        version: 7.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -9973,6 +9976,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1
+      '@types/write-file-atomic':
+        specifier: 'catalog:'
+        version: 4.0.3
 
   workspace/workspace-manifest-reader:
     dependencies:

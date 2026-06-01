@@ -59,12 +59,29 @@ function toLockfileDependency (
     lockfileIncludeTarballUrl?: boolean
   }
 ): PackageSnapshot {
-  const lockfileResolution = toLockfileResolution(
+  let lockfileResolution = toLockfileResolution(
     { name: pkg.name, version: pkg.version },
     pkg.resolution,
     opts.registry,
     opts.lockfileIncludeTarballUrl
   )
+
+  if (
+    'tarball' in lockfileResolution &&
+    lockfileResolution.integrity == null &&
+    lockfileResolution.type === undefined
+  ) {
+    const prevResolution = opts.prevSnapshot?.resolution
+    if (
+      prevResolution != null &&
+      'tarball' in prevResolution &&
+      prevResolution.type === undefined &&
+      prevResolution.tarball === lockfileResolution.tarball &&
+      prevResolution.integrity != null
+    ) {
+      lockfileResolution = { ...lockfileResolution, integrity: prevResolution.integrity }
+    }
+  }
 
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
