@@ -172,7 +172,7 @@ impl Update<'_> {
         } = self;
 
         let selectors: Vec<ParsedSelector> =
-            packages.iter().map(|p| parse_update_param(p)).collect();
+            packages.iter().map(|input| parse_update_param(input)).collect();
 
         // `--latest` forbids versioned selectors, matching pnpm's
         // `LATEST_WITH_SPEC` guard.
@@ -218,23 +218,65 @@ impl Update<'_> {
             && !latest;
 
         let seed_policy = if selectors.is_empty() {
-            if latest {
-                for (name, group, _) in &direct {
+            // `updateConfig.ignoreDependencies` applies only when the user
+            // gave no selectors: the listed name globs are excluded from
+            // the update so they keep their lockfile pins. The filter runs
+            // against the *included* direct deps, so group narrowing
+            // (`--prod` / `--dev` / `--no-optional`) still scopes the
+            // update. Mirrors pnpm's `makeIgnorePatterns` feeding
+            // `matchDependencies(..., includeDirect)`.
+            let ignore_patterns =
+                config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
+            // Only compile a matcher when there's something to ignore, so
+            // the common (no ignore list) path skips it entirely.
+            let ignore_matcher =
+                (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
+            let is_ignored =
+                |name: &str| ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name));
+
+            for (name, group, _) in &direct {
+                if is_ignored(name) {
+                    continue;
+                }
+                if latest {
                     let version = fetch_latest(name, http_client, config).await?;
                     rewrites.push((name.clone(), *group, version.serialize(save_exact)));
                 }
-            }
-            for (name, _, _) in &direct {
                 drop_names.insert(name.clone());
             }
-            // `pnpm update` (no selectors, no group narrowing) re-resolves
-            // the whole graph to highest-in-range. Once the groups are
-            // narrowed (`--prod` / `--dev` / `--no-optional`) only the
-            // included direct deps (and their same-named transitive
-            // occurrences) re-resolve.
-            if updates_all_groups {
+
+            if updates_all_groups && ignore_patterns.is_empty() {
+                // `pnpm update` (no selectors, no narrowing, no ignore
+                // list) re-resolves the whole graph to highest-in-range.
                 UpdateSeedPolicy::DropAll
+            } else if updates_all_groups {
+                // Whole-graph update minus the ignored names: drop every
+                // locked name that isn't ignored so the ignored ones keep
+                // their pins.
+                //
+                // Skip the expansion when `--latest` selected no direct
+                // dependency (every included direct dep was ignored):
+                // pnpm returns early there (`if (opts.latest) return`), a
+                // true no-op. A non-`--latest` update with no direct match
+                // still re-resolves the non-ignored *indirect* deps,
+                // matching pnpm's "updating indirect dependencies only"
+                // branch, so the expansion must run in that case.
+                // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/installDeps.ts#L355-L364>
+                if !(latest && drop_names.is_empty())
+                    && let Some(snapshots) = lockfile.and_then(|lf| lf.snapshots.as_ref())
+                {
+                    for key in snapshots.keys() {
+                        let name = key.name.to_string();
+                        if !is_ignored(&name) {
+                            drop_names.insert(name);
+                        }
+                    }
+                }
+                UpdateSeedPolicy::DropOnly(drop_names)
             } else {
+                // Group-narrowed: only the included direct deps (minus
+                // ignored) and their same-named transitive occurrences
+                // re-resolve.
                 UpdateSeedPolicy::DropOnly(drop_names)
             }
         } else if use_name_matcher {
