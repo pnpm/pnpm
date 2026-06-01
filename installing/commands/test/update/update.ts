@@ -105,6 +105,31 @@ test('update with negation pattern', async () => {
   expect(lockfile.packages['@pnpm.e2e/foo@2.0.0']).toBeTruthy()
 })
 
+test('update transitive dependency when mixed with a direct dependency selector', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '1.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep', '@pnpm.e2e/foo'])
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
+})
+
 test('update: fail when both "latest" and "workspace" are true', async () => {
   preparePackages([
     {
