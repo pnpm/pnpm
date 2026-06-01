@@ -15,27 +15,31 @@ name = "pacquet"
 path = "src/bin/main.rs"
 
 [dependencies]
-pacquet-pnpr-client            = { workspace = true }
-pacquet-executor               = { workspace = true }
-pacquet-fs                     = { workspace = true }
-pacquet-lockfile               = { workspace = true }
-pacquet-network                = { workspace = true }
-pacquet-config                 = { workspace = true }
-pacquet-package-manifest       = { workspace = true }
-pacquet-package-manager        = { workspace = true }
-pacquet-package-is-installable = { workspace = true }
-pacquet-registry               = { workspace = true }
-pacquet-reporter               = { workspace = true }
-pacquet-tarball                = { workspace = true }
-pacquet-diagnostics            = { workspace = true }
+pacquet-pnpr-client              = { workspace = true }
+pacquet-executor                 = { workspace = true }
+pacquet-fs                       = { workspace = true }
+pacquet-lockfile                 = { workspace = true }
+pacquet-network                  = { workspace = true }
+pacquet-config                   = { workspace = true }
+pacquet-package-manifest         = { workspace = true }
+pacquet-package-manager          = { workspace = true }
+pacquet-package-is-installable   = { workspace = true }
+pacquet-registry                 = { workspace = true }
+pacquet-reporter                 = { workspace = true }
+pacquet-tarball                  = { workspace = true }
+pacquet-diagnostics              = { workspace = true }
+pacquet-workspace                = { workspace = true }
+pacquet-workspace-projects-graph = { workspace = true }
 
 clap        = { workspace = true }
 derive_more = { workspace = true }
 dunce       = { workspace = true }
 home        = { workspace = true }
+indexmap    = { workspace = true }
 miette      = { workspace = true }
 pipe-trait  = { workspace = true }
 rayon       = { workspace = true }
+serde       = { workspace = true }
 serde_json  = { workspace = true }
 tokio       = { workspace = true }
 

@@ -13,7 +13,7 @@ pub use shell::{ScriptShellError, SelectedShell, select_shell};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -28,12 +28,22 @@ pub enum ExecutorError {
 }
 
 pub fn execute_shell(command: &str) -> Result<(), ExecutorError> {
+    execute_shell_with_status(command).map(|_status| ())
+}
+
+/// Run `command` through `sh -c` and return the child's exit status.
+///
+/// The variant [`execute_shell`] builds on: callers that need to react
+/// to a non-zero exit (e.g. recursive run recording a per-package
+/// `passed` / `failure` status) inspect the returned [`ExitStatus`],
+/// while callers that only care about spawn / wait failures use
+/// [`execute_shell`]. A non-zero exit is *not* an [`ExecutorError`] —
+/// only a failure to spawn the shell or to wait on it is.
+pub fn execute_shell_with_status(command: &str) -> Result<ExitStatus, ExecutorError> {
     let mut cmd =
         Command::new("sh").arg("-c").arg(command).spawn().map_err(ExecutorError::SpawnCommand)?;
 
-    cmd.wait().map_err(ExecutorError::WaitProcess)?;
-
-    Ok(())
+    cmd.wait().map_err(ExecutorError::WaitProcess)
 }
 
 #[cfg(test)]
