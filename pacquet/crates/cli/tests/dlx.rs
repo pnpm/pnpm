@@ -1,3 +1,7 @@
+// `assert_cmd::prelude::*` (for `.assert()`) is only used by the Unix-
+// gated dlx happy-path test below; gating the import avoids an
+// `unused_imports` error on Windows under clippy's `-D warnings`.
+#[cfg(unix)]
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
