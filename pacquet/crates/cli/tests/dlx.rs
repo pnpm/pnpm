@@ -1,3 +1,4 @@
+use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
 
@@ -18,6 +19,31 @@ fn dlx_errors_when_no_command_given() {
     assert!(
         stderr.contains("requires a command to run"),
         "the failure must be the missing-command diagnostic",
+    );
+
+    drop(root);
+}
+
+/// `pacquet dlx <package>` resolves the package against the mocked
+/// registry, installs it into the dlx cache under `config.cache_dir`,
+/// and runs its bin in the process cwd. Mirrors pnpm's `dlx` happy
+/// path (dlx.ts). Uses `@foo/touch-file-one-bin`, whose single bin
+/// writes `touch.txt` when invoked — the file's presence in cwd
+/// proves both the install and the bin execution worked end-to-end.
+///
+/// Locally this needs the in-repo pnpr (the mocked registry); in CI
+/// `add_mocked_registry()` starts it via `pacquet-testing-utils`.
+#[cfg(unix)]
+#[test]
+fn dlx_installs_and_runs_packages_bin() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+
+    assert!(
+        workspace.join("touch.txt").exists(),
+        "the package's bin should run in the process cwd and write `touch.txt`",
     );
 
     drop(root);

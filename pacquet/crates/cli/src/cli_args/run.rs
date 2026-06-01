@@ -139,12 +139,20 @@ impl RunArgs {
             silent,
         };
         for name in &specified {
-            if let Some(status) = run_one_script(&ctx, name, &args)?
-                && !status.success()
-            {
+            // Resolve the main body (with `start` → `node server.js`
+            // fallback) and apply the args-aware `npx only-allow pnpm`
+            // no-op skip. After both pass, [`run_stages`] is
+            // guaranteed to actually run the main stage, so its return
+            // is a plain `ExitStatus`.
+            let Some(main) = resolve_main_script(&ctx, name)? else { continue };
+            if args.is_empty() && main == "npx only-allow pnpm" {
+                continue;
+            }
+            let status = run_stages(&ctx, name, &main, &args)?;
+            if !status.success() {
                 // Mirror pnpm: a failing script sets the process exit
                 // code. `run_stage` already emitted the `[ELIFECYCLE]`
-                // line for this stage.
+                // line.
                 std::process::exit(status.code().unwrap_or(1));
             }
         }
@@ -173,22 +181,70 @@ pub(super) struct RunContext<'a> {
     pub(super) silent: bool,
 }
 
-/// Run a single named script together with its `pre`/`post` companions
-/// when `enablePrePostScripts` is set. Ports `runScript`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L395-L423>).
+/// Resolve `name` to a runnable main script body, or `Ok(None)` when
+/// there's nothing to run (the manifest has no truthy `scripts[name]`
+/// and `name` isn't `start`). Mirrors the `start`-fallback path in
+/// `runLifecycleHook.ts:75-83`: an absent (or empty) `start` falls back
+/// to `node server.js` provided `server.js` exists in the process cwd;
+/// otherwise [`RunError::NoScriptOrServer`].
+fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String>, RunError> {
+    let get_script = |key: &str| -> Option<String> {
+        ctx.manifest
+            .value()
+            .get("scripts")
+            .and_then(|scripts| scripts.as_object())
+            .and_then(|scripts| scripts.get(key))
+            .and_then(|script| script.as_str())
+            .map(str::to_string)
+    };
+    match get_script(name) {
+        Some(body) if !body.is_empty() => Ok(Some(body)),
+        _ if name == "start" => {
+            if !ctx.init_cwd.join("server.js").exists() {
+                return Err(RunError::NoScriptOrServer);
+            }
+            Ok(Some("node server.js".to_string()))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Run pre / main / post for `name` around an already-resolved
+/// `main_body`. The contract:
+///
+/// - `main_body` is non-empty.
+/// - `main_body` is not `"npx only-allow pnpm"` when `args` is empty
+///   (otherwise the main stage's [`run_stage`] would no-op).
+///
+/// Both callers — single-project [`RunArgs::run`] and the recursive
+/// runner — validate these conditions before calling: single-project
+/// via [`resolve_main_script`] plus an inline npx-only-allow skip,
+/// recursive via its outer per-project filter. Given that, the main
+/// stage is guaranteed to actually run, so this function returns a
+/// plain [`std::process::ExitStatus`] instead of `Option<ExitStatus>`
+/// and the callers don't need to defensively handle a "nothing ran"
+/// case.
+///
+/// On the first non-success stage (pre / main / post) the function
+/// short-circuits and returns that stage's status; the caller decides
+/// what to do with the failure (single-project: `process::exit`;
+/// recursive: record `Failure` and bail or continue). Matches pnpm's
+/// `runScript` (run.ts:399-415), where a throw from `runLifecycleHook`
+/// skips the remaining stages.
 ///
 /// Deliberate deviation: for `run start` with no `start` script but a
 /// `prestart`/`poststart` and `enablePrePostScripts`, pnpm dereferences
 /// the undefined `scripts.start` in its `!scripts[name].includes(...)`
 /// guard and throws a `TypeError`; pacquet runs the hooks around the
 /// `node server.js` fallback instead. Replicating the upstream crash
-/// would be wrong, so the `pre`/`post` substring guard runs against the
-/// resolved `main` command here.
-pub(super) fn run_one_script(
+/// would be wrong, so the `pre`/`post` substring guard runs against
+/// the resolved `main_body` here.
+pub(super) fn run_stages(
     ctx: &RunContext<'_>,
     name: &str,
+    main_body: &str,
     args: &[String],
-) -> miette::Result<Option<std::process::ExitStatus>> {
+) -> miette::Result<std::process::ExitStatus> {
     let get_script = |key: &str| -> Option<String> {
         ctx.manifest
             .value()
@@ -199,60 +255,41 @@ pub(super) fn run_one_script(
             .map(str::to_string)
     };
 
-    // `pnpm run start` falls back to `node server.js` when there is no
-    // `start` script — pnpm's guard is `!m.scripts.start`
-    // (runLifecycleHook.ts:78), so an *empty* `start` is falsy and also
-    // falls back, not just a missing one. The fallback requires
-    // `server.js` to exist (probed against the process cwd via
-    // `existsSync('server.js')`, runLifecycleHook.ts:79, hence
-    // `init_cwd`), otherwise NO_SCRIPT_OR_SERVER.
-    let main = match get_script(name) {
-        Some(script) if !(name == "start" && script.is_empty()) => script,
-        _ if name == "start" => {
-            if !ctx.init_cwd.join("server.js").exists() {
-                return Err(RunError::NoScriptOrServer.into());
-            }
-            "node server.js".to_string()
-        }
-        _ => return Ok(None),
-    };
-
-    // pre/main/post run in order. If any stage fails (non-zero exit),
-    // return that ExitStatus immediately so the caller can decide what
-    // to do (single-project: process::exit with the code; recursive:
-    // record Failure + bail or continue). Matches pnpm's `runScript`
-    // (run.ts:399-415), which lets a throw from `runLifecycleHook`
-    // short-circuit the post stage.
     if ctx.config.enable_pre_post_scripts {
         let pre = format!("pre{name}");
         if let Some(script) = get_script(&pre)
-            && !main.contains(&pre)
+            && !main_body.contains(&pre)
             && let Some(status) = run_stage(ctx, &pre, &script, &[])?
             && !status.success()
         {
-            return Ok(Some(status));
+            return Ok(status);
         }
     }
 
-    let main_outcome = run_stage(ctx, name, &main, args)?;
-    if let Some(status) = main_outcome
-        && !status.success()
-    {
-        return Ok(Some(status));
+    // The caller's contract rules out both no-op paths in `run_stage`
+    // for the main stage (empty body, args-less `npx only-allow pnpm`),
+    // so `run_stage` here is guaranteed to surface a real `ExitStatus`.
+    // The `expect` documents the invariant.
+    let main_status = run_stage(ctx, name, main_body, args)?.expect(
+        "caller validated main_body is neither empty nor the args-less `npx only-allow pnpm` no-op",
+    );
+
+    if !main_status.success() {
+        return Ok(main_status);
     }
 
     if ctx.config.enable_pre_post_scripts {
         let post = format!("post{name}");
         if let Some(script) = get_script(&post)
-            && !main.contains(&post)
+            && !main_body.contains(&post)
             && let Some(status) = run_stage(ctx, &post, &script, &[])?
             && !status.success()
         {
-            return Ok(Some(status));
+            return Ok(status);
         }
     }
 
-    Ok(main_outcome)
+    Ok(main_status)
 }
 
 /// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage

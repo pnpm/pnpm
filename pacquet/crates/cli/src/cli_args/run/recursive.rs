@@ -16,7 +16,7 @@
 //! selected set is every workspace project, matching pacquet's
 //! currently-unfiltered `install`.
 
-use super::{RunArgs, RunContext, run_one_script};
+use super::{RunArgs, RunContext, run_stages};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -173,13 +173,15 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
             has_command += 1;
             let start = Instant::now();
             // Per-project pre/main/post via the same machinery
-            // single-project `run` uses (run_one_script handles the
-            // `enablePrePostScripts` gate, the `npx only-allow pnpm`
-            // skip, the empty-body skip, and the `[ELIFECYCLE]` line on
-            // failure). Mirrors pnpm's `runRecursive.ts:147,156` calling
-            // `runScript` with `runScriptOptions.enablePrePostScripts`.
-            // The per-package failure surface comes from the
-            // ExecutionStatus summary, not the `$ <script>` echo.
+            // single-project `run` uses. The outer manifest /
+            // empty-body / `npx only-allow pnpm` guards above
+            // discharge `run_stages`' precondition (non-empty body
+            // that isn't the args-less npx no-op), so the main stage
+            // is guaranteed to run and `run_stages` returns a plain
+            // `ExitStatus`. Mirrors pnpm's `runRecursive.ts:147,156`
+            // calling `runScript` with `enablePrePostScripts`. The
+            // per-package failure surface comes from the
+            // `ExecutionStatus` summary, not the `$ <script>` echo.
             let ctx = RunContext {
                 manifest,
                 dir: root,
@@ -188,17 +190,9 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
                 extra_env: &extra_env,
                 silent: true,
             };
-            let outcome = run_one_script(&ctx, script_name, &args.args)?;
+            let status = run_stages(&ctx, script_name, script, &args.args)?;
             let duration = start.elapsed().as_secs_f64() * 1e3;
 
-            let Some(status) = outcome else {
-                // Defensive: pre/main/post all became no-ops. Reachable
-                // only if `run_one_script`'s internal lookups diverge
-                // from our outer `manifest.script` (e.g. a future
-                // refactor adds a state the outer guard misses).
-                result[root].status = Status::Skipped;
-                continue;
-            };
             if status.success() {
                 let entry = &mut result[root];
                 entry.status = Status::Passed;

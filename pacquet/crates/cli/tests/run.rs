@@ -307,3 +307,80 @@ fn run_finds_local_bin_on_path() {
 
     drop(root);
 }
+
+/// With a non-silent reporter (e.g. `--reporter=ndjson`), `pacquet run`
+/// echoes `$ <script>` to stderr before spawning the script —
+/// matching pnpm's `runLifecycleHook.ts:110`
+/// (`process.stderr.write(chalk.dim($ ${...})...)`). The default Silent
+/// reporter (no human-facing reporter exists in pacquet yet) suppresses
+/// it.
+#[cfg(unix)]
+#[test]
+fn run_echoes_script_to_stderr_when_reporter_not_silent() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "true" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_arg("--reporter=ndjson")
+        .with_arg("run")
+        .with_arg("build")
+        .output()
+        .expect("spawn pacquet run");
+    assert!(output.status.success(), "the script should succeed");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("$ true"),
+        "stderr should echo the script body with a `$ ` prefix:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// `pacquet run start` with no `start` script and a `server.js` file
+/// SUCCEEDS via the `node server.js` fallback. The fallback resolves
+/// `node` against the inherited `PATH`, so the test prepends a fake
+/// `node` shim (a shell script that writes a marker) to `PATH` and
+/// verifies it was invoked with `server.js`. Mirrors the success side
+/// of pnpm's `runLifecycleHook.ts:75-83` start-fallback.
+#[cfg(unix)]
+#[test]
+fn run_start_falls_back_to_node_server_js_when_present() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "echo built" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    // `server.js` is probed via `existsSync('server.js')`, resolved
+    // against the process cwd (which `CommandTempCwd` sets to the
+    // workspace), so the file goes here, not under any project subdir.
+    fs::write(workspace.join("server.js"), "// placeholder").expect("write server.js");
+
+    let shim_dir = workspace.join("shim");
+    fs::create_dir_all(&shim_dir).expect("create shim dir");
+    let marker = workspace.join("node-args.txt");
+    // Shim writes its argv to the marker, letting the assertion pin
+    // the exact `node server.js` invocation without needing real
+    // node on PATH.
+    write_executable(
+        &shim_dir.join("node"),
+        &format!("#!/bin/sh\nprintf %s \"$*\" > \"{}\"\n", marker.display()),
+    );
+
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", shim_dir.display(), existing_path);
+    pacquet.with_env("PATH", new_path).with_arg("run").with_arg("start").assert().success();
+
+    let written = fs::read_to_string(&marker).expect("read marker");
+    assert_eq!(written, "server.js");
+
+    drop(root);
+}
