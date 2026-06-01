@@ -48,7 +48,7 @@ fn print_commands_groups_lifecycle_and_other() {
     let output = render_project_commands(&manifest);
     assert!(output.contains("Lifecycle scripts:"), "lifecycle header:\n{output}");
     assert!(output.contains("  test\n    jest"), "test under lifecycle:\n{output}");
-    assert!(output.contains(r#"Commands available via "pnpm run":"#), "other header:\n{output}",);
+    assert!(output.contains(r#"Commands available via "pnpm run":"#), "other header:\n{output}");
     assert!(output.contains("  build\n    tsc"), "build under other:\n{output}");
     assert!(!output.contains("hidden"), "hidden scripts are omitted:\n{output}");
 }
