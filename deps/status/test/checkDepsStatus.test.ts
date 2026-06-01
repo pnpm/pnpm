@@ -6,7 +6,7 @@ import path from 'node:path'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
+import type { ProjectId, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import type { WorkspaceState } from '@pnpm/workspace.state'
 
 {
@@ -568,7 +568,7 @@ describe('checkDepsStatus - lockfile modification', () => {
       const lockfile: LockfileObject = {
         lockfileVersion: '9.0',
         importers: {
-          '.': {
+          ['.' as ProjectId]: {
             specifiers: {},
           },
         },
