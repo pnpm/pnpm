@@ -551,6 +551,91 @@ describe('checkDepsStatus - lockfile conflicts', () => {
   })
 })
 
+describe('checkDepsStatus - lockfile modification', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  it('does not skip the wanted lockfile check when only the lockfile changed since the last validation', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-lockfile-'))
+    try {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      const beforeLastValidation = lastValidatedTimestamp - 10_000
+      const afterLastValidation = lastValidatedTimestamp + 1_000
+      const projectRootDir = workspaceDir as ProjectRootDir
+      const projectRootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
+      const lockfile: LockfileObject = {
+        lockfileVersion: '9.0',
+        importers: {
+          '.': {
+            specifiers: {},
+          },
+        },
+      }
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {
+          [projectRootDir]: {
+            name: 'project',
+            version: '1.0.0',
+          },
+        },
+        filteredInstall: false,
+      }
+
+      await fs.writeFile(path.join(workspaceDir, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n")
+
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+      jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) => {
+        if (filePath === path.join(workspaceDir, 'pnpm-lock.yaml')) {
+          return {
+            mtime: new Date(afterLastValidation),
+            mtimeMs: afterLastValidation,
+          } as Stats
+        }
+        return undefined
+      })
+      jest.mocked(fsUtils.safeStat).mockResolvedValue(undefined)
+      jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue({
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats)
+      jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+      jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
+
+      const opts: CheckDepsStatusOptions = {
+        allProjects: [{
+          rootDir: projectRootDir,
+          rootDirRealPath: projectRootDirRealPath,
+          manifest: {
+            name: 'project',
+            version: '1.0.0',
+          },
+          writeProjectManifest: async () => {},
+        }],
+        workspaceDir,
+        rootProjectManifest: {},
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...mockWorkspaceState.settings,
+      }
+      const result = await checkDepsStatus(opts)
+
+      expect(result.upToDate).toBe(false)
+      expect(lockfileFs.readWantedLockfile).toHaveBeenCalled()
+    } finally {
+      await fs.rm(workspaceDir, { force: true, recursive: true })
+    }
+  })
+})
+
 async function writeConflictedLockfile (lockfileDir: string): Promise<void> {
   await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), [
     "lockfileVersion: '9.0'",

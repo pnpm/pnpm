@@ -273,16 +273,27 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       ({ manifestStats }) =>
         manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
     )
+    const lockfileDirs = getWantedLockfileDirs({
+      allProjects,
+      lockfileDir,
+      rootProjectManifestDir,
+      sharedWorkspaceLockfile,
+      workspaceDir,
+    })
+    const lockfilesModified = lockfileDirs.some((wantedLockfileDir) => {
+      const wantedLockfileStats = safeStatSync(path.join(wantedLockfileDir, WANTED_LOCKFILE))
+      return wantedLockfileStats != null && wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
+    })
 
-    if (modifiedProjects.length === 0) {
-      logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
+    if ((modifiedProjects.length === 0) && !lockfilesModified) {
+      logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
       const wantedLockfileToRestore = sharedWorkspaceLockfile && !opts.useGitBranchLockfile
         ? await missingWantedLockfileStandIn(workspaceDir)
         : undefined
       return { upToDate: true, workspaceState, wantedLockfileToRestore }
     }
 
-    logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
+    logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
 
     let wantedLockfileToRestore: CheckDepsStatusResult['wantedLockfileToRestore']
     let readWantedLockfileAndDir: (projectDir: string) => Promise<{
@@ -368,7 +379,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }
 
     try {
-      await Promise.all(modifiedProjects.map(async ({ project }) => {
+      const projectsToCheck = lockfilesModified ? allManifestStats : modifiedProjects
+      await Promise.all(projectsToCheck.map(async ({ project }) => {
         const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
         await assertWantedLockfileUpToDate(assertCtx, {
           projectDir: project.rootDir,
