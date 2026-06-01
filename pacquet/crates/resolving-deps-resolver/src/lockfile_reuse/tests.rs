@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use pacquet_lockfile::{
-    ImporterDepVersion, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencySpec,
+    ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion, PackageMetadata,
+    PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
+    ResolvedDependencySpec, TarballResolution,
 };
 
-use super::reusable_importer_dep;
+use super::{reusable_importer_dep, synthesize_reused_result};
 
 fn single_dep_importer(alias: &str, resolved: &str) -> HashMap<String, ProjectSnapshot> {
     let mut deps = HashMap::new();
@@ -21,6 +23,39 @@ fn single_dep_importer(alias: &str, resolved: &str) -> HashMap<String, ProjectSn
         ".".to_string(),
         ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     )])
+}
+
+fn empty_lockfile() -> Lockfile {
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        ignored_optional_dependencies: None,
+        importers: HashMap::new(),
+        packages: None,
+        snapshots: None,
+    }
+}
+
+fn registry_metadata() -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+                .parse()
+                .expect("parse integrity"),
+        }),
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
 }
 
 #[test]
@@ -47,4 +82,77 @@ fn fresh_resolves_when_range_no_longer_satisfies_locked_version() {
 fn fresh_resolves_a_new_dependency_absent_from_the_lockfile() {
     let importers = single_dep_importer("react", "18.2.0");
     assert!(reusable_importer_dep(&importers, ".", "left-pad", "^1.0.0").is_none());
+}
+
+#[test]
+fn synthesizes_a_registry_resolution_with_the_recorded_integrity() {
+    let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
+    let metadata = registry_metadata();
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata.clone())]));
+
+    let result =
+        synthesize_reused_result(&lockfile, &key, "react").expect("registry dep is reusable");
+    assert_eq!(result.id.as_str(), "react@18.2.0");
+    let name_ver = result.name_ver.expect("name_ver");
+    assert_eq!(name_ver.name.to_string(), "react");
+    assert_eq!(name_ver.suffix.to_string(), "18.2.0");
+    assert_eq!(result.resolution, metadata.resolution);
+    assert_eq!(result.resolved_via, "npm-registry");
+    assert_eq!(result.alias.as_deref(), Some("react"));
+    let manifest = result.manifest.expect("synthesized manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("react"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("18.2.0"));
+}
+
+#[test]
+fn synthesized_manifest_carries_peer_metadata() {
+    let key: PkgNameVerPeer = "react-dom@18.2.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.peer_dependencies =
+        Some(HashMap::from([("react".to_string(), "^18.0.0".to_string())]));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result =
+        synthesize_reused_result(&lockfile, &key, "react-dom").expect("registry dep is reusable");
+    let manifest = result.manifest.expect("synthesized manifest");
+    let peers =
+        manifest.get("peerDependencies").and_then(serde_json::Value::as_object).expect("peers");
+    assert_eq!(peers.get("react").and_then(serde_json::Value::as_str), Some("^18.0.0"));
+}
+
+#[test]
+fn does_not_reuse_non_registry_resolutions() {
+    let key: PkgNameVerPeer = "pkg-from-tarball@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://example.test/pkg.tgz".to_string(),
+        integrity: None,
+        git_hosted: None,
+        path: None,
+    });
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    assert!(synthesize_reused_result(&lockfile, &key, "pkg-from-tarball").is_none());
+}
+
+#[test]
+fn does_not_reuse_a_package_absent_from_the_packages_map() {
+    let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
+    let lockfile = empty_lockfile();
+    assert!(synthesize_reused_result(&lockfile, &key, "react").is_none());
+}
+
+#[test]
+fn does_not_reuse_a_non_semver_version_slot() {
+    // A package keyed by a tarball URL has a non-semver version part; the
+    // peer-stripped metadata key still exists but `synthesize` bails
+    // before it because the version slot doesn't parse as a semver.
+    let key: PkgNameVerPeer =
+        "pkg@https://example.test/pkg.tgz".parse().expect("parse url-keyed entry");
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
+    assert!(synthesize_reused_result(&lockfile, &key, "pkg").is_none());
 }

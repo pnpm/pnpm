@@ -823,6 +823,17 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // already-resolved subtrees instead of re-resolving from the
             // registry (see pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md).
             wanted_lockfile: wanted_lockfile.cloned().map(Arc::new),
+            // `pacquet update` must re-resolve its targets to highest-
+            // in-range, so suppress reuse for them (and their subtrees).
+            update_reuse_scope: match &update_seed_policy {
+                UpdateSeedPolicy::KeepAll => pacquet_resolving_deps_resolver::UpdateReuseScope::All,
+                UpdateSeedPolicy::DropAll => {
+                    pacquet_resolving_deps_resolver::UpdateReuseScope::None
+                }
+                UpdateSeedPolicy::DropOnly(names) => {
+                    pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
+                }
+            },
         };
         let modules_basename = config
             .modules_dir

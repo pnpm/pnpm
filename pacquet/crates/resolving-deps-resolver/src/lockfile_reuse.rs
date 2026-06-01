@@ -8,7 +8,12 @@
 use std::collections::HashMap;
 
 use node_semver::Range;
-use pacquet_lockfile::{PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencySpec};
+use pacquet_lockfile::{
+    Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
+    ResolvedDependencySpec,
+};
+use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use serde_json::{Map, Value};
 
 use crate::hoist_peers::satisfies_including_prerelease;
 
@@ -22,10 +27,6 @@ use crate::hoist_peers::satisfies_including_prerelease;
 /// `bare_specifier`, or a `link:` recorded shape. The first cut reuses
 /// only semver (registry/tarball) deps; richer shapes (`link:`/`file:`/
 /// `workspace:`/`catalog:`) fall through to a normal resolve.
-#[allow(
-    dead_code,
-    reason = "consumed by the resolve_node reuse gate in the next commit of this staged feature (pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md); only the unit tests exercise it until then"
-)]
 pub(crate) fn reusable_importer_dep(
     importers: &HashMap<String, ProjectSnapshot>,
     importer_id: &str,
@@ -54,6 +55,136 @@ fn importer_dep<'a>(
         .and_then(|deps| deps.get(name))
         .or_else(|| importer.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
         .or_else(|| importer.dev_dependencies.as_ref().and_then(|deps| deps.get(name)))
+}
+
+/// Synthesize the [`ResolveResult`] a fresh resolve of `key` would have
+/// produced, reading the recorded resolution + manifest metadata out of
+/// the prior lockfile instead of hitting the registry.
+///
+/// Conservative by design: returns `None` (so the caller resolves
+/// fresh) unless the package is a plain-semver registry package with an
+/// entry in `lockfile.packages`. pacquet's npm resolver records every
+/// registry pick as a [`LockfileResolution::Tarball`] carrying the
+/// registry tarball URL + integrity (it never emits the bare
+/// `Registry` shape — see
+/// [`npm_resolver`](https://github.com/pnpm/pnpm/blob/097983fbca/resolving/npm-resolver/src/index.ts)),
+/// so both `Tarball` and `Registry` are accepted here. The
+/// `version_semver()` gate keeps reuse to registry packages: a remote
+/// (non-registry) tarball or git dep carries a URL-shaped, non-semver
+/// version slot and falls through to a fresh resolve. Git-hosted
+/// tarballs (which need preparation on extraction) are rejected
+/// outright. Directory / git / binary / variations resolutions also
+/// fall through — reusing them would need resolver state the lockfile
+/// doesn't fully capture, and a wrong reuse produces a wrong tree.
+///
+/// The synthesized result reproduces the node shape a fresh resolve
+/// yields:
+///
+/// * `id` / `name_ver` are the peer-stripped `name@version`, the
+///   `pkgIdWithPatchHash` the dedup map keys on (the peer suffix is
+///   re-derived by the peer pass).
+/// * `resolution` is cloned from [`pacquet_lockfile::PackageMetadata`]
+///   so the recorded integrity carries forward.
+/// * `manifest` is reconstructed from the metadata's
+///   `peerDependencies` / `peerDependenciesMeta` / `engines` / `cpu` /
+///   `os` / `libc` / `hasBin` so [`crate::extract_peer_dependencies`]
+///   and the leaf classifier behave identically to a fresh resolve.
+///   `dependencies` are deliberately omitted — the children come from
+///   the snapshot graph, not this manifest.
+pub(crate) fn synthesize_reused_result(
+    lockfile: &Lockfile,
+    key: &PkgNameVerPeer,
+    alias: &str,
+) -> Option<ResolveResult> {
+    let metadata_key = key.without_peer();
+    let version = metadata_key.suffix.version_semver()?.clone();
+    let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
+    // Reuse only registry-resolved packages for now (see the doc above).
+    match &metadata.resolution {
+        LockfileResolution::Registry(_) => {}
+        LockfileResolution::Tarball(tarball)
+            if tarball.integrity.is_some() && tarball.git_hosted != Some(true) => {}
+        LockfileResolution::Tarball(_)
+        | LockfileResolution::Directory(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Binary(_)
+        | LockfileResolution::Variations(_) => return None,
+    }
+    let name_ver = PkgNameVer::new(metadata_key.name.clone(), version);
+    let manifest = synthesize_manifest(&name_ver, metadata);
+    Some(ResolveResult {
+        id: PkgResolutionId::from(name_ver.to_string()),
+        name_ver: Some(name_ver),
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(manifest)),
+        resolution: metadata.resolution.clone(),
+        resolved_via: "npm-registry".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some(alias.to_string()),
+        policy_violation: None,
+    })
+}
+
+/// Reconstruct the minimal manifest fragment downstream consumers read
+/// off a reused [`ResolveResult`]. Carries the peer / platform metadata
+/// the lockfile records; omits `dependencies` because a reused node's
+/// children come from the snapshot graph, not the manifest.
+fn synthesize_manifest(
+    name_ver: &PkgNameVer,
+    metadata: &pacquet_lockfile::PackageMetadata,
+) -> Value {
+    let mut manifest = Map::new();
+    manifest.insert("name".to_string(), Value::String(name_ver.name.to_string()));
+    manifest.insert("version".to_string(), Value::String(name_ver.suffix.to_string()));
+
+    if let Some(peers) = metadata.peer_dependencies.as_ref() {
+        let map: Map<String, Value> = peers
+            .iter()
+            .map(|(name, range)| (name.clone(), Value::String(range.clone())))
+            .collect();
+        manifest.insert("peerDependencies".to_string(), Value::Object(map));
+    }
+    if let Some(meta) = metadata.peer_dependencies_meta.as_ref() {
+        let map: Map<String, Value> = meta
+            .iter()
+            .map(|(name, entry)| {
+                let mut obj = Map::new();
+                obj.insert("optional".to_string(), Value::Bool(entry.optional));
+                (name.clone(), Value::Object(obj))
+            })
+            .collect();
+        manifest.insert("peerDependenciesMeta".to_string(), Value::Object(map));
+    }
+    if let Some(engines) = metadata.engines.as_ref() {
+        let map: Map<String, Value> = engines
+            .iter()
+            .map(|(name, range)| (name.clone(), Value::String(range.clone())))
+            .collect();
+        manifest.insert("engines".to_string(), Value::Object(map));
+    }
+    if let Some(cpu) = metadata.cpu.as_ref() {
+        manifest.insert("cpu".to_string(), string_array(cpu));
+    }
+    if let Some(os) = metadata.os.as_ref() {
+        manifest.insert("os".to_string(), string_array(os));
+    }
+    if let Some(libc) = metadata.libc.as_ref() {
+        manifest.insert("libc".to_string(), string_array(libc));
+    }
+    // `has_bin: Some(true)` round-trips as a truthy `bin` so the
+    // bundled-manifest bin linker sees a non-empty bin set; the exact
+    // bin paths live in the store-index bundled manifest the install
+    // pass reads, not here.
+    if metadata.has_bin == Some(true) {
+        manifest.insert("bin".to_string(), Value::String(name_ver.name.to_string()));
+    }
+
+    Value::Object(manifest)
+}
+
+fn string_array(items: &[String]) -> Value {
+    Value::Array(items.iter().map(|item| Value::String(item.clone())).collect())
 }
 
 #[cfg(test)]

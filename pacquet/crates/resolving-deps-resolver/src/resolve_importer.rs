@@ -214,7 +214,15 @@ where
     // and can't mutate it after the fact.
     let workspace =
         Arc::new(WorkspaceTreeCtx::default().with_manifest_hook(opts.manifest_hook.clone()));
-    resolve_importer_with_workspace(resolver, manifest, dependency_groups, opts, workspace).await
+    resolve_importer_with_workspace(
+        resolver,
+        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        manifest,
+        dependency_groups,
+        opts,
+        workspace,
+    )
+    .await
 }
 
 /// Same as [`fn@resolve_importer`] but reuses a shared
@@ -225,6 +233,7 @@ where
 /// map.
 pub async fn resolve_importer_with_workspace<DependencyGroupList, Chain>(
     resolver: &Chain,
+    importer_id: &str,
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
     opts: ResolveImporterOptions,
@@ -269,7 +278,7 @@ where
 
     let initial_wanted =
         importer_direct_wanted_specs(manifest, dependency_groups, auto_install_peers, &catalogs)?;
-    let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
+    let mut direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 
     let mut parent_pkg_aliases: HashSet<String> =
@@ -335,7 +344,7 @@ where
             // threading the per-dep meta.
             let new_wanted: Vec<WantedSpec> =
                 hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-            let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
+            let new_direct = extend_tree(&ctx, resolver, new_wanted, importer_id).await?;
             direct.extend(new_direct);
             update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
         }
@@ -358,7 +367,7 @@ where
         // also defaults to `false` for the same reason.
         let new_wanted: Vec<WantedSpec> =
             hoisted_optional.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-        let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
+        let new_direct = extend_tree(&ctx, resolver, new_wanted, importer_id).await?;
         direct.extend(new_direct);
         update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
         all_missing_optional_peers.clear();

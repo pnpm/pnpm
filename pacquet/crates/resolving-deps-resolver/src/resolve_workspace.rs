@@ -18,7 +18,9 @@
 //! resolved-pkgs share is a follow-up perf win.
 
 use crate::{
-    resolve_dependency_tree::{ManifestHook, WorkspaceTreeCtx, importer_direct_wanted_specs},
+    resolve_dependency_tree::{
+        ManifestHook, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
+    },
     resolve_importer::{
         ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
         resolve_importer_with_workspace,
@@ -83,6 +85,10 @@ pub struct WorkspaceResolveOptions {
     /// (see `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`). `None` on a
     /// first install or when reuse is disabled.
     pub wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+
+    /// Which dependencies `pacquet update` excludes from lockfile-
+    /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
+    pub update_reuse_scope: UpdateReuseScope,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -125,11 +131,13 @@ where
         pick_lowest_direct,
         time_based,
         wanted_lockfile,
+        update_reuse_scope,
     } = opts;
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(manifest_hook)
-            .with_wanted_lockfile(wanted_lockfile),
+            .with_wanted_lockfile(wanted_lockfile)
+            .with_update_reuse_scope(update_reuse_scope),
     );
 
     // Build every importer's options up front so the `time-based`
@@ -164,6 +172,7 @@ where
         let modules_dir = importer_opts.modules_dir.clone();
         let ResolveImporterResult { resolved_tree, .. } = resolve_importer_with_workspace(
             resolver,
+            &importer.id,
             importer.manifest,
             dependency_groups.iter().copied(),
             importer_opts,

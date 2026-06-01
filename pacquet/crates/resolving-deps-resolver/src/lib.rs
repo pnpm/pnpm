@@ -87,7 +87,7 @@ pub use node_id::NodeId;
 pub use pacquet_deps_path::DepPath;
 pub use resolve_dependency_tree::{
     ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions, TreeCtx,
-    WorkspaceTreeCtx, extend_tree, resolve_dependency_tree,
+    UpdateReuseScope, WorkspaceTreeCtx, extend_tree, resolve_dependency_tree,
 };
 pub use resolve_importer::{
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
