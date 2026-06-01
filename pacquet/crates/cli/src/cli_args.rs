@@ -1,5 +1,6 @@
 pub mod add;
 pub mod install;
+pub mod outdated;
 pub mod remove;
 pub mod run;
 pub mod store;
@@ -12,6 +13,7 @@ use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
+use outdated::{OutdatedArgs, OutdatedOutcome};
 use pacquet_config::{Config, Host};
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
@@ -107,6 +109,8 @@ pub enum CliCommand {
     /// Update packages to their newest version based on the specified range
     #[clap(visible_aliases = ["up", "upgrade"])]
     Update(UpdateArgs),
+    /// Check for outdated packages
+    Outdated(OutdatedArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
     // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
@@ -203,6 +207,16 @@ impl CliArgs {
                 ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
                 ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
             },
+            // `outdated` is a read-only query: it prints a report to
+            // stdout and never installs, so it has no reporter-typed
+            // install pipeline to dispatch on. It reports back whether any
+            // dependency was outdated; process termination stays here, at
+            // the top-level harness, rather than inside the command.
+            CliCommand::Outdated(args) => {
+                if args.run(state(false)?).await? == OutdatedOutcome::Outdated {
+                    std::process::exit(1);
+                }
+            }
             CliCommand::Remove(args) => match reporter {
                 ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
                 ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,

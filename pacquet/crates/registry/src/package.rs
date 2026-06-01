@@ -55,6 +55,17 @@ pub struct Package {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
 
+    /// Package-level `homepage` URL, shown in the `Details` column of
+    /// `pacquet outdated --long`. Mirrors pnpm's
+    /// [`PackageManifest.homepage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts).
+    ///
+    /// Only the full-metadata endpoint (`application/json`) carries this
+    /// field; the abbreviated install metadata pacquet fetches by default
+    /// (`application/vnd.npm.install-v1+json`) omits it, so it is `None`
+    /// unless the registry serves it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub homepage: Option<String>,
+
     #[serde(skip_serializing, skip_deserializing)]
     pub mutex: Arc<Mutex<u8>>,
 }

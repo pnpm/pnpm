@@ -863,6 +863,10 @@ fn project_trust_meta(meta: &Package) -> Package {
         time: meta.time.clone(),
         modified: meta.modified.clone(),
         etag: meta.etag.clone(),
+        // `homepage` is only read by `outdated --long`, never by trust
+        // verification, so it is dropped here to keep the trust-meta cache
+        // bounded by the trust-evidence footprint (see the fn doc).
+        homepage: None,
         mutex: std::sync::Arc::new(std::sync::Mutex::new(0)),
     }
 }
