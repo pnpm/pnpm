@@ -54,6 +54,7 @@ fn make_package(
         time: None,
         modified: None,
         etag: None,
+        homepage: None,
         mutex: Default::default(),
     }
 }
