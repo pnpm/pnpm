@@ -1,4 +1,4 @@
-use crate::{Install, InstallError, ResolvedPackages};
+use crate::{Install, InstallError, ResolvedPackages, UpdateSeedPolicy};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
@@ -7,7 +7,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_tarball::MemCache;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 /// This subroutine does everything `pacquet remove` is supposed to do.
 #[must_use]
@@ -58,7 +58,7 @@ pub enum RemoveError {
         hint: Option<String>,
     },
 
-    #[display("Failed save the manifest file: {_0}")]
+    #[display("Failed to save the manifest file: {_0}")]
     SaveManifest(#[error(source)] PackageManifestError),
 
     #[diagnostic(transparent)]
@@ -87,10 +87,10 @@ impl<'a> Remove<'a> {
         }
 
         let available_dependencies = manifest.available_dependency_names(save_type);
-        let non_matched_dependencies: Vec<&String> = package_names
-            .iter()
-            .filter(|name| !available_dependencies.iter().any(|dep| dep == *name))
-            .collect();
+        let available_lookup: HashSet<&str> =
+            available_dependencies.iter().map(String::as_str).collect();
+        let non_matched_dependencies: Vec<&String> =
+            package_names.iter().filter(|name| !available_lookup.contains(name.as_str())).collect();
         if !non_matched_dependencies.is_empty() {
             return Err(cannot_remove_missing_deps(
                 &available_dependencies,
@@ -137,6 +137,10 @@ impl<'a> Remove<'a> {
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
+            // Removing a dependency must not bump the survivors: keep
+            // every remaining lockfile pin in the preferred-versions
+            // seed, same as `install` / `add`.
+            update_seed_policy: UpdateSeedPolicy::KeepAll,
         }
         .run::<Reporter>()
         .await

@@ -254,13 +254,11 @@ impl PackageManifest {
             Some(ref group) => std::slice::from_ref(group),
             None => &[DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional],
         };
-        let mut names = Vec::new();
-        for (name, _) in self.dependencies(groups.iter().copied()) {
-            if !names.iter().any(|seen: &String| seen == name) {
-                names.push(name.to_string());
-            }
-        }
-        names
+        let mut seen = std::collections::HashSet::new();
+        self.dependencies(groups.iter().copied())
+            .filter(|(name, _)| seen.insert(*name))
+            .map(|(name, _)| name.to_string())
+            .collect()
     }
 
     /// Drop `removed_packages` from the manifest's dependency maps.

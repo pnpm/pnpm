@@ -118,6 +118,45 @@ fn should_fail_when_dependency_is_missing() {
 }
 
 #[test]
+fn should_report_project_has_no_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // A manifest with no dependency fields at all, removed without a
+    // `--save-*` flag, hits the "no dependencies of any kind" branch —
+    // a missing-deps error with no hint.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "fixture", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let output =
+        pacquet.with_args(["remove", "is-positive"]).output().expect("spawn pacquet remove");
+    assert!(
+        !output.status.success(),
+        "removing from an empty manifest must fail (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS"),
+        "stderr must name the missing-deps diagnostic; got:\n{stderr}",
+    );
+    assert!(
+        stderr.contains("project has no dependencies of any kind"),
+        "stderr must explain the project has no dependencies; got:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("Available dependencies"),
+        "no hint should be emitted when there are no available dependencies; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+#[test]
 fn should_accept_aliases() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
