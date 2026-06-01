@@ -732,6 +732,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 seed_snapshots,
                 manifests_for_preferred.as_slice(),
             );
+        // The picker biases toward this seed so pins that still satisfy
+        // their range survive the re-resolve. Build the `Arc` once here
+        // so each per-importer `ResolveOptions` shares it with a refcount
+        // bump rather than deep-cloning the map.
+        let preferred_versions_seed = Arc::new(all_preferred_versions.clone());
 
         // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
         // per install. The resolver consults the grouped record at
@@ -828,7 +833,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     pick_lowest_direct,
                     subdep_published_by: published_by,
                     base_opts: ResolveOptions {
-                        preferred_versions: all_preferred_versions.clone(),
+                        preferred_versions: Arc::clone(&preferred_versions_seed),
                         default_tag: Some("latest".to_string()),
                         published_by,
                         published_by_exclude: published_by_exclude.clone(),

@@ -194,7 +194,13 @@ pub enum UpdateBehavior {
 pub struct ResolveOptions {
     pub project_dir: PathBuf,
     pub lockfile_dir: PathBuf,
-    pub preferred_versions: PreferredVersions,
+    /// Lockfile + manifest preferred-versions seed the npm picker biases
+    /// toward (so pins that still satisfy their range survive a
+    /// re-resolve). Held behind [`Arc`] because the tree walker clones
+    /// `ResolveOptions` per depth tier and the install layer clones it
+    /// per importer — sharing the (potentially large) map keeps those
+    /// clones to a refcount bump.
+    pub preferred_versions: Arc<PreferredVersions>,
     pub workspace_packages: Option<WorkspacePackages>,
     pub default_tag: Option<String>,
     pub pick_lowest_version: bool,
