@@ -233,7 +233,13 @@ impl CliArgs {
                         .wrap_err(format!("executing command: \"{0}\"", script))?;
                 }
             }
-            CliCommand::Run(args) => args.run(manifest_path())?,
+            CliCommand::Run(args) => {
+                if recursive {
+                    args.run_recursive(config()?, &dir)?;
+                } else {
+                    args.run(manifest_path())?;
+                }
+            }
             CliCommand::Start => {
                 // Runs an arbitrary command specified in the package's start property of its scripts
                 // object. If no start property is specified on the scripts object, it will attempt to
