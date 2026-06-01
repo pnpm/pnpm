@@ -168,9 +168,9 @@ impl RunArgs {
 }
 
 /// Shared inputs for running a script, threaded through
-/// [`run_one_script`] and [`run_stage`] so neither grows an unwieldy
+/// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
 /// argument list. The submodule `recursive` builds a per-project
-/// [`RunContext`] and reuses `run_one_script`, so the type and its
+/// [`RunContext`] and reuses `run_stages`, so the type and its
 /// fields are visible up to the parent module.
 pub(super) struct RunContext<'a> {
     pub(super) manifest: &'a PackageManifest,
