@@ -39,6 +39,12 @@ fn write_manifest(workspace: &Path, dependencies: &str) {
 fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    // Fail loudly if the harness ever starts writing `updateConfig` —
+    // appending a second top-level mapping key produces invalid YAML.
+    assert!(
+        !yaml.contains("updateConfig:"),
+        "pnpm-workspace.yaml already has an `updateConfig:` key — update this helper",
+    );
     if !yaml.ends_with('\n') {
         yaml.push('\n');
     }
@@ -218,6 +224,59 @@ fn update_latest_honors_ignore_dependencies() {
     // foo is updated to its latest; the ignored dep keeps its range.
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.1.0"));
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+
+    drop((root, anchor));
+}
+
+/// A compatible (non-`--latest`) update honors `ignoreDependencies`: the
+/// ignored dep keeps its lockfile pin while the rest re-resolve.
+#[test]
+fn update_compatible_honors_ignore_dependencies() {
+    let (root, workspace, anchor) = setup();
+    set_ignore_dependencies(&workspace, &[FOO]);
+
+    // Pin both exactly, then widen the ranges. A plain `update` would
+    // bump both to the highest in range; ignoring foo must keep it pinned.
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["update"]).assert().success();
+
+    // dep re-resolved to the highest in range; foo kept its old pin.
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+foo@1.0.0"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+foo@1.3.0"));
+
+    drop((root, anchor));
+}
+
+/// `--prod` scopes the update to production dependencies, and
+/// `ignoreDependencies` still excludes names within that scope. A
+/// devDependency is left untouched even though it has a newer version.
+#[test]
+fn update_prod_scopes_and_honors_ignore() {
+    let (root, workspace, anchor) = setup();
+    set_ignore_dependencies(&workspace, &[FOO]);
+
+    let manifest = format!(
+        r#"{{ "name": "test-update", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}, "devDependencies": {{ "@pnpm.e2e/peer-c": "^1.0.0" }} }}"#,
+    );
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--prod", "--latest"]).assert().success();
+
+    // dep (prod, not ignored) → latest; foo (prod, ignored) unchanged;
+    // peer-c (dev, excluded by --prod) unchanged.
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^101.0.0"));
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^1.0.0"));
+    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    let peer_c = manifest
+        .dependencies([DependencyGroup::Dev])
+        .find(|(k, _)| *k == "@pnpm.e2e/peer-c")
+        .map(|(_, spec)| spec.to_string());
+    assert_eq!(peer_c.as_deref(), Some("^1.0.0"));
 
     drop((root, anchor));
 }
