@@ -76,6 +76,9 @@
       "path": "../../testing/command-defaults"
     },
     {
+      "path": "../../testing/registry-mock"
+    },
+    {
       "path": "../../workspace/projects-filter"
     },
     {

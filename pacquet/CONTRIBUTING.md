@@ -80,7 +80,7 @@ Install the project's task tools and the git pre-push hook:
 just init
 ```
 
-`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`, then points `git` at the tracked `.githooks/` directory so the pre-push format check runs on `git push`.
+`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`. The repo-wide `pnpm install` wires up husky, whose `pre-push` hook runs `pacquet/scripts/pre-push-rust.sh` (format, doc, dylint) alongside the TypeScript compile and lint checks.
 
 Install the test dependencies:
 
@@ -102,7 +102,7 @@ This runs `typos`, `cargo fmt`, `just check` (which is `cargo check --locked --w
 > Run `just ready` before every commit. This rule applies to all changes, including documentation edits, comment changes, and config updates. Any change can break formatting, linting, building, or tests across the supported platforms.
 
 > [!NOTE]
-> Some integration tests require the local registry mock. Start it with `just registry-mock launch` before running `just test` if a test needs it.
+> Integration tests that need the local registry mock start `pnpr` automatically. After dependencies are installed, `cargo test`, `cargo nextest run`, and `just test` should not require a separate registry process.
 
 ## Debugging
 
@@ -116,7 +116,6 @@ TRACE=pacquet_tarball just cli add fastify
 
 ```sh
 just install              # install necessary dependencies
-just registry-mock launch # start a mocked registry server (optional)
 just test                 # run tests
 ```
 

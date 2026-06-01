@@ -17,20 +17,11 @@
 //!    preferred version already in scope, and extend the tree with
 //!    those. Re-enter the inner loop if any landed.
 //!
-//! Single-importer slice; multi-importer support waits on pacquet's
-//! workspace work.
-
-use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::sync::Arc;
-
-use derive_more::{Display, Error};
-use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_patching::PatchGroupRecord;
-use pacquet_resolving_resolver_base::{
-    PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
-};
+//! Per-importer slice. The workspace-wide orchestrator
+//! [`fn@crate::resolve_workspace`] loops this function for every
+//! importer, then runs a single multi-importer
+//! [`fn@crate::resolve_peers_workspace`] pass that shares the peer
+//! walker's caches across importers and applies `dedupeInjectedDeps`.
 
 use crate::{
     DirectDep,
@@ -40,15 +31,27 @@ use crate::{
         hoist_peers,
     },
     resolve_dependency_tree::{
-        ResolveDependencyTreeError, TreeCtx, extend_tree, importer_optional_dependency_names,
-        resolve_catalog_specifiers,
+        ResolveDependencyTreeError, TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree,
+        importer_direct_wanted_specs,
     },
     resolve_peers::{ResolvePeersOptions, ResolvePeersResult, resolve_peers},
     resolved_tree::ResolvedTree,
 };
+use chrono::{DateTime, Utc};
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pacquet_catalogs_types::Catalogs;
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_patching::PatchGroupRecord;
+use pacquet_resolving_resolver_base::{
+    PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
+};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashSet},
+    sync::Arc,
+};
 
 /// Options threaded into [`fn@resolve_importer`].
-#[derive(Debug)]
 pub struct ResolveImporterOptions {
     /// When true, missing required peers get installed at the importer
     /// even if no preferred version is in scope (the picker uses the
@@ -66,6 +69,11 @@ pub struct ResolveImporterOptions {
     /// dep's specifier. Single-importer pacquet treats the importer
     /// as the root.
     pub resolve_peers_from_workspace_root: bool,
+
+    /// Threaded into [`ResolvePeersOptions::dedupe_peers`] on every
+    /// `resolve_peers` invocation inside the auto-install-peers loop.
+    /// See the field doc on [`ResolvePeersOptions`] for the behavior.
+    pub dedupe_peers: bool,
 
     /// Seed for the preferred-versions tie-break table. The
     /// orchestrator extends this in place as packages are walked —
@@ -86,11 +94,85 @@ pub struct ResolveImporterOptions {
 
     pub base_opts: ResolveOptions,
 
+    /// When `true`, the importer's direct dependencies are resolved to
+    /// their lowest satisfying version (`resolutionMode: time-based` /
+    /// `lowest-direct`). Transitive deps are always picked highest.
+    /// Mirrors pnpm's
+    /// [`pickLowestVersion`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470)
+    /// for importer deps.
+    pub pick_lowest_direct: bool,
+
+    /// Publish-date cutoff applied to transitive dependencies. Under
+    /// `resolutionMode: time-based` this is the workspace-wide cutoff
+    /// derived from the resolved direct deps (the multi-importer
+    /// orchestrator [`fn@crate::resolve_workspace`] computes it and
+    /// overrides this field); otherwise it should equal
+    /// `base_opts.published_by` (the `minimumReleaseAge` cutoff) so
+    /// subdep resolution is unchanged. Direct deps always use
+    /// `base_opts.published_by`, never this value.
+    pub subdep_published_by: Option<DateTime<Utc>>,
+
     /// Catalogs parsed from `pnpm-workspace.yaml`. Applied only to the
     /// importer's direct dependencies; transitive `catalog:` entries
     /// are not resolved through the catalog, matching upstream's
     /// [importer-only catalog scope](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L600).
     pub catalogs: Catalogs,
+
+    /// When `true`, `link:` direct deps whose target lives outside
+    /// the lockfile root are seeded into the peer-resolution parent
+    /// map with a remapped node id
+    /// (`link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`) so the
+    /// peer suffix stays stable across machines. Mirrors pnpm's
+    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244)
+    /// flow. The remap fires only when [`Self::lockfile_dir`] and
+    /// [`Self::modules_dir`] are both set.
+    pub exclude_links_from_lockfile: bool,
+
+    /// Absolute path of the directory `pnpm-lock.yaml` lives in.
+    /// Forwarded to [`crate::resolve_peers()`] for the
+    /// `excludeLinksFromLockfile` remap; the gate is no-op when `None`.
+    pub lockfile_dir: Option<std::path::PathBuf>,
+
+    /// Absolute path of the importer's `node_modules` directory.
+    /// Forwarded to [`crate::resolve_peers()`] for the
+    /// `excludeLinksFromLockfile` remap; the gate is no-op when `None`.
+    pub modules_dir: Option<std::path::PathBuf>,
+
+    /// Cap on the rendered peer-suffix before the suffix is replaced
+    /// with a short hash. Threaded into [`fn@resolve_peers`] via
+    /// [`ResolvePeersOptions`]. Mirrors upstream's
+    /// `peersSuffixMaxLength` (default 1000).
+    pub peers_suffix_max_length: usize,
+
+    /// `readPackageHook` applied to every resolved manifest before
+    /// downstream consumers see it. Today drives `packageExtensions`;
+    /// see [`crate::ManifestHook`].
+    pub manifest_hook: Option<crate::ManifestHook>,
+}
+
+impl std::fmt::Debug for ResolveImporterOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolveImporterOptions")
+            .field("auto_install_peers", &self.auto_install_peers)
+            .field(
+                "auto_install_peers_from_highest_match",
+                &self.auto_install_peers_from_highest_match,
+            )
+            .field("resolve_peers_from_workspace_root", &self.resolve_peers_from_workspace_root)
+            .field("dedupe_peers", &self.dedupe_peers)
+            .field("all_preferred_versions", &self.all_preferred_versions)
+            .field("patched_dependencies", &self.patched_dependencies)
+            .field("base_opts", &self.base_opts)
+            .field("pick_lowest_direct", &self.pick_lowest_direct)
+            .field("subdep_published_by", &self.subdep_published_by)
+            .field("catalogs", &self.catalogs)
+            .field("exclude_links_from_lockfile", &self.exclude_links_from_lockfile)
+            .field("lockfile_dir", &self.lockfile_dir)
+            .field("modules_dir", &self.modules_dir)
+            .field("peers_suffix_max_length", &self.peers_suffix_max_length)
+            .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
+            .finish()
+    }
 }
 
 /// Result of [`fn@resolve_importer`] — the fully-walked tree plus the
@@ -126,43 +208,67 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     Chain: Resolver + ?Sized,
 {
+    // `manifest_hook` lives on the workspace ctx (it's workspace-wide,
+    // not per-importer). Apply it before sharing the `Arc` —
+    // `resolve_importer_with_workspace` reads through the shared ctx
+    // and can't mutate it after the fact.
+    let workspace =
+        Arc::new(WorkspaceTreeCtx::default().with_manifest_hook(opts.manifest_hook.clone()));
+    resolve_importer_with_workspace(resolver, manifest, dependency_groups, opts, workspace).await
+}
+
+/// Same as [`fn@resolve_importer`] but reuses a shared
+/// [`WorkspaceTreeCtx`] so the resolver's per-`pkgIdWithPatchHash`
+/// dedup carries across importers in a workspace install. The
+/// multi-importer orchestrator [`fn@crate::resolve_workspace`] uses
+/// this to fold every importer's resolved packages into one shared
+/// map.
+pub async fn resolve_importer_with_workspace<DependencyGroupList, Chain>(
+    resolver: &Chain,
+    manifest: &PackageManifest,
+    dependency_groups: DependencyGroupList,
+    opts: ResolveImporterOptions,
+    workspace: Arc<WorkspaceTreeCtx>,
+) -> Result<ResolveImporterResult, ResolveImporterError>
+where
+    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+    Chain: Resolver + ?Sized,
+{
     let ResolveImporterOptions {
         auto_install_peers,
         auto_install_peers_from_highest_match,
         resolve_peers_from_workspace_root,
+        dedupe_peers,
         mut all_preferred_versions,
         patched_dependencies,
         base_opts,
+        pick_lowest_direct,
+        subdep_published_by,
         catalogs,
+        exclude_links_from_lockfile,
+        lockfile_dir,
+        modules_dir,
+        peers_suffix_max_length,
+        // `manifest_hook` is workspace-wide; it lives on the shared
+        // [`WorkspaceTreeCtx`] and the caller (`resolve_importer` or
+        // `resolve_workspace`) is responsible for setting it there
+        // before handing the `Arc` to this function.
+        manifest_hook: _,
     } = opts;
+    let peers_opts = || ResolvePeersOptions {
+        peers_suffix_max_length,
+        dedupe_peers,
+        exclude_links_from_lockfile,
+        lockfile_dir: lockfile_dir.clone(),
+        modules_dir: modules_dir.clone(),
+    };
 
-    let ctx = TreeCtx::new(base_opts).with_patched_dependencies(patched_dependencies);
+    let ctx = TreeCtx::with_workspace(workspace, base_opts)
+        .with_patched_dependencies(patched_dependencies)
+        .with_resolution_mode(pick_lowest_direct, subdep_published_by);
 
-    // Mirrors upstream's
-    // [`getAllDependenciesFromManifest({ autoInstallPeers })`](https://github.com/pnpm/pnpm/blob/097983fbca/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts):
-    // when auto-install-peers is on, the importer's own
-    // `peerDependencies` are walked as regular direct deps too, so the
-    // version the importer pinned wins over whatever a deeply-nested
-    // consumer asks for via the hoist loop.
-    let mut groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
-    if auto_install_peers && !groups.contains(&DependencyGroup::Peer) {
-        groups.push(DependencyGroup::Peer);
-    }
-    // `optionalDependencies` wins over the other groups when an alias
-    // appears in more than one — same precedence as upstream's
-    // [`getWantedDependenciesFromGivenSet`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L57-L72).
-    // Pre-compute the optional name set so the walker can tag each
-    // direct dep with the right `wanted.optional` flag for the
-    // `ResolvedPackage.optional` propagation.
-    let optional_names = importer_optional_dependency_names(manifest);
-    let initial_wanted: Vec<(String, String, bool)> = manifest
-        .dependencies(groups)
-        .map(|(name, range)| {
-            let optional = optional_names.contains(name);
-            (name.to_string(), range.to_string(), optional)
-        })
-        .collect();
-    let initial_wanted = resolve_catalog_specifiers(initial_wanted, &catalogs)?;
+    let initial_wanted =
+        importer_direct_wanted_specs(manifest, dependency_groups, auto_install_peers, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 
@@ -173,7 +279,7 @@ where
     loop {
         loop {
             let mut snapshot = ctx.snapshot(direct.clone());
-            let peers_result = resolve_peers(&mut snapshot, ResolvePeersOptions::default());
+            let peers_result = resolve_peers(&mut snapshot, peers_opts());
 
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &peers_result.peer_dependency_issues.missing,
@@ -222,9 +328,13 @@ where
             // to satisfy a missing required peer, so flipping their
             // own `optional` flag to `true` would defeat the
             // auto-install. Mirrors upstream's `wantedDependency`
-            // shape inside `hoistPeers`.
-            let new_wanted: Vec<(String, String, bool)> =
-                hoisted.into_iter().map(|(name, range)| (name, range, false)).collect();
+            // shape inside `hoistPeers`. Hoisted peers don't carry
+            // `dependenciesMeta` from any manifest, so `injected`
+            // defaults to `false` — matches upstream where the hoist
+            // path constructs a fresh `WantedDependency` without
+            // threading the per-dep meta.
+            let new_wanted: Vec<WantedSpec> =
+                hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
             let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
             direct.extend(new_direct);
             update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
@@ -244,9 +354,10 @@ where
         // Optional peers picked up via `getHoistableOptionalPeers` are
         // also installed at the importer level — the picker already
         // confirmed a preferred version is in scope. Treating them as
-        // non-optional matches the required-peer arm above.
-        let new_wanted: Vec<(String, String, bool)> =
-            hoisted_optional.into_iter().map(|(name, range)| (name, range, false)).collect();
+        // non-optional matches the required-peer arm above; `injected`
+        // also defaults to `false` for the same reason.
+        let new_wanted: Vec<WantedSpec> =
+            hoisted_optional.into_iter().map(|(name, range)| (name, range, false, false)).collect();
         let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
         direct.extend(new_direct);
         update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
@@ -254,7 +365,7 @@ where
     }
 
     let mut resolved_tree = ctx.into_resolved_tree(direct);
-    let peers_result = resolve_peers(&mut resolved_tree, ResolvePeersOptions::default());
+    let peers_result = resolve_peers(&mut resolved_tree, peers_opts());
     Ok(ResolveImporterResult { resolved_tree, peers_result })
 }
 

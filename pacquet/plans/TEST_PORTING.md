@@ -255,24 +255,76 @@ Rust port notes:
 - Start with single root workspace lockfile and direct workspace links.
 - Add subset/partial install tests only after Rust has project selection semantics.
 
+## Workspace Project Filtering (`--filter`)
+
+Ported into the new `pacquet-workspace-projects-filter` and
+`pacquet-workspace-projects-graph` crates (the Rust ports of
+`@pnpm/workspace.projects-filter` and `@pnpm/workspace.projects-graph`).
+The CLI `--filter` / `--filter-prod` flags are parsed into
+`Config::filter` / `Config::filter_prod`; narrowing the install to the
+selected projects is still a follow-up (the install fan-out is
+unfiltered, so the two `known_failures` hoist stubs below stay).
+
+`parseProjectSelector` (ported as `parse_project_selector::tests`):
+
+- [x] `TypeScript repo: workspace/projects-filter/test/parseProjectSelector.ts:198` `parseProjectSelector()` — all 17 fixtures (name, `...`-dependents/dependencies, `^` exclude-self, `./dir`, `{dir}`, `[since]`, and combinations) ported as individual cases.
+
+`filterWorkspaceProjects` (ported as `filter::tests`, fixture mirrors `index.ts:22`):
+
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:126` `select only package dependencies (excluding the package itself)`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:138` `select package with dependencies`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:150` `select package with dependencies and dependents, including dependent dependencies`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:163` `select package with dependents`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:175` `select dependents excluding package itself`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:187` `filter using two selectors: one selects dependencies another selects dependents`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:204` `select just a package by name`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:215` `select package without specifying its scope`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:238` `when a scoped package with the same name exists, only pick the exact match`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:271` `when two scoped packages match the searched name, don't select any`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:304` `select by parentDir`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:315` `select by parentDir using glob`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:326` `select by parentDir using globstar`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:337` `select by parentDir with no glob`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:565` `should return unmatched filters`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:577` `select all packages except one`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:591` `select by parentDir and exclude one package by pattern`.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:608` `select by parentDir with glob and exclude one package by pattern`.
+
+Changed-packages (`[<since>]`) selectors — stubbed in
+`filter::tests::known_failures` (the selector parses but
+`filter_workspace_projects` rejects it with
+`FilterError::UnsupportedDiffSelector`; the rejection path is covered by
+`filter::tests::diff_selector_is_unsupported`). These need git-diff
+project selection (`getChangedProjects`), not yet ported:
+
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:348` `select changed packages`. Stubbed (`git_diff_selection_unimplemented`).
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:480` `select changed packages when operating under a git worktree`. Stubbed.
+- [x] `TypeScript repo: workspace/projects-filter/test/index.ts:553` `selection should fail when diffing to a branch that does not exist`. Stubbed.
+
+`createProjectsGraph` has no upstream unit tests (it is exercised only
+through `filterProjectsFromDir`'s fixtures upstream); pacquet covers it
+with `create_projects_graph::tests` (workspace-spec, version/range,
+local-path, strict `linkWorkspacePackages`, and `ignoreDevDeps` edge
+resolution).
+
 ## Support `nodeLinker=hoisted`
 
 Primary tests:
 
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:16` `installing with hoisted node-linker`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:45` `installing with hoisted node-linker and no lockfile`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:61` `overwriting (is-positive@3.0.0 with is-positive@latest)`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:83` `overwriting existing files in node_modules`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:97` `preserve subdeps on update`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:119` `adding a new dependency to one of the workspace projects`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:172` `installing the same package with alias and no alias`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:187` `run pre/postinstall scripts. bin files should be linked in a hoisted node_modules`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:210` `running install scripts in a workspace that has no root project`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:229` `hoistingLimits should prevent packages to be hoisted`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:247` `externalDependencies should prevent package from being hoisted to the root`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:264` `linking bins of local projects when node-linker is set to hoisted`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:314` `peerDependencies should be installed when autoInstallPeers is set to true and nodeLinker is set to hoisted`
-- [ ] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:329` `installing with hoisted node-linker a package that is a peer dependency of itself`
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:16` `installing with hoisted node-linker`. Ported as `installing_with_hoisted_node_linker` in `crates/cli/tests/hoisted_node_linker.rs` (real dirs at root + version-conflict nesting + `.modules.yaml` linker). The rimraf-then-reinstall re-add tail is the partial-install path (pnpm/pacquet#433) and is omitted.
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:45` `installing with hoisted node-linker and no lockfile`. Ported as `installing_with_hoisted_node_linker_and_no_lockfile` (real dir + no `pnpm-lock.yaml` when `lockfile: false`).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:61` `overwriting (is-positive@3.0.0 with is-positive@latest)`. Stubbed in `known_failures::overwriting_is_positive_with_latest` — needs `pnpm add` / update manifest mutation (pnpm/pacquet#433).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:83` `overwriting existing files in node_modules`. Stubbed in `known_failures::overwriting_existing_files_in_node_modules` (#433).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:97` `preserve subdeps on update`. Stubbed in `known_failures::preserve_subdeps_on_update` (#433).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:119` `adding a new dependency to one of the workspace projects`. Stubbed in `known_failures::adding_a_new_dependency_to_a_workspace_project` (#433).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:172` `installing the same package with alias and no alias`. Stubbed in `known_failures::installing_same_package_with_alias_and_no_alias` — needs `pnpm add` of multiple specifiers + a dist-tag bump (#433).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:187` `run pre/postinstall scripts. bin files should be linked in a hoisted node_modules`. Stubbed in `known_failures::run_pre_and_postinstall_scripts_and_link_bins` — lifecycle scripts + bin linking on the fresh path (#11870).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:210` `running install scripts in a workspace that has no root project`. Stubbed in `known_failures::running_install_scripts_in_workspace_without_root_project` (#11870).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:229` `hoistingLimits should prevent packages to be hoisted`. Ported as `hoisting_limits_prevents_hoisting` (`hoistingLimits: dependencies`). Pacquet's `hoistingLimits` config was migrated from the raw locator map to the `none`/`workspaces`/`dependencies` enum to match the pnpm CLI setting, and `real-hoist`'s border semantics were corrected (a name in the limits is a subtree border whose descendants stay nested, matching the `@yarnpkg/nm` hoister).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:247` `externalDependencies should prevent package from being hoisted to the root`. Ported as `external_dependencies_prevents_hoisting_to_root`.
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:264` `linking bins of local projects when node-linker is set to hoisted`. Stubbed in `known_failures::linking_bins_of_local_projects` (#11870 — bin linking on the fresh path).
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:314` `peerDependencies should be installed when autoInstallPeers is set to true and nodeLinker is set to hoisted`. Ported as `peer_dependencies_installed_with_auto_install_peers`.
+- [x] `TypeScript repo: installing/deps-installer/test/hoistedNodeLinker/install.ts:329` `installing with hoisted node-linker a package that is a peer dependency of itself`. Stubbed in `known_failures::package_that_is_peer_dependency_of_itself` — needs `pnpm add --save` + lockfile `peerDependencies` introspection (#433).
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:87` `install only the dependencies of the specified importer, when node-linker is hoisted` is workspace subset coverage for hoisted linker.
 
 Frozen/headless cross-coverage:
@@ -377,7 +429,7 @@ Rust port notes:
 Primary tests:
 
 - [ ] `TypeScript repo: installing/deps-installer/test/install/globalVirtualStore.ts:21` `using a global virtual store` verifies `node_modules/.pnpm/lock.yaml` exists after install and frozen reinstall.
-- [ ] `TypeScript repo: installing/deps-installer/test/install/packageExtensions.ts:16` `manifests are extended with fields specified by packageExtensions` verifies wanted lockfile checksum matches current lockfile, including after frozen install.
+- [x] `TypeScript repo: installing/deps-installer/test/install/packageExtensions.ts:16` `manifests are extended with fields specified by packageExtensions` — split into pacquet's `install::tests::fresh_install_applies_package_extensions_to_dependency_manifest` (verifies the extension lands in the lockfile's `packages` block AND `packageExtensionsChecksum` is written) and `install::tests::frozen_lockfile_errors_when_package_extensions_drift_from_lockfile` (frozen-install drift gate). Current-lockfile round-trip parity is covered by `current_lockfile`'s clone of `package_extensions_checksum`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:408` `dependency should not be added to current lockfile if it was not built successfully during headless install` verifies failed build does not update current lockfile.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/optionalDependencies.ts:74` `skip optional dependency that does not support the current OS` verifies current lockfile package set matches wanted lockfile while skipped packages are tracked.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/multipleImporters.ts:208` `install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore` covers stale current-lockfile importers.
@@ -748,7 +800,8 @@ Tracks pnpm/pnpm#11940. Pacquet's port (`pacquet-package-manager::optimistic_rep
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:115` `returns upToDate: false when ignoredOptionalDependencies have changed` — `optimistic_repeat_install::tests::returns_skipped_when_ignored_optional_dependencies_drift`.
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:145` `returns upToDate: false when patchedDependencies have changed` — `optimistic_repeat_install::tests::returns_skipped_when_patched_dependencies_drift`.
 - [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:205` `returns upToDate: false when allowBuilds have changed` — `optimistic_repeat_install::tests::returns_skipped_when_allow_builds_drift`.
-- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:85` `returns upToDate: false when packageExtensions have changed` and `:175` `returns upToDate: false when peersSuffixMaxLength has changed` — bundled as `optimistic_repeat_install::tests::returns_skipped_when_unported_pnpm_settings_present`. Pacquet doesn't yet read either yaml field into `Config`, but the field-by-field `PartialEq` on `WorkspaceStateSettings` still catches a previous install (or pnpm-written state) that recorded a value. Split into per-field tests once the yaml is read.
+- [x] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:85` `returns upToDate: false when packageExtensions have changed` — split out as `optimistic_repeat_install::tests::returns_skipped_when_package_extensions_drift` once the yaml field landed in `Config`.
+- [ ] `TypeScript repo: deps/status/test/checkDepsStatus.test.ts:175` `returns upToDate: false when peersSuffixMaxLength has changed` — still bundled under `returns_up_to_date_when_state_carries_unported_pnpm_settings`. Pacquet doesn't yet read `peersSuffixMaxLength` into `Config`; split out once it lands.
 
 ### Not yet ported
 

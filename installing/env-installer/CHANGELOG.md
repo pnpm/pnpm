@@ -1,5 +1,47 @@
 # @pnpm/config.deps-installer
 
+## 1101.1.4
+
+### Patch Changes
+
+- Updated dependencies [39101f5]
+- Updated dependencies [b1fa2d5]
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/installing.deps-resolver@1100.1.5
+  - @pnpm/network.fetch@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/store.controller@1101.0.10
+
+## 1101.1.3
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [ad84fff]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/worker@1100.1.8
+  - @pnpm/installing.deps-resolver@1100.1.4
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.package-is-installable@1100.0.7
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.writer@1100.0.10
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/lockfile.pruner@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/store.controller@1101.0.9
+  - @pnpm/store.controller-types@1100.1.2
+
 ## 1101.1.2
 
 ### Patch Changes

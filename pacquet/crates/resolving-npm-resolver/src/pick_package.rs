@@ -60,7 +60,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::version_policy::PackageVersionPolicy;
+use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::VersionSelectors;
@@ -94,7 +94,7 @@ pub trait PackageMetaCache: Send + Sync {
     /// Shared handle to the cached packument for `key`, or `None`
     /// when the cache hasn't seen it. Returned as
     /// [`Arc<Package>`] so cross-resolve sharing of a popular
-    /// packument (`react`, `lodash`, …) doesn't deep-clone the
+    /// packument (`react`, `lodash`, ...) doesn't deep-clone the
     /// full versions map on every consumer's hit. Mirrors JS
     /// `Map.get` semantics — pnpm's metaCache returns object
     /// references, not copies, and pacquet matches that contract.
@@ -279,6 +279,10 @@ pub struct PickPackageOptions<'a> {
     /// either knob set to `true` makes the pick request full
     /// metadata.
     pub optional: bool,
+    /// `true` skips the on-disk exact-version fast path so a stale
+    /// disk packument can't satisfy the call without a conditional
+    /// registry request. Mirrors pnpm's `--update-checksums`.
+    pub update_checksums: bool,
 }
 
 /// Outcome of a successful [`pick_package`] call. Mirrors
@@ -519,7 +523,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 3. Version-spec fast path.
-    if !opts.include_latest_tag && matches!(spec.spec_type, RegistryPackageSpecType::Version) {
+    if !opts.include_latest_tag
+        && !opts.update_checksums
+        && matches!(spec.spec_type, RegistryPackageSpecType::Version)
+    {
         if meta_cached_in_store.is_none() {
             meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }
@@ -556,7 +563,15 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 4. publishedBy mtime shortcut.
+    //
+    // Fully excluded packages (`minimumReleaseAgeExclude: ['pkg']`) treat
+    // minimumReleaseAge as disabled, so this shortcut must not bypass
+    // revalidation against potentially stale on-disk metadata.
     if let Some(published_by) = opts.published_by
+        && !matches!(
+            opts.published_by_exclude.map(|policy| policy.matches(&spec.name)),
+            Some(PolicyMatch::AnyVersion),
+        )
         && let Some(mtime) = pkg_mirror.as_deref().and_then(get_file_mtime)
         && mtime >= published_by
     {
@@ -660,7 +675,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 /// Bundling these into a struct would just shuffle the same fields
 /// into a wrapper without removing any work; allowing the lint is
 /// the lower-noise option.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "bundling these independent inputs into a struct moves the fields into a wrapper without removing work"
+)]
 async fn handle_cache_hit<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,
@@ -1042,11 +1060,10 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     if meta.time.is_some() {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
-    if let Some(policy) = opts.published_by_exclude {
-        use pacquet_config::version_policy::PolicyMatch;
-        if matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion) {
-            return Ok(UpgradeOutcome { meta, upgraded: false });
-        }
+    if let Some(policy) = opts.published_by_exclude
+        && matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion)
+    {
+        return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     // Inclusive `<=` at the boundary: matches the per-version
     // `<=` filter in `filter_pkg_metadata_by_publish_date`. When

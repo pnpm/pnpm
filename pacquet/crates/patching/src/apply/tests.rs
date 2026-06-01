@@ -467,7 +467,7 @@ fn create_with_unwritable_parent_path_errors() {
 /// patched package share a hardlinked store file: the first apply
 /// mutates the store inode through the hardlink, so the second
 /// snapshot's apply sees already-patched content and would otherwise
-/// fail with "error applying hunk #1". Reported against pacquet's
+/// fail with "error applying hunk `#1`". Reported against pacquet's
 /// configDependencies preview engine for `msw@2.12.14`.
 ///
 /// The patch substitutes one line (`old` → `new`) so forward apply

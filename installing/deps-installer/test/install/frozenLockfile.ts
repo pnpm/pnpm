@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
@@ -218,6 +219,78 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
   project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+})
+
+test(`prefer-frozen-lockfile: should reuse node_modules/.pnpm/lock.yaml when ${WANTED_LOCKFILE} is missing and the snapshot satisfies package.json`, async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults())
+
+  project.has('is-positive')
+
+  const wantedLockfilePath = path.resolve(WANTED_LOCKFILE)
+  const lockfileBefore = fs.readFileSync(wantedLockfilePath, 'utf8')
+  fs.rmSync(wantedLockfilePath)
+
+  const reporter = jest.fn()
+  await install(manifest, testDefaults({ reporter, preferFrozenLockfile: true }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'info',
+    message: 'Lockfile is up to date, resolution step is skipped',
+    name: 'pnpm',
+  }))
+
+  expect(fs.existsSync(wantedLockfilePath)).toBe(true)
+  expect(fs.readFileSync(wantedLockfilePath, 'utf8')).toBe(lockfileBefore)
+  project.has('is-positive')
+})
+
+test(`prefer-frozen-lockfile: should re-resolve when ${WANTED_LOCKFILE} is missing and node_modules/.pnpm/lock.yaml does not satisfy package.json`, async () => {
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults())
+
+  fs.rmSync(path.resolve(WANTED_LOCKFILE))
+
+  const reporter = jest.fn()
+  await install({
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }, testDefaults({ reporter, preferFrozenLockfile: true }))
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    level: 'info',
+    message: 'Lockfile is up to date, resolution step is skipped',
+    name: 'pnpm',
+  }))
+
+  project.has('is-negative')
+})
+
+test(`frozen-lockfile: should fail if ${WANTED_LOCKFILE} is missing even when node_modules/.pnpm/lock.yaml satisfies package.json`, async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults())
+
+  fs.rmSync(path.resolve(WANTED_LOCKFILE))
+
+  await expect(
+    install(manifest, testDefaults({ frozenLockfile: true }))
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`)
 })
 
 test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has linked dependency', async () => {

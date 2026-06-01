@@ -1,5 +1,14 @@
 # @pnpm/agent.client
 
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/store.cafs@1100.1.7
+
 ## 1.0.7
 
 ### Patch Changes

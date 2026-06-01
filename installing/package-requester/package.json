@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.package-requester",
-  "version": "1101.0.8",
+  "version": "1101.0.10",
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",
@@ -66,11 +66,11 @@
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.package-requester": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",

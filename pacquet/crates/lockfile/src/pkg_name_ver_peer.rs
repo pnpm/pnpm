@@ -33,9 +33,20 @@ impl PkgNameVerPeer {
     /// `pacquet-lockfile` deliberately does not depend on
     /// `pacquet-modules-yaml`).
     pub fn to_virtual_store_name(&self, max_length: usize) -> String {
+        // Mirror upstream's
+        // [`depPathToFilename`](https://github.com/pnpm/pnpm/blob/1819226b51/deps/path/src/index.ts#L169-L170)
+        // `replace(/[\\/:*?"<>|#]/g, '+')` — covers the full set of
+        // characters Windows (and a couple of POSIX corners) refuse
+        // in filenames, not just `/`. A `file:` depPath like
+        // `project-1@file:project-1(is-positive@1.0.0)` contains a
+        // colon that fails on NTFS with
+        // `ERROR_INVALID_NAME (123)` without the escape.
+        let escape_for_fs = |character: char| {
+            matches!(character, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#')
+        };
         let filename = self
             .to_string()
-            .replace('/', "+")
+            .replace(escape_for_fs, "+")
             .replace(")(", "_")
             .replace('(', "_")
             .replace(')', "");

@@ -51,6 +51,7 @@ export interface StrictInstallOptions {
   lockfileOnly: boolean
   forceFullResolution: boolean
   fixLockfile: boolean
+  updateChecksums: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
   ignorePackageManifest: boolean
@@ -302,6 +303,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
+    updateChecksums: false,
     nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
     overrides: {},

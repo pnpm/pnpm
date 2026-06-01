@@ -146,7 +146,7 @@ fn find_workspace_dir_by_walk(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspa
         // `pnpm-workspace.yaml` alongside an accidental `.yml` copy
         // would error instead of working.
         //
-        // [`findUp`]: https://github.com/sindresorhus/find-up
+        // [`findUp`]: <https://github.com/sindresorhus/find-up>
         for bad in INVALID_WORKSPACE_MANIFEST_FILENAMES {
             let candidate = dir.join(bad);
             if candidate.is_file() {

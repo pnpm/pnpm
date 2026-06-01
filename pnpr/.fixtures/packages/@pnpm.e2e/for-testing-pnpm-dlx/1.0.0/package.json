@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/for-testing-pnpm-dlx",
+  "version": "1.0.0",
+  "description": "Contains a 'foo' bin for testing pnpm dlx",
+  "bin": {
+    "foo": "foo.js"
+  },
+  "author": "Zoltan Kochan",
+  "license": "MIT"
+}

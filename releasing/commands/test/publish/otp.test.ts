@@ -24,7 +24,7 @@ function createMockContext (overrides?: MockContextOverrides): OtpContext {
   return {
     Date: { now: () => 0 },
     setTimeout: (cb: () => void) => cb(),
-    enquirer: { prompt: async () => ({ otp: '123456' }) },
+    enquirer: { input: async () => '123456' },
     fetch: async () => ({
       headers: { get: () => null },
       json: async () => ({}),
@@ -95,7 +95,7 @@ describe('publishWithOtpHandling', () => {
           expect(opts.otp).toBe('654321')
           return createOkResponse()
         },
-        enquirer: { prompt: async () => ({ otp: '654321' }) },
+        enquirer: { input: async () => '654321' },
       })
       const result = await publishWithOtpHandling({ context, manifest, publishOptions, tarballData })
       expect(result.ok).toBe(true)
@@ -133,7 +133,7 @@ describe('publishWithOtpHandling', () => {
         publish: async () => {
           throw Object.assign(new Error('otp'), { code: 'EOTP' })
         },
-        enquirer: { prompt: async () => ({ otp: '' }) },
+        enquirer: { input: async () => '' },
       })
       await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
         .rejects.toMatchObject({ code: 'EOTP' })
@@ -144,7 +144,7 @@ describe('publishWithOtpHandling', () => {
         publish: async () => {
           throw Object.assign(new Error('otp'), { code: 'EOTP' })
         },
-        enquirer: { prompt: async () => undefined },
+        enquirer: { input: async () => undefined },
       })
       await expect(publishWithOtpHandling({ context, manifest, publishOptions, tarballData }))
         .rejects.toMatchObject({ code: 'EOTP' })

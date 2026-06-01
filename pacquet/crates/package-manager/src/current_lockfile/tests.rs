@@ -56,6 +56,7 @@ fn empty_lockfile() -> Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
         settings: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers: HashMap::new(),
         packages: None,

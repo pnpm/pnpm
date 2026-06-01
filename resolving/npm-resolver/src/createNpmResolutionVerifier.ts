@@ -451,12 +451,23 @@ function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
   // reads them; cast away the unsoundness so callers see the same nominal
   // shape without the per-version dependency graph / scripts / README bulk
   // carrying through. `_npmUser` is similarly narrowed to just
-  // `trustedPublisher` — the only sub-field the trust check inspects — so
-  // we don't keep maintainer name/email PII resident in the cache.
+  // `trustedPublisher` and `approver` — the only sub-fields the trust check
+  // inspects — so we don't keep maintainer name/email PII resident in the
+  // cache.
+  const approver = manifest._npmUser?.approver
   const trustedPublisher = manifest._npmUser?.trustedPublisher
   const provenance = manifest.dist?.attestations?.provenance
+  let npmUser: PackageInRegistry['_npmUser'] = undefined
+  if (approver) {
+    npmUser ||= {}
+    npmUser.approver = {}
+  }
+  if (trustedPublisher) {
+    npmUser ||= {}
+    npmUser.trustedPublisher = trustedPublisher
+  }
   return {
-    _npmUser: trustedPublisher != null ? { trustedPublisher } : undefined,
+    _npmUser: npmUser,
     dist: provenance != null
       ? { attestations: { provenance } }
       : undefined,

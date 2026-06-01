@@ -1,5 +1,45 @@
 # @pnpm/building.after-install
 
+## 1101.0.18
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/store.connection-manager@1100.2.5
+  - @pnpm/exec.lifecycle@1100.0.14
+
+## 1101.0.17
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/worker@1100.1.8
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/building.pkg-requires-build@1100.0.5
+  - @pnpm/building.policy@1100.0.7
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.controller-types@1100.1.2
+
 ## 1101.0.16
 
 ### Patch Changes

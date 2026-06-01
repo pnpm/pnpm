@@ -6,9 +6,8 @@ import { assertProject } from '@pnpm/assert-project'
 import { PnpmError } from '@pnpm/error'
 import { importCommand } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)

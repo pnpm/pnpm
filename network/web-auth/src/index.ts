@@ -21,8 +21,6 @@ export {
   type OtpHandlingParams,
   OtpNonInteractiveError,
   type OtpProcess,
-  type OtpPromptOptions,
-  type OtpPromptResponse,
   OtpSecondChallengeError,
   SyntheticOtpError,
   withOtpHandling,

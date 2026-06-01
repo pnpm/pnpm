@@ -227,5 +227,5 @@ Benchmarks on an app with lots of dependencies:
 
 ## License
 
-[MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE)
+[MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE), except the [`pnpr/`](https://github.com/pnpm/pnpm/tree/main/pnpr) directory, which is source-available under the [PolyForm Shield License 1.0.0](https://github.com/pnpm/pnpm/blob/main/pnpr/LICENSE.md).
 

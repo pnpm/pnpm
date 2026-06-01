@@ -4,8 +4,8 @@
 //! Resolves dependencies whose `bareSpecifier` names a git repository:
 //! the GitHub / GitLab / Bitbucket short-hands (`github:owner/repo#ref`,
 //! `gitlab:…`, `bitbucket:…`, the bare `owner/repo` form), git-scheme
-//! URLs (`git+ssh`, `git+https`, `git+file`, plain `ssh`, …), and the
-//! plain `https://host/repo.git[#ref]` shape some hosts (Gitea, …)
+//! URLs (`git+ssh`, `git+https`, `git+file`, plain `ssh`, ...), and the
+//! plain `https://host/repo.git[#ref]` shape some hosts (Gitea, ...)
 //! serve.
 //!
 //! Three pieces:

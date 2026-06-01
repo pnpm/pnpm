@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.reader",
-  "version": "1101.4.0",
+  "version": "1101.5.0",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
@@ -37,6 +37,7 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.env-replace": "catalog:",
     "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.nerf-dart": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",

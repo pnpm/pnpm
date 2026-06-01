@@ -52,7 +52,7 @@ export async function fetchPackageInfo (
   }
   const registry = pickRegistryForPackage(opts.registries, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const fetchResult = await fetchMetadataFromFromRegistry(
     {
       fetch: fetchFromRegistry,

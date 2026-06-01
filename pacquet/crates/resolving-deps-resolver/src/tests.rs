@@ -116,6 +116,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -183,6 +184,7 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -266,6 +268,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -305,6 +308,7 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
         ResolveDependencyTreeOptions {
             base_opts: ResolveOptions::default(),
             patched_dependencies: None,
+            manifest_hook: None,
         },
     )
     .await
@@ -317,9 +321,55 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
     }
 }
 
+/// A transitive dependency whose alias contains `..` segments would
+/// escape the `node_modules` directory when joined onto a modules
+/// path. The walker rejects it before any further resolution work.
+/// Mirrors the pnpm-side fix in
+/// `installing/deps-resolver/src/validateDependencyAlias.ts`.
+#[tokio::test]
+async fn transitive_dep_with_traversal_alias_is_rejected() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("normal".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "normal",
+            "1.0.0",
+            serde_json::json!({
+                "name": "normal",
+                "version": "1.0.0",
+                "dependencies": { "@x/../../../../../.git/hooks": "1.0.0" },
+            }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "normal": "1.0.0" }));
+
+    let err = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+        },
+    )
+    .await
+    .expect_err("traversal alias must error");
+    match err {
+        ResolveDependencyTreeError::InvalidDependencyName { parent, alias } => {
+            assert_eq!(alias, "@x/../../../../../.git/hooks");
+            assert!(
+                parent.contains("normal"),
+                "parent must name the offending package, got {parent:?}",
+            );
+        }
+        other => panic!("expected InvalidDependencyName, got {other:?}"),
+    }
+}
+
 mod block_exotic_subdeps {
-    use std::collections::HashMap;
-    use std::sync::Mutex;
+    use std::{collections::HashMap, sync::Mutex};
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_resolving_resolver_base::ResolveOptions;
@@ -378,6 +428,7 @@ mod block_exotic_subdeps {
                     ..ResolveOptions::default()
                 },
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -418,6 +469,7 @@ mod block_exotic_subdeps {
                     ..ResolveOptions::default()
                 },
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -459,6 +511,7 @@ mod block_exotic_subdeps {
                     ..ResolveOptions::default()
                 },
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -502,6 +555,7 @@ mod block_exotic_subdeps {
                     ..ResolveOptions::default()
                 },
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -511,16 +565,17 @@ mod block_exotic_subdeps {
 }
 
 mod peers {
-    use std::collections::HashMap;
-    use std::sync::Mutex;
+    use std::{collections::HashMap, sync::Mutex};
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_resolving_resolver_base::ResolveOptions;
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
-    use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
-    use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
+    use crate::{
+        resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree},
+        resolve_peers::{ResolvePeersOptions, resolve_peers},
+    };
     use pacquet_deps_path::DepPath;
 
     /// A pure leaf — no peer dependencies — should land in the graph
@@ -541,6 +596,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -591,6 +647,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -639,6 +696,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -690,6 +748,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -707,6 +766,195 @@ mod peers {
             result.direct_dependencies_by_alias.get("react-dom"),
             Some(&DepPath::from("react-dom@18.0.0(react@17.0.0)".to_string())),
         );
+    }
+
+    /// `dedupePeers: true` collapses recursive peer suffixes into
+    /// version-only identifiers. Without `dedupePeers`, a peer whose
+    /// resolution already carries a peer suffix (e.g. `@emotion/react`
+    /// resolved its own `react` peer first) leaks its nested suffix
+    /// into the consumer's depPath:
+    /// `@emotion/styled@11.0.0(@emotion/react@11.0.0(react@18.0.0))(react@18.0.0)`.
+    /// With `dedupePeers` on, the peer-id is `name@version` instead, so
+    /// the consumer's suffix stays flat:
+    /// `@emotion/styled@11.0.0(@emotion/react@11.0.0)(react@18.0.0)`.
+    /// Ports upstream's
+    /// [`'uses version-only peer suffixes without nested dep paths'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/test/resolvePeers.ts#L679-L756).
+    #[tokio::test]
+    async fn dedupe_peers_collapses_nested_peer_suffixes() {
+        let result = resolve_emotion_fixture(ResolvePeersOptions {
+            dedupe_peers: true,
+            ..ResolvePeersOptions::default()
+        })
+        .await;
+        let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "@emotion/react@11.0.0(react@18.0.0)".to_string(),
+                "@emotion/styled@11.0.0(@emotion/react@11.0.0)(react@18.0.0)".to_string(),
+                "react@18.0.0".to_string(),
+            ],
+        );
+    }
+
+    /// Opposite of [`dedupe_peers_collapses_nested_peer_suffixes`] — the
+    /// same fixture under `dedupePeers: false` keeps the nested peer
+    /// suffix on `@emotion/styled`'s depPath, proving the dedupe
+    /// branch is the only thing flipping the rendering.
+    #[tokio::test]
+    async fn no_dedupe_peers_keeps_nested_peer_suffixes() {
+        let result = resolve_emotion_fixture(ResolvePeersOptions::default()).await;
+        let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "@emotion/react@11.0.0(react@18.0.0)".to_string(),
+                "@emotion/styled@11.0.0(@emotion/react@11.0.0(react@18.0.0))(react@18.0.0)"
+                    .to_string(),
+                "react@18.0.0".to_string(),
+            ],
+        );
+    }
+
+    /// Transitive peer: `a` depends on `b`, `b` has peer `c`, importer
+    /// has direct `a` + `c`. Even though `a` has no peers itself, its
+    /// child `b` carries `c` as an external peer, so `a` propagates `c`
+    /// up to its own depPath suffix too. Both `a` and `b` land as
+    /// `…(c@1.0.0)`. Mirrors upstream's
+    /// [`'transitive peers use version-only suffixes'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/test/resolvePeers.ts#L758-L833).
+    ///
+    /// Pacquet's [`DepPath`] uses `name@version` for pure packages, so
+    /// the `dedupe_peers=true` vs `false` rendering of a pure peer is
+    /// byte-identical (both produce `(c@1.0.0)`). Upstream's pnpm uses
+    /// `c/1.0.0` for the dep-path form and so observes a difference;
+    /// the contract this test locks down is the transitive-peer
+    /// propagation itself, not the byte shape of the peer-id.
+    #[tokio::test]
+    async fn dedupe_peers_propagates_transitive_peer_to_parent() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("a".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "a",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "a",
+                    "version": "1.0.0",
+                    "dependencies": { "b": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("b".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "b",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "b",
+                    "version": "1.0.0",
+                    "peerDependencies": { "c": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("c".to_string(), "1.0.0".to_string()),
+            fake_result("c", "1.0.0", serde_json::json!({ "name": "c", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions { dedupe_peers: true, ..ResolvePeersOptions::default() },
+        );
+        let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "a@1.0.0(c@1.0.0)".to_string(),
+                "b@1.0.0(c@1.0.0)".to_string(),
+                "c@1.0.0".to_string(),
+            ],
+        );
+    }
+
+    /// Shared fixture for the `dedupe_peers_*` pair: react@18 plus
+    /// `@emotion/react@11` (peer: react) plus `@emotion/styled@11`
+    /// (peers: react, @emotion/react). Mirrors upstream's
+    /// `dedupePeers` test fixture at the linked commit above.
+    async fn resolve_emotion_fixture(
+        opts: ResolvePeersOptions,
+    ) -> crate::resolve_peers::ResolvePeersResult {
+        let mut table = HashMap::new();
+        table.insert(
+            ("react".to_string(), "18.0.0".to_string()),
+            fake_result(
+                "react",
+                "18.0.0",
+                serde_json::json!({ "name": "react", "version": "18.0.0" }),
+            ),
+        );
+        table.insert(
+            ("@emotion/react".to_string(), "11.0.0".to_string()),
+            fake_result(
+                "@emotion/react",
+                "11.0.0",
+                serde_json::json!({
+                    "name": "@emotion/react",
+                    "version": "11.0.0",
+                    "peerDependencies": { "react": ">=16" }
+                }),
+            ),
+        );
+        table.insert(
+            ("@emotion/styled".to_string(), "11.0.0".to_string()),
+            fake_result(
+                "@emotion/styled",
+                "11.0.0",
+                serde_json::json!({
+                    "name": "@emotion/styled",
+                    "version": "11.0.0",
+                    "peerDependencies": {
+                        "react": ">=16",
+                        "@emotion/react": ">=11"
+                    }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "react": "18.0.0",
+            "@emotion/react": "11.0.0",
+            "@emotion/styled": "11.0.0",
+        }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+            },
+        )
+        .await
+        .unwrap();
+        resolve_peers(&mut tree, opts)
     }
 
     /// Regression test for the post-walk peer-edge patch. With manifest
@@ -749,6 +997,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -844,6 +1093,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -937,6 +1187,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1042,6 +1293,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1109,6 +1361,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1190,13 +1443,13 @@ mod peers {
         // leaf (children_by_id entry is empty AND peer_dependencies
         // is empty) and collapse the revisit onto `NodeId::Leaf`.
         let manifestless = {
-            let mut r = fake_result(
+            let mut result = fake_result(
                 "manifestless",
                 "1.0.0",
                 serde_json::json!({ "name": "manifestless", "version": "1.0.0" }),
             );
-            r.manifest = None;
-            r
+            result.manifest = None;
+            result
         };
         table.insert(("manifestless".to_string(), "^1.0.0".to_string()), manifestless);
         table.insert(
@@ -1217,6 +1470,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1323,6 +1577,7 @@ mod peers {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1363,11 +1618,116 @@ mod peers {
             "purePkgs short-circuit must leave the revisit's lazy children un-realized",
         );
     }
+
+    /// Ported from upstream pnpm's
+    /// [`path to external link is not added to the lockfile, when it resolves a peer dependency`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L224-L243)
+    /// e2e test, narrowed to the peer-resolution slice.
+    ///
+    /// Scenario: a registry package `abc` peer-depends on `peer-a`. The
+    /// importer also depends on `peer-a` via a bare `link:` to an
+    /// external directory (outside the lockfile root). With
+    /// `excludeLinksFromLockfile = true`, the link's parent-ref node
+    /// id gets remapped to `link:node_modules/peer-a`, the peer suffix
+    /// uses `link_path_to_peer_version("node_modules/peer-a") =
+    /// "node_modules+peer-a"`, and the snapshot child edge for the
+    /// peer points at the same `link:node_modules/peer-a` instead of
+    /// the original absolute path.
+    #[tokio::test]
+    async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
+        use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+        use pacquet_resolving_resolver_base::PkgResolutionId;
+
+        let link_id = "link:/abs/external";
+        let mut table = HashMap::new();
+        table.insert(
+            ("abc".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "abc",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "abc",
+                    "version": "1.0.0",
+                    "peerDependencies": { "peer-a": "*" },
+                }),
+            ),
+        );
+        // `link:` direct dep — the local resolver normally fills this
+        // shape; the tests stub it out directly. `name_ver = None`
+        // matches the local resolver's behavior (the package name is
+        // read from the manifest, not the id).
+        table.insert(
+            ("peer-a".to_string(), "link:/abs/external".to_string()),
+            pacquet_resolving_resolver_base::ResolveResult {
+                id: PkgResolutionId::from(link_id.to_string()),
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(
+                    serde_json::json!({ "name": "peer-a", "version": "1.0.0" }),
+                )),
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: "/abs/external".to_string(),
+                }),
+                resolved_via: "local-filesystem".to_string(),
+                normalized_bare_specifier: None,
+                alias: Some("peer-a".to_string()),
+                policy_violation: None,
+            },
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "abc": "1.0.0",
+            "peer-a": "link:/abs/external",
+        }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+            },
+        )
+        .await
+        .expect("resolve tree");
+
+        let lockfile_dir = std::path::PathBuf::from("/tmp/lockfile-dir");
+        let modules_dir = lockfile_dir.join("node_modules");
+        let result = resolve_peers(
+            &mut tree,
+            ResolvePeersOptions {
+                peers_suffix_max_length: 1000,
+                dedupe_peers: false,
+                exclude_links_from_lockfile: true,
+                lockfile_dir: Some(lockfile_dir),
+                modules_dir: Some(modules_dir),
+            },
+        );
+
+        let abc_dep_path =
+            result.direct_dependencies_by_alias.get("abc").cloned().expect("abc is a direct dep");
+        assert_eq!(
+            abc_dep_path,
+            DepPath::from("abc@1.0.0(peer-a@node_modules+peer-a)".to_string()),
+            "abc's peer suffix encodes `<modules_dir-relative>/<alias>` via link_path_to_peer_version",
+        );
+        let abc_node = result.graph.get(&abc_dep_path).expect("abc node in graph");
+        let peer_child =
+            abc_node.children.get("peer-a").expect("abc snapshot has a peer-a child edge");
+        assert_eq!(
+            peer_child,
+            &DepPath::from("link:node_modules/peer-a".to_string()),
+            "snapshot child ref reuses the remapped link node id verbatim",
+        );
+    }
 }
 
 mod patched_dependencies {
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
 
     use pacquet_package_manifest::DependencyGroup;
     use pacquet_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
@@ -1375,10 +1735,12 @@ mod patched_dependencies {
     use pretty_assertions::assert_eq;
 
     use super::{StubResolver, fake_manifest, fake_result};
-    use crate::resolve_dependency_tree::{
-        ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+    use crate::{
+        resolve_dependency_tree::{
+            ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+        },
+        resolve_peers::{ResolvePeersOptions, resolve_peers},
     };
-    use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
     use pacquet_deps_path::DepPath;
 
     fn exact_group(version: &str, key: &str, hash: &str) -> PatchGroup {
@@ -1416,6 +1778,7 @@ mod patched_dependencies {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
             },
         )
         .await
@@ -1462,6 +1825,7 @@ mod patched_dependencies {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
             },
         )
         .await
@@ -1494,6 +1858,7 @@ mod patched_dependencies {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
             },
         )
         .await
@@ -1542,6 +1907,7 @@ mod patched_dependencies {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: Some(Arc::new(groups)),
+                manifest_hook: None,
             },
         )
         .await
@@ -1610,6 +1976,7 @@ mod optional_propagation {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1663,6 +2030,7 @@ mod optional_propagation {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1726,6 +2094,7 @@ mod optional_propagation {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await
@@ -1777,6 +2146,7 @@ mod optional_propagation {
             ResolveDependencyTreeOptions {
                 base_opts: ResolveOptions::default(),
                 patched_dependencies: None,
+                manifest_hook: None,
             },
         )
         .await

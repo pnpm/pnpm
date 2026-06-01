@@ -1,5 +1,18 @@
 # @pnpm/registry.pkg-metadata-filter
 
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.registry.types@1100.1.0
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/resolving.registry.types@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

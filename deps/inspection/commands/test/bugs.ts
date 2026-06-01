@@ -4,7 +4,7 @@ import path from 'node:path'
 import { expect, jest, test } from '@jest/globals'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { tempDir } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const mockOpen = jest.fn()
 jest.unstable_mockModule('open', () => ({

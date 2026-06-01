@@ -1,10 +1,10 @@
 name: Pacquet CI
 
 # Despite the name, this workflow covers every Rust crate in the
-# repo — pacquet and pnpm-registry alike. They share the same cargo
+# repo — pacquet and pnpr alike. They share the same cargo
 # workspace, so `just test`, dylint, doc, etc. all see both stacks
 # in one pass; running two workflows would just duplicate the work.
-# Trigger paths intentionally include `registry/**` for the same
+# Trigger paths intentionally include `pnpr/**` for the same
 # reason.
 
 permissions:
@@ -16,7 +16,7 @@ on:
     types: [opened, synchronize]
     paths:
       - 'pacquet/**'
-      - 'registry/**'
+      - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -35,7 +35,7 @@ on:
       - main
     paths:
       - 'pacquet/**'
-      - 'registry/**'
+      - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -110,16 +110,12 @@ jobs:
       - name: Test
         shell: bash
         run: |
-          just registry-mock launch
-
           # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
           # this should be removed in the future
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
           just test
-
-          just registry-mock end
 
   doc:
     name: Doc
@@ -149,7 +145,7 @@ jobs:
 
       - uses: crate-ci/typos@5374cbf686e897b15713110e233094e2874de7ef # v1.46.1
         with:
-          files: pacquet registry
+          files: pacquet pnpr
 
   deny:
     name: Cargo Deny
@@ -265,7 +261,13 @@ jobs:
       - name: Install cargo-dylint and dylint-link
         uses: ./.github/actions/binstall
         with:
-          packages: cargo-dylint dylint-link
+          # Pin to 6.0.0 until trailofbits/dylint cuts a 6.0.2. The
+          # 6.0.1 binstall artifacts (published 2026-05-26 17:51 UTC)
+          # fail at driver bootstrap with `failed to read
+          # /home/runner/work/dylint/dylint/driver/Cargo.toml`, the
+          # path baked in by dylint's own CI checkout. Downstream
+          # runners don't have that workspace so the step aborts.
+          packages: cargo-dylint@6.0.0 dylint-link@6.0.0
 
       - name: Run dylint
         # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing

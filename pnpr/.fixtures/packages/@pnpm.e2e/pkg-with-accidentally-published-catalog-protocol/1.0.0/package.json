@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/pkg-with-accidentally-published-catalog-protocol",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/hello-world-js-bin": "catalog:foo"
+  }
+}

@@ -1,12 +1,22 @@
-use super::{GitFetcher, exec_git, extract_host, should_use_shallow};
+use super::{GitFetcher, exec_git_with, extract_host, is_valid_commit_hash, should_use_shallow};
 use crate::error::GitFetcherError;
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::StoreDir;
 #[cfg(unix)]
 use pacquet_testing_utils::env_guard::EnvGuard;
-use std::{fs, path::Path, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::tempdir;
+
+/// Run `git` (resolved through `PATH`) with `args` and capture stdout —
+/// a convenience wrapper around [`exec_git_with`] for fixture setup that
+/// does not need to override the binary location.
+fn exec_git(args: &[&str], cwd: Option<&Path>) -> Result<String, GitFetcherError> {
+    exec_git_with(Path::new("git"), args, cwd)
+}
 
 /// Build a bare repo whose manifest declares a `prepare` script. The
 /// script is whatever the caller passes — typically a `node -e '…'`
@@ -82,6 +92,55 @@ fn should_use_shallow_matches_known_host() {
     assert!(should_use_shallow("https://github.com/x/y.git", &hosts));
     assert!(should_use_shallow("git+ssh://git@github.com/x/y.git", &hosts));
     assert!(!should_use_shallow("https://example.com/x/y.git", &hosts));
+}
+
+#[test]
+fn is_valid_commit_hash_accepts_full_sha() {
+    assert!(is_valid_commit_hash("c9b30e71d704cd30fa71f2edd1ecc7dcc4985493"));
+    assert!(is_valid_commit_hash("C9B30E71D704CD30FA71F2EDD1ECC7DCC4985493"));
+}
+
+#[test]
+fn is_valid_commit_hash_rejects_short_or_option_shaped_values() {
+    assert!(!is_valid_commit_hash("deadbeef"));
+    assert!(!is_valid_commit_hash(""));
+    assert!(!is_valid_commit_hash("--upload-pack=touch /tmp/pwned"));
+    assert!(!is_valid_commit_hash("c9b30e71d704cd30fa71f2edd1ecc7dcc4985493 "));
+    // 40 chars but contains a non-hex digit.
+    assert!(!is_valid_commit_hash("c9b30e71d704cd30fa71f2edd1ecc7dcc498549z"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn fetcher_rejects_option_shaped_commit() {
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    let err = GitFetcher {
+        repo: "file:///tmp/githost",
+        commit: "--upload-pack=touch /tmp/pwned",
+        path: None,
+        git_shallow_hosts: &[],
+        allow_build: deny_all_builds(),
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        store_dir: &store_dir,
+        package_id: "pkg@1.0.0",
+        requester: "/test",
+        store_index_writer: None,
+        files_index_file: "pkg@1.0.0\tbuilt",
+        git_bin: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(err, GitFetcherError::InvalidCommit { .. }),
+        "expected InvalidCommit, got {err:?}",
+    );
 }
 
 #[test]

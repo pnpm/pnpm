@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/alpha",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/has-alpha-as-peer": "^1.0.0"
+  }
+}

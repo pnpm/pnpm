@@ -1,15 +1,16 @@
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
+use crate::{Config, api::EnvVar};
+use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
-
-use crate::{Config, api::EnvVar, env_replace::env_replace_lossy};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Subset of `.npmrc` keys pacquet honours for registry / auth setup.
 ///
 /// The parser pulls out:
-/// * the top-level `registry=` URL (already supported pre-#336),
+/// * the top-level `registry=` URL (already supported pre-[#336]),
 /// * default-registry credentials (`_auth`, `_authToken`,
 ///   `username` + `_password`),
 /// * per-registry credentials keyed on a nerf-darted URI prefix
@@ -37,6 +38,8 @@ use crate::{Config, api::EnvVar, env_replace::env_replace_lossy};
 /// [`isIniConfigKey`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/localConfig.ts#L160-L161)
 /// list. They will land here as the matching feature work picks them
 /// up.
+///
+/// [#336]: https://github.com/pnpm/pacquet/issues/336
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
@@ -129,7 +132,22 @@ impl RawCreds {
             && self.username.is_none()
             && self.password.is_none()
     }
+
+    /// Fill any field that is `None` here from `lower`. Used when
+    /// merging a lower-priority source under a higher one: the higher
+    /// source's already-set fields win, the lower fills the gaps.
+    fn fill_from(&mut self, lower: RawCreds) {
+        self.auth_token = self.auth_token.take().or(lower.auth_token);
+        self.auth_pair_base64 = self.auth_pair_base64.take().or(lower.auth_pair_base64);
+        self.username = self.username.take().or(lower.username);
+        self.password = self.password.take().or(lower.password);
+    }
 }
+
+/// Default registry used when a source declares credentials but no
+/// `registry=` of its own to scope them to. Matches pnpm's
+/// `npmDefaults.registry`.
+const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 impl NpmrcAuth {
     /// Parse an `.npmrc` file's contents and pick out the auth/network keys.
@@ -387,6 +405,131 @@ impl NpmrcAuth {
             Arc::new(AuthHeaders::from_creds_map(auth_header_by_uri, Some(&config.registry)));
     }
 
+    /// Pin this source file's **unscoped** credentials (`_authToken`,
+    /// `_auth`, `username`/`_password`) and client `cert`/`key` to the
+    /// registry declared in this same file — or the npmjs default
+    /// ([`DEFAULT_REGISTRY`]) when the file has no `registry=` of its
+    /// own — by nerf-darting that registry into a per-URI key and moving
+    /// the values onto [`Self::creds_by_uri`] / [`Self::tls_by_uri`].
+    ///
+    /// This is the security boundary ported from pnpm's
+    /// [`rescopeUnscopedCreds`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts):
+    /// rescoping happens per file *before* sources are merged, so a
+    /// credential can never be pulled to a different registry that a
+    /// higher-priority `.npmrc` (or `pnpm-workspace.yaml`) later sets.
+    /// An explicitly URL-scoped value already present for the same key
+    /// is left untouched. A deprecation warning is queued (drained by
+    /// [`Self::apply_registry_and_warn`]) for each rescoped field.
+    ///
+    /// `source_label` names the file for that warning.
+    pub fn rescope_unscoped(&mut self, source_label: &str) {
+        let has_creds = !self.default_creds.is_empty();
+        let has_identity = self.cert.is_some() || self.key.is_some();
+        if !has_creds && !has_identity {
+            return;
+        }
+
+        let registry = self
+            .registry
+            .as_deref()
+            .filter(|registry| !registry.is_empty())
+            .map(normalize_registry_url)
+            .unwrap_or_else(|| DEFAULT_REGISTRY.to_string());
+        let key = pacquet_network::nerf_dart(&registry);
+        if key.is_empty() {
+            // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
+            // the unscoped material rather than risk sending it to the
+            // wrong host — matching pnpm's catch branch.
+            self.default_creds = RawCreds::default();
+            self.cert = None;
+            self.key = None;
+            self.warnings.push(format!(
+                "Unscoped per-registry settings in {source_label:?} were ignored because the registry URL could not be parsed.",
+            ));
+            return;
+        }
+
+        let mut rescoped: Vec<&str> = Vec::new();
+        if has_creds {
+            let taken = std::mem::take(&mut self.default_creds);
+            if taken.auth_token.is_some() {
+                rescoped.push("_authToken");
+            }
+            if taken.auth_pair_base64.is_some() {
+                rescoped.push("_auth");
+            }
+            if taken.username.is_some() {
+                rescoped.push("username");
+            }
+            if taken.password.is_some() {
+                rescoped.push("_password");
+            }
+            // An explicitly URL-scoped value for the same key wins, so
+            // the rescoped unscoped value only fills the gaps.
+            self.creds_by_uri.entry(key.clone()).or_default().fill_from(taken);
+        }
+        if has_identity {
+            let entry = self.tls_by_uri.entry(key.clone()).or_default();
+            if let Some(cert) = self.cert.take() {
+                entry.cert.get_or_insert(cert);
+                rescoped.push("cert");
+            }
+            if let Some(private_key) = self.key.take() {
+                entry.key.get_or_insert(private_key);
+                rescoped.push("key");
+            }
+        }
+        if !rescoped.is_empty() {
+            self.warnings.push(format!(
+                "Unscoped per-registry settings ({}) in {source_label:?} are deprecated. \
+                 pnpm pinned them to {key:?} for this run; write them as \
+                 \"{key}:<setting>=...\" instead.",
+                rescoped.join(", "),
+            ));
+        }
+    }
+
+    /// Merge a lower-priority source under `self` (the higher-priority
+    /// one). Fields already set on `self` win; `lower` fills the gaps.
+    /// Per-URI credential and TLS maps merge field-by-field with the
+    /// same "higher wins" rule. Mirrors pnpm's merge order
+    /// (`user < auth.ini < workspace`), where each later source
+    /// overwrites the keys an earlier one set.
+    ///
+    /// Both sources must already have been through
+    /// [`Self::rescope_unscoped`] so their unscoped credentials are
+    /// pinned to the right registry before they are combined.
+    pub fn merge_under(&mut self, lower: NpmrcAuth) {
+        self.registry = self.registry.take().or(lower.registry);
+        self.https_proxy = self.https_proxy.take().or(lower.https_proxy);
+        self.http_proxy = self.http_proxy.take().or(lower.http_proxy);
+        self.legacy_proxy = self.legacy_proxy.take().or(lower.legacy_proxy);
+        self.no_proxy = self.no_proxy.take().or(lower.no_proxy);
+        if self.ca.is_empty() {
+            self.ca = lower.ca;
+        }
+        self.cafile = self.cafile.take().or(lower.cafile);
+        self.cert = self.cert.take().or(lower.cert);
+        self.key = self.key.take().or(lower.key);
+        self.strict_ssl = self.strict_ssl.take().or(lower.strict_ssl);
+        self.local_address = self.local_address.take().or(lower.local_address);
+
+        for (uri, creds) in lower.creds_by_uri {
+            self.creds_by_uri.entry(uri).or_default().fill_from(creds);
+        }
+        for (uri, tls) in lower.tls_by_uri {
+            let entry = self.tls_by_uri.entry(uri).or_default();
+            entry.ca = entry.ca.take().or(tls.ca);
+            entry.cert = entry.cert.take().or(tls.cert);
+            entry.key = entry.key.take().or(tls.key);
+        }
+        // Lower-priority warnings come first — they were produced while
+        // reading the earlier file.
+        let mut warnings = lower.warnings;
+        warnings.append(&mut self.warnings);
+        self.warnings = warnings;
+    }
+
     /// Convenience wrapper that runs [`apply_registry_and_warn`],
     /// [`apply_proxy_cascade`], and [`build_auth_headers`] in one call.
     /// Used by tests and other callers that don't layer additional
@@ -400,11 +543,18 @@ impl NpmrcAuth {
     /// [`build_auth_headers`]: NpmrcAuth::build_auth_headers
     #[cfg(test)]
     pub fn apply_to<Sys: EnvVar>(mut self, config: &mut Config) {
+        self.rescope_unscoped("<.npmrc>");
         self.apply_registry_and_warn(config);
         self.apply_proxy_cascade::<Sys>(config);
         self.apply_tls_and_local_address(config);
         self.build_auth_headers(config);
     }
+}
+
+/// Normalize a registry URL the way pnpm's `normalizeRegistryUrl` does
+/// for the purposes of nerf-darting: ensure a single trailing slash.
+fn normalize_registry_url(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 /// Resolve a top-level `cafile=` value against the directory of the

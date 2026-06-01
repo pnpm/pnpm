@@ -1,0 +1,14 @@
+{
+  "name": "@pnpm.e2e/pkg-with-directories-bin",
+  "version": "1.0.0",
+  "description": "A package with a bin specified in the directories property",
+  "directories": {
+    "bin": "./bin"
+  },
+  "author": "Zoltan Kochan <zoltan.kochan@gmail.com> (http://kochan.io/)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm-registry-mock/tree/master/test/packages/pkg-with-directories-bin"
+  }
+}

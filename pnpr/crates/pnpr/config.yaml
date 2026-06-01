@@ -1,0 +1,73 @@
+# path to a directory with all packages
+storage: ./storage
+secret: pnpm-registry-mock-secret-key-32
+
+auth:
+  htpasswd:
+    file: ./htpasswd
+    # Maximum amount of users allowed to register, defaults to "+inf".
+    # You can set this to -1 to disable registration.
+    #max_users: 1000
+
+plugins: ../node_modules
+
+middlewares:
+  audit:
+    enabled: true
+
+# a list of other known repositories we can talk to
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+
+web:
+  enable: false
+
+packages:
+  '@private/*':
+    access: $authenticated
+    publish: $authenticated
+
+  '@pnpm.e2e/needs-auth':
+    access: $authenticated
+    publish: $authenticated
+
+  '@*/*':
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+
+  'plugin-example':
+    access: $all
+    publish: $authenticated
+
+  'pkg-with-1-dep':
+    access: $all
+    publish: $authenticated
+
+  'dep-of-pkg-with-1-dep':
+    access: $all
+    publish: $authenticated
+
+  'foobar':
+    access: $all
+    publish: $authenticated
+
+  'alpha':
+    access: $all
+    publish: $authenticated
+
+  'deprecated':
+    access: $all
+    publish: $authenticated
+
+  '**':
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+
+# log settings (verdaccio 6+ shape: a single `log:` object, not a list)
+log:
+  type: stdout
+  format: pretty
+  level: error

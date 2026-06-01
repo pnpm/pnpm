@@ -1,5 +1,37 @@
 # @pnpm/npm-resolver
 
+## 1101.4.0
+
+### Minor Changes
+
+- 1e9ab29: Staged publishes are now recognized in the trust scale. When a package version's registry metadata carries an `approver` field, it is treated as the strongest trust evidence (ranked above trusted publishers and provenance attestations), since staged publishes require 2FA publish approvals. This prevents false-positive trust downgrade errors when moving from a staged publish to a lower trust level [#11887](https://github.com/pnpm/pnpm/issues/11887).
+
+### Patch Changes
+
+- 6235428: Fix `minimumReleaseAgeExclude` handling in npm resolution fast paths so excluded packages do not get pinned to stale versions. Excludes are honored consistently during `publishedBy` metadata selection and cache-mtime shortcuts.
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.registry.types@1100.1.0
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.3.3
+
+### Patch Changes
+
+- 0721d64: Require provenance before treating trusted publisher metadata as the strongest trust evidence.
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/resolving.registry.types@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.5
+
 ## 1101.3.2
 
 ### Patch Changes

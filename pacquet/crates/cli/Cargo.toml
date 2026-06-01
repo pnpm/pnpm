@@ -17,6 +17,7 @@ path = "src/bin/main.rs"
 [dependencies]
 pacquet-cmd-shim               = { workspace = true }
 pacquet-crypto-hash            = { workspace = true }
+pacquet-pnpr-client            = { workspace = true }
 pacquet-executor               = { workspace = true }
 pacquet-fs                     = { workspace = true }
 pacquet-lockfile               = { workspace = true }
@@ -45,11 +46,13 @@ which       = { workspace = true }
 [dev-dependencies]
 pacquet-store-dir     = { workspace = true }
 pacquet-testing-utils = { workspace = true }
+pnpr                  = { workspace = true }
 
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
 insta             = { workspace = true }
 pretty_assertions = { workspace = true }
+serde-saphyr      = { workspace = true }
 tempfile          = { workspace = true }
 walkdir           = { workspace = true }
 

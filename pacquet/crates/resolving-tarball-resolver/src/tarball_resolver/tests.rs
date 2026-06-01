@@ -8,7 +8,7 @@ use pretty_assertions::assert_eq;
 use crate::TarballResolver;
 
 fn build_resolver() -> TarballResolver {
-    TarballResolver { http_client: Arc::new(ThrottledClient::default()) }
+    TarballResolver { http_client: Arc::new(ThrottledClient::default()), fetch_context: None }
 }
 
 fn tarball_url(resolution: &LockfileResolution) -> &str {

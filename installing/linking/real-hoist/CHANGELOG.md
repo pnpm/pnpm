@@ -1,5 +1,19 @@
 # @pnpm/real-hoist
 
+## 1100.1.0
+
+### Minor Changes
+
+- a39a83d: Added a new `hoistingLimits` setting for `nodeLinker: hoisted` installs, mirroring yarn's `nmHoistingLimits`. It accepts `none` (the default — hoist as far as possible), `workspaces` (hoist only as far as each workspace package), or `dependencies` (hoist only up to each workspace package's direct dependencies). Originally proposed in [#6468](https://github.com/pnpm/pnpm/pull/6468), closing [#6457](https://github.com/pnpm/pnpm/issues/6457).
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/deps.path@1100.0.5
+
 ## 1100.0.9
 
 ### Patch Changes

@@ -20,13 +20,15 @@
 //! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
 //! against the not-yet-implemented subject under test.
 //!
-//! Workspace install (pnpm/pacquet#431) landed in #443. The
+//! Workspace install (pnpm/pacquet#431) landed in [#443]. The
 //! [`workspace_hoist_walks_every_importer`] test below covers the
 //! basic multi-importer case directly; the upstream
 //! `hoistWorkspacePackages` test still lives under [`known_failures`]
 //! because pacquet doesn't yet model the
 //! `hoistedWorkspacePackages` shape itself (linking workspace
 //! projects into the hoist target tree).
+//!
+//! [#443]: https://github.com/pnpm/pacquet/pull/443
 
 #![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
 
@@ -479,6 +481,77 @@ fn workspace_hoist_walks_every_importer() {
     drop((root, mock_instance));
 }
 
+/// `nodeLinker: hoisted` on the fresh-lockfile path (no checked-in
+/// lockfile, no `--frozen-lockfile`) must lay every dependency out as
+/// a **real directory** flat under the project's `node_modules/`, not
+/// as a symlink into a `.pnpm` virtual store. Closes
+/// [#11871](https://github.com/pnpm/pnpm/issues/11871): the fresh
+/// path used to hard-refuse the combination.
+///
+/// Uses `@pnpm.e2e/hello-world-js-bin-parent` (a direct dep) which
+/// pulls in `@pnpm.e2e/hello-world-js-bin` as a transitive — under
+/// the hoisted linker both land at the top level as real dirs.
+#[test]
+fn fresh_install_hoisted_node_linker_lands_real_directories() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    // No `generate_lockfile` and no `--frozen-lockfile`: this drives
+    // the fresh-resolve path.
+    pacquet.with_args(["install"]).assert().success();
+
+    let is_real_dir = |relative: &str| -> bool {
+        let path = workspace.join(relative);
+        path.is_dir() && !is_symlink_or_junction(&path).unwrap()
+    };
+
+    // Direct dep is a real directory carrying its own manifest.
+    assert!(
+        is_real_dir("node_modules/@pnpm.e2e/hello-world-js-bin-parent"),
+        "direct dep should be a real directory under node_modules/, not a symlink",
+    );
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent/package.json").is_file(),
+        "real directory should contain the package's package.json",
+    );
+    // Transitive dep is hoisted flat to the top level as a real dir.
+    assert!(
+        is_real_dir("node_modules/@pnpm.e2e/hello-world-js-bin"),
+        "transitive dep should be hoisted to a real directory at the top level",
+    );
+    // The hoisted linker writes no virtual-store slot directories.
+    // (`node_modules/.pnpm` itself may exist to hold the current
+    // `lock.yaml`, matching pnpm, but no per-package slot is laid
+    // down — that's the isolated linker's shape.)
+    assert!(
+        !workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0").exists(),
+        "hoisted linker must not materialize a virtual-store slot for the package",
+    );
+    assert!(
+        !workspace.join("node_modules/.pnpm/node_modules").exists(),
+        "hoisted linker must not create a private-hoist `.pnpm/node_modules` tree",
+    );
+    // The transitive's bin is shimmed into the top-level `.bin`.
+    assert!(
+        workspace.join("node_modules/.bin/hello-world-js-bin").exists(),
+        "hoisted linker should link the transitive's bin into node_modules/.bin",
+    );
+    // A fresh install writes a `pnpm-lock.yaml` for the next run.
+    assert!(
+        workspace.join("pnpm-lock.yaml").is_file(),
+        "fresh install should write a wanted lockfile",
+    );
+
+    drop((root, mock_instance));
+}
+
 mod known_failures {
     //! Test ports of upstream `hoist.ts` cases blocked on features
     //! pacquet hasn't built yet. Each entry stubs the not-yet-built
@@ -487,7 +560,7 @@ mod known_failures {
     //! exits early rather than masking a real bug. The cases here
     //! cover:
     //!
-    //! - **Partial install / re-hoist** (#433): persisted-map
+    //! - **Partial install / re-hoist** ([#433]): persisted-map
     //!   preservation across re-installs, uninstall-then-rehoist,
     //!   pattern-change detection.
     //! - **`pnpm add` / `pnpm remove`**: re-running install after
@@ -507,8 +580,11 @@ mod known_failures {
     //!   with direct deps; pacquet's bin-link pipeline doesn't yet
     //!   mirror upstream's full ordering.
     //!
-    //! Workspace install (pnpm/pacquet#431) landed in #443 and is
+    //! Workspace install (pnpm/pacquet#431) landed in [#443] and is
     //! covered by [`super::workspace_hoist_walks_every_importer`].
+    //!
+    //! [#433]: https://github.com/pnpm/pacquet/issues/433
+    //! [#443]: https://github.com/pnpm/pacquet/pull/443
 
     use pacquet_testing_utils::{
         allow_known_failure,
@@ -719,7 +795,9 @@ mod known_failures {
     /// per-importer hoist walk lands the basic shape — covered by
     /// [`super::workspace_hoist_walks_every_importer`] — but the
     /// upstream test additionally re-installs and asserts
-    /// preservation, which needs partial install (#433).
+    /// preservation, which needs partial install ([#433]).
+    ///
+    /// [#433]: https://github.com/pnpm/pacquet/issues/433
     #[test]
     fn workspace_hoist_all_to_virtual_store_node_modules() {
         allow_known_failure!(partial_install_persists_hoisted_map());

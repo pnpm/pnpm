@@ -5,14 +5,15 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
     fs::{get_all_files, get_all_folders, is_symlink_or_junction},
 };
 #[cfg(unix)]
 use pipe_trait::Pipe;
-use std::fs;
-
-use pacquet_testing_utils::fixtures::{BIG_LOCKFILE, BIG_MANIFEST};
-use std::{fs::OpenOptions, io::Write};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+};
 
 #[test]
 fn should_install_dependencies() {
@@ -136,12 +137,12 @@ fn should_install_index_files() {
     drop((root, mock_instance)); // cleanup
 }
 
-// Ignored on CI: the test drives the mocked verdaccio with hundreds of
+// Ignored on CI: the test drives the registry fixture with hundreds of
 // concurrent tarball fetches and reliably reports ConnectionAborted (Windows) /
 // ConnectionReset (macOS) / ConnectionClosed (Ubuntu) on hosted runners. Run
-// manually with `just registry-mock launch` + `cargo test --test install -- --ignored
+// manually with `cargo test --test install -- --ignored
 // frozen_lockfile_should_be_able_to_handle_big_lockfile`.
-#[ignore = "flaky on CI: mocked verdaccio drops connections under concurrent load"]
+#[ignore = "flaky on CI: registry fixture drops connections under concurrent load"]
 #[test]
 fn frozen_lockfile_should_be_able_to_handle_big_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -365,6 +366,53 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
     drop((root, mock_instance)); // cleanup
 }
 
+/// `peer-diamond-plugin` peer-depends both `peer-diamond-parser` and
+/// `peer-diamond-ts`, and `peer-diamond-parser` peer-depends
+/// `peer-diamond-ts`. The plugin's parser and its ts must agree: when
+/// the plugin resolves `ts@1.0.0`, its parser peer must also be the
+/// `ts@1.0.0` instance, not a `ts@2.0.0` parser hoisted at the root.
+///
+/// This is the scenario behind the pnpm regression in
+/// [pnpm/pnpm#12079](https://github.com/pnpm/pnpm/issues/12079). pacquet
+/// resolves it consistently — `bump_occurrence_on_shadow` always prefers
+/// the node's own child over an inherited same-version instance, so it
+/// never reuses the root-level `ts@2.0.0` parser for the nested plugin.
+/// Mirrors the upstream coverage in
+/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/762e80be49/installing/deps-installer/test/install/peerDependencies.ts).
+#[test]
+fn peer_shared_through_a_diamond_is_resolved_consistently() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/peer-diamond-ts": "2.0.0",
+            "@pnpm.e2e/peer-diamond-parser": "1.0.0",
+            "@pnpm.e2e/peer-diamond-app": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let consistent = "@pnpm.e2e/peer-diamond-plugin@1.0.0(@pnpm.e2e/peer-diamond-parser@1.0.0(@pnpm.e2e/peer-diamond-ts@1.0.0))(@pnpm.e2e/peer-diamond-ts@1.0.0)";
+    let inconsistent = "@pnpm.e2e/peer-diamond-plugin@1.0.0(@pnpm.e2e/peer-diamond-parser@1.0.0(@pnpm.e2e/peer-diamond-ts@2.0.0))";
+    assert!(
+        lockfile.contains(consistent),
+        "expected the plugin to share ts@1.0.0 with its parser; lockfile:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains(inconsistent),
+        "the plugin must not be paired with a ts@2.0.0 parser; lockfile:\n{lockfile}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
 /// `catalog:` on a direct dep should be dereferenced through
 /// `pnpm-workspace.yaml`'s `catalog` section before the npm resolver
 /// sees it. The fetched virtual-store entry is the catalog's resolved
@@ -505,6 +553,86 @@ fn fresh_install_honors_enable_global_virtual_store() {
     drop((root, mock_instance)); // cleanup
 }
 
+/// End-to-end coverage for the `cache+node_modules` shortcut. After a
+/// successful install, deleting `pnpm-lock.yaml` but keeping `node_modules`
+/// (and the materialized `node_modules/.pnpm/lock.yaml`) should let the
+/// next `pacquet install` skip resolution and regenerate the lockfile
+/// from the on-disk snapshot. Mirrors the pnpm-side fix at
+/// <https://github.com/pnpm/pnpm/commit/8a2146b7be>.
+#[test]
+fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
+    use std::process::Command;
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    eprintln!("Priming with the first install...");
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    assert!(lockfile_path.exists(), "first install must produce pnpm-lock.yaml");
+
+    eprintln!("Removing pnpm-lock.yaml; node_modules/.pnpm/lock.yaml stays intact...");
+    fs::remove_file(&lockfile_path).expect("remove pnpm-lock.yaml");
+    // The test helper writes a `pnpm-workspace.yaml` for storeDir/cacheDir
+    // config, which makes `optimistic_repeat_install` treat this as a
+    // workspace install and skip the missing-wanted-lockfile invalidator.
+    // Drop the workspace state file so the freshness fast path falls
+    // through to the regular install dispatch where the synthesis logic
+    // lives. Real-world single-project installs (no pnpm-workspace.yaml)
+    // hit the `wanted lockfile missing` gate at
+    // `optimistic_repeat_install.rs:149` directly.
+    fs::remove_file(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+        .expect("remove .pnpm-workspace-state-v1.json");
+
+    eprintln!("Re-running install with --reporter=ndjson...");
+    let pacquet_rerun = Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace);
+    let output = pacquet_rerun
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run pacquet install");
+    assert!(
+        output.status.success(),
+        "second install must succeed: stderr={}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let up_to_date = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|record| {
+            record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+                && record.get("level").and_then(|v| v.as_str()) == Some("info")
+                && record.get("message").and_then(|v| v.as_str())
+                    == Some("Lockfile is up to date, resolution step is skipped")
+        });
+    assert!(
+        up_to_date.is_some(),
+        "expected `name: \"pnpm\" / level: \"info\"` up-to-date log in NDJSON stderr; got:\n{stderr}",
+    );
+
+    let regenerated = fs::read_to_string(&lockfile_path).expect("pnpm-lock.yaml was regenerated");
+    assert!(
+        regenerated.contains("@pnpm.e2e/hello-world-js-bin-parent")
+            && regenerated.contains("@pnpm.e2e/hello-world-js-bin"),
+        "regenerated pnpm-lock.yaml must list the installed packages:\n{regenerated}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
 /// End-to-end coverage for the no-op short-circuit. After a successful
 /// install, a second `pacquet install --frozen-lockfile` against an
 /// untouched workspace must skip materialization and emit pnpm's
@@ -558,6 +686,73 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
         up_to_date.is_some(),
         "expected `name: \"pnpm\" / level: \"info\"` up-to-date log in NDJSON stderr; got:\n{stderr}",
     );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// `resolutionMode: highest` (the default) resolves a direct dependency
+/// to the highest version satisfying its range. `@pnpm.e2e/foo`
+/// publishes `100.0.0` and `100.1.0`; `^100.0.0` therefore lands on
+/// `100.1.0`.
+#[test]
+fn resolution_mode_highest_picks_highest_direct_version() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    assert!(
+        pnpm_dir.join("@pnpm.e2e+foo@100.1.0").exists(),
+        "highest mode must resolve ^100.0.0 to 100.1.0",
+    );
+    assert!(!pnpm_dir.join("@pnpm.e2e+foo@100.0.0").exists());
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// `resolutionMode: lowest-direct` resolves a direct dependency to the
+/// lowest version satisfying its range. With `@pnpm.e2e/foo` at
+/// `100.0.0` / `100.1.0`, `^100.0.0` lands on `100.0.0` — the opposite
+/// of the default. Proves the setting flows from `pnpm-workspace.yaml`
+/// through the config layer into the resolver's version pick.
+///
+/// `minimumReleaseAge: 0` disables the maturity cutoff for this test:
+/// while a cutoff is active the picker prefers the highest mature
+/// version regardless of `resolutionMode`, so the lowest-version pick
+/// would be masked (matching pnpm's `pickRespectingMinReleaseAge`).
+#[test]
+fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    existing.push_str("resolutionMode: lowest-direct\nminimumReleaseAge: 0\n");
+    fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/foo": "^100.0.0" },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    assert!(
+        pnpm_dir.join("@pnpm.e2e+foo@100.0.0").exists(),
+        "lowest-direct mode must resolve ^100.0.0 to 100.0.0",
+    );
+    assert!(!pnpm_dir.join("@pnpm.e2e+foo@100.1.0").exists());
 
     drop((root, mock_instance)); // cleanup
 }

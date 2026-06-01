@@ -8,6 +8,9 @@
 //! For each it asks [`get_trust_evidence`] which "rank" of evidence
 //! the version exposes:
 //!
+//! - `stagedPublish` (rank 3) — `_npmUser.approver` is present. A
+//!   staged publish required a 2FA publish approval, the strongest
+//!   trust signal.
 //! - `trustedPublisher` (rank 2) — `_npmUser.trustedPublisher` and
 //!   `dist.attestations.provenance` are both present.
 //! - `provenance` (rank 1) — `dist.attestations.provenance` is
@@ -31,7 +34,8 @@ use node_semver::Version;
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pacquet_registry::{Package, PackageVersion};
 
-/// Rank of supply-chain evidence on a single version.
+/// Rank of supply-chain evidence on a single version. Variants are
+/// declared weakest-first so the derived `Ord` matches `trust_rank`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TrustEvidence {
     /// `dist.attestations.provenance` is set.
@@ -42,6 +46,10 @@ pub enum TrustEvidence {
     /// only counts as the stronger signal when the version also
     /// shipped a provenance attestation.
     TrustedPublisher,
+    /// `_npmUser.approver` is set. The version was published through a
+    /// staged publish requiring a 2FA approval — the strongest signal,
+    /// ranked above a trusted publisher.
+    StagedPublish,
 }
 
 /// Failure surfaced by [`fail_if_trust_downgraded`]. Each variant
@@ -181,12 +189,13 @@ pub fn fail_if_trust_downgraded(
 }
 
 /// Map a [`TrustEvidence`] rank to upstream's numeric weight at
-/// [`trustChecks.ts:10-13`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/trustChecks.ts#L10-L13).
+/// [`trustChecks.ts:10-14`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/trustChecks.ts#L10-L14).
 /// Upstream uses `undefined` for "no evidence"; the Rust port uses
 /// `Option<TrustEvidence>` so callers compare ranks via
 /// `Option::map_or(0, trust_rank)`.
 fn trust_rank(evidence: TrustEvidence) -> u8 {
     match evidence {
+        TrustEvidence::StagedPublish => 3,
         TrustEvidence::TrustedPublisher => 2,
         TrustEvidence::Provenance => 1,
     }
@@ -194,6 +203,7 @@ fn trust_rank(evidence: TrustEvidence) -> u8 {
 
 fn pretty_print_trust_evidence(evidence: Option<TrustEvidence>) -> &'static str {
     match evidence {
+        Some(TrustEvidence::StagedPublish) => "staged publish",
         Some(TrustEvidence::TrustedPublisher) => "trusted publisher",
         Some(TrustEvidence::Provenance) => "provenance attestation",
         None => "no trust evidence",
@@ -233,24 +243,32 @@ fn detect_strongest_trust_evidence_before(
         let Some(evidence) = get_trust_evidence(manifest) else {
             continue;
         };
-        if matches!(evidence, TrustEvidence::TrustedPublisher) {
-            return Some(TrustEvidence::TrustedPublisher);
-        }
-        // First provenance hit sticks; a later trusted-publisher
-        // hit would have returned above.
-        if best.is_none() {
-            best = Some(TrustEvidence::Provenance);
+        // Keep the highest-ranked evidence seen so far. Don't short-
+        // circuit on a mid-rank hit: a later version may carry stronger
+        // evidence, and missing it would let a real downgrade slip
+        // through. Only `StagedPublish` — the maximum rank — ends the
+        // walk early.
+        if best.is_none_or(|current| trust_rank(evidence) > trust_rank(current)) {
+            best = Some(evidence);
+            if evidence == TrustEvidence::StagedPublish {
+                return best;
+            }
         }
     }
     best
 }
 
-/// `_npmUser.trustedPublisher` outranks `dist.attestations.provenance`
+/// `_npmUser.approver` (a staged publish) outranks everything; failing
+/// that, `_npmUser.trustedPublisher` outranks `dist.attestations.provenance`
 /// only when the version also carries a provenance attestation;
 /// otherwise the publisher flag is ignored and the version falls back
 /// to the provenance rank or `None`. Mirrors pnpm's
-/// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/fea5fd41da/resolving/npm-resolver/src/trustChecks.ts#L119-L127).
+/// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/trustChecks.ts#L123-L134).
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
+    let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();
+    if has_approver {
+        return Some(TrustEvidence::StagedPublish);
+    }
     let has_provenance =
         version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some();
     let has_trusted_publisher =

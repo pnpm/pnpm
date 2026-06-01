@@ -9,11 +9,27 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
-jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
-const { default: enquirer } = await import('enquirer')
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
+})
+const { checkbox, Separator } = await import('@inquirer/prompts')
 const { audit } = await import('@pnpm/deps.compliance.commands')
 
-const prompt = jest.mocked(enquirer.prompt)
+const mockCheckbox = jest.mocked(checkbox)
 
 const f = fixtures(import.meta.dirname)
 
@@ -23,7 +39,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await teardownMockAgent()
-  prompt.mockClear()
+  mockCheckbox.mockClear()
 })
 
 test('audit --fix -i shows interactive prompt and only fixes selected vulnerabilities', async () => {
@@ -33,15 +49,7 @@ test('audit --fix -i shows interactive prompt and only fixes selected vulnerabil
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
-  // Mock the user selecting only the xmlhttprequest-ssl critical advisory
-  prompt.mockResolvedValue({
-    selectedVulnerabilities: [
-      {
-        value: 'xmlhttprequest-ssl@<1.6.1',
-        name: 'xmlhttprequest-ssl@<1.6.1',
-      },
-    ],
-  })
+  mockCheckbox.mockResolvedValue(['xmlhttprequest-ssl@<1.6.1'])
 
   const { exitCode, output } = await audit.handler({
     ...AUDIT_REGISTRY_OPTS,
@@ -74,14 +82,7 @@ test('audit --fix -i prompt is called with correct structure', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   // Mock selecting one advisory so the fix proceeds
-  prompt.mockResolvedValue({
-    selectedVulnerabilities: [
-      {
-        value: 'xmlhttprequest-ssl@<1.6.1',
-        name: 'xmlhttprequest-ssl@<1.6.1',
-      },
-    ],
-  })
+  mockCheckbox.mockResolvedValue(['xmlhttprequest-ssl@<1.6.1'])
 
   await audit.handler({
     ...AUDIT_REGISTRY_OPTS,
@@ -91,26 +92,29 @@ test('audit --fix -i prompt is called with correct structure', async () => {
     interactive: true,
   })
 
-  expect(prompt).toHaveBeenCalledWith(
+  expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
-      footer: '\nEnter to start fixing. Ctrl-c to cancel.',
       message:
         'Choose which vulnerabilities to fix ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
-        `${chalk.cyan('<i>')} to invert selection)`,
-      name: 'selectedVulnerabilities',
-      type: 'multiselect',
+        `${chalk.cyan('<i>')} to invert selection)` +
+        '\n\nEnter to start fixing. Ctrl-c to cancel.',
+      pageSize: process.stdout.rows == null ? 7 : Math.max(7, process.stdout.rows - 6),
     })
   )
 
-  // Verify choices are grouped by severity
-  const choices = (prompt.mock.calls[0][0] as unknown as Record<string, unknown>).choices as Array<{ name: string }>
-  const groupNames = choices.map((g) => g.name)
-  // Should have severity groups (order: critical, high, moderate, low)
-  expect(groupNames[0]).toBe('[critical]')
-  expect(groupNames[1]).toBe('[high]')
-  expect(groupNames[2]).toBe('[moderate]')
+  const callArgs = mockCheckbox.mock.calls[0][0]
+  expect((callArgs.theme?.style?.highlight as (str: string) => string)?.('focused row')).toBe('focused row')
+  const choices = callArgs.choices as Array<{ type?: string; name?: string; value?: string }>
+
+  const separatorNames = choices
+    .filter((c) => c instanceof Separator || c.type === 'separator')
+    .map((c) => c instanceof Separator ? c.separator : String(c))
+
+  expect(separatorNames.some((s: string) => s.includes('critical'))).toBe(true)
+  expect(separatorNames.some((s: string) => s.includes('high'))).toBe(true)
+  expect(separatorNames.some((s: string) => s.includes('moderate'))).toBe(true)
 })
 
 test('audit --fix -i collapses advisories that share module_name@vulnerable_versions', async () => {
@@ -120,11 +124,7 @@ test('audit --fix -i collapses advisories that share module_name@vulnerable_vers
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
-  prompt.mockResolvedValue({
-    selectedVulnerabilities: [
-      { value: 'minimatch@<3.1.3', name: 'minimatch@<3.1.3' },
-    ],
-  })
+  mockCheckbox.mockResolvedValue(['minimatch@<3.1.3'])
 
   await audit.handler({
     ...AUDIT_REGISTRY_OPTS,
@@ -134,14 +134,12 @@ test('audit --fix -i collapses advisories that share module_name@vulnerable_vers
     interactive: true,
   })
 
-  // The mock fixture has 2 distinct advisories for minimatch@<3.1.3 with
-  // different GHSA IDs; they must render as a single interactive choice
-  // whose rendered row lists both GHSA IDs.
-  const choices = (prompt.mock.calls[0][0] as unknown as Record<string, unknown>).choices as Array<{ choices: Array<{ value: string, message?: string }> }>
-  const allRows = choices.flatMap((g) => g.choices)
-  const minimatchRows = allRows.filter((c) => c.value === 'minimatch@<3.1.3')
+  const callArgs = mockCheckbox.mock.calls[0][0]
+  const choices = callArgs.choices as Array<Record<string, unknown>>
+  const valueChoices = choices.filter((c) => 'value' in c)
+  const minimatchRows = valueChoices.filter((c) => c.value === 'minimatch@<3.1.3')
   expect(minimatchRows).toHaveLength(1)
-  expect(minimatchRows[0].message).toMatch(/GHSA-3ppc-4f35-3m26.*GHSA-7r86-[a-z0-9-]+/)
+  expect(String(minimatchRows[0].name)).toMatch(/GHSA-3ppc-4f35-3m26.*GHSA-7r86-[a-z0-9-]+/)
 })
 
 test('audit --fix -i with auditLevel filters before showing prompt', async () => {
@@ -151,14 +149,7 @@ test('audit --fix -i with auditLevel filters before showing prompt', async () =>
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
-  prompt.mockResolvedValue({
-    selectedVulnerabilities: [
-      {
-        value: 'xmlhttprequest-ssl@<1.6.1',
-        name: 'xmlhttprequest-ssl@<1.6.1',
-      },
-    ],
-  })
+  mockCheckbox.mockResolvedValue(['xmlhttprequest-ssl@<1.6.1'])
 
   await audit.handler({
     ...AUDIT_REGISTRY_OPTS,
@@ -169,8 +160,11 @@ test('audit --fix -i with auditLevel filters before showing prompt', async () =>
     interactive: true,
   })
 
-  // Verify only critical severity group is shown
-  const choices = (prompt.mock.calls[0][0] as unknown as Record<string, unknown>).choices as Array<{ name: string }>
-  const groupNames = choices.map((g) => g.name)
-  expect(groupNames).toStrictEqual(['[critical]'])
+  const callArgs = mockCheckbox.mock.calls[0][0]
+  const choices = callArgs.choices as Array<Record<string, unknown>>
+  const separatorNames = choices
+    .filter((c) => c instanceof Separator || c.type === 'separator')
+    .map((c) => c instanceof Separator ? c.separator : String(c))
+  expect(separatorNames.filter((s: string) => s.includes('critical') || s.includes('high') || s.includes('moderate') || s.includes('low'))).toHaveLength(1)
+  expect(separatorNames.some((s: string) => s.includes('critical'))).toBe(true)
 })

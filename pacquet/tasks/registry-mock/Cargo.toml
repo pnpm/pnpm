@@ -1,7 +1,7 @@
 [package]
 name                 = "pacquet-registry-mock"
 version              = "0.0.0"
-description          = "Drives pnpm-registry against @pnpm/registry-mock's shipped storage for pacquet tests"
+description          = "Drives pnpr against the in-repo registry fixtures for pacquet benchmarks"
 publish              = false
 authors.workspace    = true
 edition.workspace    = true
@@ -21,16 +21,17 @@ path = "src/main.rs"
 doc  = false
 
 [dependencies]
-assert_cmd = { workspace = true }
-clap       = { workspace = true }
-home       = { workspace = true }
-pipe-trait = { workspace = true }
-reqwest    = { workspace = true }
-serde      = { workspace = true }
-serde_json = { workspace = true }
-sysinfo    = { workspace = true }
-tokio      = { workspace = true }
-walkdir    = { workspace = true }
+assert_cmd    = { workspace = true }
+clap          = { workspace = true }
+home          = { workspace = true }
+pipe-trait    = { workspace = true }
+pnpr-fixtures = { workspace = true }
+reqwest       = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+sysinfo       = { workspace = true }
+tokio         = { workspace = true }
+walkdir       = { workspace = true }
 
 [lints]
 workspace = true

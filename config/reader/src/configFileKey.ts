@@ -102,6 +102,7 @@ export const excludedPnpmKeys = [
   'hoist',
   'hoist-pattern',
   'hoist-workspace-packages',
+  'hoisting-limits',
   'ignore-compatibility-db',
   'ignore-pnpmfile',
   'ignore-workspace',

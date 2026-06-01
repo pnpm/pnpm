@@ -2,15 +2,31 @@ import path from 'node:path'
 
 import { jest, test } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
-jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
+})
 
-const { default: enquirer } = await import('enquirer')
+const { checkbox } = await import('@inquirer/prompts')
 const { update, install } = await import('@pnpm/installing.commands')
 
-const prompt = jest.mocked(enquirer.prompt)
+const mockCheckbox = jest.mocked(checkbox)
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -60,9 +76,7 @@ test('interactive recursive should not error on git specifier override', async (
     },
   ])
 
-  prompt.mockResolvedValue({
-    updateDependencies: [],
-  })
+  mockCheckbox.mockResolvedValue([])
 
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   const sharedOptions = {

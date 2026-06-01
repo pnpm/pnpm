@@ -9,21 +9,26 @@ enum Evidence {
     None,
     Provenance,
     TrustedPublisher,
+    StagedPublish,
 }
 
 /// Build a JSON object for a single version with the trust-evidence
-/// shape the verifier reads (`_npmUser.trustedPublisher` or
-/// `dist.attestations.provenance`). A `TrustedPublisher` fixture
-/// includes both fields: per `get_trust_evidence`, the publisher
-/// flag only outranks plain provenance when the version also ships a
-/// provenance attestation.
+/// shape the verifier reads (`_npmUser.approver`,
+/// `_npmUser.trustedPublisher`, or `dist.attestations.provenance`). A
+/// `TrustedPublisher` fixture includes both fields: per
+/// `get_trust_evidence`, the publisher flag only outranks plain
+/// provenance when the version also ships a provenance attestation. A
+/// `StagedPublish` fixture carries an `approver`, the strongest signal.
 fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Value {
     let mut dist = serde_json::json!({
         "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
         "shasum": "0000000000000000000000000000000000000000",
         "tarball": format!("https://registry/{name}-{version}.tgz")
     });
-    if matches!(evidence, Evidence::Provenance | Evidence::TrustedPublisher) {
+    if matches!(
+        evidence,
+        Evidence::Provenance | Evidence::TrustedPublisher | Evidence::StagedPublish,
+    ) {
         dist["attestations"] = serde_json::json!({
             "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
         });
@@ -37,6 +42,11 @@ fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Va
     if matches!(evidence, Evidence::TrustedPublisher) {
         version_obj["_npmUser"] = serde_json::json!({
             "trustedPublisher": { "id": "github", "oidcConfigId": "release" }
+        });
+    }
+    if matches!(evidence, Evidence::StagedPublish) {
+        version_obj["_npmUser"] = serde_json::json!({
+            "approver": { "name": "approver", "email": "approver@example.com" }
         });
     }
     version_obj
@@ -87,6 +97,23 @@ fn trusted_publisher_to_provenance_downgrade_fails() {
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
+/// Earlier version had `stagedPublish` (an approver), current version
+/// has only `trustedPublisher` → DOWNGRADE. Staged publish outranks a
+/// trusted publisher.
+#[test]
+fn staged_publish_to_trusted_publisher_downgrade_fails() {
+    let meta = make_package(
+        "acme",
+        &[
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::StagedPublish),
+            ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::TrustedPublisher),
+        ],
+    );
+    let err = fail_if_trust_downgraded(&meta, "2.0.0", &TrustCheckOptions::default())
+        .expect_err("staged-publish → trusted-publisher is a downgrade");
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}
+
 /// Earlier version had `provenance`, current version has no
 /// evidence at all → DOWNGRADE.
 #[test]
@@ -101,6 +128,41 @@ fn provenance_to_unsigned_downgrade_fails() {
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("provenance → no evidence is a downgrade");
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}
+
+/// Earlier version had `trustedPublisher`, current version has no
+/// evidence at all → DOWNGRADE. Mirrors upstream's "downgrading from
+/// trustedPublisher to none" case, with a third unsigned version
+/// before the publisher version to exercise the full history walk.
+#[test]
+fn trusted_publisher_to_unsigned_downgrade_fails() {
+    let meta = make_package(
+        "acme",
+        &[
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None),
+            ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::TrustedPublisher),
+            ("3.0.0", "2025-03-01T00:00:00.000Z", Evidence::None),
+        ],
+    );
+    let err = fail_if_trust_downgraded(&meta, "3.0.0", &TrustCheckOptions::default())
+        .expect_err("trusted-publisher → no evidence is a downgrade");
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}
+
+/// No version in the history carries any trust evidence, so there is
+/// no baseline to downgrade from → passes. Mirrors upstream's
+/// "succeeds when no versions have attestation".
+#[test]
+fn no_evidence_anywhere_passes() {
+    let meta = make_package(
+        "acme",
+        &[
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None),
+            ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
+        ],
+    );
+    fail_if_trust_downgraded(&meta, "2.0.0", &TrustCheckOptions::default())
+        .expect("no evidence anywhere → no downgrade possible");
 }
 
 /// Equal-rank evidence (provenance → provenance) is not a
@@ -266,6 +328,44 @@ fn exclude_exact_version_short_circuits_check() {
     assert!(err.is_none(), "1.0.0 has its own trusted-publisher → passes");
 }
 
+/// An excluded `name@version` short-circuits *before* the `time`
+/// lookup, so a packument with no `time` map still passes rather than
+/// surfacing `TrustCheckFailed`. Pins the ordering of the exclude
+/// check ahead of the time assertion. Mirrors upstream's "does not
+/// fail with ERR_PNPM_MISSING_TIME when package@version is excluded".
+#[test]
+fn exclude_exact_version_with_missing_time_does_not_fail() {
+    let mut meta = make_package("acme", &[("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None)]);
+    if let Some(time) = meta.time.as_mut() {
+        time.clear();
+    }
+    let exclude = create_package_version_policy(["acme@1.0.0"]).unwrap();
+    let opts = TrustCheckOptions { trust_policy_exclude: Some(&exclude), ..Default::default() };
+    fail_if_trust_downgraded(&meta, "1.0.0", &opts)
+        .expect("excluded version short-circuits before the missing-time check");
+}
+
+/// Same as above, but the whole package name is excluded. Mirrors
+/// upstream's "does not fail with ERR_PNPM_MISSING_TIME when package
+/// name is excluded".
+#[test]
+fn exclude_package_name_with_missing_time_does_not_fail() {
+    let mut meta = make_package(
+        "acme",
+        &[
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None),
+            ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
+        ],
+    );
+    if let Some(time) = meta.time.as_mut() {
+        time.clear();
+    }
+    let exclude = create_package_version_policy(["acme"]).unwrap();
+    let opts = TrustCheckOptions { trust_policy_exclude: Some(&exclude), ..Default::default() };
+    fail_if_trust_downgraded(&meta, "2.0.0", &opts)
+        .expect("excluded package short-circuits before the missing-time check");
+}
+
 /// Missing `time` entry for the target version surfaces as
 /// `TrustCheckFailed`. Mirrors upstream's
 /// `Missing time for version X of Y` PnpmError.
@@ -353,6 +453,24 @@ mod get_trust_evidence {
             get_trust_evidence(&parse(version)),
             Some(TrustEvidence::TrustedPublisher)
         ));
+    }
+
+    /// `_npmUser.approver` ranks as `StagedPublish`, the strongest
+    /// evidence.
+    #[test]
+    fn approver_ranks_as_staged_publish() {
+        let version = version_json("acme", "1.0.0", Evidence::StagedPublish);
+        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
+    }
+
+    /// `_npmUser.approver` wins even when `trustedPublisher` and
+    /// provenance are also present — staged publish takes priority.
+    #[test]
+    fn approver_outranks_trusted_publisher() {
+        let mut version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
+        version["_npmUser"]["approver"] =
+            serde_json::json!({ "name": "approver", "email": "approver@example.com" });
+        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
     }
 
     /// `dist.attestations.provenance` alone ranks as `Provenance`.

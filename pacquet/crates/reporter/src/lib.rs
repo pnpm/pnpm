@@ -12,11 +12,12 @@
 //! channels are added incrementally as the surrounding code starts using
 //! them.
 
-use std::io::Write;
-use std::sync::LazyLock;
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use serde::Serialize;
+use std::{
+    io::Write,
+    sync::LazyLock,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 /// One log channel from `@pnpm/core-loggers`.
 ///

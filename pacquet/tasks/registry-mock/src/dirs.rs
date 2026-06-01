@@ -31,37 +31,23 @@ pub fn workspace_root() -> &'static Path {
     })
 }
 
-pub fn registry_mock() -> &'static Path {
-    static REGISTRY_MOCK: OnceLock<PathBuf> = OnceLock::new();
-    REGISTRY_MOCK
-        .get_or_init(|| workspace_root().join("pacquet").join("tasks").join("registry-mock"))
-}
-
-/// The verdaccio-shaped storage that `@pnpm/registry-mock`'s published
-/// npm tarball ships under `registry/storage-cache/`. We don't serve
-/// directly from here — see [`runtime_storage`] for why — but we
-/// seed [`runtime_storage`] from it on every launch.
+/// The verdaccio-shaped storage built from the in-repo package fixtures
+/// (`pnpr/.fixtures/packages`) — the same storage pacquet's tests serve.
+/// We don't serve directly from here — see [`runtime_storage`] for why — but
+/// we seed [`runtime_storage`] from it on every launch.
 pub fn registry_mock_storage() -> &'static Path {
-    static STORAGE: OnceLock<PathBuf> = OnceLock::new();
-    STORAGE.get_or_init(|| {
-        registry_mock()
-            .join("node_modules")
-            .join("@pnpm")
-            .join("registry-mock")
-            .join("registry")
-            .join("storage-cache")
-    })
+    pnpr_fixtures::ensure_storage()
 }
 
-/// Stable cache path we hand to `pnpm-registry --storage` (instead
+/// Stable cache path we hand to `pnpr --storage` (instead
 /// of [`registry_mock_storage`]). Two reasons it has to be separate
 /// and stable:
 ///
-/// 1. `pnpm-registry` writes proxy-mode cache entries (the ~2.3k
+/// 1. `pnpr` writes proxy-mode cache entries (the ~2.3k
 ///    unscoped npm packages the benchmark lockfile pulls) into
-///    `--storage`. If we pointed at the registry-mock package's
-///    install dir we'd pollute `node_modules` and lose every cached
-///    entry when `pnpm install` recreates it.
+///    `--storage`. If we pointed at the generated fixture storage
+///    we'd mix proxy-cache entries into it and lose them whenever the
+///    fixtures are rebuilt.
 /// 2. CI caches this path across runs
 ///    (`.github/workflows/pacquet-integrated-benchmark.yml`). Without
 ///    that, cold-cache scenarios pay a full 2.3k-packument fetch

@@ -7,13 +7,13 @@ import { depPathToFilename } from '@pnpm/deps.path'
 import { createClient } from '@pnpm/installing.client'
 import { createPackageRequester, type PackageResponse } from '@pnpm/installing.package-requester'
 import { streamParser } from '@pnpm/logger'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions } from '@pnpm/store.controller-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { restartWorkerPool } from '@pnpm/worker'
 import delay from 'delay'
 import normalize from 'normalize-path'
@@ -435,6 +435,57 @@ test('force fetch when resolution integrity differs from current package integri
   // Fetching should occur because integrity changed
   const { files } = await response.fetching()
   expect(files.resolvedFrom).toBe('remote')
+})
+
+// https://github.com/pnpm/pnpm/issues/12001
+test('integrity of a tarball dependency is preserved when the resolver returns no integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  const tarball = 'https://example.com/foo/-/foo-1.0.0.tgz'
+  const integrity = 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg=='
+
+  // URL/tarball resolvers don't return an integrity, because it is only known
+  // after the tarball is downloaded. This mimics @pnpm/resolving.tarball-resolver.
+  const customResolve: typeof resolve = async () => ({
+    id: tarball as PkgResolutionId,
+    normalizedBareSpecifier: tarball,
+    resolution: { tarball },
+    resolvedVia: 'url',
+    manifest: {
+      name: 'foo',
+      version: '1.0.0',
+    },
+  })
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // The package is already in the lockfile (currentPkg) with its integrity, and
+  // it is not re-fetched (skipFetch). The integrity from the resolver is absent,
+  // so it must be carried over from the current package instead of being dropped.
+  const response = await requestPackage({ alias: 'foo', bareSpecifier: tarball }, {
+    currentPkg: {
+      id: tarball as PkgResolutionId,
+      resolution: { tarball, integrity },
+    },
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+    update: false,
+  })
+
+  expect(response.body.updated).toBe(false)
+  expect(response.body.resolution).toStrictEqual({ tarball, integrity })
 })
 
 test('fetchPackageToStore()', async () => {

@@ -1,5 +1,37 @@
 # @pnpm/default-resolver
 
+## 1100.3.4
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.3
+  - @pnpm/resolving.git-resolver@1100.1.2
+  - @pnpm/resolving.tarball-resolver@1100.1.1
+  - @pnpm/engine.runtime.bun-resolver@1101.1.4
+  - @pnpm/engine.runtime.deno-resolver@1101.1.4
+
+## 1100.3.3
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/engine.runtime.node-resolver@1101.1.2
+  - @pnpm/resolving.local-resolver@1101.1.2
+  - @pnpm/engine.runtime.bun-resolver@1101.1.3
+  - @pnpm/engine.runtime.deno-resolver@1101.1.3
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/resolving.git-resolver@1100.1.1
+  - @pnpm/resolving.tarball-resolver@1100.1.1
+
 ## 1100.3.2
 
 ### Patch Changes

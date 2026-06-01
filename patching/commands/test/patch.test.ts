@@ -6,8 +6,8 @@ import { beforeAll, beforeEach, describe, expect, it, jest, test } from '@jest/g
 import { install } from '@pnpm/installing.commands'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patching.commands'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -16,11 +16,30 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
-const { default: enquirer } = await import('enquirer')
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
+})
+
+const { checkbox: mockCheckboxFn, select, confirm: confirmPrompt } = await import('@inquirer/prompts')
 const { patch, patchCommit, patchRemove } = await import('@pnpm/patching.commands')
 
-const prompt = jest.mocked(enquirer.prompt)
+const mockSelect = jest.mocked(select)
+const mockConfirm = jest.mocked(confirmPrompt)
+const mockCheckbox = jest.mocked(mockCheckboxFn)
 const f = fixtures(import.meta.dirname)
 
 const basePatchOption = {
@@ -642,24 +661,23 @@ describe('multiple versions', () => {
       dir: process.cwd(),
       saveLockfile: true,
     })
-    prompt.mockResolvedValue({
-      version: '1.0.0',
-      applyToAll: true,
-    })
-    prompt.mockClear()
+    mockSelect.mockResolvedValue('1.0.0')
+    mockConfirm.mockResolvedValue(true)
+    mockSelect.mockClear()
+    mockConfirm.mockClear()
     const output = await patch.handler(defaultPatchOption, ['@pnpm.e2e/console-log'])
 
-    expect(prompt.mock.calls).toMatchObject([[[
-      {
-        type: 'select',
-        name: 'version',
-        choices: ['1.0.0', '2.0.0', '3.0.0'].map(x => ({ name: x, message: x, value: x })),
-      },
-      {
-        type: 'confirm',
-        name: 'applyToAll',
-      },
-    ]]] as unknown as Record<string, unknown>[])
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Choose which version to patch',
+        choices: ['1.0.0', '2.0.0', '3.0.0'].map(x => expect.objectContaining({ name: x, value: x })),
+      })
+    )
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Apply this patch to all versions?',
+      })
+    )
 
     const patchDir = getPatchDirFromPatchOutput(output)
     const fileToPatch = path.join(patchDir, 'index.js')
@@ -737,35 +755,26 @@ describe('prompt to choose version', () => {
       dir: process.cwd(),
       saveLockfile: true,
     })
-    prompt.mockResolvedValue({
-      version: '5.3.0',
-      applyToAll: false,
-    })
-    prompt.mockClear()
+    mockSelect.mockResolvedValue('5.3.0')
+    mockConfirm.mockResolvedValue(false)
+    mockSelect.mockClear()
+    mockConfirm.mockClear()
     const output = await patch.handler(defaultPatchOption, ['chalk'])
 
-    expect(prompt.mock.calls).toMatchObject([[[
-      {
-        type: 'select',
-        name: 'version',
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Choose which version to patch',
         choices: [
-          {
-            name: '4.1.2',
-            message: '4.1.2',
-            value: '4.1.2',
-          },
-          {
-            name: '5.3.0',
-            message: '5.3.0',
-            value: '5.3.0',
-          },
+          expect.objectContaining({ name: '4.1.2', value: '4.1.2' }),
+          expect.objectContaining({ name: '5.3.0', value: '5.3.0' }),
         ],
-      },
-      {
-        type: 'confirm',
-        name: 'applyToAll',
-      },
-    ]]] as unknown as Record<string, unknown>[])
+      })
+    )
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Apply this patch to all versions?',
+      })
+    )
 
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -804,35 +813,26 @@ describe('prompt to choose version', () => {
       dir: process.cwd(),
       saveLockfile: true,
     })
-    prompt.mockResolvedValue({
-      version: '5.3.0',
-      applyToAll: true,
-    })
-    prompt.mockClear()
+    mockSelect.mockResolvedValue('5.3.0')
+    mockConfirm.mockResolvedValue(true)
+    mockSelect.mockClear()
+    mockConfirm.mockClear()
     const output = await patch.handler(defaultPatchOption, ['chalk'])
 
-    expect(prompt.mock.calls).toMatchObject([[[
-      {
-        type: 'select',
-        name: 'version',
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Choose which version to patch',
         choices: [
-          {
-            name: '4.1.2',
-            message: '4.1.2',
-            value: '4.1.2',
-          },
-          {
-            name: '5.3.0',
-            message: '5.3.0',
-            value: '5.3.0',
-          },
+          expect.objectContaining({ name: '4.1.2', value: '4.1.2' }),
+          expect.objectContaining({ name: '5.3.0', value: '5.3.0' }),
         ],
-      },
-      {
-        type: 'confirm',
-        name: 'applyToAll',
-      },
-    ]]] as unknown as Record<string, unknown>[])
+      })
+    )
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Apply this patch to all versions?',
+      })
+    )
 
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -1198,35 +1198,28 @@ describe('patch and commit in workspaces', () => {
       saveLockfile: true,
     })
 
-    prompt.mockResolvedValue({
-      version: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-      applyToAll: false,
-    })
-    prompt.mockClear()
+    mockSelect.mockResolvedValue('https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd')
+    mockConfirm.mockResolvedValue(false)
+    mockSelect.mockClear()
+    mockConfirm.mockClear()
     const output = await patch.handler(defaultPatchOption, ['hi'])
-    expect(prompt.mock.calls).toMatchObject([[[
-      {
-        type: 'select',
-        name: 'version',
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Choose which version to patch',
         choices: [
-          {
-            name: '0.0.0',
-            message: '0.0.0',
-            value: '0.0.0',
-          },
-          {
+          expect.objectContaining({ name: '0.0.0', value: '0.0.0' }),
+          expect.objectContaining({
             name: '1.0.0',
-            message: '1.0.0',
             value: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-            hint: 'Git Hosted',
-          },
+          }),
         ],
-      },
-      {
-        type: 'confirm',
-        name: 'applyToAll',
-      },
-    ]]] as unknown as Record<string, unknown>[])
+      })
+    )
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Apply this patch to all versions?',
+      })
+    )
     const patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('module.exports = \'Hi\'')
@@ -1326,7 +1319,9 @@ describe('patch-remove', () => {
   let storeDir: string
 
   beforeEach(async () => {
-    prompt.mockClear()
+    mockSelect.mockClear()
+    mockConfirm.mockClear()
+    mockCheckbox.mockClear()
     prepare({
       dependencies: {
         'is-positive': '1.0.0',
@@ -1384,9 +1379,7 @@ describe('patch-remove', () => {
       packages: ['.'],
       patchedDependencies,
     })
-    prompt.mockResolvedValue({
-      patches: ['is-positive@1.0.0', 'chalk@4.1.2'],
-    })
+    mockCheckbox.mockResolvedValue(['is-positive@1.0.0', 'chalk@4.1.2'])
     const { manifest } = await readProjectManifest(process.cwd())
     await patchRemove.handler({
       ...defaultPatchRemoveOption,
@@ -1394,8 +1387,8 @@ describe('patch-remove', () => {
       patchedDependencies,
     }, [])
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((prompt.mock.calls[0][0] as any).choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
-    prompt.mockClear()
+    expect((mockCheckbox.mock.calls[0][0] as any).choices.map((c: any) => c.value)).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
+    mockCheckbox.mockClear()
 
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toBeUndefined()

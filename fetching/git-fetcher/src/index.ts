@@ -26,6 +26,9 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
   const ignoreScripts = createOpts.ignoreScripts ?? false
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
+    if (!isValidCommitHash(resolution.commit)) {
+      throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${resolution.commit}" for repository "${resolution.repo}". Expected a 40-character hexadecimal SHA.`)
+    }
     const tempLocation = await cafs.tempDir()
     if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
       await execGit(['init'], { cwd: tempLocation })
@@ -76,6 +79,10 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
   return {
     git: gitFetcher,
   }
+}
+
+function isValidCommitHash (commit: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(commit)
 }
 
 function shouldUseShallow (repoUrl: string, allowedHosts: Set<string>): boolean {

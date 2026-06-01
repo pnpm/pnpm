@@ -68,7 +68,7 @@ export interface Client {
 
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri)
 
   // One per-install LRU shared with both the resolver's pickPackage
   // pass and the verifier's lookup chain. When the resolver populates
@@ -87,7 +87,7 @@ export function createClient (opts: ClientOptions): Client {
 
 export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { resolve: ResolveFunction, resolveLatest: ResolveLatestDispatcher, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri)
 
   return _createResolver(fetchFromRegistry, getAuthHeader, { ...opts, customResolvers: opts.customResolvers })
 }

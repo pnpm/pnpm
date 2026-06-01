@@ -16,24 +16,64 @@ use reqwest::{
 use std::{collections::HashMap, num::NonZeroUsize, ops::Deref, sync::Arc, time::Duration};
 use tokio::sync::{Semaphore, SemaphorePermit};
 
-/// Default `User-Agent` pacquet sends on every request made by the
-/// install client — registry metadata fetches and tarball downloads
-/// alike, including tarball URLs that point at non-registry hosts.
+/// Fallback `User-Agent` for the install client's no-config
+/// constructors ([`ThrottledClient::new_for_installs`],
+/// [`ThrottledClient::from_client`]) and for the case where a
+/// configured user-agent string cannot be encoded as an HTTP header
+/// value.
 ///
-/// Identical to pnpm v11's
-/// [`network/fetch/src/fetchFromRegistry.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/network/fetch/src/fetchFromRegistry.ts#L9):
-/// the literal string `pnpm`. A default `reqwest::Client` sends *no*
-/// User-Agent at all, which some registry CDNs and corporate WAFs
-/// treat as a bot signature and either block at the edge or terminate
-/// mid-handshake (surfacing as a generic "error sending request for
-/// url" with no body to look at).
+/// Production installs override this with the value resolved by
+/// `pacquet-config` (`userAgent`, defaulting to pnpm's
+/// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format — see
+/// `config/reader/src/index.ts`). The `pnpm` token is preserved in
+/// that default so any UA-keyed allow / rate-limit rule that lets pnpm
+/// through also lets pacquet through.
 ///
-/// We deliberately send `pnpm` rather than `pacquet/<version>` so
-/// any UA-keyed allow / rate-limit rule that lets pnpm through also
-/// lets pacquet through. Pacquet is a port of pnpm; behavioural
-/// parity, including what the registry sees on the wire, is the
-/// goal.
-const DEFAULT_USER_AGENT: &str = "pnpm";
+/// A default `reqwest::Client` sends *no* User-Agent at all, which
+/// some registry CDNs and corporate WAFs treat as a bot signature and
+/// either block at the edge or terminate mid-handshake (surfacing as a
+/// generic "error sending request for url" with no body to look at).
+/// The install client therefore always sends one.
+pub const DEFAULT_USER_AGENT: &str = "pnpm";
+
+/// Default per-request timeout in milliseconds, matching pnpm v11's
+/// `fetchTimeout` default of `60000`
+/// ([`config/reader/src/index.ts:151`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L151)).
+/// Source of truth for `pacquet-config`'s `default_fetch_timeout`.
+pub const DEFAULT_FETCH_TIMEOUT_MS: u64 = 60_000;
+
+/// Tunable network knobs threaded into the install client. Ports
+/// pnpm's `networkConcurrency`, `fetchTimeout`, and `userAgent`
+/// settings; `pacquet-config` owns their defaults and override
+/// sources (`pnpm-workspace.yaml`, `PNPM_CONFIG_*`, CLI flags) and
+/// hands the resolved values here.
+#[derive(Debug, Clone)]
+pub struct NetworkSettings {
+    /// Maximum number of concurrent in-flight network requests — the
+    /// semaphore size. Default: [`default_network_concurrency`].
+    pub network_concurrency: usize,
+
+    /// Per-request total deadline, applied as both reqwest's response
+    /// timeout and its connect timeout — mirroring pnpm, whose
+    /// `AbortSignal.timeout(fetchTimeout)` bounds the whole request and
+    /// whose undici `connectTimeout` is `fetchTimeout + 1`. Default:
+    /// [`DEFAULT_FETCH_TIMEOUT_MS`].
+    pub fetch_timeout: Duration,
+
+    /// Value of the `User-Agent` header sent on every request.
+    /// Default: [`DEFAULT_USER_AGENT`].
+    pub user_agent: String,
+}
+
+impl Default for NetworkSettings {
+    fn default() -> Self {
+        NetworkSettings {
+            network_concurrency: default_network_concurrency(),
+            fetch_timeout: Duration::from_millis(DEFAULT_FETCH_TIMEOUT_MS),
+            user_agent: DEFAULT_USER_AGENT.to_string(),
+        }
+    }
+}
 
 /// Wrapper around [`Client`] with concurrent request limit enforced by the [`Semaphore`] mechanism.
 ///
@@ -105,7 +145,7 @@ impl ThrottledClient {
     /// Construct the default throttled client used for real installs.
     ///
     /// Network topology is ported from pnpm v11's
-    /// `network/fetch/src/dispatcher.ts` (see #280):
+    /// `network/fetch/src/dispatcher.ts` (see [#280](https://github.com/pnpm/pacquet/issues/280)):
     ///
     /// * **HTTP/1.1 only.** A default `reqwest::Client` upgrades to
     ///   HTTP/2 via ALPN whenever the registry advertises it
@@ -115,17 +155,18 @@ impl ThrottledClient {
     ///   window was slower than opening ~50 independent HTTP/1.1
     ///   connections that each get their own congestion window and
     ///   saturate bandwidth in parallel.
-    /// * **`network_concurrency` concurrent in-flight requests**,
-    ///   matching pnpm's `networkConcurrency` default (see
-    ///   [`default_network_concurrency`]). Pnpm uses a 50-socket
-    ///   per-host pool ceiling (`DEFAULT_MAX_SOCKETS` in
+    /// * **[`NetworkSettings::network_concurrency`] concurrent
+    ///   in-flight requests**, defaulting to pnpm's `networkConcurrency`
+    ///   formula (see [`default_network_concurrency`]). Pnpm uses a
+    ///   50-socket per-host pool ceiling (`DEFAULT_MAX_SOCKETS` in
     ///   `network/fetch/src/dispatcher.ts`) *and* a smaller
     ///   request-level cap that bounds how many fetches it actually
     ///   runs at once; pacquet's semaphore plays the second role.
-    /// * **`User-Agent: pnpm`** matching pnpm's
-    ///   `fetchFromRegistry.ts`. A default `reqwest::Client` sends
-    ///   no UA, which can trip CDN / WAF rules that reject or RST
-    ///   bot-shaped traffic before any HTTP response is produced.
+    /// * **A `User-Agent` header** ([`NetworkSettings::user_agent`],
+    ///   defaulting to [`DEFAULT_USER_AGENT`]). A default
+    ///   `reqwest::Client` sends no UA, which can trip CDN / WAF rules
+    ///   that reject or RST bot-shaped traffic before any HTTP response
+    ///   is produced.
     ///
     /// `pool_idle_timeout(4s)` matches
     /// [`agentkeepalive`'s](https://github.com/node-modules/agentkeepalive/blob/1e5e312f36/lib/agent.js#L39-L41)
@@ -139,13 +180,14 @@ impl ThrottledClient {
     /// runs hundreds of fetches in seconds) but well below the
     /// typical edge keepalive.
     ///
-    /// `timeout(5min)` is the per-request deadline, not the socket
-    /// inactivity timeout. A default `reqwest::Client` has no
-    /// deadlines at all, so a stalled upstream hangs the install
-    /// indefinitely. 5 min is deliberately generous — npm tarballs
-    /// are usually under 5 MB but can reach hundreds of MB on slow
-    /// connections — and catches truly stuck sockets, not
-    /// short-lived hiccups.
+    /// [`NetworkSettings::fetch_timeout`] is the per-request deadline,
+    /// not the socket inactivity timeout. A default `reqwest::Client`
+    /// has no deadlines at all, so a stalled upstream hangs the install
+    /// indefinitely. It is applied as both the response timeout and the
+    /// connect timeout, mirroring pnpm — whose `AbortSignal.timeout`
+    /// bounds the whole fetch and whose undici `connectTimeout` is
+    /// `fetchTimeout + 1`. Default: [`DEFAULT_FETCH_TIMEOUT_MS`] (60s),
+    /// matching pnpm's `fetchTimeout`.
     ///
     /// `hickory_dns(true)` swaps reqwest's default resolver
     /// (tokio's `lookup_host`, which calls the platform's blocking
@@ -166,6 +208,7 @@ impl ThrottledClient {
             &ProxyConfig::default(),
             &TlsConfig::default(),
             &PerRegistryTls::default(),
+            &NetworkSettings::default(),
         )
         .expect("default proxy + TLS configs carry no URLs/PEMs and cannot fail")
     }
@@ -208,13 +251,17 @@ impl ThrottledClient {
         proxy: &ProxyConfig,
         tls: &TlsConfig,
         per_registry: &PerRegistryTls,
+        settings: &NetworkSettings,
     ) -> Result<Self, ForInstallsError> {
+        if settings.network_concurrency == 0 {
+            return Err(ForInstallsError::ZeroNetworkConcurrency);
+        }
         let https = proxy.https_proxy.as_deref().map(parse_proxy_url).transpose()?;
         let http = proxy.http_proxy.as_deref().map(parse_proxy_url).transpose()?;
         let no_proxy = Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref()));
 
         let build_client = |effective_tls: &TlsConfig| -> Result<Client, ForInstallsError> {
-            let mut builder = default_client_builder();
+            let mut builder = default_client_builder(settings);
             if let Some(url) = https.clone() {
                 builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&no_proxy)));
             }
@@ -240,7 +287,7 @@ impl ThrottledClient {
         }
 
         Ok(ThrottledClient {
-            semaphore: Semaphore::new(default_network_concurrency()),
+            semaphore: Semaphore::new(settings.network_concurrency),
             client: default_client,
             per_registry: per_registry_clients,
             routing: per_registry.clone(),
@@ -297,15 +344,23 @@ impl ThrottledClient {
 /// ([`ThrottledClient::new_for_installs`] documents the why behind each
 /// setting). Both `new_for_installs` and [`ThrottledClient::for_installs`]
 /// route through this helper so a single source of truth governs
-/// timeouts, HTTP-version, resolver, and the default User-Agent header.
-fn default_client_builder() -> reqwest::ClientBuilder {
+/// timeouts, HTTP-version, resolver, and the User-Agent header.
+///
+/// `settings.fetch_timeout` drives both the per-request response
+/// timeout and the connect timeout (matching pnpm's `AbortSignal`
+/// total deadline and undici `connectTimeout = fetchTimeout + 1`).
+/// `settings.user_agent` is sent verbatim; a value that cannot be
+/// encoded as an HTTP header falls back to [`DEFAULT_USER_AGENT`].
+fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder {
+    let user_agent = HeaderValue::from_str(&settings.user_agent)
+        .unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_USER_AGENT));
     let mut default_headers = HeaderMap::with_capacity(1);
-    default_headers.insert(USER_AGENT, HeaderValue::from_static(DEFAULT_USER_AGENT));
+    default_headers.insert(USER_AGENT, user_agent);
     Client::builder()
         .http1_only()
         .default_headers(default_headers)
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(300))
+        .connect_timeout(settings.fetch_timeout)
+        .timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4))
         .hickory_dns(true)
 }
@@ -435,6 +490,14 @@ pub enum ForInstallsError {
 
     #[diagnostic(transparent)]
     Tls(#[error(source)] TlsError),
+
+    /// `network_concurrency` resolved to `0`. A zero-permit
+    /// [`Semaphore`] would make every `acquire` block forever, hanging
+    /// the install. pnpm rejects the same value — its `p-queue` throws
+    /// `Expected concurrency to be a number from 1 and up` — so pacquet
+    /// fails fast rather than deadlock.
+    #[display("networkConcurrency must be at least 1")]
+    ZeroNetworkConcurrency,
 }
 
 impl From<ProxyError> for ForInstallsError {

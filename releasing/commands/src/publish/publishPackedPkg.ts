@@ -17,7 +17,7 @@ import { createFailedToPublishError } from './FailedToPublishError.js'
 import { AuthTokenError, fetchAuthToken } from './oidc/authToken.js'
 import { getIdToken, IdTokenError } from './oidc/idToken.js'
 import { determineProvenance, ProvenanceError } from './oidc/provenance.js'
-import { type OtpContext, publishWithOtpHandling } from './otp.js'
+import { type OtpContext, type PublishOptionsWithDefaultAccess, publishWithOtpHandling } from './otp.js'
 import type { PackResult } from './pack.js'
 import { allRegistryConfigKeys, type NormalizedRegistryUrl, parseSupportedRegistryUrl } from './registryConfigKeys.js'
 import { SHARED_CONTEXT } from './utils/shared-context.js'
@@ -114,7 +114,7 @@ export function createPublishContext (opts: PublishPackedPkgOptions): OtpContext
   }
 }
 
-type StagePublishOptions = PublishOptions & {
+type StagePublishOptions = PublishOptionsWithDefaultAccess & {
   command?: string
   stage?: boolean
 }
@@ -123,7 +123,7 @@ type StagePublishOptions = PublishOptions & {
  * @internal Exported for unit testing of the access / registry / auth fallback rules. Not part of the package's
  *   public API.
  */
-export async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<PublishOptions> {
+export async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<StagePublishOptions> {
   const publishConfigRegistry = typeof manifest.publishConfig?.registry === 'string'
     ? manifest.publishConfig.registry
     : undefined
@@ -131,7 +131,7 @@ export async function createPublishOptions (manifest: ExportedManifest, options:
   const { creds, tls } = config ?? {}
 
   const publishConfigAccess = manifest.publishConfig?.access
-  const access = options.access ?? (isPublishAccess(publishConfigAccess) ? publishConfigAccess : undefined)
+  const access = options.access ?? (isPublishAccess(publishConfigAccess) ? publishConfigAccess : null)
 
   const {
     ci: isFromCI,
@@ -249,15 +249,6 @@ function findRegistryInfo (
     creds ??= entry.creds
     // TLS from longer path individually overrides shorter path
     tls = { ...entry.tls, ...tls }
-  }
-
-  const isDefaultRegistry =
-    nonNormalizedRegistry === registries.default ||
-    registry === registries.default ||
-    registry === parseSupportedRegistryUrl(registries.default)?.normalizedUrl
-
-  if (isDefaultRegistry) {
-    creds ??= configByUri['']?.creds
   }
 
   return {
@@ -389,7 +380,7 @@ export async function fetchTokenAndProvenanceByOidc (
  * instead of `token`.
  * This function fixes that by making sure the registry specific authentication information exists.
  */
-function appendAuthOptionsForRegistry (targetPublishOptions: PublishOptions, registry: NormalizedRegistryUrl): void {
+function appendAuthOptionsForRegistry (targetPublishOptions: StagePublishOptions, registry: NormalizedRegistryUrl): void {
   const registryInfo = parseSupportedRegistryUrl(registry)
   if (!registryInfo) {
     globalWarn(`The registry ${registry} cannot be converted into a config key. Supplement is skipped. Subsequent libnpmpublish call may fail.`)

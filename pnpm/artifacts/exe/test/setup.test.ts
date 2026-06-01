@@ -166,10 +166,21 @@ function buildWinSetupSandbox (): string {
   fs.writeFileSync(path.join(platformDir, 'package.json'), JSON.stringify({
     name: platformPkgName, version: '0.0.0',
   }))
-  // Hardlink the test's own node.exe as the platform binary. setup.js then
+  // Seed the platform binary with the test's own node.exe. setup.js then
   // hardlinks it again into the sandbox @pnpm/exe dir; downstream tests can
   // invoke the resulting `pnpx.exe` (etc.) and assert the alias actually ran.
-  fs.linkSync(process.execPath, path.join(platformDir, 'pnpm.exe'))
+  // A hardlink is enough and avoids copying ~80MB, but it can't span volumes
+  // — on GitHub's Windows runners the workspace (and node) sit on `D:` while
+  // `os.tmpdir()` is on `C:`, so fall back to a copy when the link is
+  // cross-device. The seed's identity doesn't matter here; the assertions
+  // exercise setup.js's own intra-sandbox hardlinking.
+  const seedTarget = path.join(platformDir, 'pnpm.exe')
+  try {
+    fs.linkSync(process.execPath, seedTarget)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    fs.copyFileSync(process.execPath, seedTarget)
+  }
   // platform-pkg-name.js calls into detect-libc; make the package resolvable
   // from the sandbox. On Windows, use a junction — non-junction directory
   // symlinks require Developer Mode or admin privileges, which Windows CI and

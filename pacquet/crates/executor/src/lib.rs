@@ -6,7 +6,8 @@ mod shell;
 
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use lifecycle::{
-    LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook, run_postinstall_hooks,
+    LifecycleScriptError, PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, run_lifecycle_hook,
+    run_postinstall_hooks, run_project_lifecycle_scripts,
 };
 pub use make_env::{EnvBuild, EnvOptions, build_env};
 pub use run_script::{RunScript, RunScriptError, run_script};
@@ -37,5 +38,5 @@ pub fn execute_shell(command: &str) -> Result<(), ExecutorError> {
     Ok(())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests;

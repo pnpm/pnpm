@@ -1,5 +1,106 @@
 # @pnpm/core
 
+## 1101.6.0
+
+### Minor Changes
+
+- 2cadfb5: Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+### Patch Changes
+
+- a33c4bf: Skip dependency re-resolution when `pnpm-lock.yaml` is missing but `node_modules/.pnpm/lock.yaml` exists and still satisfies the manifest. `pnpm install` now reuses the materialized snapshot to regenerate `pnpm-lock.yaml` instead of walking the registry to rebuild it from scratch, turning the cache+node_modules variation into a near-no-op for users who deleted the lockfile but kept the install [#11993](https://github.com/pnpm/pnpm/issues/11993).
+
+  `--frozen-lockfile` still refuses to proceed when `pnpm-lock.yaml` is absent — the regenerated lockfile must be committed, so failing loudly is the correct behavior for CI.
+
+- Updated dependencies [39101f5]
+- Updated dependencies [3cf2b86]
+- Updated dependencies [a33c4bf]
+  - @pnpm/installing.deps-resolver@1100.1.5
+  - @pnpm/installing.package-requester@1101.0.10
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/installing.deps-restorer@1101.1.7
+  - @pnpm/building.after-install@1101.0.18
+  - @pnpm/building.during-install@1101.0.15
+  - @pnpm/lockfile.verification@1100.0.14
+  - @pnpm/lockfile.settings-checker@1100.0.14
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/fs.symlink-dependency@1100.0.6
+
+## 1101.5.0
+
+### Minor Changes
+
+- aa6149d: Treat tarball-integrity mismatches against the lockfile as a hard failure by default. Previously, `pnpm install` (non-frozen) would log `ERR_PNPM_TARBALL_INTEGRITY`, silently re-resolve from the registry, and overwrite the locked integrity — which meant a compromised registry, proxy, or republished version could substitute attacker-controlled content on a clean machine even though the project shipped a committed lockfile.
+
+  `pnpm install` now exits with `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the new opt-in flag.
+
+  The only opt-in is **`pnpm install --update-checksums`** — narrowly scoped to refreshing the locked integrity values from what the registry currently serves. Mirrors yarn's flag of the same name. A warning still prints when the bypass takes effect so the operation is auditable.
+
+  `--force` and `pnpm update` deliberately do **not** bypass the integrity check. They are routine refresh operations; silently overwriting a locked integrity in those flows would erase the protection a committed lockfile is supposed to provide. `--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and is also not a bypass.
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [ad84fff]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/installing.deps-resolver@1100.1.4
+  - @pnpm/fs.symlink-dependency@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/building.after-install@1101.0.17
+  - @pnpm/building.during-install@1101.0.14
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/installing.deps-restorer@1101.1.6
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/installing.linking.modules-cleaner@1100.1.4
+  - @pnpm/lockfile.filtering@1100.1.3
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/lockfile.preferred-versions@1100.0.12
+  - @pnpm/lockfile.to-pnp@1100.0.11
+  - @pnpm/lockfile.verification@1100.0.13
+  - @pnpm/agent.client@1.0.8
+  - @pnpm/bins.remover@1100.0.6
+  - @pnpm/building.policy@1100.0.7
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/hooks.read-package-hook@1100.0.5
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/installing.linking.hoist@1100.0.10
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/installing.package-requester@1101.0.9
+  - @pnpm/lockfile.pruner@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/pkg-manifest.utils@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/lockfile.settings-checker@1100.0.13
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.config@1100.0.5
+
 ## 1101.4.0
 
 ### Minor Changes

@@ -22,7 +22,7 @@ use pacquet_store_dir::{
 use pipe_trait::Pipe;
 use rayon::prelude::*;
 use smart_default::SmartDefault;
-use ssri::Integrity;
+use ssri::{Algorithm, Integrity, IntegrityOpts};
 use tar::Archive;
 use tokio::sync::{Notify, RwLock, Semaphore};
 use tracing::instrument;
@@ -36,9 +36,11 @@ use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 /// fires hundreds of these at once on a 1352-snapshot install, which
 /// thrashes small CI runners. Past "Download completed" a 2-CPU GitHub
 /// Actions runner wedged between decompress-close and `Checksum verified`
-/// on #269 until the step timeout. `num_cpus * 2` (floor 4) keeps enough
+/// on [#269] until the step timeout. `num_cpus * 2` (floor 4) keeps enough
 /// work in flight to overlap per-file FS writes with SHA on another task
 /// without oversubscribing the cores.
+///
+/// [#269]: https://github.com/pnpm/pacquet/pull/269
 fn post_download_semaphore() -> &'static Semaphore {
     static SEM: OnceLock<Semaphore> = OnceLock::new();
     SEM.get_or_init(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)))
@@ -180,7 +182,12 @@ pub enum TarballError {
     #[diagnostic(code(pacquet_tarball::io_error))]
     ReadTarballEntries(std::io::Error),
 
-    #[diagnostic(code(pacquet_tarball::verify_checksum_error))]
+    #[diagnostic(
+        code(pacquet_tarball::verify_checksum_error),
+        help(
+            "The downloaded tarball does not match the integrity recorded in the lockfile. If you trust the new content (legitimate republish, or stale local metadata cache), run `pnpm install --update-checksums` (or `pacquet install --update-checksums`). Otherwise treat this as a potential supply-chain issue and verify the new content first."
+        )
+    )]
     Checksum(VerifyChecksumError),
 
     #[from(ignore)]
@@ -639,8 +646,8 @@ fn extract_tarball_entries(
         // publisher's fault and downstream code can fall back to
         // disk reads).
         //
-        // [pnpm/pnpm@4750fd370c]: https://github.com/pnpm/pnpm/blob/4750fd370c/worker/src/start.ts#L218
-        // [`addFilesFromTarball`]: https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43
+        // [pnpm/pnpm@4750fd370c]: <https://github.com/pnpm/pnpm/blob/4750fd370c/worker/src/start.ts#L218>
+        // [`addFilesFromTarball`]: <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43>
         if cleaned_entry_path == "package.json" {
             match serde_json::from_slice::<serde_json::Value>(&buffer) {
                 Ok(parsed) => pkg_files_idx.manifest = normalize_bundled_manifest(&parsed),
@@ -898,7 +905,7 @@ fn extract_zip_entries(
 /// The previous pacquet implementation unconditionally ran a
 /// `symlink_metadata` per referenced file and rejected any non-regular
 /// dirent outright. That cost a stat syscall per file on every warm
-/// install (#260) and still diverged from pnpm: the upstream
+/// install ([#260]) and still diverged from pnpm: the upstream
 /// [`checkPkgFilesIntegrity`][1] catches corruption via the content hash
 /// and doesn't gate on dirent type.
 ///
@@ -913,6 +920,8 @@ fn extract_zip_entries(
 /// per-file map (each entry is a `HashMap<String, PathBuf>` with up
 /// to ~hundred entries, and Copilot reasonably flagged the deep clone
 /// as a hot-path cost).
+///
+/// [#260]: https://github.com/pnpm/pacquet/issues/260
 pub type PrefetchedCasPaths = HashMap<String, Arc<HashMap<String, PathBuf>>>;
 
 /// Bundled package manifests recovered from the SQLite store index,
@@ -971,7 +980,7 @@ pub struct PrefetchResult {
 /// `cache_key → Arc<cas_paths>` map the per-snapshot futures can hit
 /// synchronously.
 ///
-/// **Locking shape (per Copilot review on #292):** the SQLite mutex
+/// **Locking shape (per Copilot review on [#292]):** the SQLite mutex
 /// is held only for the SELECT loop. Integrity checks (`fs::metadata`
 /// per file, optional re-hash) happen after the guard drops, so a
 /// concurrent reader on the same `SharedReadonlyStoreIndex` doesn't
@@ -993,6 +1002,8 @@ pub struct PrefetchResult {
 /// just don't appear in the result. The caller then falls through
 /// to [`DownloadTarballToStore::run_without_mem_cache`] for those
 /// keys, which still has its own cache check as a backstop.
+///
+/// [#292]: https://github.com/pnpm/pacquet/pull/292
 pub async fn prefetch_cas_paths(
     index: Option<SharedReadonlyStoreIndex>,
     store_dir: &'static StoreDir,
@@ -1018,7 +1029,7 @@ pub async fn prefetch_cas_paths(
         // One batched `SELECT ... WHERE key IN (?, ?, ...)` per
         // `GET_MANY_CHUNK` (see `StoreIndex::get_many_raw`)
         // collapses what used to be N round-trips into one — see
-        // #294 for the cold-cache regression the per-key loop
+        // <https://github.com/pnpm/pacquet/issues/294> for the cold-cache regression the per-key loop
         // introduced when every key missed.
         let raw: Vec<(String, Vec<u8>)> = {
             let Ok(guard) = index.lock() else {
@@ -1206,9 +1217,11 @@ pub struct DownloadTarballToStore<'a> {
     /// `Connection::open` and a handful of WAL commits instead of the old
     /// "open + PRAGMA + insert + drop" per tarball (which ballooned
     /// tokio's blocking pool to 500+ threads on a 1352-snapshot install —
-    /// see #263). `None` degrades to "skip index row", matching the read
+    /// see [#263]). `None` degrades to "skip index row", matching the read
     /// side's stance: install still succeeds, the next install misses on
     /// this cache key and re-downloads.
+    ///
+    /// [#263]: https://github.com/pnpm/pacquet/issues/263
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     /// Mirrors pnpm's `verify-store-integrity` / `verifyStoreIntegrity`
     /// setting. When `true` (pnpm's default) each cached CAFS file is
@@ -1219,7 +1232,9 @@ pub struct DownloadTarballToStore<'a> {
     /// the next integrity-full install. Whether that translates into a
     /// wall-time win depends on the workload; the per-snapshot stat
     /// isn't the bottleneck on the benchmarks this repo tracks (see
-    /// #273), but cutting the syscall count is still correct.
+    /// [#273]), but cutting the syscall count is still correct.
+    ///
+    /// [#273]: https://github.com/pnpm/pacquet/issues/273
     pub verify_store_integrity: bool,
     /// Install-scoped dedup cache shared across every cached-tarball
     /// lookup. Ports pnpm's `verifiedFilesCache: Set<string>`: a CAFS
@@ -1261,7 +1276,9 @@ pub struct DownloadTarballToStore<'a> {
     /// `fetching/tarball-fetcher/src/remoteTarballFetcher.ts`): every
     /// failure retries except HTTP 401, 403, 404 — including arbitrary
     /// 4xx / 5xx, network resets, timeouts, mid-stream body errors,
-    /// integrity mismatches, and gzip / tar parse failures (#259).
+    /// integrity mismatches, and gzip / tar parse failures ([#259]).
+    ///
+    /// [#259]: https://github.com/pnpm/pacquet/issues/259
     pub retry_opts: RetryOpts,
     /// Per-package archive-entry filter applied during CAS extraction.
     /// Receives the entry's path *after* the top-level
@@ -1399,9 +1416,11 @@ fn is_transient_error(err: &TarballError) -> bool {
 /// Permits are acquired *inside* this function so a backoff sleep
 /// between attempts doesn't keep one parked. The network permit is
 /// held from `connect + send` through body streaming (matching pnpm's
-/// pQueue and #281's EMFILE fix), then dropped before the
+/// pQueue and [#281]'s EMFILE fix), then dropped before the
 /// `post_download_semaphore` permit gates the CPU-bound checksum +
 /// decode + extract step.
+///
+/// [#281]: https://github.com/pnpm/pacquet/pull/281
 #[expect(
     clippy::too_many_arguments,
     reason = "arg count is set by upstream pnpm's fetcher signature"
@@ -1409,14 +1428,14 @@ fn is_transient_error(err: &TarballError) -> bool {
 async fn fetch_and_extract_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    package_integrity: &Integrity,
+    expected_integrity: Option<&Integrity>,
     package_unpacked_size: Option<usize>,
     package_id: &str,
     attempt: u32,
     store_dir: &'static StoreDir,
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let network_error =
         |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
 
@@ -1606,13 +1625,29 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // each tarball — on a 2-core runner only two tarballs could make
     // progress at a time. The post-download semaphore caps concurrency
     // here.
-    let package_integrity = package_integrity.clone();
+    let expected_integrity = expected_integrity.cloned();
     let package_url_owned = package_url.to_string();
     let result = tokio::task::spawn_blocking(
-        move || -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-            package_integrity.check(&buffer).map_err(|error| {
-                TarballError::Checksum(VerifyChecksumError { url: package_url_owned, error })
-            })?;
+        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+            // Verify a known integrity, or compute one when the hash
+            // isn't known until after download — remote (non-registry)
+            // https-tarball direct deps, where the resolver learns the
+            // integrity here. Mirrors pnpm's worker
+            // `integrity ?? calcIntegrity(buffer)`
+            // ([worker/src/start.ts](https://github.com/pnpm/pnpm/blob/086c5e91e8/worker/src/start.ts#L232)).
+            let integrity = match expected_integrity {
+                Some(expected) => {
+                    expected.check(&buffer).map_err(|error| {
+                        TarballError::Checksum(VerifyChecksumError { url: package_url_owned, error })
+                    })?;
+                    expected
+                }
+                None => {
+                    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+                    opts.input(&buffer);
+                    opts.result()
+                }
+            };
 
             // Extract in a scope so the decompressed buffer + `tar::Archive`
             // are released before we return — a large package's inflated
@@ -1623,7 +1658,7 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
                     .pipe(Archive::new);
                 extract_tarball_entries(&mut archive, store_dir, ignore_file_pattern.as_deref())?
             };
-            Ok((cas_paths, pkg_files_idx))
+            Ok((integrity, cas_paths, pkg_files_idx))
         },
     )
     .await
@@ -1663,11 +1698,14 @@ fn emit_progress_found_in_store<Reporter: self::Reporter>(package_id: &str, requ
 // hinting, store_dir + retry_opts are install-scoped, and
 // ignore_file_pattern is the per-fetch archive filter. Bundling
 // into a struct would just push the same fields into a wrapper.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
+)]
 async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    package_integrity: &Integrity,
+    expected_integrity: Option<&Integrity>,
     package_unpacked_size: Option<usize>,
     package_id: &str,
     requester: &str,
@@ -1675,13 +1713,13 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     retry_opts: RetryOpts,
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut attempt: u32 = 0;
     loop {
         let result = fetch_and_extract_once::<Reporter>(
             http_client,
             package_url,
-            package_integrity,
+            expected_integrity,
             package_unpacked_size,
             package_id,
             attempt,
@@ -1970,7 +2008,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // Before hitting the network, check the SQLite store index: if the
         // tarball is already in the CAFS we can reuse its per-file paths
         // and skip the download entirely. This is the payoff of the v11
-        // store migration (#244) — pnpm and pacquet share `index.db`, so a
+        // store migration (<https://github.com/pnpm/pacquet/issues/244>) — pnpm and pacquet share `index.db`, so a
         // previous install of the same (integrity, pkg_id) pair leaves an
         // entry we can read back here.
         //
@@ -2052,24 +2090,25 @@ impl<'a> DownloadTarballToStore<'a> {
         // `addFilesFromTarball` side, so a flaky transfer that survives
         // TCP framing but fails the SHA-512 hash or trips gzip / tar
         // parsing recovers via re-fetch instead of aborting the install
-        // (#259). Only HTTP 401 / 403 / 404 fail fast — see
+        // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
         // [`is_transient_error`].
-        let (cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
-            http_client,
-            package_url,
-            package_integrity,
-            package_unpacked_size,
-            package_id,
-            requester,
-            store_dir,
-            retry_opts,
-            auth_headers,
-            ignore_file_pattern,
-        )
-        .await?;
+        let (_computed_integrity, cas_paths, pkg_files_idx) =
+            fetch_and_extract_with_retry::<Reporter>(
+                http_client,
+                package_url,
+                Some(package_integrity),
+                package_unpacked_size,
+                package_id,
+                requester,
+                store_dir,
+                retry_opts,
+                auth_headers,
+                ignore_file_pattern,
+            )
+            .await?;
 
         // Hand the per-tarball files index off to the shared writer task
-        // from #265 *after* the retry loop returns, so transient failures
+        // from <https://github.com/pnpm/pacquet/pull/265> *after* the retry loop returns, so transient failures
         // don't queue a half-built row that a successful retry would
         // duplicate. `queue` is a non-blocking `UnboundedSender::send`;
         // the writer task owns one connection and batches whatever it
@@ -2092,6 +2131,108 @@ impl<'a> DownloadTarballToStore<'a> {
     }
 }
 
+/// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
+/// computed from the downloaded tarball and the bundled manifest read
+/// from its `package.json`. The extracted CAFS paths are not returned —
+/// they are stashed in the shared [`MemCache`] keyed by URL so the
+/// install pass reuses them without re-downloading.
+#[derive(Debug)]
+pub struct ResolvedTarball {
+    pub integrity: Integrity,
+    pub manifest: Option<serde_json::Value>,
+}
+
+/// Download a remote tarball during *resolution*, compute its sha512
+/// integrity, extract it to the store, and read its bundled manifest.
+///
+/// Remote (non-registry) https-tarball direct dependencies carry no
+/// name/version/integrity at resolve time — those live in the tarball's
+/// `package.json`. pnpm learns them in `packageRequester` after the
+/// fetch; pacquet builds the lockfile before the install pass, so the
+/// `TarballResolver` must fetch here to fill `manifest` + `integrity`
+/// into its `ResolveResult`. Passing a `mem_cache` warms it (keyed by
+/// URL) so the install pass's
+/// [`DownloadTarballToStore::run_with_mem_cache`] reuses the extraction
+/// without a second download.
+pub struct FetchTarballForResolution<'a> {
+    pub http_client: &'a ThrottledClient,
+    pub store_dir: &'static StoreDir,
+    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
+    pub package_url: &'a str,
+    pub auth_headers: &'a AuthHeaders,
+    pub retry_opts: RetryOpts,
+}
+
+impl FetchTarballForResolution<'_> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+        mem_cache: Option<&MemCache>,
+    ) -> Result<ResolvedTarball, TarballError> {
+        let FetchTarballForResolution {
+            http_client,
+            store_dir,
+            store_index_writer,
+            package_url,
+            auth_headers,
+            retry_opts,
+        } = self;
+
+        // `None` expected-integrity → compute it from the bytes. The
+        // package_id / requester are the post-redirect URL: the real
+        // `name@version` is only known once the manifest is read below,
+        // and the resolve-time fetch is silent (the install pass owns
+        // the reporter ordering), so the placeholder never surfaces.
+        let (integrity, cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
+            http_client,
+            package_url,
+            None,
+            None,
+            package_url,
+            package_url,
+            store_dir,
+            retry_opts,
+            auth_headers,
+            None,
+        )
+        .await?;
+
+        let manifest = pkg_files_idx.manifest.clone();
+        // Scope the store-index row by the package's canonical
+        // `name@version`, matching what the install pass derives from
+        // the same manifest. Fall back to the URL when the tarball has
+        // no usable `package.json` name (degraded, but keeps the row
+        // addressable).
+        let package_id =
+            manifest_package_id(manifest.as_ref()).unwrap_or_else(|| package_url.to_string());
+
+        let index_key = store_index_key(&integrity.to_string(), &package_id);
+        if let Some(writer) = store_index_writer {
+            writer.queue(index_key, pkg_files_idx);
+        } else {
+            tracing::warn!(
+                target: "pacquet::download",
+                ?index_key,
+                "no shared store-index writer; skipping index row for this resolve-time tarball",
+            );
+        }
+
+        if let Some(mem_cache) = mem_cache {
+            let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::new(cas_paths))));
+            mem_cache.insert(package_url.to_string(), cache_lock);
+        }
+
+        Ok(ResolvedTarball { integrity, manifest })
+    }
+}
+
+/// `name@version` from a bundled manifest, when both fields are present.
+fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
+    let manifest = manifest?;
+    let name = manifest.get("name")?.as_str()?;
+    let version = manifest.get("version")?.as_str()?;
+    Some(format!("{name}@{version}"))
+}
+
 /// Run one full zip-archive fetch attempt: hit the network, drain the
 /// body into RAM, verify the integrity hash, then walk the zip and
 /// extract every file entry into the CAFS. Mirrors
@@ -2108,7 +2249,10 @@ impl<'a> DownloadTarballToStore<'a> {
 /// `addFilesFromDir` does on each tempdir file).
 // 8 arguments — over the default clippy threshold, but each is
 // distinct (see the matching note on `fetch_and_extract_zip_with_retry`).
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
+)]
 #[expect(
     clippy::too_many_arguments,
     reason = "arg count is set by upstream pnpm's fetcher signature"

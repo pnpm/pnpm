@@ -163,10 +163,29 @@ pub fn check_optimistic_repeat_install(
 }
 
 /// Compare today's settings against what the previous install
-/// recorded. Returns `false` on any drift the workspace-state schema
-/// covers; missing fields in the cached record (older write or fields
-/// pacquet doesn't track yet) round-trip as `None` and are treated as
-/// "no opinion" — same posture as pnpm's `Object.entries` walk.
+/// recorded.
+///
+/// Only the fields pacquet actively populates via [`current_settings`]
+/// participate in the comparison. Fields the upstream pnpm CLI writes
+/// but pacquet hasn't ported yet (e.g. `excludeLinksFromLockfile`) are
+/// ignored — pacquet doesn't consume them during install, so a
+/// difference can't affect the materialised `node_modules`. Without
+/// this carve-out a cross-package-manager scenario (pnpm wrote the
+/// state, pacquet reads it next) would always reject the fast path
+/// because pnpm's defaults fill those fields while pacquet's
+/// `current_settings` leaves them `None`.
+///
+/// As each ported setting in pnpm/pnpm#12009 lands end-to-end and
+/// gets surfaced through `current_settings`, it joins the comparison
+/// here automatically.
+///
+/// Mirrors pnpm's `Object.entries(workspaceState.settings)` walk in
+/// [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/72d997cc34/deps/status/src/checkDepsStatus.ts):
+/// pnpm iterates fields *in the state*, which by symmetry only
+/// includes fields the writer cared about. The `allowBuilds` coercion
+/// mirrors pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/72d997cc34/deps/status/src/checkDepsStatus.ts#L141)
+/// on the read side and pnpm's tolerance of an absent
+/// `allowBuilds` key in the recorded state on the write side.
 fn settings_match(
     state: &WorkspaceState,
     config: &Config,
@@ -174,7 +193,81 @@ fn settings_match(
     included: IncludedDependencies,
 ) -> bool {
     let current = current_settings(config, node_linker, included);
-    state.settings == current
+    let recorded = &state.settings;
+    let live = &current;
+    allow_builds_match(recorded.allow_builds.as_ref(), live.allow_builds.as_ref())
+        && recorded.auto_install_peers == live.auto_install_peers
+        && recorded.dedupe_direct_deps == live.dedupe_direct_deps
+        && recorded.dedupe_injected_deps == live.dedupe_injected_deps
+        && recorded.dedupe_peer_dependents == live.dedupe_peer_dependents
+        && recorded.dedupe_peers == live.dedupe_peers
+        && recorded.dev == live.dev
+        && recorded.hoist_pattern == live.hoist_pattern
+        && recorded.hoist_workspace_packages == live.hoist_workspace_packages
+        && recorded.ignored_optional_dependencies == live.ignored_optional_dependencies
+        && recorded.inject_workspace_packages == live.inject_workspace_packages
+        && recorded.link_workspace_packages == live.link_workspace_packages
+        && recorded.node_linker == live.node_linker
+        && recorded.optional == live.optional
+        && recorded.overrides == live.overrides
+        && package_extensions_match(
+            recorded.package_extensions.as_ref(),
+            live.package_extensions.as_ref(),
+        )
+        && recorded.patched_dependencies == live.patched_dependencies
+        && recorded.peers_suffix_max_length == live.peers_suffix_max_length
+        && recorded.prefer_workspace_packages == live.prefer_workspace_packages
+        && recorded.production == live.production
+        && recorded.public_hoist_pattern == live.public_hoist_pattern
+    // Deliberately *not* compared (tracked at pnpm/pnpm#12009 — drop
+    // each from this list once `current_settings` writes its value):
+    //   catalogs                    (pnpm always ignores; see
+    //                                ignoredSettings.add('catalogs'))
+    //   excludeLinksFromLockfile
+    //   minimumReleaseAge*          (pacquet supports it but doesn't
+    //                                round-trip through workspace state
+    //                                yet — separate follow-up).
+    //   trustPolicy*                (same situation as minimumReleaseAge)
+    //   workspacePackagePatterns    (already covered via
+    //                                pnpm-workspace.yaml `packages:`)
+}
+
+/// Pnpm writes `Some({})` for an empty `allowBuilds`; pacquet writes
+/// `None` for the same effective value. Treat them as equivalent so
+/// cross-package-manager state files don't trip the comparison.
+fn allow_builds_match(
+    state_value: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
+    current_value: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
+) -> bool {
+    match (state_value, current_value) {
+        (None, None) => true,
+        (Some(map), None) | (None, Some(map)) => map.is_empty(),
+        (Some(state_map), Some(current_map)) => state_map == current_map,
+    }
+}
+
+/// `packageExtensions` are compared as opaque `serde_json::Value`
+/// trees so the workspace-state file written by either implementation
+/// round-trips through the other. Empty maps are equivalent to absent
+/// — pacquet's [`pacquet_config::WorkspaceSettings::apply_to`] already collapses
+/// `packageExtensions: {}` to `None`, but pnpm may write `Some({})`
+/// directly, and the workspace-state file is shared across the two.
+fn package_extensions_match(
+    state_value: Option<&serde_json::Value>,
+    current_value: Option<&serde_json::Value>,
+) -> bool {
+    fn is_empty(value: &serde_json::Value) -> bool {
+        match value {
+            serde_json::Value::Object(map) => map.is_empty(),
+            serde_json::Value::Null => true,
+            _ => false,
+        }
+    }
+    match (state_value, current_value) {
+        (None, None) => true,
+        (Some(value), None) | (None, Some(value)) => is_empty(value),
+        (Some(state_value), Some(current_value)) => state_value == current_value,
+    }
 }
 
 /// Build the [`WorkspaceStateSettings`] that today's install would
@@ -192,11 +285,15 @@ pub(crate) fn current_settings(
     WorkspaceStateSettings {
         allow_builds,
         auto_install_peers: Some(config.auto_install_peers),
+        dedupe_direct_deps: Some(config.dedupe_direct_deps),
+        dedupe_injected_deps: Some(config.dedupe_injected_deps),
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
+        dedupe_peers: Some(config.dedupe_peers),
         dev: Some(included.dev_dependencies),
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(
             config.link_workspace_packages,
         )),
@@ -206,7 +303,15 @@ pub(crate) fn current_settings(
             .overrides
             .as_ref()
             .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+        package_extensions: config
+            .package_extensions
+            .as_ref()
+            .and_then(|map| serde_json::to_value(map).ok()),
         patched_dependencies: config.patched_dependencies.clone(),
+        peers_suffix_max_length: Some(
+            u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),
+        ),
+        prefer_workspace_packages: Some(config.prefer_workspace_packages),
         production: Some(included.dependencies),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         ..Default::default()

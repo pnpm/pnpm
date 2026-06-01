@@ -7,6 +7,18 @@ use pacquet_resolving_resolver_base::{
 };
 use pretty_assertions::assert_eq;
 
+// `import_granularity` wants the two `resolve_importer` entries collapsed to
+// `resolve_importer::{self, ..}`, but `crate::resolve_importer` is both a
+// module (the nested items below) and a re-exported function (the bare entry);
+// `self` would only re-import the module, dropping the function. The tree is
+// already minimal, so suppress the false positive.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::import_granularity,
+        reason = "`resolve_importer` is both a module and a re-exported fn; the value- and type-namespace entries cannot be merged via `self`"
+    )
+)]
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
     resolve_importer::{ResolveImporterError, ResolveImporterOptions},
@@ -87,10 +99,18 @@ fn default_opts() -> ResolveImporterOptions {
         auto_install_peers: true,
         auto_install_peers_from_highest_match: false,
         resolve_peers_from_workspace_root: false,
+        dedupe_peers: false,
         all_preferred_versions: PreferredVersions::new(),
         patched_dependencies: None,
         base_opts: ResolveOptions::default(),
+        pick_lowest_direct: false,
+        subdep_published_by: None,
         catalogs: pacquet_catalogs_types::Catalogs::new(),
+        exclude_links_from_lockfile: false,
+        lockfile_dir: None,
+        modules_dir: None,
+        peers_suffix_max_length: 1000,
+        manifest_hook: None,
     }
 }
 
@@ -271,7 +291,7 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
 // ---------------------------------------------------------------------------
 // Ports of upstream's deps-installer `autoInstallPeers.ts` test cases. Each
 // covers a single-importer scenario from
-// https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/test/install/autoInstallPeers.ts
+// <https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/test/install/autoInstallPeers.ts>
 // ---------------------------------------------------------------------------
 
 /// Port of "auto install non-optional peer dependencies": only the
@@ -827,5 +847,298 @@ async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
             );
         }
         other => panic!("expected CatalogMisconfiguration, got {other:?}"),
+    }
+}
+
+/// Build a [`ResolveResult`] for an `npm:`-aliased install. `local_alias`
+/// is the alias the importer uses in `node_modules/` (and in
+/// `parentPkgs`); `real_name`/`version` identify the resolved package.
+/// Mirrors the real npm-resolver's behaviour at
+/// [`npm_resolver.rs:288`](https://github.com/pnpm/pnpm/blob/2a0032edc0/pacquet/crates/resolving-npm-resolver/src/npm_resolver.rs#L288):
+/// the result carries the local alias, while `name_ver` and `id` point
+/// at the underlying package.
+fn aliased_fake_result(
+    local_alias: &str,
+    real_name: &str,
+    version: &str,
+    manifest: serde_json::Value,
+) -> ResolveResult {
+    let mut result = fake_result(real_name, version, manifest);
+    result.alias = Some(local_alias.to_string());
+    result
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/11999>.
+///
+/// The TypeScript fix (`installing/deps-resolver/src/resolvePeers.ts`)
+/// broadens which cycles `calculateDepPath` short-circuits. Pacquet's
+/// `resolve_peers` walks synchronously with an `in_progress` set, so
+/// the deadlock that hit pnpm does not occur here — but the scenario
+/// has to keep terminating with a graph entry for the aliased root and
+/// for each pair of mutually-peer-depending leaves.
+///
+/// Layout (from the upstream bug): an aliased install `a@npm:a-real`
+/// pulls in `b-real` and `c-real`. Each of those depends on one half
+/// of a mutual-peer pair (`x` ↔ `y`) and peer-depends on the aliased
+/// root (`a@npm:a-real`). The hoist loop auto-installs `x` and `y` at
+/// the importer level, where their cycle surfaces.
+#[tokio::test]
+async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
+    let mut table = HashMap::new();
+    // Root install: `a@npm:a-real@1.0.0`.
+    table.insert(
+        ("a".to_string(), "npm:a-real@1.0.0".to_string()),
+        aliased_fake_result(
+            "a",
+            "a-real",
+            "1.0.0",
+            serde_json::json!({
+                "name": "a-real",
+                "version": "1.0.0",
+                "dependencies": {
+                    "b": "npm:b-real@1.0.0",
+                    "c": "npm:c-real@1.0.0",
+                },
+            }),
+        ),
+    );
+    // `b@npm:b-real@1.0.0`: depends on `x`, peer-depends on the aliased
+    // root.
+    table.insert(
+        ("b".to_string(), "npm:b-real@1.0.0".to_string()),
+        aliased_fake_result(
+            "b",
+            "b-real",
+            "1.0.0",
+            serde_json::json!({
+                "name": "b-real",
+                "version": "1.0.0",
+                "dependencies": { "x": "1.0.0" },
+                "peerDependencies": { "a": "npm:a-real@1.0.0" },
+            }),
+        ),
+    );
+    // `c@npm:c-real@1.0.0`: depends on `y`, peer-depends on the aliased
+    // root.
+    table.insert(
+        ("c".to_string(), "npm:c-real@1.0.0".to_string()),
+        aliased_fake_result(
+            "c",
+            "c-real",
+            "1.0.0",
+            serde_json::json!({
+                "name": "c-real",
+                "version": "1.0.0",
+                "dependencies": { "y": "1.0.0" },
+                "peerDependencies": { "a": "npm:a-real@1.0.0" },
+            }),
+        ),
+    );
+    // `x` ↔ `y` mutual peer cycle.
+    table.insert(
+        ("x".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "x",
+            "1.0.0",
+            serde_json::json!({
+                "name": "x",
+                "version": "1.0.0",
+                "peerDependencies": { "y": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("y".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "y",
+            "1.0.0",
+            serde_json::json!({
+                "name": "y",
+                "version": "1.0.0",
+                "peerDependencies": { "x": "1.0.0" },
+            }),
+        ),
+    );
+
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "npm:a-real@1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"a"), "aliased root must surface as a direct dep: {direct:?}");
+    assert!(direct.contains(&"x"), "missing peer x must be auto-installed: {direct:?}");
+    assert!(direct.contains(&"y"), "missing peer y must be auto-installed: {direct:?}");
+
+    // The aliased root's dep path resolves to the real package id.
+    let a_dep_path = result
+        .peers_result
+        .direct_dependencies_by_alias
+        .get("a")
+        .expect("alias `a` must be in the result")
+        .to_string();
+    assert!(
+        a_dep_path.starts_with("a-real@1.0.0"),
+        "aliased dep path must start with the real package id, got {a_dep_path}",
+    );
+
+    // Both mutually-peer-depending leaves land in the graph.
+    let dep_paths: std::collections::HashSet<String> =
+        result.peers_result.graph.keys().map(ToString::to_string).collect();
+    assert!(
+        dep_paths.iter().any(|dp| dp.starts_with("x@1.0.0")),
+        "x must appear in the graph: {dep_paths:?}",
+    );
+    assert!(
+        dep_paths.iter().any(|dp| dp.starts_with("y@1.0.0")),
+        "y must appear in the graph: {dep_paths:?}",
+    );
+}
+
+/// `resolutionMode` orchestration tests: assert the deps-resolver hands
+/// the npm resolver the right per-depth [`ResolveOptions`]
+/// (`pick_lowest_version`, `published_by`) for each mode. These cover
+/// the wiring in [`TreeCtx::with_resolution_mode`] +
+/// [`resolve_node`](crate::resolve_dependency_tree); the version pick
+/// itself lives in the npm picker (tested there).
+mod resolution_mode {
+    use super::{StubResolver, default_opts, fake_manifest, fake_result};
+    use crate::resolve_importer;
+    use chrono::{DateTime, TimeZone, Utc};
+    use pacquet_package_manifest::DependencyGroup;
+    use pacquet_resolving_resolver_base::{
+        ResolveFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    };
+    use pretty_assertions::assert_eq;
+    use std::{collections::HashMap, sync::Mutex};
+
+    /// The `(pick_lowest_version, published_by)` pair recorded per alias.
+    type RecordedOpts = (bool, Option<DateTime<Utc>>);
+
+    /// Resolver that records the [`RecordedOpts`] each `(alias, range)`
+    /// query was resolved with, so a test can assert the depth-specific
+    /// options the tree walker built.
+    struct RecordingResolver {
+        inner: StubResolver,
+        seen: Mutex<HashMap<String, RecordedOpts>>,
+    }
+
+    impl RecordingResolver {
+        fn new(table: HashMap<(String, String), ResolveResult>) -> Self {
+            RecordingResolver {
+                inner: StubResolver { table, calls: Mutex::new(Vec::new()) },
+                seen: Mutex::new(HashMap::new()),
+            }
+        }
+
+        fn opts_for(&self, alias: &str) -> RecordedOpts {
+            *self.seen.lock().unwrap().get(alias).expect("alias was resolved")
+        }
+    }
+
+    impl Resolver for RecordingResolver {
+        fn resolve<'a>(
+            &'a self,
+            wanted: &'a WantedDependency,
+            opts: &'a ResolveOptions,
+        ) -> ResolveFuture<'a> {
+            if let Some(alias) = wanted.alias.clone() {
+                self.seen
+                    .lock()
+                    .unwrap()
+                    .insert(alias, (opts.pick_lowest_version, opts.published_by));
+            }
+            self.inner.resolve(wanted, opts)
+        }
+
+        fn resolve_latest<'a>(
+            &'a self,
+            query: &'a pacquet_resolving_resolver_base::LatestQuery,
+            opts: &'a ResolveOptions,
+        ) -> pacquet_resolving_resolver_base::ResolveLatestFuture<'a> {
+            self.inner.resolve_latest(query, opts)
+        }
+    }
+
+    fn one_dep_one_subdep_table() -> HashMap<(String, String), ResolveResult> {
+        let mut table = HashMap::new();
+        table.insert(
+            ("direct".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "direct",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "direct",
+                    "version": "1.0.0",
+                    "dependencies": { "sub": "^2.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("sub".to_string(), "^2.0.0".to_string()),
+            fake_result("sub", "2.0.0", serde_json::json!({ "name": "sub", "version": "2.0.0" })),
+        );
+        table
+    }
+
+    /// `highest` (the default): both direct and transitive deps are
+    /// picked highest, with the same `minimumReleaseAge` cutoff applied
+    /// uniformly.
+    #[tokio::test]
+    async fn highest_mode_picks_highest_everywhere() {
+        let resolver = RecordingResolver::new(one_dep_one_subdep_table());
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
+        let maximum = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        let mut opts = default_opts();
+        opts.base_opts.published_by = Some(maximum);
+        opts.pick_lowest_direct = false;
+        opts.subdep_published_by = Some(maximum);
+
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+        assert_eq!(resolver.opts_for("direct"), (false, Some(maximum)));
+        assert_eq!(resolver.opts_for("sub"), (false, Some(maximum)));
+    }
+
+    /// `lowest-direct`: direct deps pick lowest, transitive deps pick
+    /// highest, and there is no extra publish-date cutoff beyond
+    /// `minimumReleaseAge` (here unset).
+    #[tokio::test]
+    async fn lowest_direct_mode_picks_lowest_only_for_direct_deps() {
+        let resolver = RecordingResolver::new(one_dep_one_subdep_table());
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
+        let mut opts = default_opts();
+        opts.pick_lowest_direct = true;
+        opts.subdep_published_by = None;
+
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+        assert_eq!(resolver.opts_for("direct"), (true, None));
+        assert_eq!(resolver.opts_for("sub"), (false, None));
+    }
+
+    /// `time-based`: direct deps pick lowest under the
+    /// `minimumReleaseAge` cutoff; transitive deps pick highest but are
+    /// constrained to the computed publish-date cutoff. The cutoff
+    /// itself is computed workspace-wide in `resolve_workspace`; here we
+    /// pass it in directly to assert the depth-specific threading.
+    #[tokio::test]
+    async fn time_based_mode_threads_cutoff_to_subdeps_only() {
+        let resolver = RecordingResolver::new(one_dep_one_subdep_table());
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
+        let maximum = Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap();
+        let cutoff = Utc.with_ymd_and_hms(2024, 3, 1, 0, 0, 0).unwrap();
+        let mut opts = default_opts();
+        opts.base_opts.published_by = Some(maximum);
+        opts.pick_lowest_direct = true;
+        opts.subdep_published_by = Some(cutoff);
+
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+        assert_eq!(resolver.opts_for("direct"), (true, Some(maximum)));
+        assert_eq!(resolver.opts_for("sub"), (false, Some(cutoff)));
     }
 }

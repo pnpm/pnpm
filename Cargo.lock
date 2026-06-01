@@ -302,6 +302,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "bcrypt"
+version = "0.19.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24ae5479c93d3720e4c1dbd6b945b97457c50cb672781104768190371df1a905"
+dependencies = [
+ "base64 0.22.1",
+ "blowfish",
+ "getrandom 0.4.2",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -314,6 +327,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "blowfish"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62ce3946557b35e71d1bbe07ec385073ce9eda05043f95de134eb578fcf1a298"
+dependencies = [
+ "byteorder",
+ "cipher",
 ]
 
 [[package]]
@@ -338,6 +361,12 @@ name = "bytecount"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
+
+[[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
@@ -411,6 +440,16 @@ checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
 dependencies = [
  "ciborium-io",
  "half",
+]
+
+[[package]]
+name = "cipher"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8cf2a2c93cd704877c0858356ed03480ff301ee950b43f1cbe4573b088bfa6c"
+dependencies = [
+ "crypto-common 0.2.2",
+ "inout",
 ]
 
 [[package]]
@@ -661,6 +700,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto-common"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
+dependencies = [
+ "hybrid-array",
+]
+
+[[package]]
 name = "dashmap"
 version = "6.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -731,7 +779,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
- "crypto-common",
+ "crypto-common 0.1.7",
 ]
 
 [[package]]
@@ -860,6 +908,7 @@ version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
+ "crc32fast",
  "miniz_oxide",
  "zlib-rs",
 ]
@@ -1237,6 +1286,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
+name = "hybrid-array"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9155a582abd142abc056962c29e3ce5ff2ad5469f4246b537ed42c5deba857da"
+dependencies = [
+ "typenum",
+]
+
+[[package]]
 name = "hyper"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1458,6 +1516,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "inout"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4250ce6452e92010fdf7268ccc5d14faa80bb12fc741938534c58f16804e03c7"
+dependencies = [
+ "hybrid-array",
+]
+
+[[package]]
 name = "insta"
 version = "1.47.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1490,16 +1557,6 @@ name = "ipnet"
 version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d98f6fed1fde3f8c21bc40a1abb88dd75e67924f9cffc3ef95607bad8017f8e2"
-
-[[package]]
-name = "iri-string"
-version = "0.7.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25e659a4bb38e810ebc252e53b5814ff908a8c58c2a9ce2fae1bbec24cbf4e20"
-dependencies = [
- "memchr",
- "serde",
-]
 
 [[package]]
 name = "is_ci"
@@ -2085,6 +2142,7 @@ dependencies = [
  "pacquet-package-is-installable",
  "pacquet-package-manager",
  "pacquet-package-manifest",
+ "pacquet-pnpr-client",
  "pacquet-registry",
  "pacquet-reporter",
  "pacquet-resolving-parse-wanted-dependency",
@@ -2092,8 +2150,10 @@ dependencies = [
  "pacquet-tarball",
  "pacquet-testing-utils",
  "pipe-trait",
+ "pnpr",
  "pretty_assertions",
  "rayon",
+ "serde-saphyr",
  "serde_json",
  "tempfile",
  "tokio",
@@ -2125,11 +2185,15 @@ dependencies = [
  "libc",
  "miette 7.6.0",
  "node-semver",
+ "pacquet-config-dir",
+ "pacquet-detect-libc",
+ "pacquet-env-replace",
  "pacquet-network",
  "pacquet-package-is-installable",
  "pacquet-patching",
  "pacquet-store-dir",
  "pacquet-testing-utils",
+ "pacquet-workspace-state",
  "pipe-trait",
  "pretty_assertions",
  "serde",
@@ -2139,6 +2203,10 @@ dependencies = [
  "tempfile",
  "tracing",
 ]
+
+[[package]]
+name = "pacquet-config-dir"
+version = "0.0.1"
 
 [[package]]
 name = "pacquet-config-parse-overrides"
@@ -2266,6 +2334,13 @@ dependencies = [
  "serde_json",
  "ssri",
  "tokio",
+]
+
+[[package]]
+name = "pacquet-env-replace"
+version = "0.0.1"
+dependencies = [
+ "pretty_assertions",
 ]
 
 [[package]]
@@ -2518,13 +2593,13 @@ dependencies = [
  "pacquet-patching",
  "pacquet-real-hoist",
  "pacquet-registry",
- "pacquet-registry-mock",
  "pacquet-reporter",
  "pacquet-resolving-default-resolver",
  "pacquet-resolving-deps-resolver",
  "pacquet-resolving-git-resolver",
  "pacquet-resolving-local-resolver",
  "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
  "pacquet-resolving-tarball-resolver",
  "pacquet-store-dir",
@@ -2579,6 +2654,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-pnpr-client"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "flate2",
+ "mockito",
+ "pacquet-lockfile",
+ "pacquet-store-dir",
+ "pacquet-testing-utils",
+ "pnpr",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-real-hoist"
 version = "0.0.1"
 dependencies = [
@@ -2617,6 +2712,7 @@ dependencies = [
  "clap",
  "home",
  "pipe-trait",
+ "pnpr-fixtures",
  "reqwest",
  "serde",
  "serde_json",
@@ -2654,6 +2750,7 @@ name = "pacquet-resolving-deps-resolver"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
+ "chrono",
  "derive_more",
  "futures-util",
  "miette 7.6.0",
@@ -2661,10 +2758,13 @@ dependencies = [
  "pacquet-catalogs-resolver",
  "pacquet-catalogs-types",
  "pacquet-deps-path",
+ "pacquet-fs",
  "pacquet-lockfile",
  "pacquet-package-manifest",
  "pacquet-patching",
+ "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
+ "pathdiff",
  "pipe-trait",
  "pretty_assertions",
  "serde_json",
@@ -2776,9 +2876,14 @@ dependencies = [
  "mockito",
  "pacquet-lockfile",
  "pacquet-network",
+ "pacquet-reporter",
  "pacquet-resolving-resolver-base",
+ "pacquet-store-dir",
+ "pacquet-tarball",
  "pretty_assertions",
  "reqwest",
+ "serde_json",
+ "ssri",
  "tokio",
 ]
 
@@ -2844,9 +2949,11 @@ dependencies = [
  "assert_cmd",
  "command-extra",
  "junction",
- "pacquet-registry-mock",
+ "pnpr",
+ "pnpr-fixtures",
  "tempfile",
  "text-block-macros",
+ "tokio",
  "walkdir",
 ]
 
@@ -2864,6 +2971,30 @@ dependencies = [
  "serde-saphyr",
  "tempfile",
  "wax",
+]
+
+[[package]]
+name = "pacquet-workspace-projects-filter"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "indexmap",
+ "miette 7.6.0",
+ "pacquet-config",
+ "pacquet-testing-utils",
+ "pacquet-workspace-projects-graph",
+ "pathdiff",
+]
+
+[[package]]
+name = "pacquet-workspace-projects-graph"
+version = "0.0.1"
+dependencies = [
+ "indexmap",
+ "node-semver",
+ "pacquet-fs",
+ "pacquet-workspace-range-resolver",
+ "pacquet-workspace-spec",
 ]
 
 [[package]]
@@ -2988,22 +3119,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "pnpm-registry"
+name = "pnpr"
 version = "0.0.1"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "bcrypt",
  "clap",
+ "dashmap",
  "derive_more",
+ "flate2",
  "futures-util",
+ "getrandom 0.4.2",
+ "home",
+ "indexmap",
  "miette 7.6.0",
  "mockito",
+ "pacquet-config",
+ "pacquet-config-dir",
+ "pacquet-env-replace",
+ "pacquet-lockfile",
  "pacquet-network",
+ "pacquet-package-manager",
+ "pacquet-package-manifest",
+ "pacquet-reporter",
+ "pacquet-store-dir",
+ "pacquet-tarball",
  "pipe-trait",
  "reqwest",
+ "rusqlite",
  "serde",
+ "serde-saphyr",
  "serde_json",
  "sha2",
+ "ssri",
  "tempfile",
  "tokio",
  "tower",
@@ -3011,6 +3160,20 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wax",
+]
+
+[[package]]
+name = "pnpr-fixtures"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "clap",
+ "flate2",
+ "node-semver",
+ "serde_json",
+ "sha2",
+ "tar",
+ "walkdir",
 ]
 
 [[package]]
@@ -3624,9 +3787,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.149"
+version = "1.0.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
+checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
 dependencies = [
  "indexmap",
  "itoa",
@@ -3905,9 +4068,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.39.1"
+version = "0.39.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4deba334e1190ba7cb498327affa11e5ece10d26a30ab2f27fcf09504b8d8b6"
+checksum = "21d0d938c10fcda3e897e28aaddf4ab462375d411f4378cd63b1c945f69aba96"
 dependencies = [
  "libc",
  "memchr",
@@ -3926,9 +4089,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tar"
-version = "0.4.45"
+version = "0.4.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22692a6476a21fa75fdfc11d452fda482af402c008cdbaf3476414e122040973"
+checksum = "3f6221d9a6003c78398e3b239969f352578258df48c8eb051caadae0015bc840"
 dependencies = [
  "filetime",
  "libc",
@@ -4132,21 +4295,21 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.8"
+version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
+checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
 dependencies = [
  "bitflags",
  "bytes",
  "futures-util",
  "http",
  "http-body",
- "iri-string",
  "pin-project-lite",
  "tower",
  "tower-layer",
  "tower-service",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -4205,6 +4368,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-serde"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "704b1aeb7be0d0a84fc9828cae51dab5970fee5088f83d1dd7ee6f6246fc6ff1"
+dependencies = [
+ "serde",
+ "tracing-core",
+]
+
+[[package]]
 name = "tracing-subscriber"
 version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4214,12 +4387,15 @@ dependencies = [
  "nu-ansi-term",
  "once_cell",
  "regex-automata",
+ "serde",
+ "serde_json",
  "sharded-slab",
  "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
  "tracing-log",
+ "tracing-serde",
 ]
 
 [[package]]

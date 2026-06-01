@@ -1,5 +1,26 @@
 # @pnpm/mount-modules
 
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+  - @pnpm/config.reader@1101.5.0
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/store.cafs@1100.1.7
+
 ## 1100.0.16
 
 ### Patch Changes

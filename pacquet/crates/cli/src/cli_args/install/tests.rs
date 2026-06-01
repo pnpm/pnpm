@@ -2,6 +2,7 @@ use super::{InstallArgs, InstallDependencyOptions, NodeLinkerArg};
 use clap::Parser;
 use pacquet_config::NodeLinker;
 use pacquet_package_manifest::DependencyGroup;
+use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -111,7 +112,9 @@ fn node_linker_invalid_value_rejected() {
 
 /// `--ignore-manifest-check` parses to `true`. Absent → `false`.
 /// Surfaced for the pnpm CLI `configDependencies` delegation path
-/// (issue #11797); see the field doc on `InstallArgs::ignore_manifest_check`.
+/// (issue [#11797]); see the field doc on `InstallArgs::ignore_manifest_check`.
+///
+/// [#11797]: https://github.com/pnpm/pnpm/issues/11797
 #[test]
 fn ignore_manifest_check_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
@@ -120,6 +123,68 @@ fn ignore_manifest_check_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--ignore-manifest-check"])
         .expect("parses --ignore-manifest-check");
     assert!(parsed.args.ignore_manifest_check, "flag present → true");
+}
+
+/// `--workspace-concurrency` is absent by default, so the override
+/// is `None` and the config-resolved value stays in effect.
+#[test]
+fn workspace_concurrency_default_is_none() {
+    let parsed = ["pacquet-test"].pipe(InstallArgsHarness::try_parse_from).expect("parses");
+    assert_eq!(parsed.args.workspace_concurrency, None, "flag absent → None");
+}
+
+/// A positive `--workspace-concurrency` parses to its value verbatim.
+#[test]
+fn workspace_concurrency_parses_positive() {
+    let parsed = ["pacquet-test", "--workspace-concurrency", "3"]
+        .pipe(InstallArgsHarness::try_parse_from)
+        .expect("parses --workspace-concurrency 3");
+    assert_eq!(parsed.args.workspace_concurrency, Some(3));
+}
+
+/// A negative `--workspace-concurrency` parses to the signed value;
+/// the `parallelism - |value|` interpretation happens later at the
+/// CLI dispatch via `resolve_child_concurrency`. Mirrors pnpm
+/// accepting `--workspace-concurrency=-1`.
+#[test]
+fn workspace_concurrency_parses_negative() {
+    let parsed = ["pacquet-test", "--workspace-concurrency=-1"]
+        .pipe(InstallArgsHarness::try_parse_from)
+        .expect("parses --workspace-concurrency=-1");
+    assert_eq!(parsed.args.workspace_concurrency, Some(-1));
+}
+
+/// No `--workspace-concurrency` flag → the already-resolved config
+/// value passes through untouched.
+#[test]
+fn resolve_workspace_concurrency_keeps_config_value_when_flag_absent() {
+    let args = ["pacquet-test"].pipe(InstallArgsHarness::try_parse_from).expect("parses").args;
+    assert_eq!(args.resolve_workspace_concurrency(7), 7);
+}
+
+/// A positive `--workspace-concurrency` replaces the config value
+/// verbatim (it does not fall through to `config_value`).
+#[test]
+fn resolve_workspace_concurrency_positive_flag_overrides_config() {
+    let args = ["pacquet-test", "--workspace-concurrency", "3"]
+        .pipe(InstallArgsHarness::try_parse_from)
+        .expect("parses")
+        .args;
+    assert_eq!(args.resolve_workspace_concurrency(7), 3);
+}
+
+/// A non-positive `--workspace-concurrency` resolves to
+/// `max(1, parallelism - |value|)` via `getWorkspaceConcurrency`,
+/// independent of the config value. Pinned exactly against the host's
+/// reported parallelism.
+#[test]
+fn resolve_workspace_concurrency_negative_flag_resolves_to_offset() {
+    let args = ["pacquet-test", "--workspace-concurrency=-1"]
+        .pipe(InstallArgsHarness::try_parse_from)
+        .expect("parses")
+        .args;
+    let expected = pacquet_config::available_parallelism().saturating_sub(1).max(1);
+    assert_eq!(args.resolve_workspace_concurrency(7), expected);
 }
 
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the

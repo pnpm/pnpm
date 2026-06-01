@@ -51,6 +51,11 @@ jobs:
       shell: bash
       env:
         NODE_VERSION: ${{ inputs.node }}
+        # `pn node -v` falls back through `run`/`exec`, which would
+        # otherwise trigger a verifyDepsBeforeRun install just to print
+        # the version. Disable it so this step measures the runtime that
+        # pnpm/setup provisioned, not one a stray install pulled in.
+        pnpm_config_verify_deps_before_run: false
       run: |
         actual=$(pn node -v)
         expected="v${NODE_VERSION}"
@@ -69,15 +74,21 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
-    # pnpm-registry is the Rust HTTP server the test harness spawns
-    # in place of verdaccio (see __utils__/jest-config/with-registry/globalSetup.js).
-    # Built per-platform here because the binary is native code and the
-    # ubuntu and windows test jobs each need their own.
-    - name: Install Rust toolchain
+    # The test harness serves package fixtures through the in-repo
+    # `pnpr`; `pnpr-prepare` turns the raw fixtures under
+    # `pnpr/.fixtures/packages` into the storage the server reads.
+    - name: Install Rust
       uses: ./.github/actions/rustup
-    - name: Build pnpm-registry
+      with:
+        save-cache: ${{ github.ref_name == 'main' }}
+        shared-key: registry-prepare
+    - name: Build the registry fixture preparer
       shell: bash
-      run: cargo build --release -p pnpm-registry --locked
+      run: |
+        cargo build --locked --release -p pnpr-fixtures --bin pnpr-prepare
+        bin="$PWD/target/release/pnpr-prepare"
+        [ -f "$bin.exe" ] && bin="$bin.exe"
+        echo "PNPR_PREPARE_BIN=$bin" >> "$GITHUB_ENV"
     - name: Determine test scope
       id: test-scope
       shell: bash

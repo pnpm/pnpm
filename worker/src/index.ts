@@ -139,11 +139,14 @@ export class TarballIntegrityError extends PnpmError {
       `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
       {
         attempts: opts.attempts,
-        hint: `This error may happen when a package is republished to the registry with the same version.
-In this case, the metadata in the local pnpm cache will contain the old integrity checksum.
+        hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity — that would defeat the lockfile's protection if a registry or proxy is serving tampered content.
 
-If you think that this is the case, then run "pnpm store prune" and rerun the command that failed.
-"pnpm store prune" will remove your local metadata cache.`,
+If you trust the new content (legitimate republish, or stale local metadata cache):
+
+  - Run "pnpm store prune" and retry, in case only the metadata cache is out of date.
+  - Run "pnpm install --update-checksums" to refresh the locked integrity from the registry.
+
+If you did not expect this package to change, treat it as a potential supply-chain issue and verify the new content before re-running with --update-checksums.`,
       }
     )
     this.found = opts.found

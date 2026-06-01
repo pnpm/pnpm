@@ -15,8 +15,8 @@
 //! absolute-form URI and a decoded `Proxy-Authorization` header.
 
 use super::{
-    ForInstallsError, NoProxyMatcher, NoProxySetting, PerRegistryTls, ProxyConfig, ProxyError,
-    ThrottledClient, TlsConfig, parse_proxy_url,
+    ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting, PerRegistryTls, ProxyConfig,
+    ProxyError, ThrottledClient, TlsConfig, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use reqwest::Url;
@@ -27,10 +27,10 @@ fn list(entries: &[&str]) -> NoProxySetting {
 
 #[test]
 fn no_proxy_matcher_reverse_dot_match() {
-    let m = NoProxyMatcher::from(Some(&list(&["npmjs.org"])));
+    let matcher = NoProxyMatcher::from(Some(&list(&["npmjs.org"])));
     // The matcher state is the same across every probe; logging it
     // once per test makes a failure diagnosable without rerunning.
-    eprintln!("matcher={m:?}");
+    eprintln!("matcher={matcher:?}");
     for (host, expected) in [
         ("npmjs.org", true),
         ("registry.npmjs.org", true),
@@ -38,7 +38,7 @@ fn no_proxy_matcher_reverse_dot_match() {
         ("evilnpmjs.org", false),
         ("org", false),
     ] {
-        let got = m.matches_host(host);
+        let got = matcher.matches_host(host);
         assert_eq!(got, expected, "host={host}: expected match={expected}, got={got}");
     }
 }
@@ -48,38 +48,38 @@ fn no_proxy_matcher_empty_entries_never_match() {
     // Trailing/leading commas in `.npmrc` already get filtered in the
     // config layer's `parse_no_proxy`, but a malformed `List(vec![""])`
     // must still fail to match — defense in depth at the matcher.
-    let m = NoProxyMatcher::from(Some(&list(&[""])));
-    let got = m.matches_host("anything.example");
-    assert!(!got, "matcher={m:?} host=anything.example expected miss, got match");
+    let matcher = NoProxyMatcher::from(Some(&list(&[""])));
+    let got = matcher.matches_host("anything.example");
+    assert!(!got, "matcher={matcher:?} host=anything.example expected miss, got match");
 }
 
 #[test]
 fn no_proxy_matcher_multiple_entries() {
-    let m = NoProxyMatcher::from(Some(&list(&["npmjs.org", "internal.example"])));
-    eprintln!("matcher={m:?}");
+    let matcher = NoProxyMatcher::from(Some(&list(&["npmjs.org", "internal.example"])));
+    eprintln!("matcher={matcher:?}");
     for (host, expected) in
         [("registry.npmjs.org", true), ("ci.internal.example", true), ("public.example", false)]
     {
-        let got = m.matches_host(host);
+        let got = matcher.matches_host(host);
         assert_eq!(got, expected, "host={host}: expected={expected}, got={got}");
     }
 }
 
 #[test]
 fn no_proxy_bypass_short_circuits_every_host() {
-    let m = NoProxyMatcher::from(Some(&NoProxySetting::Bypass));
-    eprintln!("matcher={m:?}");
+    let matcher = NoProxyMatcher::from(Some(&NoProxySetting::Bypass));
+    eprintln!("matcher={matcher:?}");
     for host in ["any.host", ""] {
-        let got = m.matches_host(host);
+        let got = matcher.matches_host(host);
         assert!(got, "host={host:?}: bypass must match every host, got miss");
     }
 }
 
 #[test]
 fn no_proxy_none_matches_nothing() {
-    let m = NoProxyMatcher::from(None);
-    let got = m.matches_host("registry.npmjs.org");
-    assert!(!got, "matcher={m:?}: None setting must never match");
+    let matcher = NoProxyMatcher::from(None);
+    let got = matcher.matches_host("registry.npmjs.org");
+    assert!(!got, "matcher={matcher:?}: None setting must never match");
 }
 
 #[test]
@@ -161,6 +161,7 @@ fn for_installs_with_empty_proxy_config_builds() {
         &ProxyConfig::default(),
         &TlsConfig::default(),
         &PerRegistryTls::default(),
+        &NetworkSettings::default(),
     )
     .expect("empty proxy is valid");
 }
@@ -172,17 +173,26 @@ fn for_installs_with_valid_proxy_url_builds() {
         http_proxy: Some("http://proxy.example:8080".into()),
         no_proxy: None,
     };
-    ThrottledClient::for_installs(&proxy, &TlsConfig::default(), &PerRegistryTls::default())
-        .expect("valid proxy URLs build");
+    ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("valid proxy URLs build");
 }
 
 #[test]
 fn for_installs_with_invalid_proxy_url_errors() {
     let proxy =
         ProxyConfig { https_proxy: Some("://nonsense".into()), http_proxy: None, no_proxy: None };
-    let err =
-        ThrottledClient::for_installs(&proxy, &TlsConfig::default(), &PerRegistryTls::default())
-            .expect_err("must error");
+    let err = ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect_err("must error");
     eprintln!("err={err:?}");
     let is_invalid = matches!(err, ForInstallsError::Proxy(ProxyError::InvalidProxy { .. }));
     assert!(is_invalid, "err={err:?}: expected ForInstallsError::Proxy(InvalidProxy)");
@@ -198,8 +208,13 @@ fn for_installs_with_socks_proxy_url_builds() {
         http_proxy: None,
         no_proxy: None,
     };
-    ThrottledClient::for_installs(&proxy, &TlsConfig::default(), &PerRegistryTls::default())
-        .expect("socks proxy URL builds");
+    ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("socks proxy URL builds");
 }
 
 #[test]
@@ -209,8 +224,13 @@ fn for_installs_no_proxy_bypass_does_not_block_build() {
         http_proxy: None,
         no_proxy: Some(NoProxySetting::Bypass),
     };
-    ThrottledClient::for_installs(&proxy, &TlsConfig::default(), &PerRegistryTls::default())
-        .expect("bypass + proxy URL builds");
+    ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("bypass + proxy URL builds");
 }
 
 /// End-to-end check that `for_installs` actually routes HTTP traffic
@@ -242,9 +262,13 @@ async fn mockito_integration_http_proxy_forwards_request_with_basic_auth() {
     // the value the mock matches above.
     let with_auth = proxy_url.replacen("//", "//user%40name:p%40ss@", 1);
     let cfg = ProxyConfig { https_proxy: None, http_proxy: Some(with_auth), no_proxy: None };
-    let client =
-        ThrottledClient::for_installs(&cfg, &TlsConfig::default(), &PerRegistryTls::default())
-            .expect("valid proxy");
+    let client = ThrottledClient::for_installs(
+        &cfg,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("valid proxy");
     let guard = client.acquire().await;
     let resp = guard.get("http://target.example/anything").send().await.expect("proxied request");
     assert_eq!(resp.status(), 200);
@@ -280,9 +304,13 @@ async fn mockito_integration_no_proxy_bypasses_proxy() {
         http_proxy: Some(proxy_server.url()),
         no_proxy: Some(NoProxySetting::Bypass),
     };
-    let client =
-        ThrottledClient::for_installs(&cfg, &TlsConfig::default(), &PerRegistryTls::default())
-            .expect("valid proxy");
+    let client = ThrottledClient::for_installs(
+        &cfg,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("valid proxy");
     let guard = client.acquire().await;
     let url = format!("{}{}", target_server.url(), target_path);
     let resp = guard.get(&url).send().await.expect("direct request");
@@ -317,8 +345,13 @@ const TEST_CA_PEM: &str = include_str!("../tests/fixtures/test-ca.pem");
 #[test]
 fn for_installs_with_valid_ca_pem_builds() {
     let tls = TlsConfig { ca: vec![TEST_CA_PEM.to_string()], ..TlsConfig::default() };
-    ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-        .expect("valid CA PEM builds");
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("valid CA PEM builds");
 }
 
 #[test]
@@ -328,8 +361,13 @@ fn for_installs_with_multiple_ca_pems_builds() {
         ca: vec![TEST_CA_PEM.to_string(), TEST_CA_PEM.to_string()],
         ..TlsConfig::default()
     };
-    ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-        .expect("multiple CA PEMs build");
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("multiple CA PEMs build");
 }
 
 #[test]
@@ -341,9 +379,13 @@ fn for_installs_with_invalid_ca_pem_errors_with_index() {
         ca: vec![TEST_CA_PEM.to_string(), "not a pem certificate".to_string()],
         ..TlsConfig::default()
     };
-    let err =
-        ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-            .expect_err("invalid CA must error");
+    let err = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect_err("invalid CA must error");
     eprintln!("err={err:?}");
     match err {
         ForInstallsError::Tls(super::TlsError::InvalidCa { index, .. }) => assert_eq!(index, 1),
@@ -360,8 +402,13 @@ fn for_installs_strict_ssl_false_relaxes_verification() {
     // integration test would need a TLS-capable mock server (e.g.
     // `wiremock` with rustls) and is left as a future enhancement.
     let tls = TlsConfig { strict_ssl: Some(false), ..TlsConfig::default() };
-    ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-        .expect("strict-ssl=false builds");
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("strict-ssl=false builds");
 }
 
 #[test]
@@ -372,16 +419,26 @@ fn for_installs_strict_ssl_default_is_true() {
     // best we can do without a server; the absence of
     // `danger_accept_invalid_certs(true)` is the contract.
     let tls = TlsConfig { strict_ssl: None, ..TlsConfig::default() };
-    ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-        .expect("strict-ssl unset builds");
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("strict-ssl unset builds");
 }
 
 #[test]
 fn for_installs_local_address_pinned() {
     use std::net::Ipv4Addr;
     let tls = TlsConfig { local_address: Some(Ipv4Addr::LOCALHOST.into()), ..TlsConfig::default() };
-    ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-        .expect("local_address pinning builds");
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("local_address pinning builds");
 }
 
 #[test]
@@ -393,9 +450,13 @@ fn for_installs_with_malformed_client_identity_errors() {
         key: Some("not a real key".to_string()),
         ..TlsConfig::default()
     };
-    let err =
-        ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-            .expect_err("malformed cert/key must error");
+    let err = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect_err("malformed cert/key must error");
     eprintln!("err={err:?}");
     let is_invalid =
         matches!(err, ForInstallsError::Tls(super::TlsError::InvalidClientIdentity { .. }));
@@ -409,8 +470,13 @@ fn for_installs_with_cert_but_no_key_skips_identity() {
     // the same "both or neither" expectation). The client must still
     // build cleanly.
     let tls = TlsConfig { cert: Some(TEST_CA_PEM.to_string()), key: None, ..TlsConfig::default() };
-    ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-        .expect("cert without key builds (identity skipped)");
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("cert without key builds (identity skipped)");
 }
 
 // --- Per-registry routing tests ---
@@ -432,8 +498,13 @@ fn for_installs_builds_per_registry_clients() {
         RegistryTls { ca: Some(TEST_CA_PEM.to_string()), ..RegistryTls::default() },
     );
     let per_registry = PerRegistryTls::from_map(map);
-    ThrottledClient::for_installs(&ProxyConfig::default(), &TlsConfig::default(), &per_registry)
-        .expect("per-registry config builds");
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &per_registry,
+        &NetworkSettings::default(),
+    )
+    .expect("per-registry config builds");
 }
 
 #[test]
@@ -454,6 +525,7 @@ fn for_installs_per_registry_invalid_ca_errors() {
         &ProxyConfig::default(),
         &TlsConfig::default(),
         &per_registry,
+        &NetworkSettings::default(),
     )
     .expect_err("must error");
     eprintln!("err={err:?}");
@@ -488,6 +560,7 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
         &ProxyConfig::default(),
         &TlsConfig::default(),
         &per_registry,
+        &NetworkSettings::default(),
     )
     .expect("valid");
 
@@ -507,10 +580,10 @@ async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
     // short-circuits and `acquire_for_url` always returns the
     // default client.
     let throttled = ThrottledClient::new_for_installs();
-    let a = throttled.acquire_for_url("https://example.com/").await;
-    let b = throttled.acquire_for_url("https://other.example.org/").await;
-    let a_ptr: *const reqwest::Client = &*a;
-    let b_ptr: *const reqwest::Client = &*b;
+    let permit_a = throttled.acquire_for_url("https://example.com/").await;
+    let permit_b = throttled.acquire_for_url("https://other.example.org/").await;
+    let a_ptr: *const reqwest::Client = &*permit_a;
+    let b_ptr: *const reqwest::Client = &*permit_b;
     assert_eq!(a_ptr, b_ptr, "without overrides every URL should hit the default client");
 }
 
@@ -546,6 +619,62 @@ fn for_installs_with_pkcs1_client_key_builds() {
         key: Some(TEST_CLIENT_PKCS1_KEY.to_string()),
         ..TlsConfig::default()
     };
-    ThrottledClient::for_installs(&ProxyConfig::default(), &tls, &PerRegistryTls::default())
-        .expect("PKCS#1 client key + cert builds with rustls backend");
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("PKCS#1 client key + cert builds with rustls backend");
+}
+
+#[test]
+fn for_installs_honors_custom_network_settings() {
+    // A custom concurrency / timeout / user-agent must thread through
+    // without error — the settings reach the semaphore and the reqwest
+    // builder rather than being ignored.
+    let settings = NetworkSettings {
+        network_concurrency: 4,
+        fetch_timeout: std::time::Duration::from_secs(5),
+        user_agent: "pnpm/9.9.9 npm/? node/? darwin arm64".to_string(),
+    };
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &settings,
+    )
+    .expect("custom network settings build");
+    assert_eq!(client.semaphore.available_permits(), 4);
+}
+
+#[test]
+fn for_installs_rejects_zero_network_concurrency() {
+    // A zero-permit semaphore would hang every fetch; pnpm rejects the
+    // same value, so `for_installs` must fail fast rather than deadlock.
+    let settings = NetworkSettings { network_concurrency: 0, ..NetworkSettings::default() };
+    let err = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &settings,
+    )
+    .expect_err("zero network concurrency must error");
+    assert!(matches!(err, ForInstallsError::ZeroNetworkConcurrency), "got {err:?}");
+}
+
+#[test]
+fn for_installs_falls_back_on_unencodable_user_agent() {
+    // A user-agent containing a control character cannot be encoded as
+    // an HTTP header value; the client must still build (falling back
+    // to the default UA) rather than erroring.
+    let settings =
+        NetworkSettings { user_agent: "bad\nua".to_string(), ..NetworkSettings::default() };
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &settings,
+    )
+    .expect("unencodable user-agent falls back to default");
 }

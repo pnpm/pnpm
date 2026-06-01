@@ -1,5 +1,7 @@
-use crate::group::{PatchInput, group_patched_dependencies};
-use crate::types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem};
+use crate::{
+    group::{PatchInput, group_patched_dependencies},
+    types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem},
+};
 use pretty_assertions::assert_eq;
 
 const ZERO_HASH: &str = "00000000000000000000000000000000";
@@ -117,8 +119,8 @@ fn star_wildcard_lands_in_all() {
 /// against accidentally requiring fields at construction.
 #[test]
 fn patch_group_default_is_empty() {
-    let g = PatchGroup::default();
-    assert!(g.exact.is_empty());
-    assert!(g.range.is_empty());
-    assert_eq!(g.all, None);
+    let group = PatchGroup::default();
+    assert!(group.exact.is_empty());
+    assert!(group.range.is_empty());
+    assert_eq!(group.all, None);
 }

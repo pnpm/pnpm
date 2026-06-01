@@ -1,3 +1,4 @@
+import { checkbox, confirm } from '@inquirer/prompts'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
@@ -8,7 +9,6 @@ import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modul
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import chalk from 'chalk'
-import enquirer from 'enquirer'
 import { renderHelp } from 'render-help'
 
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
@@ -121,43 +121,32 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } else if (opts.all) {
     buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
   } else {
-    const { result } = await enquirer.prompt({
-      choices: sortUniqueStrings([...automaticallyIgnoredBuilds]),
-      indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-        return ` ${choice.enabled ? '●' : '○'}`
-      },
-      message: 'Choose which packages to build ' +
-        `(Press ${chalk.cyan('<space>')} to select, ` +
-        `${chalk.cyan('<a>')} to toggle all, ` +
-        `${chalk.cyan('<i>')} to invert selection)`,
-      name: 'result',
-      pointer: '❯',
-      result () {
-        return this.selected
-      },
-      styles: {
-        dark: chalk.reset,
-        em: chalk.bgBlack.whiteBright,
-        success: chalk.reset,
-      },
-      type: 'multiselect',
-
-      // For Vim users (related: https://github.com/enquirer/enquirer/pull/163)
-      j () {
-        return this.down()
-      },
-      k () {
-        return this.up()
-      },
-      cancel () {
-        // By default, canceling the prompt via Ctrl+c throws an empty string.
-        // The custom cancel function prevents that behavior.
-        // Otherwise, pnpm CLI would print an error and confuse users.
-        // See related issue: https://github.com/enquirer/enquirer/issues/225
+    try {
+      const buildPackagesValues = await checkbox({
+        choices: sortUniqueStrings([...automaticallyIgnoredBuilds]).map((name) => ({
+          name,
+          value: name,
+        })),
+        message: 'Choose which packages to build ' +
+          `(Press ${chalk.cyan('<space>')} to select, ` +
+          `${chalk.cyan('<a>')} to toggle all, ` +
+          `${chalk.cyan('<i>')} to invert selection)`,
+        required: false,
+        theme: {
+          icon: { checked: '●', unchecked: '○', cursor: '❯' },
+          style: {
+            highlight: chalk.bgBlack.whiteBright,
+          },
+          keybindings: ['vim'],
+        },
+      })
+      buildPackages = buildPackagesValues
+    } catch (err) {
+      if (err instanceof Error && err.name === 'ExitPromptError') {
         process.exit(0)
-      },
-    } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    buildPackages = result.map(({ value }: { value: string }) => value)
+      }
+      throw err
+    }
   }
   const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
   if (params.length) {
@@ -178,14 +167,19 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   }
   if (!opts.all && !params.length) {
     if (buildPackages.length) {
-      const confirmed = await enquirer.prompt<{ build: boolean }>({
-        type: 'confirm',
-        name: 'build',
-        message: `The next packages will now be built: ${buildPackages.join(', ')}.
-Do you approve?`,
-        initial: false,
-      })
-      if (!confirmed.build) {
+      let isConfirmed: boolean
+      try {
+        isConfirmed = await confirm({
+          message: `The next packages will now be built: ${buildPackages.join(', ')}.\nDo you approve?`,
+          default: false,
+        })
+      } catch (err) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          process.exit(0)
+        }
+        throw err
+      }
+      if (!isConfirmed) {
         return
       }
     } else {

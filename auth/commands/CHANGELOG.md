@@ -1,5 +1,48 @@
 # @pnpm/auth.commands
 
+## 1100.2.0
+
+### Minor Changes
+
+- 2cadfb5: Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+  - @pnpm/registry-access.client@1100.1.0
+  - @pnpm/network.fetch@1100.0.8
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/network.web-auth@1101.1.0
+
+## 1100.1.2
+
+### Patch Changes
+
+- ae21758: Refactor the dist-tag-add and login (classic adduser) handlers to delegate their PUTs to a new shared package `@pnpm/registry-access.client`. Downstream tests in this monorepo now use these helpers (via `@pnpm/testing.registry-mock`) instead of `addDistTag` / `addUser` from `@pnpm/registry-mock`, which relied on the unmaintained `anonymous-npm-registry-client`.
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/registry-access.client@1100.0.1
+
 ## 1100.1.1
 
 ### Patch Changes

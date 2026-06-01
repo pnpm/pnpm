@@ -24,7 +24,7 @@ use chrono::{DateTime, Utc};
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName};
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_registry::{NpmUser, Package, PackageDistribution, PackageVersion};
+use pacquet_registry::{Approver, NpmUser, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
@@ -716,7 +716,7 @@ impl NpmResolutionVerifier {
             // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
             // cap (see [#11860]).
             //
-            // [#11860]: https://github.com/pnpm/pnpm/issues/11860
+            // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
             self.fetch_full_meta(registry, name)
                 .await
                 .map(|meta| project_trust_meta(&meta))
@@ -835,8 +835,9 @@ fn build_policy_snapshot(
 
 /// Build a [`Package`] that retains only the fields
 /// [`fail_if_trust_downgraded`] reads: the package name, the per-version
-/// `time` map, and per-version trust evidence (`_npmUser.trustedPublisher`
-/// and `dist.attestations.provenance`). Drops everything else — dependency
+/// `time` map, and per-version trust evidence (`_npmUser.approver`,
+/// `_npmUser.trustedPublisher`, and `dist.attestations.provenance`).
+/// Drops everything else — dependency
 /// graphs, scripts, READMEs — so the per-install trust-meta cache stays
 /// bounded by the trust-evidence footprint, not the full packument size.
 ///
@@ -871,14 +872,20 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
         version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).map(|prov| {
             pacquet_registry::AttestationsDist { provenance: Some(prov.clone()), url: None }
         });
-    // `get_trust_evidence` only reads `npm_user.trusted_publisher`; drop
-    // the maintainer `name` / `email` PII so the projected cache entry
+    // `get_trust_evidence` only reads `npm_user.approver` (presence) and
+    // `npm_user.trusted_publisher`; drop the maintainer `name` / `email`
+    // PII — including the approver's — so the projected cache entry
     // doesn't hold per-version publisher metadata that downstream
     // doesn't need.
-    let npm_user =
-        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).map(|trusted| {
-            NpmUser { name: None, email: None, trusted_publisher: Some(trusted.clone()) }
-        });
+    let approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref());
+    let trusted_publisher =
+        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref());
+    let npm_user = (approver.is_some() || trusted_publisher.is_some()).then(|| NpmUser {
+        name: None,
+        email: None,
+        approver: approver.map(|_| Approver { name: None, email: None }),
+        trusted_publisher: trusted_publisher.cloned(),
+    });
     PackageVersion {
         // `fail_if_trust_downgraded` keys off the outer `meta.versions`
         // map and the version-level npm_user / attestations fields. The

@@ -7,18 +7,35 @@ import { getConfig } from '@pnpm/config.reader'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare } from '@pnpm/prepare'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { safeExeca as execa } from 'execa'
 import { omit } from 'ramda'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
-const { default: enquirer } = await import('enquirer')
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
+})
+const { checkbox, confirm } = await import('@inquirer/prompts')
 const { approveBuilds } = await import('@pnpm/building.commands')
 
-const prompt = jest.mocked(enquirer.prompt)
+const mockCheckbox = jest.mocked(checkbox)
+const mockConfirm = jest.mocked(confirm)
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
@@ -61,16 +78,8 @@ async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  prompt.mockResolvedValueOnce({
-    result: [
-      {
-        value: '@pnpm.e2e/pre-and-postinstall-scripts-example',
-      },
-    ],
-  })
-  prompt.mockResolvedValueOnce({
-    build: true,
-  })
+  mockCheckbox.mockResolvedValueOnce(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  mockConfirm.mockResolvedValueOnce(true)
 
   await approveBuilds.handler({ ...config, ...opts }, [], {})
 }
@@ -79,9 +88,7 @@ async function approveNoBuilds (opts?: ApproveBuildsOptions) {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  prompt.mockResolvedValueOnce({
-    result: [],
-  })
+  mockCheckbox.mockResolvedValueOnce([])
 
   await approveBuilds.handler({ ...config, ...opts }, [], {})
 }
@@ -153,10 +160,8 @@ test("works when root project manifest doesn't exist in a workspace", async () =
   writeYamlFileSync(workspaceManifestFile, { packages: ['packages/*'] })
 
   const config = await getApproveBuildsConfig()
-  prompt.mockResolvedValueOnce({
-    result: [{ value: '@pnpm.e2e/pre-and-postinstall-scripts-example' }],
-  })
-  prompt.mockResolvedValueOnce({ build: true })
+  mockCheckbox.mockResolvedValueOnce(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  mockConfirm.mockResolvedValueOnce(true)
   await approveBuilds.handler({ ...config, workspaceDir, rootProjectManifestDir: workspaceDir }, [], {})
 
   expect(readYamlFileSync(workspaceManifestFile)).toStrictEqual({
@@ -204,10 +209,12 @@ test('approve all builds with --all flag', async () => {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  prompt.mockClear()
+  mockCheckbox.mockClear()
+  mockConfirm.mockClear()
   await approveBuilds.handler({ ...config, all: true }, [], {})
 
-  expect(prompt).not.toHaveBeenCalled()
+  expect(mockCheckbox).not.toHaveBeenCalled()
+  expect(mockConfirm).not.toHaveBeenCalled()
 
   const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(workspaceManifest.allowBuilds).toStrictEqual({
@@ -231,10 +238,12 @@ test('approve builds via positional arguments', async () => {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  prompt.mockClear()
+  mockCheckbox.mockClear()
+  mockConfirm.mockClear()
   await approveBuilds.handler(config, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], {})
 
-  expect(prompt).not.toHaveBeenCalled()
+  expect(mockCheckbox).not.toHaveBeenCalled()
+  expect(mockConfirm).not.toHaveBeenCalled()
 
   const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(workspaceManifest.allowBuilds).toStrictEqual({
@@ -261,13 +270,15 @@ test('deny builds via !pkg positional arguments', async () => {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  prompt.mockClear()
+  mockCheckbox.mockClear()
+  mockConfirm.mockClear()
   await approveBuilds.handler(config, [
     '@pnpm.e2e/pre-and-postinstall-scripts-example',
     '!@pnpm.e2e/install-script-example',
   ], {})
 
-  expect(prompt).not.toHaveBeenCalled()
+  expect(mockCheckbox).not.toHaveBeenCalled()
+  expect(mockConfirm).not.toHaveBeenCalled()
 
   const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(workspaceManifest.allowBuilds).toStrictEqual({
@@ -290,12 +301,14 @@ test('deny-only via !pkg keeps other builds pending', async () => {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  prompt.mockClear()
+  mockCheckbox.mockClear()
+  mockConfirm.mockClear()
   await approveBuilds.handler(config, [
     '!@pnpm.e2e/install-script-example',
   ], {})
 
-  expect(prompt).not.toHaveBeenCalled()
+  expect(mockCheckbox).not.toHaveBeenCalled()
+  expect(mockConfirm).not.toHaveBeenCalled()
 
   const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
   expect(workspaceManifest.allowBuilds).toStrictEqual({
@@ -439,10 +452,8 @@ test('should retain existing allowBuilds entries when approving builds', async (
   })
 
   const config = await getApproveBuildsConfig()
-  prompt.mockResolvedValueOnce({
-    result: [{ value: '@pnpm.e2e/pre-and-postinstall-scripts-example' }],
-  })
-  prompt.mockResolvedValueOnce({ build: true })
+  mockCheckbox.mockResolvedValueOnce(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  mockConfirm.mockResolvedValueOnce(true)
   await approveBuilds.handler({
     ...config,
     workspaceDir: temp,
@@ -492,10 +503,8 @@ test('GVS approve-builds writes settings to globalPkgDir without scanning siblin
   await execPnpmInstall({ enableGlobalVirtualStore: true })
 
   const config = await getApproveBuildsConfig()
-  prompt.mockResolvedValueOnce({
-    result: [{ value: '@pnpm.e2e/pre-and-postinstall-scripts-example' }],
-  })
-  prompt.mockResolvedValueOnce({ build: true })
+  mockCheckbox.mockResolvedValueOnce(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  mockConfirm.mockResolvedValueOnce(true)
 
   // Match the global-install call site: settingsDir points at the global
   // packages dir (for writeSettings) but workspaceDir is not set, so install

@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/abc-regular-deps-is-in-peers",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/abc-regular-deps": "*"
+  }
+}

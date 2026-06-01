@@ -40,7 +40,7 @@ type MockContextOverrides = Omit<Partial<OtpContext>, 'process'> & {
 const createOtpMockContext = (overrides?: MockContextOverrides): OtpContext => ({
   Date: { now: () => 0 },
   setTimeout: (cb: () => void) => cb(),
-  enquirer: { prompt: async () => ({ otp: '123456' }) },
+  enquirer: { input: async () => '123456' },
   fetch: async () => createMockResponse({
     ok: false,
     status: 404,
@@ -103,7 +103,7 @@ describe('withOtpHandling', () => {
     it('prompts for OTP and retries operation', async () => {
       let callCount = 0
       const context = createOtpMockContext({
-        enquirer: { prompt: async () => ({ otp: '654321' }) },
+        enquirer: { input: async () => '654321' },
       })
       const result = await withOtpHandling({
         context,
@@ -149,7 +149,7 @@ describe('withOtpHandling', () => {
 
     it('re-throws the original OTP error when enquirer returns no OTP', async () => {
       const context = createOtpMockContext({
-        enquirer: { prompt: async () => ({ otp: '' }) },
+        enquirer: { input: async () => '' },
       })
       await expect(withOtpHandling({
         context,
@@ -162,7 +162,7 @@ describe('withOtpHandling', () => {
 
     it('re-throws the original OTP error when enquirer returns undefined', async () => {
       const context = createOtpMockContext({
-        enquirer: { prompt: async () => undefined },
+        enquirer: { input: async () => undefined },
       })
       await expect(withOtpHandling({
         context,
@@ -224,7 +224,7 @@ describe('withOtpHandling', () => {
     it('falls back to classic prompt when only authUrl is present (no doneUrl)', async () => {
       let callCount = 0
       const context = createOtpMockContext({
-        enquirer: { prompt: async () => ({ otp: 'manual-code' }) },
+        enquirer: { input: async () => 'manual-code' },
       })
       const result = await withOtpHandling({
         context,
@@ -247,7 +247,7 @@ describe('withOtpHandling', () => {
     it('falls back to classic prompt when only doneUrl is present (no authUrl)', async () => {
       let callCount = 0
       const context = createOtpMockContext({
-        enquirer: { prompt: async () => ({ otp: 'manual-code' }) },
+        enquirer: { input: async () => 'manual-code' },
       })
       const result = await withOtpHandling({
         context,

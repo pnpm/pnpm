@@ -49,7 +49,7 @@ pub enum ParseNodeSpecifierError {
 /// 3. `<major.minor.patch>` — exact stable version on `release`.
 /// 4. A standalone channel name (e.g. `nightly`) — short-hand for
 ///    "latest from that channel".
-/// 5. `lts`, `latest`, an LTS codename (`argon`, `iron`, …), or any
+/// 5. `lts`, `latest`, an LTS codename (`argon`, `iron`, ...), or any
 ///    semver range. All map to the `release` channel and pass through
 ///    as the version selector verbatim; an invalid input fails at
 ///    resolution time with `NODEJS_VERSION_NOT_FOUND`.

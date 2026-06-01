@@ -1,5 +1,6 @@
 use super::{
-    emit_warm_snapshot_progress, integrity_equal, snapshot_cache_key, snapshot_deps_equal,
+    CreateVirtualStoreError, InstallPackageBySnapshotError, emit_warm_snapshot_progress,
+    integrity_equal, snapshot_cache_key, snapshot_deps_equal,
 };
 use pacquet_lockfile::{
     GitResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
@@ -103,9 +104,9 @@ fn snapshot_deps_equal_treats_absent_and_empty_alike() {
 /// transitive.
 #[test]
 fn snapshot_deps_equal_distinguishes_different_dependency_values() {
-    let a = snapshot_with_dep("react", "17.0.2");
-    let b = snapshot_with_dep("react", "18.0.0");
-    assert!(!snapshot_deps_equal(&a, &b));
+    let entry_a = snapshot_with_dep("react", "17.0.2");
+    let entry_b = snapshot_with_dep("react", "18.0.0");
+    assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
 /// `optionalDependencies` participate in the comparison the same way
@@ -114,15 +115,15 @@ fn snapshot_deps_equal_distinguishes_different_dependency_values() {
 #[test]
 fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
     let dep_ref: SnapshotDepRef = "1.0.0".parse().expect("parse dep ref");
-    let a = SnapshotEntry {
+    let entry_a = SnapshotEntry {
         optional_dependencies: Some(HashMap::from([(name("react"), dep_ref.clone())])),
         ..Default::default()
     };
-    let b = SnapshotEntry {
+    let entry_b = SnapshotEntry {
         optional_dependencies: Some(HashMap::from([(name("react-dom"), dep_ref)])),
         ..Default::default()
     };
-    assert!(!snapshot_deps_equal(&a, &b));
+    assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
 /// `integrity_equal` mirrors upstream's `isIntegrityEqual` —
@@ -131,24 +132,24 @@ fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
 /// force a re-fetch.
 #[test]
 fn integrity_equal_matches_when_integrities_agree() {
-    let a = metadata_with_integrity(
+    let entry_a = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    let b = metadata_with_integrity(
+    let entry_b = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    assert!(integrity_equal(Some(&a), Some(&b)));
+    assert!(integrity_equal(Some(&entry_a), Some(&entry_b)));
 }
 
 #[test]
 fn integrity_equal_distinguishes_changed_integrities() {
-    let a = metadata_with_integrity(
+    let entry_a = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    let b = metadata_with_integrity(
+    let entry_b = metadata_with_integrity(
         "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
     );
-    assert!(!integrity_equal(Some(&a), Some(&b)));
+    assert!(!integrity_equal(Some(&entry_a), Some(&entry_b)));
 }
 
 /// Missing metadata on either side (a malformed lockfile, or the
@@ -252,4 +253,47 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
         Some(format!("{pkg}\tbuilt")),
         "git-hosted tarball resolutions must route through gitHostedStoreIndexKey",
     );
+}
+
+/// Failing closed at the cache-key site (rather than only at the
+/// install-side guard) is the whole point of the check duplication —
+/// otherwise a malformed lockfile burns the warm rayon batch before
+/// the install path fires the same error.
+#[test]
+fn snapshot_cache_key_rejects_tarball_without_integrity() {
+    let pkg = key("foo", "1.0.0");
+    let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
+
+    let err =
+        snapshot_cache_key(&pkg, &packages).expect_err("missing integrity must reject upfront");
+    assert!(
+        matches!(
+            &err,
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::MissingTarballIntegrity { package_key },
+            ) if package_key == &pkg.to_string(),
+        ),
+        "expected MissingTarballIntegrity for `{pkg}`, got {err:?}",
+    );
+}
+
+fn tarball_metadata_without_integrity() -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
+            integrity: None,
+            git_hosted: None,
+            path: None,
+        }),
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
 }

@@ -70,6 +70,15 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   dryRun: boolean
   includeLatestTag?: boolean
   optional?: boolean
+  /**
+   * When true, skip the on-disk exact-version cache fast path so a
+   * stale on-disk packument can't satisfy the call without a
+   * conditional registry request. The in-memory cache is left alone:
+   * its entries can only be populated by this install's own fresh
+   * network fetches, so they're authoritative for second-and-onward
+   * lookups within the same install.
+   */
+  updateChecksums?: boolean
 }
 
 interface PickerOptions extends PickPackageFromMetaOptions {
@@ -264,7 +273,7 @@ export async function pickPackage (
       }
     }
 
-    if (!opts.includeLatestTag && spec.type === 'version') {
+    if (!opts.includeLatestTag && !opts.updateChecksums && spec.type === 'version') {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
@@ -285,7 +294,7 @@ export async function pickPackage (
         }
       }
     }
-    if (opts.publishedBy) {
+    if (opts.publishedBy && opts.publishedByExclude?.(spec.name) !== true) {
       const mtime = await limit(async () => getFileMtime(pkgMirror))
       if (mtime != null && mtime >= opts.publishedBy) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))

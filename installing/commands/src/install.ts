@@ -30,6 +30,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'global',
     'hoist',
     'hoist-pattern',
+    'hoisting-limits',
     'https-proxy',
     'ignore-pnpmfile',
     'ignore-scripts',
@@ -83,6 +84,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
   'fix-lockfile': Boolean,
+  'update-checksums': Boolean,
   'resolution-only': Boolean,
   recursive: Boolean,
   // `--no-save` lets `pnpm install` skip writing to package.json /
@@ -166,6 +168,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Fix broken lockfile entries automatically',
             name: '--fix-lockfile',
+          },
+          {
+            description: 'Refresh integrity checksums recorded in the lockfile from the registry',
+            name: '--update-checksums',
           },
           {
             description: 'Merge lockfiles were generated on git branch',
@@ -300,6 +306,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'global'
 | 'globalPnpmfile'
 | 'hoistPattern'
+| 'hoistingLimits'
 | 'publicHoistPattern'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
@@ -361,6 +368,7 @@ export type InstallCommandOptions = Pick<Config,
     remain?: string[]
   }
   fixLockfile?: boolean
+  updateChecksums?: boolean
   frozenLockfileIfExists?: boolean
   useBetaCli?: boolean
   pruneDirectDependencies?: boolean

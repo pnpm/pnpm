@@ -30,7 +30,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   }
 
   const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {}, opts.registries?.default)
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
   // Extract existing specifiers from configDependencies (handles both old and new formats)

@@ -16,9 +16,8 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import deepRequireCwd from 'deep-require-cwd'
@@ -2043,6 +2042,26 @@ test('peer dependency cache is invalidated correctly when the peer of a peer mis
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@1.0.0))']).toBeTruthy()
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@2.0.0))']).toBeTruthy()
+})
+
+// https://github.com/pnpm/pnpm/issues/12079
+// peer-diamond-plugin peer-depends both peer-diamond-parser and peer-diamond-ts,
+// and peer-diamond-parser peer-depends peer-diamond-ts. The plugin's parser and
+// its ts must agree. A top-level parser resolved against ts@2.0.0 must not be
+// reused for the plugin, which is nested under ts@1.0.0.
+test('a peer shared through a diamond is resolved consistently', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/peer-diamond-ts@2.0.0',
+    '@pnpm.e2e/peer-diamond-parser@1.0.0',
+    '@pnpm.e2e/peer-diamond-app@1.0.0',
+  ], testDefaults({ autoInstallPeers: true }))
+
+  const lockfile = project.readLockfile()
+  const pluginSnapshots = Object.keys(lockfile.snapshots).filter((key) => key.includes('peer-diamond-plugin'))
+  expect(pluginSnapshots).toStrictEqual([
+    '@pnpm.e2e/peer-diamond-plugin@1.0.0(@pnpm.e2e/peer-diamond-parser@1.0.0(@pnpm.e2e/peer-diamond-ts@1.0.0))(@pnpm.e2e/peer-diamond-ts@1.0.0)',
+  ])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8759
