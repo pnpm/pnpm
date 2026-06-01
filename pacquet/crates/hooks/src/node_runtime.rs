@@ -134,7 +134,7 @@ if (typeof fn !== 'function') {{ console.log(JSON.stringify(pkg)); }} else {{
             (
                 "commonjs",
                 format!(
-                    "(async () => {{\nconst mod = require({file_path_escaped});\n{body}\n}})().catch((err) => {{ console.error(err && err.stack ? err.stack : String(err)); process.exit(1); }});"
+                    "(async () => {{\nconst mod = require({file_path_escaped});\n{body}\n}})().catch((err) => {{ console.error(err && err.stack ? err.stack : String(err)); process.exit(1); }});",
                 ),
             )
         };

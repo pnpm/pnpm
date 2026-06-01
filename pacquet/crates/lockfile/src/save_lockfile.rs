@@ -58,8 +58,8 @@ pub enum SaveLockfileError {
 /// `preserve_order` feature keeps the key order produced by serializing the
 /// [`Lockfile`] and appended by the hook, so the output matches the typed write
 /// for unmodified lockfiles.
-pub fn save_value_to_path<T: serde::Serialize>(
-    value: &T,
+pub fn save_value_to_path<Document: serde::Serialize>(
+    value: &Document,
     path: &Path,
 ) -> Result<(), SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
