@@ -15,10 +15,13 @@ use std::{
 /// Ports the single-project (non-recursive) path of pnpm's `exec`
 /// command from
 /// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/exec.ts>.
-/// The recursive / workspace-filtered variant (project graph, topological
-/// sort, `--workspace-concurrency`, `--resume-from`, `--report-summary`)
-/// is not ported yet because pacquet's CLI has no workspace-selection
-/// plumbing.
+/// The recursive / workspace-filtered variant (topological scheduler,
+/// `--workspace-concurrency`, `--resume-from`, `--report-summary`) is
+/// not ported yet. pacquet now has the selection layer
+/// (`workspace-projects-filter`, `workspace-projects-graph`, and the
+/// global `--filter`/`--recursive` flags landed in #11959 and #12000),
+/// but no recursive runner to consume it — the global flags are
+/// accepted on `exec` via clap but not yet acted on.
 #[derive(Debug, Args)]
 pub struct ExecArgs {
     /// The command to run, followed by its arguments.
