@@ -171,13 +171,34 @@ impl Update<'_> {
             lockfile_only,
         } = self;
 
+        // `updateConfig.ignoreDependencies` applies only when the user
+        // passed no package selectors: each ignored name becomes a
+        // negation selector (`!name`) so the update covers everything
+        // *except* those. Mirrors pnpm's gate in
+        // [`installDeps`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/installDeps.ts#L337-L344)
+        // → `makeIgnorePatterns`.
+        let ignore_patterns: Vec<String>;
+        let selector_inputs: &[String] = if packages.is_empty() {
+            ignore_patterns = config
+                .update_config
+                .ignore_dependencies
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|dep| format!("!{dep}"))
+                .collect();
+            &ignore_patterns
+        } else {
+            packages
+        };
+
         let selectors: Vec<ParsedSelector> =
-            packages.iter().map(|p| parse_update_param(p)).collect();
+            selector_inputs.iter().map(|input| parse_update_param(input)).collect();
 
         // `--latest` forbids versioned selectors, matching pnpm's
         // `LATEST_WITH_SPEC` guard.
         if latest {
-            let with_spec: Vec<&str> = packages
+            let with_spec: Vec<&str> = selector_inputs
                 .iter()
                 .zip(&selectors)
                 .filter(|(_, sel)| sel.version.is_some())

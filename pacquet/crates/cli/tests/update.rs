@@ -34,6 +34,21 @@ fn write_manifest(workspace: &Path, dependencies: &str) {
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 }
 
+/// Append an `updateConfig.ignoreDependencies` block to the
+/// `pnpm-workspace.yaml` the harness already wrote.
+fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
+    for name in names {
+        yaml.push_str(&format!("    - \"{name}\"\n"));
+    }
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
 fn dep_spec(workspace: &Path, name: &str) -> Option<String> {
     let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
     manifest
@@ -183,6 +198,45 @@ fn update_depth_zero_unknown_package_errors() {
         stderr.contains("None of the specified packages were found in the dependencies"),
         "stderr did not mention NO_PACKAGE_IN_DEPENDENCIES: {stderr}",
     );
+
+    drop((root, anchor));
+}
+
+/// `updateConfig.ignoreDependencies` excludes the listed packages from a
+/// no-selector update — ports pnpm's "ignore packages in
+/// updateConfig.ignoreDependencies" test (adapted to static fixtures).
+#[test]
+fn update_latest_honors_ignore_dependencies() {
+    let (root, workspace, anchor) = setup();
+    set_ignore_dependencies(&workspace, &[DEP]);
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    // foo is updated to its latest; the ignored dep keeps its range.
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.1.0"));
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+
+    drop((root, anchor));
+}
+
+/// When every dependency is ignored, `update --latest` is a no-op —
+/// ports pnpm's "do not update anything if all the dependencies are
+/// ignored" test.
+#[test]
+fn update_latest_all_ignored_is_noop() {
+    let (root, workspace, anchor) = setup();
+    set_ignore_dependencies(&workspace, &[FOO]);
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    // The only dependency is ignored, so its range is untouched.
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^1.0.0"));
 
     drop((root, anchor));
 }
