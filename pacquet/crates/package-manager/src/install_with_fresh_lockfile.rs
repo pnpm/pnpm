@@ -822,7 +822,20 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // Hand the resolver the prior lockfile so it can reuse
             // already-resolved subtrees instead of re-resolving from the
             // registry (see pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md).
-            wanted_lockfile: wanted_lockfile.cloned().map(Arc::new),
+            // Withhold it when `packageExtensions` drifted: a changed
+            // extension rewrites packages' dependency sets, so the recorded
+            // subtree is stale — pnpm likewise invalidates the lockfile on a
+            // settings change. (`overrides` are applied to the manifest
+            // before the importer-level reuse gate re-checks the specifier;
+            // a follow-up should also guard transitive reuse against
+            // overrides drift.)
+            wanted_lockfile: wanted_lockfile
+                .filter(|lockfile| {
+                    lockfile.package_extensions_checksum
+                        == compute_package_extensions_checksum(config)
+                })
+                .cloned()
+                .map(Arc::new),
             // `pacquet update` must re-resolve its targets to highest-
             // in-range, so suppress reuse for them (and their subtrees).
             update_reuse_scope: match &update_seed_policy {
