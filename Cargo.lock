@@ -2489,6 +2489,7 @@ name = "pacquet-lockfile"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "indexmap",
  "node-semver",
  "pacquet-crypto-hash",
  "pacquet-diagnostics",

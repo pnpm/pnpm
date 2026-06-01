@@ -96,14 +96,13 @@ pass and the `updated`-propagation boundary are the subtlest parts.
 
 ## Known follow-ups (before un-drafting)
 
-- **Lockfile byte-ordering is build-order-dependent** ([#12117](https://github.com/pnpm/pnpm/issues/12117)). Surfaced by the
-  structural-equivalence test: reuse and fresh resolves produce
-  *content-identical* lockfiles, but the writer emits the
-  `packages` / `snapshots` / importer-`dependencies` maps in
-  build-insertion order, so a re-install can reorder the lockfile (spurious
-  git diff) even though nothing changed. pnpm emits these canonically
-  sorted. Likely a pre-existing writer gap that reuse makes user-visible;
-  fix by sorting those maps at emit time so lockfiles are byte-stable.
+- ~~**Lockfile byte-ordering is build-order-dependent**~~ ([#12117](https://github.com/pnpm/pnpm/issues/12117)) — **fixed.**
+  The writer now sorts every lockfile map by its rendered key at emit time
+  (`serialize_yaml::sorted_map`), matching pnpm's `sortLockfileKeys`, so
+  reuse and fresh resolves emit byte-identical lockfiles and a no-op
+  re-install no longer reorders the file. The reuse-equivalence test now
+  asserts byte-parity, and `reinstalling_an_unchanged_manifest_keeps_the_lockfile_byte_identical`
+  guards re-install stability.
 - **`overrides` drift** isn't yet guarded for transitive reuse (only
   `packageExtensions` is). An `overrides` change that rewrites a transitive
   dep's version should invalidate that subtree's reuse.

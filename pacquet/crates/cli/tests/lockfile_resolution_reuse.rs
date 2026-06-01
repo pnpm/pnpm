@@ -109,7 +109,7 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
     drop((root, mock_instance));
 }
 
-/// A lockfile produced via the reuse path is structurally identical to
+/// A lockfile produced via the reuse path is byte-for-byte identical to
 /// one produced by resolving the same manifest entirely from scratch.
 ///
 /// The discriminating test above proves reuse *fires*; this proves it's
@@ -120,13 +120,13 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
 ///      reuses `pkg-with-1-dep`'s subtree and resolves only `foo`;
 ///   B. install both from scratch — no prior lockfile, nothing reused.
 ///
-/// Compared as parsed [`pacquet_lockfile::Lockfile`] values rather than
-/// raw bytes: the two are content-identical (same packages, versions,
-/// integrities, snapshots, importer specifiers), but the writer emits the
-/// `packages` / `snapshots` / importer-`dependencies` maps in build-
-/// insertion order, which differs between the incremental and the fresh
-/// build. That byte-level ordering is a separate lockfile-determinism
-/// concern (tracked as a follow-up), orthogonal to reuse correctness.
+/// Compared **byte-for-byte**: the writer sorts every lockfile map by its
+/// rendered key (matching pnpm's
+/// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/sortLockfileKeys.ts)),
+/// so build-insertion order no longer leaks into the file. A reuse build and
+/// a fresh build of the same manifest therefore emit identical bytes — this
+/// is the byte-stability guarantee from
+/// [#12117](https://github.com/pnpm/pnpm/issues/12117).
 #[test]
 fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     let both = serde_json::json!({
@@ -156,14 +156,49 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     let fresh_lockfile =
         fs::read_to_string(fresh.workspace.join("pnpm-lock.yaml")).expect("read fresh lockfile");
 
-    let parse = |yaml: &str| {
-        serde_saphyr::from_str::<pacquet_lockfile::Lockfile>(yaml).expect("parse pnpm-lock.yaml")
-    };
     pretty_assertions::assert_eq!(
-        parse(&reused_lockfile),
-        parse(&fresh_lockfile),
-        "a tree built via subtree reuse must be structurally identical to a fresh resolve",
+        reused_lockfile,
+        fresh_lockfile,
+        "a tree built via subtree reuse must serialize byte-for-byte identically to a fresh resolve",
     );
 
     drop((reused, fresh));
+}
+
+/// Re-installing an unchanged manifest must leave `pnpm-lock.yaml`
+/// byte-identical. Before the lockfile maps were sorted at emit time, the
+/// `importers` / `packages` / `snapshots` / dependency maps serialized in
+/// `HashMap` iteration order — a per-instance random seed — so a no-op
+/// re-install could reorder the file and produce a spurious git diff
+/// ([#12117](https://github.com/pnpm/pnpm/issues/12117)). The manifest
+/// carries several dependencies so at least one map holds multiple keys,
+/// giving order a chance to differ.
+#[test]
+fn reinstalling_an_unchanged_manifest_keeps_the_lockfile_byte_identical() {
+    let manifest = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/foo": "100.0.0",
+            "@pnpm.e2e/bar": "100.0.0",
+            "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+        }
+    })
+    .to_string();
+
+    let project = CommandTempCwd::init().add_mocked_registry();
+    fs::write(project.workspace.join("package.json"), &manifest).expect("write manifest");
+
+    pacquet_at(&project.workspace).with_arg("install").assert().success();
+    let lockfile_path = project.workspace.join("pnpm-lock.yaml");
+    let first = fs::read_to_string(&lockfile_path).expect("read lockfile after first install");
+
+    pacquet_at(&project.workspace).with_arg("install").assert().success();
+    let second = fs::read_to_string(&lockfile_path).expect("read lockfile after second install");
+
+    pretty_assertions::assert_eq!(
+        first,
+        second,
+        "a no-op re-install must not reorder the lockfile",
+    );
+
+    drop(project);
 }
