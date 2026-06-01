@@ -64,6 +64,12 @@ pub struct Update<'a> {
     /// `--save-exact` / `-E`: write the resolved version without a range
     /// operator when rewriting the manifest under `--latest`.
     pub save_exact: bool,
+    /// `--save` (default) / `--no-save`. When `false`, the manifest is
+    /// not persisted: the `--latest` / versioned-selector range rewrites
+    /// still drive resolution (so `pnpm-lock.yaml` updates) but
+    /// `package.json` on disk is left untouched. Mirrors pnpm's
+    /// `updatePackageManifest: opts.save !== false`.
+    pub save: bool,
     /// Dependency groups the update considers when choosing which direct
     /// dependencies to match. Mirrors pnpm's `includeDirect` derived from
     /// `--prod` / `--dev` / `--no-optional`. Note: the *materialized*
@@ -91,6 +97,13 @@ pub enum UpdateError {
     #[diagnostic(code(ERR_PNPM_LATEST_WITH_SPEC))]
     LatestWithSpec(#[error(not(source))] String),
 
+    /// Package selectors were given (with `--depth 0` and without
+    /// `--latest`) but none matched a direct dependency. Mirrors pnpm's
+    /// `ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES`.
+    #[display("None of the specified packages were found in the dependencies.")]
+    #[diagnostic(code(ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES))]
+    NoPackageInDependencies,
+
     /// Fetching a package's `latest` tag from the registry failed while
     /// computing the new manifest range for `--latest`.
     #[display("Failed to resolve the latest version of {name}: {error}")]
@@ -113,21 +126,27 @@ pub enum UpdateError {
 
 /// A CLI selector split into its name pattern and optional version part.
 /// Ports pnpm's
-/// [`parseUpdateParam`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/recursive.ts)
-/// — `lastIndexOf('@')` with `index >= 1` so a leading scope `@` is not
-/// mistaken for a version separator.
+/// [`parseUpdateParam`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/recursive.ts#L582-L595):
+/// the version separator is the **first** `@` at or after index `1`
+/// (`2` for a `!`-negated pattern), so neither a leading scope `@` nor
+/// the `!@scope/...` negation form is mistaken for a version.
 struct ParsedSelector {
     pattern: String,
     version: Option<String>,
 }
 
 fn parse_update_param(input: &str) -> ParsedSelector {
-    match input.rfind('@') {
-        Some(idx) if idx >= 1 => ParsedSelector {
+    let search_start = if input.starts_with('!') { 2 } else { 1 };
+    let at_index = input
+        .get(search_start..)
+        .and_then(|rest| rest.find('@'))
+        .map(|offset| offset + search_start);
+    match at_index {
+        Some(idx) => ParsedSelector {
             pattern: input[..idx].to_string(),
             version: Some(input[idx + 1..].to_string()),
         },
-        _ => ParsedSelector { pattern: input.to_string(), version: None },
+        None => ParsedSelector { pattern: input.to_string(), version: None },
     }
 }
 
@@ -145,6 +164,7 @@ impl Update<'_> {
             packages,
             latest,
             save_exact,
+            save,
             include_direct,
             depth,
             supported_architectures,
@@ -243,29 +263,60 @@ impl Update<'_> {
             // manifest, mirroring pnpm's `matchDependencies` + `updateSpec`.
             let patterns: Vec<String> = selectors.iter().map(|sel| sel.pattern.clone()).collect();
             let matcher = create_matcher(&patterns);
-            for (name, group, _) in &direct {
-                if !matcher.matches(name) {
-                    continue;
-                }
-                drop_names.insert(name.clone());
+            let matched_direct: Vec<(String, DependencyGroup)> = direct
+                .iter()
+                .filter(|(name, _, _)| matcher.matches(name))
+                .map(|(name, group, _)| (name.clone(), *group))
+                .collect();
+
+            if matched_direct.is_empty() {
+                // No direct dependency matched the selectors. Mirrors
+                // pnpm's `matchDependencies` returning empty:
+                // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/installDeps.ts#L353-L366>.
                 if latest {
-                    let version = fetch_latest(name, http_client, config).await?;
-                    rewrites.push((name.clone(), *group, version.serialize(save_exact)));
-                } else if let Some(spec) = selectors
-                    .iter()
-                    .find(|sel| matcher_one(&sel.pattern).matches(name))
-                    .and_then(|sel| sel.version.clone())
-                {
-                    rewrites.push((name.clone(), *group, spec));
+                    // `--latest` with an unmatched selector is a no-op.
+                    return Ok(());
                 }
+                if depth == 0 {
+                    return Err(UpdateError::NoPackageInDependencies);
+                }
+                // `depth > 0`: update only the matching *indirect*
+                // dependencies (no manifest rewrite). Reached here only
+                // for versioned selectors — bare-name selectors with
+                // `depth > 0` take the name-matcher branch above.
+                if let Some(snapshots) = lockfile.and_then(|lf| lf.snapshots.as_ref()) {
+                    for key in snapshots.keys() {
+                        let name = key.name.to_string();
+                        if matcher.matches(&name) {
+                            drop_names.insert(name);
+                        }
+                    }
+                }
+                UpdateSeedPolicy::DropOnly(drop_names)
+            } else {
+                for (name, group) in &matched_direct {
+                    drop_names.insert(name.clone());
+                    if latest {
+                        let version = fetch_latest(name, http_client, config).await?;
+                        rewrites.push((name.clone(), *group, version.serialize(save_exact)));
+                    } else if let Some(spec) = selectors
+                        .iter()
+                        .find(|sel| matcher_one(&sel.pattern).matches(name))
+                        .and_then(|sel| sel.version.clone())
+                    {
+                        rewrites.push((name.clone(), *group, spec));
+                    }
+                }
+                UpdateSeedPolicy::DropOnly(drop_names)
             }
-            UpdateSeedPolicy::DropOnly(drop_names)
         };
 
         // Apply the manifest rewrites in memory before resolving so the
-        // install picks the new ranges. The save happens after the
-        // install succeeds, matching pnpm's manifest-write ordering.
-        let manifest_changed = !rewrites.is_empty();
+        // install picks the new ranges. Under `--no-save` the in-memory
+        // mutation still drives resolution (so `pnpm-lock.yaml` updates)
+        // but the manifest is not persisted below — matching pnpm's
+        // `updatePackageManifest: opts.save !== false`.
+        let persist_manifest = save && !rewrites.is_empty();
         for (name, group, spec) in &rewrites {
             manifest.add_dependency(name, spec, *group).map_err(UpdateError::UpdateManifest)?;
         }
@@ -304,7 +355,7 @@ impl Update<'_> {
         .await
         .map_err(UpdateError::Install)?;
 
-        if manifest_changed {
+        if persist_manifest {
             manifest.save().map_err(UpdateError::SaveManifest)?;
 
             let prefix = manifest

@@ -80,6 +80,11 @@ pub struct UpdateArgs {
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
 
+    /// Do not write the updated ranges back to package.json. The
+    /// lockfile is still updated. Mirrors pnpm's `--no-save`.
+    #[clap(long = "no-save")]
+    pub no_save: bool,
+
     /// How deep to inspect dependencies. `0` means top-level
     /// dependencies only. Defaults to unlimited.
     #[clap(long)]
@@ -168,6 +173,7 @@ impl UpdateArgs {
             packages: &packages,
             latest: self.latest,
             save_exact: self.save_exact,
+            save: !self.no_save,
             include_direct: self.dependency_options.include_direct(),
             depth: self.depth.unwrap_or(usize::MAX),
             supported_architectures,

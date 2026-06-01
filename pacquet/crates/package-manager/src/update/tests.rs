@@ -34,3 +34,19 @@ fn wildcard_pattern_without_version() {
     assert_eq!(parsed.pattern, "@pnpm.e2e/peer-*");
     assert_eq!(parsed.version, None);
 }
+
+#[test]
+fn negated_scoped_pattern_is_not_split_on_scope_at() {
+    // The `@` after `!` is the scope marker, not a version separator —
+    // pnpm searches for `@` starting at index 2 for `!`-negated params.
+    let parsed = parse_update_param("!@pnpm.e2e/peer-*");
+    assert_eq!(parsed.pattern, "!@pnpm.e2e/peer-*");
+    assert_eq!(parsed.version, None);
+}
+
+#[test]
+fn negated_unscoped_pattern_without_version() {
+    let parsed = parse_update_param("!foo");
+    assert_eq!(parsed.pattern, "!foo");
+    assert_eq!(parsed.version, None);
+}

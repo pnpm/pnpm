@@ -126,6 +126,67 @@ fn update_latest_with_selector_is_scoped() {
     drop((root, anchor));
 }
 
+/// A negation selector (`!@scope/*`) updates everything *except* the
+/// matched packages — ports pnpm's "update with negation pattern" test.
+#[test]
+fn update_latest_with_negation_selector() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    // Update everything except dep-of-pkg-with-1-dep.
+    pacquet(&workspace, ["update", "--latest", &format!("!{DEP}")]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.1.0"));
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--no-save` bumps the lockfile but leaves `package.json` untouched —
+/// ports pnpm's "update --no-save should not update package.json" test.
+#[test]
+fn update_latest_no_save_keeps_manifest() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
+
+    pacquet(&workspace, ["update", "--latest", "--no-save"]).assert().success();
+
+    // package.json range is unchanged...
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    // ...but the lockfile/store was re-resolved (101.0.0 is latest; the
+    // in-memory `^101.0.0` drove resolution even though it wasn't saved).
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `update <pkg> --depth 0` where the package is not a direct dependency
+/// fails with `ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES`.
+#[test]
+fn update_depth_zero_unknown_package_errors() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["update", "--depth", "0", "@pnpm.e2e/not-a-dependency"])
+        .output()
+        .expect("run pacquet update");
+    assert!(!output.status.success(), "depth-0 update of a non-dependency should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("None of the specified packages were found in the dependencies"),
+        "stderr did not mention NO_PACKAGE_IN_DEPENDENCIES: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
 /// `up` and `upgrade` are accepted as aliases of `update`.
 #[test]
 fn update_aliases_work() {
