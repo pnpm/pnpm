@@ -253,7 +253,18 @@ impl Update<'_> {
                 // Whole-graph update minus the ignored names: drop every
                 // locked name that isn't ignored so the ignored ones keep
                 // their pins.
-                if let Some(snapshots) = lockfile.and_then(|lf| lf.snapshots.as_ref()) {
+                //
+                // Skip the expansion when `--latest` selected no direct
+                // dependency (every included direct dep was ignored):
+                // pnpm returns early there (`if (opts.latest) return`), a
+                // true no-op. A non-`--latest` update with no direct match
+                // still re-resolves the non-ignored *indirect* deps,
+                // matching pnpm's "updating indirect dependencies only"
+                // branch, so the expansion must run in that case.
+                // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/installDeps.ts#L355-L364>
+                if !(latest && drop_names.is_empty())
+                    && let Some(snapshots) = lockfile.and_then(|lf| lf.snapshots.as_ref())
+                {
                     for key in snapshots.keys() {
                         let name = key.name.to_string();
                         if !is_ignored(&name) {
