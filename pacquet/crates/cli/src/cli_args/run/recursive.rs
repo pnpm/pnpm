@@ -21,7 +21,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_executor::execute_shell_with_status;
+use pacquet_executor::{RunScript, run_script};
 use pacquet_package_manager::graph_sequencer;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_workspace::{
@@ -33,6 +33,7 @@ use pacquet_workspace_projects_graph::{
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
+    env,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -70,6 +71,10 @@ pub enum RecursiveRunError {
         #[error(not(source))]
         prefix: String,
     },
+
+    #[display("You must specify the script you want to run")]
+    #[diagnostic(code(ERR_PNPM_SCRIPT_NAME_IS_REQUIRED))]
+    ScriptNameRequired,
 }
 
 /// Run `args.command` across every workspace project, sorted
@@ -80,9 +85,11 @@ pub enum RecursiveRunError {
 pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Result<()> {
     // `RunArgs::command` is optional so single-project `run` can list
     // scripts; recursive mode has no such "list" behavior, so a missing
-    // script name is a usage error.
+    // script name is a usage error. Mirrors pnpm's
+    // `PnpmError('SCRIPT_NAME_IS_REQUIRED', ...)` at
+    // exec/commands/src/runRecursive.ts:50-52.
     let Some(script_name) = args.command.as_deref() else {
-        return Err(miette::miette!("Missing script name; `pnpm -r run` requires a script name"));
+        return Err(RecursiveRunError::ScriptNameRequired.into());
     };
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
@@ -102,10 +109,22 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     }
 
     let bail = !args.no_bail;
-    let passed_through_args = args.args.join(" ");
     let mut result: IndexMap<PathBuf, ExecutionStatus> =
         chunks.iter().flatten().map(|root| (root.clone(), ExecutionStatus::queued())).collect();
     let mut has_command = 0_usize;
+
+    // Lifecycle env reused per project: pnpm runs each recursive script
+    // through `runLifecycleHook` (runRecursive.ts:124-149), which sets up
+    // `node_modules/.bin` on `PATH`, the `npm_*` env, the configured
+    // `script_shell`, and the user-agent. Compute the bits that don't
+    // vary per project once.
+    let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+    let mut extra_env: HashMap<String, String> = HashMap::new();
+    if let Some(node_options) = &config.node_options {
+        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    }
+    let scripts_prepend_node_path =
+        super::exec_scripts_prepend_node_path(config.scripts_prepend_node_path);
 
     for chunk in &chunks {
         for root in chunk {
@@ -118,8 +137,25 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
             result[root].status = Status::Running;
             has_command += 1;
             let start = Instant::now();
-            let command = format!("{script} {passed_through_args}");
-            let status = execute_shell_with_status(command.trim(), root).into_diagnostic()?;
+            let status = run_script(RunScript {
+                manifest: manifest.value(),
+                stage: script_name,
+                script,
+                args: &args.args,
+                pkg_root: root,
+                init_cwd: &init_cwd,
+                extra_bin_paths: &config.extra_bin_paths,
+                script_shell: config.script_shell.as_deref().map(Path::new),
+                scripts_prepend_node_path,
+                node_execpath: None,
+                npm_execpath: None,
+                user_agent: Some("pnpm"),
+                extra_env: &extra_env,
+                // The per-package failure surface comes from the
+                // ExecutionStatus summary, not a `$ <script>` echo.
+                silent: true,
+            })
+            .into_diagnostic()?;
             let duration = start.elapsed().as_secs_f64() * 1e3;
 
             if status.success() {

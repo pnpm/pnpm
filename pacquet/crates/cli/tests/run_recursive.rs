@@ -7,7 +7,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, fs, os::unix::fs::PermissionsExt, path::Path};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -322,6 +322,43 @@ fn recursive_run_if_present_is_a_noop_when_no_package_has_the_script() {
         .with_arg("lint")
         .assert()
         .success();
+
+    drop(root);
+}
+
+/// Recursive `run` must resolve each package's `node_modules/.bin` on
+/// PATH so locally-installed bins (e.g. `tsc`, `eslint`) work — pnpm's
+/// `runLifecycleHook` (runRecursive.ts:124-149) sets this up for every
+/// project. Without it, `pacquet -r run build` would fail with
+/// `command not found` for any bare bin name living under `.bin`.
+#[test]
+fn recursive_run_resolves_local_bin_on_path_per_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "pkg-with-local-bin",
+            json!({
+                "name": "pkg-with-local-bin",
+                "version": "1.0.0",
+                "scripts": { "build": "say-hi" },
+            }),
+        )],
+    );
+    let pkg_root = workspace.join("pkg-with-local-bin");
+    let bin_dir = pkg_root.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let script_path = bin_dir.join("say-hi");
+    fs::write(&script_path, "#!/bin/sh\ntouch hi.txt\n").expect("write bin");
+    let mut perms = fs::metadata(&script_path).expect("stat").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&script_path, perms).expect("chmod +x");
+
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    assert!(
+        pkg_root.join("hi.txt").exists(),
+        "recursive run should resolve `say-hi` from the package's node_modules/.bin",
+    );
 
     drop(root);
 }
