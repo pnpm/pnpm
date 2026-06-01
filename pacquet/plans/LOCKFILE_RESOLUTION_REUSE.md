@@ -91,3 +91,21 @@ propagates down their subtrees.
 ## Risk
 Stage 3 is high-blast-radius: wrong reuse → wrong tree → wrong installs. The peer
 pass and the `updated`-propagation boundary are the subtlest parts.
+
+## Known follow-ups (before un-drafting)
+
+- **Lockfile byte-ordering is build-order-dependent.** Surfaced by the
+  structural-equivalence test: reuse and fresh resolves produce
+  *content-identical* lockfiles, but the writer emits the
+  `packages` / `snapshots` / importer-`dependencies` maps in
+  build-insertion order, so a re-install can reorder the lockfile (spurious
+  git diff) even though nothing changed. pnpm emits these canonically
+  sorted. Likely a pre-existing writer gap that reuse makes user-visible;
+  fix by sorting those maps at emit time so lockfiles are byte-stable.
+- **`overrides` drift** isn't yet guarded for transitive reuse (only
+  `packageExtensions` is). An `overrides` change that rewrites a transitive
+  dep's version should invalidate that subtree's reuse.
+- **`pacquet update` target inside a dependency cycle** can be missed by the
+  `subtree_fully_reusable` cycle-break memoization (reuses a still-valid but
+  un-bumped version).
+- vlt.sh before/after benchmark for the perf number.
