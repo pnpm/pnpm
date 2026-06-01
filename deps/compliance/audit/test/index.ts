@@ -277,6 +277,37 @@ describe('audit', () => {
     })
   })
 
+  test('buildAuditPathIndex() keeps paths reached through a non-entry cycle member', () => {
+    // The importer reaches the b<->c cycle through both c and b. Visiting c
+    // first must not memoize an under-approximated reachable set for b that
+    // would prune the still-valid `.>b>c>x` path to the vulnerable package.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { c: '1.0.0', b: '1.0.0' },
+          specifiers: { c: '^1.0.0', b: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['b@1.0.0' as DepPath]: {
+          dependencies: { c: '1.0.0' },
+          resolution: { integrity: 'b-integrity' },
+        },
+        ['c@1.0.0' as DepPath]: {
+          dependencies: { b: '1.0.0', x: '1.0.0' },
+          resolution: { integrity: 'c-integrity' },
+        },
+        ['x@1.0.0' as DepPath]: {
+          resolution: { integrity: 'x-integrity' },
+        },
+      } as PackageSnapshots,
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['x']), {})
+
+    expect(result['x']!.get('1.0.0')!.paths.sort()).toEqual(['.>b>c>x', '.>c>x'])
+  })
+
   test('buildAuditPathIndex() replaces slashes in workspace importer ids', () => {
     const lockfile = {
       importers: {

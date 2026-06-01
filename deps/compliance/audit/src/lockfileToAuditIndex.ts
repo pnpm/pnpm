@@ -243,31 +243,47 @@ function createReachableVulnerabilitiesGetter (
   includeOptDeps: boolean
 ): (edge: { name: string, depPath: DepPath }) => Set<string> {
   const packages = lockfile.packages ?? {}
+  // Only fully-resolved (acyclic) subtrees are memoized. A node whose reachable
+  // set still depends on a back-edge to an ancestor is incomplete until the
+  // enclosing cycle is left, so caching it would under-report reachable
+  // vulnerabilities and let the walker prune valid audit paths. Such nodes are
+  // recomputed on each top-level query, which is cheap because cycles in a
+  // lockfile are rare and small.
   const memo = new Map<DepPath, Set<string>>()
-  const get = (edge: { name: string, depPath: DepPath }): Set<string> => {
+  const onStack = new Set<DepPath>()
+  const compute = (edge: { name: string, depPath: DepPath }): { result: Set<string>, complete: boolean } => {
     const cached = memo.get(edge.depPath)
-    if (cached) return cached
+    if (cached) return { result: cached, complete: true }
+    if (onStack.has(edge.depPath)) return { result: new Set(), complete: false }
     const pkgSnapshot = packages[edge.depPath]
-    if (pkgSnapshot == null) return new Set()
+    if (pkgSnapshot == null) return { result: new Set(), complete: true }
 
+    onStack.add(edge.depPath)
     const result = new Set<string>()
-    memo.set(edge.depPath, result)
+    let complete = true
     const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
     const resolvedName = name ?? edge.name
     if (version && vulnerableNames.has(resolvedName)) {
       result.add(vulnerabilityKey(resolvedName, version, edge.depPath))
     }
+    const collect = (child: { name: string, depPath: DepPath }): void => {
+      const childResult = compute(child)
+      addAll(result, childResult.result)
+      if (!childResult.complete) complete = false
+    }
     for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {})) {
-      addAll(result, get(child))
+      collect(child)
     }
     if (includeOptDeps) {
       for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {})) {
-        addAll(result, get(child))
+        collect(child)
       }
     }
-    return result
+    onStack.delete(edge.depPath)
+    if (complete) memo.set(edge.depPath, result)
+    return { result, complete }
   }
-  return get
+  return (edge) => compute(edge).result
 }
 
 function allReachableVulnerabilitiesSaturated (
