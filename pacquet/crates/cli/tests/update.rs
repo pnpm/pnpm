@@ -70,6 +70,22 @@ fn virtual_store_has(workspace: &Path, name_at_version: &str) -> bool {
     workspace.join("node_modules").join(".pnpm").join(name_at_version).exists()
 }
 
+/// List the `node_modules/.pnpm` entries. Logged before
+/// `virtual_store_has` assertions so a failing CI run shows what was
+/// actually materialized.
+fn list_virtual_store(workspace: &Path) -> Vec<String> {
+    let dir = workspace.join("node_modules").join(".pnpm");
+    std::fs::read_dir(&dir)
+        .map(|entries| {
+            entries
+                .filter_map(|entry| {
+                    entry.ok().map(|entry| entry.file_name().to_string_lossy().into_owned())
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// `pacquet update` re-resolves a dependency to the highest version
 /// inside its range, even when the lockfile pins an older one — the
 /// behaviour that distinguishes it from a plain `install` (which keeps
@@ -83,11 +99,13 @@ fn update_bumps_within_range() {
     // bump to 100.1.0 (101.0.0 is outside the range).
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
 
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
     pacquet(&workspace, ["update"]).assert().success();
 
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(
         virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
         "update should have bumped the dependency to the highest version in range",
@@ -106,11 +124,13 @@ fn update_latest_rewrites_manifest() {
 
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
 
     pacquet(&workspace, ["update", "--latest"]).assert().success();
 
     // latest tag is the max published version, 101.0.0.
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^101.0.0"));
 
@@ -176,6 +196,7 @@ fn update_latest_no_save_keeps_manifest() {
 
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
 
     pacquet(&workspace, ["update", "--latest", "--no-save"]).assert().success();
@@ -184,6 +205,7 @@ fn update_latest_no_save_keeps_manifest() {
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
     // ...but the lockfile/store was re-resolved (101.0.0 is latest; the
     // in-memory `^101.0.0` drove resolution even though it wasn't saved).
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
 
     drop((root, anchor));
@@ -247,6 +269,7 @@ fn update_compatible_honors_ignore_dependencies() {
     pacquet(&workspace, ["update"]).assert().success();
 
     // dep re-resolved to the highest in range; foo kept its old pin.
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+foo@1.0.0"));
     assert!(!virtual_store_has(&workspace, "@pnpm.e2e+foo@1.3.0"));
@@ -296,12 +319,14 @@ fn update_latest_all_direct_ignored_does_not_touch_indirect() {
     // exact entry), then drop it to a pure transitive of pkg-with-1-dep.
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
 
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
     pacquet(&workspace, ["update", "--latest"]).assert().success();
 
     // No-op: the indirect dep stays pinned at 100.0.0.
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
     assert!(!virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
 
@@ -325,6 +350,7 @@ fn update_compatible_all_direct_ignored_still_updates_indirect() {
     pacquet(&workspace, ["update"]).assert().success();
 
     // The indirect dep bumps within range (100.0.0 -> 100.1.0).
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
 
     drop((root, anchor));
