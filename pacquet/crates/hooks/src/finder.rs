@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc};
 use super::PnpmfileHooks;
 
 pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
-    let candidates = [".pnpmfile.mjs", ".pnpmfile.cjs", "pnpmfile.cjs", "pnpmfile.mjs"];
+    let candidates = [".pnpmfile.mjs", ".pnpmfile.cjs"];
 
     for name in candidates {
         let path = root.join(name);
