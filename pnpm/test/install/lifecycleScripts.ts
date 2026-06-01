@@ -40,6 +40,27 @@ test('lifecycle script runs with the correct user agent', () => {
   expect(result.stdout.toString()).toContain(expectedUserAgentPrefix)
 })
 
+test('lifecycle script runs with the correct user agent during headless install', () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    scripts: {
+      preinstall: 'node --eval "console.log(process.env.npm_config_user_agent)"',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    optimisticRepeatInstall: true,
+  })
+
+  execPnpmSync(['install', '--lockfile-only'], { expectSuccess: true })
+  const result = execPnpmSync(['install'])
+
+  expect(result.status).toBe(0)
+  const expectedUserAgentPrefix = `${pnpmPkg.name}/${pnpmPkg.version} `
+  expect(result.stdout.toString()).toContain(expectedUserAgentPrefix)
+})
+
 test('preinstall is executed before general installation', () => {
   prepare({
     scripts: {
