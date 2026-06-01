@@ -67,6 +67,7 @@
 mod dedupe_injected_deps;
 mod dependencies_graph;
 mod hoist_peers;
+mod lockfile_reuse;
 mod node_id;
 mod resolve_dependency_tree;
 mod resolve_importer;
