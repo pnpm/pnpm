@@ -51,11 +51,25 @@ pub enum SaveLockfileError {
     },
 }
 
+/// Write an arbitrary lockfile-shaped value to `path` as pnpm-formatted YAML.
+///
+/// Used by the `afterAllResolved` pnpmfile hook, whose JSON result may carry
+/// arbitrary keys the typed [`Lockfile`] cannot represent. `serde_json`'s
+/// `preserve_order` feature keeps the key order produced by serializing the
+/// [`Lockfile`] and appended by the hook, so the output matches the typed write
+/// for unmodified lockfiles.
+pub fn save_value_to_path<T: serde::Serialize>(
+    value: &T,
+    path: &Path,
+) -> Result<(), SaveLockfileError> {
+    let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
+    fs::write(path, content).map_err(SaveLockfileError::WriteFile)
+}
+
 impl Lockfile {
     /// Save lockfile to a specific path.
     pub fn save_to_path(&self, path: &Path) -> Result<(), SaveLockfileError> {
-        let content = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
-        fs::write(path, content).map_err(SaveLockfileError::WriteFile)
+        save_value_to_path(self, path)
     }
 
     /// Save lockfile to `pnpm-lock.yaml` in the current directory.

@@ -242,14 +242,12 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         self.call_read_package(pkg).await.map(Arc::new)
     }
 
-    async fn after_all_resolved(&self, lockfile: Value, ctx: crate::HookContext) -> Option<Value> {
-        match self.call_node("afterAllResolved", lockfile).await {
-            Ok(v) => Some(v),
-            Err(err) => {
-                (ctx.log)(format!("pnpmfile hook afterAllResolved failed: {}", err));
-                None
-            }
-        }
+    async fn after_all_resolved(
+        &self,
+        lockfile: Value,
+        _ctx: crate::HookContext,
+    ) -> Result<Value, HookError> {
+        self.call_node("afterAllResolved", lockfile).await
     }
 
     async fn pre_resolution(

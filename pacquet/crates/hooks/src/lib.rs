@@ -61,7 +61,15 @@ pub trait PnpmfileHooks: Send + Sync {
     ) -> Result<ReadPackageResult, HookError>;
 
     /// `afterAllResolved` hook: modifies the final resolved lockfile.
-    async fn after_all_resolved(&self, lockfile: Value, ctx: HookContext) -> Option<Value>;
+    ///
+    /// Returns the (possibly modified) lockfile. `Ok(Value::Null)` means the
+    /// pnpmfile has no `afterAllResolved` hook, so the caller keeps the lockfile
+    /// unchanged. A throwing hook yields a [`HookError`] and aborts the install.
+    async fn after_all_resolved(
+        &self,
+        lockfile: Value,
+        ctx: HookContext,
+    ) -> Result<Value, HookError>;
 
     /// `preResolution` hook: side-effect hook called before resolution (e.g., logging, validation).
     async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger);
@@ -82,8 +90,8 @@ impl PnpmfileHooks for NoopHooks {
     ) -> Result<ReadPackageResult, HookError> {
         Ok(Arc::new(pkg))
     }
-    async fn after_all_resolved(&self, _: Value, _: HookContext) -> Option<Value> {
-        None
+    async fn after_all_resolved(&self, _: Value, _: HookContext) -> Result<Value, HookError> {
+        Ok(Value::Null)
     }
     async fn pre_resolution(&self, _: PreResolutionHookContext, _: PreResolutionHookLogger) {
         // no-op

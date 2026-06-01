@@ -6176,3 +6176,51 @@ async fn pnpmfile_syntax_error_aborts_install() {
 
     drop((dir, registry));
 }
+
+// Ports pnpm's `pnpmfile: run afterAllResolved hook` and the deps-installer
+// `readPackage, afterAllResolved hooks` test: the hook receives the resolved
+// lockfile object and its return value is what gets written, so an arbitrary
+// added key must survive to pnpm-lock.yaml.
+#[tokio::test]
+async fn after_all_resolved_hook_modifies_written_lockfile() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { afterAllResolved (lockfile) {
+  lockfile.foo = 'foo';
+  return lockfile;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
+    eprintln!("{lockfile_text}");
+    assert!(
+        lockfile_text.contains("foo: foo"),
+        "the afterAllResolved addition must be written to pnpm-lock.yaml",
+    );
+    // The lockfile is still a valid lockfile carrying the resolved package.
+    assert!(lockfile_text.contains("@pnpm.e2e/pkg-with-1-dep"));
+}
+
+// A throwing afterAllResolved hook aborts the install, matching pnpm.
+#[tokio::test]
+async fn after_all_resolved_hook_failure_aborts_install() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let result = install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "module.exports = { hooks: { afterAllResolved () { throw new Error('boom'); } } }",
+    )
+    .await;
+
+    assert!(result.is_err(), "install must fail when afterAllResolved throws");
+}

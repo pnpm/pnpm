@@ -324,6 +324,18 @@ pub enum InstallWithFreshLockfileError {
     /// the `pnpm install --frozen-lockfile` headless path.
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
+
+    /// The `afterAllResolved` pnpmfile hook threw or otherwise failed.
+    /// Mirrors pnpm, where a throwing `afterAllResolved` aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    AfterAllResolvedHook(#[error(not(source))] pacquet_hooks::HookError),
+
+    /// The freshly-built lockfile could not be serialized to JSON to pass to
+    /// the `afterAllResolved` pnpmfile hook.
+    #[display("Failed to serialize lockfile for the afterAllResolved hook: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::after_all_resolved_serialize))]
+    AfterAllResolvedSerialize(#[error(source)] serde_json::Error),
 }
 
 impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFreshLockfileError {
@@ -817,6 +829,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         let peers_suffix_max_length =
             usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
         let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
+        // Kept past the resolver hand-off (which consumes `pnpmfile_hook`) so
+        // the `afterAllResolved` hook can transform the lockfile before it is
+        // written.
+        let after_all_resolved_hook = pnpmfile_hook.clone();
 
         // Call preResolution hook before resolution starts (mirrors pnpm's behavior in install/index.ts)
         if let Some(ref hook) = pnpmfile_hook {
@@ -1019,9 +1035,12 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 &direct_by_importer,
             );
             let wanted_lockfile = if config.lockfile {
-                built_lockfile
-                    .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
-                    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+                save_wanted_lockfile(
+                    &built_lockfile,
+                    &lockfile_dir.join(Lockfile::FILE_NAME),
+                    after_all_resolved_hook.as_ref(),
+                )
+                .await?;
                 Some(built_lockfile)
             } else {
                 None
@@ -1463,9 +1482,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // `.modules.yaml` to land first.
         let wanted_lockfile = if config.lockfile {
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
-            built_lockfile
-                .save_to_path(&target)
-                .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+            save_wanted_lockfile(&built_lockfile, &target, after_all_resolved_hook.as_ref())
+                .await?;
             Some(built_lockfile)
         } else {
             None
@@ -1540,6 +1558,44 @@ fn collect_prefetch_cache_keys_from_graph(
     keys.sort_unstable();
     keys.dedup();
     keys
+}
+
+/// Write the freshly-built wanted lockfile to `target`, first running the
+/// `afterAllResolved` pnpmfile hook when one is configured.
+///
+/// Mirrors pnpm: `afterAllResolved` receives the resolved lockfile object and
+/// returns the (possibly mutated) lockfile that gets written. The round-trip
+/// goes through `serde_json::Value` so hook-added keys the typed [`Lockfile`]
+/// cannot represent survive to disk; `serde_json`'s `preserve_order` feature
+/// keeps the output byte-identical to the typed write when the hook makes no
+/// changes. A throwing hook aborts the install.
+async fn save_wanted_lockfile(
+    built_lockfile: &Lockfile,
+    target: &Path,
+    hook: Option<&Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+) -> Result<(), InstallWithFreshLockfileError> {
+    let Some(hook) = hook else {
+        return built_lockfile
+            .save_to_path(target)
+            .map_err(InstallWithFreshLockfileError::SaveWantedLockfile);
+    };
+
+    let value = serde_json::to_value(built_lockfile)
+        .map_err(InstallWithFreshLockfileError::AfterAllResolvedSerialize)?;
+    let ctx = pacquet_hooks::HookContext { log: Arc::new(|_| {}) };
+    let result = hook
+        .after_all_resolved(value, ctx)
+        .await
+        .map_err(InstallWithFreshLockfileError::AfterAllResolvedHook)?;
+
+    // `Null` means the pnpmfile has no `afterAllResolved` hook, so write the
+    // typed lockfile unchanged.
+    if result.is_null() {
+        built_lockfile.save_to_path(target)
+    } else {
+        pacquet_lockfile::save_value_to_path(&result, target)
+    }
+    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)
 }
 
 /// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the
