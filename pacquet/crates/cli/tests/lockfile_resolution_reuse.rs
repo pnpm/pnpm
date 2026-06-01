@@ -1,0 +1,169 @@
+//! A second non-frozen install reuses the prior lockfile's resolution
+//! and transitive subtree for an unchanged dependency, instead of
+//! re-resolving it from the registry.
+//!
+//! See `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`. pnpm avoids
+//! re-resolving an unchanged tree by reading the prior lockfile's
+//! recorded resolution + child refs
+//! ([`getInfoFromLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1199-L1248));
+//! pacquet ports that so a re-install with the registry gone still
+//! succeeds for the unchanged subtree.
+//!
+//! The proof, modeled on `tarball_url_dependency.rs`'s
+//! `remote_tarball_reresolves_from_warm_store_without_refetch`: a fresh
+//! install against the live mock registry warms the store and records
+//! the lockfile (a direct dep plus its one transitive dep); the registry
+//! is then repointed at a dead port; finally a non-frozen install — which
+//! goes through the fresh-lockfile resolution path because the manifest
+//! changed — must succeed. It can only succeed by reusing the unchanged
+//! subtree from the lockfile, because re-resolving either package would
+//! hit the dead registry and fail.
+
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use std::{fs, net::TcpListener, path::Path, process::Command};
+
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
+}
+
+/// A `registry=` URL on a localhost port with nothing listening, so any
+/// resolution attempt against it fails fast with a connection refusal.
+fn dead_registry_url() -> String {
+    // Bind to an ephemeral port, read it, then drop the listener so the
+    // port is (almost certainly) free again — anything that connects to
+    // it gets refused.
+    let listener =
+        TcpListener::bind(("127.0.0.1", 0)).expect("bind an ephemeral port to learn a free one");
+    let addr = listener.local_addr().expect("read the ephemeral port");
+    drop(listener);
+    format!("http://127.0.0.1:{}/", addr.port())
+}
+
+#[test]
+fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+
+    // Disable `minimumReleaseAge` so the post-resolution lockfile
+    // verifier doesn't fetch each entry's metadata from the registry —
+    // that fetch is a separate concern from resolution reuse, and with
+    // the default (1 day) it would hit the dead registry regardless of
+    // whether resolution was reused, masking what this test proves.
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{existing}minimumReleaseAge: 0\n"))
+        .expect("append minimumReleaseAge to pnpm-workspace.yaml");
+
+    // `@pnpm.e2e/pkg-with-1-dep@100.0.0` depends on
+    // `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0`, so the lockfile records
+    // a two-node subtree (the direct dep plus its transitive child).
+    let manifest_path = workspace.join("package.json");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } })
+            .to_string(),
+    )
+    .expect("write package.json");
+
+    // Fresh install against the live registry: warms the store and writes
+    // the lockfile.
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("@pnpm.e2e/pkg-with-1-dep@100.0.0")
+            && lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@"),
+        "the fresh install must record the direct dep and its transitive child:\n{lockfile}",
+    );
+
+    // Repoint the registry at a dead port. Any re-resolution now fails.
+    let dead_registry = dead_registry_url();
+    let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("registry="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
+
+    // Widen the range to `^100.0.0`. The locked `100.0.0` still satisfies
+    // it (so the dep is reusable), but the manifest change forces the
+    // non-frozen fresh-lockfile resolution path rather than the
+    // up-to-date short-circuit.
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "^100.0.0" } })
+            .to_string(),
+    )
+    .expect("rewrite package.json with a widened range");
+
+    // Succeeds only because the unchanged subtree is reused from the
+    // lockfile — re-resolving either package would hit the dead registry.
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    drop((root, mock_instance));
+}
+
+/// A lockfile produced via the reuse path is structurally identical to
+/// one produced by resolving the same manifest entirely from scratch.
+///
+/// The discriminating test above proves reuse *fires*; this proves it's
+/// *correct* — that reusing an unchanged subtree yields the same tree a
+/// fresh resolve would, so reuse can never silently drift the resolution.
+/// Reaching the same final manifest two ways:
+///   A. install `pkg-with-1-dep`, then add `foo` — the second install
+///      reuses `pkg-with-1-dep`'s subtree and resolves only `foo`;
+///   B. install both from scratch — no prior lockfile, nothing reused.
+///
+/// Compared as parsed [`pacquet_lockfile::Lockfile`] values rather than
+/// raw bytes: the two are content-identical (same packages, versions,
+/// integrities, snapshots, importer specifiers), but the writer emits the
+/// `packages` / `snapshots` / importer-`dependencies` maps in build-
+/// insertion order, which differs between the incremental and the fresh
+/// build. That byte-level ordering is a separate lockfile-determinism
+/// concern (tracked as a follow-up), orthogonal to reuse correctness.
+#[test]
+fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
+    let both = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0", "@pnpm.e2e/foo": "100.0.0" }
+    })
+    .to_string();
+
+    // Scenario A: reuse path.
+    let reused = CommandTempCwd::init().add_mocked_registry();
+    let reused_manifest = reused.workspace.join("package.json");
+    fs::write(
+        &reused_manifest,
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } })
+            .to_string(),
+    )
+    .expect("write the reuse scenario's initial manifest");
+    pacquet_at(&reused.workspace).with_arg("install").assert().success();
+    fs::write(&reused_manifest, &both).expect("add the second dep to the reuse scenario");
+    pacquet_at(&reused.workspace).with_arg("install").assert().success();
+    let reused_lockfile =
+        fs::read_to_string(reused.workspace.join("pnpm-lock.yaml")).expect("read reused lockfile");
+
+    // Scenario B: fresh resolve of the same final manifest.
+    let fresh = CommandTempCwd::init().add_mocked_registry();
+    fs::write(fresh.workspace.join("package.json"), &both).expect("write the fresh manifest");
+    pacquet_at(&fresh.workspace).with_arg("install").assert().success();
+    let fresh_lockfile =
+        fs::read_to_string(fresh.workspace.join("pnpm-lock.yaml")).expect("read fresh lockfile");
+
+    let parse = |yaml: &str| {
+        serde_saphyr::from_str::<pacquet_lockfile::Lockfile>(yaml).expect("parse pnpm-lock.yaml")
+    };
+    pretty_assertions::assert_eq!(
+        parse(&reused_lockfile),
+        parse(&fresh_lockfile),
+        "a tree built via subtree reuse must be structurally identical to a fresh resolve",
+    );
+
+    drop((reused, fresh));
+}

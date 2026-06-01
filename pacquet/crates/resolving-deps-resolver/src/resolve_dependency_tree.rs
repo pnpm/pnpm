@@ -30,9 +30,51 @@ fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
 }
 
 use crate::{
+    lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
     resolved_tree::{DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree},
 };
+use pacquet_lockfile::{PkgNameVerPeer, SnapshotEntry};
+
+/// Which dependencies `pacquet update` excludes from lockfile-resolution
+/// reuse. An excluded package re-resolves to highest-in-range, and its
+/// whole subtree re-resolves with it (so the bump's new transitive deps
+/// are picked up). Mirrors pnpm's `update` re-resolution scope.
+#[derive(Default, Clone)]
+pub enum UpdateReuseScope {
+    /// Reuse every still-satisfied dependency. `install` / `add`.
+    #[default]
+    All,
+    /// Reuse nothing — the whole graph re-resolves. `pacquet update`
+    /// with no selectors.
+    None,
+    /// Reuse everything except the named packages (matched at any depth).
+    /// `pacquet update <pattern>`.
+    Except(std::collections::HashSet<String>),
+}
+
+/// How the current [`fn@resolve_node`] call may reuse the prior
+/// lockfile's resolution instead of re-resolving from the registry.
+///
+/// Threaded down the recursion to faithfully port pnpm's
+/// `resolvedDependencies` / `parentPkg.updated` mechanism
+/// (`resolveChildren` / `getDepsToResolve` in
+/// [`resolveDependencies.ts`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1000-L1248)).
+#[derive(Clone)]
+enum ReuseSource {
+    /// A direct dependency of importer `importer_id`. Reuse matches the
+    /// manifest specifier against the importer's recorded resolution via
+    /// semver-satisfies ([`reusable_importer_dep`]).
+    Importer { importer_id: String },
+    /// A transitive dependency whose resolved snapshot key the parent's
+    /// snapshot already pins. `Some` reuses that key directly (no semver
+    /// check — the parent version pins it); `None` means an updated
+    /// ancestor discarded its child-refs, forcing this subtree to
+    /// re-resolve (pnpm's `parentPkg.updated ? undefined : refs`).
+    Transitive { key: Option<PkgNameVerPeer> },
+    /// Reuse disabled for this node (no prior lockfile).
+    Off,
+}
 
 /// Options threaded into [`fn@resolve_dependency_tree`].
 ///
@@ -206,7 +248,8 @@ where
         let injected = injected_names.contains(name);
         wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
-    let direct = extend_tree(&ctx, resolver, wanted).await?;
+    let direct =
+        extend_tree(&ctx, resolver, wanted, pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY).await?;
     Ok(ctx.into_resolved_tree(direct))
 }
 
@@ -372,6 +415,23 @@ pub struct WorkspaceTreeCtx {
     /// enters the wanted-dep cache. See [`ManifestHook`] for the
     /// signature. `None` when no hook is configured.
     manifest_hook: Option<ManifestHook>,
+    /// The previous `pnpm-lock.yaml` the install started from, when one
+    /// exists. Consulted by `resolve_node` to reuse an already-resolved
+    /// dependency + its transitive subtree instead of re-resolving from
+    /// the registry (see `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`).
+    /// `None` on a first install or when reuse is disabled.
+    wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    /// Lockfile-reuse suppression for `pacquet update`. `update`
+    /// re-resolves its target deps to highest-in-range, so a reused
+    /// resolution would defeat the bump. Mirrors pnpm's `updateToLatest`
+    /// / `updateMatching` propagation into `parentPkg.updated`. See
+    /// [`UpdateReuseScope`].
+    update_reuse_scope: UpdateReuseScope,
+    /// Memoises [`fn@subtree_fully_reusable`] per snapshot key so the
+    /// recursive reusability check runs once per package across the
+    /// whole walk. `true` means the package and its entire transitive
+    /// subtree can be synthesized from the prior lockfile.
+    subtree_reusable: Mutex<HashMap<PkgNameVerPeer, bool>>,
 }
 
 impl Default for WorkspaceTreeCtx {
@@ -386,6 +446,9 @@ impl Default for WorkspaceTreeCtx {
             children_specs_by_id: Mutex::new(HashMap::new()),
             children_by_id: Mutex::new(HashMap::new()),
             manifest_hook: None,
+            wanted_lockfile: None,
+            update_reuse_scope: UpdateReuseScope::All,
+            subtree_reusable: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -413,6 +476,29 @@ impl WorkspaceTreeCtx {
     /// the signature.
     pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
         self.manifest_hook = manifest_hook;
+        self
+    }
+
+    /// Attach the prior `pnpm-lock.yaml` so `resolve_node` can reuse
+    /// already-resolved dependencies instead of re-resolving them. See
+    /// the `wanted_lockfile` field.
+    pub fn with_wanted_lockfile(
+        mut self,
+        wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    ) -> Self {
+        self.wanted_lockfile = wanted_lockfile;
+        self
+    }
+
+    /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
+    pub fn wanted_lockfile(&self) -> Option<&Arc<pacquet_lockfile::Lockfile>> {
+        self.wanted_lockfile.as_ref()
+    }
+
+    /// Set which dependencies `pacquet update` excludes from reuse. See
+    /// [`UpdateReuseScope`].
+    pub fn with_update_reuse_scope(mut self, scope: UpdateReuseScope) -> Self {
+        self.update_reuse_scope = scope;
         self
     }
 
@@ -629,32 +715,43 @@ pub async fn extend_tree<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: Vec<WantedSpec>,
+    importer_id: &str,
 ) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
+    // Direct deps reuse via the importer's recorded resolution when a
+    // prior lockfile exists; without one the gate is a no-op.
+    let reuse = if ctx.workspace.wanted_lockfile.is_some() {
+        ReuseSource::Importer { importer_id: importer_id.to_string() }
+    } else {
+        ReuseSource::Off
+    };
     let results = wanted
         .into_iter()
-        .map(|(name, range, optional, injected)| async move {
-            // `injected: Some(true)` only when the importer manifest's
-            // `dependenciesMeta[name].injected = true` opted this dep
-            // in. Otherwise leave it `None` — matches upstream's
-            // `injected: opts.dependenciesMeta[alias]?.injected` shape
-            // where an absent meta entry yields `undefined`, not
-            // `false`. The resolver OR's this with the global
-            // `inject_workspace_packages` flag, so `None` and
-            // `Some(false)` would produce identical behavior — but
-            // mirroring the upstream wire shape keeps the
-            // [`WantedKey`] cache buckets aligned across the two
-            // pacquet branches that surface `injected`.
-            let wanted = WantedDependency {
-                alias: Some(name),
-                bare_specifier: Some(range),
-                optional: Some(optional),
-                injected: injected.then_some(true),
-                ..WantedDependency::default()
-            };
-            resolve_node(ctx, resolver, wanted, &[], 0, false).await
+        .map(|(name, range, optional, injected)| {
+            let reuse = reuse.clone();
+            async move {
+                // `injected: Some(true)` only when the importer manifest's
+                // `dependenciesMeta[name].injected = true` opted this dep
+                // in. Otherwise leave it `None` — matches upstream's
+                // `injected: opts.dependenciesMeta[alias]?.injected` shape
+                // where an absent meta entry yields `undefined`, not
+                // `false`. The resolver OR's this with the global
+                // `inject_workspace_packages` flag, so `None` and
+                // `Some(false)` would produce identical behavior — but
+                // mirroring the upstream wire shape keeps the
+                // [`WantedKey`] cache buckets aligned across the two
+                // pacquet branches that surface `injected`.
+                let wanted = WantedDependency {
+                    alias: Some(name),
+                    bare_specifier: Some(range),
+                    optional: Some(optional),
+                    injected: injected.then_some(true),
+                    ..WantedDependency::default()
+                };
+                resolve_node(ctx, resolver, wanted, &[], 0, false, reuse).await
+            }
         })
         .pipe(future::try_join_all)
         .await?;
@@ -683,11 +780,34 @@ async fn resolve_node<Chain>(
     ancestor_ids: &[String],
     depth: i32,
     parent_optional: bool,
+    reuse: ReuseSource,
 ) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
     let current_is_optional = wanted.optional.unwrap_or(false) || parent_optional;
+
+    // **Lockfile-resolution reuse.** When the prior lockfile already
+    // resolved this edge (and the recorded version still satisfies the
+    // manifest range, for a direct dep), synthesize the resolution from
+    // the lockfile and walk its transitive subtree from the snapshot
+    // graph instead of re-resolving from the registry. Mirrors pnpm's
+    // [`getInfoFromLockfile` reuse](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1199-L1248).
+    // `synthesize_reused_result` is conservative: any shape it can't
+    // faithfully reproduce (non-registry resolutions, missing metadata)
+    // yields `None` here and the node falls through to a fresh resolve.
+    if let Some(reused) = try_reuse_node(ctx, &wanted, reuse) {
+        return resolve_reused_node(
+            ctx,
+            resolver,
+            wanted,
+            ancestor_ids,
+            depth,
+            current_is_optional,
+            reused,
+        )
+        .await;
+    }
 
     // Memoise the per-wanted resolve. The first caller for a given
     // `(alias, bare_specifier, optional)` runs the resolver chain and
@@ -909,6 +1029,10 @@ where
                 };
                 let next_ancestors = next_ancestors.clone();
                 async move {
+                    // A freshly-resolved node forces its whole subtree
+                    // to re-resolve — pnpm's `resolvedDependencies =
+                    // parentPkg.updated ? undefined`. `ReuseSource::Off`
+                    // is the `undefined` arm.
                     resolve_node(
                         ctx,
                         resolver,
@@ -916,6 +1040,7 @@ where
                         &next_ancestors,
                         depth + 1,
                         current_is_optional,
+                        ReuseSource::Off,
                     )
                     .await
                 }
@@ -973,6 +1098,325 @@ where
         });
 
     Ok(Some(DirectDep { alias, node_id, id }))
+}
+
+/// One reusable node: its prior-lockfile snapshot key plus the
+/// `ResolveResult` synthesized from the lockfile metadata.
+struct ReusedNode {
+    key: PkgNameVerPeer,
+    result: pacquet_resolving_resolver_base::ResolveResult,
+}
+
+/// Decide whether the current edge can reuse the prior lockfile's
+/// resolution. Returns the synthesized node when the edge's whole
+/// transitive subtree is reusable; `None` (fresh resolve) otherwise.
+///
+/// Conservative on every axis: no prior lockfile, an unsatisfied direct
+/// range, a `link:` / non-registry shape anywhere in the subtree, or a
+/// missing snapshot entry all yield `None`. See
+/// [`fn@subtree_fully_reusable`] for the recursive subtree check.
+fn try_reuse_node(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    reuse: ReuseSource,
+) -> Option<ReusedNode> {
+    let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
+    if matches!(ctx.workspace.update_reuse_scope, UpdateReuseScope::None) {
+        return None;
+    }
+    let alias = wanted.alias.as_deref()?;
+    let key = match reuse {
+        ReuseSource::Importer { importer_id } => {
+            let bare_specifier = wanted.bare_specifier.as_deref()?;
+            reusable_importer_dep(&lockfile.importers, &importer_id, alias, bare_specifier)?
+        }
+        ReuseSource::Transitive { key } => key?,
+        ReuseSource::Off => return None,
+    };
+    if !subtree_fully_reusable(ctx, lockfile, &key) {
+        return None;
+    }
+    let result = synthesize_reused_result(lockfile, &key, alias)?;
+    Some(ReusedNode { key, result })
+}
+
+/// `true` when `name` is a `pacquet update` target excluded from reuse.
+fn update_excludes(scope: &UpdateReuseScope, name: &pacquet_lockfile::PkgName) -> bool {
+    match scope {
+        UpdateReuseScope::All => false,
+        // `None` is handled earlier in `try_reuse_node`; treat it the
+        // same here for completeness.
+        UpdateReuseScope::None => true,
+        UpdateReuseScope::Except(names) => names.contains(&name.to_string()),
+    }
+}
+
+/// `true` when `key` and its entire transitive subtree can be
+/// synthesized from `lockfile` (every node a plain-semver registry
+/// package present in `packages:`, every snapshot child non-`link:`).
+/// Memoised on [`WorkspaceTreeCtx::subtree_reusable`] so each package is
+/// checked once.
+///
+/// A snapshot cycle is treated as **non**-reusable at the back-edge: the
+/// key is provisionally inserted as `false` before recursing, so a node
+/// reached through a still-in-progress ancestor resolves to `false` and
+/// any subtree containing a dependency cycle conservatively re-resolves.
+/// This avoids the unsound alternative — a provisional `true` could cache
+/// a cycle member as reusable based on an ancestor that later finalizes
+/// `false` (e.g. an update-excluded target reachable only through the
+/// cycle), wrongly reusing it. SCC-aware reuse of acyclic-equivalent
+/// cycles is possible but not worth the complexity for an uncommon case.
+fn subtree_fully_reusable(
+    ctx: &TreeCtx,
+    lockfile: &pacquet_lockfile::Lockfile,
+    key: &PkgNameVerPeer,
+) -> bool {
+    if let Some(&cached) = lock_recoverable(&ctx.workspace.subtree_reusable).get(key) {
+        return cached;
+    }
+    // Provisionally mark non-reusable so a cycle back to `key` resolves to
+    // `false` (re-resolve) instead of recursing forever — see the doc above
+    // for why `false` rather than `true`.
+    lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), false);
+    // A `pacquet update` target anywhere in the subtree forces the whole
+    // subtree to re-resolve so the bump's new transitive deps are picked
+    // up — mirrors pnpm matching update names at any depth.
+    let reusable = !update_excludes(&ctx.workspace.update_reuse_scope, &key.name)
+        && synthesize_reused_result(lockfile, key, &key.name.to_string()).is_some()
+        && subtree_children_reusable(ctx, lockfile, key);
+    lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), reusable);
+    reusable
+}
+
+/// Recurse [`fn@subtree_fully_reusable`] across `key`'s snapshot
+/// children. A `link:` child (no snapshot key) makes the subtree
+/// non-reusable: the linked importer resolves its own deps, which this
+/// reuse path doesn't model.
+fn subtree_children_reusable(
+    ctx: &TreeCtx,
+    lockfile: &pacquet_lockfile::Lockfile,
+    key: &PkgNameVerPeer,
+) -> bool {
+    let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snaps| snaps.get(key)) else {
+        // No snapshot entry → the lockfile doesn't record this node's
+        // children, so the reuse walk can't reproduce its subtree.
+        // Force a fresh resolve rather than risk silently dropping
+        // transitive deps. A genuine leaf has an empty-but-*present*
+        // snapshot entry (`{}`); a missing one means an inconsistent
+        // lockfile, which `try_reuse_node`'s contract sends to a fresh
+        // resolve.
+        return false;
+    };
+    let dep_maps = [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()];
+    for dep_map in dep_maps.into_iter().flatten() {
+        for (child_name, dep_ref) in dep_map {
+            let Some(child_key) = dep_ref.resolve(child_name) else {
+                return false;
+            };
+            if !subtree_fully_reusable(ctx, lockfile, &child_key) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Register a node whose resolution was reused from the prior lockfile,
+/// then walk its transitive children from the snapshot graph instead of
+/// re-resolving them. Mirrors the post-resolve half of
+/// [`fn@resolve_node`], specialized for a node whose subtree
+/// [`fn@try_reuse_node`] already confirmed reusable.
+#[async_recursion]
+async fn resolve_reused_node<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: WantedDependency,
+    ancestor_ids: &[String],
+    depth: i32,
+    current_is_optional: bool,
+    reused: ReusedNode,
+) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    let ReusedNode { key, result } = reused;
+    let result = Arc::new(result);
+
+    // A reused node carries the synthesized registry resolution into the
+    // same per-wanted cache a fresh resolve would populate, so a later
+    // fresh-resolve of the identical wanted dep short-circuits to it.
+    let opts = ctx.opts_for_depth(depth);
+    let cache_key: WantedKey = (
+        wanted.alias.clone(),
+        wanted.bare_specifier.clone(),
+        wanted.optional,
+        wanted.injected,
+        opts.pick_lowest_version,
+        opts.published_by,
+    );
+    lock_recoverable(&ctx.workspace.resolved_by_wanted)
+        .entry(cache_key)
+        .or_insert_with(|| Arc::clone(&result));
+
+    let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
+
+    // Cycle break — same as the fresh path.
+    if ancestor_ids.iter().any(|prev| prev == &id) {
+        return Ok(None);
+    }
+
+    let alias = result
+        .alias
+        .clone()
+        .or_else(|| wanted.alias.clone())
+        .or_else(|| result.name_ver.as_ref().map(|nv| nv.name.to_string()))
+        .unwrap_or_else(|| id.clone());
+
+    // Leaf classification reads the snapshot graph (the source of truth
+    // for a reused node's children), not the synthesized manifest (whose
+    // `dependencies` are deliberately omitted). A node with no recorded
+    // children and no peers is a leaf, matching `pkg_is_leaf`.
+    let snapshot = ctx
+        .workspace
+        .wanted_lockfile
+        .as_ref()
+        .and_then(|lockfile| lockfile.snapshots.as_ref())
+        .and_then(|snaps| snaps.get(&key));
+    let child_refs = snapshot_child_refs(snapshot);
+    let peer_dependencies = extract_peer_dependencies(&result);
+    let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
+    let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
+
+    let is_revisit;
+    {
+        let mut packages = lock_recoverable(&ctx.workspace.packages);
+        match packages.get_mut(&id) {
+            Some(existing) => {
+                existing.optional = existing.optional && current_is_optional;
+                is_revisit = true;
+            }
+            None => {
+                {
+                    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+                    for name in peer_dependencies.keys() {
+                        all_peers.insert(name.clone());
+                    }
+                }
+                packages.insert(
+                    id.clone(),
+                    ResolvedPackage {
+                        id: id.clone(),
+                        result: Arc::clone(&result),
+                        peer_dependencies,
+                        optional: current_is_optional,
+                        is_leaf,
+                    },
+                );
+                is_revisit = false;
+            }
+        }
+    }
+
+    let next_ancestors: Vec<String> =
+        ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
+
+    let children = if is_revisit {
+        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(next_ancestors.clone()) }
+    } else {
+        let child_results = child_refs
+            .iter()
+            .map(|(child_alias, child_key)| {
+                let child_wanted = WantedDependency {
+                    alias: Some(child_alias.clone()),
+                    // The snapshot pins the exact version; carry it as
+                    // the bare specifier so the per-wanted dedup cache
+                    // key is stable and a fresh fallback (if reuse were
+                    // ever disabled) would still target the right pin.
+                    bare_specifier: Some(child_key.suffix.without_peer().to_string()),
+                    ..WantedDependency::default()
+                };
+                let next_ancestors = next_ancestors.clone();
+                let child_key = child_key.clone();
+                async move {
+                    resolve_node(
+                        ctx,
+                        resolver,
+                        child_wanted,
+                        &next_ancestors,
+                        depth + 1,
+                        current_is_optional,
+                        ReuseSource::Transitive { key: Some(child_key) },
+                    )
+                    .await
+                }
+            })
+            .pipe(future::try_join_all)
+            .await?;
+        let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
+        let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
+        let optional_by_alias: HashMap<&str, bool> = child_refs
+            .iter()
+            .map(|(alias, _)| (alias.as_str(), is_optional_child(snapshot, alias)))
+            .collect();
+        for dep in child_results.into_iter().flatten() {
+            let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+            by_id.push(crate::resolved_tree::ChildEdge {
+                alias: dep.alias.clone(),
+                pkg_id: dep.id.clone(),
+                optional,
+            });
+            realized.insert(dep.alias, dep.node_id);
+        }
+        lock_recoverable(&ctx.workspace.children_by_id)
+            .entry(id.clone())
+            .or_insert_with(|| Arc::new(by_id));
+        crate::resolved_tree::TreeChildren::Realized(realized)
+    };
+
+    lock_recoverable(&ctx.workspace.dependencies_tree)
+        .entry(node_id.clone())
+        .and_modify(|node| {
+            if node.depth > depth {
+                node.depth = depth;
+            }
+        })
+        .or_insert_with(|| DependenciesTreeNode {
+            resolved_package_id: id.clone(),
+            children,
+            depth,
+            installable: true,
+        });
+
+    Ok(Some(DirectDep { alias, node_id, id }))
+}
+
+/// `(install_alias, resolved_snapshot_key)` for every non-`link:` child
+/// recorded on `snapshot`'s `dependencies` + `optionalDependencies`.
+/// Sorted by alias so the per-occurrence walk order is deterministic.
+fn snapshot_child_refs(snapshot: Option<&SnapshotEntry>) -> Vec<(String, PkgNameVerPeer)> {
+    let Some(snapshot) = snapshot else { return Vec::new() };
+    let mut out: Vec<(String, PkgNameVerPeer)> = Vec::new();
+    for dep_map in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        for (alias, dep_ref) in dep_map {
+            if let Some(key) = dep_ref.resolve(alias) {
+                out.push((alias.to_string(), key));
+            }
+        }
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+/// `true` when `alias` is recorded under `snapshot.optionalDependencies`
+/// (as opposed to `dependencies`). Threads the right `optional` flag onto
+/// the reused child's [`crate::resolved_tree::ChildEdge`].
+fn is_optional_child(snapshot: Option<&SnapshotEntry>, alias: &str) -> bool {
+    let Some(snapshot) = snapshot else { return false };
+    let Ok(name) = alias.parse::<pacquet_lockfile::PkgName>() else { return false };
+    snapshot.optional_dependencies.as_ref().is_some_and(|deps| deps.contains_key(&name))
 }
 
 /// Replace `catalog:` bare specifiers on direct dependencies with the

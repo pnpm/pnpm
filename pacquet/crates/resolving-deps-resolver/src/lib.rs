@@ -67,6 +67,7 @@
 mod dedupe_injected_deps;
 mod dependencies_graph;
 mod hoist_peers;
+mod lockfile_reuse;
 mod node_id;
 mod resolve_dependency_tree;
 mod resolve_importer;
@@ -86,7 +87,7 @@ pub use node_id::NodeId;
 pub use pacquet_deps_path::DepPath;
 pub use resolve_dependency_tree::{
     ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions, TreeCtx,
-    WorkspaceTreeCtx, extend_tree, resolve_dependency_tree,
+    UpdateReuseScope, WorkspaceTreeCtx, extend_tree, resolve_dependency_tree,
 };
 pub use resolve_importer::{
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
