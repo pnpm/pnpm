@@ -82,22 +82,7 @@ impl<'a> Remove<'a> {
             lockfile_only,
         } = self;
 
-        if package_names.is_empty() {
-            return Err(RemoveError::MustRemoveSomething);
-        }
-
-        let available_dependencies = manifest.available_dependency_names(save_type);
-        let available_lookup: HashSet<&str> =
-            available_dependencies.iter().map(String::as_str).collect();
-        let non_matched_dependencies: Vec<&String> =
-            package_names.iter().filter(|name| !available_lookup.contains(name.as_str())).collect();
-        if !non_matched_dependencies.is_empty() {
-            return Err(cannot_remove_missing_deps(
-                &available_dependencies,
-                &non_matched_dependencies,
-                save_type,
-            ));
-        }
+        validate_removable(manifest, package_names, save_type)?;
 
         manifest.remove_dependencies(package_names, save_type);
 
@@ -166,6 +151,31 @@ impl<'a> Remove<'a> {
     }
 }
 
+/// The up-front guards `pacquet remove` applies before mutating the
+/// manifest or running any install — both fail fast, matching pnpm's
+/// `remove` handler at
+/// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>:
+/// an empty target list is `MUST_REMOVE_SOMETHING`, and any name absent
+/// from the targeted field(s) is `CANNOT_REMOVE_MISSING_DEPS`.
+fn validate_removable(
+    manifest: &PackageManifest,
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> Result<(), RemoveError> {
+    if package_names.is_empty() {
+        return Err(RemoveError::MustRemoveSomething);
+    }
+    let available_dependencies = manifest.available_dependency_names(save_type);
+    let available_lookup: HashSet<&str> =
+        available_dependencies.iter().map(String::as_str).collect();
+    let non_matched_dependencies: Vec<&String> =
+        package_names.iter().filter(|name| !available_lookup.contains(name.as_str())).collect();
+    if non_matched_dependencies.is_empty() {
+        return Ok(());
+    }
+    Err(cannot_remove_missing_deps(&available_dependencies, &non_matched_dependencies, save_type))
+}
+
 /// Build the `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS` error, mirroring
 /// upstream's `RemoveMissingDepsError` message and hint at
 /// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
@@ -197,3 +207,6 @@ fn cannot_remove_missing_deps(
     let hint = format!("Available dependencies: {}", available_dependencies.join(", "));
     RemoveError::CannotRemoveMissingDeps { message, hint: Some(hint) }
 }
+
+#[cfg(test)]
+mod tests;
