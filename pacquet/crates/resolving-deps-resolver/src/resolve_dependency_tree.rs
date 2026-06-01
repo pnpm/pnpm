@@ -372,6 +372,12 @@ pub struct WorkspaceTreeCtx {
     /// enters the wanted-dep cache. See [`ManifestHook`] for the
     /// signature. `None` when no hook is configured.
     manifest_hook: Option<ManifestHook>,
+    /// The previous `pnpm-lock.yaml` the install started from, when one
+    /// exists. Consulted by `resolve_node` to reuse an already-resolved
+    /// dependency + its transitive subtree instead of re-resolving from
+    /// the registry (see `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`).
+    /// `None` on a first install or when reuse is disabled.
+    wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
 }
 
 impl Default for WorkspaceTreeCtx {
@@ -386,6 +392,7 @@ impl Default for WorkspaceTreeCtx {
             children_specs_by_id: Mutex::new(HashMap::new()),
             children_by_id: Mutex::new(HashMap::new()),
             manifest_hook: None,
+            wanted_lockfile: None,
         }
     }
 }
@@ -414,6 +421,22 @@ impl WorkspaceTreeCtx {
     pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
         self.manifest_hook = manifest_hook;
         self
+    }
+
+    /// Attach the prior `pnpm-lock.yaml` so `resolve_node` can reuse
+    /// already-resolved dependencies instead of re-resolving them. See
+    /// the `wanted_lockfile` field.
+    pub fn with_wanted_lockfile(
+        mut self,
+        wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+    ) -> Self {
+        self.wanted_lockfile = wanted_lockfile;
+        self
+    }
+
+    /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
+    pub fn wanted_lockfile(&self) -> Option<&Arc<pacquet_lockfile::Lockfile>> {
+        self.wanted_lockfile.as_ref()
     }
 
     /// Take ownership of `self` and emit the final [`ResolvedTree`].

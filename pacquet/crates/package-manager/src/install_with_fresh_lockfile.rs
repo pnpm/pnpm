@@ -819,6 +819,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             manifest_hook: package_extensions_hook.clone(),
             pick_lowest_direct,
             time_based,
+            // Hand the resolver the prior lockfile so it can reuse
+            // already-resolved subtrees instead of re-resolving from the
+            // registry (see pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md).
+            wanted_lockfile: wanted_lockfile.cloned().map(Arc::new),
         };
         let modules_basename = config
             .modules_dir

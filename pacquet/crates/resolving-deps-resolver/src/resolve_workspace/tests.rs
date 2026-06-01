@@ -131,6 +131,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         manifest_hook: None,
         pick_lowest_direct,
         time_based,
+        wanted_lockfile: None,
     }
 }
 
