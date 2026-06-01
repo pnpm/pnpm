@@ -94,7 +94,7 @@ pass and the `updated`-propagation boundary are the subtlest parts.
 
 ## Known follow-ups (before un-drafting)
 
-- **Lockfile byte-ordering is build-order-dependent.** Surfaced by the
+- **Lockfile byte-ordering is build-order-dependent** ([#12117](https://github.com/pnpm/pnpm/issues/12117)). Surfaced by the
   structural-equivalence test: reuse and fresh resolves produce
   *content-identical* lockfiles, but the writer emits the
   `packages` / `snapshots` / importer-`dependencies` maps in

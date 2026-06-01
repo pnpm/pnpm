@@ -1101,7 +1101,7 @@ where
 }
 
 /// One reusable node: its prior-lockfile snapshot key plus the
-/// [`ResolveResult`] synthesized from the lockfile metadata.
+/// `ResolveResult` synthesized from the lockfile metadata.
 struct ReusedNode {
     key: PkgNameVerPeer,
     result: pacquet_resolving_resolver_base::ResolveResult,

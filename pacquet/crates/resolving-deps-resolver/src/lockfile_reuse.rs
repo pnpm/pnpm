@@ -87,7 +87,7 @@ fn importer_dep<'a>(
 ///   so the recorded integrity carries forward.
 /// * `manifest` is reconstructed from the metadata's
 ///   `peerDependencies` / `peerDependenciesMeta` / `engines` / `cpu` /
-///   `os` / `libc` / `hasBin` so [`crate::extract_peer_dependencies`]
+///   `os` / `libc` / `hasBin` so `extract_peer_dependencies`
 ///   and the leaf classifier behave identically to a fresh resolve.
 ///   `dependencies` are deliberately omitted — the children come from
 ///   the snapshot graph, not this manifest.
