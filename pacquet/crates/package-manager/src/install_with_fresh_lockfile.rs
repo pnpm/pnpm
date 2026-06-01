@@ -828,6 +828,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     pick_lowest_direct,
                     subdep_published_by: published_by,
                     base_opts: ResolveOptions {
+                        preferred_versions: all_preferred_versions.clone(),
                         default_tag: Some("latest".to_string()),
                         published_by,
                         published_by_exclude: published_by_exclude.clone(),
