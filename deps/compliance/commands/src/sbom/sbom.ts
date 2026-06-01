@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { packageManager } from '@pnpm/cli.meta'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
@@ -6,14 +8,17 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { isSpdxLicenseExpression, resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
 import {
   collectSbomComponents,
+  resolveWorkspaceDeps,
   type SbomComponentType,
   type SbomFormat,
   serializeCycloneDx,
   serializeSpdx,
+  type WorkspacePackageInfo,
 } from '@pnpm/deps.compliance.sbom'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getStorePath } from '@pnpm/store.path'
+import type { ProjectId } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -124,6 +129,7 @@ export function help (): string {
       'pnpm sbom --sbom-format spdx',
       'pnpm sbom --sbom-format cyclonedx --lockfile-only',
       'pnpm sbom --sbom-format spdx --prod',
+      'pnpm sbom --sbom-format cyclonedx --filter ./apps/my-app',
     ],
   })
 }
@@ -168,27 +174,49 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
 
-  const manifest = await readProjectManifestOnly(opts.dir)
+  const selectedEntries = opts.selectedProjectsGraph
+    ? Object.entries(opts.selectedProjectsGraph)
+    : undefined
+  const singleProject = selectedEntries?.length === 1
+    ? selectedEntries[0]
+    : undefined
+
+  const rootManifest = await readProjectManifestOnly(opts.dir)
+  const manifest = singleProject
+    ? singleProject[1].package.manifest
+    : rootManifest
+  const projectDir = singleProject
+    ? singleProject[0]
+    : opts.dir
+
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
-  // Keep the root in sync with transitive deps: consult manifest `license` /
-  // legacy `licenses` first, then fall back to an on-disk LICENSE file. Drop
-  // file-scanned values that aren't SPDX-valid to avoid non-compliant output.
-  const rootLicenseInfo = await resolveLicenseFromDir({ manifest, dir: opts.dir })
-  const rootLicense = rootLicenseInfo && rootLicenseInfo.name !== 'Unknown' &&
-    (!rootLicenseInfo.licenseFile || isSpdxLicenseExpression(rootLicenseInfo.name))
-    ? rootLicenseInfo.name
-    : undefined
-  const rootAuthor = typeof manifest.author === 'string'
-    ? manifest.author
-    : (manifest.author as { name?: string } | undefined)?.name
-  const rootRepository = typeof manifest.repository === 'string'
-    ? manifest.repository
-    : (manifest.repository as { url?: string } | undefined)?.url
+  const rootLicense = await resolveRootLicense(manifest, projectDir)
+    ?? (singleProject ? await resolveRootLicense(rootManifest, opts.dir) : undefined)
+  const rootAuthor = extractAuthor(manifest)
+    ?? (singleProject ? extractAuthor(rootManifest) : undefined)
+  const rootRepository = extractRepository(manifest)
+    ?? (singleProject ? extractRepository(rootManifest) : undefined)
 
+  const lockfileDir = opts.lockfileDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)
-      .map((p) => getLockfileImporterId(opts.lockfileDir ?? opts.dir, p))
+      .map((p) => getLockfileImporterId(lockfileDir, p))
+    : undefined
+
+  const resolvedWorkspaceDeps = opts.lockfileOnly
+    ? undefined
+    : resolveWorkspaceDeps(
+      lockfile,
+      includedImporterIds ?? Object.keys(lockfile.importers) as ProjectId[],
+      include
+    )
+  const workspacePackages = resolvedWorkspaceDeps
+    ? await buildWorkspacePackagesMap(
+      resolvedWorkspaceDeps.additionalImporterIds,
+      lockfileDir,
+      opts.selectedProjectsGraph
+    )
     : undefined
 
   let storeDir: string | undefined
@@ -211,11 +239,13 @@ export async function handler (
     sbomType,
     include,
     registries: opts.registries,
-    lockfileDir: opts.lockfileDir ?? opts.dir,
+    lockfileDir,
     includedImporterIds,
     lockfileOnly: opts.lockfileOnly,
     storeDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    workspacePackages,
+    resolvedWorkspaceDeps,
   })
 
   const output = format === 'cyclonedx'
@@ -240,8 +270,6 @@ function validateSbomType (value: string | undefined): SbomComponentType {
   )
 }
 
-// Versions whose schema is fully covered by what we currently emit
-// (e.g. metadata.lifecycles requires CycloneDX 1.5+).
 const SUPPORTED_CYCLONEDX_SPEC_VERSIONS = ['1.5', '1.6', '1.7']
 
 function validateSbomSpecVersion (value: string | undefined, format: SbomFormat): string | undefined {
@@ -260,4 +288,67 @@ function validateSbomSpecVersion (value: string | undefined, format: SbomFormat)
     )
   }
   return normalized
+}
+
+async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFromDir>[0]['manifest'], dir: string): Promise<string | undefined> {
+  const info = await resolveLicenseFromDir({ manifest, dir })
+  if (info && info.name !== 'Unknown' && (!info.licenseFile || isSpdxLicenseExpression(info.name))) {
+    return info.name
+  }
+  return undefined
+}
+
+function extractAuthor (manifest: { author?: string | { name?: string } }): string | undefined {
+  if (typeof manifest.author === 'string') return manifest.author
+  return manifest.author?.name
+}
+
+function extractRepository (manifest: { repository?: string | { url?: string } }): string | undefined {
+  if (typeof manifest.repository === 'string') return manifest.repository
+  return manifest.repository?.url
+}
+
+async function buildWorkspacePackagesMap (
+  reachableImporterIds: ProjectId[],
+  lockfileDir: string,
+  selectedProjectsGraph?: SbomCommandOptions['selectedProjectsGraph']
+): Promise<Record<ProjectId, WorkspacePackageInfo>> {
+  if (reachableImporterIds.length === 0) return {} as Record<ProjectId, WorkspacePackageInfo>
+
+  const selectedEntriesMap = new Map<string, { manifest: { name?: string, version?: string, license?: string, description?: string, author?: string | { name?: string }, repository?: string | { url?: string } } }>()
+  if (selectedProjectsGraph) {
+    for (const [dir, entry] of Object.entries(selectedProjectsGraph)) {
+      selectedEntriesMap.set(getLockfileImporterId(lockfileDir, dir), entry.package)
+    }
+  }
+
+  const entries = await Promise.all(
+    reachableImporterIds.map(async (importerId): Promise<[ProjectId, WorkspacePackageInfo] | null> => {
+      const selected = selectedEntriesMap.get(importerId)
+      const manifest = selected
+        ? selected.manifest
+        : await readManifestSafe(path.join(lockfileDir, importerId))
+
+      if (!manifest?.name || !manifest.version) return null
+
+      return [importerId, {
+        name: manifest.name,
+        version: manifest.version,
+        license: typeof manifest.license === 'string' ? manifest.license : undefined,
+        description: manifest.description,
+        author: extractAuthor(manifest),
+        repository: extractRepository(manifest),
+      }]
+    })
+  )
+
+  return Object.fromEntries(entries.filter((e) => e !== null)) as Record<ProjectId, WorkspacePackageInfo>
+}
+
+async function readManifestSafe (dir: string): Promise<{ name?: string, version?: string, license?: string, description?: string, author?: string | { name?: string }, repository?: string | { url?: string } } | undefined> {
+  try {
+    return await readProjectManifestOnly(dir)
+  } catch {
+    return undefined
+  }
 }
