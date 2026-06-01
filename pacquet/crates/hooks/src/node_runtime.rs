@@ -116,7 +116,7 @@ const logger = {{
   info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":m}})); }},
   warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":m}})); }}
 }};
-await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
+await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 "#,
                     file_path_escaped = file_path_escaped,
                 ),
@@ -132,7 +132,7 @@ await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
     info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":m}})); }},
     warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":m}})); }}
   }};
-  await hooks.hooks && hooks.hooks['{func}']?.(ctx, logger);
+  await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 }})();
 "#,
                     file_path_escaped = file_path_escaped,
