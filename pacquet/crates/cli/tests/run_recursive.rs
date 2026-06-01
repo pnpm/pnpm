@@ -245,6 +245,35 @@ fn recursive_run_bail_writes_summary_then_stops_at_first_failure() {
     drop(root);
 }
 
+/// With bail on (the default) and `--report-summary` *off*, a failing
+/// script still aborts with `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL`, but no
+/// summary file is written. Covers the report-summary-off side of the
+/// bail block.
+#[test]
+fn recursive_run_bail_without_report_summary_writes_no_file() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let build = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
+    write_workspace(
+        &workspace,
+        &[("project-1", build("project-1", "exit 1")), ("project-2", build("project-2", "true"))],
+    );
+
+    let output =
+        pacquet.with_arg("-r").with_arg("run").with_arg("build").output().expect("spawn pacquet");
+    assert!(!output.status.success(), "a failing script with bail on must fail the run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"),
+        "stderr should carry the bail first-fail code, got: {stderr}",
+    );
+    assert!(
+        !workspace.join("pnpm-exec-summary.json").exists(),
+        "no summary file should be written without --report-summary",
+    );
+
+    drop(root);
+}
+
 /// A recursive run for a script no package defines fails with pnpm's
 /// `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`. Covers the no-script branch.
 #[test]
