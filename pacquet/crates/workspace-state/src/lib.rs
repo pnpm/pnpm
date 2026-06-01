@@ -17,10 +17,12 @@ use pacquet_diagnostics::miette::{self, Diagnostic};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
-    fs, io,
+    fs,
+    io::{self, Write},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+use tempfile::NamedTempFile;
 
 /// Basename of the workspace-state file, written inside `node_modules/`.
 ///
@@ -177,10 +179,17 @@ pub enum UpdateWorkspaceStateError {
 
 /// Write `state` to `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`.
 ///
-/// Mirrors upstream's [`updateWorkspaceState`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/updateWorkspaceState.ts):
-/// `JSON.stringify(state, undefined, 2) + '\n'`. `serde_json`'s pretty
-/// printer uses the same 2-space indent and `": "` separator as JS, so
-/// the on-disk bytes round-trip cleanly between the two writers.
+/// Writes to a temporary file in the same directory, then atomically
+/// renames it into place, so a concurrent reader — pnpm or pacquet —
+/// never observes a half-written file. Mirrors upstream's
+/// [`updateWorkspaceState`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/updateWorkspaceState.ts),
+/// which writes through `write-file-atomic` for the same reason
+/// ([#12020](https://github.com/pnpm/pnpm/issues/12020)).
+///
+/// The serialized bytes are `JSON.stringify(state, undefined, 2) + '\n'`:
+/// `serde_json`'s pretty printer uses the same 2-space indent and `": "`
+/// separator as JS, so the on-disk bytes round-trip cleanly between the
+/// two writers.
 pub fn update_workspace_state(
     workspace_dir: &Path,
     state: &WorkspaceState,
@@ -194,8 +203,17 @@ pub fn update_workspace_state(
     let mut serialized =
         serde_json::to_string_pretty(state).map_err(UpdateWorkspaceStateError::SerializeJson)?;
     serialized.push('\n');
-    fs::write(&file_path, serialized.as_bytes())
-        .map_err(|source| UpdateWorkspaceStateError::WriteFile { path: file_path, source })
+    let mut temp = NamedTempFile::new_in(parent).map_err(|source| {
+        UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source }
+    })?;
+    temp.write_all(serialized.as_bytes()).map_err(|source| {
+        UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source }
+    })?;
+    temp.persist(&file_path).map_err(|error| UpdateWorkspaceStateError::WriteFile {
+        path: file_path,
+        source: error.error,
+    })?;
+    Ok(())
 }
 
 /// Read the workspace state file at `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`.
