@@ -1,3 +1,8 @@
+//! Recursive-run integration tests. The build scripts run through
+//! pacquet's `sh -c` executor, so the whole file is gated to Unix —
+//! same as the single-package `run` tests.
+#![cfg(unix)]
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
@@ -52,7 +57,6 @@ fn build_writes_marker(workspace: &Path, name: &str) -> Value {
 /// `pacquet -r run <script>` runs the script in every workspace project,
 /// in topological order. Mirrors the ordering pnpm's recursive run
 /// produces from the workspace dependency graph.
-#[cfg(unix)]
 #[test]
 fn recursive_run_executes_script_in_every_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -70,7 +74,7 @@ fn recursive_run_executes_script_in_every_project() {
     for name in ["project-1", "project-2", "project-3"] {
         assert!(
             workspace.join(format!("ran-{name}.txt")).exists(),
-            "{name} build script should have run"
+            "{name} build script should have run",
         );
     }
 
@@ -86,7 +90,6 @@ fn recursive_run_executes_script_in_every_project() {
 /// Ports pnpm's
 /// [`runRecursive.ts:817`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/test/runRecursive.ts#L817)
 /// `` `pnpm -r --resume-from run` should executed from given package ``.
-#[cfg(unix)]
 #[test]
 fn recursive_run_resume_from_starts_at_the_given_package() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -115,7 +118,7 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
 
     assert!(
         !workspace.join("ran-project-1.txt").exists(),
-        "project-1 sorts before the resume point and must be skipped"
+        "project-1 sorts before the resume point and must be skipped",
     );
     assert!(workspace.join("ran-project-2.txt").exists(), "project-2 should run");
     assert!(workspace.join("ran-project-3.txt").exists(), "project-3 should run");
@@ -126,7 +129,6 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
 /// An unknown `--resume-from` package fails with pnpm's
 /// `ERR_PNPM_RESUME_FROM_NOT_FOUND`. Ports the error path of pnpm's
 /// `getResumedPackageChunks`.
-#[cfg(unix)]
 #[test]
 fn recursive_run_resume_from_unknown_package_errors() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -144,7 +146,7 @@ fn recursive_run_resume_from_unknown_package_errors() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_RESUME_FROM_NOT_FOUND"),
-        "stderr should carry the resume-from error code, got: {stderr}"
+        "stderr should carry the resume-from error code, got: {stderr}",
     );
 
     drop(root);
@@ -159,7 +161,6 @@ fn recursive_run_resume_from_unknown_package_errors() {
 /// [`runRecursive.ts:956`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/test/runRecursive.ts#L956)
 /// `pnpm recursive run report summary` (whose `DEFAULT_OPTS` set
 /// `bail: false`).
-#[cfg(unix)]
 #[test]
 fn recursive_run_report_summary_records_every_package_status() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -187,7 +188,7 @@ fn recursive_run_report_summary_records_every_package_status() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_RECURSIVE_FAIL"),
-        "stderr should carry the recursive-fail code, got: {stderr}"
+        "stderr should carry the recursive-fail code, got: {stderr}",
     );
 
     let statuses = summary_statuses(&workspace);
