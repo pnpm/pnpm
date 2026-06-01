@@ -5,7 +5,7 @@
 //! is the faithful equivalent of pnpm calling `remove.handler` and
 //! catching the error.
 
-use super::{RemoveError, validate_removable};
+use super::{RemoveValidationError, validate_removable};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -28,7 +28,7 @@ fn expect_missing(
     save_type: Option<DependencyGroup>,
 ) -> (String, Option<String>) {
     match validate_removable(manifest, &strings(names), save_type) {
-        Err(RemoveError::CannotRemoveMissingDeps { message, hint }) => (message, hint),
+        Err(RemoveValidationError::CannotRemoveMissingDeps { message, hint }) => (message, hint),
         other => panic!("expected CannotRemoveMissingDeps, got {other:?}"),
     }
 }
@@ -37,7 +37,7 @@ fn expect_missing(
 fn remove_should_fail_if_no_dependency_is_specified() {
     let (manifest, _dir) = manifest(json!({ "name": "x", "version": "1.0.0" }));
     let err = validate_removable(&manifest, &[], None).expect_err("empty removal must fail");
-    assert!(matches!(err, RemoveError::MustRemoveSomething), "got {err:?}");
+    assert!(matches!(err, RemoveValidationError::MustRemoveSomething), "got {err:?}");
     assert_eq!(err.to_string(), "At least one dependency name should be specified for removal");
 }
 

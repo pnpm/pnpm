@@ -21,7 +21,7 @@ pub struct Remove<'a> {
     pub lockfile: Option<&'a Lockfile>,
     pub lockfile_path: Option<&'a std::path::Path>,
     /// Names to remove. Empty is rejected with
-    /// [`RemoveError::MustRemoveSomething`].
+    /// [`RemoveValidationError::MustRemoveSomething`].
     pub package_names: &'a [String],
     /// Dependency field to restrict removal to, or `None` to remove from
     /// any field. Derived from the `--save-prod` / `--save-dev` /
@@ -36,9 +36,15 @@ pub struct Remove<'a> {
     pub lockfile_only: bool,
 }
 
-/// Error type of [`Remove`].
+/// The up-front validation failures of `pacquet remove`, raised before
+/// the manifest is mutated or any install runs.
+///
+/// Kept separate from [`RemoveError`] so the `validate_removable` guard
+/// returns a small `Result` — folding these into `RemoveError` (which
+/// carries the large [`InstallError`]) trips `clippy::result_large_err`
+/// on the non-async validator.
 #[derive(Debug, Display, Error, Diagnostic)]
-pub enum RemoveError {
+pub enum RemoveValidationError {
     /// `pacquet remove` was invoked with no package names. Mirrors pnpm's
     /// `ERR_PNPM_MUST_REMOVE_SOMETHING` thrown at
     /// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
@@ -57,6 +63,13 @@ pub enum RemoveError {
         #[help]
         hint: Option<String>,
     },
+}
+
+/// Error type of [`Remove`].
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum RemoveError {
+    #[diagnostic(transparent)]
+    Validation(#[error(source)] RemoveValidationError),
 
     #[display("Failed to save the manifest file: {_0}")]
     SaveManifest(#[error(source)] PackageManifestError),
@@ -82,7 +95,7 @@ impl<'a> Remove<'a> {
             lockfile_only,
         } = self;
 
-        validate_removable(manifest, package_names, save_type)?;
+        validate_removable(manifest, package_names, save_type).map_err(RemoveError::Validation)?;
 
         manifest.remove_dependencies(package_names, save_type);
 
@@ -161,9 +174,9 @@ fn validate_removable(
     manifest: &PackageManifest,
     package_names: &[String],
     save_type: Option<DependencyGroup>,
-) -> Result<(), RemoveError> {
+) -> Result<(), RemoveValidationError> {
     if package_names.is_empty() {
-        return Err(RemoveError::MustRemoveSomething);
+        return Err(RemoveValidationError::MustRemoveSomething);
     }
     let available_dependencies = manifest.available_dependency_names(save_type);
     let available_lookup: HashSet<&str> =
@@ -183,7 +196,7 @@ fn cannot_remove_missing_deps(
     available_dependencies: &[String],
     non_matched_dependencies: &[&String],
     target_dependencies_field: Option<DependencyGroup>,
-) -> RemoveError {
+) -> RemoveValidationError {
     let quoted = non_matched_dependencies
         .iter()
         .map(|dep| format!("'{dep}'"))
@@ -197,7 +210,7 @@ fn cannot_remove_missing_deps(
             }
             None => message.push_str("project has no dependencies of any kind"),
         }
-        return RemoveError::CannotRemoveMissingDeps { message, hint: None };
+        return RemoveValidationError::CannotRemoveMissingDeps { message, hint: None };
     }
     let noun = if non_matched_dependencies.len() > 1 { "dependencies" } else { "dependency" };
     let in_field = target_dependencies_field
@@ -205,7 +218,7 @@ fn cannot_remove_missing_deps(
         .unwrap_or_default();
     message.push_str(&format!("no such {noun} found{in_field}"));
     let hint = format!("Available dependencies: {}", available_dependencies.join(", "));
-    RemoveError::CannotRemoveMissingDeps { message, hint: Some(hint) }
+    RemoveValidationError::CannotRemoveMissingDeps { message, hint: Some(hint) }
 }
 
 #[cfg(test)]
