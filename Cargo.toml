@@ -49,6 +49,7 @@ pacquet-deps-path                         = { path = "pacquet/crates/deps-path" 
 pacquet-detect-libc                       = { path = "pacquet/crates/detect-libc" }
 pacquet-diagnostics                       = { path = "pacquet/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pacquet/crates/graph-hasher" }
+pacquet-hooks                             = { path = "pacquet/crates/hooks" }
 pacquet-store-dir                         = { path = "pacquet/crates/store-dir" }
 pacquet-reporter                          = { path = "pacquet/crates/reporter" }
 pacquet-patching                          = { path = "pacquet/crates/patching" }

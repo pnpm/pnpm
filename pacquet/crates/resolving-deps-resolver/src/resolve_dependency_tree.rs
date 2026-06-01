@@ -8,6 +8,7 @@ use pacquet_catalogs_resolver::{
     resolve_from_catalog,
 };
 use pacquet_catalogs_types::Catalogs;
+use pacquet_hooks::PnpmfileHooks;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{ResolveError, ResolveOptions, Resolver, WantedDependency};
@@ -90,24 +91,9 @@ enum ReuseSource {
 /// via [`extend_tree`].
 pub struct ResolveDependencyTreeOptions {
     pub base_opts: ResolveOptions,
-    /// Configured `patchedDependencies`, grouped by package name. Threaded
-    /// through so the per-node walker can append `(patch_hash=<hash>)` to
-    /// each matched package's `pkgIdWithPatchHash` and record the patch
-    /// key on [`crate::ResolvedTree::applied_patches`] for the
-    /// `ERR_PNPM_UNUSED_PATCH` post-walk check. Mirrors upstream's
-    /// [`ctx.patchedDependencies`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L164)
-    /// thread.
     pub patched_dependencies: Option<Arc<PatchGroupRecord>>,
-    /// Per-manifest `readPackageHook` applied to every resolved
-    /// package's manifest right after `Resolver::resolve` returns it
-    /// and before it lands in the wanted-dep cache. Today drives
-    /// `packageExtensions` (see
-    /// `pacquet_package_manager::PackageExtender`); will grow as
-    /// more upstream hooks land. Mirrors upstream's
-    /// [`ctx.readPackageHook`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1481-L1483)
-    /// dispatch in `resolveDependencies`. `None` when no hook is
-    /// configured.
     pub manifest_hook: Option<ManifestHook>,
+    pub pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
 }
 
 impl std::fmt::Debug for ResolveDependencyTreeOptions {
@@ -116,6 +102,7 @@ impl std::fmt::Debug for ResolveDependencyTreeOptions {
             .field("base_opts", &self.base_opts)
             .field("patched_dependencies", &self.patched_dependencies)
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
+            .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
             .finish()
     }
 }
@@ -192,6 +179,13 @@ pub enum ResolveDependencyTreeError {
         parent: String,
         alias: String,
     },
+
+    /// A pnpmfile hook (`readPackage`) threw, timed out, or returned an
+    /// invalid package manifest. Mirrors pnpm's `PNPMFILE_FAIL` /
+    /// `BAD_READ_PACKAGE_HOOK_RESULT`: a bad hook aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    PnpmfileHook(#[error(not(source))] pacquet_hooks::HookError),
 }
 
 impl From<PatchKeyConflictError> for ResolveDependencyTreeError {
@@ -233,7 +227,8 @@ where
 {
     let ctx = TreeCtx::new(opts.base_opts)
         .with_patched_dependencies(opts.patched_dependencies)
-        .with_manifest_hook(opts.manifest_hook);
+        .with_manifest_hook(opts.manifest_hook)
+        .with_pnpmfile_hook(opts.pnpmfile_hook);
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);
     let mut wanted: Vec<WantedSpec> = Vec::new();
@@ -411,9 +406,6 @@ pub struct WorkspaceTreeCtx {
         Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
     children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
     children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
-    /// `readPackageHook` applied to every resolved manifest before it
-    /// enters the wanted-dep cache. See [`ManifestHook`] for the
-    /// signature. `None` when no hook is configured.
     manifest_hook: Option<ManifestHook>,
     /// The previous `pnpm-lock.yaml` the install started from, when one
     /// exists. Consulted by `resolve_node` to reuse an already-resolved
@@ -432,6 +424,7 @@ pub struct WorkspaceTreeCtx {
     /// whole walk. `true` means the package and its entire transitive
     /// subtree can be synthesized from the prior lockfile.
     subtree_reusable: Mutex<HashMap<PkgNameVerPeer, bool>>,
+    pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
 }
 
 impl Default for WorkspaceTreeCtx {
@@ -449,6 +442,7 @@ impl Default for WorkspaceTreeCtx {
             wanted_lockfile: None,
             update_reuse_scope: UpdateReuseScope::All,
             subtree_reusable: Mutex::new(HashMap::new()),
+            pnpmfile_hook: None,
         }
     }
 }
@@ -499,6 +493,11 @@ impl WorkspaceTreeCtx {
     /// [`UpdateReuseScope`].
     pub fn with_update_reuse_scope(mut self, scope: UpdateReuseScope) -> Self {
         self.update_reuse_scope = scope;
+        self
+    }
+
+    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
+        self.pnpmfile_hook = pnpmfile_hook;
         self
     }
 
@@ -657,6 +656,13 @@ impl TreeCtx {
         Arc::get_mut(&mut self.workspace)
             .expect("with_manifest_hook called after the workspace ctx was shared via Arc::clone")
             .manifest_hook = manifest_hook;
+        self
+    }
+
+    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
+        Arc::get_mut(&mut self.workspace)
+            .expect("with_pnpmfile_hook called after the workspace ctx was shared via Arc::clone")
+            .pnpmfile_hook = pnpmfile_hook;
         self
     }
 
@@ -859,6 +865,19 @@ where
             {
                 result_inner.manifest = Some(hook(manifest));
             }
+
+            if let Some(pnpmfile_hook) = ctx.workspace.pnpmfile_hook.as_ref()
+                && let Some(manifest) = result_inner.manifest.take()
+            {
+                let hook_ctx = pacquet_hooks::HookContext { log: Arc::new(|_| {}) };
+
+                let updated = pnpmfile_hook
+                    .read_package((*manifest).clone(), hook_ctx)
+                    .await
+                    .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
+                result_inner.manifest = Some(updated);
+            }
+
             let result = result.expect("Some-guarded above");
             // Wrap in `Arc` once so the cache, the per-id
             // `ResolvedPackage` envelope, and the later peer-resolved

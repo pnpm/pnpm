@@ -31,6 +31,7 @@ pacquet-network                           = { workspace = true }
 pacquet-config                            = { workspace = true }
 pacquet-config-parse-overrides            = { workspace = true }
 pacquet-graph-hasher                      = { workspace = true }
+pacquet-hooks                             = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-package-is-installable            = { workspace = true }
 pacquet-patching                          = { workspace = true }

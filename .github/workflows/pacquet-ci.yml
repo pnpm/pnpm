@@ -81,6 +81,9 @@ jobs:
         with:
           install: false
 
+      - name: Install Node.js via pnpm (for hooks tests)
+        run: pnpm runtime set node 22 --global
+
       - name: Cache pnpm
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:

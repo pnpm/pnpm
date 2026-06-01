@@ -110,7 +110,9 @@ fn default_opts() -> ResolveImporterOptions {
         lockfile_dir: None,
         modules_dir: None,
         peers_suffix_max_length: 1000,
+        catalog_server: false,
         manifest_hook: None,
+        pnpmfile_hook: None,
     }
 }
 

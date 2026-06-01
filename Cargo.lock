@@ -2468,6 +2468,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-hooks"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "derive_more",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-integrated-benchmark"
 version = "0.0.0"
 dependencies = [
@@ -2636,6 +2647,7 @@ dependencies = [
  "pacquet-fs",
  "pacquet-git-fetcher",
  "pacquet-graph-hasher",
+ "pacquet-hooks",
  "pacquet-lockfile",
  "pacquet-lockfile-preferred-versions",
  "pacquet-lockfile-verification",
@@ -2812,6 +2824,7 @@ dependencies = [
  "pacquet-catalogs-types",
  "pacquet-deps-path",
  "pacquet-fs",
+ "pacquet-hooks",
  "pacquet-lockfile",
  "pacquet-package-manifest",
  "pacquet-patching",
