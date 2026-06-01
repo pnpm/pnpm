@@ -1,6 +1,6 @@
 [package]
 name                  = "pacquet-hooks"
-version               = "0.1.0"
+version               = "0.0.1"
 publish               = false
 authors.workspace     = true
 description.workspace = true
