@@ -164,6 +164,39 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// `dryRun: opts.lockfileOnly` resolve pass. See
     /// [`crate::Install::lockfile_only`].
     pub lockfile_only: bool,
+    /// Which lockfile pins to withhold from the preferred-versions seed
+    /// so the affected names re-resolve to the highest version
+    /// satisfying their manifest range. Drives `pacquet update`'s
+    /// compatible bump; see [`UpdateSeedPolicy`].
+    pub update_seed_policy: UpdateSeedPolicy,
+}
+
+/// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
+/// preferred-versions tie-break seed [`InstallWithFreshLockfile`] builds
+/// via `get_preferred_versions_from_lockfile_and_manifests`.
+///
+/// A name whose pin is withheld no longer carries its previously-locked
+/// version at the existing-version weight, so the resolver falls back to
+/// picking the highest version satisfying the manifest range — the
+/// compatible re-resolution `pacquet update` performs. Mirrors pnpm's
+/// `update: 'compatible'` resolver mode, which ignores the lockfile
+/// version for the dependency being updated
+/// (<https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L823-L827>).
+///
+/// `KeepAll` is the install/add default (every pin seeds the table, so
+/// unrelated entries keep their resolutions on a rewrite).
+#[derive(Debug, Default, Clone)]
+pub enum UpdateSeedPolicy {
+    /// Seed every lockfile pin. `pacquet install` / `pacquet add`.
+    #[default]
+    KeepAll,
+    /// Withhold every lockfile pin. `pacquet update` with no package
+    /// selectors — the whole graph re-resolves to highest-in-range.
+    DropAll,
+    /// Withhold only the named packages' pins. `pacquet update <pattern>`
+    /// — matched names (at any depth) re-resolve while everything else
+    /// keeps its pin. Keyed by package name (scope included).
+    DropOnly(std::collections::HashSet<String>),
 }
 
 /// Error type of [`InstallWithFreshLockfile`].
@@ -379,6 +412,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             node_linker,
             supported_architectures,
             lockfile_only,
+            update_seed_policy,
         } = self;
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
@@ -662,9 +696,31 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // recorded pins; see <https://pnpm.io/settings#preferfrozenlockfile>.
         let manifests_for_preferred: Vec<&PackageManifest> =
             importer_manifests.values().copied().collect();
+        // `pacquet update` withholds the lockfile pins for the names it
+        // is bumping so they re-resolve to highest-in-range; everything
+        // else keeps its pin. `DropOnly` builds a filtered snapshot map
+        // (owned, so it outlives the seed build) excluding the matched
+        // names; `DropAll` passes `None` so no pin seeds the table.
+        let lockfile_snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
+        let filtered_snapshots;
+        let seed_snapshots = match &update_seed_policy {
+            UpdateSeedPolicy::KeepAll => lockfile_snapshots,
+            UpdateSeedPolicy::DropAll => None,
+            UpdateSeedPolicy::DropOnly(names) => match lockfile_snapshots {
+                None => None,
+                Some(snapshots) => {
+                    filtered_snapshots = snapshots
+                        .iter()
+                        .filter(|(key, _)| !names.contains(&key.name.to_string()))
+                        .map(|(key, entry)| (key.clone(), entry.clone()))
+                        .collect::<HashMap<_, _>>();
+                    Some(&filtered_snapshots)
+                }
+            },
+        };
         let all_preferred_versions =
             pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
-                wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
+                seed_snapshots,
                 manifests_for_preferred.as_slice(),
             );
 

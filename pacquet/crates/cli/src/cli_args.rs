@@ -3,6 +3,8 @@ pub mod install;
 pub mod run;
 pub mod store;
 pub mod supported_architectures;
+pub mod update;
+pub mod update_interactive;
 
 use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
@@ -16,6 +18,7 @@ use pacquet_reporter::{NdjsonReporter, SilentReporter};
 use run::RunArgs;
 use std::path::PathBuf;
 use store::StoreCommand;
+use update::UpdateArgs;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
@@ -99,6 +102,9 @@ pub enum CliCommand {
     Add(AddArgs),
     /// Install packages
     Install(InstallArgs),
+    /// Update packages to their newest version based on the specified range
+    #[clap(visible_aliases = ["up", "upgrade"])]
+    Update(UpdateArgs),
     /// Runs a package's "test" script, if one was provided.
     Test,
     /// Runs a defined package script.
@@ -183,6 +189,10 @@ impl CliArgs {
                 PackageManifest::init(&manifest_path()).wrap_err("initialize package.json")?;
             }
             CliCommand::Add(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+            },
+            CliCommand::Update(args) => match reporter {
                 ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
                 ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
             },
