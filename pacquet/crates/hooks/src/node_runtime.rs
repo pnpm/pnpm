@@ -171,4 +171,8 @@ impl crate::PnpmfileHooks for NodeJsHooks {
             Err(_) => true,
         }
     }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        Some(&self.file)
+    }
 }

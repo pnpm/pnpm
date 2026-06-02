@@ -94,6 +94,11 @@ pub struct WorkspaceResolveOptions {
     /// enters the wanted-dep cache. Workspace-wide (one hook per
     /// install); wraps `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
     pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+
+    /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
+    /// calls, pre-bound to the install's reporter. `None` leaves hook
+    /// logging a no-op.
+    pub read_package_log: Option<pacquet_hooks::LogFn>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -134,6 +139,7 @@ where
         peers_suffix_max_length,
         manifest_hook,
         pnpmfile_hook,
+        read_package_log,
         pick_lowest_direct,
         time_based,
         wanted_lockfile,
@@ -144,7 +150,8 @@ where
             .with_manifest_hook(manifest_hook)
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
-            .with_pnpmfile_hook(pnpmfile_hook),
+            .with_pnpmfile_hook(pnpmfile_hook)
+            .with_read_package_log(read_package_log),
     );
 
     // Build every importer's options up front so the `time-based`

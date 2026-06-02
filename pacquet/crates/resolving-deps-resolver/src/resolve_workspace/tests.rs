@@ -132,6 +132,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         peers_suffix_max_length: 1000,
         manifest_hook: None,
         pnpmfile_hook: None,
+        read_package_log: None,
         pick_lowest_direct,
         time_based,
         wanted_lockfile: None,
