@@ -95,7 +95,6 @@ catalog:
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^3.0.1
   '@pnpm/patch-package': 0.0.1
-  '@pnpm/pnpr': 0.0.0-26052601
   '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0

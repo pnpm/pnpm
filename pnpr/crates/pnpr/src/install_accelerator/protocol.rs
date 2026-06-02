@@ -1,5 +1,5 @@
-//! Wire types for the pnpr install-accelerator endpoints, matching the pnpm-agent
-//! TypeScript client's request shapes.
+//! Wire types for the pnpr install-accelerator endpoints, matching the
+//! `@pnpm/agent.client` TypeScript client's request shapes.
 
 use std::collections::BTreeMap;
 
@@ -10,10 +10,18 @@ pub type DepMap = BTreeMap<String, String>;
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallRequestProject {
+    /// The importer's directory relative to the lockfile dir, in POSIX
+    /// form (`.` for the root, `packages/foo` for a workspace member).
+    #[serde(default = "root_dir")]
+    pub dir: String,
     #[serde(default)]
     pub dependencies: DepMap,
     #[serde(default)]
     pub dev_dependencies: DepMap,
+}
+
+fn root_dir() -> String {
+    ".".to_string()
 }
 
 /// Body of `POST /v1/install`. The registry fields carry the *client's*
@@ -105,31 +113,35 @@ pub struct InstallRequest {
     pub trust_policy_ignore_after: Option<u64>,
 }
 
-/// The dependency maps for a single project, normalized across the
-/// legacy single-project body and the `projects` array.
+/// One project's importer dir and its dependency maps, normalized
+/// across the legacy single-project body and the `projects` array.
 pub struct ProjectDeps {
+    pub dir: String,
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
 }
 
 impl InstallRequest {
-    /// Number of projects in the request; the legacy single-project
-    /// body counts as one.
-    pub fn project_count(&self) -> usize {
-        self.projects.as_ref().map_or(1, Vec::len)
-    }
-
-    pub fn single_project(&self) -> ProjectDeps {
-        if let Some(project) = self.projects.as_ref().and_then(|projects| projects.first()) {
-            return ProjectDeps {
-                dependencies: project.dependencies.clone(),
-                dev_dependencies: project.dev_dependencies.clone(),
-            };
+    /// Every project to resolve, keyed by importer dir. The legacy
+    /// single-project body (top-level `dependencies`/`devDependencies`)
+    /// maps to a single root (`.`) importer; an empty/absent `projects`
+    /// array falls back to it too.
+    pub fn projects_normalized(&self) -> Vec<ProjectDeps> {
+        if let Some(projects) = self.projects.as_ref().filter(|projects| !projects.is_empty()) {
+            return projects
+                .iter()
+                .map(|project| ProjectDeps {
+                    dir: project.dir.clone(),
+                    dependencies: project.dependencies.clone(),
+                    dev_dependencies: project.dev_dependencies.clone(),
+                })
+                .collect();
         }
-        ProjectDeps {
+        vec![ProjectDeps {
+            dir: root_dir(),
             dependencies: self.dependencies.clone().unwrap_or_default(),
             dev_dependencies: self.dev_dependencies.clone().unwrap_or_default(),
-        }
+        }]
     }
 }
 

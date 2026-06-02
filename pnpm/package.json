@@ -170,7 +170,6 @@
     "path-exists": "catalog:",
     "path-name": "catalog:",
     "pidtree": "catalog:",
-    "pnpm-agent": "workspace:*",
     "ps-list": "catalog:",
     "ramda": "catalog:",
     "read-yaml-file": "catalog:",

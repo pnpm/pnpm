@@ -19,14 +19,6 @@ const CLI_PKG_NAME = 'pnpm'
 // and should not be normalized to the pnpm major version.
 const EXPERIMENTAL_PKGS = new Set([
   '@pnpm/agent.client',
-  'pnpm-agent',
-])
-
-// Packages that are source-available under the PolyForm Shield License
-// rather than MIT. Their `license` field points at a bundled LICENSE.md
-// instead of being normalized to `MIT`.
-const SOURCE_AVAILABLE_PKGS = new Set([
-  'pnpm-agent',
 ])
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
@@ -367,7 +359,6 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     case '@pnpm/store.commands':
     case '@pnpm/deps.compliance.commands':
     case CLI_PKG_NAME:
-    case 'pnpm-agent':
     case '@pnpm/installing.deps-installer': {
       preset = '@pnpm/jest-config/with-registry'
       scripts = {
@@ -492,7 +483,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     files,
     funding: 'https://opencollective.com/pnpm',
     homepage,
-    license: SOURCE_AVAILABLE_PKGS.has(manifest.name!) ? 'SEE LICENSE IN LICENSE.md' : 'MIT',
+    license: 'MIT',
     repository,
     scripts,
     exports: {

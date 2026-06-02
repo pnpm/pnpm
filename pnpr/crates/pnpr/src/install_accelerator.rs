@@ -22,9 +22,12 @@
 //! resolution and verification. When the client sends its on-disk
 //! lockfile, the server verifies it under the client's policy before
 //! resolving, then reuses it as the resolution seed (frozen → as-is;
-//! non-frozen → reuse-and-update). **Deferred:** auth/credential
-//! forwarding (so private registries resolve) and multi-project
-//! workspaces. Responses are buffered rather than truly streamed.
+//! non-frozen → reuse-and-update). A multi-project workspace is resolved
+//! by reconstructing the workspace on disk (root manifest +
+//! `pnpm-workspace.yaml` + member manifests) and letting pacquet's
+//! install path discover and resolve every importer. **Deferred:**
+//! auth/credential forwarding (so private registries resolve). Responses
+//! are buffered rather than truly streamed.
 
 mod diff;
 mod protocol;
@@ -176,13 +179,6 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
-
-    if request.project_count() > 1 {
-        return json_error(
-            StatusCode::BAD_REQUEST,
-            "multi-project workspace resolution is not yet supported by the pnpr server",
-        );
-    }
 
     // Resolve against the client's registries, not the server's own.
     let config = runtime.config_for(&request);

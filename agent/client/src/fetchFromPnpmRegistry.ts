@@ -2,7 +2,8 @@ import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
 
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import { convertToLockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { StoreIndex } from '@pnpm/store.index'
 import { fetchAndWriteCafsFiles } from '@pnpm/worker'
 
@@ -34,8 +35,12 @@ export interface FetchFromPnpmRegistryOptions {
   nodeVersion?: string
   /** Minimum release age in minutes */
   minimumReleaseAge?: number
-  /** Existing lockfile for incremental resolution */
-  lockfile?: LockfileObject
+  /**
+   * Existing lockfile for incremental resolution, in the on-disk format
+   * the wire protocol carries. The caller reads it with
+   * `readWantedLockfileFile` so no in-memory→on-disk round-trip is needed.
+   */
+  lockfile?: LockfileFile
   /**
    * `--lockfile-only`: resolve and return only the lockfile — fetch no
    * files into the local store. Forwarded to the server (which skips the
@@ -61,7 +66,7 @@ export interface FetchFromPnpmRegistryResult {
  *
  * The response is a streaming NDJSON where each line is one message:
  *   - `D\t{digest}\t{size}\t{executable}\n` — file digest (streamed as packages resolve)
- *   - `L\t{json}\n` — final lockfile + stats (after resolution)
+ *   - `L\t{json}\n` — final lockfile (on-disk format) + stats (after resolution)
  *   - `I\t{key}\t{base64}\n` — pre-packed msgpack index entry
  *
  * As digest lines arrive, we batch them and dispatch workers to /v1/files.
@@ -85,6 +90,9 @@ export async function fetchFromPnpmRegistry (
     os: process.platform,
     arch: process.arch,
     minimumReleaseAge: opts.minimumReleaseAge,
+    // Sent as-is: `opts.lockfile` is already the on-disk format the wire
+    // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
+    // importer deps).
     lockfile: opts.lockfile,
     lockfileOnly: opts.lockfileOnly,
     storeIntegrities,
@@ -130,7 +138,7 @@ export async function fetchFromPnpmRegistry (
         }
       } else if (type === 'L') {
         const payload = JSON.parse(line.substring(tabIdx + 1)) as {
-          lockfile: LockfileObject
+          lockfile: LockfileFile
           stats: ResponseMetadata['stats']
         }
         dispatchBatch()
@@ -138,7 +146,9 @@ export async function fetchFromPnpmRegistry (
         // Resolve immediately — the caller can start headless install
         // while the stream continues dispatching remaining D/I lines.
         resolve({
-          lockfile: payload.lockfile,
+          // The server speaks the on-disk lockfile format; convert it to the
+          // in-memory `LockfileObject` the rest of pnpm consumes.
+          lockfile: convertToLockfileObject(payload.lockfile),
           stats: payload.stats,
           fileDownloads: streamComplete.then(() =>
             Promise.all(workerPromises)
@@ -221,7 +231,7 @@ async function streamNdjsonRequest (
 ): Promise<void> {
   // `urlPath` is expected to be relative (e.g. "v1/install"). We normalize
   // the base to end with "/" so `new URL(rel, base)` preserves any path
-  // prefix configured on the agent URL (e.g. https://host/pnpm-agent/).
+  // prefix configured on the agent URL (e.g. https://host/pnpr/).
   const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
   const url = new URL(urlPath, base)
   const isHttps = url.protocol === 'https:'
