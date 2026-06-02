@@ -508,7 +508,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
   const { createGunzip } = await import('node:zlib')
   const { contentPathFromHex } = await import('@pnpm/store.cafs')
 
-  // Preserve any path prefix on the agent URL (e.g. https://host/pnpm-agent/)
+  // Preserve any path prefix on the agent URL (e.g. https://host/pnpr/)
   // by normalizing the base and using a relative URL.
   const base = message.registryUrl.endsWith('/') ? message.registryUrl : `${message.registryUrl}/`
   const url = new URL('v1/files', base)

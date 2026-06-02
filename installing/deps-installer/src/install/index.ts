@@ -46,7 +46,7 @@ import {
   isEmptyLockfile,
   type LockfileObject,
   type ProjectSnapshot,
-  readWantedLockfile,
+  readWantedLockfileFile,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -2350,8 +2350,10 @@ async function installFromPnpmRegistry (
   try {
     const lockfileDir = opts.lockfileDir ?? rootDir
 
-    // Read existing lockfile if available
-    const existingLockfile = await readWantedLockfile(lockfileDir, {
+    // Read the existing lockfile (if any) in its on-disk shape — that's
+    // what the agent protocol carries, so no conversion is needed before
+    // sending it.
+    const existingLockfile = await readWantedLockfileFile(lockfileDir, {
       ignoreIncompatible: true,
     }).catch(() => null)
 

@@ -256,7 +256,11 @@ export interface StrictInstallOptions {
    * summary at the very end instead of one summary per install.
    */
   omitSummaryLog: boolean
-  /** URL of a pnpm agent server. See the pnpm-agent README. */
+  /**
+   * URL of an agent server that resolves dependencies server-side and serves
+   * only the files missing from the client's store. The `pnpr` server
+   * implements this protocol.
+   */
   agent?: string
 }
 

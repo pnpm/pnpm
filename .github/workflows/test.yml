@@ -75,20 +75,45 @@ jobs:
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
     # The test harness serves package fixtures through the in-repo
-    # `pnpr`; `pnpr-prepare` turns the raw fixtures under
-    # `pnpr/.fixtures/packages` into the storage the server reads.
+    # `pnpr` server; `pnpr-prepare` turns the raw fixtures under
+    # `pnpr/.fixtures/packages` into the storage the server reads. Both
+    # are built from source so the tests exercise the current server
+    # (e.g. the install-accelerator endpoints) rather than a published
+    # `@pnpm/pnpr` binary that may predate it.
+    #
+    # The built binaries are cached and keyed on the Rust sources that
+    # produce them, so a run that only touches TypeScript restores them
+    # in seconds instead of recompiling. They are copied out of `target/`
+    # into a stable dir so `Swatinem/rust-cache`'s `target/` cleanup
+    # can't strip them before this cache saves.
+    - name: Restore prebuilt pnpr binaries
+      id: pnpr-bins
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: .pnpr-bin
+        key: pnpr-bins-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pacquet/**/*.rs') }}
     - name: Install Rust
+      if: steps.pnpr-bins.outputs.cache-hit != 'true'
       uses: ./.github/actions/rustup
       with:
         save-cache: ${{ github.ref_name == 'main' }}
         shared-key: registry-prepare
-    - name: Build the registry fixture preparer
+    - name: Build the pnpr server and registry fixture preparer
+      if: steps.pnpr-bins.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        cargo build --locked --release -p pnpr-fixtures --bin pnpr-prepare
-        bin="$PWD/target/release/pnpr-prepare"
-        [ -f "$bin.exe" ] && bin="$bin.exe"
-        echo "PNPR_PREPARE_BIN=$bin" >> "$GITHUB_ENV"
+        cargo build --locked --release -p pnpr --bin pnpr -p pnpr-fixtures --bin pnpr-prepare
+        mkdir -p .pnpr-bin
+        ext=""
+        [ -f target/release/pnpr.exe ] && ext=".exe"
+        cp "target/release/pnpr$ext" "target/release/pnpr-prepare$ext" .pnpr-bin/
+    - name: Export pnpr binary paths
+      shell: bash
+      run: |
+        ext=""
+        [ -f "$PWD/.pnpr-bin/pnpr.exe" ] && ext=".exe"
+        echo "PNPR_BIN=$PWD/.pnpr-bin/pnpr$ext" >> "$GITHUB_ENV"
+        echo "PNPR_PREPARE_BIN=$PWD/.pnpr-bin/pnpr-prepare$ext" >> "$GITHUB_ENV"
     - name: Determine test scope
       id: test-scope
       shell: bash

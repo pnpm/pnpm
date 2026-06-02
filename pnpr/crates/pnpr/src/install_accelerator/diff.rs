@@ -1,9 +1,9 @@
 //! File-level diff between a resolved dependency tree and what the
 //! client already has in its content-addressable store.
 //!
-//! Port of the pnpm-agent TypeScript `diff.ts`. Given a resolved
-//! lockfile, the client's store integrities, and the server's store
-//! index, it computes which individual files the client is missing —
+//! Given a resolved lockfile, the client's store integrities, and the
+//! server's store index, it computes which individual files the client
+//! is missing —
 //! deduplicated by `(digest, executable)` — plus the per-package
 //! msgpack index entries the client needs to write into its own store
 //! index before a headless install.

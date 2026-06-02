@@ -13,6 +13,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {

@@ -1,43 +1,27 @@
 import fs from 'node:fs'
 import http from 'node:http'
-import os from 'node:os'
-import path from 'node:path'
 
 import { afterAll, beforeAll, expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { loadJsonFileSync } from 'load-json-file'
-import { createRegistryServer } from 'pnpm-agent'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+// The pnpr server started by the test harness (see the with-registry jest
+// preset) serves the install-accelerator endpoints (/v1/install, /v1/files)
+// on the registry-mock port, so it doubles as the agent under test.
+const PNPR = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 let server: http.Server
-let realServer: http.Server
-let tmpBaseDir: string
 let serverPort: number
-let serverStoreDir: string
 let requestCount: number
 
 beforeAll(async () => {
-  tmpBaseDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-e2e-server-'))
-  serverStoreDir = path.join(tmpBaseDir, 'store')
-
-  realServer = await createRegistryServer({
-    storeDir: serverStoreDir,
-    cacheDir: path.join(tmpBaseDir, 'cache'),
-    registries: { default: REGISTRY },
-  })
-
-  await new Promise<void>((resolve) => {
-    realServer.listen(0, resolve)
-  })
-  const realPort = (realServer.address() as { port: number }).port
-
-  // Counting proxy — wraps the real server and counts /v1/install requests
+  // Counting proxy — forwards to the pnpr server and counts /v1/install
+  // requests so we can assert that the agent path was actually taken.
   requestCount = 0
   server = http.createServer((req, res) => {
     if (!req.url) {
@@ -47,7 +31,7 @@ beforeAll(async () => {
     if (req.url === '/v1/install') {
       requestCount++
     }
-    const proxyReq = http.request(`http://localhost:${realPort}${req.url}`, {
+    const proxyReq = http.request(`${PNPR}${req.url}`, {
       method: req.method,
       headers: req.headers,
     }, (proxyRes) => {
@@ -69,8 +53,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()))
-  await new Promise<void>((resolve) => realServer.close(() => resolve()))
-  await fs.promises.rm(tmpBaseDir, { recursive: true, force: true })
 })
 
 test('pnpm install uses pnpm agent when configured', async () => {
@@ -94,6 +76,24 @@ test('pnpm install uses pnpm agent when configured', async () => {
 
   // Verify the package was installed
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+})
+
+test('a second resolution forwards the existing lockfile to the agent', async () => {
+  prepare({})
+
+  // First add creates the lockfile.
+  await execPnpm(['add', 'is-positive@1.0.0', `--config.agent=http://localhost:${serverPort}`])
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+
+  // Second add reads that lockfile and forwards it to the agent for
+  // incremental resolution — exercises the on-disk lockfile being sent
+  // over the wire without an in-memory round-trip.
+  requestCount = 0
+  await execPnpm(['add', 'is-negative@1.0.0', `--config.agent=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
 })
 
 test('pnpm add uses pnpm agent when configured', async () => {

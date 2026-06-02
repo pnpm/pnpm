@@ -340,9 +340,6 @@ catalogs:
     '@pnpm/patch-package':
       specifier: 0.0.1
       version: 0.0.1
-    '@pnpm/pnpr':
-      specifier: 0.0.0-26052601
-      version: 0.0.0-26052601
     '@pnpm/semver-diff':
       specifier: ^2.0.0
       version: 2.0.0
@@ -1361,9 +1358,6 @@ importers:
       '@babel/plugin-transform-explicit-resource-management':
         specifier: 'catalog:'
         version: 7.29.7(@babel/core@7.29.7)
-      '@pnpm/pnpr':
-        specifier: 'catalog:'
-        version: 0.0.0-26052601
       '@pnpm/testing.registry-mock':
         specifier: workspace:*
         version: link:../../testing/registry-mock
@@ -1518,6 +1512,9 @@ importers:
 
   agent/client:
     dependencies:
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -1540,52 +1537,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-
-  agent/server:
-    dependencies:
-      '@pnpm/installing.client':
-        specifier: workspace:*
-        version: link:../../installing/client
-      '@pnpm/installing.deps-installer':
-        specifier: workspace:*
-        version: link:../../installing/deps-installer
-      '@pnpm/lockfile.fs':
-        specifier: workspace:*
-        version: link:../../lockfile/fs
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
-      '@pnpm/store.controller':
-        specifier: workspace:*
-        version: link:../../store/controller
-      '@pnpm/store.index':
-        specifier: workspace:*
-        version: link:../../store/index
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../core/types
-    devDependencies:
-      '@jest/globals':
-        specifier: 'catalog:'
-        version: 30.3.0
-      '@pnpm/agent.client':
-        specifier: workspace:*
-        version: link:../client
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../core/logger
-      '@pnpm/testing.registry-mock':
-        specifier: workspace:*
-        version: link:../../testing/registry-mock
-      cross-env:
-        specifier: 'catalog:'
-        version: 10.1.0
-      pnpm-agent:
-        specifier: workspace:*
-        version: 'link:'
 
   auth/commands:
     dependencies:
@@ -7988,9 +7939,6 @@ importers:
       pidtree:
         specifier: 'catalog:'
         version: 0.6.0
-      pnpm-agent:
-        specifier: workspace:*
-        version: link:../agent/server
       ps-list:
         specifier: 'catalog:'
         version: 9.0.0
@@ -11729,41 +11677,6 @@ packages:
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': ^1001.0.1
-
-  '@pnpm/pnpr.darwin-arm64@0.0.0-26052601':
-    resolution: {integrity: sha512-BukEliQFokg9zQ/GKt/A4TnAhKCUDQ29qcz9/sXYXPkdQeginI7yxH9XJ/b+gCkx3hOpekRyqut29IG5SXoUDw==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@pnpm/pnpr.darwin-x64@0.0.0-26052601':
-    resolution: {integrity: sha512-DLdOBWomdecwKBQpajETN20VSqzkMuNibusnnNtx2My2vHOqruedFKRzYvwbVMDPWc6Hh8ES7mdCm0kamJj9lg==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@pnpm/pnpr.linux-arm64@0.0.0-26052601':
-    resolution: {integrity: sha512-RSc7x5pBy9mLd3Sy2jfKSA7o3UU5LVLeQTYHx6sN8Dx0OYFejjFH67IvrM1wacXp07/zX1oS/8xk4m88WV89mA==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@pnpm/pnpr.linux-x64@0.0.0-26052601':
-    resolution: {integrity: sha512-ApMvaIQJVE2d9SyXlsw781loUlBYp7jFsPpVoHFkxbrWT+zTtGTN50WtopMxGnXK1q+xoVR19ZVay9E9w/EB5Q==}
-    cpu: [x64]
-    os: [linux]
-
-  '@pnpm/pnpr.win32-arm64@0.0.0-26052601':
-    resolution: {integrity: sha512-ritSjCVcugMie4qzV4mx9Mb5DFmiqDAFT2Ky1ReQMTSRd5dV24h0+K7o/e/ifMeiQymyJS+WOV8cG14hSZi2RA==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@pnpm/pnpr.win32-x64@0.0.0-26052601':
-    resolution: {integrity: sha512-E2wIukAlr2Nq4HdOFGw9SCO4+VVHdY/NXklRx+e+LQUW4D+TOMAT5+z+aTZg7PdLoJ7N3t9Pc4tERQw3ve0DXw==}
-    cpu: [x64]
-    os: [win32]
-
-  '@pnpm/pnpr@0.0.0-26052601':
-    resolution: {integrity: sha512-Ap8KTuvDTG5OxSJO543mKkVzw6yNIHjzNIShDZ7Li7lg2tpwZSxj7CjYjIz44LoPyS5wY31CVgB9/Q/rkgDEnA==}
-    engines: {node: '>=18.*'}
-    hasBin: true
 
   '@pnpm/prepare-package@1001.0.7':
     resolution: {integrity: sha512-dTgxVav2jWqdlLdKDTTioR8k07301E5T/+00ylu22UlnlA/h7dyzdhEThDmYBTEYxe6TIYFjLYmoWRGJSy1y/Q==}
@@ -19446,33 +19359,6 @@ snapshots:
       '@pnpm/types': 1001.3.0
       chalk: 4.1.2
       path-absolute: 1.0.1
-
-  '@pnpm/pnpr.darwin-arm64@0.0.0-26052601':
-    optional: true
-
-  '@pnpm/pnpr.darwin-x64@0.0.0-26052601':
-    optional: true
-
-  '@pnpm/pnpr.linux-arm64@0.0.0-26052601':
-    optional: true
-
-  '@pnpm/pnpr.linux-x64@0.0.0-26052601':
-    optional: true
-
-  '@pnpm/pnpr.win32-arm64@0.0.0-26052601':
-    optional: true
-
-  '@pnpm/pnpr.win32-x64@0.0.0-26052601':
-    optional: true
-
-  '@pnpm/pnpr@0.0.0-26052601':
-    optionalDependencies:
-      '@pnpm/pnpr.darwin-arm64': 0.0.0-26052601
-      '@pnpm/pnpr.darwin-x64': 0.0.0-26052601
-      '@pnpm/pnpr.linux-arm64': 0.0.0-26052601
-      '@pnpm/pnpr.linux-x64': 0.0.0-26052601
-      '@pnpm/pnpr.win32-arm64': 0.0.0-26052601
-      '@pnpm/pnpr.win32-x64': 0.0.0-26052601
 
   '@pnpm/prepare-package@1001.0.7(@pnpm/logger@1001.0.1)(typanion@3.14.0)':
     dependencies:

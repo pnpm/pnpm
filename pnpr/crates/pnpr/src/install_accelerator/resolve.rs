@@ -1,10 +1,10 @@
 //! Server-side dependency resolution backed by pacquet.
 //!
-//! Mirrors the pnpm-agent TypeScript flow: write a throwaway project,
-//! resolve it lockfile-only (so `node_modules` is never linked), read
-//! the produced lockfile back, then fetch into the shared store only
-//! the packages that aren't cached yet. The store index that results
-//! is the source of truth the [`super::diff`] pass reads.
+//! Writes a throwaway project, resolves it lockfile-only (so
+//! `node_modules` is never linked), reads the produced lockfile back,
+//! then fetches into the shared store only the packages that aren't
+//! cached yet. The store index that results is the source of truth the
+//! [`super::diff`] pass reads.
 
 use std::{
     collections::HashSet,
@@ -57,29 +57,84 @@ impl From<std::io::Error> for ResolveError {
     }
 }
 
-/// Resolve a single-project request lockfile-only and return the
-/// produced lockfile. The store is intentionally left untouched here
-/// (no tarball is fetched); [`fetch_uncached`] populates it afterward.
+/// Resolve a request lockfile-only and return the produced lockfile.
+/// The store is intentionally left untouched here (no tarball is
+/// fetched); [`fetch_uncached`] populates it afterward.
+///
+/// A single-project request resolves one root (`.`) importer. A
+/// multi-project request is reconstructed as a real workspace in the
+/// temp dir — root manifest, `pnpm-workspace.yaml` listing the member
+/// dirs, and a `package.json` per member — so pacquet's install path
+/// discovers and resolves every importer in one pass, producing a
+/// lockfile keyed by the same POSIX importer dirs the client sent.
 pub async fn resolve(
     config: &'static Config,
     client: &Arc<ThrottledClient>,
     request: &InstallRequest,
 ) -> Result<Lockfile, ResolveError> {
-    let project = request.single_project();
+    let projects = request.projects_normalized();
 
     let temp = tempfile::Builder::new().prefix("pnpr-resolve-").tempdir()?;
     let dir = temp.path();
-    let manifest_path = dir.join("package.json");
-    let manifest_json = serde_json::json!({
-        "name": "pnpr-resolve",
-        "version": "0.0.0",
-        "dependencies": project.dependencies,
-        "devDependencies": project.dev_dependencies,
-    });
-    let manifest_bytes =
-        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::Install(err.to_string()))?;
-    tokio::fs::write(&manifest_path, manifest_bytes).await?;
 
+    let mut member_dirs: Vec<&str> = Vec::new();
+    let mut seen_dirs: HashSet<&str> = HashSet::new();
+    let mut wrote_root = false;
+    for project in &projects {
+        let rel = sanitized_importer_dir(&project.dir)?;
+        // Reject duplicate importer dirs (including several that normalize
+        // to `.`): writing the same `package.json` twice would silently
+        // drop the earlier project's dependency map.
+        if !seen_dirs.insert(rel) {
+            return Err(ResolveError::Install(format!("duplicate importer dir: {rel:?}")));
+        }
+        let project_dir = if rel == "." {
+            wrote_root = true;
+            dir.to_path_buf()
+        } else {
+            member_dirs.push(rel);
+            dir.join(rel)
+        };
+        tokio::fs::create_dir_all(&project_dir).await?;
+        let manifest_json = serde_json::json!({
+            "name": importer_manifest_name(rel),
+            "version": "0.0.0",
+            "dependencies": project.dependencies,
+            "devDependencies": project.dev_dependencies,
+        });
+        let manifest_bytes = serde_json::to_vec(&manifest_json)
+            .map_err(|err| ResolveError::Install(err.to_string()))?;
+        tokio::fs::write(project_dir.join("package.json"), manifest_bytes).await?;
+    }
+
+    // A workspace needs a root manifest at its root even when the client
+    // didn't send a `.` importer (e.g. a member-only filtered install).
+    if !wrote_root {
+        let root_json = serde_json::json!({ "name": "pnpr-resolve", "version": "0.0.0" });
+        let root_bytes =
+            serde_json::to_vec(&root_json).map_err(|err| ResolveError::Install(err.to_string()))?;
+        tokio::fs::write(dir.join("package.json"), root_bytes).await?;
+    }
+
+    // Only declare a workspace when there are members; a lone root
+    // importer resolves as a plain single project (no workspace file).
+    if !member_dirs.is_empty() {
+        let mut yaml = String::from("packages:\n");
+        for member in &member_dirs {
+            // Emit each dir as a double-quoted scalar (JSON strings are
+            // valid YAML) so a dir with YAML-significant characters
+            // (`:`, `#`, leading `-`, ...) stays a plain string instead of
+            // being reparsed as a mapping or breaking the document.
+            let quoted = serde_json::to_string(member)
+                .map_err(|err| ResolveError::Install(err.to_string()))?;
+            yaml.push_str("  - ");
+            yaml.push_str(&quoted);
+            yaml.push('\n');
+        }
+        tokio::fs::write(dir.join("pnpm-workspace.yaml"), yaml).await?;
+    }
+
+    let manifest_path = dir.join("package.json");
     let manifest = PackageManifest::from_path(manifest_path)
         .map_err(|err| ResolveError::Manifest(err.to_string()))?;
 
@@ -274,3 +329,44 @@ fn split_name_version(pkg_id: &str) -> Option<(&str, &str)> {
     }
     Some((&pkg_id[..at], &pkg_id[at + 1..]))
 }
+
+/// Validate a client-supplied importer dir before joining it onto the
+/// server's temp dir. The client normalizes to POSIX relative paths, so
+/// anything absolute, backslash-bearing, or containing a `..`/empty
+/// component is rejected rather than risking a write outside the temp
+/// workspace. Returns the canonical `.` for the root.
+fn sanitized_importer_dir(dir: &str) -> Result<&str, ResolveError> {
+    if dir.is_empty() || dir == "." {
+        return Ok(".");
+    }
+    let trimmed = dir.trim_end_matches('/');
+    // A now-empty string means the input was only slashes (`/`, `////`):
+    // an absolute path, not the root — reject it rather than collapse it
+    // to `.` by trimming.
+    if trimmed.is_empty()
+        || trimmed.starts_with('/')
+        || trimmed.contains('\\')
+        || trimmed.split('/').any(|component| component == ".." || component.is_empty())
+    {
+        return Err(ResolveError::Install(format!("unsafe importer dir: {dir:?}")));
+    }
+    Ok(trimmed)
+}
+
+/// A synthetic, unique `name` for an importer's throwaway manifest. The
+/// importer is keyed in the lockfile by its dir, not its name, so the
+/// name only needs to be present and distinct across members.
+///
+/// The dir → name mapping is injective: `-` is first escaped to `--`,
+/// then `/` becomes `-`, so distinct dirs (e.g. `packages/foo` vs
+/// `packages-foo`) never collide on the same manifest name.
+fn importer_manifest_name(dir: &str) -> String {
+    if dir == "." {
+        "pnpr-resolve".to_string()
+    } else {
+        format!("pnpr-importer-{}", dir.replace('-', "--").replace('/', "-"))
+    }
+}
+
+#[cfg(test)]
+mod tests;
