@@ -87,3 +87,37 @@ fn install_via_pnpr_links_node_modules() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    let pnpr_url = start_pnpr();
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": { "@foo/no-deps": "1.0.0" },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .with_arg("--pnpr-server")
+        .with_arg(&pnpr_url)
+        .with_arg("--lockfile-only")
+        .assert()
+        .success();
+
+    // `--lockfile-only` resolves and writes the lockfile but fetches
+    // nothing and links nothing.
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
+    assert!(!workspace.join("node_modules").exists(), "lockfile-only must not link node_modules");
+    assert!(
+        !store_dir.join("v11/index.db").exists(),
+        "lockfile-only must not populate the client store",
+    );
+
+    drop((root, mock_instance));
+}

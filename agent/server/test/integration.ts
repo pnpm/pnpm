@@ -129,6 +129,39 @@ describe('pnpm-agent integration', () => {
     }
   })
 
+  it('lockfileOnly resolves without writing files or index entries to the client store', async () => {
+    const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-test-lockfile-only-'))
+    const clientStoreDir = path.join(tmpClient, 'store')
+    await fs.mkdir(clientStoreDir, { recursive: true })
+    const clientStoreIndex = new StoreIndex(clientStoreDir)
+
+    try {
+      const result = await fetchFromPnpmRegistry({
+        registryUrl: `http://localhost:${serverPort}`,
+        storeDir: clientStoreDir,
+        storeIndex: clientStoreIndex,
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        lockfileOnly: true,
+      })
+
+      // Resolution still happened — the lockfile is returned.
+      expect(Object.keys(result.lockfile.packages ?? {}).length).toBeGreaterThanOrEqual(1)
+
+      // But nothing is fetched into the client store: no index entries are
+      // collected and no CAFS files are written, even though the server may
+      // still stream D/I lines.
+      expect(result.indexEntries).toEqual([])
+      await result.fileDownloads
+      const cafsFilesDir = path.join(clientStoreDir, 'files')
+      await expect(fs.access(cafsFilesDir)).rejects.toThrow()
+    } finally {
+      clientStoreIndex.close()
+      await fs.rm(tmpClient, { recursive: true, force: true })
+    }
+  })
+
   it('returns consistent lockfile on repeated requests', async () => {
     const tmpClient = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-agent-test-client2-'))
     const clientStoreDir = path.join(tmpClient, 'store')

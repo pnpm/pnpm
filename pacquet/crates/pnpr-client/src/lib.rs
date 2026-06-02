@@ -69,6 +69,13 @@ pub struct InstallOptions<'a> {
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     pub ignore_manifest_check: bool,
+    /// `lockfileOnly`: ask the server to resolve only — return the
+    /// lockfile without fetching tarballs or computing the file diff, so
+    /// the response carries no missing files. The caller writes the
+    /// lockfile and skips materialization, mirroring pnpm's
+    /// `--lockfile-only`. See
+    /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
+    pub lockfile_only: bool,
     /// The client's effective `trustLockfile`. When `true` the server
     /// skips verifying the input lockfile (it still reuses it for
     /// resolution), mirroring the local `--trust-lockfile` opt-out.
@@ -206,6 +213,7 @@ impl PnprClient {
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
             "ignoreManifestCheck": opts.ignore_manifest_check,
+            "lockfileOnly": opts.lockfile_only,
             "trustLockfile": opts.trust_lockfile,
             "minimumReleaseAge": opts.minimum_release_age,
             "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
@@ -225,6 +233,19 @@ impl PnprClient {
         let ndjson = response.text().await?;
 
         let parsed = parse_install_response(&ndjson)?;
+
+        // `--lockfile-only`: pnpm fetches nothing and links nothing. A
+        // resolve-only server sends no `D`/`I` lines, but stay correct
+        // even against one that doesn't understand the flag by never
+        // touching the local store.
+        if opts.lockfile_only {
+            return Ok(InstallOutcome {
+                lockfile: parsed.lockfile,
+                stats: parsed.stats,
+                files_written: 0,
+                index_entries_written: 0,
+            });
+        }
 
         let files_written = self.download_files(opts.store_dir, &parsed.missing_files).await?;
 

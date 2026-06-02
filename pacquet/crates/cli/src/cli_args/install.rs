@@ -403,12 +403,12 @@ struct PnprLink<'a> {
     /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
     /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
     prefer_frozen_lockfile: bool,
-    /// `--lockfile-only`. Unsupported on the pnpr path — the protocol
-    /// bundles resolution with file distribution, so there's no
-    /// resolve-only mode yet (see
-    /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146)).
-    /// `install_via_pnpr` errors when this is set rather than silently
-    /// fetching + linking.
+    /// `--lockfile-only`. Forwarded to `/v1/install` so the server
+    /// resolves only — returning the lockfile without fetching files —
+    /// after which `install_via_pnpr` writes the lockfile and skips
+    /// materialization, mirroring pnpm's resolve + write, fetch nothing,
+    /// link nothing. See
+    /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
     lockfile_only: bool,
     /// `--ignore-manifest-check`; forwarded so the server's frozen
     /// freshness check and the local materialization both skip the
@@ -427,23 +427,13 @@ struct PnprLink<'a> {
 /// them and streams back the missing files; writes the server-produced
 /// lockfile, then runs a frozen install to materialize `node_modules`
 /// from it — the equivalent of pnpm's `installFromPnpmRegistry` handing
-/// off to `headlessInstall`.
+/// off to `headlessInstall`. Under `--lockfile-only` it stops after
+/// writing the lockfile (fetch nothing, link nothing).
 async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    // `--lockfile-only` can't be honored on the pnpr path yet: `/v1/install`
-    // bundles resolution with file distribution, so the files are fetched
-    // before the client could skip linking. Error rather than silently
-    // fetching + linking. Tracked by
-    // [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    if link.lockfile_only {
-        return Err(miette::miette!(
-            "`--lockfile-only` is not supported with a pnprServer yet (https://github.com/pnpm/pnpm/issues/12146); unset pnprServer to run it locally."
-        ));
-    }
-
     let dependencies = state
         .manifest
         .dependencies([DependencyGroup::Prod])
@@ -483,6 +473,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             frozen_lockfile: link.frozen_lockfile,
             prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
             ignore_manifest_check: link.ignore_manifest_check,
+            lockfile_only: link.lockfile_only,
             trust_lockfile: link.trust_lockfile,
             minimum_release_age: state.config.minimum_release_age,
             minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
@@ -516,6 +507,14 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
             .map_err(|err| miette::miette!("{err}"))
             .wrap_err("writing the pnpr-resolved lockfile")?;
+    }
+
+    // `--lockfile-only`: the server resolved and returned the lockfile
+    // but fetched nothing; pnpm links nothing in this mode, so stop after
+    // writing the lockfile rather than running the materialization pass.
+    // See [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
+    if link.lockfile_only {
+        return Ok(());
     }
 
     Install {
