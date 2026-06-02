@@ -757,6 +757,12 @@ fn npm_registry_tarball(resolution: &LockfileResolution) -> Option<Option<&str>>
             if t.git_hosted.unwrap_or(false) {
                 return None;
             }
+            if let Ok(parsed) = reqwest::Url::parse(&t.tarball) {
+                let scheme = parsed.scheme();
+                if scheme != "http" && scheme != "https" {
+                    return None;
+                }
+            }
             Some(Some(t.tarball.as_str()))
         }
         LockfileResolution::Directory(_)
