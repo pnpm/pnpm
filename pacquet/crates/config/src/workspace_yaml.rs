@@ -249,8 +249,8 @@ pub struct WorkspaceSettings {
     /// at <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L859-L885>),
     /// so an explicit `scriptShell: null` clears a value inherited from
     /// global `config.yaml`, while an absent key inherits. The extra
-    /// `Option` layer preserves that distinction (see
-    /// [`deserialize_double_option`]):
+    /// `Option` layer preserves that distinction (same
+    /// `deserialize_double_option` shape as `hoist_pattern`):
     ///
     /// - `None` — key absent → `apply_to` skips the field (inherit).
     /// - `Some(None)` — explicit `null` → `apply_to` writes
