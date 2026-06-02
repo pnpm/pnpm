@@ -138,11 +138,9 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // recorded dep on project-1 reads `project-1@file:project-1(...)`
     // even though project-2 lives a directory away.
     //
-    // The lockfile's `importers` map is unordered upstream (the JSON
-    // wire shape preserves whatever order serde emits), so pacquet's
-    // `HashMap`-backed writer may interleave importer blocks in any
-    // order. Parse the YAML and inspect the consumer importer's
-    // recorded version directly through pacquet's own lockfile model.
+    // Parse the YAML and inspect the consumer importer's recorded
+    // version directly through pacquet's own lockfile model, rather than
+    // string-slicing importer blocks out of the serialized file.
     let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
         .map_err(|err| {
             format!(
