@@ -323,7 +323,8 @@ impl InstallArgs {
                     node_linker,
                     skip_runtimes,
                     frozen_lockfile,
-                    prefer_frozen_lockfile,
+                    prefer_frozen_lockfile: prefer_frozen_lockfile
+                        .unwrap_or(config.prefer_frozen_lockfile),
                     lockfile_only,
                     ignore_manifest_check,
                     trust_lockfile,
@@ -395,11 +396,13 @@ struct PnprLink<'a> {
     /// materialization always runs frozen against the server-produced
     /// lockfile.
     frozen_lockfile: bool,
-    /// `preferFrozenLockfile` (`Some(false)` from
-    /// `--no-prefer-frozen-lockfile` forces the server to re-resolve);
-    /// forwarded to `/v1/install`. `None` lets the server default to
-    /// reuse.
-    prefer_frozen_lockfile: Option<bool>,
+    /// The *effective* `preferFrozenLockfile` (the CLI tri-state already
+    /// resolved against `config.prefer_frozen_lockfile`, exactly as the
+    /// local `Install` resolves it); forwarded to `/v1/install`. `false`
+    /// forces the server to re-resolve. Resolving here — rather than
+    /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
+    /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
+    prefer_frozen_lockfile: bool,
     /// `--lockfile-only`. Unsupported on the pnpr path — the protocol
     /// bundles resolution with file distribution, so there's no
     /// resolve-only mode yet (see
@@ -478,7 +481,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             overrides,
             lockfile: state.lockfile.clone(),
             frozen_lockfile: link.frozen_lockfile,
-            prefer_frozen_lockfile: link.prefer_frozen_lockfile,
+            prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
             ignore_manifest_check: link.ignore_manifest_check,
             trust_lockfile: link.trust_lockfile,
             minimum_release_age: state.config.minimum_release_age,
