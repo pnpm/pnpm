@@ -3,6 +3,7 @@ use super::{
     scopeless,
 };
 use clap::Parser;
+use pacquet_package_is_installable::SupportedArchitectures;
 use std::{
     collections::BTreeMap,
     fs,
@@ -64,19 +65,21 @@ fn regs(default: &str) -> BTreeMap<String, String> {
 #[test]
 fn create_cache_key_is_order_independent_and_deterministic() {
     let registry = "https://registry.npmjs.org/";
-    let key_forward = create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[]);
-    let key_reversed = create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[]);
+    let key_forward =
+        create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[], None);
+    let key_reversed =
+        create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[], None);
     assert_eq!(key_forward, key_reversed, "the key must not depend on spec order");
 
-    let key_versioned = create_cache_key(&["a@1".to_string()], &regs(registry), &[]);
+    let key_versioned = create_cache_key(&["a@1".to_string()], &regs(registry), &[], None);
     assert_ne!(key_forward, key_versioned, "different specs must produce different keys");
 }
 
 #[test]
 fn create_cache_key_depends_on_registry() {
     let pkgs = ["cowsay".to_string()];
-    let key_default = create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[]);
-    let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[]);
+    let key_default = create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[], None);
+    let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[], None);
     assert_ne!(key_default, key_custom, "a different registry must produce a different key");
 }
 
@@ -84,8 +87,8 @@ fn create_cache_key_depends_on_registry() {
 fn create_cache_key_changes_with_allow_build() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[]);
-    let key_with_allow = create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()]);
+    let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[], None);
+    let key_with_allow = create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()], None);
     assert_ne!(key_no_allow, key_with_allow, "allow_build must change the key");
 }
 
@@ -93,10 +96,37 @@ fn create_cache_key_changes_with_allow_build() {
 fn create_cache_key_allow_build_is_order_independent() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let key_forward = create_cache_key(&pkgs, &regs(registry), &["a".to_string(), "b".to_string()]);
+    let key_forward =
+        create_cache_key(&pkgs, &regs(registry), &["a".to_string(), "b".to_string()], None);
     let key_reversed =
-        create_cache_key(&pkgs, &regs(registry), &["b".to_string(), "a".to_string()]);
+        create_cache_key(&pkgs, &regs(registry), &["b".to_string(), "a".to_string()], None);
     assert_eq!(key_forward, key_reversed, "allow_build order must not affect the key");
+}
+
+#[test]
+fn create_cache_key_changes_with_supported_architectures() {
+    let pkgs = ["cowsay".to_string()];
+    let registry = "https://registry.npmjs.org/";
+    let base = create_cache_key(&pkgs, &regs(registry), &[], None);
+
+    let arm = SupportedArchitectures { cpu: Some(vec!["arm64".to_string()]), ..Default::default() };
+    let x64 = SupportedArchitectures { cpu: Some(vec!["x64".to_string()]), ..Default::default() };
+    let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm));
+    let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64));
+
+    assert_ne!(base, key_arm, "an architecture override must change the key");
+    assert_ne!(key_arm, key_x64, "different --cpu values must produce different keys");
+
+    // Dedup + sort make the axis stable: order and duplicates don't matter.
+    let arm_dup = SupportedArchitectures {
+        cpu: Some(vec!["arm64".to_string(), "arm64".to_string()]),
+        ..Default::default()
+    };
+    assert_eq!(
+        key_arm,
+        create_cache_key(&pkgs, &regs(registry), &[], Some(&arm_dup)),
+        "duplicate cpu values must not change the key",
+    );
 }
 
 #[test]

@@ -9,6 +9,7 @@ use pacquet_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pacquet_config::Config;
 use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
+use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -168,7 +169,16 @@ impl DlxArgs {
         let cache_dir = config.cache_dir.clone();
         let max_age = config.dlx_cache_max_age;
         let registries = build_registries_map(config);
-        let cache_key = create_cache_key(&pkgs, &registries, &allow_build);
+        // The effective (post-`--cpu`/`--os`/`--libc`) architecture set
+        // is part of the cache key: it changes which platform-tagged
+        // optional dependencies get installed, so two invocations that
+        // differ only by architecture must not share a cache entry.
+        // Mirrors pnpm feeding `supportedArchitectures` into
+        // `createCacheKey` (dlx.ts).
+        let effective_architectures =
+            supported_architectures.apply_to(config.supported_architectures.clone());
+        let cache_key =
+            create_cache_key(&pkgs, &registries, &allow_build, effective_architectures.as_ref());
         let extra_bin_paths = config.extra_bin_paths.clone();
 
         let dlx_command_cache_dir = cache_dir.join("dlx").join(&cache_key);
@@ -321,7 +331,12 @@ fn run_bin(
         let mut joined = vec![bin_name.to_string()];
         joined.extend(args.iter().cloned());
         let mut cmd = Command::new(&shell.program);
-        cmd.args(&shell.args).arg(joined.join(" "));
+        cmd.args(&shell.args);
+        // Append the joined command through `push_script_arg` so the
+        // Windows `cmd /d /s /c` verbatim path uses `raw_arg`, matching
+        // execa's `windowsVerbatimArguments` and preserving embedded
+        // quoting (same as exec's shell mode).
+        pacquet_executor::push_script_arg(&mut cmd, &joined.join(" "), shell.windows_verbatim_args);
         cmd
     } else {
         let program = which::which_in(bin_name, Some(&path), cwd)
@@ -359,15 +374,18 @@ fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
 /// Build the dlx cache key. Ports the input composition of pnpm's
 /// `createCacheKey`
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts#L384-L410>):
-/// the sorted package specs, sorted registries, and optional
-/// `allow_build` list are hashed together. pacquet keys on the raw specs
-/// (not resolved ids) and uses [`create_short_hash`] rather than pnpm's
-/// full-length hex digest; the dlx caches are not shared between the two
-/// implementations, so the key format is not a cross-tool contract.
+/// the sorted package specs, sorted registries, the optional `allow_build`
+/// list, and each non-empty `supportedArchitectures` axis (deduped +
+/// sorted, in `cpu` / `libc` / `os` order) are hashed together. pacquet
+/// keys on the raw specs (not resolved ids) and uses [`create_short_hash`]
+/// rather than pnpm's full-length hex digest; the dlx caches are not
+/// shared between the two implementations, so the key format is not a
+/// cross-tool contract.
 fn create_cache_key(
     pkgs: &[String],
     registries: &BTreeMap<String, String>,
     allow_build: &[String],
+    supported_architectures: Option<&SupportedArchitectures>,
 ) -> String {
     let mut sorted: Vec<&str> = pkgs.iter().map(String::as_str).collect();
     sorted.sort_unstable();
@@ -378,6 +396,17 @@ fn create_cache_key(
         let mut sorted_allow: Vec<&str> = allow_build.iter().map(String::as_str).collect();
         sorted_allow.sort_unstable();
         args.push(json!({ "allowBuild": sorted_allow }));
+    }
+    if let Some(arch) = supported_architectures {
+        for (key, values) in [("cpu", &arch.cpu), ("libc", &arch.libc), ("os", &arch.os)] {
+            let Some(values) = values.as_ref().filter(|values| !values.is_empty()) else {
+                continue;
+            };
+            let mut deduped: Vec<&str> = values.iter().map(String::as_str).collect();
+            deduped.sort_unstable();
+            deduped.dedup();
+            args.push(json!({ "supportedArchitectures": { key: deduped } }));
+        }
     }
     create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
 }
