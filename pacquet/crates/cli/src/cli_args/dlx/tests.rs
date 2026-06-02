@@ -1,12 +1,59 @@
 use super::{
-    DlxError, create_cache_key, get_bin_name, get_prepare_dir, get_valid_cache_dir, scopeless,
+    DlxArgs, DlxError, create_cache_key, get_bin_name, get_prepare_dir, get_valid_cache_dir,
+    scopeless,
 };
+use clap::Parser;
 use std::{
     collections::BTreeMap,
     fs,
     time::{Duration, SystemTime},
 };
 use tempfile::tempdir;
+
+/// Parses `DlxArgs` as a flattened leaf so the architecture flags can be
+/// exercised against the trailing `command` positional.
+#[derive(Parser)]
+struct DlxArgsWrapper {
+    #[command(flatten)]
+    dlx: DlxArgs,
+}
+
+/// The `--cpu` / `--os` / `--libc` overrides take one comma-separable
+/// value per occurrence, so the trailing `command` positional is not
+/// swallowed as extra architecture values.
+#[test]
+fn architecture_flags_do_not_consume_the_trailing_command() {
+    let parsed = DlxArgsWrapper::try_parse_from([
+        "dlx",
+        "--cpu",
+        "arm64,x64",
+        "--os",
+        "linux",
+        "--libc",
+        "musl",
+        "cowsay",
+        "hello",
+    ])
+    .expect("parse dlx args");
+
+    assert_eq!(parsed.dlx.cpu, ["arm64", "x64"], "comma-separated --cpu values are split");
+    assert_eq!(parsed.dlx.os, ["linux"]);
+    assert_eq!(parsed.dlx.libc, ["musl"]);
+    assert_eq!(parsed.dlx.command, ["cowsay", "hello"], "the command must survive after the flags");
+}
+
+/// Repeated `--cpu` occurrences accumulate, and an absent axis stays
+/// empty (so it leaves the config value untouched downstream).
+#[test]
+fn architecture_flags_accumulate_and_default_empty() {
+    let parsed = DlxArgsWrapper::try_parse_from(["dlx", "--cpu", "arm64", "--cpu", "x64", "tool"])
+        .expect("parse dlx args");
+
+    assert_eq!(parsed.dlx.cpu, ["arm64", "x64"]);
+    assert!(parsed.dlx.os.is_empty());
+    assert!(parsed.dlx.libc.is_empty());
+    assert_eq!(parsed.dlx.command, ["tool"]);
+}
 
 fn regs(default: &str) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();

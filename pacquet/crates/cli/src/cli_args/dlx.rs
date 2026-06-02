@@ -1,4 +1,7 @@
-use crate::{State, cli_args::add::add_package};
+use crate::{
+    State,
+    cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -32,7 +35,6 @@ use std::{
 ///   re-resolved until the cache entry expires.
 /// - The interactive `approve-builds` prompt is not ported; transitive
 ///   build scripts follow the install's normal allow-list.
-/// - Per-axis `--cpu` / `--os` / `--libc` overrides are not wired.
 #[derive(Debug, Args)]
 pub struct DlxArgs {
     /// The command to run, followed by its arguments.
@@ -53,6 +55,27 @@ pub struct DlxArgs {
     /// `cmd.exe` on Windows.
     #[clap(long, short = 'c')]
     pub shell_mode: bool,
+
+    // The architecture overrides take a single comma-separable value per
+    // occurrence (`--cpu arm64,x64`) rather than the greedy `num_args =
+    // 1..` shape `SupportedArchitecturesArgs` uses for `install` / `add`:
+    // dlx's trailing `command` positional would otherwise be swallowed as
+    // extra `--cpu` values. They override the per-axis
+    // `supportedArchitectures` of the dlx install only.
+    /// CPU architectures whose platform-tagged optional dependencies the
+    /// dlx install should keep. Repeat or comma-separate for multiple.
+    #[clap(long, value_delimiter = ',')]
+    pub cpu: Vec<String>,
+
+    /// Operating systems whose platform-tagged optional dependencies the
+    /// dlx install should keep.
+    #[clap(long, value_delimiter = ',')]
+    pub os: Vec<String>,
+
+    /// libc families (`glibc`, `musl`) whose platform-tagged optional
+    /// dependencies the dlx install should keep.
+    #[clap(long, value_delimiter = ',')]
+    pub libc: Vec<String>,
 }
 
 /// Errors from `pacquet dlx`.
@@ -127,7 +150,8 @@ impl DlxArgs {
         dir: &Path,
         config: &'static mut Config,
     ) -> miette::Result<()> {
-        let DlxArgs { command, package, allow_build, shell_mode } = self;
+        let DlxArgs { command, package, allow_build, shell_mode, cpu, os, libc } = self;
+        let supported_architectures = SupportedArchitecturesArgs { cpu, os, libc };
         let Some((bin_command, args)) = command.split_first() else {
             return Err(DlxError::MissingCommand.into());
         };
@@ -166,8 +190,14 @@ impl DlxArgs {
             None => {
                 let prepare_dir =
                     get_prepare_dir(&dlx_command_cache_dir, SystemTime::now(), std::process::id());
-                if let Err(error) =
-                    install_into_cache::<Reporter>(&prepare_dir, &pkgs, &allow_build, config).await
+                if let Err(error) = install_into_cache::<Reporter>(
+                    &prepare_dir,
+                    &pkgs,
+                    &allow_build,
+                    &supported_architectures,
+                    config,
+                )
+                .await
                 {
                     // Don't leave a half-installed prepare dir behind to
                     // accumulate across failed runs. Mirrors pnpm's
@@ -203,6 +233,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     prepare_dir: &Path,
     pkgs: &[String],
     allow_build: &[String],
+    supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
 ) -> miette::Result<()> {
     fs::create_dir_all(prepare_dir)
@@ -210,6 +241,12 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     let manifest_path = prepare_dir.join("package.json");
     fs::write(&manifest_path, json!({ "name": "dlx", "version": "0.0.0" }).to_string())
         .map_err(|source| DlxError::Cache { dir: manifest_path.display().to_string(), source })?;
+
+    // Per-axis CLI overrides (`--cpu` / `--os` / `--libc`) replace the
+    // matching axis of the config-derived value for the dlx install,
+    // mirroring pnpm's `overrideSupportedArchitecturesWithCLI`.
+    config.supported_architectures =
+        supported_architectures.apply_to(config.supported_architectures.clone());
 
     config.modules_dir = prepare_dir.join("node_modules");
     config.virtual_store_dir = prepare_dir.join("node_modules").join(".pacquet");
