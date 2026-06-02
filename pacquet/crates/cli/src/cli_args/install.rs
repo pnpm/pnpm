@@ -1,11 +1,11 @@
 use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::{Args, ValueEnum};
 use miette::Context;
-use pacquet_config::{NodeLinker, TrustPolicy};
+use pacquet_config::NodeLinker;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manager::{Install, UpdateSeedPolicy};
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_pnpr_client::{InstallOptions, PnprClient};
+use pacquet_pnpr_client::{InstallOptions, PnprClient, PnprClientError};
 use pacquet_reporter::Reporter;
 
 /// `--node-linker` value parser. CLI mirror of
@@ -322,6 +322,11 @@ impl InstallArgs {
                     supported_architectures,
                     node_linker,
                     skip_runtimes,
+                    frozen_lockfile,
+                    prefer_frozen_lockfile: prefer_frozen_lockfile
+                        .unwrap_or(config.prefer_frozen_lockfile),
+                    lockfile_only,
+                    ignore_manifest_check,
                     trust_lockfile,
                     lockfile_path: lockfile_path.as_deref(),
                 },
@@ -386,6 +391,32 @@ struct PnprLink<'a> {
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
     node_linker: NodeLinker,
     skip_runtimes: bool,
+    /// Governs the *server's* resolution behavior (frozen vs
+    /// reuse-and-update); forwarded to `/v1/install`. The local
+    /// materialization always runs frozen against the server-produced
+    /// lockfile.
+    frozen_lockfile: bool,
+    /// The *effective* `preferFrozenLockfile` (the CLI tri-state already
+    /// resolved against `config.prefer_frozen_lockfile`, exactly as the
+    /// local `Install` resolves it); forwarded to `/v1/install`. `false`
+    /// forces the server to re-resolve. Resolving here — rather than
+    /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
+    /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
+    prefer_frozen_lockfile: bool,
+    /// `--lockfile-only`. Unsupported on the pnpr path — the protocol
+    /// bundles resolution with file distribution, so there's no
+    /// resolve-only mode yet (see
+    /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146)).
+    /// `install_via_pnpr` errors when this is set rather than silently
+    /// fetching + linking.
+    lockfile_only: bool,
+    /// `--ignore-manifest-check`; forwarded so the server's frozen
+    /// freshness check and the local materialization both skip the
+    /// manifest ↔ lockfile comparison.
+    ignore_manifest_check: bool,
+    /// The effective `trustLockfile` (yaml `trustLockfile` OR
+    /// `--trust-lockfile`); forwarded so the server skips verifying the
+    /// input lockfile when the user opted out, mirroring the local path.
     trust_lockfile: bool,
     lockfile_path: Option<&'a std::path::Path>,
 }
@@ -402,13 +433,14 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     pnpr_server: &str,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    // The server resolves remotely, so the local resolver-side
-    // `trustPolicy: no-downgrade` check can't run. Refuse rather than
-    // silently link a lockfile the local verifier would reject — mirrors
-    // pnpm's `TRUST_POLICY_INCOMPATIBLE_WITH_AGENT` guard.
-    if state.config.trust_policy == TrustPolicy::NoDowngrade {
+    // `--lockfile-only` can't be honored on the pnpr path yet: `/v1/install`
+    // bundles resolution with file distribution, so the files are fetched
+    // before the client could skip linking. Error rather than silently
+    // fetching + linking. Tracked by
+    // [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
+    if link.lockfile_only {
         return Err(miette::miette!(
-            "A pnprServer does not enforce `trustPolicy: no-downgrade`; unset it or unset pnprServer so resolution runs locally."
+            "`--lockfile-only` is not supported with a pnprServer yet (https://github.com/pnpm/pnpm/issues/12146); unset pnprServer to run it locally."
         ));
     }
 
@@ -431,7 +463,15 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         .transpose()
         .map_err(|err| miette::miette!("failed to serialize overrides: {err}"))?;
 
-    let outcome = PnprClient::new(pnpr_server)
+    // Send the on-disk lockfile + the full client policy so the server
+    // verifies the input lockfile under *our* policy before resolving;
+    // the client never runs `verify_lockfile_resolutions` on the pnpr
+    // path ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
+    // `trustPolicy: no-downgrade` is enforced
+    // server-side now — both for reused entries (the input-lockfile
+    // verifier) and freshly-resolved ones (the resolver's pick-time
+    // gate, since the policy is wired into the server's config).
+    let outcome = match PnprClient::new(pnpr_server)
         .install(InstallOptions {
             store_dir: &state.config.store_dir,
             dependencies,
@@ -439,11 +479,34 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             registry: state.config.registry.clone(),
             named_registries: state.config.named_registries.clone(),
             overrides,
+            lockfile: state.lockfile.clone(),
+            frozen_lockfile: link.frozen_lockfile,
+            prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
+            ignore_manifest_check: link.ignore_manifest_check,
+            trust_lockfile: link.trust_lockfile,
             minimum_release_age: state.config.minimum_release_age,
+            minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
+            minimum_release_age_ignore_missing_time: state
+                .config
+                .minimum_release_age_ignore_missing_time,
+            trust_policy: state.config.trust_policy,
+            trust_policy_exclude: state.config.trust_policy_exclude.clone(),
+            trust_policy_ignore_after: state.config.trust_policy_ignore_after,
         })
         .await
-        .map_err(|err| miette::miette!("{err}"))
-        .wrap_err("resolving dependencies via the pnpr server")?;
+    {
+        Ok(outcome) => outcome,
+        // The server rejected the input lockfile under our policy.
+        // Surface the reconstructed `VerifyError` so the abort + the
+        // `ERR_PNPM_*` diagnostic code match the local gate exactly.
+        Err(PnprClientError::Verification(verify_err)) => {
+            return Err(miette::Report::new(verify_err));
+        }
+        Err(err) => {
+            return Err(miette::miette!("{err}"))
+                .wrap_err("resolving dependencies via the pnpr server");
+        }
+    };
 
     if state.config.lockfile {
         let lockfile_dir =
@@ -466,9 +529,15 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         dependency_groups: link.dependency_groups,
         frozen_lockfile: true,
         prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
+        ignore_manifest_check: link.ignore_manifest_check,
         skip_runtimes: link.skip_runtimes,
-        trust_lockfile: link.trust_lockfile,
+        // The server already verified the input lockfile and resolved
+        // the rest under our policy, so the local materialization treats
+        // the server-produced lockfile as trusted — it never re-runs
+        // `verify_lockfile_resolutions` or touches the local
+        // `lockfile-verified.jsonl` cache
+        // ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
+        trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
         resolved_packages: &state.resolved_packages,

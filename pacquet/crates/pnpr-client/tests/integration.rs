@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use pacquet_pnpr_client::{InstallOptions, PnprClient};
+use pacquet_pnpr_client::{InstallOptions, PnprClient, PnprClientError};
 use pacquet_store_dir::StoreDir;
 use pacquet_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
@@ -62,7 +62,17 @@ fn options<'a>(
         registry: registry.to_string(),
         named_registries: BTreeMap::new(),
         overrides: None,
+        lockfile: None,
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        trust_lockfile: false,
         minimum_release_age: None,
+        minimum_release_age_exclude: None,
+        minimum_release_age_ignore_missing_time: true,
+        trust_policy: pacquet_config::TrustPolicy::Off,
+        trust_policy_exclude: None,
+        trust_policy_ignore_after: None,
     }
 }
 
@@ -152,6 +162,89 @@ async fn resolves_a_multi_file_package() {
             .any(|key| key.to_string().starts_with("@pnpm.e2e/hello-world-js-bin@1.0.0")),
     );
     assert!(outcome.files_written >= 2, "expected multiple files, got {}", outcome.files_written);
+}
+
+#[tokio::test]
+async fn verifies_and_accepts_a_clean_input_lockfile() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client_store = TempDir::new().unwrap();
+    let store = StoreDir::new(client_store.path().to_path_buf());
+    let client = PnprClient::new(pnpr_url);
+
+    // A first install with no lockfile produces a valid resolved one.
+    let first = client
+        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("first install");
+
+    // Sending it back as the input lockfile makes the server verify it
+    // under the (default, policy-free) client policy before resolving;
+    // a clean lockfile passes and the install succeeds.
+    let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile = Some(first.lockfile.clone());
+    let second = client.install(opts).await.expect("verified-input install should succeed");
+    assert!(second.lockfile.packages.is_some(), "resolution still produced a lockfile");
+}
+
+#[tokio::test]
+async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client_store = TempDir::new().unwrap();
+    let store = StoreDir::new(client_store.path().to_path_buf());
+    let client = PnprClient::new(pnpr_url);
+
+    let first = client
+        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("first install");
+
+    // Re-send the same lockfile under a ~100-year minimumReleaseAge: no
+    // real publish time can satisfy it, so the server rejects the input
+    // lockfile and the client rebuilds the identical `VerifyError`.
+    let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile = Some(first.lockfile.clone());
+    opts.minimum_release_age = Some(60 * 24 * 365 * 100);
+    opts.minimum_release_age_ignore_missing_time = false;
+
+    let Err(PnprClientError::Verification(verify_err)) = client.install(opts).await else {
+        panic!("expected a verification error rejecting the input lockfile");
+    };
+    assert!(
+        verify_err.to_string().contains("minimumReleaseAge"),
+        "expected a minimumReleaseAge breakdown, got: {verify_err}",
+    );
+}
+
+#[tokio::test]
+async fn trust_lockfile_makes_the_server_skip_verification() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client_store = TempDir::new().unwrap();
+    let store = StoreDir::new(client_store.path().to_path_buf());
+    let client = PnprClient::new(pnpr_url);
+
+    let first = client
+        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("first install");
+
+    // Same policy that `rejects_an_input_lockfile_that_violates_the_clients_policy`
+    // trips on, but with the client's `trustLockfile` opt-out set: the
+    // server must skip the verify gate and resolve normally, matching the
+    // local `--trust-lockfile` path.
+    let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile = Some(first.lockfile.clone());
+    opts.minimum_release_age = Some(60 * 24 * 365 * 100);
+    opts.minimum_release_age_ignore_missing_time = false;
+    opts.trust_lockfile = true;
+
+    let outcome = client.install(opts).await.expect("trustLockfile should skip verification");
+    assert!(outcome.lockfile.packages.is_some(), "install still resolved a lockfile");
 }
 
 #[tokio::test]

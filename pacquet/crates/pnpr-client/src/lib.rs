@@ -25,7 +25,9 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use derive_more::{Display, Error, From};
 use flate2::read::GzDecoder;
+use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
+use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
 use pacquet_store_dir::{StoreDir, StoreIndex, StoreIndexWriter, decode_package_files_index};
 use reqwest::Client;
 use serde::Deserialize;
@@ -55,8 +57,30 @@ pub struct InstallOptions<'a> {
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
     /// at resolve time server-side.
     pub overrides: Option<serde_json::Value>,
-    /// Minimum package age (minutes) before a version is acceptable.
+    /// The client's existing on-disk lockfile, when present. Sent both
+    /// as the verification target and the resolution-reuse seed.
+    pub lockfile: Option<Lockfile>,
+    /// Frozen (use the lockfile as-is) vs reuse-and-update resolution
+    /// behavior. Does not affect whether the input lockfile is verified.
+    pub frozen_lockfile: bool,
+    /// `preferFrozenLockfile`. `Some(false)` forces the server to
+    /// re-resolve; `None` lets it default to reuse.
+    pub prefer_frozen_lockfile: Option<bool>,
+    /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
+    /// comparison during the frozen resolve.
+    pub ignore_manifest_check: bool,
+    /// The client's effective `trustLockfile`. When `true` the server
+    /// skips verifying the input lockfile (it still reuses it for
+    /// resolution), mirroring the local `--trust-lockfile` opt-out.
+    pub trust_lockfile: bool,
+    /// The client's verification policy. The server verifies the input
+    /// lockfile under *this* policy (not its own) before resolving.
     pub minimum_release_age: Option<u64>,
+    pub minimum_release_age_exclude: Option<Vec<String>>,
+    pub minimum_release_age_ignore_missing_time: bool,
+    pub trust_policy: TrustPolicy,
+    pub trust_policy_exclude: Option<Vec<String>>,
+    pub trust_policy_ignore_after: Option<u64>,
 }
 
 /// Result of [`PnprClient::install`].
@@ -97,6 +121,13 @@ pub enum PnprClientError {
     #[display("malformed pnpr response: {_0}")]
     #[from(ignore)]
     Protocol(#[error(not(source))] String),
+
+    /// The server rejected the input lockfile under the client's
+    /// verification policy. Carries the reconstructed [`VerifyError`]
+    /// so the CLI aborts with the same diagnostic code (and breakdown)
+    /// the local verification gate would have produced.
+    #[display("{_0}")]
+    Verification(VerifyError),
 
     #[display("{_0}")]
     Io(std::io::Error),
@@ -171,7 +202,17 @@ impl PnprClient {
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
             "overrides": opts.overrides,
+            "lockfile": opts.lockfile,
+            "frozenLockfile": opts.frozen_lockfile,
+            "preferFrozenLockfile": opts.prefer_frozen_lockfile,
+            "ignoreManifestCheck": opts.ignore_manifest_check,
+            "trustLockfile": opts.trust_lockfile,
             "minimumReleaseAge": opts.minimum_release_age,
+            "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
+            "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
+            "trustPolicy": opts.trust_policy,
+            "trustPolicyExclude": opts.trust_policy_exclude,
+            "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
         });
 
         let response =
@@ -295,10 +336,15 @@ fn parse_install_response(ndjson: &str) -> Result<ParsedInstall, PnprClientError
                 final_line = Some((payload.lockfile, payload.stats));
             }
             "E" => {
-                let message = serde_json::from_str::<EPayload>(rest)
-                    .map(|payload| payload.error)
-                    .unwrap_or_else(|_| rest.to_string());
-                return Err(PnprClientError::Server(message));
+                if let Ok(payload) = serde_json::from_str::<EPayload>(rest) {
+                    if let Some(violations) = payload.violations.filter(|list| !list.is_empty()) {
+                        return Err(PnprClientError::Verification(build_verify_error(violations)));
+                    }
+                    if !payload.error.is_empty() {
+                        return Err(PnprClientError::Server(payload.error));
+                    }
+                }
+                return Err(PnprClientError::Server(rest.to_string()));
             }
             _ => {}
         }
@@ -322,6 +368,55 @@ struct LPayload {
 struct EPayload {
     #[serde(default)]
     error: String,
+    /// Present when the server rejected the input lockfile under the
+    /// client's verification policy. Each entry mirrors the local
+    /// runner's rendered violation so the client can rebuild the
+    /// identical [`VerifyError`].
+    #[serde(default)]
+    violations: Option<Vec<WireViolation>>,
+}
+
+#[derive(Deserialize)]
+struct WireViolation {
+    name: String,
+    version: String,
+    code: String,
+    reason: String,
+}
+
+/// Rebuild the [`VerifyError`] the local gate would have raised from
+/// the server's rendered violations. Sorting by `name@version` before
+/// [`VerifyError::from_rendered`] reproduces the same breakdown order
+/// the local runner produces, so the abort is byte-identical.
+fn build_verify_error(mut violations: Vec<WireViolation>) -> VerifyError {
+    violations.sort_by(|left, right| {
+        format!("{}@{}", left.name, left.version).cmp(&format!("{}@{}", right.name, right.version))
+    });
+    let rendered = violations
+        .into_iter()
+        .map(|violation| RenderedViolation {
+            name: violation.name,
+            version: violation.version,
+            code: intern_violation_code(&violation.code),
+            reason: violation.reason,
+        })
+        .collect();
+    VerifyError::from_rendered(rendered)
+}
+
+/// Map a wire violation code back to the `&'static str` constant
+/// [`VerifyError::from_rendered`] matches on. Values are byte-identical
+/// to `pacquet_resolving_npm_resolver`'s violation codes; an unknown
+/// code falls back to the generic envelope rather than fabricating a
+/// variant. Kept inline (rather than depending on the npm resolver)
+/// for the same reason the verification crate aliases them.
+fn intern_violation_code(code: &str) -> &'static str {
+    match code {
+        "MINIMUM_RELEASE_AGE_VIOLATION" => "MINIMUM_RELEASE_AGE_VIOLATION",
+        "TRUST_DOWNGRADE" => "TRUST_DOWNGRADE",
+        "TARBALL_URL_MISMATCH" => "TARBALL_URL_MISMATCH",
+        _ => "LOCKFILE_RESOLUTION_VERIFICATION",
+    }
 }
 
 /// Decode the `/v1/files` binary payload and write each entry to the
@@ -486,3 +581,6 @@ fn hex_encode(bytes: &[u8]) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests;

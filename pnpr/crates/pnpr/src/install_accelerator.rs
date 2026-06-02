@@ -17,15 +17,19 @@
 //! * `POST /v1/files` — serve a batch of files by digest as a gzip
 //!   binary stream the client writes straight into its CAFS.
 //!
-//! The client's `registry`, `namedRegistries`, `overrides`, and
-//! `minimumReleaseAge` drive resolution. **Deferred:** auth/credential
-//! forwarding (so private registries resolve), multi-project
-//! workspaces, and incremental resolution from a client-supplied
-//! lockfile. Responses are buffered rather than truly streamed.
+//! The client's `registry`, `namedRegistries`, `overrides`, and the
+//! verification policy (`minimumReleaseAge`, `trustPolicy`, ...) drive
+//! resolution and verification. When the client sends its on-disk
+//! lockfile, the server verifies it under the client's policy before
+//! resolving, then reuses it as the resolution seed (frozen → as-is;
+//! non-frozen → reuse-and-update). **Deferred:** auth/credential
+//! forwarding (so private registries resolve) and multi-project
+//! workspaces. Responses are buffered rather than truly streamed.
 
 mod diff;
 mod protocol;
 mod resolve;
+mod verdict_cache;
 
 use std::{
     collections::HashMap,
@@ -45,10 +49,18 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use flate2::{Compression, write::GzEncoder};
 use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
+use pacquet_lockfile::Lockfile;
+use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
 use pacquet_network::ThrottledClient;
+use pacquet_package_manager::build_resolution_verifiers;
+use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, PackageMetaCache};
+use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::{StoreDir, StoreIndex};
 
-use self::protocol::{FilesRequest, InstallRequest, is_valid_sha512_hex};
+use self::{
+    protocol::{FilesRequest, InstallRequest, is_valid_sha512_hex},
+    verdict_cache::VerdictCache,
+};
 
 /// Per-server engine backing the pnpr install endpoints: it holds the
 /// store, cache, and HTTP client used to resolve a client's project and
@@ -70,6 +82,10 @@ pub(crate) struct InstallAccelerator {
     /// keyed by its canonical JSON. Bounds the leak to the number of
     /// distinct client setups the server sees (typically one).
     configs: Mutex<HashMap<String, &'static PacquetConfig>>,
+    /// SQLite-backed whole-lockfile verification verdict cache. `None`
+    /// only if the database couldn't be opened — verification then runs
+    /// every time (uncached) rather than failing the server.
+    verdict_cache: Option<VerdictCache>,
 }
 
 impl InstallAccelerator {
@@ -88,11 +104,13 @@ impl InstallAccelerator {
         // during resolution, so there's nothing actionable to report yet.
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
+        let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
         InstallAccelerator {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
             client: Arc::new(ThrottledClient::new_for_installs()),
             configs: Mutex::new(HashMap::new()),
+            verdict_cache,
         }
     }
 
@@ -112,6 +130,11 @@ impl InstallAccelerator {
             "namedRegistries": request.named_registries,
             "overrides": overrides,
             "minimumReleaseAge": request.minimum_release_age,
+            "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
+            "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
+            "trustPolicy": request.trust_policy,
+            "trustPolicyExclude": request.trust_policy_exclude,
+            "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
         })
         .to_string();
 
@@ -126,10 +149,21 @@ impl InstallAccelerator {
         config.registry = registry;
         config.named_registries = request.named_registries.clone();
         config.overrides = overrides;
-        config.minimum_release_age = request.minimum_release_age;
         config.modules_dir = PathBuf::from("node_modules");
         config.lockfile = true;
         config.verify_store_integrity = true;
+        // The client's verification policy drives both the input-lockfile
+        // verifier and the resolver's pick-time `minimumReleaseAge` /
+        // `trustPolicy` checks, so newly-resolved entries are held to the
+        // same policy as the reused ones.
+        config.minimum_release_age = request.minimum_release_age;
+        config.minimum_release_age_exclude = request.minimum_release_age_exclude.clone();
+        if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
+            config.minimum_release_age_ignore_missing_time = ignore_missing_time;
+        }
+        config.trust_policy = request.trust_policy;
+        config.trust_policy_exclude = request.trust_policy_exclude.clone();
+        config.trust_policy_ignore_after = request.trust_policy_ignore_after;
         let config: &'static PacquetConfig = config.leak();
         configs.insert(key, config);
         config
@@ -152,6 +186,22 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
 
     // Resolve against the client's registries, not the server's own.
     let config = runtime.config_for(&request);
+
+    // Verify the *input* lockfile under the client's policy before
+    // resolving ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
+    // The client skips its own `verifyLockfileResolutions` whenever a
+    // pnpr server is configured, so this is the only place the
+    // committed/reused entries get checked. A true first install sends
+    // no lockfile — nothing to verify. `trustLockfile` is the client's
+    // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
+    // resolved entries are held to the same policy by the resolver's
+    // pick-time gate (the policy is wired into `config`).
+    if !request.trust_lockfile
+        && let Some(input_lockfile) = request.lockfile.as_ref()
+        && let Err(response) = verify_input_lockfile(runtime, config, input_lockfile).await
+    {
+        return response;
+    }
 
     let lockfile = match resolve::resolve(config, &runtime.client, &request).await {
         Ok(lockfile) => lockfile,
@@ -217,6 +267,86 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
         .header(header::CONTENT_TYPE, "application/x-ndjson")
         .body(Body::from(ndjson))
         .expect("static ndjson response is always valid")
+}
+
+/// Verify the client's input lockfile under the client's policy. On a
+/// clean pass returns `Ok(())`; on a policy violation returns `Err` with
+/// a 200 NDJSON response carrying a single `E` line of rendered
+/// violations, so the client rebuilds the identical `VerifyError` and
+/// aborts the same way the local gate would. A build-verifiers failure
+/// (e.g. an invalid exclude pattern) returns a 500.
+async fn verify_input_lockfile(
+    runtime: &InstallAccelerator,
+    config: &'static PacquetConfig,
+    lockfile: &Lockfile,
+) -> Result<(), Response> {
+    // A fresh per-request packument cache shared with the verifier; the
+    // on-disk metadata mirror under `<cache_dir>/v11/metadata-full` is
+    // warm across requests and is the real verification cache.
+    let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+    let verifiers = build_resolution_verifiers(
+        config,
+        Arc::clone(&runtime.client),
+        Some(meta_cache as Arc<dyn PackageMetaCache>),
+    )
+    .map_err(|err| json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))?;
+
+    // Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
+    // already passed under a policy we still trust skips the whole fan-out
+    // (the dominant win for a shared pnpr — CI re-runs, a fleet building
+    // the same repo).
+    let hash = hash_lockfile(lockfile);
+    if let Some(cache) = runtime.verdict_cache.as_ref()
+        && cache.is_verified(&hash, |policy| {
+            verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
+        })
+    {
+        return Ok(());
+    }
+
+    let violations = collect_resolution_policy_violations(lockfile, &verifiers, None).await;
+    if violations.is_empty() {
+        if let Some(cache) = runtime.verdict_cache.as_ref() {
+            cache.record(&hash, &merge_policies(&verifiers));
+        }
+        return Ok(());
+    }
+
+    let rendered: Vec<serde_json::Value> = violations
+        .iter()
+        .map(|violation| {
+            serde_json::json!({
+                "name": violation.name.to_string(),
+                "version": violation.version,
+                "code": violation.code,
+                "reason": violation.reason,
+            })
+        })
+        .collect();
+    let payload = serde_json::json!({ "violations": rendered });
+    let body = format!("E\t{payload}\n");
+    Err(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/x-ndjson")
+        .body(Body::from(body))
+        .expect("static ndjson violation response is always valid"))
+}
+
+/// Merge every active verifier's policy snapshot into one bag, the key
+/// the verdict cache stores alongside the lockfile hash. Later verifiers
+/// overwrite earlier ones on a shared key — mirrors the local cache's
+/// `merge_policies` so a verdict recorded here is comparable to one the
+/// client's own cache would write.
+fn merge_policies(
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut merged = serde_json::Map::new();
+    for verifier in verifiers {
+        for (key, value) in verifier.policy() {
+            merged.insert(key.clone(), value.clone());
+        }
+    }
+    merged
 }
 
 /// Handle `POST /v1/files`.

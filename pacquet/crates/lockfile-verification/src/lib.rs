@@ -15,8 +15,11 @@
 //!   — the JSONL stat-and-skip cache (lands in a follow-up slice).
 //!
 //! Public surface today: [`verify_lockfile_resolutions()`],
-//! [`collect_resolution_policy_violations()`], [`hash_lockfile()`], and
-//! [`VerifyError`].
+//! [`collect_resolution_policy_violations()`], [`hash_lockfile()`],
+//! [`VerifyError`], and [`RenderedViolation`] — the last lets a caller
+//! that resolved violations out-of-process (e.g. the pnpr client
+//! reconstructing them from the server's response) rebuild the same
+//! [`VerifyError`] via [`VerifyError::from_rendered`].
 //!
 //! [`ResolutionVerifier`]: pacquet_resolving_resolver_base::ResolutionVerifier
 
@@ -31,7 +34,7 @@ pub use cache::{
     CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, record_verification,
     try_lockfile_verification_cache,
 };
-pub use errors::VerifyError;
+pub use errors::{RenderedViolation, VerifyError};
 pub use hash_lockfile::hash_lockfile;
 pub use record_lockfile_verified::record_lockfile_verified;
 pub use verify_lockfile_resolutions::{
