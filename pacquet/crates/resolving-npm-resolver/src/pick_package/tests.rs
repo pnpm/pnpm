@@ -1,4 +1,4 @@
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
@@ -106,6 +106,7 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -154,6 +155,7 @@ async fn warm_in_memory_cache_skips_network() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -191,6 +193,7 @@ async fn offline_with_mirror_picks_from_disk() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -221,6 +224,7 @@ async fn offline_without_mirror_errors() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let err = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -257,6 +261,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let result = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
@@ -321,6 +326,7 @@ async fn version_spec_missing_in_mirror_fetches() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let result = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
@@ -361,6 +367,7 @@ async fn dry_run_skips_in_memory_cache() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let mut opts = default_opts(&registry);
@@ -399,6 +406,7 @@ async fn pick_lowest_version_picks_min() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let mut opts = default_opts(&registry);
@@ -482,6 +490,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let pick_a = pick_package(&ctx, &range_spec("acme", "*"), &default_opts(&registry_a))
@@ -524,6 +533,7 @@ async fn invalid_package_name_errors_synchronously() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let err = pick_package(&ctx, &range_spec("foo/bar", "*"), &default_opts(&registry))
@@ -591,6 +601,7 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -640,6 +651,7 @@ async fn optional_opt_forces_full_metadata_endpoint() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let mut opts = default_opts(&registry);
@@ -696,6 +708,7 @@ async fn cache_key_separates_abbreviated_from_full() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     // First call: default (abbreviated).
@@ -763,6 +776,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let mut opts = default_opts(&registry);
@@ -829,6 +843,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let mut opts = default_opts(&registry);
@@ -874,6 +889,7 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let policy = create_package_version_policy(["acme"]).expect("policy");
@@ -956,6 +972,7 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let policy = create_package_version_policy(["acme"]).expect("policy");
@@ -1018,6 +1035,7 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
 
     let spec = range_spec("acme", "^1.0.0");

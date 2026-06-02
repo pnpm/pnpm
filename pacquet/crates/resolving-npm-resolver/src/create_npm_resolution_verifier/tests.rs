@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Utc};
 use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pacquet_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
@@ -48,6 +48,10 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         auth_headers: Arc::new(AuthHeaders::default()),
         cache_dir: None,
         meta_cache: None,
+        // No retries: tests that point an endpoint at an unmocked /
+        // erroring upstream would otherwise wait out the full pnpm
+        // backoff (10 s + 60 s) on every run.
+        retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
     }
 }

@@ -1,7 +1,7 @@
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use tempfile::TempDir;
 
-use super::{FetchFullMetadataCachedOptions, MetadataRetryOpts, fetch_full_metadata_cached};
+use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
 use crate::mirror::{FULL_META_DIR, get_pkg_mirror_path, load_meta, load_meta_headers};
 
 const PACKAGE_BODY: &str = r#"{
@@ -22,8 +22,8 @@ const PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
-fn no_retry_opts() -> MetadataRetryOpts {
-    MetadataRetryOpts { retries: 0, ..Default::default() }
+fn no_retry_opts() -> RetryOpts {
+    RetryOpts { retries: 0, ..Default::default() }
 }
 
 /// Cold cache (no mirror file) → registry returns 200 → mirror is

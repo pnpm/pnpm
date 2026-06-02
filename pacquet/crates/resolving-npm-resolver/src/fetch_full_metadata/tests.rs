@@ -1,9 +1,7 @@
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use std::time::Duration;
 
-use super::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, MetadataRetryOpts, fetch_full_metadata,
-};
+use super::{FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata};
 
 /// Unwrap a [`FetchFullMetadataOutcome::Modified`], panicking on
 /// `NotModified`. Used by the success-path tests below where the
@@ -17,12 +15,12 @@ fn expect_modified(outcome: FetchFullMetadataOutcome) -> pacquet_registry::Packa
     }
 }
 
-fn no_retry_opts() -> MetadataRetryOpts {
-    MetadataRetryOpts { retries: 0, ..Default::default() }
+fn no_retry_opts() -> RetryOpts {
+    RetryOpts { retries: 0, ..Default::default() }
 }
 
-fn fast_retry_opts() -> MetadataRetryOpts {
-    MetadataRetryOpts {
+fn fast_retry_opts() -> RetryOpts {
+    RetryOpts {
         retries: 1,
         min_timeout: Duration::from_millis(1),
         max_timeout: Duration::from_millis(1),

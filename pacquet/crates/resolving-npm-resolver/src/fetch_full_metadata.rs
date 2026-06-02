@@ -20,10 +20,9 @@
 //! Ports the request half of upstream's
 //! [`fetchMetadataFromFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L118-L204).
 
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, send_with_retry};
 use pacquet_registry::Package;
-use reqwest::{RequestBuilder, Response, StatusCode, header};
-use std::time::Duration;
+use reqwest::{StatusCode, header};
 
 use crate::{FetchMetadataError, registry_url::to_registry_url};
 
@@ -36,94 +35,6 @@ pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
 /// [`ACCEPT_ABBREVIATED_DOC`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L15).
 pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
-
-/// Metadata fetch retry settings. Defaults match pnpm's
-/// `fetch-retries` family and the tarball path's retry policy.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct MetadataRetryOpts {
-    pub retries: u32,
-    pub factor: u32,
-    pub min_timeout: Duration,
-    pub max_timeout: Duration,
-}
-
-impl Default for MetadataRetryOpts {
-    fn default() -> Self {
-        Self {
-            retries: 2,
-            factor: 10,
-            min_timeout: Duration::from_millis(10_000),
-            max_timeout: Duration::from_millis(60_000),
-        }
-    }
-}
-
-impl MetadataRetryOpts {
-    fn delay_for(self, attempt: u32) -> Duration {
-        let min_ms = u64::try_from(self.min_timeout.as_millis()).unwrap_or(u64::MAX);
-        let max_ms = u64::try_from(self.max_timeout.as_millis()).unwrap_or(u64::MAX);
-        let pow = u64::from(self.factor).checked_pow(attempt).unwrap_or(u64::MAX);
-        Duration::from_millis(min_ms.saturating_mul(pow).min(max_ms))
-    }
-}
-
-fn should_retry_status(status: StatusCode) -> bool {
-    status == StatusCode::REQUEST_TIMEOUT
-        || status == StatusCode::TOO_MANY_REQUESTS
-        || status.is_server_error()
-}
-
-pub(crate) async fn send_metadata_request_with_retry(
-    url: &str,
-    retry_opts: MetadataRetryOpts,
-    mut build_request: impl FnMut() -> RequestBuilder,
-) -> Result<Response, FetchMetadataError> {
-    let mut attempt = 0;
-    loop {
-        match build_request().send().await {
-            Ok(response) if response.status() == StatusCode::NOT_MODIFIED => return Ok(response),
-            Ok(response)
-                if should_retry_status(response.status()) && attempt < retry_opts.retries =>
-            {
-                let status = response.status();
-                let delay = retry_opts.delay_for(attempt);
-                tracing::warn!(
-                    target: "pacquet_resolving_npm_resolver::metadata",
-                    url,
-                    ?status,
-                    attempt = attempt + 1,
-                    max_attempts = retry_opts.retries + 1,
-                    ?delay,
-                    "Metadata fetch failed; retrying after backoff",
-                );
-                tokio::time::sleep(delay).await;
-                attempt += 1;
-            }
-            Ok(response) => {
-                return response
-                    .error_for_status()
-                    .map_err(|error| FetchMetadataError::Network { url: url.to_string(), error });
-            }
-            Err(error) if attempt < retry_opts.retries => {
-                let delay = retry_opts.delay_for(attempt);
-                tracing::warn!(
-                    target: "pacquet_resolving_npm_resolver::metadata",
-                    url,
-                    ?error,
-                    attempt = attempt + 1,
-                    max_attempts = retry_opts.retries + 1,
-                    ?delay,
-                    "Metadata fetch errored; retrying after backoff",
-                );
-                tokio::time::sleep(delay).await;
-                attempt += 1;
-            }
-            Err(error) => {
-                return Err(FetchMetadataError::Network { url: url.to_string(), error });
-            }
-        }
-    }
-}
 
 /// Options bundle for [`fetch_full_metadata`]. Mirrors upstream's
 /// `FetchFullMetadataCachedOptions` minus the cache-directory field;
@@ -150,7 +61,7 @@ pub struct FetchFullMetadataOptions<'a> {
     /// the body re-download. Mirrors upstream's `modified` option at
     /// the same call site.
     pub modified: Option<&'a str>,
-    pub(crate) retry_opts: MetadataRetryOpts,
+    pub(crate) retry_opts: RetryOpts,
 }
 
 /// Outcome of a [`fetch_full_metadata`] call. Mirrors upstream's
@@ -198,8 +109,7 @@ pub async fn fetch_full_metadata(
     // path segment, not two.
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let client = opts.http_client.acquire_for_url(&url).await;
-    let response = send_metadata_request_with_retry(&url, opts.retry_opts, || {
+    let (_client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
         let mut request = client.get(&url).header(header::ACCEPT, accept);
         if let Some(value) = opts.auth_headers.for_url(&url) {
             request = request.header(header::AUTHORIZATION, value);
@@ -212,10 +122,14 @@ pub async fn fetch_full_metadata(
         }
         request
     })
-    .await?;
+    .await
+    .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
     if response.status() == StatusCode::NOT_MODIFIED {
         return Ok(FetchFullMetadataOutcome::NotModified);
     }
+    let response = response
+        .error_for_status()
+        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
     // Decode in two steps so a JSON-shape mismatch surfaces as
     // `FetchMetadataError::Decode` (with the serde_json error), not
     // as `Network` (which `.json::<T>()` would do, conflating

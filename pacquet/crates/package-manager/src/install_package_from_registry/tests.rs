@@ -1,7 +1,7 @@
 use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
 use pacquet_config::Config;
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_network::ThrottledClient;
+use pacquet_network::{RetryOpts, ThrottledClient};
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
@@ -138,6 +138,7 @@ async fn resolve_via_mock(
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),

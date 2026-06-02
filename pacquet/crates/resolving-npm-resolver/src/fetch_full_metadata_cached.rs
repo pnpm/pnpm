@@ -18,17 +18,14 @@
 
 use std::path::Path;
 
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, send_with_retry};
 use pacquet_registry::Package;
 use pipe_trait::Pipe;
 use reqwest::{StatusCode, header};
 
 use crate::{
     FetchMetadataError,
-    fetch_full_metadata::{
-        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRetryOpts,
-        send_metadata_request_with_retry,
-    },
+    fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
     mirror::{
         ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
         load_meta_headers_async, prepare_json_for_disk, save_meta,
@@ -59,7 +56,7 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     /// [`fetchAbbreviatedMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L47-L53)
     /// dispatch.
     pub full_metadata: bool,
-    pub(crate) retry_opts: MetadataRetryOpts,
+    pub(crate) retry_opts: RetryOpts,
 }
 
 /// Fetch the full registry metadata document for `pkg_name`, reusing
@@ -124,8 +121,7 @@ pub async fn fetch_full_metadata_cached(
 
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let client = opts.http_client.acquire_for_url(&url).await;
-    let response = send_metadata_request_with_retry(&url, opts.retry_opts, || {
+    let (_client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
         let mut request = client.get(&url).header(header::ACCEPT, accept);
         if let Some(value) = opts.auth_headers.for_url(&url) {
             request = request.header(header::AUTHORIZATION, value);
@@ -140,7 +136,8 @@ pub async fn fetch_full_metadata_cached(
         }
         request
     })
-    .await?;
+    .await
+    .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
 
     if response.status() == StatusCode::NOT_MODIFIED {
         let Some(path) = mirror_path else {
@@ -155,6 +152,10 @@ pub async fn fetch_full_metadata_cached(
             FetchMetadataError::CacheMissingAfter304 { pkg_name: pkg_name.to_string() }
         });
     }
+
+    let response = response
+        .error_for_status()
+        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
 
     let etag = response
         .headers()

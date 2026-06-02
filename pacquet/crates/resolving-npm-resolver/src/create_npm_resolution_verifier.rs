@@ -25,7 +25,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use chrono::{DateTime, Utc};
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName};
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_registry::{Approver, NpmUser, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
@@ -106,6 +106,10 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// unit tests don't have a resolver running alongside, in which
     /// case the verifier falls back to its own fetch chain.
     pub meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    /// Retry budget for the verifier's metadata and attestation
+    /// fetches. Sourced from the same `fetch-retries` config the
+    /// resolver and tarball paths use.
+    pub retry_opts: RetryOpts,
     /// Override for `Utc::now()` when computing the age cutoff and
     /// the `trustPolicyIgnoreAfter` window. `None` falls back to
     /// wall-clock at construction time.
@@ -135,6 +139,7 @@ pub struct NpmResolutionVerifier {
     auth_headers: Arc<AuthHeaders>,
     cache_dir: Option<PathBuf>,
     meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    retry_opts: RetryOpts,
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: PublishedAtLookupContext,
@@ -214,6 +219,7 @@ pub fn create_npm_resolution_verifier(
         auth_headers: opts.auth_headers,
         cache_dir: opts.cache_dir,
         meta_cache: opts.meta_cache,
+        retry_opts: opts.retry_opts,
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
@@ -641,7 +647,7 @@ impl NpmResolutionVerifier {
                     auth_headers: &self.auth_headers,
                     cache_dir: self.cache_dir.as_deref(),
                     full_metadata: false,
-                    retry_opts: Default::default(),
+                    retry_opts: self.retry_opts,
                 };
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
                     Ok(meta) => Some(project_abbreviated_meta(&meta)),
@@ -800,7 +806,7 @@ impl NpmResolutionVerifier {
             // The verifier reads `time` and trust evidence per-version,
             // both of which the abbreviated form drops. Always full.
             full_metadata: true,
-            retry_opts: Default::default(),
+            retry_opts: self.retry_opts,
         };
         fetch_full_metadata_cached(&name.to_string(), &opts).await.map_err(|err| err.to_string())
     }
