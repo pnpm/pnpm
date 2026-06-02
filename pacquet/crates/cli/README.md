@@ -60,19 +60,44 @@
 
 [pnpm documentation](https://pnpm.io/cli/run)
 
-| Done | Command                      | Notes |
-| ---- | ---------------------------- | ----- |
-|      | script-shell                 |       |
-|      | shell-emulator               |       |
-|      | --recursive                  |       |
-| ✅   | --if-present                 |       |
-|      | --parallel                   |       |
-|      | --stream                     |       |
-|      | --aggregate-output           |       |
-|      | enable-pre-post-scripts      |       |
-|      | --resume-from <package_name> |       |
-|      | --report-summary             |       |
-|      | --filter <package_selector>  |       |
+| Done | Command                      | Notes                                                           |
+| ---- | ---------------------------- | --------------------------------------------------------------- |
+| ✅   | script-shell                 |                                                                 |
+|      | shell-emulator               |                                                                 |
+| ~    | --recursive                  | Runs every workspace project sequentially; no `--filter` yet    |
+| ✅   | --if-present                 |                                                                 |
+|      | --parallel                   |                                                                 |
+|      | --stream                     |                                                                 |
+|      | --aggregate-output           |                                                                 |
+| ✅   | enable-pre-post-scripts      |                                                                 |
+| ✅   | --resume-from <package_name> |                                                                 |
+| ✅   | --report-summary             |                                                                 |
+| ✅   | --no-bail                    |                                                                 |
+|      | --filter <package_selector>  | Accepted but not yet consumed                                   |
+
+## `pacquet exec`
+
+[pnpm documentation](https://pnpm.io/cli/exec)
+
+| Done | Command                     | Notes                         |
+| ---- | --------------------------- | ----------------------------- |
+| ✅   | -c, --shell-mode            |                               |
+|      | --recursive                 | Accepted but not yet consumed |
+|      | --filter <package_selector> | Accepted but not yet consumed |
+|      | --resume-from <package>     |                               |
+|      | --report-summary            |                               |
+|      | --no-bail                   |                               |
+
+## `pacquet dlx`
+
+[pnpm documentation](https://pnpm.io/cli/dlx)
+
+| Done | Command          | Notes                         |
+| ---- | ---------------- | ----------------------------- |
+| ✅   | --package <pkg>  |                               |
+| ✅   | --allow-build    |                               |
+| ✅   | -c, --shell-mode |                               |
+|      | --cpu / --os / --libc |                          |
 
 ## `pacquet test`
 
