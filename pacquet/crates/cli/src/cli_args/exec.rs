@@ -4,7 +4,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_executor::select_shell;
+use pacquet_executor::{push_script_arg, select_shell};
 use pacquet_package_manifest::PackageManifest;
 use std::{
     ffi::{OsStr, OsString},
@@ -145,11 +145,16 @@ pub(super) fn spawn_in_dir(
 
     let mut cmd = if shell_mode {
         // execa's `shell: true` joins the command and its arguments
-        // into a single string and hands it to the shell verbatim
-        // (no escaping). Mirror that with the platform shell.
+        // into a single string and hands it to the shell verbatim (no
+        // per-token escaping). Mirror that with the platform shell,
+        // appending the joined string through `push_script_arg` so the
+        // Windows `cmd /d /s /c` verbatim path uses `raw_arg` — matching
+        // execa's `windowsVerbatimArguments` and keeping embedded quoting
+        // (e.g. `node -e "..."`) intact.
         let shell = select_shell(None, cfg!(windows)).expect("default shell selection never fails");
         let mut cmd = Command::new(&shell.program);
-        cmd.args(&shell.args).arg(command.join(" "));
+        cmd.args(&shell.args);
+        push_script_arg(&mut cmd, &command.join(" "), shell.windows_verbatim_args);
         cmd
     } else {
         // execa resolves the program against the (extended) PATH up

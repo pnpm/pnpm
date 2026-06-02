@@ -117,6 +117,28 @@ fn exec_shell_mode_runs_shell_command() {
     drop(root);
 }
 
+/// A shell-mode command with embedded quotes reaches the shell untouched.
+/// On Windows the default `cmd /d /s /c` path is `windows_verbatim_args`,
+/// so the joined command must be appended with `raw_arg`; a plain `arg`
+/// would escape the inner quotes and break `node -e "..."`. Runs on every
+/// platform but is load-bearing on Windows CI.
+#[test]
+fn exec_shell_mode_preserves_embedded_quotes() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_arg("exec")
+        .with_arg("-c")
+        .with_arg(r#"node -e "process.stdout.write('shell-quote-ok')""#)
+        .output()
+        .expect("spawn pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "shell-mode command must exit 0, got: {output:?}");
+    assert!(stdout.contains("shell-quote-ok"), "embedded quotes must survive; stdout: {stdout:?}");
+
+    drop(root);
+}
+
 /// The child's non-zero exit code is propagated as pacquet's own exit
 /// code, mirroring pnpm's `{ exitCode }` return.
 ///
