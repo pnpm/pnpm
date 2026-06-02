@@ -2183,7 +2183,9 @@ dependencies = [
  "mockito",
  "node-semver",
  "owo-colors",
+ "pacquet-cmd-shim",
  "pacquet-config",
+ "pacquet-crypto-hash",
  "pacquet-diagnostics",
  "pacquet-executor",
  "pacquet-fs",
@@ -2195,6 +2197,7 @@ dependencies = [
  "pacquet-pnpr-client",
  "pacquet-registry",
  "pacquet-reporter",
+ "pacquet-resolving-parse-wanted-dependency",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
@@ -2212,6 +2215,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "walkdir",
+ "which",
 ]
 
 [[package]]

@@ -94,46 +94,70 @@ pub struct AddArgs {
 
 impl AddArgs {
     /// Execute the subcommand.
-    pub async fn run<Reporter: self::Reporter + 'static>(
-        self,
-        mut state: State,
-    ) -> miette::Result<()> {
-        // TODO: if a package already exists in another dependency group, don't remove the existing entry.
-
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &mut state;
-
+    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         // Merge CLI overrides with the yaml-derived value before
         // handing off to the install pipeline. See
         // `cli_args::install.rs` for the parallel comment — the
         // pattern is identical (clone from `&'static Config`, merge,
         // pass merged value through).
         let supported_architectures =
-            self.supported_architectures.apply_to(config.supported_architectures.clone());
+            self.supported_architectures.apply_to(state.config.supported_architectures.clone());
 
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
-        Add {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
-            lockfile: lockfile.as_ref(),
-            lockfile_path: lockfile_path.as_deref(),
-            list_dependency_groups: || self.dependency_options.dependency_groups(),
-            package_name: &self.package_name,
-            save_exact: self.save_exact,
-            resolved_packages,
+        add_package::<Reporter, _, _>(
+            state,
+            &self.package_name,
+            self.save_exact,
+            self.lockfile_only,
             supported_architectures,
-            lockfile_only: self.lockfile_only,
-        }
-        .run::<Reporter>()
+            || self.dependency_options.dependency_groups(),
+        )
         .await
-        .wrap_err("adding a new package")
     }
+}
+
+/// Add a single package to `state`'s manifest and install it.
+///
+/// Shared by `pacquet add` and `pacquet dlx`. dlx points `state` at a
+/// cache directory (via a [`Config`](pacquet_config::Config) whose
+/// `modules_dir` is anchored there) and saves to `dependencies` so the
+/// package's bin lands in `<cacheDir>/node_modules/.bin`.
+pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupList>(
+    mut state: State,
+    package_name: &str,
+    save_exact: bool,
+    lockfile_only: bool,
+    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    list_dependency_groups: ListDependencyGroups,
+) -> miette::Result<()>
+where
+    Reporter: self::Reporter + 'static,
+    ListDependencyGroups: Fn() -> DependencyGroupList,
+    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+{
+    // TODO: if a package already exists in another dependency group, don't remove the existing entry.
+    let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
+        &mut state;
+
+    let lockfile_path =
+        manifest.path().parent().map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
+    Add {
+        tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+        http_client,
+        http_client_arc: std::sync::Arc::clone(http_client),
+        config,
+        manifest,
+        lockfile: lockfile.as_ref(),
+        lockfile_path: lockfile_path.as_deref(),
+        list_dependency_groups,
+        package_name,
+        save_exact,
+        resolved_packages,
+        supported_architectures,
+        lockfile_only,
+    }
+    .run::<Reporter>()
+    .await
+    .wrap_err("adding a new package")
 }
 
 #[cfg(test)]

@@ -1,14 +1,16 @@
 mod extend_path;
 mod lifecycle;
 mod make_env;
+mod run_script;
 mod shell;
 
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use lifecycle::{
-    LifecycleScriptError, PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, run_lifecycle_hook,
-    run_postinstall_hooks, run_project_lifecycle_scripts,
+    LifecycleScriptError, PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, push_script_arg,
+    run_lifecycle_hook, run_postinstall_hooks, run_project_lifecycle_scripts,
 };
 pub use make_env::{EnvBuild, EnvOptions, build_env};
+pub use run_script::{RunScript, RunScriptError, run_script};
 pub use shell::{ScriptShellError, SelectedShell, select_shell};
 
 use derive_more::{Display, Error};

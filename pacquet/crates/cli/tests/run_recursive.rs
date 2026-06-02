@@ -7,7 +7,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, fs, os::unix::fs::PermissionsExt, path::Path};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -322,6 +322,251 @@ fn recursive_run_if_present_is_a_noop_when_no_package_has_the_script() {
         .with_arg("lint")
         .assert()
         .success();
+
+    drop(root);
+}
+
+/// Recursive `run` must resolve each package's `node_modules/.bin` on
+/// PATH so locally-installed bins (e.g. `tsc`, `eslint`) work — pnpm's
+/// `runLifecycleHook` (runRecursive.ts:124-149) sets this up for every
+/// project. Without it, `pacquet -r run build` would fail with
+/// `command not found` for any bare bin name living under `.bin`.
+#[test]
+fn recursive_run_resolves_local_bin_on_path_per_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "pkg-with-local-bin",
+            json!({
+                "name": "pkg-with-local-bin",
+                "version": "1.0.0",
+                "scripts": { "build": "say-hi" },
+            }),
+        )],
+    );
+    let pkg_root = workspace.join("pkg-with-local-bin");
+    let bin_dir = pkg_root.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let script_path = bin_dir.join("say-hi");
+    fs::write(&script_path, "#!/bin/sh\ntouch hi.txt\n").expect("write bin");
+    let mut perms = fs::metadata(&script_path).expect("stat").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&script_path, perms).expect("chmod +x");
+
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    assert!(
+        pkg_root.join("hi.txt").exists(),
+        "recursive run should resolve `say-hi` from the package's node_modules/.bin",
+    );
+
+    drop(root);
+}
+
+/// `pnpm -r run <name>` skips a project whose `<name>` script body is
+/// the empty string. pnpm's `runRecursive.ts:107` gates on
+/// `!manifest.scripts[name]` (empty string is falsy in JS); pacquet
+/// has to mirror that explicitly because `manifest.script` returns
+/// `Some("")`.
+#[test]
+fn recursive_run_skips_empty_script_body() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("with-body", build_writes_marker("with-body")),
+            (
+                "empty-body",
+                json!({
+                    "name": "empty-body",
+                    "version": "1.0.0",
+                    "scripts": { "build": "" },
+                }),
+            ),
+        ],
+    );
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("--report-summary")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let statuses = summary_statuses(&workspace);
+    assert_eq!(statuses.get("with-body").map(String::as_str), Some("passed"));
+    assert_eq!(
+        statuses.get("empty-body").map(String::as_str),
+        Some("skipped"),
+        "empty `build` body should be Skipped, not Passed; got {statuses:?}",
+    );
+
+    drop(root);
+}
+
+/// `pnpm -r run .hidden` is rejected outside a lifecycle context with
+/// `ERR_PNPM_HIDDEN_SCRIPT`. Mirrors pnpm's
+/// `throwOrFilterHiddenScripts` call from `runRecursive.ts:113-115`,
+/// applied once for the user-typed script name.
+#[test]
+fn recursive_run_rejects_hidden_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": { ".secret": "true" },
+            }),
+        )],
+    );
+
+    let output =
+        pacquet.with_arg("-r").with_arg("run").with_arg(".secret").output().expect("spawn pacquet");
+    assert!(!output.status.success(), "hidden script must fail outside a lifecycle");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_HIDDEN_SCRIPT"),
+        "stderr should carry the hidden-script error code, got: {stderr}",
+    );
+
+    drop(root);
+}
+
+/// When NO workspace project defines the requested hidden `.name`
+/// script, pnpm's `runRecursive` short-circuits at the truthy-body
+/// gate before reaching `throwOrFilterHiddenScripts`, so the error
+/// surfaces as `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` rather than
+/// `ERR_PNPM_HIDDEN_SCRIPT`. Pins the gate ordering.
+#[test]
+fn recursive_run_missing_hidden_script_reports_no_script_not_hidden() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg(".missing")
+        .output()
+        .expect("spawn pacquet");
+    assert!(!output.status.success(), "missing script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT"),
+        "expected the no-script code, got: {stderr}",
+    );
+    assert!(
+        !stderr.contains("ERR_PNPM_HIDDEN_SCRIPT"),
+        "must not raise HIDDEN_SCRIPT when no project defines the script: {stderr}",
+    );
+
+    drop(root);
+}
+
+/// With `enable-pre-post-scripts=true`, `pacquet -r run build` runs
+/// `prebuild` and `postbuild` around the main `build` per project,
+/// matching pnpm's `runRecursive` which binds `runScript` with
+/// `runScriptOptions.enablePrePostScripts` (runRecursive.ts:147,156).
+#[test]
+fn recursive_run_runs_pre_and_post_when_enabled() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "scripts": {
+                    "prebuild": "touch pre.txt",
+                    "build": "touch ran.txt",
+                    "postbuild": "touch post.txt",
+                },
+            }),
+        )],
+    );
+
+    pacquet
+        .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let pkg = workspace.join("project-1");
+    assert!(pkg.join("pre.txt").exists(), "prebuild should have run");
+    assert!(pkg.join("ran.txt").exists(), "build should have run");
+    assert!(pkg.join("post.txt").exists(), "postbuild should have run");
+
+    drop(root);
+}
+
+/// Recursion guard: when `npm_lifecycle_event` matches the requested
+/// script AND `PNPM_SCRIPT_SRC_DIR` matches a project root, that
+/// project is skipped so a script that itself invokes `pacquet -r run
+/// <name>` doesn't recurse without bound. Mirrors pnpm's
+/// `runRecursive.ts:108-110`.
+#[test]
+fn recursive_run_recursion_guard_skips_originating_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+
+    // Pretend we're already inside `project-1`'s `build` lifecycle —
+    // pnpm's recursion guard should leave `project-1` alone while
+    // still running `project-2`. Canonicalize the path so the env-var
+    // value matches what `find_workspace_projects` derives internally:
+    // on macOS the tempdir lives under `/var/folders/...` (a symlink to
+    // `/private/var/folders/...`) and the CLI canonicalizes its `--dir`,
+    // so the project roots pacquet compares against are the
+    // `/private/...` form.
+    let project_1 = fs::canonicalize(workspace.join("project-1")).expect("canonicalize project-1");
+    pacquet
+        .with_env("npm_lifecycle_event", "build")
+        .with_env("PNPM_SCRIPT_SRC_DIR", project_1.to_string_lossy().as_ref())
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("project-1").join("ran.txt").exists(),
+        "the originating project must be recursion-guarded and skipped",
+    );
+    assert!(
+        workspace.join("project-2").join("ran.txt").exists(),
+        "other projects should still run",
+    );
+
+    drop(root);
+}
+
+/// `pacquet -r run` with no script name surfaces pnpm's
+/// `ERR_PNPM_SCRIPT_NAME_IS_REQUIRED` typed error variant, matching the
+/// `PnpmError('SCRIPT_NAME_IS_REQUIRED', ...)` throw in pnpm's
+/// `runRecursive.ts:50-52`.
+#[test]
+fn recursive_run_without_script_name_errors_with_script_name_is_required() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    let output = pacquet.with_arg("-r").with_arg("run").output().expect("spawn pacquet");
+    assert!(!output.status.success(), "missing script name in recursive mode must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_SCRIPT_NAME_IS_REQUIRED"),
+        "stderr should carry the script-name-required code, got: {stderr}",
+    );
 
     drop(root);
 }

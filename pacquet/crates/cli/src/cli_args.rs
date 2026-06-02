@@ -1,6 +1,9 @@
 pub mod add;
+pub mod dlx;
+pub mod exec;
 pub mod install;
 pub mod outdated;
+pub mod recursive;
 pub mod remove;
 pub mod run;
 pub mod store;
@@ -11,6 +14,8 @@ pub mod update_interactive;
 use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use dlx::DlxArgs;
+use exec::ExecArgs;
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
@@ -120,6 +125,10 @@ pub enum CliCommand {
     Test,
     /// Runs a defined package script.
     Run(RunArgs),
+    /// Run a shell command in the context of a project.
+    Exec(ExecArgs),
+    /// Run a package in a temporary environment.
+    Dlx(DlxArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Managing the package store.
@@ -272,9 +281,20 @@ impl CliArgs {
                 if recursive {
                     args.run_recursive(config()?, &dir)?;
                 } else {
-                    args.run(manifest_path())?;
+                    args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
                 }
             }
+            CliCommand::Exec(args) => {
+                if recursive {
+                    args.run_recursive(config()?, &dir)?;
+                } else {
+                    args.run(&dir, config()?)?;
+                }
+            }
+            CliCommand::Dlx(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(&dir, config()?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(&dir, config()?).await?,
+            },
             CliCommand::Start => {
                 // Runs an arbitrary command specified in the package's start property of its scripts
                 // object. If no start property is specified on the scripts object, it will attempt to

@@ -937,6 +937,34 @@ pub struct Config {
     /// Yaml accepts `true` / `false` / `"warn-only"`.
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
 
+    /// `enablePrePostScripts` from `pnpm-workspace.yaml`. When `true`,
+    /// `pnpm run <name>` also runs the `pre<name>` and `post<name>`
+    /// scripts if they exist. Defaults to `true`, matching pnpm's
+    /// [`defaultOptions['enable-pre-post-scripts']`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L143).
+    #[default = true]
+    pub enable_pre_post_scripts: bool,
+
+    /// `scriptShell` from `pnpm-workspace.yaml`. The shell used to run
+    /// scripts and `pnpm exec`. `None` selects the platform default
+    /// (`sh` on POSIX, `cmd.exe` on Windows). Mirrors pnpm's
+    /// [`Config.scriptShell`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L95).
+    pub script_shell: Option<String>,
+
+    /// `nodeOptions` from `pnpm-workspace.yaml`. When set, it is exported
+    /// as `NODE_OPTIONS` to scripts and `pnpm exec` child processes.
+    /// Mirrors pnpm's
+    /// [`Config.nodeOptions`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L251).
+    pub node_options: Option<String>,
+
+    /// `extraBinPaths`: directories prepended to `PATH` (after the
+    /// project's own `node_modules/.bin`) when running scripts and
+    /// `pnpm exec`. pnpm computes this as the workspace root's
+    /// `node_modules/.bin` inside a workspace and leaves it empty
+    /// otherwise. pacquet defaults it empty until workspace support
+    /// lands. Mirrors pnpm's
+    /// [`Config.extraBinPaths`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L72).
+    pub extra_bin_paths: Vec<PathBuf>,
+
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
     /// pnpm runs lifecycle scripts under a TMPDIR isolated to
     /// `node_modules/.tmp` and (in upstream) drops uid/gid to a
@@ -1107,6 +1135,13 @@ pub struct Config {
     /// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
     #[default(_code = "default_cache_dir::<Host>()")]
     pub cache_dir: PathBuf,
+
+    /// `dlxCacheMaxAge`: the maximum age in **minutes** of a cached
+    /// `pnpm dlx` install before it is rebuilt from scratch. Defaults to
+    /// `1440` (24 hours). Mirrors pnpm's
+    /// [`Config.dlxCacheMaxAge`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L211).
+    #[default(_code = "24 * 60")]
+    pub dlx_cache_max_age: u64,
 
     /// Minimum age, in **minutes**, a published version must reach
     /// before pacquet accepts it. Drives the
