@@ -31,7 +31,7 @@ pub use cache::{
     CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, record_verification,
     try_lockfile_verification_cache,
 };
-pub use errors::VerifyError;
+pub use errors::{RenderedViolation, VerifyError};
 pub use hash_lockfile::hash_lockfile;
 pub use record_lockfile_verified::record_lockfile_verified;
 pub use verify_lockfile_resolutions::{

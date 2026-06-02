@@ -18,9 +18,11 @@ pub struct InstallRequestProject {
 
 /// Body of `POST /v1/install`. The registry fields carry the *client's*
 /// resolution configuration so the server resolves against the same
-/// registries the client would. Unknown fields (`lockfile`,
-/// `node_version`, `os`, `arch`) are accepted and ignored so
-/// older/newer clients still parse.
+/// registries the client would, and the policy fields carry the
+/// client's verification policy so the server verifies the input
+/// `lockfile` under it before resolving. Unknown fields (`node_version`,
+/// `os`, `arch`) are accepted and ignored so older/newer clients still
+/// parse.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallRequest {
@@ -44,9 +46,39 @@ pub struct InstallRequest {
     /// server-side.
     #[serde(default)]
     pub overrides: Option<serde_json::Value>,
+    /// The client's existing on-disk lockfile, when present. Sent both
+    /// as the verification target (the server verifies it under the
+    /// client's policy before resolving) and as the resolution-reuse
+    /// seed. Absent on a true first install (nothing to verify).
+    #[serde(default)]
+    pub lockfile: Option<pacquet_lockfile::Lockfile>,
+    /// Governs *resolution behavior* only — frozen (use the lockfile
+    /// as-is) vs reuse-and-update. Does not affect whether the input
+    /// lockfile is verified.
+    #[serde(default)]
+    pub frozen_lockfile: bool,
     /// Minimum package age (minutes) before a version is acceptable.
     #[serde(default)]
     pub minimum_release_age: Option<u64>,
+    /// Glob patterns opting packages out of the `minimumReleaseAge`
+    /// check.
+    #[serde(default)]
+    pub minimum_release_age_exclude: Option<Vec<String>>,
+    /// Whether to skip the `minimumReleaseAge` check for a version the
+    /// registry lists without a publish time. `None` defaults to the
+    /// client default (`true`).
+    #[serde(default)]
+    pub minimum_release_age_ignore_missing_time: Option<bool>,
+    /// The client's supply-chain trust policy. Defaults to `off`.
+    #[serde(default)]
+    pub trust_policy: pacquet_config::TrustPolicy,
+    /// Glob patterns opting packages out of the `trustPolicy` check.
+    #[serde(default)]
+    pub trust_policy_exclude: Option<Vec<String>>,
+    /// Minutes after which an old package skips the `trustPolicy`
+    /// check.
+    #[serde(default)]
+    pub trust_policy_ignore_after: Option<u64>,
 }
 
 /// The dependency maps for a single project, normalized across the

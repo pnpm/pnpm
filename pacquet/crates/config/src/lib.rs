@@ -14,7 +14,7 @@ use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolv
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -95,7 +95,7 @@ pub enum HoistingLimits {
 /// `dist.attestations.provenance`) is weaker than an earlier-published
 /// version's. Defaults to [`TrustPolicy::Off`] so installs without an
 /// explicit policy don't change behavior.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TrustPolicy {
     #[default]

@@ -83,6 +83,22 @@ pub async fn resolve(
     let manifest = PackageManifest::from_path(manifest_path)
         .map_err(|err| ResolveError::Manifest(err.to_string()))?;
 
+    // Seed resolution from the client's lockfile when present, matching
+    // pnpm's resolution-reuse: frozen → use it as-is (already verified
+    // by the caller before this point); non-frozen → reuse its pins for
+    // unchanged entries and resolve only what's new/changed
+    // (`preferFrozenLockfile` + `update: false`). With no lockfile it's a
+    // fresh resolve. `frozen_lockfile` is meaningful only with a lockfile
+    // to freeze; without one we resolve fresh rather than error.
+    let input_lockfile = request.lockfile.as_ref();
+    let lockfile_path = dir.join(Lockfile::FILE_NAME);
+    if let Some(lockfile) = input_lockfile {
+        lockfile
+            .save_to_path(&lockfile_path)
+            .map_err(|err| ResolveError::Install(err.to_string()))?;
+    }
+    let frozen_lockfile = request.frozen_lockfile && input_lockfile.is_some();
+
     let resolved_packages: ResolvedPackages = DashMap::new();
     let tarball_mem_cache: Arc<MemCache> = Arc::new(MemCache::default());
     let _logged = AtomicU8::new(0);
@@ -94,18 +110,21 @@ pub async fn resolve(
         http_client_arc: Arc::clone(client),
         config,
         manifest: &manifest,
-        lockfile: None,
-        lockfile_path: None,
+        lockfile: input_lockfile,
+        lockfile_path: input_lockfile.map(|_| lockfile_path.as_path()),
         dependency_groups: vec![
             DependencyGroup::Prod,
             DependencyGroup::Dev,
             DependencyGroup::Optional,
         ],
-        frozen_lockfile: false,
-        prefer_frozen_lockfile: Some(false),
+        frozen_lockfile,
+        prefer_frozen_lockfile: Some(true),
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        // The lockfile was already verified under the client's policy
+        // (in `handle_install`) before we get here, so the install path
+        // must not re-verify it.
+        trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
