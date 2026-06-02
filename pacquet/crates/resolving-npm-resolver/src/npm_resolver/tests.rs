@@ -7,7 +7,7 @@ use std::{
 use chrono::TimeZone;
 use pacquet_config::TrustPolicy;
 use pacquet_lockfile::LockfileResolution;
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
     WorkspacePackages, WorkspacePackagesByVersion,
@@ -77,6 +77,7 @@ fn build_resolver_with_registries(
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
     (resolver, cache_dir)
 }
@@ -598,6 +599,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
             prefer_offline: false,
             ignore_missing_time_field: false,
             full_metadata: false,
+            retry_opts: RetryOpts::default(),
         };
         (resolver, cache_dir)
     };

@@ -31,7 +31,7 @@ use chrono::{DateTime, Utc};
 use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolutionPolicyViolation, ResolveError, ResolveFuture,
@@ -120,6 +120,10 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// [`PickPackageContext::full_metadata`]. Mirrors upstream's
     /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
     pub full_metadata: bool,
+    /// Retry budget threaded through to
+    /// [`PickPackageContext::retry_opts`]. Sourced from the install's
+    /// `fetch-retries` config.
+    pub retry_opts: RetryOpts,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
@@ -384,6 +388,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
             full_metadata: self.full_metadata,
+            retry_opts: self.retry_opts,
         };
 
         let pick_result = pick_package(&ctx, spec, &pick_opts)

@@ -15,7 +15,7 @@ use std::{
 };
 
 use pacquet_lockfile::LockfileResolution;
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_local_resolver::{
     LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
@@ -48,6 +48,7 @@ fn named_registry_resolver(
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     }
 }
 

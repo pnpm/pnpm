@@ -10,6 +10,7 @@ use dashmap::DashMap;
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
 use pacquet_fs::file_mode;
+pub use pacquet_network::RetryOpts;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
@@ -21,7 +22,6 @@ use pacquet_store_dir::{
 };
 use pipe_trait::Pipe;
 use rayon::prelude::*;
-use smart_default::SmartDefault;
 use ssri::{Algorithm, Integrity, IntegrityOpts};
 use tar::Archive;
 use tokio::sync::{Notify, RwLock, Semaphore};
@@ -74,72 +74,6 @@ fn walk_reqwest_chain(error: &reqwest::Error) -> String {
         error = src;
     }
     out
-}
-
-/// Settings for the per-fetch retry loop. Mirrors pnpm's
-/// `fetch-retries` / `fetch-retry-factor` /
-/// `fetch-retry-mintimeout` / `fetch-retry-maxtimeout` and the
-/// `@zkochan/retry` algorithm pnpm uses in
-/// `network/fetch/src/fetch.ts`:
-///
-/// `delay = min(min_timeout * factor.pow(attempt), max_timeout)`
-///
-/// `attempt` is zero-indexed, so the first post-failure wait is
-/// `min_timeout`. `retries` is the number of *retries* — total
-/// attempts is `retries + 1`.
-///
-/// # Pathological configurations
-///
-/// We don't sanitize these here because pnpm doesn't either —
-/// the config plumbing is meant to be byte-equivalent to upstream.
-/// The total number of attempts is always bounded by `retries`, so
-/// even a degenerate `delay_for` only removes the backoff:
-///
-/// * `factor == 0` keeps the first wait at `min_timeout` (`0u32.pow(0)
-///   == 1`), but every subsequent wait is `0` — i.e. no backoff
-///   between retries. Same as pnpm.
-/// * `factor == 1` waits `min_timeout` between every attempt. Same as
-///   pnpm.
-/// * `max_timeout < min_timeout` makes every wait `max_timeout`. Same
-///   as pnpm.
-///
-/// If a caller wants stricter validation (warn / reject these
-/// configs), it belongs above the `Config` boundary, alongside any
-/// other npmrc sanity checks pnpm grows over time.
-///
-/// Defaults (via [`SmartDefault`]) match pnpm's
-/// [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L146-L149)
-/// (2 retries, factor 10, 10 s floor, 60 s cap).
-#[derive(Debug, Clone, Copy, SmartDefault)]
-pub struct RetryOpts {
-    #[default = 2]
-    pub retries: u32,
-    #[default = 10]
-    pub factor: u32,
-    #[default(Duration::from_millis(10_000))]
-    pub min_timeout: Duration,
-    #[default(Duration::from_millis(60_000))]
-    pub max_timeout: Duration,
-}
-
-impl RetryOpts {
-    /// Backoff to wait before the `(attempt + 1)`-th attempt, where
-    /// `attempt` is the zero-indexed number of failures so far.
-    /// Matches `@zkochan/retry`'s formula with `randomize: false`.
-    fn delay_for(self, attempt: u32) -> Duration {
-        // `Duration::as_millis` returns `u128` because a `Duration` can
-        // hold values that overflow `u64` milliseconds, but
-        // `Duration::from_millis` only takes `u64`. Saturate on the way
-        // down so a pathological caller-supplied timeout produces the
-        // largest expressible delay rather than a silently truncated one.
-        let min_ms = self.min_timeout.as_millis().pipe(u64::try_from).unwrap_or(u64::MAX);
-        let max_ms = self.max_timeout.as_millis().pipe(u64::try_from).unwrap_or(u64::MAX);
-        let factor = u64::from(self.factor);
-        let pow = factor.checked_pow(attempt).unwrap_or(u64::MAX);
-        let ms = min_ms.saturating_mul(pow);
-        let capped = ms.min(max_ms);
-        Duration::from_millis(capped)
-    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

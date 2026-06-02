@@ -2608,6 +2608,7 @@ dependencies = [
  "pretty_assertions",
  "reqwest",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -3005,7 +3006,6 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "smart-default",
  "ssri",
  "tar",
  "tempfile",

@@ -15,7 +15,8 @@ derive_more = { workspace = true }
 miette      = { workspace = true }
 pipe-trait  = { workspace = true }
 reqwest     = { workspace = true }
-tokio       = { workspace = true }
+tokio       = { workspace = true, features = ["time"] }
+tracing     = { workspace = true }
 
 [dev-dependencies]
 mockito           = { workspace = true }

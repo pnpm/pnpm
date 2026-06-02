@@ -548,6 +548,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // demand it. Mirrors upstream's
             // [`fullMetadata`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/connection-manager/src/createNewStoreController.ts#L69-L74).
             full_metadata,
+            retry_opts: crate::retry_config::retry_opts_from_config(config),
         });
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),
@@ -629,6 +630,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             // Same rationale as `NpmResolver.full_metadata` above.
             full_metadata,
+            retry_opts: crate::retry_config::retry_opts_from_config(config),
         };
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:

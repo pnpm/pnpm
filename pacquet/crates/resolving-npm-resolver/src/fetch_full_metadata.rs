@@ -20,7 +20,7 @@
 //! Ports the request half of upstream's
 //! [`fetchMetadataFromFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L118-L204).
 
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, send_with_retry};
 use pacquet_registry::Package;
 use reqwest::{StatusCode, header};
 
@@ -61,6 +61,7 @@ pub struct FetchFullMetadataOptions<'a> {
     /// the body re-download. Mirrors upstream's `modified` option at
     /// the same call site.
     pub modified: Option<&'a str>,
+    pub(crate) retry_opts: RetryOpts,
 }
 
 /// Outcome of a [`fetch_full_metadata`] call. Mirrors upstream's
@@ -108,21 +109,21 @@ pub async fn fetch_full_metadata(
     // path segment, not two.
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let mut request =
-        opts.http_client.acquire_for_url(&url).await.get(&url).header(header::ACCEPT, accept);
-    if let Some(value) = opts.auth_headers.for_url(&url) {
-        request = request.header(header::AUTHORIZATION, value);
-    }
-    if let Some(etag) = opts.etag {
-        request = request.header(header::IF_NONE_MATCH, etag);
-    }
-    if let Some(modified) = opts.modified {
-        request = request.header(header::IF_MODIFIED_SINCE, modified);
-    }
-    let response = request
-        .send()
-        .await
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+    let (_client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
+        let mut request = client.get(&url).header(header::ACCEPT, accept);
+        if let Some(value) = opts.auth_headers.for_url(&url) {
+            request = request.header(header::AUTHORIZATION, value);
+        }
+        if let Some(etag) = opts.etag {
+            request = request.header(header::IF_NONE_MATCH, etag);
+        }
+        if let Some(modified) = opts.modified {
+            request = request.header(header::IF_MODIFIED_SINCE, modified);
+        }
+        request
+    })
+    .await
+    .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
     if response.status() == StatusCode::NOT_MODIFIED {
         return Ok(FetchFullMetadataOutcome::NotModified);
     }

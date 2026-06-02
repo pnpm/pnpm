@@ -1,11 +1,13 @@
 mod auth;
 mod proxy;
+mod retry;
 #[cfg(test)]
 mod tests;
 mod tls;
 
 pub use auth::{AuthHeaders, base64_encode, nerf_dart};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
+pub use retry::{RetryOpts, send_with_retry, should_retry_status};
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
