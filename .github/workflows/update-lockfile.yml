@@ -9,76 +9,108 @@ permissions:
   contents: write
   pull-requests: write
 
+# Serialize runs so a manual dispatch and the daily schedule can't reset and
+# force-push the chore/update-lockfile branch at the same time.
+concurrency:
+  group: update-lockfile
+  cancel-in-progress: false
+
 jobs:
   update-lockfile:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Commit
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 # zizmor: ignore[artipacked]
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
-        # The token must persist in .git/config so the "Create or update PR"
-        # step below can `git push` to the chore/update-lockfile branch.
-        token: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        # Don't persist the write-scoped token in .git/config. The full install
+        # below runs third-party lifecycle scripts from freshly-bumped
+        # dependencies; the token is only needed to push, which the "Commit and
+        # push" step does with an explicit, single-use remote URL.
+        persist-credentials: false
 
-    # The job deletes the lockfile and regenerates it with `--lockfile-only`,
-    # so skip the action's auto-install — it would just be wasted work.
+    # The job regenerates the lockfile and runs the meta-updater itself, so the
+    # action's auto-install would just be wasted work.
     - name: Install pnpm
       uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
         install: false
 
-    - name: Update lockfile
+    # Build the day's changes on a single, persistent branch based on the latest
+    # main on every run. main is fetched explicitly so the branch is correct even
+    # for a workflow_dispatch run triggered from another ref. If a PR from a
+    # previous day is still open, the force-push below replaces its contents with
+    # today's changes instead of opening a second PR.
+    - name: Prepare update branch
       run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git fetch origin main
+        git checkout -B chore/update-lockfile FETCH_HEAD
+
+    - name: Update dependencies, Node.js, pnpm, and pacquet versions
+      timeout-minutes: 20
+      run: |
+        # Bump the pacquet config dependency to the latest release.
+        pnpm add --config @pnpm/pacquet
+
+        # Bump Node.js to the latest 26.x and record it in devEngines.runtime.
+        pnpm runtime set node 26
+
+        # Refresh the whole lockfile to the latest compatible dependency versions.
         rm pnpm-lock.yaml
-        pnpm install --lockfile-only
-      timeout-minutes: 5
+        pnpm install
+
+        # Propagate the new Node.js version into the GitHub Actions workflows,
+        # the `node@runtime:` scripts, and other manifests, then reinstall to
+        # sync the lockfile with any manifest changes.
+        pnpm update-manifests
+
+        # Bump pnpm itself last: this rewrites the `packageManager` and
+        # `devEngines.packageManager` pins, so doing it after the install steps
+        # keeps them running on the action-provided pnpm.
+        pnpm self-update latest
 
     - name: Check for changes
       id: changes
       run: |
-        if git diff --quiet pnpm-lock.yaml; then
-          echo "changed=false" >> $GITHUB_OUTPUT
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
         else
-          echo "changed=true" >> $GITHUB_OUTPUT
+          echo "changed=true" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Create or update PR
+    - name: Commit and push
       if: steps.changes.outputs.changed == 'true'
       env:
         GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
       run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add -A
+        git commit -m "chore: update lockfile, Node.js, pnpm, and pacquet versions"
+        git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" chore/update-lockfile
 
+    - name: Create PR if needed
+      if: steps.changes.outputs.changed == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+      run: |
         BRANCH="chore/update-lockfile"
 
-        # Check if branch exists on remote
-        if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
-          git fetch origin "$BRANCH"
-          git checkout "$BRANCH"
-          git reset --hard origin/main
-        else
-          git checkout -b "$BRANCH"
-        fi
-
-        # Re-apply the lockfile update on the branch
-        rm pnpm-lock.yaml
-        pnpm install --lockfile-only
-
-        git add pnpm-lock.yaml
-        git commit -m "chore: update pnpm-lock.yaml"
-        git push -f origin "$BRANCH"
-
-        # Check if PR already exists
-        if gh pr list --head "$BRANCH" --state open | grep -q "$BRANCH"; then
-          echo "PR already exists, it has been updated"
+        # An already-open PR from a previous day now points at the freshly
+        # force-pushed branch, so there is nothing more to do.
+        if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+          echo "PR already exists; today's changes were force-pushed to it"
         else
           gh pr create \
-            --title "chore: update pnpm-lock.yaml" \
-            --body "This PR updates the lockfile to pick up the latest compatible versions of dependencies.
+            --title "chore: update lockfile, Node.js, pnpm, and pacquet versions" \
+            --body "This automated PR refreshes the project's pinned versions:
 
-        This is an automated PR created by the update-lockfile workflow." \
+        - Updates the lockfile to the latest compatible versions of dependencies.
+        - Bumps Node.js to the latest 26.x release, propagated into the CI, release, and benchmark workflows via the meta-updater.
+        - Bumps pnpm to the latest release (\`packageManager\` and \`devEngines.packageManager\`).
+        - Bumps the \`@pnpm/pacquet\` config dependency to its latest release.
+
+        Created by the update-lockfile workflow." \
             --base main \
             --head "$BRANCH"
         fi
