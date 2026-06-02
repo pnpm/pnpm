@@ -3,6 +3,7 @@ pub mod dlx;
 pub mod exec;
 pub mod install;
 pub mod outdated;
+pub mod recursive;
 pub mod remove;
 pub mod run;
 pub mod store;
@@ -283,7 +284,13 @@ impl CliArgs {
                     args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
                 }
             }
-            CliCommand::Exec(args) => args.run(&dir, config()?)?,
+            CliCommand::Exec(args) => {
+                if recursive {
+                    args.run_recursive(config()?, &dir)?;
+                } else {
+                    args.run(&dir, config()?)?;
+                }
+            }
             CliCommand::Dlx(args) => match reporter {
                 ReporterType::Ndjson => args.run::<NdjsonReporter>(&dir, config()?).await?,
                 ReporterType::Silent => args.run::<SilentReporter>(&dir, config()?).await?,

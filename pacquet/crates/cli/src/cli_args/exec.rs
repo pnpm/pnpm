@@ -1,3 +1,5 @@
+mod recursive;
+
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -7,24 +9,20 @@ use pacquet_package_manifest::PackageManifest;
 use std::{
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, ExitStatus},
 };
 
 /// Run a shell command in the context of a project.
 ///
-/// Ports the single-project (non-recursive) path of pnpm's `exec`
-/// command from
+/// Ports pnpm's `exec` command from
 /// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/exec.ts>.
-/// pacquet now has the selection layer (`workspace-projects-filter`,
-/// `workspace-projects-graph`, and the global `--filter` / `--recursive`
-/// flags landed via <https://github.com/pnpm/pnpm/pull/11959> and
-/// <https://github.com/pnpm/pnpm/pull/12000>), and `run` got a recursive
-/// runner with `--resume-from` / `--report-summary` / `--no-bail` via
-/// <https://github.com/pnpm/pnpm/pull/12093>. `exec` has no equivalent
-/// recursive variant yet — the global `--filter` / `--recursive` flags
-/// are accepted on `exec` via clap but not consumed, and exec-side
-/// recursive options (`--workspace-concurrency`, `--resume-from`,
-/// `--report-summary`, `--no-bail`) are not wired.
+/// The recursive variant (selected by the global `-r` / `--recursive`
+/// flag) runs the command in every workspace project, topologically
+/// sorted and sequential, with `--resume-from` / `--report-summary` /
+/// `--no-bail` (see [`recursive`]). The `--filter` package-selector
+/// narrowing and `--workspace-concurrency` parallelism are not ported yet
+/// — the selected set is every workspace project, matching the recursive
+/// `run` runner and pacquet's currently-unfiltered `install`.
 #[derive(Debug, Args)]
 pub struct ExecArgs {
     /// The command to run, followed by its arguments.
@@ -35,6 +33,21 @@ pub struct ExecArgs {
     /// `cmd.exe` on Windows.
     #[clap(long, short = 'c')]
     pub shell_mode: bool,
+
+    /// Recursive only: resume execution from the given package, skipping
+    /// every earlier project in the topological order.
+    #[clap(long = "resume-from")]
+    pub resume_from: Option<String>,
+
+    /// Recursive only: write a `pnpm-exec-summary.json` execution report
+    /// to the workspace root.
+    #[clap(long = "report-summary")]
+    pub report_summary: bool,
+
+    /// Recursive only: keep going after a project fails instead of
+    /// stopping at the first failure.
+    #[clap(long = "no-bail")]
+    pub no_bail: bool,
 }
 
 /// Errors from `pacquet exec`.
@@ -76,82 +89,102 @@ impl ExecArgs {
     /// same code via [`std::process::exit`], matching pnpm's exec, which
     /// returns `{ exitCode }` and lets the CLI exit with it.
     pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
-        let ExecArgs { mut command, shell_mode } = self;
-
-        // For backward compatibility, mirroring `if (params[0] === '--')
-        // params.shift()` at exec.ts:171-173. Clap normally consumes a
-        // bare `--` itself, so this only fires when one survives as a
-        // literal token.
-        if command.first().map(String::as_str) == Some("--") {
-            command.remove(0);
-        }
-
-        if command.is_empty() {
-            return Err(ExecError::MissingCommand.into());
-        }
-
-        // pnpm prepends `./node_modules/.bin` (resolved against the
-        // project directory) and then the `extraBinPaths`. See
-        // exec.ts:225-228.
-        let mut prepend = Vec::with_capacity(1 + config.extra_bin_paths.len());
-        prepend.push(dir.join("node_modules").join(".bin"));
-        prepend.extend(config.extra_bin_paths.iter().cloned());
-        let path = prepend_dirs_to_path(&prepend)?;
-
-        let mut cmd = if shell_mode {
-            // execa's `shell: true` joins the command and its arguments
-            // into a single string and hands it to the shell verbatim
-            // (no escaping). Mirror that with the platform shell.
-            let shell =
-                select_shell(None, cfg!(windows)).expect("default shell selection never fails");
-            let mut cmd = Command::new(&shell.program);
-            cmd.args(&shell.args).arg(command.join(" "));
-            cmd
-        } else {
-            // execa resolves the program against the (extended) PATH up
-            // front (via cross-spawn / which). Do the same explicitly:
-            // Rust's `Command` does not reliably search the child's PATH
-            // for the program on every platform.
-            let program = which::which_in(&command[0], Some(&path), dir)
-                .map_err(|_| ExecError::CommandNotFound { command: command[0].clone() })?;
-            let mut cmd = Command::new(program);
-            cmd.args(&command[1..]);
-            cmd
-        };
-
-        cmd.current_dir(dir);
-        // Drop any inherited PATH-like key before re-inserting our own, so
-        // a Windows `Path`/`PATH` pair can't collapse to an unspecified
-        // winner at spawn time (matching the lifecycle spawn in
-        // `pacquet-executor`).
-        cmd.env_remove("PATH");
-        cmd.env_remove("Path");
-        cmd.env("PATH", &path);
-        // pnpm's `makeEnv` defaults `npm_config_user_agent` to `'pnpm'`
-        // when no `userAgent` is configured (makeEnv.ts:30). pacquet has
-        // no `userAgent` setting yet, so it always takes that default.
-        cmd.env("npm_config_user_agent", "pnpm");
-        if let Some(name) = read_package_name(dir) {
-            cmd.env("PNPM_PACKAGE_NAME", name);
-        }
-        // pnpm forwards `nodeOptions` as `NODE_OPTIONS` to the child.
-        // See exec.ts:246.
-        if let Some(node_options) = &config.node_options {
-            cmd.env("NODE_OPTIONS", node_options);
-        }
-
-        let status = cmd
-            .status()
-            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
-
+        let command = prepare_command(self.command)?;
+        let status = spawn_in_dir(&command, dir, config, self.shell_mode)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
             std::process::exit(status.code().unwrap_or(1));
         }
-
         Ok(())
     }
+
+    /// Execute the command for every project in the workspace, in
+    /// topological order. The recursive counterpart of [`Self::run`],
+    /// selected when the global `-r` / `--recursive` flag is set.
+    pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        recursive::exec_recursive(self, config, dir)
+    }
+}
+
+/// Strip a surviving leading `--` and reject an empty command.
+///
+/// Mirrors `if (params[0] === '--') params.shift()` at exec.ts:171-173;
+/// clap normally consumes a bare `--` itself, so this only fires when one
+/// survives as a literal token.
+fn prepare_command(mut command: Vec<String>) -> Result<Vec<String>, ExecError> {
+    if command.first().map(String::as_str) == Some("--") {
+        command.remove(0);
+    }
+    if command.is_empty() {
+        return Err(ExecError::MissingCommand);
+    }
+    Ok(command)
+}
+
+/// Resolve and spawn `command` in `dir` with `node_modules/.bin` +
+/// `extraBinPaths` on `PATH` and the exec environment stamped
+/// (`npm_config_user_agent`, `PNPM_PACKAGE_NAME`, `NODE_OPTIONS`).
+///
+/// Returns the child's [`ExitStatus`] without terminating the process, so
+/// the single-project path can `process::exit` while the recursive path
+/// records the per-project status. `command` is assumed non-empty (see
+/// [`prepare_command`]).
+pub(super) fn spawn_in_dir(
+    command: &[String],
+    dir: &Path,
+    config: &Config,
+    shell_mode: bool,
+) -> Result<ExitStatus, ExecError> {
+    // pnpm prepends `./node_modules/.bin` (resolved against the project
+    // directory) and then the `extraBinPaths`. See exec.ts:225-228.
+    let mut prepend = Vec::with_capacity(1 + config.extra_bin_paths.len());
+    prepend.push(dir.join("node_modules").join(".bin"));
+    prepend.extend(config.extra_bin_paths.iter().cloned());
+    let path = prepend_dirs_to_path(&prepend)?;
+
+    let mut cmd = if shell_mode {
+        // execa's `shell: true` joins the command and its arguments
+        // into a single string and hands it to the shell verbatim
+        // (no escaping). Mirror that with the platform shell.
+        let shell = select_shell(None, cfg!(windows)).expect("default shell selection never fails");
+        let mut cmd = Command::new(&shell.program);
+        cmd.args(&shell.args).arg(command.join(" "));
+        cmd
+    } else {
+        // execa resolves the program against the (extended) PATH up
+        // front (via cross-spawn / which). Do the same explicitly:
+        // Rust's `Command` does not reliably search the child's PATH
+        // for the program on every platform.
+        let program = which::which_in(&command[0], Some(&path), dir)
+            .map_err(|_| ExecError::CommandNotFound { command: command[0].clone() })?;
+        let mut cmd = Command::new(program);
+        cmd.args(&command[1..]);
+        cmd
+    };
+
+    cmd.current_dir(dir);
+    // Drop any inherited PATH-like key before re-inserting our own, so
+    // a Windows `Path`/`PATH` pair can't collapse to an unspecified
+    // winner at spawn time (matching the lifecycle spawn in
+    // `pacquet-executor`).
+    cmd.env_remove("PATH");
+    cmd.env_remove("Path");
+    cmd.env("PATH", &path);
+    // pnpm's `makeEnv` defaults `npm_config_user_agent` to `'pnpm'`
+    // when no `userAgent` is configured (makeEnv.ts:30). pacquet has
+    // no `userAgent` setting yet, so it always takes that default.
+    cmd.env("npm_config_user_agent", "pnpm");
+    if let Some(name) = read_package_name(dir) {
+        cmd.env("PNPM_PACKAGE_NAME", name);
+    }
+    // pnpm forwards `nodeOptions` as `NODE_OPTIONS` to the child.
+    // See exec.ts:246.
+    if let Some(node_options) = &config.node_options {
+        cmd.env("NODE_OPTIONS", node_options);
+    }
+
+    cmd.status().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })
 }
 
 /// Read the `name` field of the project's `package.json`, if any.
