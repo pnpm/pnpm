@@ -237,6 +237,24 @@ async fn verify_short_circuits_non_semver_version() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
+/// `file:` tarball resolutions are local artifacts, not registry
+/// entries, so the verifier must skip minimumReleaseAge/trust checks.
+#[tokio::test]
+async fn verify_short_circuits_file_tarball_resolution() {
+    let mut opts = default_opts("http://nonexistent.example.invalid/");
+    opts.minimum_release_age = Some(60 * 24 * 365);
+    let verifier = create_npm_resolution_verifier(opts).expect("verifier");
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "file:vendor/types__my-cool-lib-v1.0.0.tgz".to_string(),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "@types/my-cool-lib".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
 /// When the exclude policy covers the package, age check skips —
 /// the version is treated as opted out regardless of its publish
 /// timestamp.
