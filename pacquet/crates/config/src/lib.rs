@@ -1828,4 +1828,6 @@ fn read_npm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
 }
 
 #[cfg(test)]
+mod pnpm_default_parity;
+#[cfg(test)]
 mod tests;
