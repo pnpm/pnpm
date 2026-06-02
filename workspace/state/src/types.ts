@@ -16,6 +16,7 @@ export interface WorkspaceState {
 }
 
 export const WORKSPACE_STATE_SETTING_KEYS = [
+  'enableGlobalVirtualStore',
   'allowBuilds',
   'autoInstallPeers',
   'catalogs',

@@ -259,6 +259,36 @@ describe('checkDepsStatus - settings change detection', () => {
 
     expect(result.issue).not.toBe('The value of the allowBuilds setting has changed')
   })
+
+  it('returns upToDate: false when enableGlobalVirtualStore is toggled off', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        enableGlobalVirtualStore: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      enableGlobalVirtualStore: false,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the enableGlobalVirtualStore setting has changed')
+  })
 })
 
 describe('checkDepsStatus - pnpmfile modification', () => {
