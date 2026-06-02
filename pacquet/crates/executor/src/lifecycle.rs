@@ -429,7 +429,7 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
 /// commands under `cmd.exe`. Everywhere else (POSIX `sh -c`, a custom
 /// `scriptShell`) the standard `arg` is correct.
 #[cfg(windows)]
-fn push_script_arg(cmd: &mut Command, script: &str, windows_verbatim_args: bool) {
+pub(crate) fn push_script_arg(cmd: &mut Command, script: &str, windows_verbatim_args: bool) {
     use std::os::windows::process::CommandExt;
     if windows_verbatim_args {
         cmd.raw_arg(script);
@@ -439,7 +439,7 @@ fn push_script_arg(cmd: &mut Command, script: &str, windows_verbatim_args: bool)
 }
 
 #[cfg(not(windows))]
-fn push_script_arg(cmd: &mut Command, script: &str, _windows_verbatim_args: bool) {
+pub(crate) fn push_script_arg(cmd: &mut Command, script: &str, _windows_verbatim_args: bool) {
     cmd.arg(script);
 }
 

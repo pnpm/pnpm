@@ -255,6 +255,30 @@ fn run_propagates_failing_script_exit_code() {
     drop(root);
 }
 
+/// A script body with embedded quotes reaches the child untouched. On
+/// Windows the default `cmd /d /s /c` path is `windows_verbatim_args`, so
+/// the script must be appended with `raw_arg`; a plain `arg` would escape
+/// the inner quotes and break `node -e "..."`. Runs everywhere (it is a
+/// no-op risk on POSIX) but is load-bearing on Windows CI.
+#[test]
+fn run_preserves_embedded_quotes_in_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "say": r#"node -e "process.stdout.write('verbatim-ok')""# },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet.with_arg("run").with_arg("say").output().expect("spawn pacquet run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the script must exit 0, got: {output:?}");
+    assert!(stdout.contains("verbatim-ok"), "embedded quotes must survive; stdout: {stdout:?}");
+
+    drop(root);
+}
+
 /// A failing `test` script prints pnpm's stage-specific lifecycle error
 /// (`Test failed. See above for more details.`) rather than the generic
 /// exit-code line, matching reportLifecycleError's `test` special case.

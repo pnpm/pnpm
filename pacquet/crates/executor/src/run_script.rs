@@ -1,5 +1,6 @@
 use crate::{
     extend_path::{ScriptsPrependNodePath, extend_path},
+    lifecycle::push_script_arg,
     make_env::{EnvOptions, build_env, path_value},
     shell::{ScriptShellError, select_shell},
 };
@@ -132,9 +133,14 @@ pub fn run_script(opts: RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
         let _ = writeln!(stderr, "$ {command}");
     }
 
-    let status = Command::new(&shell.program)
-        .args(&shell.args)
-        .arg(&command)
+    // The script is appended through `push_script_arg` (not a chained
+    // `.arg`) so the Windows `cmd /d /s /c` verbatim path can use
+    // `raw_arg` and keep embedded quoting like `node -e "..."` intact —
+    // matching the lifecycle runner.
+    let mut cmd = Command::new(&shell.program);
+    cmd.args(&shell.args);
+    push_script_arg(&mut cmd, &command, shell.windows_verbatim_args);
+    let status = cmd
         .current_dir(opts.pkg_root)
         .env_clear()
         .envs(&child_env)
