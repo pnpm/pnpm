@@ -134,3 +134,101 @@ fn fresh_resolve_walks_every_workspace_importer() {
 
     drop((root, mock_instance));
 }
+
+/// When the workspace root and a non-root importer both depend on the
+/// same workspace package via `workspace:*`, each importer's resolved
+/// `link:` target is relative to *its own* directory — pnpm writes
+/// `link:packages/lib` for the root and `link:../lib` for
+/// `packages/app`. A prior bug seeded pacquet's workspace-wide
+/// resolution cache with the first importer's relative path and reused
+/// it for every other importer, so `packages/app` got the root's
+/// `link:packages/lib` and its symlink dangled at
+/// `packages/app/packages/lib`.
+#[test]
+fn shared_workspace_dep_link_is_relative_to_each_importer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    // Root depends on the shared workspace package, so it resolves the
+    // `workspace:*` edge first and would otherwise poison the cache.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "@scope/lib": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("packages/lib")).expect("mkdir packages/lib");
+    fs::write(
+        workspace.join("packages/lib/package.json"),
+        serde_json::json!({ "name": "@scope/lib", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/lib/package.json");
+
+    fs::create_dir_all(workspace.join("packages/app")).expect("mkdir packages/app");
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({
+            "name": "@scope/app",
+            "version": "1.0.0",
+            "dependencies": { "@scope/lib": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    // The lockfile records importer-relative `link:` targets.
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+        .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
+    let lib_name: pacquet_lockfile::PkgName = "@scope/lib".parse().unwrap();
+    let importer_link = |importer_id: &str| -> String {
+        parsed
+            .importers
+            .get(importer_id)
+            .and_then(|importer| importer.dependencies.as_ref())
+            .and_then(|deps| deps.get(&lib_name))
+            .unwrap_or_else(|| panic!("missing @scope/lib in {importer_id:?}:\n{lockfile}"))
+            .version
+            .to_string()
+    };
+    let root_link = importer_link(".");
+    let app_link = importer_link("packages/app");
+    eprintln!("root_link={root_link:?} app_link={app_link:?}");
+    assert_eq!(root_link, "link:packages/lib", "root importer link must be relative to root");
+    assert_eq!(
+        app_link, "link:../lib",
+        "packages/app link must be relative to packages/app, not reused from the root importer",
+    );
+
+    // The on-disk symlink resolves to the shared package's manifest.
+    let app_link_path = workspace.join("packages/app/node_modules/@scope/lib");
+    assert!(
+        is_symlink_or_junction(&app_link_path).expect("query packages/app link"),
+        "packages/app/node_modules/@scope/lib symlink missing",
+    );
+    assert!(
+        app_link_path.join("package.json").exists(),
+        "packages/app/node_modules/@scope/lib must resolve to @scope/lib's manifest, not dangle",
+    );
+
+    drop((root, mock_instance));
+}
