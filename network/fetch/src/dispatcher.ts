@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
-import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
+import { Agent, type Dispatcher, getGlobalDispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
@@ -108,10 +108,14 @@ export function clearDispatcherCache (): void {
  * (https://github.com/nodejs/node/issues/56645).
  */
 export async function destroyDispatchers (): Promise<void> {
-  await Promise.allSettled([
-    GLOBAL_DISPATCHER.destroy(),
-    ...Array.from(DISPATCHER_CACHE.values(), dispatcher => dispatcher.destroy()),
+  // getGlobalDispatcher() is included in case something replaced GLOBAL_DISPATCHER
+  // via setGlobalDispatcher(); the Set removes the duplicate when it is still our own instance.
+  const dispatchers = new Set<Dispatcher>([
+    GLOBAL_DISPATCHER,
+    getGlobalDispatcher(),
+    ...DISPATCHER_CACHE.values(),
   ])
+  await Promise.allSettled(Array.from(dispatchers, dispatcher => dispatcher.destroy()))
 }
 
 /**
