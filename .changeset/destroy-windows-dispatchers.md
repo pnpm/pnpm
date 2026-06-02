@@ -1,4 +1,5 @@
 ---
+"@pnpm/network.fetch": patch
 "pnpm": patch
 ---
 

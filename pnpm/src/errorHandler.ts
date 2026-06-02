@@ -3,6 +3,7 @@ import { promisify } from 'node:util'
 import { logger } from '@pnpm/logger'
 import pidTree from 'pidtree'
 
+import { exit } from './exit.js'
 import { type Global, REPORTER_INITIALIZED } from './main.js'
 
 declare const global: Global
@@ -59,9 +60,5 @@ async function killProcesses (status: number): Promise<void> {
   } catch {
     // ignore error here
   }
-  if (process.platform === 'win32') {
-    // Work around https://github.com/nodejs/node/issues/56645.
-    await new Promise<void>((resolve) => setTimeout(resolve, 100))
-  }
-  process.exit(status)
+  await exit(status)
 }

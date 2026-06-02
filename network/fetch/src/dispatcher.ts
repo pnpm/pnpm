@@ -20,14 +20,16 @@ const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
 // With HTTP/2, undici multiplexes many streams over 1-2 TCP connections sharing a single
 // congestion window. In benchmarks this was slower than opening ~50 independent HTTP/1.1
 // connections that each get their own congestion window and can saturate bandwidth in parallel.
-setGlobalDispatcher(new Agent({
+const GLOBAL_DISPATCHER = new Agent({
   connections: DEFAULT_MAX_SOCKETS,
   keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
   keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
   connect: {
     autoSelectFamily: true,
   },
-}).compose(stripSecFetchHeaders))
+}).compose(stripSecFetchHeaders)
+
+setGlobalDispatcher(GLOBAL_DISPATCHER)
 
 // undici's fetch() automatically adds sec-fetch-* headers (e.g. sec-fetch-mode: cors)
 // per the Fetch spec. Some registries like Azure DevOps Artifacts interpret these as
@@ -96,6 +98,13 @@ export interface DispatcherOptions {
  */
 export function clearDispatcherCache (): void {
   DISPATCHER_CACHE.clear()
+}
+
+export async function destroyDispatchers (): Promise<void> {
+  await Promise.allSettled([
+    GLOBAL_DISPATCHER.destroy(),
+    ...Array.from(DISPATCHER_CACHE.values(), dispatcher => dispatcher.destroy()),
+  ])
 }
 
 /**

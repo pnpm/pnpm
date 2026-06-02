@@ -7811,6 +7811,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../core/logger
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../network/fetch
       '@pnpm/nopt':
         specifier: 'catalog:'
         version: 0.3.1

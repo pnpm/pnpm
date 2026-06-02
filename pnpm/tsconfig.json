@@ -126,6 +126,9 @@
       "path": "../lockfile/types"
     },
     {
+      "path": "../network/fetch"
+    },
+    {
       "path": "../patching/commands"
     },
     {
