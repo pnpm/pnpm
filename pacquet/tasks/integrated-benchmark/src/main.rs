@@ -71,7 +71,12 @@ async fn main() {
 
     let has_pacquet_target = targets.iter().any(|target| target.kind == TargetKind::Pacquet);
     let has_pnpm_target = targets.iter().any(|target| target.kind == TargetKind::Pnpm);
-    if has_pacquet_target {
+    // A pnpr target builds the `pacquet` + `pnpr` binaries from the same
+    // monorepo clone a pacquet target uses, so it needs the pacquet repo
+    // and cargo just like a pacquet target does.
+    let has_pnpr_target = targets.iter().any(|target| target.kind == TargetKind::Pnpr);
+    let needs_pacquet_repo = has_pacquet_target || has_pnpr_target;
+    if needs_pacquet_repo {
         verify::ensure_pacquet_git_repo(&repository);
     }
     if has_pnpm_target {
@@ -82,7 +87,7 @@ async fn main() {
     verify::ensure_program("bash");
     verify::ensure_program("git");
     verify::ensure_program("hyperfine");
-    if has_pacquet_target {
+    if needs_pacquet_repo {
         verify::ensure_program("cargo");
     }
     // `pnpm` is needed by pnpm targets (build script invokes `pnpm install`

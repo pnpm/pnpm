@@ -9,14 +9,18 @@ use crate::{
 use itertools::Itertools;
 use os_display::Quotable;
 use pacquet_fs::file_mode::make_file_executable;
+use pacquet_registry_mock::pick_unused_port;
 use pipe_trait::Pipe;
 use std::{
     borrow::Cow,
     fmt,
     fs::{self, File},
     io::Write,
+    net::TcpStream,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
+    thread,
+    time::Duration,
 };
 
 #[derive(Debug)]
@@ -89,6 +93,14 @@ impl WorkEnv {
         self.bench_dir(BenchId::PacquetRevision(revision)).join("pacquet")
     }
 
+    /// Source-tree location for a pnpr revision: `<bench_dir>/pacquet`.
+    /// A pnpr target builds from the same monorepo clone as a pacquet
+    /// target (the `pacquet` and `pnpr` crates share one workspace), so
+    /// the layout matches [`Self::pacquet_source_dir`].
+    fn pnpr_source_dir(&self, revision: &str) -> PathBuf {
+        self.bench_dir(BenchId::PnprRevision(revision)).join("pacquet")
+    }
+
     /// Source-tree location for a pnpm revision: `<bench_dir>/pnpm-source`.
     fn pnpm_source_dir(&self, revision: &str) -> PathBuf {
         self.bench_dir(BenchId::PnpmRevision(revision)).join("pnpm-source")
@@ -126,7 +138,13 @@ impl WorkEnv {
     /// shell metacharacters from a user-supplied `--work-env`.
     fn install_command(id: BenchId) -> String {
         match id {
-            BenchId::PacquetRevision(_) => "./pacquet/target/release/pacquet".to_string(),
+            // A pnpr target runs the same pacquet client binary; the
+            // pnpr server it talks to is started separately at benchmark
+            // time and reached via the `PNPR_SERVER` env var that
+            // `install.bash` sources from `.pnpr-env`.
+            BenchId::PacquetRevision(_) | BenchId::PnprRevision(_) => {
+                "./pacquet/target/release/pacquet".to_string()
+            }
             BenchId::PnpmRevision(_) => {
                 // Prefer `pnpm.mjs`, fall back to `pnpm.cjs`. Resolved
                 // at script runtime so the existence check sees the
@@ -162,7 +180,7 @@ impl WorkEnv {
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.fixture_dir.as_deref());
             create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), self.registry(), scenario);
-            create_install_script(&dir, scenario, &WorkEnv::install_command(id));
+            create_install_script(&dir, scenario, &WorkEnv::install_command(id), id.is_pnpr());
             create_npmrc(&dir, self.registry(), scenario);
             may_create_lockfile(&dir, scenario, self.fixture_dir.as_deref());
             save_pristine_copies(&dir);
@@ -182,6 +200,7 @@ impl WorkEnv {
             match target.kind {
                 TargetKind::Pacquet => self.build_pacquet(&target.rev),
                 TargetKind::Pnpm => self.build_pnpm(&target.rev),
+                TargetKind::Pnpr => self.build_pnpr(&target.rev),
             }
         }
     }
@@ -212,6 +231,31 @@ impl WorkEnv {
             .arg("build")
             .arg("--release")
             .arg("--bin=pacquet")
+            .pipe(executor("cargo build"));
+    }
+
+    /// Build a pnpr target: both the `pacquet` client and the `pnpr`
+    /// server binaries from the revision's monorepo clone. The server is
+    /// spawned later, at benchmark time, from
+    /// `<bench_dir>/pacquet/target/release/pnpr`.
+    fn build_pnpr(&self, revision: &str) {
+        eprintln!("Revision: {revision:?} (pnpr)");
+
+        let repository = self.repository();
+        let revision_repo = self.pnpr_source_dir(revision);
+
+        let commit = WorkEnv::resolve_revision(repository, revision);
+        eprintln!("Resolved {revision:?} to {commit}");
+
+        sync_bench_repo(repository, &revision_repo, &commit);
+
+        eprintln!("Building {revision:?} (pacquet + pnpr)...");
+        Command::new("cargo")
+            .current_dir(&revision_repo)
+            .arg("build")
+            .arg("--release")
+            .arg("--bin=pacquet")
+            .arg("--bin=pnpr")
             .pipe(executor("cargo build"));
     }
 
@@ -264,14 +308,27 @@ impl WorkEnv {
         // priming run no matter what state the work-env was in. For
         // cold-cache scenarios this is redundant with the per-iteration
         // wipe but harmless (Copilot review on <https://github.com/pnpm/pacquet/pull/296>).
+        // `pnpr-storage` is the per-target pnpr server's store + cache
+        // (only present for `pnpr@<rev>` targets). Wiping it upfront makes
+        // the hyperfine warmup the run that primes the server store, the
+        // same way it primes the client store — so timed runs measure a
+        // warm long-running server rather than whatever a previous run
+        // left behind.
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            for name in ["node_modules", "store-dir"] {
+            for name in ["node_modules", "store-dir", "pnpr-storage"] {
                 let path = dir.join(name);
                 if path.exists() {
                     fs::remove_dir_all(&path).expect("pre-benchmark wipe");
                 }
             }
         }
+
+        // Start a pnpr server per `pnpr@<rev>` target and keep the guards
+        // alive for the whole benchmark; they kill the servers on drop at
+        // the end of this method. Empty (no-op) when there are no pnpr
+        // targets. Spawned before the GVS pre-warm below so a pnpr target
+        // would have its server up if a scenario ever combines the two.
+        let _pnpr_servers = self.start_pnpr_servers();
 
         // For GVS-warm we need a pre-warm pass: hyperfine's `--warmup`
         // would otherwise time-from-empty for the first run since the
@@ -322,11 +379,95 @@ impl WorkEnv {
         executor("hyperfine")(&mut command);
     }
 
+    /// Start a pnpr install-accelerator server for every `pnpr@<rev>`
+    /// target and write the `.pnpr-env` its `install.bash` sources. Each
+    /// server gets an isolated `<bench_dir>/pnpr-storage`. The returned
+    /// guards keep the servers alive and kill them on drop; the vec is
+    /// empty when no target is a pnpr target.
+    fn start_pnpr_servers(&self) -> Vec<PnprServer> {
+        self.benchmarked_ids()
+            .filter(|id| id.is_pnpr())
+            .map(|id| self.start_pnpr_server(id))
+            .collect()
+    }
+
+    fn start_pnpr_server(&self, id: BenchId) -> PnprServer {
+        let bench_dir = self.bench_dir(id);
+        let binary = bench_dir.join("pacquet").join("target").join("release").join("pnpr");
+        assert!(
+            binary.is_file(),
+            "pnpr binary not found at {binary:?} — the build step did not produce it",
+        );
+        let port = pick_unused_port().expect("pick an unused port for the pnpr server");
+
+        eprintln!("Starting pnpr server for {id} on 127.0.0.1:{port}...");
+        let stdout = File::create(bench_dir.join("pnpr-server.stdout.log"))
+            .expect("create pnpr server stdout log");
+        let stderr = File::create(bench_dir.join("pnpr-server.stderr.log"))
+            .expect("create pnpr server stderr log");
+        let process = Command::new(&binary)
+            .arg("--listen")
+            .arg(format!("127.0.0.1:{port}"))
+            .arg("--storage")
+            .arg(bench_dir.join("pnpr-storage"))
+            // The accelerator resolves against the registry the client
+            // sends, caching packuments in its own store. A long TTL keeps
+            // those cached packuments authoritative across the run, the
+            // same value the registry-mock pins for the same reason.
+            .arg("--packument-ttl-secs")
+            .arg("31536000")
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr)
+            .spawn()
+            .expect("spawn pnpr server");
+
+        wait_for_pnpr_ready(port);
+
+        fs::write(
+            bench_dir.join(".pnpr-env"),
+            format!("export PNPR_SERVER=http://127.0.0.1:{port}\n"),
+        )
+        .expect("write .pnpr-env");
+
+        PnprServer { process }
+    }
+
     pub fn run(&self) {
         self.init();
         self.build();
         self.benchmark();
     }
+}
+
+/// A pnpr install-accelerator server spawned for one `pnpr@<rev>`
+/// target. Killed on drop so it never outlives the benchmark run.
+struct PnprServer {
+    process: Child,
+}
+
+impl Drop for PnprServer {
+    fn drop(&mut self) {
+        let pid = self.process.id();
+        let _ = self.process.kill();
+        let _ = self.process.wait();
+        eprintln!("info: Terminated pnpr server pid {pid}");
+    }
+}
+
+/// Poll the pnpr server's TCP port until it accepts a connection. Stays
+/// dependency-free (no async HTTP client) because the orchestrator's
+/// benchmark path is synchronous, unlike the registry-mock's spawn.
+fn wait_for_pnpr_ready(port: u16) {
+    const MAX_RETRIES: usize = 40;
+    const RETRY_DELAY: Duration = Duration::from_millis(250);
+    for _ in 0..MAX_RETRIES {
+        if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            return;
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+    panic!("pnpr server on 127.0.0.1:{port} did not become ready");
 }
 
 /// Fetch `commit` into `revision_repo`, creating it if missing, and
@@ -580,7 +721,18 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
 /// Write `install.bash` that invokes `command` (the resolved binary,
 /// e.g. `./pacquet/target/release/pacquet` or `node .../pnpm.mjs`)
 /// with the scenario's install arguments.
-fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str) {
+///
+/// When `needs_pnpr_env` is set, the script sources `.pnpr-env` (written
+/// at benchmark time once the per-target pnpr server has a port) so the
+/// client picks up `PNPR_SERVER` and routes the install through it. The
+/// `source` fails loudly under `errexit` if the file is missing, rather
+/// than silently falling back to a direct install.
+fn create_install_script(
+    dir: &Path,
+    scenario: BenchmarkScenario,
+    command: &str,
+    needs_pnpr_env: bool,
+) {
     let path = dir.join("install.bash");
 
     eprintln!("Creating script {path:?}...");
@@ -589,6 +741,9 @@ fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str)
     writeln!(file, "#!/bin/bash").unwrap();
     writeln!(file, "set -o errexit -o nounset -o pipefail").unwrap();
     writeln!(file, r#"cd "$(dirname "$0")""#).unwrap();
+    if needs_pnpr_env {
+        writeln!(file, "source ./.pnpr-env").unwrap();
+    }
 
     write!(file, "exec {command}").unwrap();
     for arg in scenario.install_args() {
@@ -603,6 +758,7 @@ fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str)
 enum BenchId<'a> {
     PacquetRevision(&'a str),
     PnpmRevision(&'a str),
+    PnprRevision(&'a str),
     Static(&'a str),
 }
 
@@ -611,7 +767,15 @@ impl<'a> From<&'a TargetSpec> for BenchId<'a> {
         match spec.kind {
             TargetKind::Pacquet => BenchId::PacquetRevision(&spec.rev),
             TargetKind::Pnpm => BenchId::PnpmRevision(&spec.rev),
+            TargetKind::Pnpr => BenchId::PnprRevision(&spec.rev),
         }
+    }
+}
+
+impl BenchId<'_> {
+    /// Whether this bench id drives the client through a pnpr server.
+    fn is_pnpr(self) -> bool {
+        matches!(self, BenchId::PnprRevision(_))
     }
 }
 
@@ -620,6 +784,7 @@ impl<'a> fmt::Display for BenchId<'a> {
         match self {
             BenchId::PacquetRevision(revision) => write!(f, "pacquet@{revision}"),
             BenchId::PnpmRevision(revision) => write!(f, "pnpm@{revision}"),
+            BenchId::PnprRevision(revision) => write!(f, "pnpr@{revision}"),
             BenchId::Static(name) => write!(f, "{name}"),
         }
     }
