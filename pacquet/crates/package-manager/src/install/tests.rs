@@ -1367,7 +1367,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
@@ -1468,7 +1468,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
@@ -1725,7 +1725,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
@@ -1788,6 +1788,12 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 /// network / integrity failure — distinguishable from the early
 /// `OutdatedLockfile` we expect.
 ///
+/// `trust_lockfile` is on so lockfile-resolution verification is
+/// skipped: the unconditional tarball-URL binding check would otherwise
+/// flag the fixture's tripwire tarball URL as a `TARBALL_URL_MISMATCH`
+/// before the drift gate runs. Verification is orthogonal to the drift
+/// check this test exercises.
+///
 /// [#447]: https://github.com/pnpm/pacquet/issues/447
 #[tokio::test]
 async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
@@ -1824,7 +1830,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
         resolved_packages: &Default::default(),
@@ -2933,12 +2939,6 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     // Keep retries minimal — 127.0.0.1:1 fails immediately on every
     // try, but a long retry schedule would dominate the test runtime.
     config.fetch_retries = 0;
-    // The lockfile-verification gate is unrelated to what this test
-    // exercises (optional-tarball swallow path). Disable
-    // `minimumReleaseAge` so the gate doesn't try to fetch metadata
-    // for `broken-pkg` against the unreachable default registry
-    // (which would fail closed with a verifier violation and abort
-    // the install before the optional-snapshot code path runs).
     config.minimum_release_age = None;
     let config = config.leak();
 
@@ -2958,7 +2958,13 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        // The lockfile-resolution verifier is unrelated to what this test
+        // exercises (the optional-tarball swallow path) and now always runs;
+        // its fail-closed tarball-URL check would otherwise try to fetch
+        // metadata for `broken-pkg` from the unreachable default registry and
+        // abort the install before the optional-snapshot code path runs.
+        // `trust_lockfile` is the opt-out that skips verification entirely.
+        trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
@@ -4791,7 +4797,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
