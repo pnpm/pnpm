@@ -1,5 +1,13 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.3.1
+
+### Patch Changes
+
+- Updated dependencies [719cc21]
+  - @pnpm/deps.compliance.audit@1101.0.12
+  - @pnpm/installing.commands@1100.7.1
+
 ## 1101.3.0
 
 ### Minor Changes

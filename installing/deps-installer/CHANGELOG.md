@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 1101.6.1
+
+### Patch Changes
+
+- Updated dependencies [118e9be]
+- Updated dependencies [6f382f4]
+- Updated dependencies [122ab0a]
+- Updated dependencies [1db05c6]
+  - @pnpm/installing.deps-restorer@1101.1.8
+  - @pnpm/installing.deps-resolver@1100.1.6
+
 ## 1101.6.0
 
 ### Minor Changes

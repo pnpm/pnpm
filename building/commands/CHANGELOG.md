@@ -1,5 +1,11 @@
 # @pnpm/building.commands
 
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/installing.commands@1100.7.1
+
 ## 1100.1.0
 
 ### Minor Changes
