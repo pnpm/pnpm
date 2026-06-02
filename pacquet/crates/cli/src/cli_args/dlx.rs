@@ -357,7 +357,11 @@ fn get_valid_cache_dir(
     if !meta.file_type().is_symlink() {
         return None;
     }
-    let target = fs::canonicalize(cache_link).ok()?;
+    // `dunce::canonicalize` (not `fs::canonicalize`) so the cache-hit path
+    // matches the fresh-install branch's form — on Windows `fs::canonicalize`
+    // returns a `\\?\` verbatim path that would feed a different
+    // `node_modules/.bin` string into `PATH`.
+    let target = dunce::canonicalize(cache_link).ok()?;
     let mtime = meta.modified().ok()?;
     let max_age = Duration::from_secs(max_age_minutes.saturating_mul(60));
     // Valid while `mtime + max_age >= now`. A negative elapsed time
