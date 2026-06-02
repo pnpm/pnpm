@@ -16,6 +16,7 @@ use pipe_trait::Pipe;
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -361,8 +362,43 @@ where
 /// the two occurrences must take different cache slots. In `highest`
 /// mode (the default) every occurrence shares the same pair, so the
 /// dedup is unchanged.
-type WantedKey =
-    (Option<String>, Option<String>, Option<bool>, Option<bool>, bool, Option<DateTime<Utc>>);
+///
+/// `project_dir` is part of the key only for project-relative
+/// specifiers (`link:` / `file:` / `workspace:`). A non-injected
+/// workspace dep resolves through
+/// [`resolve_from_local_package`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)
+/// to a `link:<path>` whose `<path>` is computed *relative to the
+/// consuming importer's directory*. Without `project_dir` in the key,
+/// the first importer to resolve `(@scope/lib, workspace:*)` would
+/// seed the workspace-wide cache with its own relative path and every
+/// other importer would reuse it verbatim — e.g. a root resolving to
+/// `link:packages/lib` would hand `packages/app` the same string,
+/// which from `packages/app` points at the non-existent
+/// `packages/app/packages/lib`. Registry specifiers are
+/// importer-independent, so they keep `None` and stay shared across
+/// importers (the cross-importer dedup the cache exists for).
+type WantedKey = (
+    Option<String>,
+    Option<String>,
+    Option<bool>,
+    Option<bool>,
+    bool,
+    Option<DateTime<Utc>>,
+    Option<PathBuf>,
+);
+
+/// Whether a wanted dep's resolution is computed relative to the
+/// consuming importer's directory rather than being
+/// importer-independent. True for the `link:` / `file:` / `workspace:`
+/// protocols, whose resolved path
+/// [`resolve_from_local_package`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)
+/// derives from `project_dir`. Such resolutions must not be shared
+/// across importers in [`WantedKey`].
+fn is_project_relative_specifier(bare_specifier: Option<&str>) -> bool {
+    bare_specifier.is_some_and(|spec| {
+        spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
+    })
+}
 
 /// One spec carried through [`extend_tree`] and the importer-side
 /// orchestrator: `(alias, range, optional, injected)`. `injected`
@@ -831,6 +867,11 @@ where
     // a direct (`depth == 0`) or transitive dep, so the cache key and
     // the resolver call both key off the depth-specific options.
     let opts = ctx.opts_for_depth(depth);
+    // Project-relative resolutions (`link:`/`file:`/`workspace:`) are
+    // keyed by the consuming importer so one importer's relative path
+    // is never reused by another. See [`WantedKey`].
+    let project_scope = is_project_relative_specifier(wanted.bare_specifier.as_deref())
+        .then(|| ctx.base_opts.project_dir.clone());
     let cache_key: WantedKey = (
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
@@ -838,6 +879,7 @@ where
         wanted.injected,
         opts.pick_lowest_version,
         opts.published_by,
+        project_scope,
     );
     let cached =
         lock_recoverable(&ctx.workspace.resolved_by_wanted).get(&cache_key).map(Arc::clone);
@@ -1264,7 +1306,13 @@ where
     // A reused node carries the synthesized registry resolution into the
     // same per-wanted cache a fresh resolve would populate, so a later
     // fresh-resolve of the identical wanted dep short-circuits to it.
+    // `try_reuse_node` only reproduces registry resolutions, which are
+    // importer-independent, so the project scope is always `None` here —
+    // computed through the same helper to stay in lockstep with the
+    // fresh-resolve key shape.
     let opts = ctx.opts_for_depth(depth);
+    let project_scope = is_project_relative_specifier(wanted.bare_specifier.as_deref())
+        .then(|| ctx.base_opts.project_dir.clone());
     let cache_key: WantedKey = (
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
@@ -1272,6 +1320,7 @@ where
         wanted.injected,
         opts.pick_lowest_version,
         opts.published_by,
+        project_scope,
     );
     lock_recoverable(&ctx.workspace.resolved_by_wanted)
         .entry(cache_key)
