@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.7.1
+
+### Patch Changes
+
+- Updated dependencies [37669c2]
+  - @pnpm/workspace.state@1100.0.18
+  - @pnpm/deps.status@1100.0.21
+  - @pnpm/installing.deps-installer@1101.6.1
+  - @pnpm/installing.env-installer@1101.1.5
+  - @pnpm/global.commands@1100.0.24
+
 ## 1100.7.0
 
 ### Minor Changes

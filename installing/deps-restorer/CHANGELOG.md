@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 1101.1.8
+
+### Patch Changes
+
+- 118e9be: Set `npm_config_user_agent` for root lifecycle scripts during headless installs.
+
 ## 1101.1.7
 
 ### Patch Changes
