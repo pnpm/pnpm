@@ -1,13 +1,18 @@
 //! SQLite-backed whole-lockfile verification verdict cache for the pnpr
 //! install accelerator ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
 //!
-//! Caches the *result* of verifying an entire input lockfile, keyed by
-//! `(lockfile content hash, policy snapshot)` — the same model as the
+//! Caches the *result* of verifying an entire input lockfile. Like the
 //! local `lockfile-verified.jsonl` cache
-//! ([`pacquet_lockfile_verification::CacheRecord`] +
-//! [`ResolutionVerifier::can_trust_past_check`]), but backed by SQLite so
-//! many client connections can read/write concurrently and the server
-//! can evict without the JSONL append/compaction races.
+//! ([`pacquet_lockfile_verification::CacheRecord`]), a row is keyed by
+//! the lockfile content hash and stores the merged policy snapshot; a
+//! lookup is a hit only when every active verifier's
+//! [`ResolutionVerifier::can_trust_past_check`] accepts that stored
+//! snapshot (a looser current policy can trust a stricter cached run).
+//! One row per hash — a later pass overwrites the snapshot, matching the
+//! local cache's last-write-wins-by-hash rather than keeping a row per
+//! policy. Backed by SQLite so many client connections can read/write
+//! concurrently and the server can evict without the JSONL
+//! append/compaction races.
 //!
 //! Only *passes* are cached. An age-pass is monotonic (versions only get
 //! older) and the lockfile hash pins the exact versions, so a cached

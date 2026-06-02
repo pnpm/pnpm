@@ -57,6 +57,13 @@ pub struct InstallRequest {
     /// lockfile is verified.
     #[serde(default)]
     pub frozen_lockfile: bool,
+    /// The client's effective `trustLockfile`. When `true` the client
+    /// opted out of lockfile verification, so the server skips the
+    /// input-lockfile verify gate (it still reuses the lockfile for
+    /// resolution). Mirrors the local path's `--trust-lockfile` /
+    /// `trustLockfile` opt-out.
+    #[serde(default)]
+    pub trust_lockfile: bool,
     /// Minimum package age (minutes) before a version is acceptable.
     #[serde(default)]
     pub minimum_release_age: Option<u64>,

@@ -88,8 +88,9 @@ pub async fn resolve(
     // by the caller before this point); non-frozen → reuse its pins for
     // unchanged entries and resolve only what's new/changed
     // (`preferFrozenLockfile` + `update: false`). With no lockfile it's a
-    // fresh resolve. `frozen_lockfile` is meaningful only with a lockfile
-    // to freeze; without one we resolve fresh rather than error.
+    // fresh resolve. `frozen_lockfile` is passed through unchanged so a
+    // `--frozen-lockfile` request with no lockfile surfaces pacquet's
+    // frozen-lockfile error rather than silently synthesizing one.
     let input_lockfile = request.lockfile.as_ref();
     let lockfile_path = dir.join(Lockfile::FILE_NAME);
     if let Some(lockfile) = input_lockfile {
@@ -97,7 +98,7 @@ pub async fn resolve(
             .save_to_path(&lockfile_path)
             .map_err(|err| ResolveError::Install(err.to_string()))?;
     }
-    let frozen_lockfile = request.frozen_lockfile && input_lockfile.is_some();
+    let frozen_lockfile = request.frozen_lockfile;
 
     let resolved_packages: ResolvedPackages = DashMap::new();
     let tarball_mem_cache: Arc<MemCache> = Arc::new(MemCache::default());

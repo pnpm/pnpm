@@ -323,6 +323,7 @@ impl InstallArgs {
                     node_linker,
                     skip_runtimes,
                     frozen_lockfile,
+                    trust_lockfile,
                     lockfile_path: lockfile_path.as_deref(),
                 },
             )
@@ -391,6 +392,10 @@ struct PnprLink<'a> {
     /// materialization always runs frozen against the server-produced
     /// lockfile.
     frozen_lockfile: bool,
+    /// The effective `trustLockfile` (yaml `trustLockfile` OR
+    /// `--trust-lockfile`); forwarded so the server skips verifying the
+    /// input lockfile when the user opted out, mirroring the local path.
+    trust_lockfile: bool,
     lockfile_path: Option<&'a std::path::Path>,
 }
 
@@ -443,11 +448,12 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             overrides,
             lockfile: state.lockfile.clone(),
             frozen_lockfile: link.frozen_lockfile,
+            trust_lockfile: link.trust_lockfile,
             minimum_release_age: state.config.minimum_release_age,
             minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-            minimum_release_age_ignore_missing_time: Some(
-                state.config.minimum_release_age_ignore_missing_time,
-            ),
+            minimum_release_age_ignore_missing_time: state
+                .config
+                .minimum_release_age_ignore_missing_time,
             trust_policy: state.config.trust_policy,
             trust_policy_exclude: state.config.trust_policy_exclude.clone(),
             trust_policy_ignore_after: state.config.trust_policy_ignore_after,

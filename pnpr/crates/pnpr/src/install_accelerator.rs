@@ -189,13 +189,15 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
 
     // Verify the *input* lockfile under the client's policy before
     // resolving ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
-    // The client skips its own
-    // `verifyLockfileResolutions` whenever a pnpr server is configured,
-    // so this is the only place the committed/reused entries get
-    // checked. A true first install sends no lockfile — nothing to
-    // verify. Freshly-resolved entries are held to the same policy by
-    // the resolver's pick-time gate (the policy is wired into `config`).
-    if let Some(input_lockfile) = request.lockfile.as_ref()
+    // The client skips its own `verifyLockfileResolutions` whenever a
+    // pnpr server is configured, so this is the only place the
+    // committed/reused entries get checked. A true first install sends
+    // no lockfile — nothing to verify. `trustLockfile` is the client's
+    // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
+    // resolved entries are held to the same policy by the resolver's
+    // pick-time gate (the policy is wired into `config`).
+    if !request.trust_lockfile
+        && let Some(input_lockfile) = request.lockfile.as_ref()
         && let Err(response) = verify_input_lockfile(runtime, config, input_lockfile).await
     {
         return response;

@@ -15,8 +15,11 @@
 //!   — the JSONL stat-and-skip cache (lands in a follow-up slice).
 //!
 //! Public surface today: [`verify_lockfile_resolutions()`],
-//! [`collect_resolution_policy_violations()`], [`hash_lockfile()`], and
-//! [`VerifyError`].
+//! [`collect_resolution_policy_violations()`], [`hash_lockfile()`],
+//! [`VerifyError`], and [`RenderedViolation`] — the last lets a caller
+//! that resolved violations out-of-process (e.g. the pnpr client
+//! reconstructing them from the server's response) rebuild the same
+//! [`VerifyError`] via [`VerifyError::from_rendered`].
 //!
 //! [`ResolutionVerifier`]: pacquet_resolving_resolver_base::ResolutionVerifier
 

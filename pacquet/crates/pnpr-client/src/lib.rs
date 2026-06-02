@@ -63,11 +63,15 @@ pub struct InstallOptions<'a> {
     /// Frozen (use the lockfile as-is) vs reuse-and-update resolution
     /// behavior. Does not affect whether the input lockfile is verified.
     pub frozen_lockfile: bool,
+    /// The client's effective `trustLockfile`. When `true` the server
+    /// skips verifying the input lockfile (it still reuses it for
+    /// resolution), mirroring the local `--trust-lockfile` opt-out.
+    pub trust_lockfile: bool,
     /// The client's verification policy. The server verifies the input
     /// lockfile under *this* policy (not its own) before resolving.
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Option<Vec<String>>,
-    pub minimum_release_age_ignore_missing_time: Option<bool>,
+    pub minimum_release_age_ignore_missing_time: bool,
     pub trust_policy: TrustPolicy,
     pub trust_policy_exclude: Option<Vec<String>>,
     pub trust_policy_ignore_after: Option<u64>,
@@ -194,6 +198,7 @@ impl PnprClient {
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
+            "trustLockfile": opts.trust_lockfile,
             "minimumReleaseAge": opts.minimum_release_age,
             "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
             "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
