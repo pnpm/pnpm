@@ -34,7 +34,7 @@ import type {
   ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, updateWorkspaceState, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals, filter, isEmpty, once } from 'ramda'
 
@@ -134,30 +134,21 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
   if (workspaceState.settings) {
     const ignoredSettings = new Set<keyof WorkspaceStateSettings>(opts.ignoredWorkspaceStateSettings)
-    ignoredSettings.add('catalogs') // 'catalogs' is always ignored
-    for (const [settingName, settingValue] of Object.entries(workspaceState.settings)) {
+    ignoredSettings.add('catalogs')
+    for (const settingName of WORKSPACE_STATE_SETTING_KEYS) {
       if (ignoredSettings.has(settingName as keyof WorkspaceStateSettings)) continue
-      const currentSettingValue = settingName === 'allowBuilds'
+      const storedValue = settingName === 'allowBuilds'
+        ? workspaceState.settings[settingName] ?? {}
+        : workspaceState.settings[settingName as keyof WorkspaceStateSettings]
+      const currentValue = settingName === 'allowBuilds'
         ? opts.allowBuilds ?? {}
         : opts[settingName as keyof WorkspaceStateSettings]
-      if (!equals(settingValue, currentSettingValue)) {
+      if (!equals(storedValue, currentValue)) {
         return {
           upToDate: false,
           issue: `The value of the ${settingName} setting has changed`,
           workspaceState,
         }
-      }
-    }
-    if (
-      !ignoredSettings.has('allowBuilds') &&
-      workspaceState.settings.allowBuilds == null &&
-      opts.allowBuilds != null &&
-      !isEmpty(opts.allowBuilds)
-    ) {
-      return {
-        upToDate: false,
-        issue: 'The value of the allowBuilds setting has changed',
-        workspaceState,
       }
     }
   }
