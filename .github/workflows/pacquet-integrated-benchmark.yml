@@ -3,13 +3,19 @@ name: Pacquet Integrated-Benchmark
 on:
   workflow_dispatch:
   push:
-    # Update Bencher's baseline for the `pacquet` testbed whenever
-    # something that could move pacquet's install perf lands on main.
-    # Paths mirror the pull_request filter below.
+    # Update Bencher's baselines whenever something that could move
+    # install perf lands on main. This one benchmark drives two testbeds:
+    # `pacquet` (the direct install) and `pnpr` (the same client through
+    # the pnpr install accelerator). The pnpr server is built from the
+    # `pacquet-*` resolver/store/tarball crates, so a pacquet change can
+    # move both — hence one shared trigger surface (`pacquet/**` + the
+    # workspace infra) plus `pnpr/**` for the server itself. Paths mirror
+    # the pull_request filter below.
     branches: [main]
     paths:
       - 'pacquet/**/*.rs'
       - 'pacquet/**/Cargo.toml'
+      - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -26,6 +32,7 @@ on:
     paths:
       - 'pacquet/**/*.rs'
       - 'pacquet/**/Cargo.toml'
+      - 'pnpr/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -64,7 +71,15 @@ jobs:
       # Bencher as the new baseline. On every other ref (PRs and
       # workflow_dispatch from a non-main branch), compare HEAD against
       # main so the report shows the relative shift.
+      #
+      # `BENCHMARK_TARGETS` drives the cold scenarios (pacquet only).
+      # `BENCHMARK_TARGETS_WITH_PNPR` adds the `pnpr@<rev>` targets and
+      # drives the hot scenarios — pnpr models a warm long-running server,
+      # so it only participates where the server store stays warm across
+      # iterations. Running `pacquet@HEAD` alongside `pnpr@HEAD` in the
+      # same hyperfine invocation also yields the pnpr-vs-direct ratio.
       BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD' || 'pacquet@HEAD pacquet@main' }}
+      BENCHMARK_TARGETS_WITH_PNPR: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -168,8 +183,13 @@ jobs:
 
       - name: Precompile benchmark revisions
         shell: bash
-        timeout-minutes: 15
-        run: just integrated-benchmark --build-only $BENCHMARK_TARGETS
+        # Builds the superset of targets (pacquet + pnpr revisions). A
+        # `pnpr@<rev>` target builds both the `pacquet` client and the
+        # `pnpr` server from its clone, so this also produces the server
+        # binaries the boot step needs. More builds than the pacquet-only
+        # bench, hence the larger timeout.
+        timeout-minutes: 25
+        run: just integrated-benchmark --build-only $BENCHMARK_TARGETS_WITH_PNPR
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         shell: bash
@@ -188,10 +208,12 @@ jobs:
         # Same timeout rationale as the cold-cache step above. Each
         # timed run wipes only `node_modules`; the per-revision store
         # survives, and hyperfine's warmup populates it on the first
-        # iteration so timed runs all see a hot store.
-        timeout-minutes: 10
+        # iteration so timed runs all see a hot store. Runs the
+        # pnpr-augmented target set (up to 4 commands), so it gets more
+        # headroom than the pacquet-only cold steps.
+        timeout-minutes: 15
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS
+          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS_WITH_PNPR
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
 
@@ -211,10 +233,12 @@ jobs:
 
       - name: 'Benchmark: Isolated linker: fresh install, hot cache + hot store'
         shell: bash
-        # Same timeout rationale as the cold-cache install step above.
-        timeout-minutes: 20
+        # Same timeout rationale as the cold-cache install step above,
+        # plus the pnpr-augmented target set (up to 4 commands) and the
+        # pnpr server resolving from scratch on its first request.
+        timeout-minutes: 25
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS
+          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS_WITH_PNPR
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
 
@@ -223,6 +247,8 @@ jobs:
         run: |
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
+            echo
+            echo 'Cold scenarios measure pacquet (direct install). Hot scenarios add pnpr rows — the same client driven through the pnpr install accelerator — so pnpr@HEAD vs pacquet@HEAD is the pnpr-vs-direct ratio. The pacquet@HEAD rows feed the pacquet Bencher testbed; the pnpr@HEAD rows feed the pnpr testbed.'
             echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store'
             echo
@@ -274,32 +300,46 @@ jobs:
           ) > bench-work-env/SUMMARY.md
 
       - name: Build Bencher-shaped report
-        # Combine the four scenario JSONs into one hyperfine-shaped
-        # file that Bencher's shell_hyperfine adapter accepts. We
-        # keep only the @HEAD result from each scenario and rename
-        # `.command` to the scenario name, so Bencher names the
-        # benchmark after the scenario instead of `pacquet@HEAD`.
+        # Combine the scenario JSONs into hyperfine-shaped files that
+        # Bencher's shell_hyperfine adapter accepts, one per testbed. For
+        # each, keep only the chosen target's result from each scenario
+        # and rename `.command` to the scenario name, so Bencher names the
+        # benchmark after the scenario. The `pacquet` testbed gets all
+        # four scenarios (`pacquet@HEAD`); the `pnpr` testbed gets only
+        # the two hot scenarios (`pnpr@HEAD`) — pnpr targets don't run in
+        # the cold scenarios.
         shell: bash
         run: |
-          scenarios=(
-            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store'
-            'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store'
-            'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store'
+          # Build one bencher-results file: $1 = output path, $2 = the
+          # hyperfine command name to keep, $3.. = `FILE_TAG:scenario-name`
+          # entries.
+          build_bencher_file() {
+            local out=$1 command=$2
+            shift 2
+            local inputs=()
+            local entry file_tag name src dst
+            for entry in "$@"; do
+              file_tag="${entry%%:*}"
+              name="${entry#*:}"
+              src="bench-work-env/BENCHMARK_REPORT_${file_tag}.json"
+              dst="bench-work-env/${name}-${command}-bencher.json"
+              jq --arg s "$name" --arg c "$command" \
+                '.results |= [.[] | select(.command == $c) | .command = $s]' \
+                "$src" > "$dst"
+              inputs+=("$dst")
+            done
+            jq -s '{results: map(.results) | add}' "${inputs[@]}" > "$out"
+          }
+
+          build_bencher_file bench-work-env/bencher-results.json pacquet@HEAD \
+            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \
+            'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
+            'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store'
-          )
-          inputs=()
-          for entry in "${scenarios[@]}"; do
-            file_tag="${entry%%:*}"
-            name="${entry#*:}"
-            src="bench-work-env/BENCHMARK_REPORT_${file_tag}.json"
-            dst="bench-work-env/${name}-bencher.json"
-            jq --arg s "$name" \
-              '.results |= [.[] | select(.command == "pacquet@HEAD") | .command = $s]' \
-              "$src" > "$dst"
-            inputs+=("$dst")
-          done
-          jq -s '{results: map(.results) | add}' \
-            "${inputs[@]}" > bench-work-env/bencher-results.json
+
+          build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
+            'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
+            'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store'
 
       - name: Stage artifact contents
         # The artifact carries the rendered report plus the
@@ -312,6 +352,7 @@ jobs:
           mkdir -p benchmark-artifact
           cp bench-work-env/SUMMARY.md benchmark-artifact/SUMMARY.md
           cp bench-work-env/bencher-results.json benchmark-artifact/bencher-results.json
+          cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-results-pnpr.json
 
       - name: Upload benchmark report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -341,26 +382,34 @@ jobs:
             echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
             exit 0
           fi
-          args=(
-            --project pnpm
-            --testbed pacquet
-            --adapter shell_hyperfine
-            --file bench-work-env/bencher-results.json
-            --github-actions "$GITHUB_TOKEN"
-          )
+          # One run is one benchmark, two testbeds: `pacquet` (direct
+          # install, all scenarios) and `pnpr` (accelerated path, hot
+          # scenarios). Upload each from its own bencher-results file.
           # `--start-point-clone-thresholds` so the forked branch inherits
           # the threshold configured on main; `--err` so the workflow fails
           # when a sample breaches the upper boundary. Main pushes skip
           # both — by then the regression has already landed.
-          if [ "$REF_NAME" = "main" ]; then
-            args+=(--branch main)
-          else
-            args+=(
-              --branch "$REF_NAME"
-              --start-point main
-              --start-point-reset
-              --start-point-clone-thresholds
-              --err
+          upload() {
+            local testbed=$1 file=$2
+            local args=(
+              --project pnpm
+              --testbed "$testbed"
+              --adapter shell_hyperfine
+              --file "$file"
+              --github-actions "$GITHUB_TOKEN"
             )
-          fi
-          bencher run "${args[@]}"
+            if [ "$REF_NAME" = "main" ]; then
+              args+=(--branch main)
+            else
+              args+=(
+                --branch "$REF_NAME"
+                --start-point main
+                --start-point-reset
+                --start-point-clone-thresholds
+                --err
+              )
+            fi
+            bencher run "${args[@]}"
+          }
+          upload pacquet bench-work-env/bencher-results.json
+          upload pnpr bench-work-env/bencher-results-pnpr.json
