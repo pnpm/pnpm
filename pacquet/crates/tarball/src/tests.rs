@@ -14,7 +14,6 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::Duration};
-use tar::Archive;
 use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
@@ -831,9 +830,7 @@ fn extract_propagates_malformed_tar_instead_of_panicking() {
     // way the filter+map_err plumbing must surface the failure as
     // `TarballError::ReadTarballEntries`.
     let bogus: Vec<u8> = vec![0xFF; 1024];
-    let mut archive = Archive::new(Cursor::new(bogus));
-
-    let err = extract_tarball_entries(&mut archive, store_path, None)
+    let err = extract_tarball_entries(&bogus, store_path, None)
         .expect_err("malformed tar must surface a TarballError, not panic");
 
     assert!(
@@ -883,8 +880,7 @@ fn extract_rejects_parent_dir_component_in_entry_path() {
         builder.finish().expect("finalize tar");
     }
 
-    let mut archive = Archive::new(Cursor::new(tar_bytes));
-    let err = extract_tarball_entries(&mut archive, store_path, None)
+    let err = extract_tarball_entries(&tar_bytes, store_path, None)
         .expect_err("parent-dir component must be rejected, not normalized");
 
     match err {
@@ -926,14 +922,13 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
         }
         builder.finish().expect("finalize tar");
     }
-    let mut archive = Archive::new(Cursor::new(tar_bytes));
 
     fn drop_npm(path: &str) -> bool {
         path.starts_with("lib/node_modules/npm/")
     }
 
     let (cas_paths, pkg_files_idx) =
-        extract_tarball_entries(&mut archive, store_path, Some(&drop_npm))
+        extract_tarball_entries(&tar_bytes, store_path, Some(&drop_npm))
             .expect("tarball extraction with ignore filter");
 
     dbg!(&cas_paths);
