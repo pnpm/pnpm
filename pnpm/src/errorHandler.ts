@@ -59,5 +59,9 @@ async function killProcesses (status: number): Promise<void> {
   } catch {
     // ignore error here
   }
+  if (process.platform === 'win32') {
+    // Work around https://github.com/nodejs/node/issues/56645.
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
+  }
   process.exit(status)
 }
