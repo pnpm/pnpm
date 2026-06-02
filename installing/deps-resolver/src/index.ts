@@ -39,7 +39,7 @@ import { depPathToRef } from './depPathToRef.js'
 import { getCatalogSnapshots } from './getCatalogSnapshots.js'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
-import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies.js'
+import { createNodeIdForLinkedLocalPkg, type DependenciesTree, type UpdateMatchingFunction } from './resolveDependencies.js'
 import {
   type Importer,
   type LinkedDependency,
@@ -73,7 +73,9 @@ export {
 
 interface ProjectToLink {
   binsDir: string
+  declaredDirectDependencies: Set<string>
   directNodeIdsByAlias: Map<string, NodeId>
+  explicitlyRequestedDirectDependencies: Set<string>
   id: ProjectId
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
@@ -245,7 +247,18 @@ export async function resolveDependencies (
 
     return {
       binsDir: project.binsDir,
+      declaredDirectDependencies: new Set([
+        ...Object.keys(project.manifest == null ? {} : getAllDependenciesFromManifest(project.manifest)),
+        ...project.wantedDependencies.flatMap(({ alias, isNew }) => isNew && alias != null ? [alias] : []),
+      ]),
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
+      explicitlyRequestedDirectDependencies: new Set(
+        project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, updateSpec }) =>
+          alias != null && (isNew === true || updateSpec === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
+            ? [alias]
+            : []
+        )
+      ),
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
       manifest: project.manifest,
@@ -255,11 +268,7 @@ export async function resolveDependencies (
     }
   }))
 
-  const {
-    dependenciesGraph,
-    dependenciesByProjectId,
-    peerDependencyIssuesByProjects,
-  } = await resolvePeers({
+  const peerResolutionOpts = {
     allPeerDepNames,
     dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
@@ -273,7 +282,23 @@ export async function resolveDependencies (
     resolvedImporters,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
     workspaceProjectIds: new Set([...opts.allProjectIds, ...Object.keys(opts.wantedLockfile.importers)]),
-  })
+  }
+  const initiallyResolvedPeers = await resolvePeers(peerResolutionOpts)
+  // A second pass reuses the peer contexts already recorded in the lockfile so a
+  // writable install does not rewrite dependency instances whose locked provider
+  // is still valid and present. It can only differ from the first pass for nodes
+  // that carry a locked peer context, so it is skipped when none do (e.g. a fresh
+  // install) to avoid resolving peers twice for no benefit.
+  const {
+    dependenciesGraph,
+    dependenciesByProjectId,
+    peerDependencyIssuesByProjects,
+  } = treeHasLockedPeerContexts(dependenciesTree)
+    ? await resolvePeers({
+      ...peerResolutionOpts,
+      resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
+    })
+    : initiallyResolvedPeers
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   await Promise.all(projectsToResolve.map(async (project, index) => {
@@ -412,6 +437,13 @@ export async function resolveDependencies (
     wantedToBeSkippedPackageIds,
     resolutionPolicyViolations,
   }
+}
+
+function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedPackage>): boolean {
+  for (const node of dependenciesTree.values()) {
+    if (node.lockedPeerContext != null) return true
+  }
+  return false
 }
 
 function addDirectDependenciesToLockfile (

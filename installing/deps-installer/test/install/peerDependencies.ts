@@ -2111,6 +2111,61 @@ test('dedupePeers: version-only peer suffixes without nested dep paths', async (
   expect(lockfile.settings.dedupePeers).toBe(true)
 })
 
+test('a newly added top-level peer provider wins over a locked context', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const opts = testDefaults({ strictPeerDependencies: false })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-parent-with-ab@1.0.0'],
+    opts
+  )
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/peer-c@2.0.0'], opts)
+
+  expect(project.readLockfile().importers['.']?.dependencies?.['@pnpm.e2e/abc-parent-with-ab'].version)
+    .toBe('1.0.0(@pnpm.e2e/peer-c@2.0.0)')
+})
+
+test('an explicitly updated top-level peer provider wins over a locked context', async () => {
+  const project = prepareEmpty()
+  const opts = testDefaults({ strictPeerDependencies: false })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-parent-with-ab@1.0.0', '@pnpm.e2e/peer-c@1.0.0', '@pnpm.e2e/has-peer-c-in-deps@1.0.0'],
+    opts
+  )
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/peer-c@2.0.0'], opts)
+
+  expect(project.readLockfile().importers['.']?.dependencies?.['@pnpm.e2e/abc-parent-with-ab'].version)
+    .toBe('1.0.0(@pnpm.e2e/peer-c@2.0.0)')
+})
+
+test('compatible existing peer contexts survive writable lockfile regeneration', async () => {
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const opts = testDefaults({ strictPeerDependencies: false })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-grand-parent-with-c', '@pnpm.e2e/peer-c@2.0.0'],
+    opts
+  )
+  const { updatedManifest: manifestWithBothContexts } = await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/abc-parent-with-ab'],
+    opts
+  )
+  await addDependenciesToPackage(manifestWithBothContexts, ['is-positive@1.0.0'], opts)
+
+  expect(project.readLockfile().snapshots)
+    .toHaveProperty(['@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)'])
+  expect(project.readLockfile().snapshots)
+    .toHaveProperty(['@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@2.0.0)'])
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/11070
 test('dedupePeers: workspace projects with different peer versions get different instances', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })

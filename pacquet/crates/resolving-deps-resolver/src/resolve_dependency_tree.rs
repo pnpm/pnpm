@@ -1386,8 +1386,8 @@ where
         .as_ref()
         .and_then(|lockfile| lockfile.snapshots.as_ref())
         .and_then(|snaps| snaps.get(&key));
-    let child_refs = snapshot_child_refs(snapshot);
     let peer_dependencies = extract_peer_dependencies(&result);
+    let child_refs = snapshot_child_refs(snapshot, &peer_dependencies);
     let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
@@ -1495,18 +1495,46 @@ where
 }
 
 /// `(install_alias, resolved_snapshot_key)` for every non-`link:` child
-/// recorded on `snapshot`'s `dependencies` + `optionalDependencies`.
-/// Sorted by alias so the per-occurrence walk order is deterministic.
-fn snapshot_child_refs(snapshot: Option<&SnapshotEntry>) -> Vec<(String, PkgNameVerPeer)> {
+/// recorded on `snapshot`'s `dependencies` + `optionalDependencies`,
+/// excluding resolved peers. Sorted by alias so the per-occurrence walk
+/// order is deterministic.
+///
+/// A snapshot's `dependencies` map lists not only the package's real
+/// dependencies but also every *resolved peer* — the node's own peers
+/// (`peer_dependencies`) and the peers its descendants required and
+/// resolved through this node (`transitivePeerDependencies`) — each
+/// pinned to the version it matched in the recorded context. Those are
+/// not real children: a fresh resolve walks only the package's manifest
+/// `dependencies` and re-derives peers separately against the parent
+/// context. Mirroring that, reuse must walk the manifest's deps too — so
+/// peer-named entries are dropped here, matching pnpm's reuse path, which
+/// builds children from
+/// [`getNonDevWantedDependencies(parentPkg.pkg)`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1058)
+/// and uses the snapshot's `dependencies` only as the locked-ref lookup,
+/// not as the child set. Treating a resolved peer as a regular child
+/// makes the peer pass satisfy the peer from the node's own subtree
+/// instead of propagating it up, collapsing the peer-context suffix.
+fn snapshot_child_refs(
+    snapshot: Option<&SnapshotEntry>,
+    peer_dependencies: &BTreeMap<String, PeerDep>,
+) -> Vec<(String, PkgNameVerPeer)> {
     let Some(snapshot) = snapshot else { return Vec::new() };
+    let transitive_peers: HashSet<&str> =
+        snapshot.transitive_peer_dependencies.iter().flatten().map(String::as_str).collect();
     let mut out: Vec<(String, PkgNameVerPeer)> = Vec::new();
     for dep_map in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
         .into_iter()
         .flatten()
     {
         for (alias, dep_ref) in dep_map {
+            let alias_str = alias.to_string();
+            if peer_dependencies.contains_key(&alias_str)
+                || transitive_peers.contains(alias_str.as_str())
+            {
+                continue;
+            }
             if let Some(key) = dep_ref.resolve(alias) {
-                out.push((alias.to_string(), key));
+                out.push((alias_str, key));
             }
         }
     }
