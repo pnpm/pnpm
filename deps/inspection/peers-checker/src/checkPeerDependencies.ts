@@ -135,7 +135,7 @@ function extractVersion (ref: string, alias: string, packages: PackageSnapshots)
 
 function satisfies (version: string, range: string): boolean {
   if (range === '*') return true
-  return semver.satisfies(version, range, { includePrerelease: true })
+  return semver.satisfies(version, range, { includePrerelease: true, loose: true })
 }
 
 function filterPeerDependencyIssues (
