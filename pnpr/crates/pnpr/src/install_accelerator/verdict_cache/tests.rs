@@ -52,6 +52,35 @@ fn hit_hands_the_cached_policy_to_the_trust_check() {
 }
 
 #[test]
+fn a_corrupt_policy_row_is_evicted_on_lookup() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("verdicts.sqlite");
+    let cache = VerdictCache::open(&path).expect("open cache");
+
+    // Write a row whose policy blob isn't valid JSON, behind the cache's back.
+    {
+        let conn = rusqlite::Connection::open(&path).expect("open raw conn");
+        conn.execute(
+            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["corrupt", "not json", 0_i64],
+        )
+        .expect("insert corrupt row");
+    }
+
+    assert!(!cache.is_verified("corrupt", |_| true), "an unparsable policy is a miss");
+
+    let conn = rusqlite::Connection::open(&path).expect("open raw conn");
+    let remaining: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM lockfile_verdicts WHERE hash = ?1",
+            rusqlite::params!["corrupt"],
+            |row| row.get(0),
+        )
+        .expect("count rows");
+    assert_eq!(remaining, 0, "the corrupt row self-heals (is deleted) so it can be re-recorded");
+}
+
+#[test]
 fn re_recording_the_same_hash_overwrites_the_policy() {
     let (_dir, cache) = open();
     cache.record("hash-a", &policy(1440));
