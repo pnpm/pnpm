@@ -85,8 +85,9 @@ fn re_recording_the_same_hash_overwrites_the_policy() {
     let (_dir, cache) = open();
     cache.record("hash-a", &policy(1440));
     cache.record("hash-a", &policy(60));
-    cache.is_verified("hash-a", |cached| {
+    let hit = cache.is_verified("hash-a", |cached| {
         assert_eq!(cached.get("minimumReleaseAge"), Some(&Value::from(60)));
         true
     });
+    assert!(hit, "the row must still be a hit so the overwrite assertion actually runs");
 }

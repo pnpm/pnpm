@@ -113,9 +113,12 @@ impl VerdictCache {
     }
 }
 
-/// Trim the oldest rows past [`MAX_ROWS`]. LRU by `verified_at_ms`; no
-/// TTL because a cached pass never goes stale (monotonic age + the hash
-/// pins exact versions), so eviction is purely space management.
+/// Trim the oldest rows past [`MAX_ROWS`], ordered by `verified_at_ms`
+/// — i.e. by last-verification time (set on `record`, refreshed when a
+/// hash is re-recorded), not access time: a cache *hit* deliberately
+/// doesn't rewrite the row, keeping `is_verified` a pure read. No TTL
+/// because a cached pass never goes stale (monotonic age + the hash pins
+/// exact versions), so eviction is purely space management.
 fn evict_overflow(conn: &Connection) {
     let _ = conn.execute(
         "DELETE FROM lockfile_verdicts WHERE hash IN (
