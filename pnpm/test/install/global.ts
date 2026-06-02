@@ -408,9 +408,9 @@ test('global add in strict minimumReleaseAge mode reports the user-facing error'
   })
   const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
 
-  expect(result.status).toBe(1)
   expect(output).toContain('ERR_PNPM_NO_MATURE_MATCHING_VERSION')
   expect(output).not.toContain('ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED')
+  expect(result.status).toBe(1)
 })
 
 test('global update in loose minimumReleaseAge mode persists immature picks', () => {

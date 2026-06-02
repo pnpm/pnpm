@@ -12,6 +12,7 @@ import { createStoreController } from '@pnpm/store.connection-manager'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 
+import { exit } from './exit.js'
 import { shouldPersistLockfile } from './shouldPersistLockfile.js'
 
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
@@ -129,7 +130,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     return
   }
 
-  process.exit(status ?? 0)
+  await exit(status ?? 0)
 }
 
 class VersionSwitchFail extends PnpmError {

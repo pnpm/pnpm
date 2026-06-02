@@ -111,6 +111,7 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/patching.commands": "workspace:*",
     "@pnpm/pkg-manifest.commands": "workspace:*",
