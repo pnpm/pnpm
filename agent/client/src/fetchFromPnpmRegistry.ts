@@ -32,10 +32,19 @@ export interface FetchFromPnpmRegistryOptions {
   overrides?: Record<string, string>
   /** Node.js version for resolution */
   nodeVersion?: string
-  /** Minimum release age in seconds */
+  /** Minimum release age in minutes */
   minimumReleaseAge?: number
   /** Existing lockfile for incremental resolution */
   lockfile?: LockfileObject
+  /**
+   * `--lockfile-only`: resolve and return only the lockfile — fetch no
+   * files into the local store. Forwarded to the server (which skips the
+   * file diff when it understands the flag); the client also ignores any
+   * `D`/`I` lines so the store stays untouched even against an older
+   * server. Mirrors pnpm's resolve + write, fetch nothing, link nothing.
+   * See https://github.com/pnpm/pnpm/issues/12146.
+   */
+  lockfileOnly?: boolean
 }
 
 export interface FetchFromPnpmRegistryResult {
@@ -77,6 +86,7 @@ export async function fetchFromPnpmRegistry (
     arch: process.arch,
     minimumReleaseAge: opts.minimumReleaseAge,
     lockfile: opts.lockfile,
+    lockfileOnly: opts.lockfileOnly,
     storeIntegrities,
   })
 
@@ -106,6 +116,9 @@ export async function fetchFromPnpmRegistry (
       const tabIdx = line.indexOf('\t')
       const type = line.charAt(0)
       if (type === 'D') {
+        // `--lockfile-only` fetches nothing — ignore any file digests an
+        // older server still streams rather than writing them to the store.
+        if (opts.lockfileOnly) return
         const parts = line.split('\t')
         currentBatch.push({
           digest: parts[1],
@@ -133,6 +146,9 @@ export async function fetchFromPnpmRegistry (
           indexEntries,
         })
       } else if (type === 'I') {
+        // `--lockfile-only` writes no store-index entries — ignore any an
+        // older server still streams.
+        if (opts.lockfileOnly) return
         // Format: I\t{integrity}\t{pkgId}\t{base64}
         // Key is "{integrity}\t{pkgId}" — everything between first and last tab
         const rest = line.substring(tabIdx + 1)

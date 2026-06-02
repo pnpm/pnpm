@@ -210,26 +210,39 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
 
     let packages = resolve::collect_packages(&lockfile, &config.registry);
 
-    if let Err(err) = resolve::fetch_uncached(config, &runtime.client, &packages).await {
-        return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string());
-    }
+    // `--lockfile-only`: pnpm resolves and writes the lockfile but
+    // fetches nothing and links nothing. Skip the tarball fetch + the
+    // file-level diff and return just the lockfile; the client writes it
+    // and stops, so the response carries no `D`/`I` lines.
+    // See [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
+    let result = if request.lockfile_only {
+        diff::DiffResult {
+            missing_files: Vec::new(),
+            package_index: Vec::new(),
+            stats: diff::Stats { total_packages: packages.len() as u64, ..diff::Stats::default() },
+        }
+    } else {
+        if let Err(err) = resolve::fetch_uncached(config, &runtime.client, &packages).await {
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string());
+        }
 
-    let store = match StoreIndex::open_readonly_in(&config.store_dir) {
-        Ok(store) => store,
-        Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
-    };
+        let store = match StoreIndex::open_readonly_in(&config.store_dir) {
+            Ok(store) => store,
+            Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
+        };
 
-    let diff_packages: Vec<diff::ResolvedPackage> = packages
-        .iter()
-        .map(|pkg| diff::ResolvedPackage {
-            integrity: pkg.integrity.clone(),
-            pkg_id: pkg.pkg_id.clone(),
-        })
-        .collect();
+        let diff_packages: Vec<diff::ResolvedPackage> = packages
+            .iter()
+            .map(|pkg| diff::ResolvedPackage {
+                integrity: pkg.integrity.clone(),
+                pkg_id: pkg.pkg_id.clone(),
+            })
+            .collect();
 
-    let result = match diff::compute_diff(&store, &diff_packages, &request.store_integrities) {
-        Ok(result) => result,
-        Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
+        match diff::compute_diff(&store, &diff_packages, &request.store_integrities) {
+            Ok(result) => result,
+            Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
+        }
     };
 
     let mut ndjson: Vec<u8> = Vec::new();

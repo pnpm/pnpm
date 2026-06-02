@@ -2385,6 +2385,7 @@ async function installFromPnpmRegistry (
         overrides: opts.overrides,
         minimumReleaseAge: opts.minimumReleaseAge,
         lockfile: existingLockfile ?? undefined,
+        lockfileOnly: opts.lockfileOnly,
       }))
 
       // Write store index entries so headless install finds them.
@@ -2409,6 +2410,24 @@ async function installFromPnpmRegistry (
       message: `Resolved ${agentStats.totalPackages} packages: ${agentStats.alreadyInStore} cached, ${agentStats.filesToDownload} files to download`,
       prefix: rootDir,
     })
+
+    // `--lockfile-only`: the agent resolved and we wrote the lockfile, but
+    // pnpm fetches nothing and links nothing in this mode — stop before the
+    // headless install. See https://github.com/pnpm/pnpm/issues/12146.
+    if (opts.lockfileOnly) {
+      // Nothing is downloaded in this mode, but the lockfile arrives before
+      // the stream closes — observe `fileDownloads` so a stream error after
+      // the `L` frame doesn't surface as an unhandled rejection.
+      void fileDownloads.catch(() => {})
+      return {
+        updatedCatalogs: undefined,
+        updatedManifest: manifest,
+        ignoredBuilds: undefined,
+        stats: { added: 0, removed: 0, linkedToRoot: 0 },
+        lockfile,
+        resolutionPolicyViolations: [],
+      }
+    }
 
     // Wrap fetchPackage to:
     // 1. Wait for agent file downloads before checking the store

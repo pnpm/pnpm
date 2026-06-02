@@ -66,6 +66,7 @@ fn options<'a>(
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
+        lockfile_only: false,
         trust_lockfile: false,
         minimum_release_age: None,
         minimum_release_age_exclude: None,
@@ -109,6 +110,37 @@ async fn resolves_and_downloads_a_package() {
     assert!(
         store_keys.iter().any(|key| key.contains("@foo/no-deps@1.0.0")),
         "client store index should hold the package, got: {store_keys:?}",
+    );
+}
+
+#[tokio::test]
+async fn lockfile_only_resolves_without_fetching_files() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client_store = TempDir::new().unwrap();
+    let store = StoreDir::new(client_store.path().to_path_buf());
+    let client = PnprClient::new(pnpr_url);
+
+    // `--lockfile-only`: the server resolves and returns the lockfile but
+    // fetches nothing and serves no files, so the client store stays
+    // empty. Mirrors pnpm's resolve + write, fetch nothing, link nothing.
+    let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile_only = true;
+    let outcome = client.install(opts).await.expect("lockfile-only install should succeed");
+
+    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
+    assert!(
+        packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+        "lockfile should still contain @foo/no-deps@1.0.0",
+    );
+    assert_eq!(outcome.files_written, 0, "lockfile-only should download no files");
+    assert_eq!(outcome.index_entries_written, 0, "lockfile-only should write no index entries");
+    assert!(
+        pacquet_store_dir::StoreIndex::open_readonly_in(&store)
+            .map(|index| index.keys().unwrap_or_default().is_empty())
+            .unwrap_or(true),
+        "client store index should stay empty after a lockfile-only install",
     );
 }
 
