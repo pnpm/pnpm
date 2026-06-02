@@ -2415,6 +2415,10 @@ async function installFromPnpmRegistry (
     // pnpm fetches nothing and links nothing in this mode — stop before the
     // headless install. See https://github.com/pnpm/pnpm/issues/12146.
     if (opts.lockfileOnly) {
+      // Nothing is downloaded in this mode, but the lockfile arrives before
+      // the stream closes — observe `fileDownloads` so a stream error after
+      // the `L` frame doesn't surface as an unhandled rejection.
+      void fileDownloads.catch(() => {})
       return {
         updatedCatalogs: undefined,
         updatedManifest: manifest,

@@ -32,7 +32,7 @@ export interface FetchFromPnpmRegistryOptions {
   overrides?: Record<string, string>
   /** Node.js version for resolution */
   nodeVersion?: string
-  /** Minimum release age in seconds */
+  /** Minimum release age in minutes */
   minimumReleaseAge?: number
   /** Existing lockfile for incremental resolution */
   lockfile?: LockfileObject
