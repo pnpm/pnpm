@@ -92,6 +92,9 @@ export interface ChildrenMap {
 export type DependenciesTreeNode<T> = {
   children: (() => ChildrenMap) | ChildrenMap
   installable: boolean
+  dependencyNamesWhoseCurrentProviderMustWin?: Set<string>
+  lockedPeerContext?: LockedPeerContext
+  previousDepPath?: DepPath
 } & ({
   resolvedPackage: T & { name: string, version: string }
   depth: number
@@ -133,6 +136,8 @@ export interface PendingNode {
   resolvedPackage: ResolvedPackage
   depth: number
   installable: boolean
+  lockedPeerContext?: LockedPeerContext
+  previousDepPath?: DepPath
   parentIds: PkgResolutionId[]
 }
 
@@ -235,6 +240,8 @@ export interface PkgAddress extends PkgAddressOrLinkBase {
   missingPeersOfChildren?: MissingPeersOfChildren
   publishedAt?: string
   saveCatalogName?: string
+  lockedPeerContext?: LockedPeerContext
+  previousDepPath?: DepPath
 }
 
 export type PkgAddressOrLink = PkgAddress | LinkedDependency
@@ -279,7 +286,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia' | 'lockedPeerContext' | 'previousDepPath'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -937,6 +944,10 @@ async function resolveDependenciesOfDependency (
     })
     return { resolveDependencyResult }
   }
+  if (update === false && extendedWantedDep.infoFromLockfile != null) {
+    resolveDependencyResult.previousDepPath = extendedWantedDep.infoFromLockfile.depPath
+    resolveDependencyResult.lockedPeerContext = extendedWantedDep.infoFromLockfile.lockedPeerContext
+  }
   if (!resolveDependencyResult.isNew) {
     return {
       resolveDependencyResult,
@@ -1078,6 +1089,16 @@ async function resolveChildren (
     }, {} as Record<string, NodeId>),
     depth: parentDepth,
     installable: parentPkg.installable,
+    dependencyNamesWhoseCurrentProviderMustWin: new Set(pkgAddresses
+      .filter((child) => {
+        const previousRef = dependencyLockfile?.dependencies?.[child.alias] ??
+          dependencyLockfile?.optionalDependencies?.[child.alias]
+        if (previousRef == null || child.isLinkedDependency) return true
+        return child.previousDepPath !== dp.refToRelative(previousRef, child.alias)
+      })
+      .map(({ alias }) => alias)),
+    lockedPeerContext: parentPkg.lockedPeerContext,
+    previousDepPath: parentPkg.previousDepPath,
     resolvedPackage: ctx.resolvedPkgsById[parentPkg.pkgId],
   })
   return resolvingPeers
@@ -1183,9 +1204,26 @@ function referenceSatisfiesWantedSpec (
   return semver.satisfies(version, wantedDep.bareSpecifier, true)
 }
 
+export interface LockedPeerContext {
+  [peerName: string]: DepPath
+}
+
+function getLockedPeerContext (dependencyLockfile: PackageSnapshot): LockedPeerContext | undefined {
+  if (dependencyLockfile.peerDependencies == null) return undefined
+  const lockedPeerContext: LockedPeerContext = {}
+  for (const peerName of Object.keys(dependencyLockfile.peerDependencies)) {
+    const ref = dependencyLockfile.dependencies?.[peerName] ?? dependencyLockfile.optionalDependencies?.[peerName]
+    const depPath = ref == null ? null : dp.refToRelative(ref, peerName)
+    if (depPath != null) lockedPeerContext[peerName] = depPath
+  }
+  return Object.keys(lockedPeerContext).length === 0 ? undefined : lockedPeerContext
+}
+
 type InfoFromLockfile = {
+  depPath: DepPath
   pkgId: PkgResolutionId
   dependencyLockfile?: PackageSnapshot
+  lockedPeerContext?: LockedPeerContext
   name?: string
   version?: string
   resolution?: Resolution
@@ -1215,6 +1253,7 @@ function getInfoFromLockfile (
   let dependencyLockfile = lockfile.packages?.[depPath]
 
   if (dependencyLockfile != null) {
+    const lockedPeerContext = getLockedPeerContext(dependencyLockfile)
     if ((dependencyLockfile.peerDependencies != null) && (dependencyLockfile.dependencies != null)) {
       // This is done to guarantee that the dependency will be relinked with the
       // up-to-date peer dependencies
@@ -1232,9 +1271,11 @@ function getInfoFromLockfile (
 
     const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, dependencyLockfile)
     return {
+      depPath,
       name,
       version,
       dependencyLockfile,
+      lockedPeerContext,
       pkgId: nonSemverVersion ?? (`${name}@${version}` as PkgResolutionId),
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
@@ -1243,6 +1284,7 @@ function getInfoFromLockfile (
   } else {
     const parsed = dp.parse(depPath)
     return {
+      depPath,
       pkgId: parsed.nonSemverVersion ?? (parsed.name && parsed.version ? `${parsed.name}@${parsed.version}` : depPath) as PkgResolutionId, // Does it make sense to set pkgId when we're not sure?
     }
   }
@@ -1257,6 +1299,7 @@ interface ResolveDependencyOptions {
     pkgId?: PkgResolutionId
     resolution?: Resolution
     dependencyLockfile?: PackageSnapshot
+    lockedPeerContext?: LockedPeerContext
   }
   preferredVersion?: string
   parentPkg: ParentPkg
@@ -1645,6 +1688,8 @@ async function resolveDependency (
         depth: options.currentDepth,
         parentIds: options.parentIds,
         installable,
+        lockedPeerContext: currentPkg.lockedPeerContext,
+        previousDepPath: currentPkg.depPath,
         nodeId,
         resolvedPackage: ctx.resolvedPkgsById[pkgResponse.body.id],
       })

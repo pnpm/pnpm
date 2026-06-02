@@ -312,6 +312,8 @@ export async function resolveDependencyTree<T> (
         ctx.childrenByParentId[pendingNode.resolvedPackage.id], pendingNode.depth + 1, pendingNode.installable),
       depth: pendingNode.depth,
       installable: pendingNode.installable,
+      lockedPeerContext: pendingNode.lockedPeerContext,
+      previousDepPath: pendingNode.previousDepPath,
       resolvedPackage: pendingNode.resolvedPackage,
     })
   }

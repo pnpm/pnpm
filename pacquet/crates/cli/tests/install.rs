@@ -756,3 +756,93 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// `@pnpm.e2e/abc-parent-with-ab@1.0.0` transitively peer-depends on
+/// `@pnpm.e2e/peer-c` (through its `@pnpm.e2e/abc` dependency). A diamond
+/// reaches it in two compatible peer contexts: the root supplies
+/// `peer-c@2.0.0` directly, while `@pnpm.e2e/abc-grand-parent-with-c` supplies
+/// its own `peer-c@^1.0.0`. The root's exact `abc-parent-with-ab@1.0.0` pin
+/// seeds preferred versions so the grand-parent's `^1.0.0` resolves to the
+/// same `1.0.0`, leaving two distinct peer-suffixed snapshots.
+///
+/// The first install records both. The second install adds a new dep — which
+/// defeats the up-to-date short-circuit so the writable fresh-lockfile path
+/// re-resolves the tree against the prior lockfile, reusing
+/// `abc-parent-with-ab` in both contexts via the lockfile-reuse path. That
+/// reuse must preserve both contexts instead of collapsing the two
+/// occurrences onto one (bare) snapshot.
+///
+/// Mirrors the upstream end-to-end coverage in
+/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/4b07ee0228/installing/deps-installer/test/install/peerDependencies.ts).
+#[test]
+fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
+    // The binary is re-spawned per install via `new_pacquet_command`, so the
+    // `CommandTempCwd::pacquet` builder is not used here.
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // The root pins `abc-parent-with-ab@1.0.0` (the root's peer-c@2.0.0
+    // context) and also pulls in `abc-grand-parent-with-c`, which depends on
+    // `abc-parent-with-ab@^1.0.0` plus its own `peer-c@^1.0.0` (the nested
+    // peer-c@1.x context). The root's exact `1.0.0` pin seeds preferred
+    // versions so the grand-parent's `^1.0.0` resolves to the same `1.0.0`,
+    // giving two compatible peer contexts of the same `abc-parent-with-ab`.
+    let install_with = |deps: serde_json::Value| {
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "dependencies": deps }).to_string(),
+        )
+        .expect("write package.json");
+        new_pacquet_command(&workspace).with_arg("install").assert().success();
+    };
+
+    let root_context = "@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@2.0.0)";
+    let nested_context_prefix = "@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.";
+
+    eprintln!("First install: records both peer-c contexts...");
+    install_with(serde_json::json!({
+        "@pnpm.e2e/abc-grand-parent-with-c": "1.0.0",
+        "@pnpm.e2e/peer-c": "2.0.0",
+        "@pnpm.e2e/abc-parent-with-ab": "1.0.0",
+    }));
+
+    let first = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        first.contains(nested_context_prefix) && first.contains(root_context),
+        "first install must record both peer-c contexts; lockfile:\n{first}",
+    );
+
+    // Add a genuinely new dep. This defeats the up-to-date short-circuit, so
+    // the writable fresh-lockfile resolution path runs and re-resolves the
+    // tree against the prior lockfile — `abc-parent-with-ab` is reused in both
+    // peer contexts via the lockfile-reuse path while only the new dep
+    // resolves fresh.
+    eprintln!("Second install re-resolves with the lockfile and must keep both contexts...");
+    install_with(serde_json::json!({
+        "@pnpm.e2e/abc-grand-parent-with-c": "1.0.0",
+        "@pnpm.e2e/peer-c": "2.0.0",
+        "@pnpm.e2e/abc-parent-with-ab": "1.0.0",
+        "@pnpm.e2e/foo": "100.0.0",
+    }));
+
+    let second = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        second.contains(nested_context_prefix),
+        "reuse must preserve the nested peer-c@1.x context; lockfile:\n{second}",
+    );
+    assert!(
+        second.contains(root_context),
+        "reuse must preserve the root peer-c@2.0.0 context; lockfile:\n{second}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// A fresh `pacquet` command rooted at `workspace`, for tests that run the
+/// binary more than once (the builder is consumed on `assert()`).
+fn new_pacquet_command(workspace: &std::path::Path) -> std::process::Command {
+    std::process::Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(workspace)
+}
