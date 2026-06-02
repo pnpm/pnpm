@@ -939,8 +939,9 @@ pub struct Config {
 
     /// `enablePrePostScripts` from `pnpm-workspace.yaml`. When `true`,
     /// `pnpm run <name>` also runs the `pre<name>` and `post<name>`
-    /// scripts if they exist. Defaults to `false`, matching pnpm's
-    /// [`Config.enablePrePostScripts`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L131).
+    /// scripts if they exist. Defaults to `true`, matching pnpm's
+    /// [`defaultOptions['enable-pre-post-scripts']`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L143).
+    #[default = true]
     pub enable_pre_post_scripts: bool,
 
     /// `scriptShell` from `pnpm-workspace.yaml`. The shell used to run
