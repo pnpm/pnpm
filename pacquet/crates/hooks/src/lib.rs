@@ -7,6 +7,8 @@ pub mod finder;
 pub mod node_runtime;
 pub mod worker;
 
+pub use worker::LogFn;
+
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
 
@@ -77,6 +79,13 @@ pub trait PnpmfileHooks: Send + Sync {
 
     /// `filterLog` hook: determines if a log message should be emitted.
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool;
+
+    /// Path of the pnpmfile that defines these hooks, used as the `from`
+    /// field of `pnpm:hook` log events. `None` for hook sets not backed by
+    /// a file (e.g. the no-op).
+    fn source_path(&self) -> Option<&std::path::Path> {
+        None
+    }
 }
 
 /// A no-op implementation of `PnpmfileHooks`.

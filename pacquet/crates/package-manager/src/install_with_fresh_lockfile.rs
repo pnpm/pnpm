@@ -19,7 +19,7 @@ use pacquet_hooks::finder;
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
@@ -833,6 +833,18 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // the `afterAllResolved` hook can transform the lockfile before it is
         // written.
         let after_all_resolved_hook = pnpmfile_hook.clone();
+        // Pre-bind the reporter, project prefix, and pnpmfile path into the
+        // `context.log(...)` sinks so the resolver and lockfile writer stay
+        // reporter-agnostic. Mirrors pnpm's `createReadPackageHookContext`,
+        // which forwards each hook's `context.log` to the `pnpm:hook` channel.
+        let pnpmfile_path =
+            pnpmfile_hook.as_ref().and_then(|hook| hook.source_path()).map(Path::to_path_buf);
+        let read_package_log = pnpmfile_path
+            .as_ref()
+            .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "readPackage"));
+        let after_all_resolved_log = pnpmfile_path
+            .as_ref()
+            .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "afterAllResolved"));
 
         // Call preResolution hook before resolution starts (mirrors pnpm's behavior in install/index.ts)
         if let Some(ref hook) = pnpmfile_hook {
@@ -878,6 +890,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             peers_suffix_max_length,
             manifest_hook: package_extensions_hook.clone(),
             pnpmfile_hook,
+            read_package_log,
             pick_lowest_direct,
             time_based,
             // Hand the resolver the prior lockfile so it can reuse
@@ -1039,6 +1052,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     &built_lockfile,
                     &lockfile_dir.join(Lockfile::FILE_NAME),
                     after_all_resolved_hook.as_ref(),
+                    after_all_resolved_log.clone(),
                 )
                 .await?;
                 Some(built_lockfile)
@@ -1482,8 +1496,13 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // `.modules.yaml` to land first.
         let wanted_lockfile = if config.lockfile {
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
-            save_wanted_lockfile(&built_lockfile, &target, after_all_resolved_hook.as_ref())
-                .await?;
+            save_wanted_lockfile(
+                &built_lockfile,
+                &target,
+                after_all_resolved_hook.as_ref(),
+                after_all_resolved_log.clone(),
+            )
+            .await?;
             Some(built_lockfile)
         } else {
             None
@@ -1560,6 +1579,29 @@ fn collect_prefetch_cache_keys_from_graph(
     keys
 }
 
+/// Build the `context.log(...)` sink a pnpmfile hook forwards to: each
+/// `context.log(message)` call emits a `pnpm:hook` event through the
+/// install's reporter, carrying the project `prefix`, the pnpmfile path
+/// (`from`), and the hook name. Mirrors pnpm's `createReadPackageHookContext`,
+/// which routes `context.log` to `hookLogger.debug({ from, hook, message, prefix })`.
+fn hook_log_fn<Reporter: self::Reporter>(
+    prefix: &Path,
+    from: &Path,
+    hook: &'static str,
+) -> pacquet_hooks::LogFn {
+    let prefix = prefix.to_string_lossy().into_owned();
+    let from = from.to_string_lossy().into_owned();
+    Arc::new(move |message: String| {
+        Reporter::emit(&LogEvent::Hook(HookLog {
+            level: LogLevel::Debug,
+            from: from.clone(),
+            hook: hook.to_string(),
+            message,
+            prefix: prefix.clone(),
+        }));
+    })
+}
+
 /// Write the freshly-built wanted lockfile to `target`, first running the
 /// `afterAllResolved` pnpmfile hook when one is configured.
 ///
@@ -1573,6 +1615,7 @@ async fn save_wanted_lockfile(
     built_lockfile: &Lockfile,
     target: &Path,
     hook: Option<&Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    log: Option<pacquet_hooks::LogFn>,
 ) -> Result<(), InstallWithFreshLockfileError> {
     let Some(hook) = hook else {
         return built_lockfile
@@ -1582,7 +1625,7 @@ async fn save_wanted_lockfile(
 
     let value = serde_json::to_value(built_lockfile)
         .map_err(InstallWithFreshLockfileError::AfterAllResolvedSerialize)?;
-    let ctx = pacquet_hooks::HookContext { log: Arc::new(|_| {}) };
+    let ctx = pacquet_hooks::HookContext { log: log.unwrap_or_else(|| Arc::new(|_| {})) };
     let result = hook
         .after_all_resolved(value, ctx)
         .await

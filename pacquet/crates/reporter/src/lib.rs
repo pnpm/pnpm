@@ -200,6 +200,17 @@ pub enum LogEvent {
     /// [`cli/default-reporter/src/index.ts:222`](https://github.com/pnpm/pnpm/blob/a456dc78fb/cli/default-reporter/src/index.ts#L222).
     #[serde(rename = "pnpm")]
     Pnpm(PnpmLog),
+
+    /// One per `context.log(...)` call a pnpmfile hook makes while it
+    /// runs (`pnpm:hook`). `readPackage` and `afterAllResolved` hooks
+    /// receive a `context` whose `log` forwards here, so a pnpmfile can
+    /// surface why it rewrote a manifest or lockfile. `@pnpm/cli.default-reporter`
+    /// routes these into the "other" log stream.
+    ///
+    /// Upstream: <https://github.com/pnpm/pnpm/blob/3b12eb27de/core/core-loggers/src/hookLogger.ts>.
+    /// Emit site: <https://github.com/pnpm/pnpm/blob/3b12eb27de/hooks/pnpmfile/src/requireHooks.ts#L244-L249>.
+    #[serde(rename = "pnpm:hook")]
+    Hook(HookLog),
 }
 
 /// `pnpm:context` payload.
@@ -724,6 +735,21 @@ pub enum LockfileVerificationMessage {
 #[derive(Debug, Clone, Serialize)]
 pub struct PnpmLog {
     pub level: LogLevel,
+    pub message: String,
+    pub prefix: String,
+}
+
+/// `pnpm:hook` payload. Field names match pnpm's `HookMessage` so
+/// `@pnpm/cli.default-reporter` accepts the record unchanged. `from`
+/// is the pnpmfile that defined the hook, `hook` is the hook name
+/// (`readPackage` / `afterAllResolved`), `prefix` is the project the
+/// hook ran for, and `message` is the string passed to `context.log`.
+/// The hook context logger emits at `debug`.
+#[derive(Debug, Clone, Serialize)]
+pub struct HookLog {
+    pub level: LogLevel,
+    pub from: String,
+    pub hook: String,
     pub message: String,
     pub prefix: String,
 }

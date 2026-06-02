@@ -94,6 +94,10 @@ pub struct ResolveDependencyTreeOptions {
     pub patched_dependencies: Option<Arc<PatchGroupRecord>>,
     pub manifest_hook: Option<ManifestHook>,
     pub pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
+    /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
+    /// calls. `None` leaves hook logging a no-op. See
+    /// [`WorkspaceTreeCtx::with_read_package_log`].
+    pub read_package_log: Option<pacquet_hooks::LogFn>,
 }
 
 impl std::fmt::Debug for ResolveDependencyTreeOptions {
@@ -103,6 +107,7 @@ impl std::fmt::Debug for ResolveDependencyTreeOptions {
             .field("patched_dependencies", &self.patched_dependencies)
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
             .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
+            .field("read_package_log", &self.read_package_log.as_ref().map(|_| "<log>"))
             .finish()
     }
 }
@@ -228,7 +233,8 @@ where
     let ctx = TreeCtx::new(opts.base_opts)
         .with_patched_dependencies(opts.patched_dependencies)
         .with_manifest_hook(opts.manifest_hook)
-        .with_pnpmfile_hook(opts.pnpmfile_hook);
+        .with_pnpmfile_hook(opts.pnpmfile_hook)
+        .with_read_package_log(opts.read_package_log);
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);
     let mut wanted: Vec<WantedSpec> = Vec::new();
@@ -425,6 +431,11 @@ pub struct WorkspaceTreeCtx {
     /// subtree can be synthesized from the prior lockfile.
     subtree_reusable: Mutex<HashMap<PkgNameVerPeer, bool>>,
     pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
+    /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
+    /// calls, pre-bound to the install's reporter, project prefix, and
+    /// pnpmfile path. `None` leaves hook logging a no-op. See
+    /// [`WorkspaceTreeCtx::with_read_package_log`].
+    read_package_log: Option<pacquet_hooks::LogFn>,
 }
 
 impl Default for WorkspaceTreeCtx {
@@ -443,6 +454,7 @@ impl Default for WorkspaceTreeCtx {
             update_reuse_scope: UpdateReuseScope::All,
             subtree_reusable: Mutex::new(HashMap::new()),
             pnpmfile_hook: None,
+            read_package_log: None,
         }
     }
 }
@@ -498,6 +510,15 @@ impl WorkspaceTreeCtx {
 
     pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
         self.pnpmfile_hook = pnpmfile_hook;
+        self
+    }
+
+    /// Attach the `context.log(...)` sink the `pnpmfile_hook`'s
+    /// `readPackage` calls forward to. The install layer pre-binds the
+    /// reporter, project prefix, and pnpmfile path into the closure so the
+    /// resolver stays reporter-agnostic.
+    pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
+        self.read_package_log = read_package_log;
         self
     }
 
@@ -663,6 +684,19 @@ impl TreeCtx {
         Arc::get_mut(&mut self.workspace)
             .expect("with_pnpmfile_hook called after the workspace ctx was shared via Arc::clone")
             .pnpmfile_hook = pnpmfile_hook;
+        self
+    }
+
+    /// Attach the `context.log(...)` sink the `pnpmfile_hook`'s
+    /// `readPackage` calls forward to. Like [`Self::with_pnpmfile_hook`],
+    /// this targets the underlying [`WorkspaceTreeCtx`] and panics if it
+    /// has already been shared via `Arc::clone`.
+    pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
+        Arc::get_mut(&mut self.workspace)
+            .expect(
+                "with_read_package_log called after the workspace ctx was shared via Arc::clone",
+            )
+            .read_package_log = read_package_log;
         self
     }
 
@@ -869,7 +903,9 @@ where
             if let Some(pnpmfile_hook) = ctx.workspace.pnpmfile_hook.as_ref()
                 && let Some(manifest) = result_inner.manifest.take()
             {
-                let hook_ctx = pacquet_hooks::HookContext { log: Arc::new(|_| {}) };
+                let log =
+                    ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
+                let hook_ctx = pacquet_hooks::HookContext { log };
 
                 let updated = pnpmfile_hook
                     .read_package((*manifest).clone(), hook_ctx)

@@ -7,7 +7,7 @@ use pacquet_modules_yaml::{
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    BrokenModulesLog, ContextLog, IgnoredScriptsLog, LogEvent, PackageManifestLog,
+    BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LogEvent, PackageManifestLog,
     PackageManifestMessage, ProgressLog, ProgressMessage, Reporter, SilentReporter, Stage,
     StageLog, StatsLog, StatsMessage, SummaryLog,
 };
@@ -6054,6 +6054,19 @@ async fn install_with_pnpmfile(
     root_deps: &[(&str, &str)],
     pnpmfile_src: &str,
 ) -> Result<(), InstallError> {
+    install_with_pnpmfile_reporter::<SilentReporter>(registry_url, root, root_deps, pnpmfile_src)
+        .await
+}
+
+/// Same as [`install_with_pnpmfile`] but routes install events through the
+/// given reporter, so a recording reporter can assert on the `pnpm:hook`
+/// log channel.
+async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
+    registry_url: String,
+    root: &std::path::Path,
+    root_deps: &[(&str, &str)],
+    pnpmfile_src: &str,
+) -> Result<(), InstallError> {
     let modules_dir = root.join("node_modules");
     let virtual_store_dir = modules_dir.join(".pacquet");
 
@@ -6096,7 +6109,7 @@ async fn install_with_pnpmfile(
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
-    .run::<SilentReporter>()
+    .run::<Reporter>()
     .await
 }
 
@@ -6223,4 +6236,135 @@ async fn after_all_resolved_hook_failure_aborts_install() {
     .await;
 
     assert!(result.is_err(), "install must fail when afterAllResolved throws");
+}
+
+/// The first `pnpm:hook` event in `events`, or panic.
+fn first_hook_log(events: &[LogEvent]) -> &HookLog {
+    events
+        .iter()
+        .find_map(|event| match event {
+            LogEvent::Hook(log) => Some(log),
+            _ => None,
+        })
+        .expect("a pnpm:hook event must be emitted")
+}
+
+// Ports pnpm's `pnpmfile: pass log function to readPackage hook`
+// (pnpm/test/install/hooks.ts): a `readPackage` hook's `context.log(...)`
+// surfaces on the `pnpm:hook` channel with the pnpmfile path (`from`), the
+// project (`prefix`), the hook name, and the message.
+#[tokio::test]
+async fn read_package_hook_log_is_forwarded_to_pnpm_hook_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile_reporter::<RecordingReporter>(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { readPackage (pkg, context) {
+  if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+    pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
+    context.log('@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0');
+  }
+  return pkg;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let hook_log = first_hook_log(&captured);
+    assert_eq!(hook_log.hook, "readPackage");
+    assert_eq!(hook_log.message, "@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0");
+    assert!(!hook_log.from.is_empty(), "from must be the pnpmfile path");
+    assert!(!hook_log.prefix.is_empty(), "prefix must be the project dir");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `pnpmfile: run afterAllResolved hook`: an `afterAllResolved`
+// hook's `context.log(...)` surfaces on the `pnpm:hook` channel.
+#[tokio::test]
+async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile_reporter::<RecordingReporter>(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { afterAllResolved (lockfile, context) {
+  context.log('All resolved');
+  return lockfile;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let hook_log = first_hook_log(&captured);
+    assert_eq!(hook_log.hook, "afterAllResolved");
+    assert_eq!(hook_log.message, "All resolved");
+    assert!(!hook_log.from.is_empty(), "from must be the pnpmfile path");
+    assert!(!hook_log.prefix.is_empty(), "prefix must be the project dir");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `pnpmfile: run async afterAllResolved hook`: an async
+// `afterAllResolved` hook's `context.log(...)` also surfaces on `pnpm:hook`.
+#[tokio::test]
+async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile_reporter::<RecordingReporter>(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { async afterAllResolved (lockfile, context) {
+  context.log('All resolved');
+  return lockfile;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let hook_log = first_hook_log(&captured);
+    assert_eq!(hook_log.hook, "afterAllResolved");
+    assert_eq!(hook_log.message, "All resolved");
+
+    drop((dir, registry));
 }

@@ -118,6 +118,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
             patched_dependencies: None,
             manifest_hook: None,
             pnpmfile_hook: None,
+            read_package_log: None,
         },
     )
     .await
@@ -187,6 +188,7 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
             patched_dependencies: None,
             manifest_hook: None,
             pnpmfile_hook: None,
+            read_package_log: None,
         },
     )
     .await
@@ -272,6 +274,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
             patched_dependencies: None,
             manifest_hook: None,
             pnpmfile_hook: None,
+            read_package_log: None,
         },
     )
     .await
@@ -313,6 +316,7 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
             patched_dependencies: None,
             manifest_hook: None,
             pnpmfile_hook: None,
+            read_package_log: None,
         },
     )
     .await
@@ -357,6 +361,7 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
             patched_dependencies: None,
             manifest_hook: None,
             pnpmfile_hook: None,
+            read_package_log: None,
         },
     )
     .await
@@ -435,6 +440,7 @@ mod block_exotic_subdeps {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -477,6 +483,7 @@ mod block_exotic_subdeps {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -520,6 +527,7 @@ mod block_exotic_subdeps {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -565,6 +573,7 @@ mod block_exotic_subdeps {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -607,6 +616,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -659,6 +669,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -709,6 +720,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -762,6 +774,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -886,6 +899,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -965,6 +979,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1014,6 +1029,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1111,6 +1127,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1206,6 +1223,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1313,6 +1331,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1382,6 +1401,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1492,6 +1512,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1600,6 +1621,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1710,6 +1732,7 @@ mod peers {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1803,6 +1826,7 @@ mod patched_dependencies {
                 patched_dependencies: Some(Arc::new(groups)),
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1851,6 +1875,7 @@ mod patched_dependencies {
                 patched_dependencies: Some(Arc::new(groups)),
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1885,6 +1910,7 @@ mod patched_dependencies {
                 patched_dependencies: Some(Arc::new(groups)),
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -1935,6 +1961,7 @@ mod patched_dependencies {
                 patched_dependencies: Some(Arc::new(groups)),
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -2005,6 +2032,7 @@ mod optional_propagation {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -2060,6 +2088,7 @@ mod optional_propagation {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -2125,6 +2154,7 @@ mod optional_propagation {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
@@ -2178,6 +2208,7 @@ mod optional_propagation {
                 patched_dependencies: None,
                 manifest_hook: None,
                 pnpmfile_hook: None,
+                read_package_log: None,
             },
         )
         .await
