@@ -2,8 +2,9 @@ use std::{collections::HashMap, str::FromStr, sync::Mutex};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
-    LatestQuery, PreferredVersions, ResolveError, ResolveFuture, ResolveLatestFuture,
-    ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    EXISTING_VERSION_SELECTOR_WEIGHT, LatestQuery, PreferredVersions, ResolveError, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, VersionSelectorEntry,
+    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
 };
 use pretty_assertions::assert_eq;
 
@@ -344,6 +345,87 @@ async fn auto_install_skips_optional_peers_without_preferred_versions() {
     assert!(
         !direct.contains(&"peer-c"),
         "optional peer must stay missing without a preferred version",
+    );
+}
+
+/// A locked optional peer version is preserved on re-resolution. The
+/// optional peer `peer-c` is recorded in the preferred versions twice: a
+/// plain entry for the lower `1.0.0` a sibling workspace package declares
+/// directly, and a weighted entry for the already-locked higher `1.0.1`
+/// seeded from the wanted lockfile. Optional peer hoisting must consider
+/// the weighted entry too — otherwise the locked `1.0.1` is discarded and
+/// the lockfile is rewritten to the sibling's `1.0.0`. Regression test for
+/// <https://github.com/pnpm/pnpm/pull/12075>; the end-to-end equivalent
+/// lives in pnpm's `autoInstallPeers.ts`.
+#[tokio::test]
+async fn keeps_locked_optional_peer_over_lower_sibling_version() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("abc".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "abc",
+            "1.0.0",
+            serde_json::json!({
+                "name": "abc",
+                "version": "1.0.0",
+                "peerDependencies": {
+                    "peer-a": "^1.0.0",
+                    "peer-c": "^1.0.0",
+                },
+                "peerDependenciesMeta": {
+                    "peer-c": { "optional": true },
+                },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-a".to_string(), "^1.0.0".to_string()),
+        fake_result("peer-a", "1.0.0", serde_json::json!({ "name": "peer-a", "version": "1.0.0" })),
+    );
+    for version in ["1.0.0", "1.0.1"] {
+        table.insert(
+            ("peer-c".to_string(), version.to_string()),
+            fake_result(
+                "peer-c",
+                version,
+                serde_json::json!({ "name": "peer-c", "version": version }),
+            ),
+        );
+    }
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "abc": "1.0.0" }));
+
+    let mut opts = default_opts();
+    let mut peer_c_selectors = VersionSelectors::new();
+    peer_c_selectors
+        .insert("1.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version));
+    peer_c_selectors.insert(
+        "1.0.1".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    opts.all_preferred_versions.insert("peer-c".to_string(), peer_c_selectors);
+
+    let result =
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("peer-c"),
+        Some(&DepPath::from("peer-c@1.0.1".to_string())),
+        "the already-locked optional peer 1.0.1 must win over the sibling's 1.0.0",
+    );
+    let abc = result
+        .peers_result
+        .direct_dependencies_by_alias
+        .get("abc")
+        .expect("abc resolved")
+        .to_string();
+    assert!(abc.contains("(peer-c@1.0.1)"), "abc should keep the locked optional peer: {abc}");
+    assert!(
+        !abc.contains("(peer-c@1.0.0)"),
+        "abc must not adopt the sibling's lower version: {abc}",
     );
 }
 

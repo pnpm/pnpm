@@ -3,7 +3,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { createPeerDepGraphHash } from '@pnpm/deps.path'
-import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install, type MutatedProject, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -706,5 +706,55 @@ test('override narrows auto-installed peer dep range on subsequent install', asy
     // peer-c should now be 1.0.0, not the stale 1.0.1 from the previous lockfile
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/peer-c@1.0.0'])
     expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/peer-c@1.0.1'])
+  }
+})
+
+test('a locked optional peer version is not rewritten when a sibling workspace package declares a lower version', async () => {
+  // Regression test for https://github.com/pnpm/pnpm/pull/12075
+  // The optional peer is locked at the higher 1.0.1. A sibling workspace
+  // package then declares the lower 1.0.0 directly. The locked 1.0.1 is seeded
+  // into the preferred versions as a weighted selector, which optional peer
+  // hoisting must still consider — otherwise the only candidate left is the
+  // sibling's 1.0.0 and the lockfile is needlessly rewritten.
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  const mutations: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project2') as ProjectRootDir },
+  ]
+  const allProjects = (peerCVersion: string) => [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project1',
+        dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+      },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        dependencies: { '@pnpm.e2e/peer-c': peerCVersion },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+  ]
+
+  // Lock the optional peer at the higher 1.0.1 brought in by the sibling.
+  await mutateModules(mutations, testDefaults({ autoInstallPeers: true, allProjects: allProjects('1.0.1') }))
+  {
+    const lockfile = project.readLockfile()
+    expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers']?.version).toContain('(@pnpm.e2e/peer-c@1.0.1)')
+  }
+
+  // The sibling now declares the lower 1.0.0, but the optional peer stays at 1.0.1.
+  await mutateModules(mutations, testDefaults({ autoInstallPeers: true, allProjects: allProjects('1.0.0') }))
+  {
+    const lockfile = project.readLockfile()
+    const optionalPeerVersion = lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers']?.version
+    expect(optionalPeerVersion).toContain('(@pnpm.e2e/peer-c@1.0.1)')
+    expect(optionalPeerVersion).not.toContain('(@pnpm.e2e/peer-c@1.0.0)')
   }
 })

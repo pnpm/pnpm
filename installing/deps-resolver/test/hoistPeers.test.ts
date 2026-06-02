@@ -155,3 +155,16 @@ test('getHoistableOptionalPeers picks the highest version that satisfies all the
     foo: '2.1.1',
   })
 })
+
+test('getHoistableOptionalPeers handles version selector with weight', () => {
+  expect(getHoistableOptionalPeers({
+    jsdom: ['*'],
+  }, {
+    jsdom: {
+      '26.1.0': 'version',
+      '27.4.0': { selectorType: 'version', weight: 1 },
+    },
+  })).toStrictEqual({
+    jsdom: '27.4.0',
+  })
+})
