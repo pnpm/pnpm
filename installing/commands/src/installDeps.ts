@@ -82,7 +82,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'lockfileOnly'
-| 'agent'
+| 'pnprServer'
 | 'production'
 | 'preferWorkspacePackages'
 | 'registries'

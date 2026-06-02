@@ -1,5 +1,5 @@
 //! Wire types for the pnpr install-accelerator endpoints, matching the
-//! `@pnpm/agent.client` TypeScript client's request shapes.
+//! `@pnpm/pnpr.client` TypeScript client's request shapes.
 
 use std::collections::BTreeMap;
 

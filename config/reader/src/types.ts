@@ -142,7 +142,7 @@ export const pnpmTypes = {
   'embed-readme': Boolean,
   'skip-manifest-obfuscation': Boolean,
   'update-notifier': Boolean,
-  'agent': [null, String],
+  'pnpr-server': [null, String],
   'registry-supports-time-field': Boolean,
   'fail-if-no-match': Boolean,
   'sync-injected-deps-after-scripts': Array,

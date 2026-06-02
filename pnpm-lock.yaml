@@ -1510,34 +1510,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  agent/client:
-    dependencies:
-      '@pnpm/lockfile.fs':
-        specifier: workspace:*
-        version: link:../../lockfile/fs
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
-      '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 1001.0.1
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
-      '@pnpm/store.index':
-        specifier: workspace:*
-        version: link:../../store/index
-      '@pnpm/worker':
-        specifier: workspace:^
-        version: link:../../worker
-    devDependencies:
-      '@pnpm/agent.client':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../core/types
-
   auth/commands:
     dependencies:
       '@inquirer/prompts':
@@ -5578,9 +5550,6 @@ importers:
       '@inquirer/prompts':
         specifier: 'catalog:'
         version: 8.5.2(@types/node@25.9.1)
-      '@pnpm/agent.client':
-        specifier: workspace:*
-        version: link:../../agent/client
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
@@ -5713,6 +5682,9 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
+      '@pnpm/pnpr.client':
+        specifier: workspace:*
+        version: link:../../pnpr/client
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
@@ -8083,6 +8055,34 @@ importers:
       pd:
         specifier: workspace:*
         version: 'link:'
+
+  pnpr/client:
+    dependencies:
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.1
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/store.index':
+        specifier: workspace:*
+        version: link:../../store/index
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+    devDependencies:
+      '@pnpm/pnpr.client':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
 
   registry-access/client:
     dependencies:

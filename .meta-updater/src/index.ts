@@ -18,7 +18,7 @@ const CLI_PKG_NAME = 'pnpm'
 // Experimental packages that are versioned independently on the 0.0.x track
 // and should not be normalized to the pnpm major version.
 const EXPERIMENTAL_PKGS = new Set([
-  '@pnpm/agent.client',
+  '@pnpm/pnpr.client',
 ])
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
