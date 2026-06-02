@@ -243,13 +243,32 @@ pub struct WorkspaceSettings {
     /// [`Config::enable_pre_post_scripts`].
     pub enable_pre_post_scripts: Option<bool>,
 
-    /// `scriptShell` from `pnpm-workspace.yaml`. See
-    /// [`Config::script_shell`].
-    pub script_shell: Option<String>,
+    /// Tri-state `scriptShell` from `pnpm-workspace.yaml`. pnpm reads
+    /// workspace settings into an object and assigns each present key
+    /// onto the merged config (`addSettingsFromWorkspaceManifestToConfig`
+    /// at <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L859-L885>),
+    /// so an explicit `scriptShell: null` clears a value inherited from
+    /// global `config.yaml`, while an absent key inherits. The extra
+    /// `Option` layer preserves that distinction (see
+    /// [`deserialize_double_option`]):
+    ///
+    /// - `None` — key absent → `apply_to` skips the field (inherit).
+    /// - `Some(None)` — explicit `null` → `apply_to` writes
+    ///   `Config.script_shell = None` (clear the inherited shell,
+    ///   falling back to the platform default).
+    /// - `Some(Some(s))` — explicit string → `apply_to` writes
+    ///   `Config.script_shell = Some(s)`.
+    ///
+    /// See [`Config::script_shell`].
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub script_shell: Option<Option<String>>,
 
-    /// `nodeOptions` from `pnpm-workspace.yaml`. See
-    /// [`Config::node_options`].
-    pub node_options: Option<String>,
+    /// Tri-state `nodeOptions` from `pnpm-workspace.yaml`. Same
+    /// inherit / clear / set semantics as [`Self::script_shell`] — an
+    /// explicit `nodeOptions: null` unsets an inherited `NODE_OPTIONS`.
+    /// See [`Config::node_options`].
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub node_options: Option<Option<String>>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. Forced to `true` on
     /// Windows in `apply_to` (matches upstream's
@@ -762,11 +781,14 @@ impl WorkspaceSettings {
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;
         }
+        // Tri-state: `Some(_)` (present in yaml) overwrites — including
+        // `Some(None)` (explicit `null`), which clears the inherited
+        // value. `None` (absent) leaves the inherited config untouched.
         if let Some(v) = self.script_shell {
-            config.script_shell = Some(v);
+            config.script_shell = v;
         }
         if let Some(v) = self.node_options {
-            config.node_options = Some(v);
+            config.node_options = v;
         }
         if let Some(v) = self.unsafe_perm {
             config.unsafe_perm = v;

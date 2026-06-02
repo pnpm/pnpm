@@ -115,6 +115,17 @@ impl WorkspaceSettings {
                 }
             };
         }
+        // Env vars cannot express the "explicit null clears" state that
+        // yaml supports (an empty value reads as unset — see `read_env`),
+        // so a present env var always lands as `Some(Some(s))`, never
+        // `Some(None)`. Same limitation as `tri_array_field!`.
+        macro_rules! tri_string_field {
+            ($field:ident, $suffix:literal) => {
+                if let Some(s) = read_env::<Sys>($suffix) {
+                    settings.$field = Some(Some(s));
+                }
+            };
+        }
 
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
@@ -167,8 +178,8 @@ impl WorkspaceSettings {
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
         json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
-        string_field!(script_shell, "SCRIPT_SHELL");
-        string_field!(node_options, "NODE_OPTIONS");
+        tri_string_field!(script_shell, "SCRIPT_SHELL");
+        tri_string_field!(node_options, "NODE_OPTIONS");
         json_field!(unsafe_perm, "UNSAFE_PERM");
         json_field!(child_concurrency, "CHILD_CONCURRENCY");
         json_field!(workspace_concurrency, "WORKSPACE_CONCURRENCY");

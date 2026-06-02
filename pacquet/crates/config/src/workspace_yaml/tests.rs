@@ -1301,9 +1301,7 @@ peerDependencyRules:
 
 /// `scriptShell` and `nodeOptions` parse from `pnpm-workspace.yaml` as
 /// camelCase keys and `apply_to` writes them to the corresponding
-/// `Config` fields. Pins the explicit `if let Some(v)` blocks (they sit
-/// outside the bulk `apply!` macro because they wrap `Option<String>`
-/// rather than a plain `String`).
+/// `Config` fields. A present string deserializes to `Some(Some(_))`.
 #[test]
 fn parses_script_shell_and_node_options_from_yaml_and_applies() {
     let yaml = r#"
@@ -1311,11 +1309,43 @@ scriptShell: /usr/bin/bash
 nodeOptions: --max-old-space-size=4096
 "#;
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(settings.script_shell.as_deref(), Some("/usr/bin/bash"));
-    assert_eq!(settings.node_options.as_deref(), Some("--max-old-space-size=4096"));
+    assert_eq!(settings.script_shell, Some(Some("/usr/bin/bash".to_string())));
+    assert_eq!(settings.node_options, Some(Some("--max-old-space-size=4096".to_string())));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.script_shell.as_deref(), Some("/usr/bin/bash"));
     assert_eq!(config.node_options.as_deref(), Some("--max-old-space-size=4096"));
+}
+
+/// The tri-state distinguishes "absent" from "explicit null", matching
+/// pnpm: an explicit `scriptShell: null` / `nodeOptions: null` clears a
+/// value inherited from global `config.yaml`, while an absent key leaves
+/// the inherited value untouched.
+#[test]
+fn script_shell_and_node_options_null_clears_inherited_value() {
+    // An absent key parses to `None` and `apply_to` keeps the inherited value.
+    let absent: WorkspaceSettings = serde_saphyr::from_str("hoist: true").unwrap();
+    assert_eq!(absent.script_shell, None);
+    assert_eq!(absent.node_options, None);
+
+    let mut config = Config::new();
+    config.script_shell = Some("/inherited/sh".to_string());
+    config.node_options = Some("--inherited".to_string());
+    absent.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.script_shell.as_deref(), Some("/inherited/sh"), "absent must inherit");
+    assert_eq!(config.node_options.as_deref(), Some("--inherited"), "absent must inherit");
+
+    // An explicit `null` parses to `Some(None)` and `apply_to` clears it.
+    let cleared: WorkspaceSettings =
+        serde_saphyr::from_str("scriptShell: null\nnodeOptions: null").unwrap();
+    assert_eq!(cleared.script_shell, Some(None));
+    assert_eq!(cleared.node_options, Some(None));
+
+    let mut config = Config::new();
+    config.script_shell = Some("/inherited/sh".to_string());
+    config.node_options = Some("--inherited".to_string());
+    cleared.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.script_shell, None, "explicit null must clear the inherited shell");
+    assert_eq!(config.node_options, None, "explicit null must clear inherited NODE_OPTIONS");
 }
