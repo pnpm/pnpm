@@ -1,5 +1,11 @@
 # @pnpm/global.commands
 
+## 1100.0.24
+
+### Patch Changes
+
+- @pnpm/installing.deps-installer@1101.6.1
+
 ## 1100.0.23
 
 ### Patch Changes

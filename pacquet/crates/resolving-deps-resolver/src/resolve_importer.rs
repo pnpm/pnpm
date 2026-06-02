@@ -144,10 +144,16 @@ pub struct ResolveImporterOptions {
     /// `peersSuffixMaxLength` (default 1000).
     pub peers_suffix_max_length: usize,
 
+    pub catalog_server: bool,
+
     /// `readPackageHook` applied to every resolved manifest before
     /// downstream consumers see it. Today drives `packageExtensions`;
     /// see [`crate::ManifestHook`].
     pub manifest_hook: Option<crate::ManifestHook>,
+
+    /// `pnpmfileHook` applied to every resolved manifest. Wraps
+    /// `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
+    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
 }
 
 impl std::fmt::Debug for ResolveImporterOptions {
@@ -170,7 +176,9 @@ impl std::fmt::Debug for ResolveImporterOptions {
             .field("lockfile_dir", &self.lockfile_dir)
             .field("modules_dir", &self.modules_dir)
             .field("peers_suffix_max_length", &self.peers_suffix_max_length)
+            .field("catalog_server", &self.catalog_server)
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
+            .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
             .finish()
     }
 }
@@ -208,13 +216,24 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
     Chain: Resolver + ?Sized,
 {
-    // `manifest_hook` lives on the workspace ctx (it's workspace-wide,
-    // not per-importer). Apply it before sharing the `Arc` —
-    // `resolve_importer_with_workspace` reads through the shared ctx
-    // and can't mutate it after the fact.
-    let workspace =
-        Arc::new(WorkspaceTreeCtx::default().with_manifest_hook(opts.manifest_hook.clone()));
-    resolve_importer_with_workspace(resolver, manifest, dependency_groups, opts, workspace).await
+    // Both `manifest_hook` and `pnpmfile_hook` live on the workspace ctx
+    // (they're workspace-wide, not per-importer). Apply them before
+    // sharing the `Arc` — `resolve_importer_with_workspace` reads through
+    // the shared ctx and can't mutate it after the fact.
+    let workspace = Arc::new(
+        WorkspaceTreeCtx::default()
+            .with_manifest_hook(opts.manifest_hook.clone())
+            .with_pnpmfile_hook(opts.pnpmfile_hook.clone()),
+    );
+    resolve_importer_with_workspace(
+        resolver,
+        pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        manifest,
+        dependency_groups,
+        opts,
+        workspace,
+    )
+    .await
 }
 
 /// Same as [`fn@resolve_importer`] but reuses a shared
@@ -225,6 +244,7 @@ where
 /// map.
 pub async fn resolve_importer_with_workspace<DependencyGroupList, Chain>(
     resolver: &Chain,
+    importer_id: &str,
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
     opts: ResolveImporterOptions,
@@ -249,11 +269,13 @@ where
         lockfile_dir,
         modules_dir,
         peers_suffix_max_length,
-        // `manifest_hook` is workspace-wide; it lives on the shared
-        // [`WorkspaceTreeCtx`] and the caller (`resolve_importer` or
-        // `resolve_workspace`) is responsible for setting it there
-        // before handing the `Arc` to this function.
+        catalog_server: _,
+        // `manifest_hook` and `pnpmfile_hook` are workspace-wide; they live
+        // on the shared [`WorkspaceTreeCtx`] and the caller (`resolve_importer`
+        // or `resolve_workspace`) is responsible for setting them there before
+        // handing the `Arc` to this function.
         manifest_hook: _,
+        pnpmfile_hook: _,
     } = opts;
     let peers_opts = || ResolvePeersOptions {
         peers_suffix_max_length,
@@ -269,7 +291,7 @@ where
 
     let initial_wanted =
         importer_direct_wanted_specs(manifest, dependency_groups, auto_install_peers, &catalogs)?;
-    let mut direct = extend_tree(&ctx, resolver, initial_wanted).await?;
+    let mut direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 
     let mut parent_pkg_aliases: HashSet<String> =
@@ -335,7 +357,7 @@ where
             // threading the per-dep meta.
             let new_wanted: Vec<WantedSpec> =
                 hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-            let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
+            let new_direct = extend_tree(&ctx, resolver, new_wanted, importer_id).await?;
             direct.extend(new_direct);
             update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
         }
@@ -358,7 +380,7 @@ where
         // also defaults to `false` for the same reason.
         let new_wanted: Vec<WantedSpec> =
             hoisted_optional.into_iter().map(|(name, range)| (name, range, false, false)).collect();
-        let new_direct = extend_tree(&ctx, resolver, new_wanted).await?;
+        let new_direct = extend_tree(&ctx, resolver, new_wanted, importer_id).await?;
         direct.extend(new_direct);
         update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
         all_missing_optional_peers.clear();

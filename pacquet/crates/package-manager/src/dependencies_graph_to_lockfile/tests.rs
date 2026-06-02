@@ -1,4 +1,5 @@
 use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
+use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
@@ -10,7 +11,7 @@ use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use serde_json::json;
 use ssri::Integrity;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     str::FromStr,
 };
 use tempfile::TempDir;
@@ -24,7 +25,7 @@ fn single_importer_opts<'a>(
     direct: BTreeMap<String, DepPath>,
     auto_install_peers: bool,
     exclude_links_from_lockfile: bool,
-    overrides: Option<HashMap<String, String>>,
+    overrides: Option<IndexMap<String, String>>,
     ignored_optional_dependencies: Option<Vec<String>>,
 ) -> GraphToLockfileOptions<'a> {
     let mut importers = BTreeMap::new();

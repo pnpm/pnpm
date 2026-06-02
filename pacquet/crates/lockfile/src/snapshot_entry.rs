@@ -18,9 +18,15 @@ pub struct SnapshotEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
     pub dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
     pub optional_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]

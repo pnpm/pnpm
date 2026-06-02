@@ -116,6 +116,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         time: None,
         modified: None,
         etag: None,
+        homepage: None,
         mutex: Default::default(),
     }
 }

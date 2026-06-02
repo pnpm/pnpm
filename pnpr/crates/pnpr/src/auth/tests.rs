@@ -1,5 +1,7 @@
 use super::{TokenStore, UpsertOutcome, UserStore, identify, parse_htpasswd};
 use crate::config::MaxUsers;
+use std::sync::Arc;
+use tokio::sync::Barrier;
 
 /// Tests run with cost 4 (the bcrypt crate's minimum sane value)
 /// so per-test wall-clock stays in the single-digit ms range.
@@ -35,6 +37,53 @@ async fn adduser_rejects_existing_user_with_wrong_password() {
     store.add_or_login("alice", "secret").await.unwrap();
     let err = store.add_or_login("alice", "different").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn adduser_rejects_same_username_concurrent_registration_with_different_password() {
+    let store = Arc::new(UserStore {
+        users: std::sync::Mutex::new(std::collections::HashMap::new()),
+        path: None,
+        max_users: MaxUsers::Unlimited,
+        // Higher than TEST_COST so hashing lasts long enough for both
+        // tasks to clear the initial missing-user check before either
+        // takes the lock — i.e. to actually exercise the race window.
+        bcrypt_cost: 8,
+    });
+    let barrier = Arc::new(Barrier::new(3));
+
+    let spawn_adduser = |password: &'static str| {
+        let store = Arc::clone(&store);
+        let barrier = Arc::clone(&barrier);
+        tokio::spawn(async move {
+            barrier.wait().await;
+            store.add_or_login("alice", password).await
+        })
+    };
+
+    let add_a = spawn_adduser("pw-a");
+    let add_b = spawn_adduser("pw-b");
+    barrier.wait().await;
+
+    let result_a = add_a.await.unwrap();
+    let result_b = add_b.await.unwrap();
+    let created = [result_a.as_ref(), result_b.as_ref()]
+        .into_iter()
+        .filter(|result| matches!(result, Ok(UpsertOutcome::Created)))
+        .count();
+    let unauthorized = [&result_a, &result_b]
+        .into_iter()
+        .filter(|result| {
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.status_code() == axum::http::StatusCode::UNAUTHORIZED)
+        })
+        .count();
+
+    assert_eq!(created, 1, "exactly one concurrent adduser should create the account");
+    assert_eq!(unauthorized, 1, "the losing registration must be rejected");
+    assert_ne!(store.verify("alice", "pw-a").is_some(), store.verify("alice", "pw-b").is_some());
 }
 
 #[tokio::test]

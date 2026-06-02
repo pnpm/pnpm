@@ -1,5 +1,14 @@
 # @pnpm/config.deps-installer
 
+## 1101.1.5
+
+### Patch Changes
+
+- Updated dependencies [6f382f4]
+- Updated dependencies [122ab0a]
+- Updated dependencies [1db05c6]
+  - @pnpm/installing.deps-resolver@1100.1.6
+
 ## 1101.1.4
 
 ### Patch Changes

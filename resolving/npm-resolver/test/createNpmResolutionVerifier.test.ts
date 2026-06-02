@@ -221,6 +221,20 @@ test('createNpmResolutionVerifier() ignoreMissingTimeField passes the entry when
   expect(result).toEqual({ ok: true })
 })
 
+test('createNpmResolutionVerifier() skips file: tarball resolutions', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+  }))!
+  const result = await verifier.verify(
+    {
+      integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+      tarball: 'file:vendor/types__my-cool-lib-v1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: '@types/my-cool-lib', version: '1.0.0' }
+  )
+  expect(result).toEqual({ ok: true })
+})
+
 test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exclude list shrinks', () => {
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     trustPolicy: 'no-downgrade',

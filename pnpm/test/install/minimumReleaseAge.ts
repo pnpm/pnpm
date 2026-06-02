@@ -182,10 +182,10 @@ describe('lockfile minimumReleaseAge verification', () => {
       [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],
       omitMinReleaseAgeEnv
     )
-    expect(result.status).toBe(1)
     const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
     expect(output).toContain('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
     expect(output).toMatch(/is-odd@0\.1\.2/)
+    expect(result.status).toBe(1)
   })
 
   test('loose mode auto-adds fresh immature picks to minimumReleaseAgeExclude', () => {

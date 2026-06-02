@@ -830,5 +830,12 @@ function isNpmRegistryResolution (resolution: Resolution | unknown): boolean {
   // Git-hosted tarballs (codeload/gitlab/bitbucket) are special-cased in
   // the resolver and aren't subject to release-age policy.
   if ('gitHosted' in resolution && (resolution as { gitHosted?: boolean }).gitHosted) return false
+  const tarball = (resolution as { tarball?: unknown }).tarball
+  if (typeof tarball === 'string') {
+    // Local/non-registry tarballs (for example `file:`) have no packument
+    // metadata, so minimumReleaseAge/trustPolicy verification cannot apply.
+    const protocol = tryParseUrl(tarball)?.protocol
+    if (protocol != null && protocol !== 'http:' && protocol !== 'https:') return false
+  }
   return 'tarball' in resolution || 'integrity' in resolution
 }

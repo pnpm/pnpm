@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
-import { Agent, type Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
+import { Agent, type Dispatcher, getGlobalDispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
@@ -20,14 +20,16 @@ const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
 // With HTTP/2, undici multiplexes many streams over 1-2 TCP connections sharing a single
 // congestion window. In benchmarks this was slower than opening ~50 independent HTTP/1.1
 // connections that each get their own congestion window and can saturate bandwidth in parallel.
-setGlobalDispatcher(new Agent({
+const GLOBAL_DISPATCHER = new Agent({
   connections: DEFAULT_MAX_SOCKETS,
   keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
   keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
   connect: {
     autoSelectFamily: true,
   },
-}).compose(stripSecFetchHeaders))
+}).compose(stripSecFetchHeaders)
+
+setGlobalDispatcher(GLOBAL_DISPATCHER)
 
 // undici's fetch() automatically adds sec-fetch-* headers (e.g. sec-fetch-mode: cors)
 // per the Fetch spec. Some registries like Azure DevOps Artifacts interpret these as
@@ -96,6 +98,24 @@ export interface DispatcherOptions {
  */
 export function clearDispatcherCache (): void {
   DISPATCHER_CACHE.clear()
+}
+
+/**
+ * Destroy the global dispatcher and every cached dispatcher, closing their open
+ * sockets. Intended for process shutdown only: once called, the module can no
+ * longer perform network requests. This is used to work around a Windows crash
+ * that happens when the process exits while sockets are still open
+ * (https://github.com/nodejs/node/issues/56645).
+ */
+export async function destroyDispatchers (): Promise<void> {
+  // getGlobalDispatcher() is included in case something replaced GLOBAL_DISPATCHER
+  // via setGlobalDispatcher(); the Set removes the duplicate when it is still our own instance.
+  const dispatchers = new Set<Dispatcher>([
+    GLOBAL_DISPATCHER,
+    getGlobalDispatcher(),
+    ...DISPATCHER_CACHE.values(),
+  ])
+  await Promise.allSettled(Array.from(dispatchers, dispatcher => dispatcher.destroy()))
 }
 
 /**

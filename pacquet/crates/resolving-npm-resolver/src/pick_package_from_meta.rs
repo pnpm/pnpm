@@ -440,6 +440,7 @@ pub fn filter_pkg_metadata_by_publish_date(
         time: meta.time.clone(),
         modified: meta.modified.clone(),
         etag: meta.etag.clone(),
+        homepage: meta.homepage.clone(),
         mutex: std::sync::Arc::clone(&meta.mutex),
     }
 }

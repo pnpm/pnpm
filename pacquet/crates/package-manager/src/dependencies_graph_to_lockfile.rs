@@ -13,6 +13,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use indexmap::IndexMap;
 use pacquet_lockfile::{
     ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings, LockfileVersion,
     PackageKey, PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer,
@@ -84,7 +85,9 @@ pub struct GraphToLockfileOptions<'a> {
     pub peers_suffix_max_length: Option<u64>,
     /// `overrides` recorded into the lockfile so a later install can
     /// detect drift. Mirrors upstream's `lockfile.overrides` field.
-    pub overrides: Option<HashMap<String, String>>,
+    /// An [`IndexMap`] so the user's declaration order is preserved on
+    /// serialization, matching pnpm (which leaves this map unsorted).
+    pub overrides: Option<IndexMap<String, String>>,
     /// `ignoredOptionalDependencies` recorded the same way.
     pub ignored_optional_dependencies: Option<Vec<String>>,
     /// `packageExtensionsChecksum` recorded the same way. Mirrors

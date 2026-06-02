@@ -15,10 +15,11 @@ use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, 
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
+use pacquet_hooks::finder;
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
@@ -323,6 +324,18 @@ pub enum InstallWithFreshLockfileError {
     /// the `pnpm install --frozen-lockfile` headless path.
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
+
+    /// The `afterAllResolved` pnpmfile hook threw or otherwise failed.
+    /// Mirrors pnpm, where a throwing `afterAllResolved` aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    AfterAllResolvedHook(#[error(not(source))] pacquet_hooks::HookError),
+
+    /// The freshly-built lockfile could not be serialized to JSON to pass to
+    /// the `afterAllResolved` pnpmfile hook.
+    #[display("Failed to serialize lockfile for the afterAllResolved hook: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::after_all_resolved_serialize))]
+    AfterAllResolvedSerialize(#[error(source)] serde_json::Error),
 }
 
 impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFreshLockfileError {
@@ -760,6 +773,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 seed_snapshots,
                 manifests_for_preferred.as_slice(),
             );
+        // The picker biases toward this seed so pins that still satisfy
+        // their range survive the re-resolve. Move the map into the `Arc`
+        // (no extra clone) so each per-importer `ResolveOptions` shares it
+        // with a refcount bump rather than deep-cloning the map.
+        let preferred_versions_seed = Arc::new(all_preferred_versions);
 
         // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
         // per install. The resolver consults the grouped record at
@@ -810,6 +828,60 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 .collect();
         let peers_suffix_max_length =
             usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
+        let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
+        // Kept past the resolver hand-off (which consumes `pnpmfile_hook`) so
+        // the `afterAllResolved` hook can transform the lockfile before it is
+        // written.
+        let after_all_resolved_hook = pnpmfile_hook.clone();
+        // Pre-bind the reporter, project prefix, and pnpmfile path into the
+        // `context.log(...)` sinks so the resolver and lockfile writer stay
+        // reporter-agnostic. Mirrors pnpm's `createReadPackageHookContext`,
+        // which forwards each hook's `context.log` to the `pnpm:hook` channel.
+        let pnpmfile_path =
+            pnpmfile_hook.as_ref().and_then(|hook| hook.source_path()).map(Path::to_path_buf);
+        let read_package_log = pnpmfile_path
+            .as_ref()
+            .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "readPackage"));
+        let after_all_resolved_log = pnpmfile_path
+            .as_ref()
+            .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "afterAllResolved"));
+
+        // Call preResolution hook before resolution starts (mirrors pnpm's behavior in install/index.ts)
+        if let Some(ref hook) = pnpmfile_hook {
+            let wanted_lockfile_json = wanted_lockfile
+                .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
+                .unwrap_or_else(|| serde_json::json!({}));
+            let current_lockfile =
+                Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
+                    .ok()
+                    .flatten();
+            let exists_current_lockfile = current_lockfile.is_some();
+            let current_lockfile_json = current_lockfile
+                .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
+                .unwrap_or_else(|| serde_json::json!({}));
+            let registries = serde_json::json!({ "default": config.registry });
+            let ctx = pacquet_hooks::PreResolutionHookContext {
+                wanted_lockfile: wanted_lockfile_json,
+                current_lockfile: current_lockfile_json,
+                exists_current_lockfile,
+                exists_non_empty_wanted_lockfile: wanted_lockfile
+                    .as_ref()
+                    .map(|lf| !lf.snapshots.as_ref().map(|s| s.is_empty()).unwrap_or(true))
+                    .unwrap_or(false),
+                lockfile_dir: lockfile_dir.to_string_lossy().to_string(),
+                store_dir: config.store_dir.display().to_string(),
+                registries,
+            };
+            hook.pre_resolution(
+                ctx,
+                pacquet_hooks::PreResolutionHookLogger {
+                    info: Arc::new(|_| {}),
+                    warn: Arc::new(|_| {}),
+                },
+            )
+            .await;
+        }
+
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
             dedupe_peers: config.dedupe_peers,
             dedupe_injected_deps: config.dedupe_injected_deps,
@@ -817,8 +889,38 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
             manifest_hook: package_extensions_hook.clone(),
+            pnpmfile_hook,
+            read_package_log,
             pick_lowest_direct,
             time_based,
+            // Hand the resolver the prior lockfile so it can reuse
+            // already-resolved subtrees instead of re-resolving from the
+            // registry (see pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md).
+            // Withhold it when `packageExtensions` drifted: a changed
+            // extension rewrites packages' dependency sets, so the recorded
+            // subtree is stale — pnpm likewise invalidates the lockfile on a
+            // settings change. (`overrides` are applied to the manifest
+            // before the importer-level reuse gate re-checks the specifier;
+            // a follow-up should also guard transitive reuse against
+            // overrides drift.)
+            wanted_lockfile: wanted_lockfile
+                .filter(|lockfile| {
+                    lockfile.package_extensions_checksum
+                        == compute_package_extensions_checksum(config)
+                })
+                .cloned()
+                .map(Arc::new),
+            // `pacquet update` must re-resolve its targets to highest-
+            // in-range, so suppress reuse for them (and their subtrees).
+            update_reuse_scope: match &update_seed_policy {
+                UpdateSeedPolicy::KeepAll => pacquet_resolving_deps_resolver::UpdateReuseScope::All,
+                UpdateSeedPolicy::DropAll => {
+                    pacquet_resolving_deps_resolver::UpdateReuseScope::None
+                }
+                UpdateSeedPolicy::DropOnly(names) => {
+                    pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
+                }
+            },
         };
         let modules_basename = config
             .modules_dir
@@ -844,7 +946,9 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                         .auto_install_peers_from_highest_match,
                     resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
                     dedupe_peers: config.dedupe_peers,
-                    all_preferred_versions: all_preferred_versions.clone(),
+                    // The per-importer hoist loop mutates its own copy, so
+                    // clone the shared seed's map here (deref past the `Arc`).
+                    all_preferred_versions: (*preferred_versions_seed).clone(),
                     patched_dependencies: patched_dependencies.clone(),
                     // `pick_lowest_direct` / `subdep_published_by` are
                     // authoritative from `resolve_workspace` (it computes
@@ -856,6 +960,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     pick_lowest_direct,
                     subdep_published_by: published_by,
                     base_opts: ResolveOptions {
+                        preferred_versions: Arc::clone(&preferred_versions_seed),
                         default_tag: Some("latest".to_string()),
                         published_by,
                         published_by_exclude: published_by_exclude.clone(),
@@ -878,7 +983,9 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     lockfile_dir: Some(lockfile_dir.to_path_buf()),
                     modules_dir: Some(importer_modules_dir),
                     peers_suffix_max_length,
+                    catalog_server: false,
                     manifest_hook: package_extensions_hook.clone(),
+                    pnpmfile_hook: None,
                 }
             },
         )
@@ -941,9 +1048,13 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 &direct_by_importer,
             );
             let wanted_lockfile = if config.lockfile {
-                built_lockfile
-                    .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
-                    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+                save_wanted_lockfile(
+                    &built_lockfile,
+                    &lockfile_dir.join(Lockfile::FILE_NAME),
+                    after_all_resolved_hook.as_ref(),
+                    after_all_resolved_log.clone(),
+                )
+                .await?;
                 Some(built_lockfile)
             } else {
                 None
@@ -1385,9 +1496,13 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // `.modules.yaml` to land first.
         let wanted_lockfile = if config.lockfile {
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
-            built_lockfile
-                .save_to_path(&target)
-                .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+            save_wanted_lockfile(
+                &built_lockfile,
+                &target,
+                after_all_resolved_hook.as_ref(),
+                after_all_resolved_log.clone(),
+            )
+            .await?;
             Some(built_lockfile)
         } else {
             None
@@ -1462,6 +1577,68 @@ fn collect_prefetch_cache_keys_from_graph(
     keys.sort_unstable();
     keys.dedup();
     keys
+}
+
+/// Build the `context.log(...)` sink a pnpmfile hook forwards to: each
+/// `context.log(message)` call emits a `pnpm:hook` event through the
+/// install's reporter, carrying the project `prefix`, the pnpmfile path
+/// (`from`), and the hook name. Mirrors pnpm's `createReadPackageHookContext`,
+/// which routes `context.log` to `hookLogger.debug({ from, hook, message, prefix })`.
+fn hook_log_fn<Reporter: self::Reporter>(
+    prefix: &Path,
+    from: &Path,
+    hook: &'static str,
+) -> pacquet_hooks::LogFn {
+    let prefix = prefix.to_string_lossy().into_owned();
+    let from = from.to_string_lossy().into_owned();
+    Arc::new(move |message: String| {
+        Reporter::emit(&LogEvent::Hook(HookLog {
+            level: LogLevel::Debug,
+            from: from.clone(),
+            hook: hook.to_string(),
+            message,
+            prefix: prefix.clone(),
+        }));
+    })
+}
+
+/// Write the freshly-built wanted lockfile to `target`, first running the
+/// `afterAllResolved` pnpmfile hook when one is configured.
+///
+/// Mirrors pnpm: `afterAllResolved` receives the resolved lockfile object and
+/// returns the (possibly mutated) lockfile that gets written. The round-trip
+/// goes through `serde_json::Value` so hook-added keys the typed [`Lockfile`]
+/// cannot represent survive to disk; `serde_json`'s `preserve_order` feature
+/// keeps the output byte-identical to the typed write when the hook makes no
+/// changes. A throwing hook aborts the install.
+async fn save_wanted_lockfile(
+    built_lockfile: &Lockfile,
+    target: &Path,
+    hook: Option<&Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    log: Option<pacquet_hooks::LogFn>,
+) -> Result<(), InstallWithFreshLockfileError> {
+    let Some(hook) = hook else {
+        return built_lockfile
+            .save_to_path(target)
+            .map_err(InstallWithFreshLockfileError::SaveWantedLockfile);
+    };
+
+    let value = serde_json::to_value(built_lockfile)
+        .map_err(InstallWithFreshLockfileError::AfterAllResolvedSerialize)?;
+    let ctx = pacquet_hooks::HookContext { log: log.unwrap_or_else(|| Arc::new(|_| {})) };
+    let result = hook
+        .after_all_resolved(value, ctx)
+        .await
+        .map_err(InstallWithFreshLockfileError::AfterAllResolvedHook)?;
+
+    // `Null` means the pnpmfile has no `afterAllResolved` hook, so write the
+    // typed lockfile unchanged.
+    if result.is_null() {
+        built_lockfile.save_to_path(target)
+    } else {
+        pacquet_lockfile::save_value_to_path(&result, target)
+    }
+    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)
 }
 
 /// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the

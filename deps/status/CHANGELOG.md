@@ -1,5 +1,12 @@
 # @pnpm/deps.status
 
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [37669c2]
+  - @pnpm/workspace.state@1100.0.18
+
 ## 1100.0.20
 
 ### Patch Changes

@@ -170,6 +170,29 @@ fn get_hoistable_optional_peers_picks_the_highest_satisfying_version() {
     assert_eq!(result, expected);
 }
 
+#[test]
+fn get_hoistable_optional_peers_handles_version_selector_with_weight() {
+    let preferred = preferred(&[(
+        "jsdom",
+        &[
+            ("26.1.0", plain(VersionSelectorType::Version)),
+            (
+                "27.4.0",
+                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                    selector_type: VersionSelectorType::Version,
+                    weight: 1,
+                }),
+            ),
+        ],
+    )]);
+    let mut missing = BTreeMap::new();
+    missing.insert("jsdom".to_string(), vec!["*".to_string()]);
+    let result = get_hoistable_optional_peers(&missing, &preferred);
+    let mut expected = BTreeMap::new();
+    expected.insert("jsdom".to_string(), "27.4.0".to_string());
+    assert_eq!(result, expected);
+}
+
 /// Mirrors upstream's `{ includePrerelease: true }` arg to
 /// `semver.maxSatisfying`: a `^18.0.0`-style range must accept an
 /// `18.0.0-rc.1` candidate from the preferred-versions table. The

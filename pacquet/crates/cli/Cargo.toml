@@ -34,20 +34,23 @@ pacquet-diagnostics                       = { workspace = true }
 pacquet-workspace                         = { workspace = true }
 pacquet-workspace-projects-graph          = { workspace = true }
 
-clap        = { workspace = true }
-derive_more = { workspace = true }
-dialoguer   = { workspace = true }
-dunce       = { workspace = true }
-home        = { workspace = true }
-indexmap    = { workspace = true }
-node-semver = { workspace = true }
-miette      = { workspace = true }
-pipe-trait  = { workspace = true }
-rayon       = { workspace = true }
-serde       = { workspace = true }
-serde_json  = { workspace = true }
-tokio       = { workspace = true }
-which       = { workspace = true }
+clap         = { workspace = true }
+derive_more  = { workspace = true }
+dialoguer    = { workspace = true }
+dunce        = { workspace = true }
+futures-util = { workspace = true }
+home         = { workspace = true }
+indexmap     = { workspace = true }
+node-semver  = { workspace = true }
+miette       = { workspace = true }
+owo-colors   = { workspace = true }
+pipe-trait   = { workspace = true }
+rayon        = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+tabled       = { workspace = true }
+tokio        = { workspace = true }
+which        = { workspace = true }
 
 [dev-dependencies]
 pacquet-store-dir     = { workspace = true }

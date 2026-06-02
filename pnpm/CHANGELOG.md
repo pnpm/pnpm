@@ -1,5 +1,17 @@
 # pnpm
 
+## 11.5.1
+
+### Patch Changes
+
+- Improve `pnpm audit` performance by pruning non-vulnerable lockfile subtrees and stopping path enumeration once vulnerable findings reach the path cap.
+- Avoid crashing when the workspace state cache is partially written or malformed.
+- Set `npm_config_user_agent` for root lifecycle scripts during headless installs.
+- Preserve the `integrity` field of a remote (non-registry) tarball dependency when its lockfile entry is rebuilt. Re-resolving such a dependency without re-fetching it (for example via `pnpm update`, or when another dependency changes) produced a resolution with no integrity — URL/tarball resolvers only learn the integrity after the tarball is downloaded — so the previously recorded integrity was dropped, making later installs fail with `ERR_PNPM_MISSING_TARBALL_INTEGRITY` [#12067](https://github.com/pnpm/pnpm/issues/12067).
+- Normalize a string `repository` field into the `{ type, url }` object form when creating the publish manifest, matching npm's behavior. Some registries (e.g. Gitea/Codeberg) reject a string `repository` with a 500 Internal Server Error during `pnpm publish` [#12099](https://github.com/pnpm/pnpm/issues/12099).
+- Preserve compatible optional peer versions already present in the lockfile when resolving dependencies.
+- Fixed inconsistent resolution of a peer dependency that is shared through a diamond. When a package peer-depends on both another package and one of that package's own peer dependencies (for example `@typescript-eslint/eslint-plugin` peer-depends on both `@typescript-eslint/parser` and `typescript`, and `@typescript-eslint/parser` peer-depends on `typescript`), pnpm no longer reuses a hoisted instance of the shared peer that was resolved against a different version [#12079](https://github.com/pnpm/pnpm/issues/12079).
+
 ## 11.5.0
 
 ### Minor Changes

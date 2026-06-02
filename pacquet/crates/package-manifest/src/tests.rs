@@ -407,6 +407,97 @@ fn add_dependency_errors_when_field_is_not_an_object() {
     }
 }
 
+fn manifest_from_json(value: serde_json::Value) -> (PackageManifest, tempfile::TempDir) {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(&path, value.to_string()).unwrap();
+    (PackageManifest::from_path(path).unwrap(), dir)
+}
+
+/// Without a `save_type`, `available_dependency_names` reports the union
+/// of `dependencies`, `devDependencies`, and `optionalDependencies`
+/// (peer excluded) in dev → prod → optional order, deduplicated — the
+/// set `pnpm remove` validates against.
+#[test]
+fn available_dependency_names_unions_all_fields_without_save_type() {
+    let (manifest, _dir) = manifest_from_json(json!({
+        "dependencies": { "prod-dep": "1.0.0", "shared": "1.0.0" },
+        "devDependencies": { "dev-dep": "1.0.0", "shared": "1.0.0" },
+        "optionalDependencies": { "opt-dep": "1.0.0" },
+        "peerDependencies": { "peer-dep": "1.0.0" },
+    }));
+    assert_eq!(
+        manifest.available_dependency_names(None),
+        vec![
+            "dev-dep".to_string(),
+            "shared".to_string(),
+            "prod-dep".to_string(),
+            "opt-dep".to_string(),
+        ],
+    );
+}
+
+/// With a `save_type`, only that field's keys are reported.
+#[test]
+fn available_dependency_names_restricts_to_save_type() {
+    let (manifest, _dir) = manifest_from_json(json!({
+        "dependencies": { "prod-dep": "1.0.0" },
+        "devDependencies": { "dev-dep": "1.0.0" },
+    }));
+    assert_eq!(
+        manifest.available_dependency_names(Some(DependencyGroup::Dev)),
+        vec!["dev-dep".to_string()],
+    );
+}
+
+/// Without a `save_type`, `remove_dependencies` drops the name from every
+/// dependency field, including `peerDependencies` and `dependenciesMeta`.
+/// Mirrors pnpm's `removeDeps`.
+#[test]
+fn remove_dependencies_clears_all_fields_without_save_type() {
+    let (mut manifest, _dir) = manifest_from_json(json!({
+        "dependencies": { "foo": "1.0.0", "bar": "1.0.0" },
+        "devDependencies": { "foo": "1.0.0" },
+        "optionalDependencies": { "foo": "1.0.0" },
+        "peerDependencies": { "foo": "1.0.0" },
+        "dependenciesMeta": { "foo": { "injected": true } },
+    }));
+    manifest.remove_dependencies(&["foo".to_string()], None);
+
+    let value = manifest.value();
+    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
+        assert!(
+            value.get(field).and_then(|f| f.get("foo")).is_none(),
+            "`foo` must be gone from {field}: {value}",
+        );
+    }
+    assert!(value.get("dependenciesMeta").and_then(|m| m.get("foo")).is_none());
+    assert!(value.get("dependencies").and_then(|d| d.get("bar")).is_some(), "`bar` must remain");
+}
+
+/// With a `save_type`, only that field is touched — but `peerDependencies`
+/// and `dependenciesMeta` are still cleared, matching pnpm's `removeDeps`.
+#[test]
+fn remove_dependencies_with_save_type_keeps_other_dependency_fields() {
+    let (mut manifest, _dir) = manifest_from_json(json!({
+        "dependencies": { "foo": "1.0.0" },
+        "devDependencies": { "foo": "1.0.0" },
+        "peerDependencies": { "foo": "1.0.0" },
+    }));
+    manifest.remove_dependencies(&["foo".to_string()], Some(DependencyGroup::Dev));
+
+    let value = manifest.value();
+    assert!(value.get("devDependencies").and_then(|d| d.get("foo")).is_none());
+    assert!(
+        value.get("dependencies").and_then(|d| d.get("foo")).is_some(),
+        "prod entry must survive a dev-targeted remove: {value}",
+    );
+    assert!(
+        value.get("peerDependencies").and_then(|d| d.get("foo")).is_none(),
+        "peer entry is always cleared: {value}",
+    );
+}
+
 /// `safe_read_package_json_from_dir` surfaces non-NotFound IO
 /// errors via `PackageManifestError::Io`, rather than swallowing
 /// them as `Ok(None)`. Mirrors upstream's contract: `null` is

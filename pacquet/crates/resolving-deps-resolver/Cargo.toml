@@ -15,6 +15,7 @@ pacquet-catalogs-resolver                 = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
 pacquet-deps-path                         = { workspace = true }
 pacquet-fs                                = { workspace = true }
+pacquet-hooks                             = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-patching                          = { workspace = true }
