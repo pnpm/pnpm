@@ -79,25 +79,26 @@
 
 [pnpm documentation](https://pnpm.io/cli/exec)
 
-| Done | Command                     | Notes                         |
-| ---- | --------------------------- | ----------------------------- |
-| ✅   | -c, --shell-mode            |                               |
-|      | --recursive                 | Accepted but not yet consumed |
-|      | --filter <package_selector> | Accepted but not yet consumed |
-|      | --resume-from <package>     |                               |
-|      | --report-summary            |                               |
-|      | --no-bail                   |                               |
+| Done | Command                     | Notes                                                        |
+| ---- | --------------------------- | ------------------------------------------------------------ |
+| ✅   | -c, --shell-mode            |                                                              |
+| ~    | --recursive                 | Runs every workspace project sequentially; no `--filter` yet |
+| ✅   | --resume-from <package>     |                                                              |
+| ✅   | --report-summary            |                                                              |
+| ✅   | --no-bail                   |                                                              |
+|      | --filter <package_selector> | Accepted but not yet consumed                                |
+|      | --workspace-concurrency     |                                                              |
 
 ## `pacquet dlx`
 
 [pnpm documentation](https://pnpm.io/cli/dlx)
 
-| Done | Command          | Notes                         |
-| ---- | ---------------- | ----------------------------- |
-| ✅   | --package <pkg>  |                               |
-| ✅   | --allow-build    |                               |
-| ✅   | -c, --shell-mode |                               |
-|      | --cpu / --os / --libc |                          |
+| Done | Command               | Notes |
+| ---- | --------------------- | ----- |
+| ✅   | --package <pkg>       |       |
+| ✅   | --allow-build         |       |
+| ✅   | -c, --shell-mode      |       |
+| ✅   | --cpu / --os / --libc |       |
 
 ## `pacquet test`
 
