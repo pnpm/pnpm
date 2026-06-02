@@ -4,11 +4,13 @@
 //! [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts).
 //!
 //! The factory takes the install-time policy (cutoff time, exclude
-//! patterns, trust policy, named registries) and returns a verifier
-//! when at least one policy is active. The verifier inspects each
-//! npm-registry-resolved lockfile entry, applies the
-//! `minimumReleaseAge` and/or `trustPolicy='no-downgrade'` checks,
-//! and surfaces violations through [`ResolutionVerification::Err`].
+//! patterns, trust policy, named registries) and returns a verifier.
+//! The verifier inspects each npm-registry-resolved lockfile entry: it
+//! always binds the recorded tarball URL to the artifact the registry's
+//! metadata lists (an anti-tamper check independent of any policy), and
+//! additionally applies the `minimumReleaseAge` and/or
+//! `trustPolicy='no-downgrade'` checks when those are configured.
+//! Violations surface through [`ResolutionVerification::Err`].
 //!
 //! The publish-timestamp lookup walks a 4-layer fallback chain
 //! (abbreviated-modified shortcut → local mirror → attestation
@@ -39,7 +41,10 @@ use crate::{
     named_registry::{build_named_registry_prefixes, pick_registry_for_package},
     pick_package::PackageMetaCache,
     trust_checks::fail_if_trust_downgraded,
-    violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE},
+    violation_codes::{
+        MINIMUM_RELEASE_AGE_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        TRUST_DOWNGRADE_VIOLATION_CODE,
+    },
 };
 
 /// Options bundle for [`create_npm_resolution_verifier`]. Mirrors
@@ -150,21 +155,18 @@ impl std::fmt::Debug for NpmResolutionVerifier {
     }
 }
 
-/// Returns an [`NpmResolutionVerifier`] when at least one policy is
-/// active, [`None`] otherwise. The empty case lets the install side
-/// skip building a verifier list, which collapses the fan-out to a
-/// straight pass — every lockfile entry yields `Ok`.
+/// Builds the [`NpmResolutionVerifier`]. It always binds each entry's
+/// recorded tarball URL to the artifact the registry's metadata lists (an
+/// anti-tamper check independent of any policy), and additionally applies
+/// the `minimum_release_age` / `trust_policy='no-downgrade'` checks when
+/// those are configured.
 ///
 /// Mirrors upstream's
 /// [`createNpmResolutionVerifier`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L98-L253).
 pub fn create_npm_resolution_verifier(
     opts: CreateNpmResolutionVerifierOptions,
-) -> Option<NpmResolutionVerifier> {
+) -> NpmResolutionVerifier {
     let age_check_active = opts.minimum_release_age.is_some_and(|minutes| minutes > 0);
-    let trust_check_active = matches!(opts.trust_policy, Some(TrustPolicy::NoDowngrade));
-    if !age_check_active && !trust_check_active {
-        return None;
-    }
 
     let cutoff = if age_check_active {
         let minutes = opts.minimum_release_age.unwrap_or(0);
@@ -196,7 +198,7 @@ pub fn create_npm_resolution_verifier(
         opts.trust_policy_ignore_after,
     );
 
-    Some(NpmResolutionVerifier {
+    NpmResolutionVerifier {
         minimum_release_age_minutes: opts.minimum_release_age,
         cutoff,
         minimum_release_age_exclude: opts.minimum_release_age_exclude,
@@ -215,7 +217,7 @@ pub fn create_npm_resolution_verifier(
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
-    })
+    }
 }
 
 impl ResolutionVerifier for NpmResolutionVerifier {
@@ -232,6 +234,13 @@ impl ResolutionVerifier for NpmResolutionVerifier {
     }
 
     fn can_trust_past_check(&self, cached_policy: &serde_json::Map<String, JsonValue>) -> bool {
+        // The tarball-URL binding is unconditional today; a cached run
+        // that didn't record it (e.g. written before this rule existed)
+        // can't be trusted to have enforced it, so force a re-check.
+        if cached_policy.get("tarballUrlBinding").and_then(JsonValue::as_bool) != Some(true) {
+            return false;
+        }
+
         // Maturity: a previously cached run under a larger cutoff
         // (stricter window) is trustworthy under a smaller current one
         // — the set of accepted versions is a subset of today's.
@@ -299,6 +308,22 @@ impl NpmResolutionVerifier {
             return ResolutionVerification::Ok;
         }
 
+        let registry = self.pick_registry(ctx.name, tarball_url);
+
+        // A registry entry that pins an explicit tarball URL must point at
+        // the artifact the registry's own metadata lists. Otherwise a trusted
+        // name@version could front bytes from an attacker-chosen URL (with a
+        // matching integrity for those bytes). This binding is unconditional —
+        // it does not depend on the minimum-release-age / trust policies and
+        // isn't narrowed by their exclude lists, since it guards integrity
+        // rather than maturity/trust.
+        if let Some(url) = tarball_url
+            && let Some(violation) =
+                self.run_tarball_url_check(&registry, ctx.name, ctx.version, url).await
+        {
+            return violation;
+        }
+
         let age_applies = self.age_check_active()
             && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version);
         let trust_applies = self.trust_check_active()
@@ -306,8 +331,6 @@ impl NpmResolutionVerifier {
         if !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }
-
-        let registry = self.pick_registry(ctx.name, tarball_url);
 
         if age_applies
             && let Some(violation) = self.run_age_check(&registry, ctx.name, ctx.version).await
@@ -340,17 +363,58 @@ impl NpmResolutionVerifier {
     }
 
     fn pick_registry(&self, name: &PkgName, tarball_url: Option<&str>) -> String {
-        if let Some(url) = tarball_url
-            && let Ok(parsed) = reqwest::Url::parse(url)
-        {
-            let normalized = parsed.as_str();
+        if let Some(url) = tarball_url {
+            // Match on the same canonical form the tarball comparison uses, so
+            // a named-registry tarball that differs from the configured base
+            // only by scheme or `%2f` encoding still routes to its registry
+            // instead of falling back (and then failing closed against the
+            // wrong packument).
+            let normalized = canonical_tarball_url(url);
             for prefix in &self.named_registry_prefixes {
-                if normalized.starts_with(prefix) {
+                if normalized.starts_with(&canonical_tarball_url(prefix)) {
                     return prefix.clone();
                 }
             }
         }
         pick_registry_for_package(&self.registries, &name.to_string(), None)
+    }
+
+    /// Confirm the lockfile-pinned tarball URL is the artifact the
+    /// registry's own metadata lists for this exact `name@version`.
+    ///
+    /// Fail-closed: the entry passes only when the registry metadata
+    /// affirmatively lists this version with a matching tarball URL. If the
+    /// metadata can't be fetched, doesn't list the version, or omits
+    /// `dist.tarball`, the entry can't be confirmed and is rejected —
+    /// otherwise a tampered lockfile could smuggle a malicious URL past the
+    /// check by pointing it at a `name@version` the registry can't vouch for.
+    async fn run_tarball_url_check(
+        &self,
+        registry: &str,
+        name: &PkgName,
+        version: &str,
+        lockfile_tarball: &str,
+    ) -> Option<ResolutionVerification> {
+        let registry_tarball = match self.fetch_abbreviated_meta(registry, name).await {
+            Ok(Some(meta)) => {
+                meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
+            }
+            Ok(None) | Err(_) => None,
+        };
+        match registry_tarball {
+            Some(url) if same_tarball_url(lockfile_tarball, &url) => None,
+            Some(url) => Some(ResolutionVerification::Err {
+                code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+                reason: format!(
+                    "has a tarball URL ({lockfile_tarball}) that does not match the registry's published metadata ({url})",
+                ),
+            }),
+            None => Some(ResolutionVerification::Err {
+                code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+                reason: "could not be verified against the registry's published metadata"
+                    .to_string(),
+            }),
+        }
     }
 
     async fn run_age_check(
@@ -530,7 +594,7 @@ impl NpmResolutionVerifier {
         if parsed.with_timezone(&Utc) >= cutoff {
             return Ok(None);
         }
-        if !meta.version_names.as_ref().is_some_and(|set| set.contains(version)) {
+        if !meta.version_tarballs.as_ref().is_some_and(|map| map.contains_key(version)) {
             return Ok(None);
         }
         Ok(Some(modified))
@@ -809,6 +873,9 @@ fn build_policy_snapshot(
     trust_policy_ignore_after: Option<u64>,
 ) -> serde_json::Map<String, JsonValue> {
     let mut map = serde_json::Map::new();
+    // Marks runs that enforced the (unconditional) tarball-URL binding so
+    // `can_trust_past_check` rejects pre-rule cache records and re-verifies.
+    map.insert("tarballUrlBinding".to_string(), JsonValue::Bool(true));
     map.insert("minimumReleaseAge".to_string(), JsonValue::from(minimum_release_age));
     map.insert(
         "minimumReleaseAgeExclude".to_string(),
@@ -923,17 +990,44 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
     }
 }
 
-/// Pull the `(modified, versionNames)` projection the abbreviated
-/// shortcut needs out of a packument document. Works against either
-/// the abbreviated or the full form — both carry `modified` and a
-/// `versions` map.
+/// Pull the `(modified, versionTarballs)` projection the verifier
+/// needs out of a packument document. Works against either the
+/// abbreviated or the full form — both carry `modified` and a
+/// `versions` map with per-version `dist.tarball`.
 ///
 /// Mirrors upstream's
 /// [`projectAbbreviatedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L702-L707).
 fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::AbbreviatedMetaProjection {
+    let version_tarballs = meta
+        .versions
+        .iter()
+        .map(|(version, manifest)| (version.clone(), manifest.dist.tarball.clone()))
+        .collect();
     crate::lookup_context::AbbreviatedMetaProjection {
         modified: meta.modified.clone(),
-        version_names: Some(meta.versions.keys().cloned().collect()),
+        version_tarballs: Some(version_tarballs),
+    }
+}
+
+fn same_tarball_url(left: &str, right: &str) -> bool {
+    canonical_tarball_url(left) == canonical_tarball_url(right)
+}
+
+/// Mirror upstream's `canonicalTarballUrl`: parse-and-reserialize to drop
+/// default ports (`:443`/`:80`, what pnpm's `normalizeRegistryUrl` does via
+/// `new URL(...).toString()`), decode the `%2f` scoped-name separator, then
+/// ignore the scheme — so a benign http/https, default-port, or encoding
+/// difference between the lockfile URL and the registry metadata isn't read
+/// as tampering.
+fn canonical_tarball_url(url: &str) -> String {
+    let normalized = reqwest::Url::parse(url)
+        .map_or_else(|_error| url.to_string(), |parsed| parsed.to_string())
+        // `%2f` may survive re-serialization in either case; normalize both.
+        .replace("%2F", "/")
+        .replace("%2f", "/");
+    match normalized.split_once("://") {
+        Some((_scheme, rest)) => rest.to_string(),
+        None => normalized,
     }
 }
 

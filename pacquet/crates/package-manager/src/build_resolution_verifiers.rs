@@ -55,9 +55,9 @@ pub enum BuildVerifiersError {
     },
 }
 
-/// Assemble the verifier list for this install. Returns an empty
-/// `Vec` when neither policy is active — the runner short-circuits
-/// on an empty list, so the caller doesn't need a separate guard.
+/// Assemble the verifier list for this install. The npm verifier is
+/// always included — it enforces the tarball-URL binding regardless of
+/// policy configuration — so the list is non-empty.
 ///
 /// `meta_cache` is the optional per-install packument cache shared
 /// with the resolver. When provided, the verifier reads it before
@@ -123,9 +123,7 @@ pub fn build_resolution_verifiers(
         now: None,
     };
 
-    if let Some(verifier) = create_npm_resolution_verifier(opts) {
-        verifiers.push(Arc::new(verifier));
-    }
+    verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));
 
     Ok(verifiers)
 }

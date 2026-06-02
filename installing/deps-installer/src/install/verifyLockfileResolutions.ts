@@ -231,6 +231,7 @@ export async function collectResolutionPolicyViolations (
 interface Candidate {
   name: string
   version: string
+  nonSemverVersion?: string
   resolution: Resolution
 }
 
@@ -239,21 +240,24 @@ interface Candidate {
 // therefore appear multiple times. Dedupe so we issue at most one
 // verification per package version.
 //
-// Include a serialization of `resolution` in the key so two entries that
-// share a (name, version) but differ in *what* was resolved (e.g. one
-// pinned via npm, another via a git URL under the same alias) don't
-// collapse: if the wrong shape wins the dedup, a protocol-scoped
-// verifier short-circuits on the surviving entry and the real one is
+// Include a serialization of `resolution` and `nonSemverVersion` in the key
+// so two entries that share a (name, version) but differ in *what* was
+// resolved (e.g. one pinned via npm, another a URL-keyed tarball whose
+// snapshot copied the same semver `version` from its manifest) don't
+// collapse: `nonSemverVersion` flips whether the npm verifier enforces or
+// skips the tarball/policy checks, so if the wrong shape wins the dedup the
+// surviving entry is verified under the wrong rules and the real one is
 // never checked.
 function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
   const candidates = new Map<string, Candidate>()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
-    const { name, version } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
+    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
-    const key = `${name}@${version}@${JSON.stringify(snapshot.resolution)}`
+    const key = `${name}@${version}@${nonSemverVersion ?? ''}@${JSON.stringify(snapshot.resolution)}`
     candidates.set(key, {
       name,
       version,
+      nonSemverVersion,
       resolution: snapshot.resolution as Resolution,
     })
   }
@@ -268,7 +272,7 @@ async function iterateLockfileViolations (
   const violations: ResolutionPolicyViolation[] = []
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   await Promise.all(
-    Array.from(candidates.values(), ({ name, version, resolution }) => limit(async () => {
+    Array.from(candidates.values(), ({ name, version, nonSemverVersion, resolution }) => limit(async () => {
       // Fan out across every active verifier; each handles its own
       // protocol short-circuit (e.g. the npm verifier returns ok:true for
       // git resolutions). We stop at the first failure per entry so a
@@ -276,7 +280,7 @@ async function iterateLockfileViolations (
       // same (name, version).
       for (const verifier of verifiers) {
         // eslint-disable-next-line no-await-in-loop
-        const result = await verifier.verify(resolution, { name, version })
+        const result = await verifier.verify(resolution, { name, version, nonSemverVersion })
         if (!result.ok) {
           violations.push({ name, version, resolution, code: result.code, reason: result.reason })
           break

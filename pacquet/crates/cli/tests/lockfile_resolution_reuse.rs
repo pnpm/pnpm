@@ -47,15 +47,15 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
 
-    // Disable `minimumReleaseAge` so the post-resolution lockfile
-    // verifier doesn't fetch each entry's metadata from the registry —
-    // that fetch is a separate concern from resolution reuse, and with
-    // the default (1 day) it would hit the dead registry regardless of
+    // Trust the lockfile so the post-resolution verifier doesn't fetch
+    // each entry's metadata from the registry — that verification is a
+    // separate concern from resolution reuse, and (now that it always runs
+    // and fails closed) it would hit the dead registry regardless of
     // whether resolution was reused, masking what this test proves.
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
-    fs::write(&workspace_yaml, format!("{existing}minimumReleaseAge: 0\n"))
-        .expect("append minimumReleaseAge to pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{existing}trustLockfile: true\n"))
+        .expect("append trustLockfile to pnpm-workspace.yaml");
 
     // `@pnpm.e2e/pkg-with-1-dep@100.0.0` depends on
     // `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0`, so the lockfile records
