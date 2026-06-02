@@ -67,19 +67,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       # On main, HEAD *is* main — comparing them is wasted work, so the
-      # benchmark runs a single revision and the result is uploaded to
+      # benchmark runs a single revision per tool and uploads it to
       # Bencher as the new baseline. On every other ref (PRs and
       # workflow_dispatch from a non-main branch), compare HEAD against
       # main so the report shows the relative shift.
       #
-      # `BENCHMARK_TARGETS` drives the cold scenarios (pacquet only).
-      # `BENCHMARK_TARGETS_WITH_PNPR` adds the `pnpr@<rev>` targets and
-      # drives the hot scenarios — pnpr models a warm long-running server,
-      # so it only participates where the server store stays warm across
-      # iterations. Running `pacquet@HEAD` alongside `pnpr@HEAD` in the
-      # same hyperfine invocation also yields the pnpr-vs-direct ratio.
-      BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD' || 'pacquet@HEAD pacquet@main' }}
-      BENCHMARK_TARGETS_WITH_PNPR: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
+      # Every scenario runs both tools: `pacquet@<rev>` (direct install)
+      # and `pnpr@<rev>` (the same client through the pnpr install
+      # accelerator, against a warm long-running server). The cold-store
+      # scenarios wipe the *client* store between iterations while the
+      # server stays warm — i.e. pnpr's cold-client-vs-warm-server shape,
+      # the realistic CI case. Running both tools in one hyperfine
+      # invocation also yields the pnpr-vs-direct ratio per scenario.
+      BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -189,15 +189,17 @@ jobs:
         # binaries the boot step needs. More builds than the pacquet-only
         # bench, hence the larger timeout.
         timeout-minutes: 25
-        run: just integrated-benchmark --build-only $BENCHMARK_TARGETS_WITH_PNPR
+        run: just integrated-benchmark --build-only $BENCHMARK_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         shell: bash
         # Hyperfine has no per-command timeout, so a single hanging
         # install takes the whole step down with the GHA default job
-        # timeout (6 h). A normal run is ~2 min — 10 min is generous
-        # headroom, and a failure surfaces fast enough to iterate on.
-        timeout-minutes: 10
+        # timeout (6 h). 15 min is generous headroom for the warmup +
+        # timed runs across all four commands (cold client store, so each
+        # iteration re-fetches — pacquet from the registry, pnpr from its
+        # warm server), and a failure surfaces fast enough to iterate on.
+        timeout-minutes: 15
         run: |
           just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
@@ -206,26 +208,25 @@ jobs:
       - name: 'Benchmark: Isolated linker: fresh restore, hot cache + hot store'
         shell: bash
         # Same timeout rationale as the cold-cache step above. Each
-        # timed run wipes only `node_modules`; the per-revision store
-        # survives, and hyperfine's warmup populates it on the first
-        # iteration so timed runs all see a hot store. Runs the
-        # pnpr-augmented target set (up to 4 commands), so it gets more
-        # headroom than the pacquet-only cold steps.
+        # timed run wipes only `node_modules`; the per-revision client
+        # store survives, and hyperfine's warmup populates it on the first
+        # iteration so timed runs all see a hot client store (and a warm
+        # server, as in every scenario).
         timeout-minutes: 15
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS_WITH_PNPR
+          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
 
       - name: 'Benchmark: Isolated linker: fresh install, cold cache + cold store'
         shell: bash
-        # No-lockfile scenario: pacquet does fresh resolution against
-        # the registry (pnpm/pnpm#11832), so a single iteration runs
-        # longer than the restore steps. 20 min leaves headroom for the
-        # default hyperfine 1 warmup + 10 timed runs across both
-        # benchmark targets without losing the per-command timeout
+        # No-lockfile scenario: a fresh resolution runs longer than the
+        # restore steps (pacquet resolves against the registry,
+        # pnpm/pnpm#11832; pnpr offloads it to its server). 35 min leaves
+        # headroom for the default hyperfine 1 warmup + 10 timed runs
+        # across all four commands without losing the per-command timeout
         # safety net the other steps document.
-        timeout-minutes: 20
+        timeout-minutes: 35
         run: |
           just integrated-benchmark --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
@@ -233,12 +234,12 @@ jobs:
 
       - name: 'Benchmark: Isolated linker: fresh install, hot cache + hot store'
         shell: bash
-        # Same timeout rationale as the cold-cache install step above,
-        # plus the pnpr-augmented target set (up to 4 commands) and the
-        # pnpr server resolving from scratch on its first request.
+        # Same timeout rationale as the cold-cache install step above; the
+        # hot client store makes each iteration cheaper, so 25 min is
+        # ample headroom across all four commands.
         timeout-minutes: 25
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS_WITH_PNPR
+          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
 
@@ -248,7 +249,7 @@ jobs:
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
             echo
-            echo 'Cold scenarios measure pacquet (direct install). Hot scenarios add pnpr rows — the same client driven through the pnpr install accelerator — so pnpr@HEAD vs pacquet@HEAD is the pnpr-vs-direct ratio. The pacquet@HEAD rows feed the pacquet Bencher testbed; the pnpr@HEAD rows feed the pnpr testbed.'
+            echo 'Each scenario has pacquet rows (direct install) and pnpr rows (the same client through the pnpr install accelerator), so pnpr@HEAD vs pacquet@HEAD is the pnpr-vs-direct ratio. Cold-store scenarios wipe the client store between runs (warm server); hot-store scenarios keep it warm. The pacquet@HEAD rows feed the pacquet Bencher testbed; the pnpr@HEAD rows feed the pnpr testbed.'
             echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store'
             echo
@@ -304,10 +305,9 @@ jobs:
         # Bencher's shell_hyperfine adapter accepts, one per testbed. For
         # each, keep only the chosen target's result from each scenario
         # and rename `.command` to the scenario name, so Bencher names the
-        # benchmark after the scenario. The `pacquet` testbed gets all
-        # four scenarios (`pacquet@HEAD`); the `pnpr` testbed gets only
-        # the two hot scenarios (`pnpr@HEAD`) — pnpr targets don't run in
-        # the cold scenarios.
+        # benchmark after the scenario. Both tools run all four scenarios,
+        # so the `pacquet` testbed gets `pacquet@HEAD` and the `pnpr`
+        # testbed gets `pnpr@HEAD`, each across the same four scenarios.
         shell: bash
         run: |
           # Build one bencher-results file: $1 = output path, $2 = the
@@ -338,7 +338,9 @@ jobs:
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
+            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \
             'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
+            'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store'
 
       - name: Stage artifact contents
