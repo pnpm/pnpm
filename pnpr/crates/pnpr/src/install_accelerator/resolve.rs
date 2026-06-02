@@ -119,8 +119,11 @@ pub async fn resolve(
             DependencyGroup::Optional,
         ],
         frozen_lockfile,
-        prefer_frozen_lockfile: Some(true),
-        ignore_manifest_check: false,
+        // Default to reuse so unchanged entries keep their pins; the
+        // client's `--no-prefer-frozen-lockfile` (`Some(false)`) forces
+        // a fresh re-resolve.
+        prefer_frozen_lockfile: request.prefer_frozen_lockfile.or(Some(true)),
+        ignore_manifest_check: request.ignore_manifest_check,
         skip_runtimes: false,
         // The lockfile was already verified under the client's policy
         // (in `handle_install`) before we get here, so the install path

@@ -63,6 +63,12 @@ pub struct InstallOptions<'a> {
     /// Frozen (use the lockfile as-is) vs reuse-and-update resolution
     /// behavior. Does not affect whether the input lockfile is verified.
     pub frozen_lockfile: bool,
+    /// `preferFrozenLockfile`. `Some(false)` forces the server to
+    /// re-resolve; `None` lets it default to reuse.
+    pub prefer_frozen_lockfile: Option<bool>,
+    /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
+    /// comparison during the frozen resolve.
+    pub ignore_manifest_check: bool,
     /// The client's effective `trustLockfile`. When `true` the server
     /// skips verifying the input lockfile (it still reuses it for
     /// resolution), mirroring the local `--trust-lockfile` opt-out.
@@ -198,6 +204,8 @@ impl PnprClient {
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
+            "preferFrozenLockfile": opts.prefer_frozen_lockfile,
+            "ignoreManifestCheck": opts.ignore_manifest_check,
             "trustLockfile": opts.trust_lockfile,
             "minimumReleaseAge": opts.minimum_release_age,
             "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,

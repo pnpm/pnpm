@@ -57,6 +57,15 @@ pub struct InstallRequest {
     /// lockfile is verified.
     #[serde(default)]
     pub frozen_lockfile: bool,
+    /// `preferFrozenLockfile`. `Some(false)` (from the client's
+    /// `--no-prefer-frozen-lockfile`) forces a fresh re-resolve even
+    /// when the lockfile is up to date. `None` defaults to reuse.
+    #[serde(default)]
+    pub prefer_frozen_lockfile: Option<bool>,
+    /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
+    /// comparison during the frozen resolve.
+    #[serde(default)]
+    pub ignore_manifest_check: bool,
     /// The client's effective `trustLockfile`. When `true` the client
     /// opted out of lockfile verification, so the server skips the
     /// input-lockfile verify gate (it still reuses the lockfile for

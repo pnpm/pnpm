@@ -64,6 +64,8 @@ fn options<'a>(
         overrides: None,
         lockfile: None,
         frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
         trust_lockfile: false,
         minimum_release_age: None,
         minimum_release_age_exclude: None,

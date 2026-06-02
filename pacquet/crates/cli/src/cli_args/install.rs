@@ -323,6 +323,9 @@ impl InstallArgs {
                     node_linker,
                     skip_runtimes,
                     frozen_lockfile,
+                    prefer_frozen_lockfile,
+                    lockfile_only,
+                    ignore_manifest_check,
                     trust_lockfile,
                     lockfile_path: lockfile_path.as_deref(),
                 },
@@ -392,6 +395,22 @@ struct PnprLink<'a> {
     /// materialization always runs frozen against the server-produced
     /// lockfile.
     frozen_lockfile: bool,
+    /// `preferFrozenLockfile` (`Some(false)` from
+    /// `--no-prefer-frozen-lockfile` forces the server to re-resolve);
+    /// forwarded to `/v1/install`. `None` lets the server default to
+    /// reuse.
+    prefer_frozen_lockfile: Option<bool>,
+    /// `--lockfile-only`. Unsupported on the pnpr path — the protocol
+    /// bundles resolution with file distribution, so there's no
+    /// resolve-only mode yet (see
+    /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146)).
+    /// `install_via_pnpr` errors when this is set rather than silently
+    /// fetching + linking.
+    lockfile_only: bool,
+    /// `--ignore-manifest-check`; forwarded so the server's frozen
+    /// freshness check and the local materialization both skip the
+    /// manifest ↔ lockfile comparison.
+    ignore_manifest_check: bool,
     /// The effective `trustLockfile` (yaml `trustLockfile` OR
     /// `--trust-lockfile`); forwarded so the server skips verifying the
     /// input lockfile when the user opted out, mirroring the local path.
@@ -411,6 +430,17 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     pnpr_server: &str,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
+    // `--lockfile-only` can't be honored on the pnpr path yet: `/v1/install`
+    // bundles resolution with file distribution, so the files are fetched
+    // before the client could skip linking. Error rather than silently
+    // fetching + linking. Tracked by
+    // [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
+    if link.lockfile_only {
+        return Err(miette::miette!(
+            "`--lockfile-only` is not supported with a pnprServer yet (https://github.com/pnpm/pnpm/issues/12146); unset pnprServer to run it locally."
+        ));
+    }
+
     let dependencies = state
         .manifest
         .dependencies([DependencyGroup::Prod])
@@ -448,6 +478,8 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             overrides,
             lockfile: state.lockfile.clone(),
             frozen_lockfile: link.frozen_lockfile,
+            prefer_frozen_lockfile: link.prefer_frozen_lockfile,
+            ignore_manifest_check: link.ignore_manifest_check,
             trust_lockfile: link.trust_lockfile,
             minimum_release_age: state.config.minimum_release_age,
             minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
@@ -494,7 +526,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         dependency_groups: link.dependency_groups,
         frozen_lockfile: true,
         prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
+        ignore_manifest_check: link.ignore_manifest_check,
         skip_runtimes: link.skip_runtimes,
         // The server already verified the input lockfile and resolved
         // the rest under our policy, so the local materialization treats
