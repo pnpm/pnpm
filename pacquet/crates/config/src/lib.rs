@@ -725,11 +725,11 @@ pub struct Config {
     /// per-importer symlink) and bin linking (the deduped dep won't
     /// reappear under the project's `node_modules/.bin`).
     ///
-    /// Default `true`. Mirrors pnpm's
-    /// [`dedupeDirectDeps`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L243)
-    /// and the linker call site at
-    /// [`installing/deps-installer/src/install/link.ts:303`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/link.ts#L303).
-    #[default = true]
+    /// Default `false`, matching pnpm's config-reader default at
+    /// [`config/reader/src/index.ts:139`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L139)
+    /// (`'dedupe-direct-deps': false`). The linker call site is at
+    /// [`installing/deps-restorer/src/index.ts:777`](https://github.com/pnpm/pnpm/blob/a23956e3ab/installing/deps-restorer/src/index.ts#L777).
+    #[default = false]
     pub dedupe_direct_deps: bool,
 
     /// When `true`, injected workspace dependencies whose materialised

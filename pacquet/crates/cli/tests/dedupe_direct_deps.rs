@@ -6,8 +6,16 @@
 //! a non-root project depends on, the dep must not appear under
 //! that project's `node_modules/`, and a project whose direct deps
 //! are entirely deduped must not have a `node_modules/` created at
-//! all. Setting `dedupeDirectDeps: false` must restore the
-//! per-project symlinks.
+//! all.
+//!
+//! `dedupeDirectDeps` is **off by default** (pnpm's config-reader
+//! default at
+//! [`config/reader/src/index.ts:139`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L139)),
+//! so the dedupe-on tests below set `dedupeDirectDeps: true` in the
+//! workspace yaml explicitly, mirroring upstream's
+//! `testDefaults({ ..., dedupeDirectDeps: true })`. The default-off
+//! behavior — every importer keeps its own per-project symlink — is
+//! covered by [`dedupe_off_by_default_keeps_shared_workspace_link`].
 
 pub mod _utils;
 
@@ -19,11 +27,11 @@ use pacquet_testing_utils::{
 };
 use std::{fs, path::Path, process::Command};
 
-/// With `dedupeDirectDeps` left at its default (`true`), a sibling
-/// project whose only direct dep is also a direct dep of the
-/// workspace root must not get a `node_modules/` of its own.
+/// With `dedupeDirectDeps: true`, a sibling project whose only
+/// direct dep is also a direct dep of the workspace root must not
+/// get a `node_modules/` of its own.
 #[test]
-fn dedupes_direct_deps_against_workspace_root_by_default() {
+fn dedupes_direct_deps_against_workspace_root() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -46,7 +54,7 @@ fn dedupes_direct_deps_against_workspace_root_by_default() {
     if !workspace_yaml.ends_with('\n') {
         workspace_yaml.push('\n');
     }
-    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
     fs::create_dir_all(workspace.join("packages/dup")).expect("mkdir packages/dup");
@@ -173,7 +181,7 @@ fn dedupes_direct_deps_with_frozen_lockfile() {
     if !workspace_yaml.ends_with('\n') {
         workspace_yaml.push('\n');
     }
-    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
     fs::create_dir_all(workspace.join("packages/dup")).expect("mkdir packages/dup");
@@ -215,6 +223,127 @@ fn dedupes_direct_deps_with_frozen_lockfile() {
     assert!(
         !dup_modules_exists_after_frozen,
         "frozen-lockfile install should keep packages/dup/node_modules absent",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Regression for the v11.5.1 release failure
+/// ([.github#214](https://github.com/pnpm/pnpm/actions/runs/26801861393)):
+/// `dedupeDirectDeps` defaults to **off**, so a workspace package that
+/// both the root and a non-root importer depend on must stay symlinked
+/// under the non-root importer's own `node_modules/`.
+///
+/// The release installs through the frozen-lockfile path and then runs
+/// `pnpm publish` on `@pnpm/exe`, which rewrites the `workspace:*`
+/// devDependency on `@pnpm/jest-config` by reading
+/// `exe/node_modules/@pnpm/jest-config/package.json`. The root also
+/// depends on `@pnpm/jest-config`; when pacquet defaulted
+/// `dedupeDirectDeps` to `true` it dropped the per-importer symlink, so
+/// publish failed with `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL`.
+/// This fixture reproduces that shape: shared `link:` workspace dep,
+/// non-root importer, frozen-lockfile replay.
+#[test]
+fn dedupe_off_by_default_keeps_shared_workspace_link() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // Root depends on the shared workspace package, exactly like the
+    // monorepo root depends on `@pnpm/jest-config`.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "@scope/shared": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    // No `dedupeDirectDeps` key — exercise the default.
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/shared")).expect("mkdir packages/shared");
+    fs::write(
+        workspace.join("packages/shared/package.json"),
+        serde_json::json!({ "name": "@scope/shared", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/shared/package.json");
+
+    // Non-root importer that also depends on the shared package — the
+    // `@pnpm/exe` analogue.
+    fs::create_dir_all(workspace.join("packages/app")).expect("mkdir packages/app");
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({
+            "name": "@scope/app",
+            "version": "1.0.0",
+            "dependencies": { "@scope/shared": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    // A pnpm-written lockfile (importer-relative `link:` targets), the
+    // same shape the release checks out before installing — so this
+    // test isolates the dedupe behavior rather than pacquet's own
+    // lockfile-writing path.
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        r#"lockfileVersion: "9.0"
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+importers:
+  .:
+    specifiers:
+      "@scope/shared": workspace:*
+    dependencies:
+      "@scope/shared":
+        specifier: workspace:*
+        version: link:packages/shared
+  packages/app:
+    specifiers:
+      "@scope/shared": workspace:*
+    dependencies:
+      "@scope/shared":
+        specifier: workspace:*
+        version: link:../shared
+  packages/shared: {}
+"#,
+    )
+    .expect("write pnpm-lock.yaml");
+
+    // Replay the lockfile through the frozen-lockfile path — the
+    // codepath the release workflow runs.
+    pacquet.with_arg("install").with_arg("--frozen-lockfile").assert().success();
+
+    // The non-root importer must keep its own symlink, and it must
+    // resolve to the shared package's manifest — that read is what
+    // `pnpm publish`'s `workspace:*` rewrite performs.
+    let app_link = workspace.join("packages/app/node_modules/@scope/shared");
+    let app_link_linked = is_symlink_or_junction(&app_link).expect("query app symlink");
+    eprintln!("app_link={app_link:?} linked={app_link_linked}");
+    assert!(
+        app_link_linked,
+        "shared workspace dep must stay symlinked under packages/app/node_modules when \
+         dedupeDirectDeps is at its default (off)",
+    );
+    let app_manifest = app_link.join("package.json");
+    assert!(
+        app_manifest.exists(),
+        "packages/app/node_modules/@scope/shared must resolve to the package manifest at \
+         {app_manifest:?} so `workspace:*` publish resolution succeeds",
     );
 
     drop((root, mock_instance));
@@ -262,7 +391,7 @@ fn dedupes_only_overlapping_direct_deps() {
     if !workspace_yaml.ends_with('\n') {
         workspace_yaml.push('\n');
     }
-    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
     fs::create_dir_all(workspace.join("packages/mixed")).expect("mkdir packages/mixed");
@@ -330,7 +459,7 @@ fn dedupes_link_deps_resolving_to_the_same_dir_via_different_segments() {
     if !workspace_yaml.ends_with('\n') {
         workspace_yaml.push('\n');
     }
-    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
     fs::create_dir_all(workspace.join("packages/shared")).expect("mkdir packages/shared");
@@ -411,7 +540,7 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
         workspace_yaml.push('\n');
     }
     let base_yaml = workspace_yaml.clone();
-    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ndedupeDirectDeps: true\n");
     fs::write(&workspace_yaml_path, &workspace_yaml).expect("write pnpm-workspace.yaml");
 
     fs::create_dir_all(workspace.join("packages/dup")).expect("mkdir packages/dup");
@@ -435,7 +564,7 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
     // frozen-install path is a pure replay.
     let mut workspace_yaml = base_yaml;
     workspace_yaml.push_str(
-        "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '@pnpm.e2e/dep-of-pkg-with-1-dep'\n",
+        "packages:\n  - 'packages/*'\ndedupeDirectDeps: true\npublicHoistPattern:\n  - '@pnpm.e2e/dep-of-pkg-with-1-dep'\n",
     );
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
     fs_remove_dir_all(&workspace.join("node_modules"));
@@ -506,6 +635,7 @@ fn dedupe_under_shamefully_hoist() {
     }
     workspace_yaml.push_str(
         "packages:\n  - 'packages/*'\n\
+         dedupeDirectDeps: true\n\
          shamefullyHoist: true\n\
          hoistPattern: []\n\
          publicHoistPattern:\n  - '*'\n",
