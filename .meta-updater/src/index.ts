@@ -73,6 +73,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       }
       if (manifest.name === 'monorepo-root') {
         manifest.scripts!['release'] = `pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=${nextTag} --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=${nextTag} --access=public --provenance`
+        syncNodeRuntimeInScripts(manifest)
         return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
@@ -288,6 +289,17 @@ async function updateTSConfig (
       rootDir: 'src',
     },
     references: linkValues.map(path => ({ path })),
+  }
+}
+
+// Keep the Node.js version pinned in scripts (e.g. `pnx node@runtime:26.3.0`)
+// in sync with the version declared in `devEngines.runtime`, which is the
+// single source of truth for the Node.js version the repo builds with.
+function syncNodeRuntimeInScripts (manifest: ProjectManifest): void {
+  const runtime = (manifest as { devEngines?: { runtime?: { name?: string, version?: string } } }).devEngines?.runtime
+  if (runtime?.name !== 'node' || !runtime.version || !manifest.scripts) return
+  for (const [scriptName, scriptCmd] of Object.entries(manifest.scripts)) {
+    manifest.scripts[scriptName] = scriptCmd.replace(/node@runtime:[\d.]+/g, `node@runtime:${runtime.version}`)
   }
 }
 
