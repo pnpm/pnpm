@@ -71,11 +71,12 @@ where
             lockfile_only,
         } = self;
 
+        let registry = config.registry_for_package_name(package_name);
         let latest_version = PackageVersion::fetch_from_registry(
             package_name,
             PackageTag::Latest, // TODO: add support for specifying tags
             http_client,
-            &config.registry,
+            &registry,
             &config.auth_headers,
         )
         .await

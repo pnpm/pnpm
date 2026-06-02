@@ -1341,6 +1341,7 @@ fn is_modules_yaml_consistent(
         && modules.included == included
         && modules.hoist_pattern == config.hoist_pattern
         && modules.public_hoist_pattern == config.public_hoist_pattern
+        && modules.registries == Some(config.registry_map())
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir
@@ -1411,7 +1412,7 @@ fn build_modules_manifest(
         // RFC 1123 / `toUTCString()` format, matching upstream's
         // `new Date().toUTCString()` at line 1622.
         pruned_at: httpdate::fmt_http_date(SystemTime::now()),
-        registries: Some(BTreeMap::from([("default".to_string(), config.registry.clone())])),
+        registries: Some(config.registry_map()),
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — matches upstream's
         // silent swallow of optional fetch failures at

@@ -7,6 +7,7 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
     fs::{get_all_files, get_all_folders, is_symlink_or_junction},
+    registry::TestRegistry,
 };
 #[cfg(unix)]
 use pipe_trait::Pipe;
@@ -308,6 +309,47 @@ fn install_resolves_env_var_in_npmrc_registry() {
     let installed = is_symlink_or_junction(&symlink_path).unwrap();
     eprintln!("symlink_path={symlink_path:?} installed={installed}");
     assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// Regression for pnpm/pnpm#11849: a project `.npmrc` with local
+/// settings must not hide user-level scoped registries. The default
+/// registry intentionally stays unset here, so the install can only
+/// resolve `@pnpm.e2e/*` if the user config's `@pnpm.e2e:registry`
+/// entry is merged and used by the resolver.
+#[test]
+fn install_uses_user_scoped_registry_when_project_npmrc_exists() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mock_instance = TestRegistry::start();
+
+    fs::write(workspace.join(".npmrc"), "public-hoist-pattern[]=@types/*\n")
+        .expect("write project .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\nenableGlobalVirtualStore: false\n",
+    )
+    .expect("write workspace manifest");
+
+    let user_npmrc = root.path().join("user-npmrc");
+    fs::write(&user_npmrc, format!("@pnpm.e2e:registry={}\n", mock_instance.url()))
+        .expect("write user .npmrc");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write package.json");
+
+    pacquet.with_env("PNPM_CONFIG_USERCONFIG", &user_npmrc).with_arg("install").assert().success();
+
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    assert!(
+        is_symlink_or_junction(&symlink_path).unwrap(),
+        "expected installed symlink/junction at {symlink_path:?}",
+    );
 
     drop((root, mock_instance)); // cleanup
 }

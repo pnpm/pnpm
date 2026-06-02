@@ -22,6 +22,26 @@ fn extract_separates_config_tokens_from_argv() {
 }
 
 #[test]
+fn scoped_registry_overrides_are_applied() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.@private-scope:registry=https://registry.example.test/node",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(
+        config.scoped_registries.get("@private-scope").map(String::as_str),
+        Some("https://registry.example.test/node/"),
+    );
+    assert_eq!(
+        config.registry_for_package_name("@private-scope/address"),
+        "https://registry.example.test/node/",
+    );
+}
+
+#[test]
 fn unknown_keys_are_dropped_silently() {
     let (overrides, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "--config.unknown-key=whatever", "install"]));
@@ -48,6 +68,20 @@ fn last_value_wins_for_repeated_keys() {
     let mut config = Config::default();
     overrides.apply(&mut config);
     assert_eq!(config.registry, "https://second.test/");
+}
+
+#[test]
+fn last_value_wins_for_repeated_scoped_registry_keys() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "--config.@private-scope:registry=https://first.test/",
+        "--config.@private-scope:registry=https://second.test/",
+    ]));
+    let mut config = Config::default();
+    overrides.apply(&mut config);
+    assert_eq!(
+        config.scoped_registries.get("@private-scope").map(String::as_str),
+        Some("https://second.test/"),
+    );
 }
 
 #[test]

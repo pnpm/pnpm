@@ -572,6 +572,13 @@ pub struct Config {
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)
 
+    /// Per-scope registry URLs from `.npmrc` entries like
+    /// `@scope:registry=https://registry.example/`. The `default`
+    /// registry is stored separately in [`Self::registry`]; use
+    /// [`Self::registry_map`] when handing the full pnpm-style
+    /// `Registries` map to resolver or lockfile code.
+    pub scoped_registries: BTreeMap<String, String>,
+
     /// User-defined named-registry aliases from
     /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
     /// (`gh`, `work`, ...) to the registry URL its `<alias>:` specifiers
@@ -1428,6 +1435,24 @@ impl Config {
         }
     }
 
+    pub fn registry_map(&self) -> BTreeMap<String, String> {
+        let mut registries = BTreeMap::new();
+        registries.insert("default".to_string(), self.registry.clone());
+        registries
+            .extend(self.scoped_registries.iter().map(|(scope, url)| (scope.clone(), url.clone())));
+        registries
+    }
+
+    pub fn registry_for_package_name(&self, name: &str) -> String {
+        if let Some(sep) = name.strip_prefix('@').and_then(|rest| rest.find('/')) {
+            let scope = &name[..sep + 1];
+            if let Some(registry) = self.scoped_registries.get(scope) {
+                return registry.clone();
+            }
+        }
+        self.registry.clone()
+    }
+
     pub fn resolved_patched_dependencies(
         &self,
     ) -> Result<Option<PatchGroupRecord>, ResolvePatchedDependenciesError> {
@@ -1444,17 +1469,14 @@ impl Config {
     ///    (cwd, falling back to home), then
     /// 3. the nearest `pnpm-workspace.yaml` walking up from cwd.
     ///
-    /// Pacquet currently applies `registry`, npm-auth credentials, the
-    /// proxy keys (`https-proxy`, `http-proxy`, `proxy`, `no-proxy` /
-    /// `noproxy`), and the TLS + local-address keys (`ca`, `cafile`,
-    /// `cert`, `key`, `strict-ssl`, `local-address`) from `.npmrc`.
-    /// Other `.npmrc` entries — pnpm's scoped-registry keys and
-    /// per-registry TLS overrides (`//host:cafile=`, `//host:ca=`,
-    /// `//host:cert=`, `//host:key=`), plus project-structural
-    /// settings like `storeDir`, `lockfile` and `hoist-pattern` — are
-    /// silently ignored here. The first group is tracked for future
-    /// per-registry-TLS work; the second must come from
-    /// `pnpm-workspace.yaml` or CLI flags, matching pnpm 11.
+    /// Pacquet currently applies `registry`, scoped registry entries
+    /// (`@scope:registry`), npm-auth credentials, the proxy keys
+    /// (`https-proxy`, `http-proxy`, `proxy`, `no-proxy` / `noproxy`),
+    /// and the TLS + local-address keys (`ca`, `cafile`, `cert`, `key`,
+    /// `strict-ssl`, `local-address`) from `.npmrc`. Other `.npmrc`
+    /// entries — project-structural settings like `storeDir`, `lockfile`
+    /// and `hoist-pattern` — are silently ignored here. Those must come
+    /// from `pnpm-workspace.yaml` or CLI flags, matching pnpm 11.
     ///
     /// The yaml wins over `.npmrc` on any key it sets.
     ///
@@ -1483,10 +1505,6 @@ impl Config {
         self.modules_dir = start_dir.join("node_modules");
         self.virtual_store_dir = start_dir.join("node_modules/.pnpm");
 
-        // Read the nearest .npmrc (start_dir first, home second) and apply
-        // only the auth/network subset. Everything else is intentionally
-        // ignored.
-        //
         // pnpm reads several `.npmrc` sources and merges them
         // (`user < auth.ini < workspace`), pinning each file's *unscoped*
         // credentials to that file's own registry *before* the merge so

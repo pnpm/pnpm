@@ -83,9 +83,7 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// `default` plus per-scope (`@scope`) entries. The keys mirror
     /// pnpm's `Registries` shape; the picker consults the `default`
     /// entry as the install-wide default and the scope entry when the
-    /// resolved package name carries one. Pacquet today only populates
-    /// `default` — per-scope wiring lands when `.npmrc`'s
-    /// `<scope>:registry` parsing does.
+    /// resolved package name carries one.
     pub registries: HashMap<String, String>,
     /// User-supplied named-registry aliases (e.g. `gh:` →
     /// `https://npm.pkg.github.com/`). Merged with

@@ -516,7 +516,8 @@ fn tarball_url_and_integrity<'a>(
             Ok((tarball_resolution.tarball.as_str().pipe(Cow::Borrowed), integrity))
         }
         LockfileResolution::Registry(registry_resolution) => {
-            let registry = config.registry.strip_suffix('/').unwrap_or(&config.registry);
+            let registry = config.registry_for_package_name(&package_key.name.to_string());
+            let registry = registry.strip_suffix('/').map(str::to_string).unwrap_or(registry);
             let name = &package_key.name;
             let version = package_key.suffix.version();
             let bare_name = name.bare.as_str();

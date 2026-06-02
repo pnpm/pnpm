@@ -350,6 +350,24 @@ fn load_with_project_and_user(project_npmrc: &str, user_file: PathBuf) -> Config
         .expect("load config")
 }
 
+#[test]
+pub fn project_npmrc_keeps_user_scoped_registries() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "@private-scope:registry=https://registry.example.test/node/\n");
+
+    let config = load_with_project_and_user("public-hoist-pattern[]=@types/*\n", user_file);
+
+    assert_eq!(
+        config.scoped_registries.get("@private-scope").map(String::as_str),
+        Some("https://registry.example.test/node/"),
+    );
+    assert_eq!(
+        config.registry_for_package_name("@private-scope/address"),
+        "https://registry.example.test/node/",
+    );
+}
+
 /// An unscoped `_authToken` in the user-level file pins to *that
 /// file's* registry, never the workspace registry — even when the
 /// project `.npmrc` overrides the default registry to something else.

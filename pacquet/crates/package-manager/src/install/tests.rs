@@ -20,7 +20,7 @@ use pacquet_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
 use pipe_trait::Pipe;
-use std::sync::Mutex;
+use std::{collections::BTreeMap, sync::Mutex};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -5005,6 +5005,7 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
         included,
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        registries: Some(config.registry_map()),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -5017,6 +5018,44 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
         config,
         pacquet_config::NodeLinker::default(),
         included,
+    ));
+}
+
+/// Registry-map drift between `.modules.yaml.registries` and the
+/// current config disqualifies the up-to-date short-circuit. A
+/// changed scoped registry must rewrite `.modules.yaml` so pnpm and
+/// future pacquet installs see the same registry metadata that
+/// resolution used.
+#[test]
+fn is_modules_yaml_consistent_returns_false_when_registries_drift() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.scoped_registries.insert("@scope".to_string(), "https://registry.example/".to_string());
+    let config = config.leak();
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        registries: Some(BTreeMap::from([("default".to_string(), config.registry.clone())])),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    assert!(!super::is_modules_yaml_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        pacquet_modules_yaml::IncludedDependencies::default(),
     ));
 }
 
@@ -5040,6 +5079,7 @@ fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
         node_linker: Some(NodeLinker::Hoisted),
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        registries: Some(config.registry_map()),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -5087,6 +5127,7 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
         included: prod_only,
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        registries: Some(config.registry_map()),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -5169,6 +5210,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         included,
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        registries: Some(config.registry_map()),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -6098,6 +6140,72 @@ async fn install_with_pnpmfile(
     }
     .run::<SilentReporter>()
     .await
+}
+
+#[tokio::test]
+async fn pre_resolution_hook_receives_scoped_registries() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let modules_dir = root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    let captured_path = root.join("registries.json");
+    let captured_path_json = serde_json::to_string(&captured_path.to_string_lossy()).unwrap();
+
+    let manifest_path = root.join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    std::fs::write(
+        root.join(".pnpmfile.cjs"),
+        format!(
+            r#"module.exports = {{ hooks: {{ preResolution (ctx) {{
+  require('fs').writeFileSync({captured_path_json}, JSON.stringify(ctx.registries));
+}} }} }}"#,
+        ),
+    )
+    .expect("write pnpmfile");
+
+    let mut config = Config::new();
+    config.store_dir = root.join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = "https://registry.npmjs.org/".to_string();
+    config.scoped_registries.insert("@scope".to_string(), "https://registry.example/".to_string());
+    let config = config.leak();
+
+    let http_client = Default::default();
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    let registries: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&captured_path).expect("preResolution wrote registries"),
+    )
+    .expect("registries json");
+    assert_eq!(registries["default"], "https://registry.npmjs.org/");
+    assert_eq!(registries["@scope"], "https://registry.example/");
+
+    drop(dir);
 }
 
 // Ports pnpm's `readPackage hook` install test

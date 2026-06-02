@@ -1,5 +1,8 @@
 use pacquet_config::Config;
-use std::ffi::{OsStr, OsString};
+use std::{
+    collections::BTreeMap,
+    ffi::{OsStr, OsString},
+};
 
 /// CLI overrides parsed from pnpm's `--config.<key>=<value>` dotted-key
 /// syntax. Upstream pnpm uses [`npm-conf`](https://github.com/npm/npm-conf)
@@ -18,6 +21,7 @@ use std::ffi::{OsStr, OsString};
 #[derive(Debug, Default)]
 pub struct ConfigOverrides {
     registry: Option<String>,
+    scoped_registries: BTreeMap<String, String>,
 }
 
 impl ConfigOverrides {
@@ -46,7 +50,13 @@ impl ConfigOverrides {
 
     fn set(&mut self, key: &str, value: &str) {
         if key == "registry" {
-            self.registry = Some(value.to_owned());
+            self.registry = Some(ensure_trailing_slash(value));
+            return;
+        }
+        if let Some(scope) = key.strip_suffix(":registry")
+            && scope.starts_with('@')
+        {
+            self.scoped_registries.insert(scope.to_owned(), ensure_trailing_slash(value));
         }
     }
 
@@ -57,7 +67,12 @@ impl ConfigOverrides {
         if let Some(registry) = &self.registry {
             config.registry = registry.clone();
         }
+        config.scoped_registries.extend(self.scoped_registries.clone());
     }
+}
+
+fn ensure_trailing_slash(value: &str) -> String {
+    if value.ends_with('/') { value.to_owned() } else { format!("{value}/") }
 }
 
 enum ConfigToken<'a> {

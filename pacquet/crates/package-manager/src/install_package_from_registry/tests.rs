@@ -45,6 +45,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         lockfile_include_tarball_url: false,
         registry: "https://registry.npmjs.com/".to_string(),
         pnpr_server: None,
+        scoped_registries: Default::default(),
         named_registries: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,
