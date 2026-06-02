@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { createPeerDepGraphHash, depPathToFilename, type PeerId } from '@pnpm/deps.path'
+import { createPeerDepGraphHash, depPathToFilename, parseDepPath, type PeerId } from '@pnpm/deps.path'
 import type {
   DepPath,
   ParentPackages,
@@ -477,6 +477,19 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       const peerDependency = resolvedPackage.peerDependencies[peerName]
       if (peerNodeId == null || peerDependency == null) continue
       if (ctx.resolvedPeerProviderPaths?.get(peerNodeId) !== previousPeerDepPath) continue
+      // Only pin providers that have no peer context of their own. A provider
+      // whose locked depPath carries a peer suffix is itself context-dependent
+      // — and self-referential for cyclic peers — so reusing it can re-expand
+      // cyclic suffixes and break the deterministic resolution that
+      // https://github.com/pnpm/pnpm/issues/8155 established. Stable leaf
+      // providers are the ones worth pinning; anything else falls back to
+      // fresh resolution.
+      if (parseDepPath(previousPeerDepPath).peerDepGraphHash !== '') continue
+      // A provider that already resolved to a different path this pass no longer
+      // matches its locked context; pinning it would leave pathsByNodeId
+      // pointing at a depPath that was never added to the graph.
+      const currentPeerDepPath = ctx.pathsByNodeId.get(peerNodeId)
+      if (currentPeerDepPath != null && currentPeerDepPath !== previousPeerDepPath) continue
       if (hasCurrentPeerProviderThatMustWin(peerName, parentPkgs, ctx)) continue
       const lockedPeer = toPkgByName([{
         alias: peerName,
