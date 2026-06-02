@@ -94,6 +94,10 @@ pub struct ResolveDependencyTreeOptions {
     pub patched_dependencies: Option<Arc<PatchGroupRecord>>,
     pub manifest_hook: Option<ManifestHook>,
     pub pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
+    /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
+    /// calls. `None` leaves hook logging a no-op. See
+    /// [`WorkspaceTreeCtx::with_read_package_log`].
+    pub read_package_log: Option<pacquet_hooks::LogFn>,
 }
 
 impl std::fmt::Debug for ResolveDependencyTreeOptions {
@@ -103,6 +107,7 @@ impl std::fmt::Debug for ResolveDependencyTreeOptions {
             .field("patched_dependencies", &self.patched_dependencies)
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
             .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
+            .field("read_package_log", &self.read_package_log.as_ref().map(|_| "<log>"))
             .finish()
     }
 }
@@ -228,7 +233,8 @@ where
     let ctx = TreeCtx::new(opts.base_opts)
         .with_patched_dependencies(opts.patched_dependencies)
         .with_manifest_hook(opts.manifest_hook)
-        .with_pnpmfile_hook(opts.pnpmfile_hook);
+        .with_pnpmfile_hook(opts.pnpmfile_hook)
+        .with_read_package_log(opts.read_package_log);
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);
     let mut wanted: Vec<WantedSpec> = Vec::new();
@@ -678,6 +684,19 @@ impl TreeCtx {
         Arc::get_mut(&mut self.workspace)
             .expect("with_pnpmfile_hook called after the workspace ctx was shared via Arc::clone")
             .pnpmfile_hook = pnpmfile_hook;
+        self
+    }
+
+    /// Attach the `context.log(...)` sink the `pnpmfile_hook`'s
+    /// `readPackage` calls forward to. Like [`Self::with_pnpmfile_hook`],
+    /// this targets the underlying [`WorkspaceTreeCtx`] and panics if it
+    /// has already been shared via `Arc::clone`.
+    pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
+        Arc::get_mut(&mut self.workspace)
+            .expect(
+                "with_read_package_log called after the workspace ctx was shared via Arc::clone",
+            )
+            .read_package_log = read_package_log;
         self
     }
 
