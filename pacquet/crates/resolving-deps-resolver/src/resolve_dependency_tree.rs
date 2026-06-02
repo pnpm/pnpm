@@ -15,6 +15,7 @@ use pacquet_resolving_resolver_base::{ResolveError, ResolveOptions, Resolver, Wa
 use pipe_trait::Pipe;
 use serde_json::Value;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
@@ -1527,14 +1528,17 @@ fn snapshot_child_refs(
         .flatten()
     {
         for (alias, dep_ref) in dep_map {
-            let alias_str = alias.to_string();
-            if peer_dependencies.contains_key(&alias_str)
-                || transitive_peers.contains(alias_str.as_str())
+            let alias_str = match &alias.scope {
+                Some(scope) => Cow::Owned(format!("@{scope}/{}", alias.bare)),
+                None => Cow::Borrowed(alias.bare.as_str()),
+            };
+            if peer_dependencies.contains_key(alias_str.as_ref())
+                || transitive_peers.contains(alias_str.as_ref())
             {
                 continue;
             }
             if let Some(key) = dep_ref.resolve(alias) {
-                out.push((alias_str, key));
+                out.push((alias_str.into_owned(), key));
             }
         }
     }
