@@ -100,6 +100,13 @@ export function clearDispatcherCache (): void {
   DISPATCHER_CACHE.clear()
 }
 
+/**
+ * Destroy the global dispatcher and every cached dispatcher, closing their open
+ * sockets. Intended for process shutdown only: once called, the module can no
+ * longer perform network requests. This is used to work around a Windows crash
+ * that happens when the process exits while sockets are still open
+ * (https://github.com/nodejs/node/issues/56645).
+ */
 export async function destroyDispatchers (): Promise<void> {
   await Promise.allSettled([
     GLOBAL_DISPATCHER.destroy(),

@@ -1,5 +1,5 @@
 ---
-"@pnpm/network.fetch": patch
+"@pnpm/network.fetch": minor
 "pnpm": patch
 ---
 
