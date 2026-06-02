@@ -9,17 +9,25 @@ permissions:
   contents: write
   pull-requests: write
 
+# Serialize runs so a manual dispatch and the daily schedule can't reset and
+# force-push the chore/update-lockfile branch at the same time.
+concurrency:
+  group: update-lockfile
+  cancel-in-progress: false
+
 jobs:
   update-lockfile:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Commit
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 # zizmor: ignore[artipacked]
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
-        # The token must persist in .git/config so the "Commit and push" step
-        # below can `git push` to the chore/update-lockfile branch.
-        token: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        # Don't persist the write-scoped token in .git/config. The full install
+        # below runs third-party lifecycle scripts from freshly-bumped
+        # dependencies; the token is only needed to push, which the "Commit and
+        # push" step does with an explicit, single-use remote URL.
+        persist-credentials: false
 
     # The job regenerates the lockfile and runs the meta-updater itself, so the
     # action's auto-install would just be wasted work.
@@ -28,15 +36,17 @@ jobs:
       with:
         install: false
 
-    # Build the day's changes on a single, persistent branch that is reset to
-    # the latest main on every run. If a PR from a previous day is still open,
-    # the force-push below replaces its contents with today's changes instead of
-    # opening a second PR.
+    # Build the day's changes on a single, persistent branch based on the latest
+    # main on every run. main is fetched explicitly so the branch is correct even
+    # for a workflow_dispatch run triggered from another ref. If a PR from a
+    # previous day is still open, the force-push below replaces its contents with
+    # today's changes instead of opening a second PR.
     - name: Prepare update branch
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git checkout -B chore/update-lockfile
+        git fetch origin main
+        git checkout -B chore/update-lockfile FETCH_HEAD
 
     - name: Update dependencies, Node.js, pnpm, and pacquet versions
       timeout-minutes: 20
@@ -72,10 +82,12 @@ jobs:
 
     - name: Commit and push
       if: steps.changes.outputs.changed == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
       run: |
         git add -A
         git commit -m "chore: update lockfile, Node.js, pnpm, and pacquet versions"
-        git push -f origin chore/update-lockfile
+        git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" chore/update-lockfile
 
     - name: Create PR if needed
       if: steps.changes.outputs.changed == 'true'
@@ -86,7 +98,7 @@ jobs:
 
         # An already-open PR from a previous day now points at the freshly
         # force-pushed branch, so there is nothing more to do.
-        if gh pr list --head "$BRANCH" --state open | grep -q "$BRANCH"; then
+        if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
           echo "PR already exists; today's changes were force-pushed to it"
         else
           gh pr create \
