@@ -354,6 +354,20 @@ pub enum InstallWithFreshLockfileError {
     #[display("Failed to serialize lockfile for the afterAllResolved hook: {_0}")]
     #[diagnostic(code(pacquet_package_manager::after_all_resolved_serialize))]
     AfterAllResolvedSerialize(#[error(source)] serde_json::Error),
+
+    /// The pnpmfile's `getCustomResolvers` hook threw while loading custom
+    /// resolvers. Mirrors pnpm, where a throwing custom-resolver hook
+    /// aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    CustomResolverHook(#[error(not(source))] pacquet_hooks::HookError),
+
+    /// A custom resolver's `shouldRefreshResolution` hook threw while
+    /// checking whether to force re-resolution. Mirrors pnpm, where a
+    /// throwing hook aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
 }
 
 impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFreshLockfileError {
@@ -966,6 +980,37 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .as_ref()
             .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "afterAllResolved"));
 
+        // Upstream chain priority:
+        // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L134>.
+        let custom_resolvers_raw: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
+            if let Some(ref hook) = pnpmfile_hook {
+                hook.get_custom_resolvers().await.map_err(|err| {
+                    tracing::error!(
+                        target: "pacquet::install",
+                        "Failed to get custom resolvers from pnpmfile: {err}",
+                    );
+                    InstallWithFreshLockfileError::CustomResolverHook(err)
+                })?
+            } else {
+                vec![]
+            };
+
+        let resolver: Box<dyn Resolver> = if custom_resolvers_raw.is_empty() {
+            resolver
+        } else {
+            let mut chain: Vec<Box<dyn Resolver>> =
+                Vec::with_capacity(custom_resolvers_raw.len() + 1);
+            for cr in &custom_resolvers_raw {
+                chain.push(Box::new(
+                    pacquet_hooks::custom_resolver_adapter::CustomResolverAdapter::new(Arc::clone(
+                        cr,
+                    )),
+                ));
+            }
+            chain.push(resolver);
+            Box::new(DefaultResolver::new(chain))
+        };
+
         // Call preResolution hook before resolution starts (mirrors pnpm's behavior in install/index.ts)
         if let Some(ref hook) = pnpmfile_hook {
             let wanted_lockfile_json = wanted_lockfile.map_or_else(
@@ -1003,6 +1048,26 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .await;
         }
 
+        // `pacquet update` must re-resolve its targets to highest-in-range,
+        // so suppress reuse for them (and their subtrees). Custom resolvers
+        // may widen this to `None` via `shouldRefreshResolution`.
+        let mut update_reuse_scope = match &update_seed_policy {
+            UpdateSeedPolicy::KeepAll => pacquet_resolving_deps_resolver::UpdateReuseScope::All,
+            UpdateSeedPolicy::DropAll => pacquet_resolving_deps_resolver::UpdateReuseScope::None,
+            UpdateSeedPolicy::DropOnly(names) => {
+                pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
+            }
+        };
+
+        // A throwing hook propagates and aborts.
+        if let Some(snapshots) = wanted_lockfile.as_ref().and_then(|lf| lf.snapshots.as_ref())
+            && should_refresh_resolution(&custom_resolvers_raw, snapshots)
+                .await
+                .map_err(InstallWithFreshLockfileError::CustomResolverForceResolve)?
+        {
+            update_reuse_scope = pacquet_resolving_deps_resolver::UpdateReuseScope::None;
+        }
+
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
             dedupe_peers: config.dedupe_peers,
             dedupe_injected_deps: config.dedupe_injected_deps,
@@ -1030,17 +1095,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 })
                 .cloned()
                 .map(Arc::new),
-            // `pacquet update` must re-resolve its targets to highest-
-            // in-range, so suppress reuse for them (and their subtrees).
-            update_reuse_scope: match &update_seed_policy {
-                UpdateSeedPolicy::KeepAll => pacquet_resolving_deps_resolver::UpdateReuseScope::All,
-                UpdateSeedPolicy::DropAll => {
-                    pacquet_resolving_deps_resolver::UpdateReuseScope::None
-                }
-                UpdateSeedPolicy::DropOnly(names) => {
-                    pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
-                }
-            },
+            update_reuse_scope,
             auto_install_peers: config.auto_install_peers,
         };
         let modules_basename = config.modules_dir.file_name().map_or_else(
@@ -1941,6 +1996,22 @@ fn compute_package_extensions_checksum(config: &Config) -> Option<String> {
         config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
     let value = serde_json::to_value(extensions).ok()?;
     pacquet_graph_hasher::hash_object_nullable_with_prefix(&value)
+}
+
+/// A throwing hook propagates and aborts.
+async fn should_refresh_resolution(
+    custom_resolvers: &[Arc<dyn pacquet_hooks::CustomResolver>],
+    snapshots: &HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::SnapshotEntry>,
+) -> Result<bool, pacquet_hooks::HookError> {
+    for resolver in custom_resolvers {
+        for (dep_path, snapshot) in snapshots.iter() {
+            let snapshot_val = serde_json::to_value(snapshot).unwrap_or_default();
+            if resolver.should_refresh_resolution(dep_path.to_string(), snapshot_val).await? {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// [`Resolver`] adapter that delegates to a shared `Arc<dyn Resolver>`.

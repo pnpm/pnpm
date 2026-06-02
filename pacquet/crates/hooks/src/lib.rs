@@ -3,6 +3,7 @@ use derive_more::Display;
 use serde_json::Value;
 use std::sync::Arc;
 
+pub mod custom_resolver_adapter;
 pub mod finder;
 pub mod node_runtime;
 pub mod worker;
@@ -117,6 +118,26 @@ pub trait PnpmfileHooks: Send + Sync {
     fn source_path(&self) -> Option<&std::path::Path> {
         None
     }
+
+    /// Get custom resolvers exported from the pnpmfile.
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError>;
+}
+
+/// Represents a custom resolver exported from a pnpmfile.
+#[async_trait]
+pub trait CustomResolver: Send + Sync {
+    /// Called during resolution to determine if this resolver should handle a dependency.
+    async fn can_resolve(&self, wanted_dependency: Value) -> Result<bool, HookError>;
+
+    /// Called to resolve a dependency that canResolve returned true for.
+    async fn resolve(&self, wanted_dependency: Value, opts: Value) -> Result<Value, HookError>;
+
+    /// Called on subsequent installs to determine if this dependency needs re-resolution.
+    async fn should_refresh_resolution(
+        &self,
+        dep_path: String,
+        pkg_snapshot: Value,
+    ) -> Result<bool, HookError>;
 }
 
 /// A no-op implementation of `PnpmfileHooks`.
@@ -139,5 +160,8 @@ impl PnpmfileHooks for NoopHooks {
     }
     async fn filter_log(&self, _: Value, _: HookContext) -> bool {
         true
+    }
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
+        Ok(vec![])
     }
 }

@@ -186,4 +186,64 @@ impl crate::PnpmfileHooks for NodeJsHooks {
     fn source_path(&self) -> Option<&std::path::Path> {
         Some(&self.file)
     }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn crate::CustomResolver>>, HookError> {
+        let worker = self.worker().await?;
+        let count = worker.get_resolver_count().await?;
+        let mut resolvers = Vec::with_capacity(count);
+        for index in 0..count {
+            resolvers.push(Arc::new(NodeJsCustomResolver { worker: Arc::clone(&worker), index })
+                as Arc<dyn crate::CustomResolver>);
+        }
+        Ok(resolvers)
+    }
+}
+
+pub struct NodeJsCustomResolver {
+    worker: Arc<NodeWorker>,
+    index: usize,
+}
+
+#[async_trait]
+impl crate::CustomResolver for NodeJsCustomResolver {
+    async fn can_resolve(&self, wanted_dependency: Value) -> Result<bool, HookError> {
+        let res = self
+            .worker
+            .call_resolver(
+                self.index,
+                "canResolve",
+                serde_json::json!([wanted_dependency]),
+                Arc::new(|_| {}),
+            )
+            .await?;
+        Ok(res.as_bool().unwrap_or(false))
+    }
+
+    async fn resolve(&self, wanted_dependency: Value, opts: Value) -> Result<Value, HookError> {
+        self.worker
+            .call_resolver(
+                self.index,
+                "resolve",
+                serde_json::json!([wanted_dependency, opts]),
+                Arc::new(|_| {}),
+            )
+            .await
+    }
+
+    async fn should_refresh_resolution(
+        &self,
+        dep_path: String,
+        pkg_snapshot: Value,
+    ) -> Result<bool, HookError> {
+        let res = self
+            .worker
+            .call_resolver(
+                self.index,
+                "shouldRefreshResolution",
+                serde_json::json!([dep_path, pkg_snapshot]),
+                Arc::new(|_| {}),
+            )
+            .await?;
+        Ok(res.as_bool().unwrap_or(false))
+    }
 }

@@ -126,6 +126,39 @@ impl NodeWorker {
             .unwrap_or(false)
     }
 
+    /// Call `method` on the custom resolver at `index` in the pnpmfile's
+    /// `resolvers` array, forwarding any `context.log(...)` to `log`.
+    pub async fn call_resolver(
+        &self,
+        index: usize,
+        method: &str,
+        payload: Value,
+        log: LogFn,
+    ) -> Result<Value, HookError> {
+        self.request(
+            method,
+            serde_json::json!({
+                "target": "resolver",
+                "index": index,
+                "method": method,
+                "payload": payload,
+            }),
+            log,
+        )
+        .await
+    }
+
+    /// Get the number of custom resolvers exported by the pnpmfile.
+    pub async fn get_resolver_count(&self) -> Result<usize, HookError> {
+        self.request(
+            "resolverCount",
+            serde_json::json!({ "target": "resolverCount" }),
+            Arc::new(|_| {}),
+        )
+        .await
+        .map(|value| value.as_u64().unwrap_or(0) as usize)
+    }
+
     /// Send one request `body` (an object the worker dispatches on) and
     /// await its reply, stamping in the request id and routing any
     /// `context.log(...)` lines to `log`. `label` names the request in a
@@ -209,6 +242,24 @@ async function handle(line) {{
   try {{
     const fn = mod && mod.hooks && mod.hooks[req.hook];
     const context = {{ log: (m) => send({{ log: String(m) }}) }};
+    if (req.target === 'resolverCount') {{
+      const resolvers = mod && mod.resolvers;
+      send({{ ok: (Array.isArray(resolvers) ? resolvers.length : 0) }});
+      return;
+    }}
+    if (req.target === 'resolver') {{
+      const resolvers = mod && mod.resolvers;
+      const resolver = Array.isArray(resolvers) ? resolvers[req.index] : null;
+      const fn = resolver && resolver[req.method];
+      if (typeof fn !== 'function') {{
+        send({{ ok: null }});
+        return;
+      }}
+      const args = req.payload || [];
+      const res = await fn(...args);
+      send({{ ok: res === undefined ? null : res }});
+      return;
+    }}
     if (req.hook === 'readPackage') {{
       const pkg = req.payload;
       if (typeof fn !== 'function') {{ send({{ ok: pkg }}); return; }}
