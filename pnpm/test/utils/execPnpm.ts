@@ -224,7 +224,7 @@ function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault
   return env
 }
 
-function registerProcessTimeout (proc: NodeChildProcess, timeout: number, onTimeout: (reason: Error) => void) {
+export function registerProcessTimeout (proc: NodeChildProcess, timeout: number, onTimeout: (reason: Error) => void): ReturnType<typeof setTimeout> {
   return setTimeout(() => {
     onTimeout(new Error(`Command timed out after ${timeout}ms`))
 
@@ -234,7 +234,7 @@ function registerProcessTimeout (proc: NodeChildProcess, timeout: number, onTime
     proc.kill('SIGINT')
 
     setTimeout(() => {
-      if (proc.exitCode != null) {
+      if (proc.exitCode == null && proc.signalCode == null) {
         proc.kill()
       }
     }, TIMEOUT_FOR_GRACEFUL_EXIT)

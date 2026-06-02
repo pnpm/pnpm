@@ -320,7 +320,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
 
   const commands = {
     shx: ['echo', 'hello from shx'],
-    'shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7': ['echo', 'hello from shx.git'],
+    'shx@0.3.3': ['echo', 'hello from shx@0.3.3'],
     '@pnpm.e2e/touch-file-good-bin-name': [],
     '@pnpm.e2e/touch-file-one-bin': [],
   } satisfies Record<string, string[]>
