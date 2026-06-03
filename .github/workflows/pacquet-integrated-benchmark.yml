@@ -123,6 +123,18 @@ jobs:
           subsection 'Inspecting branches...'
           git branch
 
+      - name: Resolve benchmark revisions
+        id: revs
+        shell: bash
+        # The benchmark binaries are cached per *resolved commit* below, so
+        # `main` is reused across PRs (its SHA is stable until main moves)
+        # and a same-HEAD re-run reuses HEAD too — instead of recompiling
+        # every revision on every run. Needs the local `main` ref that the
+        # previous step made visible.
+        run: |
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$(git rev-parse main)" >> "$GITHUB_OUTPUT"
+
       - name: Cache pnpm-registry storage
         # Persists pnpm-registry's `--storage` dir across CI runs so
         # cold-cache benchmark scenarios don't refetch ~2.3k unscoped
@@ -141,19 +153,51 @@ jobs:
         timeout-minutes: 1
         continue-on-error: true
 
-      - name: Cache Rust builds
+      # Cargo download + the orchestrator's own build target. Deliberately
+      # does NOT cache the multi-GB `bench-work-env/*/pacquet/target` dirs —
+      # restoring those reliably blew the (former 1-minute) timeout, so the
+      # cache silently missed and every run built cold. The compiled
+      # revision *binaries* are cached separately, per commit, below.
+      - name: Cache Rust deps
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          key: integrated-benchmark-builds-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}
+          key: integrated-benchmark-deps-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}
           restore-keys: |
-            integrated-benchmark-builds-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-
-            integrated-benchmark-builds-${{ matrix.os }}-
+            integrated-benchmark-deps-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-
+            integrated-benchmark-deps-${{ matrix.os }}-
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-            bench-work-env/*/pacquet/target
-        timeout-minutes: 1
+        timeout-minutes: 3
+        continue-on-error: true
+
+      # Prebuilt revision binaries, keyed on the resolved commit. A
+      # `pnpr@<rev>` build also produces the `pacquet` client binary, and
+      # the orchestrator's `--reuse-prebuilt-binaries` copies it to the
+      # same-revision `pacquet@<rev>` target — so caching the two pnpr
+      # binaries covers all four targets. `main` is a near-certain hit on
+      # PRs (stable SHA), and a same-HEAD re-run hits HEAD too; a fresh HEAD
+      # is the only thing that compiles. Restored into the paths the
+      # orchestrator builds into, so it skips the clone + `cargo build`.
+      - name: Cache pnpr@main binaries
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          key: integrated-benchmark-bin-${{ matrix.os }}-${{ steps.revs.outputs.main_sha }}-${{ hashFiles('rust-toolchain.toml') }}
+          path: |
+            bench-work-env/pnpr@main/pacquet/target/release/pacquet
+            bench-work-env/pnpr@main/pacquet/target/release/pnpr
+        timeout-minutes: 2
+        continue-on-error: true
+
+      - name: Cache pnpr@HEAD binaries
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          key: integrated-benchmark-bin-${{ matrix.os }}-${{ steps.revs.outputs.head_sha }}-${{ hashFiles('rust-toolchain.toml') }}
+          path: |
+            bench-work-env/pnpr@HEAD/pacquet/target/release/pacquet
+            bench-work-env/pnpr@HEAD/pacquet/target/release/pnpr
+        timeout-minutes: 2
         continue-on-error: true
 
       - name: Install Rust Toolchain
@@ -203,7 +247,7 @@ jobs:
         # binaries the boot step needs. More builds than the pacquet-only
         # bench, hence the larger timeout.
         timeout-minutes: 25
-        run: just integrated-benchmark --build-only $BENCHMARK_TARGETS
+        run: just integrated-benchmark --reuse-prebuilt-binaries --build-only $BENCHMARK_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
         shell: bash
@@ -215,7 +259,7 @@ jobs:
         # warm server), and a failure surfaces fast enough to iterate on.
         timeout-minutes: 15
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
 
@@ -228,7 +272,7 @@ jobs:
         # server, as in every scenario).
         timeout-minutes: 15
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
 
@@ -242,7 +286,7 @@ jobs:
         # safety net the other steps document.
         timeout-minutes: 35
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
 
@@ -253,7 +297,7 @@ jobs:
         # ample headroom across all four commands.
         timeout-minutes: 25
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
 

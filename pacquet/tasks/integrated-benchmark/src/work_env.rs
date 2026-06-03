@@ -46,6 +46,10 @@ pub struct WorkEnv {
     /// Port the local registry listens on, used as the latency proxy's
     /// upstream when `registry_latency_ms > 0`.
     pub registry_port: u16,
+    /// Skip the clone + `cargo build` for a target whose output binary is
+    /// already present — i.e. restored from a per-commit CI cache. Off by
+    /// default so a local run always rebuilds.
+    pub reuse_prebuilt_binaries: bool,
 }
 
 impl WorkEnv {
@@ -202,9 +206,34 @@ impl WorkEnv {
         }
     }
 
+    /// Output binary a `pacquet@<rev>` target runs.
+    fn pacquet_binary(&self, revision: &str) -> PathBuf {
+        self.pacquet_source_dir(revision).join("target").join("release").join("pacquet")
+    }
+
+    /// The `pacquet` client binary a `pnpr@<rev>` build produces (the pnpr
+    /// target builds `--bin=pacquet --bin=pnpr`).
+    fn pnpr_pacquet_binary(&self, revision: &str) -> PathBuf {
+        self.pnpr_source_dir(revision).join("target").join("release").join("pacquet")
+    }
+
+    /// The `pnpr` server binary a `pnpr@<rev>` build produces.
+    fn pnpr_server_binary(&self, revision: &str) -> PathBuf {
+        self.pnpr_source_dir(revision).join("target").join("release").join("pnpr")
+    }
+
     pub fn build(&self) {
         eprintln!("Building...");
-        for target in &self.targets {
+        // Build `pnpr@<rev>` targets first: a pnpr build also produces the
+        // `pacquet` client binary, so a same-revision `pacquet@<rev>` can
+        // reuse it (see [`Self::build_pacquet`]) instead of compiling the
+        // identical commit a second time.
+        let pnpr_first = self
+            .targets
+            .iter()
+            .filter(|target| target.kind == TargetKind::Pnpr)
+            .chain(self.targets.iter().filter(|target| target.kind != TargetKind::Pnpr));
+        for target in pnpr_first {
             match target.kind {
                 TargetKind::Pacquet => self.build_pacquet(&target.rev),
                 TargetKind::Pnpm => self.build_pnpm(&target.rev),
@@ -214,6 +243,35 @@ impl WorkEnv {
     }
 
     fn build_pacquet(&self, revision: &str) {
+        let dest = self.pacquet_binary(revision);
+
+        // Restored from the per-commit CI binary cache: nothing to build.
+        if self.reuse_prebuilt_binaries && dest.is_file() {
+            eprintln!("Revision: {revision:?} (pacquet) — reusing prebuilt binary");
+            return;
+        }
+
+        // The same commit's `pnpr@<revision>` target (built first) already
+        // produced an identical `pacquet` client binary; copy it rather
+        // than compiling the revision twice.
+        if self
+            .targets
+            .iter()
+            .any(|target| target.kind == TargetKind::Pnpr && target.rev == revision)
+        {
+            let from_pnpr = self.pnpr_pacquet_binary(revision);
+            if from_pnpr.is_file() {
+                eprintln!(
+                    "Revision: {revision:?} (pacquet) — reusing the binary from the pnpr@{revision} build",
+                );
+                if let Some(parent) = dest.parent() {
+                    fs::create_dir_all(parent).expect("create pacquet target/release dir");
+                }
+                fs::copy(&from_pnpr, &dest).expect("copy pacquet binary from the pnpr build");
+                return;
+            }
+        }
+
         eprintln!("Revision: {revision:?} (pacquet)");
 
         let repository = self.repository();
@@ -247,6 +305,15 @@ impl WorkEnv {
     /// spawned later, at benchmark time, from
     /// `<bench_dir>/pacquet/target/release/pnpr`.
     fn build_pnpr(&self, revision: &str) {
+        // Restored from the per-commit CI binary cache: nothing to build.
+        if self.reuse_prebuilt_binaries
+            && self.pnpr_pacquet_binary(revision).is_file()
+            && self.pnpr_server_binary(revision).is_file()
+        {
+            eprintln!("Revision: {revision:?} (pnpr) — reusing prebuilt binaries");
+            return;
+        }
+
         eprintln!("Revision: {revision:?} (pnpr)");
 
         let repository = self.repository();
