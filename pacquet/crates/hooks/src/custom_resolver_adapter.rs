@@ -69,6 +69,7 @@ impl CustomResolverAdapter {
             "lockfileDir": opts.lockfile_dir.to_string_lossy(),
             "projectDir": opts.project_dir.to_string_lossy(),
             "preferredVersions": Self::preferred_versions_to_value(&opts.preferred_versions),
+            "currentPkg": opts.current_pkg,
         })
     }
 }
