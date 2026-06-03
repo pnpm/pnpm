@@ -99,7 +99,7 @@ async function handleMessage (
       }
       case 'readPkgFromCafs': {
         const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
-        const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
+        const pkgFilesIndex = getStoreIndex(storeDir).getCached(filesIndexFile) as PackageFilesIndex | undefined
         if (!pkgFilesIndex) {
           parentPort!.postMessage({
             status: 'success',
@@ -687,4 +687,3 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
     req.end()
   })
 }
-
