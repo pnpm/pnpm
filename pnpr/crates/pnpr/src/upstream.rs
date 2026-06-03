@@ -222,6 +222,11 @@ pub fn abbreviate_packument(packument: &Value) -> Value {
 /// * `npm-signature` — the legacy PGP detached signature. npm stopped
 ///   populating it years ago in favour of the ECDSA `signatures`, and
 ///   nothing in pnpm or pacquet reads it.
+/// * `fileCount` — read nowhere in pnpm or pacquet.
+/// * `unpackedSize` — only `pnpm view` reads it, and that command
+///   fetches the *full* metadata document (`fullMetadata: true`) which
+///   pnpr serves unstripped, so dropping it from the abbreviated form
+///   is safe.
 /// * `shasum` — the legacy sha1 hash, redundant once `integrity` (SRI)
 ///   is present. Kept when `integrity` is absent (pre-2017 publishes)
 ///   so pnpm's `getIntegrity` fallback still has a hash.
@@ -235,6 +240,8 @@ fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
         return;
     };
     dist.remove("npm-signature");
+    dist.remove("fileCount");
+    dist.remove("unpackedSize");
     if dist.get("integrity").is_some_and(|integrity| !integrity.is_null()) {
         dist.remove("shasum");
     }
