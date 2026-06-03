@@ -160,9 +160,8 @@ const ABBREVIATED_TOP_FIELDS: &[&str] = &["name", "dist-tags", "time"];
 /// Fields neither the pnpm nor the pacquet resolver reads are dropped
 /// to shrink the document: `funding`, `acceptDependencies`,
 /// `_hasShrinkwrap`, and `devDependencies` (a dependency's dev
-/// dependencies are never installed). `dist.shasum` is dropped
-/// per-version by [`drop_redundant_shasum`] when `dist.integrity` is
-/// present.
+/// dependencies are never installed). Redundant `dist` subfields are
+/// trimmed per-version by [`trim_dist_fields`].
 const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
     "name",
     "version",
@@ -209,7 +208,7 @@ pub fn abbreviate_packument(packument: &Value) -> Value {
                         trimmed.insert(field.to_string(), value.clone());
                     }
                 }
-                drop_redundant_shasum(&mut trimmed);
+                trim_dist_fields(&mut trimmed);
                 abbreviated_versions.insert(version_id.clone(), Value::Object(trimmed));
             }
             out.insert("versions".to_string(), Value::Object(abbreviated_versions));
@@ -218,14 +217,25 @@ pub fn abbreviate_packument(packument: &Value) -> Value {
     Value::Object(out)
 }
 
-/// Drop the legacy `dist.shasum` (sha1) when `dist.integrity` (SRI) is
-/// present. The pnpm and pacquet resolvers prefer `integrity` and only
-/// fall back to `shasum` when `integrity` is absent (pre-2017
-/// publishes), so shipping both is a redundant hash on every version.
-fn drop_redundant_shasum(version: &mut serde_json::Map<String, Value>) {
-    if let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut)
-        && dist.get("integrity").is_some_and(|integrity| !integrity.is_null())
-    {
+/// Trim `dist` subfields the resolver and installer never read:
+///
+/// * `npm-signature` — the legacy PGP detached signature. npm stopped
+///   populating it years ago in favour of the ECDSA `signatures`, and
+///   nothing in pnpm or pacquet reads it.
+/// * `shasum` — the legacy sha1 hash, redundant once `integrity` (SRI)
+///   is present. Kept when `integrity` is absent (pre-2017 publishes)
+///   so pnpm's `getIntegrity` fallback still has a hash.
+///
+/// `dist.signatures` (the ECDSA registry signatures) is deliberately
+/// preserved: it binds `name@version:integrity` to the upstream
+/// registry's key and is the input to a potential client-side
+/// install-time verification on the pnpr path.
+fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
+    let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
+        return;
+    };
+    dist.remove("npm-signature");
+    if dist.get("integrity").is_some_and(|integrity| !integrity.is_null()) {
         dist.remove("shasum");
     }
 }

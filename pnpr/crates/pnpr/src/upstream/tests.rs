@@ -125,7 +125,9 @@ fn abbreviation_drops_fields_the_resolver_ignores() {
                 "dist": {
                     "tarball": "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
                     "integrity": "sha512-abc",
-                    "shasum": "deadbeef"
+                    "shasum": "deadbeef",
+                    "signatures": [{ "keyid": "SHA256:xyz", "sig": "base64sig" }],
+                    "npm-signature": "-----BEGIN PGP SIGNATURE-----"
                 }
             }
         }
@@ -160,6 +162,9 @@ fn abbreviation_drops_fields_the_resolver_ignores() {
     // `shasum` dropped because `integrity` is present.
     assert_eq!(version["dist"]["integrity"], "sha512-abc");
     assert!(version["dist"].get("shasum").is_none());
+    // Legacy PGP signature dropped; ECDSA registry signatures kept.
+    assert!(version["dist"].get("npm-signature").is_none());
+    assert_eq!(version["dist"]["signatures"][0]["keyid"], "SHA256:xyz");
 }
 
 #[test]
