@@ -273,6 +273,7 @@ async function deployFromSharedLockfile (
       rootProjectManifestDir: deployDir,
       dir: deployDir,
       lockfileDir: deployDir,
+      localDirPackageImportMethod: 'clone-or-copy',
       workspaceDir: undefined,
       virtualStoreDir: undefined,
       modulesDir: undefined,

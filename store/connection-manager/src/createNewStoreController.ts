@@ -61,7 +61,10 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
   fetchFullMetadata?: boolean
-} & Partial<Pick<Config, 'deployAllFiles' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+} & Partial<Pick<Config, 'deployAllFiles' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions,
+| 'localDirPackageImportMethod'
+| 'resolveSymlinksInInjectedDirs'
+>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
@@ -114,6 +117,7 @@ export async function createNewStoreController (
     ),
     gitShallowHosts: opts.gitShallowHosts,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
+    localDirPackageImportMethod: opts.localDirPackageImportMethod,
     includeOnlyPackageFiles: !opts.deployAllFiles,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,

@@ -64,10 +64,12 @@ export interface DirectoryFetcherOptions {
   readManifest?: boolean
 }
 
+export type LocalDirPackageImportMethod = 'hardlink' | 'clone-or-copy'
+
 export interface DirectoryFetcherResult {
   local: true
   filesMap: FilesMap
-  packageImportMethod: 'hardlink'
+  packageImportMethod: LocalDirPackageImportMethod
   manifest?: DependencyManifest
   requiresBuild: boolean
 }
