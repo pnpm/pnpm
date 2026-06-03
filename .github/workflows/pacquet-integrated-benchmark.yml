@@ -80,6 +80,20 @@ jobs:
       # the realistic CI case. Running both tools in one hyperfine
       # invocation also yields the pnpr-vs-direct ratio per scenario.
       BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
+      # Round-trip latency (ms) injected so both install strategies cross
+      # the same network they would in production: between the client and
+      # each `pnpr@<rev>` server (`PNPR_LATENCY_MS`), and between the
+      # direct (`pacquet@<rev>`) client and the registry
+      # (`REGISTRY_LATENCY_MS`). Equal values make the pnpr-vs-direct ratio
+      # fair — pnpr's win then comes from fewer round trips, not a faster
+      # link. `pnpr@<rev>` targets keep a direct (fast) registry link,
+      # modeling a warm, colocated server. The `pnpr` Bencher testbed
+      # (pnpr@HEAD vs pnpr@main) is thus sensitive to protocol
+      # round-trip-count changes. Lower `REGISTRY_LATENCY_MS` if the
+      # cold-store scenarios' direct refetch waterfall strains the
+      # per-step timeouts.
+      PNPR_LATENCY_MS: 50
+      REGISTRY_LATENCY_MS: 50
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -201,7 +215,7 @@ jobs:
         # warm server), and a failure surfaces fast enough to iterate on.
         timeout-minutes: 15
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio $BENCHMARK_TARGETS
+          just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
 
@@ -214,7 +228,7 @@ jobs:
         # server, as in every scenario).
         timeout-minutes: 15
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS
+          just integrated-benchmark --scenario=isolated-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
 
@@ -228,7 +242,7 @@ jobs:
         # safety net the other steps document.
         timeout-minutes: 35
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio $BENCHMARK_TARGETS
+          just integrated-benchmark --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
 
@@ -239,7 +253,7 @@ jobs:
         # ample headroom across all four commands.
         timeout-minutes: 25
         run: |
-          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio $BENCHMARK_TARGETS
+          just integrated-benchmark --scenario=isolated-linker.fresh-install.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE.json
 

@@ -3,6 +3,7 @@
 
 mod cli_args;
 mod fixtures;
+mod latency_proxy;
 mod verify;
 mod work_env;
 mod workspace_manifest;
@@ -23,6 +24,8 @@ async fn main() {
         hyperfine_options,
         work_env,
         with_pnpm,
+        pnpr_latency_ms,
+        registry_latency_ms,
         build_only,
         targets,
     } = clap::Parser::parse();
@@ -116,6 +119,9 @@ async fn main() {
         scenario,
         hyperfine_options,
         fixture_dir,
+        pnpr_latency_ms,
+        registry_latency_ms,
+        registry_port,
     };
     if build_only {
         env.build();
