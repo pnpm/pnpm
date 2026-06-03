@@ -1,6 +1,7 @@
 use crate::{
     error::{RegistryError, Result},
     package_name::PackageName,
+    range_compress::compress_version_dependencies,
 };
 use pacquet_network::ThrottledClient;
 use reqwest::StatusCode;
@@ -183,7 +184,9 @@ const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
 
 /// Strip a parsed packument down to the abbreviated install-v1 form.
 /// Should be called *after* `rewrite_tarball_urls` so the returned
-/// document's `dist.tarball` URLs already point at this server.
+/// document's `dist.tarball` URLs already point at this server. Each
+/// version's dependency ranges are rewritten to their shortest
+/// equivalent form by [`compress_version_dependencies`].
 pub fn abbreviate_packument(packument: &Value) -> Value {
     let mut out = serde_json::Map::new();
     if let Some(obj) = packument.as_object() {
@@ -209,7 +212,9 @@ pub fn abbreviate_packument(packument: &Value) -> Value {
                     }
                 }
                 trim_dist_fields(&mut trimmed);
-                abbreviated_versions.insert(version_id.clone(), Value::Object(trimmed));
+                let mut trimmed = Value::Object(trimmed);
+                compress_version_dependencies(&mut trimmed);
+                abbreviated_versions.insert(version_id.clone(), trimmed);
             }
             out.insert("versions".to_string(), Value::Object(abbreviated_versions));
         }

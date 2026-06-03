@@ -44,6 +44,7 @@ getrandom                       = { workspace = true }
 home                            = { workspace = true }
 indexmap                        = { workspace = true }
 miette                          = { workspace = true }
+node-semver                     = { workspace = true }
 reqwest                         = { workspace = true }
 rusqlite                        = { workspace = true }
 serde                           = { workspace = true }

@@ -149,7 +149,9 @@ fn abbreviation_drops_fields_the_resolver_ignores() {
     let version = &out["versions"]["1.0.0"];
     // Resolver-relevant fields kept.
     assert_eq!(version["name"], "foo");
-    assert_eq!(version["dependencies"]["bar"], "^1.0.0");
+    // Dependency ranges are compressed to their shortest equivalent:
+    // `^1.0.0` denotes the same version set as `1`.
+    assert_eq!(version["dependencies"]["bar"], "1");
     assert_eq!(version["peerDependencies"]["react"], "*");
     assert_eq!(version["hasInstallScript"], true);
     // Platform-filtering fields kept for optional-dep selection (`#9950`).

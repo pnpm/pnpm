@@ -3219,6 +3219,7 @@ dependencies = [
  "indexmap",
  "miette 7.6.0",
  "mockito",
+ "node-semver",
  "pacquet-config",
  "pacquet-config-dir",
  "pacquet-env-replace",

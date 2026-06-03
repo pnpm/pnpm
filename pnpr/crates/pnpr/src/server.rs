@@ -9,6 +9,7 @@ use crate::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
+    range_compress::compress_packument_dependencies,
     streaming,
     upstream::{
         FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest,
@@ -825,6 +826,11 @@ async fn publish_package(
         Ok(a) => a,
         Err(err) => return error_response(&err),
     };
+
+    // Rewrite dependency ranges to their shortest equivalent form
+    // before the manifest is persisted, so packages hosted in pnpr are
+    // stored already-compressed and never pay the conversion per read.
+    compress_packument_dependencies(&mut incoming);
 
     // Resolve each attachment's canonical disk filename + matching
     // `versions[v].dist` block. Attachment names that don't match the

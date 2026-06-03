@@ -203,6 +203,43 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
 }
 
 #[tokio::test]
+async fn publish_stores_dependency_ranges_in_compressed_form() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let bytes = b"fake-tarball-bytes";
+    let mut body = sample_publish_body("deppkg", "1.0.0", bytes);
+    body["versions"]["1.0.0"]["dependencies"] = json!({
+        "caret": "^1.0.0",
+        "tilde": "~2.3.0",
+        "wildcard": "3.x",
+        "pinned": "4.5.6",
+        "git": "git+https://example.com/a/b.git",
+    });
+    let request = Request::put("/deppkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let on_disk = std::fs::read(storage.join("deppkg/package.json")).expect("packument written");
+    let packument: Value = serde_json::from_slice(&on_disk).unwrap();
+    let deps = &packument["versions"]["1.0.0"]["dependencies"];
+    assert_eq!(deps["caret"], "1");
+    assert_eq!(deps["tilde"], "2.3");
+    assert_eq!(deps["wildcard"], "3");
+    // A pinned exact version is already minimal; a non-semver
+    // specifier is left untouched.
+    assert_eq!(deps["pinned"], "4.5.6");
+    assert_eq!(deps["git"], "git+https://example.com/a/b.git");
+}
+
+#[tokio::test]
 async fn publish_followed_by_dist_tag_set_works() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();

@@ -15,6 +15,7 @@ mod install_accelerator;
 mod package_name;
 mod policy;
 mod publish;
+mod range_compress;
 mod search;
 mod server;
 mod streaming;
