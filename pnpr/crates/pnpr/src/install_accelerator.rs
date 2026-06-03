@@ -294,6 +294,14 @@ fn stats_json(stats: &diff::Stats) -> serde_json::Value {
     })
 }
 
+/// gzip level for the file-bearing responses (`/v1/files` and the
+/// `inlineFiles` install body). Level 6 (the gzip default) shrinks the
+/// payload ~16% over level 1 — the win that matters once the server is
+/// across a latency link, where fewer bytes means fewer TCP slow-start
+/// round trips — while level 9 adds under a percent for several times
+/// the CPU.
+const FILES_GZIP_LEVEL: u32 = 6;
+
 /// Content type of the combined `inlineFiles` install response: a
 /// length-prefixed JSON header followed by the [`build_files_payload`]
 /// binary frames, gzip-compressed.
@@ -346,7 +354,7 @@ fn finish_inline_response(header: &serde_json::Value, files_payload: &[u8]) -> R
     body.extend_from_slice(&header_bytes);
     body.extend_from_slice(files_payload);
 
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::new(1));
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::new(FILES_GZIP_LEVEL));
     if encoder.write_all(&body).is_err() {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed");
     }
@@ -495,7 +503,7 @@ pub(crate) async fn handle_files(runtime: &InstallAccelerator, body: Bytes) -> R
         Err((status, message)) => return json_error(status, &message),
     };
 
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::new(1));
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::new(FILES_GZIP_LEVEL));
     if encoder.write_all(&payload).is_err() {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed");
     }
