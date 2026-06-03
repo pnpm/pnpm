@@ -45,7 +45,8 @@ pub struct CliArgs {
     #[clap(long)]
     pub build_only: bool,
 
-    /// Targets to benchmark. Each is `pacquet@<rev>` or `pnpm@<rev>`.
+    /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
+    /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
     #[clap(required = true)]
     pub targets: Vec<TargetSpec>,
 }
@@ -62,21 +63,28 @@ pub struct TargetSpec {
 pub enum TargetKind {
     Pacquet,
     Pnpm,
+    /// A pacquet client driven through a pnpr install-accelerator server.
+    /// Builds both the `pacquet` and `pnpr` binaries from the revision's
+    /// monorepo clone, boots a per-target pnpr server with an isolated
+    /// store, and points the client at it via `PNPR_SERVER`.
+    Pnpr,
 }
 
 impl FromStr for TargetSpec {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let (prefix, rev) = input
-            .split_once('@')
-            .ok_or_else(|| format!("target {input:?}: must be `pacquet@<rev>` or `pnpm@<rev>`"))?;
+        let (prefix, rev) = input.split_once('@').ok_or_else(|| {
+            format!("target {input:?}: must be `pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`")
+        })?;
         let kind = match prefix {
             "pacquet" => TargetKind::Pacquet,
             "pnpm" => TargetKind::Pnpm,
+            "pnpr" => TargetKind::Pnpr,
             other => {
                 return Err(format!(
-                    "target {input:?}: unknown kind {other:?} (expected `pacquet` or `pnpm`)",
+                    "target {input:?}: unknown kind {other:?} \
+                     (expected `pacquet`, `pnpm`, or `pnpr`)",
                 ));
             }
         };
