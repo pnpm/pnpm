@@ -185,5 +185,7 @@ test('peer-dependent deduplication does not depend on importer order', async () 
   const bazFirst = await resolveSubsetFoo([projectSubset, projectBaz, projectQux])
   const quxFirst = await resolveSubsetFoo([projectSubset, projectQux, projectBaz])
 
+  expect(bazFirst).toBeDefined()
+  expect(quxFirst).toBeDefined()
   expect(bazFirst).toBe(quxFirst)
 })
