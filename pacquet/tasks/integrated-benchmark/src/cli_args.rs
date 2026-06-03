@@ -65,6 +65,13 @@ pub struct CliArgs {
     #[clap(long)]
     pub build_only: bool,
 
+    /// Skip cloning + building a target whose output binary is already
+    /// present, e.g. restored from a per-commit CI cache. A `pnpr@<rev>`
+    /// build also yields the `pacquet` client binary, so a same-revision
+    /// `pacquet@<rev>` reuses it rather than recompiling the commit.
+    #[clap(long)]
+    pub reuse_prebuilt_binaries: bool,
+
     /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
     /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
     #[clap(required = true)]

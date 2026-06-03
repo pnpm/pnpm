@@ -26,6 +26,7 @@ async fn main() {
         with_pnpm,
         pnpr_latency_ms,
         registry_latency_ms,
+        reuse_prebuilt_binaries,
         build_only,
         targets,
     } = clap::Parser::parse();
@@ -122,6 +123,7 @@ async fn main() {
         pnpr_latency_ms,
         registry_latency_ms,
         registry_port,
+        reuse_prebuilt_binaries,
     };
     if build_only {
         env.build();
