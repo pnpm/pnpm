@@ -1922,6 +1922,22 @@ impl<'a> DownloadTarballToStore<'a> {
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
+        self.run_without_mem_cache_with_index::<Reporter>()
+            .await
+            .map(|(cas_paths, _index)| cas_paths)
+    }
+
+    /// Like [`Self::run_without_mem_cache`], but also returns the
+    /// [`PackageFilesIndex`] when this call performed a fresh fetch (the
+    /// only path that computes one). A cache hit — prefetched or
+    /// store-resident — returns `None` for the index, since the per-file
+    /// metadata then lives only in the store row, not in hand. Callers
+    /// that need the index for a known-uncached package (the pnpr install
+    /// accelerator's streaming path) get it without reading the row back
+    /// through the still-open writer.
+    pub async fn run_without_mem_cache_with_index<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<(HashMap<String, PathBuf>, Option<PackageFilesIndex>), TarballError> {
         let &DownloadTarballToStore {
             http_client,
             store_dir,
@@ -1986,7 +2002,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 "Reusing prefetched CAFS entry — skipping download",
             );
             emit_progress_found_in_store::<Reporter>(package_id, requester);
-            return Ok((**cas_paths).clone());
+            return Ok(((**cas_paths).clone(), None));
         }
         if let Some(cas_paths) = load_cached_cas_paths(
             store_index,
@@ -1999,7 +2015,7 @@ impl<'a> DownloadTarballToStore<'a> {
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
             emit_progress_found_in_store::<Reporter>(package_id, requester);
-            return Ok(cas_paths);
+            return Ok((cas_paths, None));
         }
 
         // Offline-mode gate: both cache lookups missed. Upstream pnpm
@@ -2059,7 +2075,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // cache key, matching the read path's stance.
         let index_key = store_index_key(&package_integrity.to_string(), package_id);
         if let Some(writer) = store_index_writer {
-            writer.queue(index_key, pkg_files_idx);
+            writer.queue(index_key, pkg_files_idx.clone());
         } else {
             tracing::warn!(
                 target: "pacquet::download",
@@ -2068,7 +2084,7 @@ impl<'a> DownloadTarballToStore<'a> {
             );
         }
 
-        Ok(cas_paths)
+        Ok((cas_paths, Some(pkg_files_idx)))
     }
 }
 

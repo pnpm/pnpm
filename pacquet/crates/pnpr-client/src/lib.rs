@@ -6,24 +6,24 @@
 //! 1. reads the integrities already in the local store index,
 //! 2. `POST`s them with the dependencies to `/v1/install`, asking the
 //!    server to inline the file contents it's missing (`inlineFiles`),
-//! 3. parses the single combined response — a length-prefixed JSON header
-//!    (lockfile, stats, store-index entries, or verification violations)
-//!    followed by the missing files' bytes,
-//! 4. writes those bytes straight into the local CAFS *by digest* (no
+//! 3. parses the single streamed response — a gzip stream of
+//!    length-prefixed frames: the lockfile (`L`), store-index entries
+//!    (`I`), the missing files (`F`), final stats (`S`), or an error
+//!    (`E`),
+//! 4. writes the file bytes straight into the local CAFS *by digest* (no
 //!    re-hashing) and writes the forwarded store-index entries, and
 //! 5. returns the resolved lockfile for a headless install.
 //!
 //! The whole exchange is one round trip — no handshake, no follow-up
-//! `/v1/files` fetch. See
-//! [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165). The
-//! response is buffered rather than truly streamed, a tracked follow-up.
+//! `/v1/files` fetch — and the server streams files as it fetches them,
+//! so transfer overlaps the server's upstream downloads. See
+//! [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165).
 
 use std::{
     collections::{BTreeMap, HashSet},
     io::Read as _,
 };
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use derive_more::{Display, Error, From};
 use flate2::read::GzDecoder;
 use pacquet_config::TrustPolicy;
@@ -238,12 +238,18 @@ impl PnprClient {
         }
 
         let raw = response.bytes().await?;
-        let parsed = parse_inline_response(&decompress(&raw)?)?;
+        let body = decompress(&raw)?;
+        let parsed = parse_framed_response(&body)?;
 
-        // The server inlines only the files the client is missing; a
-        // `--lockfile-only` resolve and a verification pass both carry an
-        // empty file payload, so this writes nothing in those cases.
-        let files_written = write_files_payload(opts.store_dir, &parsed.files_payload)?;
+        // The server streams only the files the client is missing (it
+        // deduped against the integrities sent above), so each `F` frame
+        // is written as-is. A `--lockfile-only` resolve and a verification
+        // pass carry no `F` frames, so this writes nothing.
+        let mut files_written = 0;
+        for file in &parsed.files {
+            write_cas_file(opts.store_dir, &file.digest, file.executable, file.content)?;
+            files_written += 1;
+        }
         let index_entries_written =
             write_index_entries(opts.store_dir, parsed.index_entries, &present).await;
 
@@ -271,76 +277,128 @@ fn decompress(raw: &[u8]) -> Result<Vec<u8>, PnprClientError> {
     }
 }
 
-struct ParsedInstall {
+struct ParsedStream<'a> {
     lockfile: Lockfile,
     stats: Stats,
-    /// The `/v1/files`-shaped binary frames the server inlined after the
-    /// header — written into the CAFS by [`write_files_payload`].
-    files_payload: Vec<u8>,
     index_entries: Vec<(String, Vec<u8>)>,
+    files: Vec<ParsedFile<'a>>,
 }
 
-/// Decode the combined `inlineFiles` install response: a 4-byte
-/// big-endian header length, that many bytes of JSON header (lockfile,
-/// stats, store-index entries, or verification violations), then the
-/// file frames.
-fn parse_inline_response(payload: &[u8]) -> Result<ParsedInstall, PnprClientError> {
-    if payload.len() < 4 {
-        return Err(PnprClientError::Protocol("install response too short".to_string()));
-    }
-    let header_len = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as usize;
-    let header_end = 4 + header_len;
-    if header_end > payload.len() {
-        return Err(PnprClientError::Protocol("install header truncated".to_string()));
-    }
-    let header: InlineHeader = serde_json::from_slice(&payload[4..header_end])
-        .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+struct ParsedFile<'a> {
+    digest: String,
+    executable: bool,
+    content: &'a [u8],
+}
 
-    if let Some(violations) = header.violations.filter(|list| !list.is_empty()) {
-        return Err(PnprClientError::Verification(build_verify_error(violations)));
+/// Decode the streamed `inlineFiles` response: a sequence of
+/// length-prefixed frames `[u8 tag][u32 BE len][payload]`.
+///
+/// * `L` — `{ "lockfile": ... }`
+/// * `I` — `[u32 key_len][key][raw msgpack]` store-index entry
+/// * `F` — `[64-byte digest][1-byte exec][content]` file
+/// * `S` — stats object
+/// * `E` — `{ "error" | "violations" }`, aborts
+///
+/// See [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165).
+fn parse_framed_response(body: &[u8]) -> Result<ParsedStream<'_>, PnprClientError> {
+    let protocol = |message: &str| PnprClientError::Protocol(message.to_string());
+
+    let mut lockfile: Option<Lockfile> = None;
+    let mut stats = Stats::default();
+    let mut index_entries = Vec::new();
+    let mut files = Vec::new();
+
+    let mut offset = 0;
+    while offset < body.len() {
+        let tag = body[offset];
+        let len_start = offset + 1;
+        let payload_start = len_start + 4;
+        if payload_start > body.len() {
+            return Err(protocol("truncated frame header"));
+        }
+        let len = u32::from_be_bytes([
+            body[len_start],
+            body[len_start + 1],
+            body[len_start + 2],
+            body[len_start + 3],
+        ]) as usize;
+        let payload_end =
+            payload_start.checked_add(len).ok_or_else(|| protocol("frame overflow"))?;
+        if payload_end > body.len() {
+            return Err(protocol("truncated frame payload"));
+        }
+        let payload = &body[payload_start..payload_end];
+        offset = payload_end;
+
+        match tag {
+            b'L' => {
+                let frame: LockfileFrame =
+                    serde_json::from_slice(payload).map_err(|err| protocol(&err.to_string()))?;
+                lockfile = Some(frame.lockfile);
+            }
+            b'I' => {
+                if payload.len() < 4 {
+                    return Err(protocol("truncated index frame"));
+                }
+                let key_len =
+                    u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as usize;
+                let key_end = 4 + key_len;
+                if key_end > payload.len() {
+                    return Err(protocol("truncated index key"));
+                }
+                let key = std::str::from_utf8(&payload[4..key_end])
+                    .map_err(|err| protocol(&err.to_string()))?
+                    .to_string();
+                index_entries.push((key, payload[key_end..].to_vec()));
+            }
+            b'F' => {
+                if payload.len() < 65 {
+                    return Err(protocol("truncated file frame"));
+                }
+                let digest = hex_encode(&payload[..64]);
+                let executable = payload[64] & 0x01 != 0;
+                files.push(ParsedFile { digest, executable, content: &payload[65..] });
+            }
+            b'S' => {
+                stats =
+                    serde_json::from_slice(payload).map_err(|err| protocol(&err.to_string()))?;
+            }
+            b'E' => {
+                if let Ok(error) = serde_json::from_slice::<EPayload>(payload) {
+                    if let Some(violations) = error.violations.filter(|list| !list.is_empty()) {
+                        return Err(PnprClientError::Verification(build_verify_error(violations)));
+                    }
+                    if !error.error.is_empty() {
+                        return Err(PnprClientError::Server(error.error));
+                    }
+                }
+                return Err(PnprClientError::Server(String::from_utf8_lossy(payload).into_owned()));
+            }
+            // An unknown frame tag from a newer server: skip it (the
+            // length prefix makes every frame self-delimiting).
+            _ => {}
+        }
     }
 
-    let lockfile = header
-        .lockfile
-        .ok_or_else(|| PnprClientError::Protocol("install response had no lockfile".to_string()))?;
-
-    let mut index_entries = Vec::with_capacity(header.index_entries.len());
-    for entry in header.index_entries {
-        let raw =
-            BASE64.decode(&entry.b64).map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        index_entries.push((entry.key, raw));
-    }
-
-    Ok(ParsedInstall {
-        lockfile,
-        stats: header.stats,
-        files_payload: payload[header_end..].to_vec(),
-        index_entries,
-    })
+    let lockfile = lockfile.ok_or_else(|| protocol("response had no lockfile (L frame)"))?;
+    Ok(ParsedStream { lockfile, stats, index_entries, files })
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct InlineHeader {
-    lockfile: Option<Lockfile>,
+struct LockfileFrame {
+    lockfile: Lockfile,
+}
+
+#[derive(Deserialize)]
+struct EPayload {
     #[serde(default)]
-    stats: Stats,
-    #[serde(default)]
-    index_entries: Vec<InlineIndexEntry>,
+    error: String,
     /// Present when the server rejected the input lockfile under the
     /// client's verification policy. Each entry mirrors the local
     /// runner's rendered violation so the client can rebuild the
     /// identical [`VerifyError`].
     #[serde(default)]
     violations: Option<Vec<WireViolation>>,
-}
-
-#[derive(Deserialize)]
-struct InlineIndexEntry {
-    /// The store-index key, `{integrity}\t{pkgId}`.
-    key: String,
-    /// The base64-encoded msgpackr-records buffer.
-    b64: String,
 }
 
 #[derive(Deserialize)]
@@ -384,54 +442,6 @@ fn intern_violation_code(code: &str) -> &'static str {
         "TARBALL_URL_MISMATCH" => "TARBALL_URL_MISMATCH",
         _ => "LOCKFILE_RESOLUTION_VERIFICATION",
     }
-}
-
-/// Decode the inlined binary file payload and write each entry to the
-/// CAFS by digest. Returns the number of entries written. An empty
-/// payload (no frames before the end-of-stream marker) writes nothing.
-fn write_files_payload(store_dir: &StoreDir, payload: &[u8]) -> Result<usize, PnprClientError> {
-    if payload.is_empty() {
-        return Ok(0);
-    }
-    if payload.len() < 4 {
-        return Err(PnprClientError::Protocol("files payload too short".to_string()));
-    }
-    let json_len = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as usize;
-    let mut offset = 4 + json_len;
-    let mut written = 0;
-
-    loop {
-        if offset + 64 > payload.len() {
-            return Err(PnprClientError::Protocol("truncated files payload".to_string()));
-        }
-        let digest_bytes = &payload[offset..offset + 64];
-        if digest_bytes.iter().all(|byte| *byte == 0) {
-            break; // end-of-stream marker
-        }
-        if offset + 69 > payload.len() {
-            return Err(PnprClientError::Protocol("truncated file header".to_string()));
-        }
-        let size = u32::from_be_bytes([
-            payload[offset + 64],
-            payload[offset + 65],
-            payload[offset + 66],
-            payload[offset + 67],
-        ]) as usize;
-        let executable = payload[offset + 68] & 0x01 != 0;
-        let content_start = offset + 69;
-        let content_end = content_start + size;
-        if content_end > payload.len() {
-            return Err(PnprClientError::Protocol("truncated file content".to_string()));
-        }
-        let content = &payload[content_start..content_end];
-        let digest = hex_encode(digest_bytes);
-
-        write_cas_file(store_dir, &digest, executable, content)?;
-        written += 1;
-        offset = content_end;
-    }
-
-    Ok(written)
 }
 
 /// Write `content` to its content-addressed path. The digest is trusted
