@@ -27,7 +27,13 @@ use chrono::Utc;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::{sync::Arc, time::Duration};
-use tower_http::trace::TraceLayer;
+use tower_http::{
+    compression::{
+        CompressionLayer,
+        predicate::{DefaultPredicate, NotForContentType, Predicate as _},
+    },
+    trace::TraceLayer,
+};
 use tracing::Span;
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
@@ -121,6 +127,25 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
         .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments))
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
+        // gzip metadata responses for clients that send `Accept-Encoding:
+        // gzip`, matching how a real (CDN-fronted) registry serves
+        // packuments — pnpr is commonly hit directly with no proxy in
+        // front, so the application is the only layer that can compress.
+        // Scoped to JSON: the binary endpoints are excluded so we never
+        // re-gzip an already-compressed payload — tarballs
+        // (`application/octet-stream`, already `.tgz`), the install
+        // accelerator's file stream (`application/x-pnpm-install`, already
+        // gzipped), and its NDJSON resolve response
+        // (`application/x-ndjson`). Already-`Content-Encoding` responses
+        // are skipped by the layer regardless.
+        .layer(
+            CompressionLayer::new().compress_when(
+                DefaultPredicate::new()
+                    .and(NotForContentType::const_new("application/octet-stream"))
+                    .and(NotForContentType::const_new("application/x-pnpm-install"))
+                    .and(NotForContentType::const_new("application/x-ndjson")),
+            ),
+        )
         // One structured access record per HTTP request: a span
         // carrying method + URI plus a single `finished processing
         // request` event on the response with status and latency.
