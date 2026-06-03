@@ -1655,24 +1655,26 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_done',
   })
 
+  // `pnpm update` may bump catalog entries during resolution. Overrides that
+  // reference a catalog (e.g. `overrides: { foo: 'catalog:' }`) were resolved
+  // against the pre-update catalog when the install options were extended, so
+  // re-resolve them against the updated catalog. Done before `afterAllResolved`
+  // so that hook still sees (and can amend) the final overrides. Otherwise
+  // lockfile `overrides` keeps pointing at the old version while `catalogs`
+  // advances, and a later `--frozen-lockfile` install fails with
+  // ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
+  if (updatedCatalogs != null && opts.overrides != null && Object.keys(opts.overrides).length > 0) {
+    newLockfile.overrides = createOverridesMapFromParsed(
+      parseOverrides(opts.overrides, mergeCatalogs(opts.catalogs, updatedCatalogs))
+    )
+  }
+
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {
     newLockfile.lockfileVersion = LOCKFILE_VERSION
-  }
-
-  // `pnpm update` may bump catalog entries during resolution. Overrides that
-  // reference a catalog (e.g. `overrides: { foo: 'catalog:' }`) were resolved
-  // against the pre-update catalog when the install options were extended, so
-  // re-resolve them against the updated catalog. Otherwise lockfile `overrides`
-  // keeps pointing at the old version while `catalogs` advances, and a later
-  // `--frozen-lockfile` install fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
-  if (updatedCatalogs != null && opts.overrides != null && Object.keys(opts.overrides).length > 0) {
-    newLockfile.overrides = createOverridesMapFromParsed(
-      parseOverrides(opts.overrides, mergeCatalogs(opts.catalogs ?? {}, updatedCatalogs))
-    )
   }
 
   const depsStateCache: DepsStateCache = {}
