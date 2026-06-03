@@ -3,6 +3,7 @@ use crate::{
         BenchmarkScenario, Cleanup, HyperfineOptions, RegistryMode, TargetKind, TargetSpec,
     },
     fixtures::{LOCKFILE, PACKAGE_JSON},
+    latency_proxy::LatencyProxy,
     verify::executor,
     workspace_manifest::MinimalWorkspaceManifest,
 };
@@ -16,7 +17,7 @@ use std::{
     fmt,
     fs::{self, File},
     io::Write,
-    net::TcpStream,
+    net::{Ipv4Addr, SocketAddr, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
@@ -35,10 +36,20 @@ pub struct WorkEnv {
     pub scenario: Option<BenchmarkScenario>,
     pub hyperfine_options: HyperfineOptions,
     pub fixture_dir: Option<PathBuf>,
+    /// Round-trip latency (ms) to inject between the client and each
+    /// `pnpr@<rev>` target's server. `0` leaves the server on loopback.
+    pub pnpr_latency_ms: u64,
+    /// Round-trip latency (ms) to inject between the direct targets and
+    /// the registry. `0` leaves the registry on loopback. Ignored in
+    /// `--registry=npm` mode (already remote).
+    pub registry_latency_ms: u64,
+    /// Port the local registry listens on, used as the latency proxy's
+    /// upstream when `registry_latency_ms > 0`.
+    pub registry_port: u16,
 }
 
 impl WorkEnv {
-    const INIT_PROXY_CACHE: BenchId<'static> = BenchId::Static(".init-proxy-cache");
+    const INIT_PROXY_CACHE: BenchId<'static> = BenchId::Static(INIT_PROXY_CACHE_ID);
     const SYSTEM_PNPM: BenchId<'static> = BenchId::Static("pnpm");
 
     fn root(&self) -> &'_ Path {
@@ -53,10 +64,6 @@ impl WorkEnv {
     /// requested, the system-pnpm sibling.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
         self.target_ids().chain(self.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
-    }
-
-    fn registry(&self) -> &'_ str {
-        &self.registry
     }
 
     fn repository(&self) -> &'_ Path {
@@ -159,7 +166,7 @@ impl WorkEnv {
         }
     }
 
-    fn init(&self) {
+    fn init(&self, direct_registry: &str) {
         let scenario = self.scenario.expect("scenario set when init() is reached");
         eprintln!("Initializing...");
         // The proxy-cache populator only runs against a local
@@ -177,11 +184,12 @@ impl WorkEnv {
         for id in id_list {
             eprintln!("ID: {id}");
             let dir = self.bench_dir(id);
+            let registry = self.registry_for(id, direct_registry);
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.fixture_dir.as_deref());
-            create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), self.registry(), scenario);
+            create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), registry, scenario);
             create_install_script(&dir, scenario, &WorkEnv::install_command(id), id.is_pnpr());
-            create_npmrc(&dir, self.registry(), scenario);
+            create_npmrc(&dir, registry, scenario);
             may_create_lockfile(&dir, scenario, self.fixture_dir.as_deref());
             save_pristine_copies(&dir);
         }
@@ -426,23 +434,83 @@ impl WorkEnv {
         // (readiness wait, `.pnpr-env` write), so an early failure unwinds
         // through `PnprServer::drop` and kills the process instead of
         // leaking an orphaned server.
-        let server = PnprServer { process };
+        let mut server = PnprServer { process, latency_proxy: None };
 
         wait_for_pnpr_ready(port);
 
-        fs::write(
-            bench_dir.join(".pnpr-env"),
-            format!("export PNPR_SERVER=http://127.0.0.1:{port}\n"),
-        )
-        .expect("write .pnpr-env");
+        // With `--pnpr-latency-ms`, the client reaches the server through
+        // a latency-injecting proxy instead of directly, so the benchmark
+        // measures pnpr as the remote service it is in production. The
+        // proxy guard rides along in `PnprServer` so it's torn down with
+        // the server.
+        let client_url = if self.pnpr_latency_ms > 0 {
+            let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
+            let one_way = Duration::from_millis(self.pnpr_latency_ms) / 2;
+            let proxy = LatencyProxy::spawn(upstream, one_way).expect("spawn pnpr latency proxy");
+            let proxy_url = format!("http://{}", proxy.addr);
+            eprintln!(
+                "Injecting {}ms round-trip latency in front of {id}'s server (proxy at {})",
+                self.pnpr_latency_ms, proxy.addr,
+            );
+            server.latency_proxy = Some(proxy);
+            proxy_url
+        } else {
+            format!("http://127.0.0.1:{port}")
+        };
+
+        fs::write(bench_dir.join(".pnpr-env"), format!("export PNPR_SERVER={client_url}\n"))
+            .expect("write .pnpr-env");
 
         server
     }
 
     pub fn run(&self) {
-        self.init();
+        // Front the registry with a latency proxy for the direct targets,
+        // when requested. The guard lives for the whole run so installs
+        // (in `benchmark`) cross it; the URL is baked into the direct
+        // targets' config during `init`. `pnpr@<rev>` targets keep the
+        // real (fast) registry — see [`Self::registry_for`].
+        let registry_proxy = self.start_registry_proxy();
+        let direct_registry = registry_proxy
+            .as_ref()
+            .map(|proxy| format!("http://{}/", proxy.addr))
+            .unwrap_or_else(|| self.registry.clone());
+
+        self.init(&direct_registry);
         self.build();
         self.benchmark();
+        drop(registry_proxy);
+    }
+
+    /// Start a latency proxy in front of the registry, or `None` when no
+    /// latency is requested, the registry is already remote (`npm` mode),
+    /// or no direct target would use it.
+    fn start_registry_proxy(&self) -> Option<LatencyProxy> {
+        if self.registry_latency_ms == 0 || matches!(self.registry_mode, RegistryMode::Npm) {
+            return None;
+        }
+        let has_direct_target =
+            self.targets.iter().any(|target| target.kind != TargetKind::Pnpr) || self.with_pnpm;
+        if !has_direct_target {
+            return None;
+        }
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.registry_port));
+        let one_way = Duration::from_millis(self.registry_latency_ms) / 2;
+        let proxy = LatencyProxy::spawn(upstream, one_way).expect("spawn registry latency proxy");
+        eprintln!(
+            "Injecting {}ms round-trip latency in front of the registry for direct targets (proxy at {})",
+            self.registry_latency_ms, proxy.addr,
+        );
+        Some(proxy)
+    }
+
+    /// The registry a given bench id resolves against. Direct targets use
+    /// `direct_registry` (the latency proxy when injection is on); pnpr
+    /// targets and the proxy-cache populator keep the real registry — the
+    /// pnpr server's upstream stays fast, and warming the proxy cache is
+    /// untimed setup.
+    fn registry_for<'a>(&'a self, id: BenchId, direct_registry: &'a str) -> &'a str {
+        if id.is_pnpr() || id.is_proxy_cache_populator() { &self.registry } else { direct_registry }
     }
 }
 
@@ -450,10 +518,19 @@ impl WorkEnv {
 /// target. Killed on drop so it never outlives the benchmark run.
 struct PnprServer {
     process: Child,
+    /// The latency proxy fronting this server, when `--pnpr-latency-ms`
+    /// is set. Dropped (stopping the proxy) alongside the server.
+    latency_proxy: Option<LatencyProxy>,
 }
 
 impl Drop for PnprServer {
     fn drop(&mut self) {
+        // Drop the proxy first (it stops accepting new connections and
+        // joins its accept loop), then kill the server. By the time a
+        // server is torn down the benchmark has finished, so there are no
+        // in-flight connections to drain; this is just tidy teardown
+        // order, not a guarantee that existing connections are flushed.
+        self.latency_proxy = None;
         let pid = self.process.id();
         let _ = self.process.kill();
         let _ = self.process.wait();
@@ -778,10 +855,20 @@ impl<'a> From<&'a TargetSpec> for BenchId<'a> {
     }
 }
 
+/// Static bench id of the proxy-cache populator — the one id that warms
+/// the registry's on-disk cache rather than being benchmarked.
+const INIT_PROXY_CACHE_ID: &str = ".init-proxy-cache";
+
 impl BenchId<'_> {
     /// Whether this bench id drives the client through a pnpr server.
     fn is_pnpr(self) -> bool {
         matches!(self, BenchId::PnprRevision(_))
+    }
+
+    /// Whether this is the proxy-cache populator (untimed setup that
+    /// warms the registry cache), which always uses the real registry.
+    fn is_proxy_cache_populator(self) -> bool {
+        matches!(self, BenchId::Static(name) if name == INIT_PROXY_CACHE_ID)
     }
 }
 
