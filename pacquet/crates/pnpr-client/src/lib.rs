@@ -1,21 +1,22 @@
 //! Client for pnpr's server-accelerated installs.
 //!
-//! Port of the TypeScript `@pnpm/pnpr.client` (`fetchFromPnpmRegistry`)
-//! plus the `fetch-and-write-cafs` worker. Given a set of dependencies
-//! and the client's content-addressable store, it:
+//! Given a set of dependencies and the client's content-addressable
+//! store, it:
 //!
 //! 1. reads the integrities already in the local store index,
-//! 2. `POST`s them with the dependencies to `/v1/install` and parses the
-//!    NDJSON response (`D` missing-file digests, `I` store-index entries,
-//!    `L` lockfile + stats, `E` error),
-//! 3. downloads the missing files from `/v1/files` and writes them
-//!    straight into the local CAFS *by digest* — no re-hashing,
-//! 4. writes the forwarded store-index entries, and
+//! 2. `POST`s them with the dependencies to `/v1/install`, asking the
+//!    server to inline the file contents it's missing (`inlineFiles`),
+//! 3. parses the single combined response — a length-prefixed JSON header
+//!    (lockfile, stats, store-index entries, or verification violations)
+//!    followed by the missing files' bytes,
+//! 4. writes those bytes straight into the local CAFS *by digest* (no
+//!    re-hashing) and writes the forwarded store-index entries, and
 //! 5. returns the resolved lockfile for a headless install.
 //!
-//! The response is buffered rather than streamed, and `/v1/files` is
-//! requested in a single batch; both mirror the current pnpr server and
-//! are tracked follow-ups.
+//! The whole exchange is one round trip — no handshake, no follow-up
+//! `/v1/files` fetch. See
+//! [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165). The
+//! response is buffered rather than truly streamed, a tracked follow-up.
 
 use std::{
     collections::{BTreeMap, HashSet},
@@ -96,13 +97,13 @@ pub struct InstallOutcome {
     /// The resolved lockfile, ready for a headless install.
     pub lockfile: Lockfile,
     pub stats: Stats,
-    /// Number of file entries `/v1/files` served into the local CAFS.
+    /// Number of inlined file entries written into the local CAFS.
     pub files_written: usize,
     /// Number of store-index entries written to the local index.
     pub index_entries_written: usize,
 }
 
-/// Resolution statistics reported on the `L` line. Field names mirror
+/// Resolution statistics from the response header. Field names mirror
 /// the server's camelCase JSON.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -189,12 +190,16 @@ impl PnprClient {
 
     /// Resolve a single project against the server and materialize the
     /// missing files + store-index entries into the local store.
+    ///
+    /// One round trip: the request asks the server to inline the file
+    /// contents (`inlineFiles`), so the response carries the lockfile,
+    /// stats, store-index entries, and the missing files' bytes in a
+    /// single body — no handshake and no follow-up `/v1/files` fetch.
+    /// See [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165).
     pub async fn install(
         &self,
         opts: InstallOptions<'_>,
     ) -> Result<InstallOutcome, PnprClientError> {
-        self.handshake().await?;
-
         let store_keys = read_store_keys(opts.store_dir);
         let store_integrities = integrities_from_keys(&store_keys);
         let present: HashSet<&str> = store_keys.iter().map(String::as_str).collect();
@@ -221,6 +226,7 @@ impl PnprClient {
             "trustPolicy": opts.trust_policy,
             "trustPolicyExclude": opts.trust_policy_exclude,
             "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
+            "inlineFiles": true,
         });
 
         let response =
@@ -230,25 +236,14 @@ impl PnprClient {
             let body = response.text().await.unwrap_or_default();
             return Err(PnprClientError::Server(format!("/v1/install returned {status}: {body}")));
         }
-        let ndjson = response.text().await?;
 
-        let parsed = parse_install_response(&ndjson)?;
+        let raw = response.bytes().await?;
+        let parsed = parse_inline_response(&decompress(&raw)?)?;
 
-        // `--lockfile-only`: pnpm fetches nothing and links nothing. A
-        // resolve-only server sends no `D`/`I` lines, but stay correct
-        // even against one that doesn't understand the flag by never
-        // touching the local store.
-        if opts.lockfile_only {
-            return Ok(InstallOutcome {
-                lockfile: parsed.lockfile,
-                stats: parsed.stats,
-                files_written: 0,
-                index_entries_written: 0,
-            });
-        }
-
-        let files_written = self.download_files(opts.store_dir, &parsed.missing_files).await?;
-
+        // The server inlines only the files the client is missing; a
+        // `--lockfile-only` resolve and a verification pass both carry an
+        // empty file payload, so this writes nothing in those cases.
+        let files_written = write_files_payload(opts.store_dir, &parsed.files_payload)?;
         let index_entries_written =
             write_index_entries(opts.store_dir, parsed.index_entries, &present).await;
 
@@ -259,142 +254,93 @@ impl PnprClient {
             index_entries_written,
         })
     }
+}
 
-    async fn download_files(
-        &self,
-        store_dir: &StoreDir,
-        digests: &[MissingFile],
-    ) -> Result<usize, PnprClientError> {
-        if digests.is_empty() {
-            return Ok(0);
-        }
-
-        let request = serde_json::json!({
-            "digests": digests
-                .iter()
-                .map(|file| serde_json::json!({
-                    "digest": file.digest,
-                    "executable": file.executable,
-                }))
-                .collect::<Vec<_>>(),
-        });
-
-        let response =
-            self.http.post(format!("{}v1/files", self.base_url)).json(&request).send().await?;
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::Server(format!("/v1/files returned {status}: {body}")));
-        }
-
-        let raw = response.bytes().await?;
-        // The server sets `Content-Encoding: gzip`. Decompress unless the
-        // HTTP stack already did (detected via the gzip magic bytes), so
-        // the client works whether or not reqwest's `gzip` feature is on.
-        // Borrow `raw` directly when it's already decompressed.
-        let decompressed: Vec<u8>;
-        let payload: &[u8] = if raw.starts_with(&[0x1f, 0x8b]) {
-            let mut decoder = GzDecoder::new(&raw[..]);
-            let mut out = Vec::new();
-            decoder.read_to_end(&mut out)?;
-            decompressed = out;
-            &decompressed
-        } else {
-            &raw
-        };
-
-        // Guard against a server that streams entries we never asked for,
-        // which would otherwise write unbounded files into our CAFS.
-        let mut requested: HashSet<(String, bool)> =
-            digests.iter().map(|file| (file.digest.clone(), file.executable)).collect();
-
-        write_files_payload(store_dir, payload, &mut requested)
+/// Decompress a `Content-Encoding: gzip` body unless the HTTP stack
+/// already did (detected via the gzip magic bytes), so the client works
+/// whether or not reqwest's `gzip` feature is on. Returns the bytes as-is
+/// when they're already decompressed.
+fn decompress(raw: &[u8]) -> Result<Vec<u8>, PnprClientError> {
+    if raw.starts_with(&[0x1f, 0x8b]) {
+        let mut decoder = GzDecoder::new(raw);
+        let mut out = Vec::new();
+        decoder.read_to_end(&mut out)?;
+        Ok(out)
+    } else {
+        Ok(raw.to_vec())
     }
 }
 
 struct ParsedInstall {
     lockfile: Lockfile,
     stats: Stats,
-    missing_files: Vec<MissingFile>,
+    /// The `/v1/files`-shaped binary frames the server inlined after the
+    /// header — written into the CAFS by [`write_files_payload`].
+    files_payload: Vec<u8>,
     index_entries: Vec<(String, Vec<u8>)>,
 }
 
-struct MissingFile {
-    digest: String,
-    executable: bool,
-}
+/// Decode the combined `inlineFiles` install response: a 4-byte
+/// big-endian header length, that many bytes of JSON header (lockfile,
+/// stats, store-index entries, or verification violations), then the
+/// file frames.
+fn parse_inline_response(payload: &[u8]) -> Result<ParsedInstall, PnprClientError> {
+    if payload.len() < 4 {
+        return Err(PnprClientError::Protocol("install response too short".to_string()));
+    }
+    let header_len = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]) as usize;
+    let header_end = 4 + header_len;
+    if header_end > payload.len() {
+        return Err(PnprClientError::Protocol("install header truncated".to_string()));
+    }
+    let header: InlineHeader = serde_json::from_slice(&payload[4..header_end])
+        .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
 
-fn parse_install_response(ndjson: &str) -> Result<ParsedInstall, PnprClientError> {
-    let mut missing_files = Vec::new();
-    let mut index_entries = Vec::new();
-    let mut final_line: Option<(Lockfile, Stats)> = None;
-
-    for line in ndjson.lines() {
-        let Some((tag, rest)) = line.split_once('\t') else { continue };
-        match tag {
-            "D" => {
-                // `digest \t size \t executable`
-                let mut parts = rest.split('\t');
-                let digest = parts.next().unwrap_or_default().to_string();
-                let _size = parts.next();
-                let executable = parts.next() == Some("1");
-                missing_files.push(MissingFile { digest, executable });
-            }
-            "I" => {
-                // `integrity \t pkgId \t base64`; the index key is
-                // `integrity \t pkgId` (everything before the last tab).
-                let Some((key, encoded)) = rest.rsplit_once('\t') else {
-                    return Err(PnprClientError::Protocol("malformed I line".to_string()));
-                };
-                let raw = BASE64
-                    .decode(encoded)
-                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-                index_entries.push((key.to_string(), raw));
-            }
-            "L" => {
-                let payload: LPayload = serde_json::from_str(rest)
-                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-                final_line = Some((payload.lockfile, payload.stats));
-            }
-            "E" => {
-                if let Ok(payload) = serde_json::from_str::<EPayload>(rest) {
-                    if let Some(violations) = payload.violations.filter(|list| !list.is_empty()) {
-                        return Err(PnprClientError::Verification(build_verify_error(violations)));
-                    }
-                    if !payload.error.is_empty() {
-                        return Err(PnprClientError::Server(payload.error));
-                    }
-                }
-                return Err(PnprClientError::Server(rest.to_string()));
-            }
-            _ => {}
-        }
+    if let Some(violations) = header.violations.filter(|list| !list.is_empty()) {
+        return Err(PnprClientError::Verification(build_verify_error(violations)));
     }
 
-    let (lockfile, stats) = final_line.ok_or_else(|| {
-        PnprClientError::Protocol("response had no lockfile (L line)".to_string())
-    })?;
+    let lockfile = header
+        .lockfile
+        .ok_or_else(|| PnprClientError::Protocol("install response had no lockfile".to_string()))?;
 
-    Ok(ParsedInstall { lockfile, stats, missing_files, index_entries })
+    let mut index_entries = Vec::with_capacity(header.index_entries.len());
+    for entry in header.index_entries {
+        let raw =
+            BASE64.decode(&entry.b64).map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        index_entries.push((entry.key, raw));
+    }
+
+    Ok(ParsedInstall {
+        lockfile,
+        stats: header.stats,
+        files_payload: payload[header_end..].to_vec(),
+        index_entries,
+    })
 }
 
 #[derive(Deserialize)]
-struct LPayload {
-    lockfile: Lockfile,
+#[serde(rename_all = "camelCase")]
+struct InlineHeader {
+    lockfile: Option<Lockfile>,
     #[serde(default)]
     stats: Stats,
-}
-
-#[derive(Deserialize)]
-struct EPayload {
     #[serde(default)]
-    error: String,
+    index_entries: Vec<InlineIndexEntry>,
     /// Present when the server rejected the input lockfile under the
     /// client's verification policy. Each entry mirrors the local
     /// runner's rendered violation so the client can rebuild the
     /// identical [`VerifyError`].
     #[serde(default)]
     violations: Option<Vec<WireViolation>>,
+}
+
+#[derive(Deserialize)]
+struct InlineIndexEntry {
+    /// The store-index key, `{integrity}\t{pkgId}`.
+    key: String,
+    /// The base64-encoded msgpackr-records buffer.
+    b64: String,
 }
 
 #[derive(Deserialize)]
@@ -440,13 +386,13 @@ fn intern_violation_code(code: &str) -> &'static str {
     }
 }
 
-/// Decode the `/v1/files` binary payload and write each entry to the
-/// CAFS by digest. Returns the number of entries served.
-fn write_files_payload(
-    store_dir: &StoreDir,
-    payload: &[u8],
-    requested: &mut HashSet<(String, bool)>,
-) -> Result<usize, PnprClientError> {
+/// Decode the inlined binary file payload and write each entry to the
+/// CAFS by digest. Returns the number of entries written. An empty
+/// payload (no frames before the end-of-stream marker) writes nothing.
+fn write_files_payload(store_dir: &StoreDir, payload: &[u8]) -> Result<usize, PnprClientError> {
+    if payload.is_empty() {
+        return Ok(0);
+    }
     if payload.len() < 4 {
         return Err(PnprClientError::Protocol("files payload too short".to_string()));
     }
@@ -479,12 +425,6 @@ fn write_files_payload(
         }
         let content = &payload[content_start..content_end];
         let digest = hex_encode(digest_bytes);
-
-        if !requested.remove(&(digest.clone(), executable)) {
-            return Err(PnprClientError::Server(format!(
-                "/v1/files returned an entry that was not requested: {digest}",
-            )));
-        }
 
         write_cas_file(store_dir, &digest, executable, content)?;
         written += 1;
