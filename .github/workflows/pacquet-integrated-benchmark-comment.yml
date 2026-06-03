@@ -164,6 +164,10 @@ jobs:
           # a regression on the PR check.
           upload() {
             local testbed=$1 file=$2
+            if [ ! -f "$file" ]; then
+              echo "::notice::$file not in artifact, skipping $testbed upload"
+              return 0
+            fi
             bencher run \
               --project pnpm \
               --testbed "$testbed" \

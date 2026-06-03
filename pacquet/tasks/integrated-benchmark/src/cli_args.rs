@@ -45,7 +45,8 @@ pub struct CliArgs {
     #[clap(long)]
     pub build_only: bool,
 
-    /// Targets to benchmark. Each is `pacquet@<rev>` or `pnpm@<rev>`.
+    /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
+    /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
     #[clap(required = true)]
     pub targets: Vec<TargetSpec>,
 }

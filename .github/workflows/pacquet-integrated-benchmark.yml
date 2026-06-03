@@ -393,6 +393,10 @@ jobs:
           # both — by then the regression has already landed.
           upload() {
             local testbed=$1 file=$2
+            if [ ! -f "$file" ]; then
+              echo "::notice::$file not found, skipping $testbed upload"
+              return 0
+            fi
             local args=(
               --project pnpm
               --testbed "$testbed"

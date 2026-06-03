@@ -422,6 +422,12 @@ impl WorkEnv {
             .spawn()
             .expect("spawn pnpr server");
 
+        // Wrap the child in its guard *before* anything that can panic
+        // (readiness wait, `.pnpr-env` write), so an early failure unwinds
+        // through `PnprServer::drop` and kills the process instead of
+        // leaking an orphaned server.
+        let server = PnprServer { process };
+
         wait_for_pnpr_ready(port);
 
         fs::write(
@@ -430,7 +436,7 @@ impl WorkEnv {
         )
         .expect("write .pnpr-env");
 
-        PnprServer { process }
+        server
     }
 
     pub fn run(&self) {
