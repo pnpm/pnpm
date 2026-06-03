@@ -1,5 +1,7 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use serde_json::Value;
 
@@ -92,8 +94,8 @@ impl Resolver for CustomResolverAdapter {
                 Some(val) => val,
                 None => {
                     let wanted_val = Self::wanted_to_value(wanted_dependency);
-                    let result = self.resolver.can_resolve(wanted_val).await.map_err(|e| {
-                        Box::new(std::io::Error::other(e.to_string())) as ResolveError
+                    let result = self.resolver.can_resolve(wanted_val).await.map_err(|err| {
+                        Box::new(std::io::Error::other(err.to_string())) as ResolveError
                     })?;
                     let mut cache = self.can_resolve_cache.lock().unwrap();
                     cache.insert(key.clone(), result);
@@ -108,11 +110,10 @@ impl Resolver for CustomResolverAdapter {
             let wanted_val = Self::wanted_to_value(wanted_dependency);
             let opts_val = Self::opts_to_value(opts);
 
-            let result = self
-                .resolver
-                .resolve(wanted_val, opts_val)
-                .await
-                .map_err(|e| Box::new(std::io::Error::other(e.to_string())) as ResolveError)?;
+            let result =
+                self.resolver.resolve(wanted_val, opts_val).await.map_err(|err| {
+                    Box::new(std::io::Error::other(err.to_string())) as ResolveError
+                })?;
 
             let id = result.get("id").and_then(Value::as_str).ok_or_else(|| {
                 let err: ResolveError = Box::new(std::io::Error::new(
@@ -130,12 +131,12 @@ impl Resolver for CustomResolverAdapter {
                 err
             })?;
 
-            let resolution = serde_json::from_value(resolution_val.clone()).map_err(|e| {
-                let err: ResolveError = Box::new(std::io::Error::new(
+            let resolution = serde_json::from_value(resolution_val.clone()).map_err(|err| {
+                let resolve_err: ResolveError = Box::new(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
-                    format!("Custom resolver returned invalid resolution: {e}"),
+                    format!("Custom resolver returned invalid resolution: {err}"),
                 ));
-                err
+                resolve_err
             })?;
 
             Ok(Some(ResolveResult {
