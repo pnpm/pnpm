@@ -115,6 +115,17 @@ pub struct InstallRequest {
     /// check.
     #[serde(default)]
     pub trust_policy_ignore_after: Option<u64>,
+    /// When `true`, the client wants the file contents it's missing
+    /// streamed inline in this response rather than fetched in a second
+    /// `POST /v1/files` round trip. The server answers with a single
+    /// gzipped binary body (a length-prefixed header carrying the
+    /// lockfile, stats, and store-index entries, followed by the
+    /// `/v1/files` binary frames) instead of the NDJSON stream. Cuts the
+    /// cold-path round trips from three (handshake + install + files) to
+    /// one. See
+    /// [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165).
+    #[serde(default)]
+    pub inline_files: bool,
 }
 
 /// One project's importer dir and its dependency maps, normalized

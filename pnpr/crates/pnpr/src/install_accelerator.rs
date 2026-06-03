@@ -10,10 +10,14 @@
 //!   protocol versions so a client can negotiate or fail fast.
 //! * `POST /v1/install` — resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
-//!   the client), then stream an NDJSON response: `D` lines (file
-//!   digests the client is missing), `I` lines (pre-packed store-index
-//!   entries), a final `L` line with the lockfile and stats, or an `E`
-//!   line on a mid-stream error.
+//!   the client), then return the missing-file digests, pre-packed
+//!   store-index entries, lockfile, and stats. With `inlineFiles` the
+//!   client also gets the missing files' *contents* in the same response
+//!   (a length-prefixed JSON header followed by the `/v1/files` binary
+//!   frames, gzipped), collapsing the cold path to a single round trip
+//!   ([pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165));
+//!   otherwise the response is the NDJSON stream of `D`/`I`/`L`/`E`
+//!   lines and the client fetches files separately.
 //! * `POST /v1/files` — serve a batch of files by digest as a gzip
 //!   binary stream the client writes straight into its CAFS.
 //!
@@ -194,9 +198,12 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
     // pick-time gate (the policy is wired into `config`).
     if !request.trust_lockfile
         && let Some(input_lockfile) = request.lockfile.as_ref()
-        && let Err(response) = verify_input_lockfile(runtime, config, input_lockfile).await
+        && let Err(failure) = verify_input_lockfile(runtime, config, input_lockfile).await
     {
-        return response;
+        return match failure {
+            VerifyFailure::Internal(response) => response,
+            VerifyFailure::Violations(violations) => violation_response(&violations, &request),
+        };
     }
 
     let lockfile = match resolve::resolve(config, &runtime.client, &request).await {
@@ -241,6 +248,12 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
         }
     };
 
+    let stats_json = stats_json(&result.stats);
+
+    if request.inline_files {
+        return inline_response(runtime, &lockfile, &stats_json, &result);
+    }
+
     let mut ndjson: Vec<u8> = Vec::new();
     for file in &result.missing_files {
         let _ =
@@ -256,18 +269,9 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
         );
     }
 
-    let stats = &result.stats;
     let payload = serde_json::json!({
         "lockfile": serde_json::to_value(&lockfile).unwrap_or(serde_json::Value::Null),
-        "stats": {
-            "totalPackages": stats.total_packages,
-            "alreadyInStore": stats.already_in_store,
-            "packagesToFetch": stats.packages_to_fetch,
-            "filesInNewPackages": stats.files_in_new_packages,
-            "filesAlreadyInCafs": stats.files_already_in_cafs,
-            "filesToDownload": stats.files_to_download,
-            "downloadBytes": stats.download_bytes,
-        },
+        "stats": stats_json,
     });
     let _ = writeln!(ndjson, "L\t{}", payload);
 
@@ -278,17 +282,107 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
         .expect("static ndjson response is always valid")
 }
 
+fn stats_json(stats: &diff::Stats) -> serde_json::Value {
+    serde_json::json!({
+        "totalPackages": stats.total_packages,
+        "alreadyInStore": stats.already_in_store,
+        "packagesToFetch": stats.packages_to_fetch,
+        "filesInNewPackages": stats.files_in_new_packages,
+        "filesAlreadyInCafs": stats.files_already_in_cafs,
+        "filesToDownload": stats.files_to_download,
+        "downloadBytes": stats.download_bytes,
+    })
+}
+
+/// Content type of the combined `inlineFiles` install response: a
+/// length-prefixed JSON header followed by the [`build_files_payload`]
+/// binary frames, gzip-compressed.
+const INLINE_CONTENT_TYPE: &str = "application/x-pnpr-install-inline";
+
+/// Build the combined single-response body for an `inlineFiles` request:
+/// the lockfile, stats, and store-index entries in a length-prefixed JSON
+/// header, followed by the missing files' contents as `/v1/files` binary
+/// frames — so the client materializes everything from one round trip.
+fn inline_response(
+    runtime: &InstallAccelerator,
+    lockfile: &Lockfile,
+    stats_json: &serde_json::Value,
+    result: &diff::DiffResult,
+) -> Response {
+    let index_entries: Vec<serde_json::Value> = result
+        .package_index
+        .iter()
+        .map(|entry| {
+            serde_json::json!({
+                "key": format!("{}\t{}", entry.integrity, entry.pkg_id),
+                "b64": BASE64.encode(&entry.raw),
+            })
+        })
+        .collect();
+    let header = serde_json::json!({
+        "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
+        "stats": stats_json,
+        "indexEntries": index_entries,
+    });
+
+    let files = result.missing_files.iter().map(|file| (file.digest.as_str(), file.executable));
+    let files_payload = match build_files_payload(&runtime.store_dir, files) {
+        Ok(payload) => payload,
+        Err((status, message)) => return json_error(status, &message),
+    };
+
+    finish_inline_response(&header, &files_payload)
+}
+
+/// Frame a JSON `header` and an already-built [`build_files_payload`]
+/// byte buffer into one length-prefixed, gzip-compressed body.
+fn finish_inline_response(header: &serde_json::Value, files_payload: &[u8]) -> Response {
+    let header_bytes = serde_json::to_vec(header).unwrap_or_else(|_| b"{}".to_vec());
+    let Ok(header_len) = u32::try_from(header_bytes.len()) else {
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "install header too large");
+    };
+    let mut body = Vec::with_capacity(4 + header_bytes.len() + files_payload.len());
+    body.extend_from_slice(&header_len.to_be_bytes());
+    body.extend_from_slice(&header_bytes);
+    body.extend_from_slice(files_payload);
+
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::new(1));
+    if encoder.write_all(&body).is_err() {
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed");
+    }
+    let gzipped = match encoder.finish() {
+        Ok(gzipped) => gzipped,
+        Err(_) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed"),
+    };
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, INLINE_CONTENT_TYPE)
+        .header(header::CONTENT_ENCODING, "gzip")
+        .body(Body::from(gzipped))
+        .expect("binary response is always valid")
+}
+
+/// Why [`verify_input_lockfile`] failed: either the lockfile violated
+/// the client's policy (carry the rendered violations so the caller can
+/// shape them for the client's protocol) or the verifiers couldn't be
+/// built at all (a ready-made error response).
+enum VerifyFailure {
+    Violations(Vec<serde_json::Value>),
+    Internal(Response),
+}
+
 /// Verify the client's input lockfile under the client's policy. On a
-/// clean pass returns `Ok(())`; on a policy violation returns `Err` with
-/// a 200 NDJSON response carrying a single `E` line of rendered
-/// violations, so the client rebuilds the identical `VerifyError` and
-/// aborts the same way the local gate would. A build-verifiers failure
-/// (e.g. an invalid exclude pattern) returns a 500.
+/// clean pass returns `Ok(())`; on a policy violation returns the
+/// rendered violations so the caller can deliver them in whichever
+/// protocol the client asked for (NDJSON `E` line or inline header). A
+/// build-verifiers failure (e.g. an invalid exclude pattern) returns a
+/// ready-made 500.
 async fn verify_input_lockfile(
     runtime: &InstallAccelerator,
     config: &'static PacquetConfig,
     lockfile: &Lockfile,
-) -> Result<(), Response> {
+) -> Result<(), VerifyFailure> {
     // A fresh per-request packument cache shared with the verifier; the
     // on-disk metadata mirror under `<cache_dir>/v11/metadata-full` is
     // warm across requests and is the real verification cache.
@@ -298,7 +392,9 @@ async fn verify_input_lockfile(
         Arc::clone(&runtime.client),
         Some(meta_cache as Arc<dyn PackageMetaCache>),
     )
-    .map_err(|err| json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))?;
+    .map_err(|err| {
+        VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
+    })?;
 
     // Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
     // already passed under a policy we still trust skips the whole fan-out
@@ -332,13 +428,30 @@ async fn verify_input_lockfile(
             })
         })
         .collect();
-    let payload = serde_json::json!({ "violations": rendered });
+    Err(VerifyFailure::Violations(rendered))
+}
+
+/// Render input-lockfile policy violations in the protocol the client
+/// asked for: the inline header (`{ "violations": [...] }`, no files) for
+/// an `inlineFiles` request, otherwise a 200 NDJSON `E` line. Either way
+/// the client rebuilds the identical `VerifyError` and aborts the same
+/// way the local gate would.
+fn violation_response(violations: &[serde_json::Value], request: &InstallRequest) -> Response {
+    if request.inline_files {
+        let header = serde_json::json!({ "violations": violations });
+        // No files follow a verification failure: just the end-of-stream
+        // marker so the client's frame parser terminates cleanly.
+        let files_payload = empty_files_payload();
+        return finish_inline_response(&header, &files_payload);
+    }
+
+    let payload = serde_json::json!({ "violations": violations });
     let body = format!("E\t{payload}\n");
-    Err(Response::builder()
+    Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/x-ndjson")
         .body(Body::from(body))
-        .expect("static ndjson violation response is always valid"))
+        .expect("static ndjson violation response is always valid")
 }
 
 /// Merge every active verifier's policy snapshot into one bag, the key
@@ -374,46 +487,13 @@ pub(crate) async fn handle_files(runtime: &InstallAccelerator, body: Bytes) -> R
         }
     }
 
-    let store_dir = &runtime.store_dir;
-
     // Build the binary payload up front so a missing file surfaces as a
     // clean 500 before any bytes are committed to the response.
-    let mut payload: Vec<u8> = Vec::new();
-    payload.extend_from_slice(&2u32.to_be_bytes());
-    payload.extend_from_slice(b"{}");
-
-    for file in &request.digests {
-        let mode = if file.executable { 0o755 } else { 0o644 };
-        let Some(path) = store_dir.cas_file_path_by_mode(&file.digest, mode) else {
-            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "could not resolve file path");
-        };
-        let content = match std::fs::read(&path) {
-            Ok(content) => content,
-            Err(err) => {
-                return json_error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    &format!("{}: {err}", file.digest),
-                );
-            }
-        };
-        let Some(digest_bytes) = hex_to_bytes(&file.digest) else {
-            return json_error(StatusCode::BAD_REQUEST, "invalid digest");
-        };
-        // The wire framing encodes the size as a u32; a >4 GiB file would
-        // truncate. npm files never approach this, but fail cleanly rather
-        // than corrupt the stream.
-        let Ok(content_len) = u32::try_from(content.len()) else {
-            return json_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &format!("{}: file too large for the protocol", file.digest),
-            );
-        };
-        payload.extend_from_slice(&digest_bytes);
-        payload.extend_from_slice(&content_len.to_be_bytes());
-        payload.push(u8::from(file.executable));
-        payload.extend_from_slice(&content);
-    }
-    payload.extend_from_slice(&[0u8; 64]);
+    let files = request.digests.iter().map(|file| (file.digest.as_str(), file.executable));
+    let payload = match build_files_payload(&runtime.store_dir, files) {
+        Ok(payload) => payload,
+        Err((status, message)) => return json_error(status, &message),
+    };
 
     let mut encoder = GzEncoder::new(Vec::new(), Compression::new(1));
     if encoder.write_all(&payload).is_err() {
@@ -430,6 +510,68 @@ pub(crate) async fn handle_files(runtime: &InstallAccelerator, body: Bytes) -> R
         .header(header::CONTENT_ENCODING, "gzip")
         .body(Body::from(gzipped))
         .expect("binary response is always valid")
+}
+
+/// The binary frames `/v1/files` serves and the `inlineFiles` install
+/// response embeds: a 2-byte `{}` JSON header (length-prefixed) followed
+/// by one `[64-byte digest][u32 size][1-byte exec][content]` frame per
+/// file, terminated by 64 zero bytes. Reads each file's content from the
+/// store by digest; an `Err` is a ready-made error response.
+fn build_files_payload<'a>(
+    store_dir: &StoreDir,
+    files: impl Iterator<Item = (&'a str, bool)>,
+) -> Result<Vec<u8>, (StatusCode, String)> {
+    let mut payload = empty_files_payload_prefix();
+    for (digest, executable) in files {
+        let mode = if executable { 0o755 } else { 0o644 };
+        let Some(path) = store_dir.cas_file_path_by_mode(digest, mode) else {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "could not resolve file path".to_string(),
+            ));
+        };
+        let content = match std::fs::read(&path) {
+            Ok(content) => content,
+            Err(err) => {
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{digest}: {err}")));
+            }
+        };
+        let Some(digest_bytes) = hex_to_bytes(digest) else {
+            return Err((StatusCode::BAD_REQUEST, "invalid digest".to_string()));
+        };
+        // The wire framing encodes the size as a u32; a >4 GiB file would
+        // truncate. npm files never approach this, but fail cleanly rather
+        // than corrupt the stream.
+        let Ok(content_len) = u32::try_from(content.len()) else {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("{digest}: file too large for the protocol"),
+            ));
+        };
+        payload.extend_from_slice(&digest_bytes);
+        payload.extend_from_slice(&content_len.to_be_bytes());
+        payload.push(u8::from(executable));
+        payload.extend_from_slice(&content);
+    }
+    payload.extend_from_slice(&[0u8; 64]);
+    Ok(payload)
+}
+
+/// The leading 2-byte `{}` JSON header every files payload starts with.
+fn empty_files_payload_prefix() -> Vec<u8> {
+    let mut prefix = Vec::new();
+    prefix.extend_from_slice(&2u32.to_be_bytes());
+    prefix.extend_from_slice(b"{}");
+    prefix
+}
+
+/// A files payload carrying no files — the header prefix plus the
+/// end-of-stream marker. Used when an `inlineFiles` response has only
+/// metadata (a `--lockfile-only` resolve or a verification failure).
+fn empty_files_payload() -> Vec<u8> {
+    let mut payload = empty_files_payload_prefix();
+    payload.extend_from_slice(&[0u8; 64]);
+    payload
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {
