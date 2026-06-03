@@ -33,7 +33,7 @@ use crate::{
 };
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{Resolver, WantedDependency};
+use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
 use std::{path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
@@ -278,9 +278,8 @@ where
             };
             if let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await
                 && let Some(published_at) = result.published_at.as_deref()
-                && let Ok(parsed) = DateTime::parse_from_rfc3339(published_at)
+                && let Some(parsed) = parse_packument_timestamp(published_at)
             {
-                let parsed = parsed.with_timezone(&Utc);
                 newest = Some(newest.map_or(parsed, |current| current.max(parsed)));
             }
         }

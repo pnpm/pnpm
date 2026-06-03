@@ -33,6 +33,7 @@ use miette::Diagnostic;
 use node_semver::Version;
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pacquet_registry::{Package, PackageVersion};
+use pacquet_resolving_resolver_base::parse_packument_timestamp;
 
 /// Rank of supply-chain evidence on a single version. Variants are
 /// declared weakest-first so the derived `Ord` matches `trust_rank`.
@@ -144,11 +145,11 @@ pub fn fail_if_trust_downgraded(
                 name = meta.name,
             ),
         })?;
-    let version_date = DateTime::parse_from_rfc3339(published_at)
-        .map_err(|err| TrustViolation::TrustCheckFailed {
-            reason: format!("publish timestamp is not a valid date: {err}"),
-        })?
-        .with_timezone(&Utc);
+    let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
+        TrustViolation::TrustCheckFailed {
+            reason: "publish timestamp is not a valid date".to_string(),
+        }
+    })?;
 
     // Ignore-after cutoff: a version old enough to be "settled"
     // gets a pass.
@@ -233,9 +234,8 @@ fn detect_strongest_trust_evidence_before(
         let Some(ts) = meta.published_at(version) else {
             continue;
         };
-        let parsed = match DateTime::parse_from_rfc3339(ts) {
-            Ok(parsed) => parsed.with_timezone(&Utc),
-            Err(_) => continue,
+        let Some(parsed) = parse_packument_timestamp(ts) else {
+            continue;
         };
         if parsed >= before_date {
             continue;

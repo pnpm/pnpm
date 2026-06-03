@@ -63,7 +63,7 @@ use miette::Diagnostic;
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
-use pacquet_resolving_resolver_base::VersionSelectors;
+use pacquet_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
 
 use crate::{
@@ -1077,8 +1077,8 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     // upgrade — better to spend one extra fetch than to silently
     // bypass the maturity check.
     if let Some(modified_str) = meta.modified.as_deref()
-        && let Ok(modified) = chrono::DateTime::parse_from_rfc3339(modified_str)
-        && modified.with_timezone(&Utc) <= cutoff
+        && let Some(modified) = parse_packument_timestamp(modified_str)
+        && modified <= cutoff
     {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }

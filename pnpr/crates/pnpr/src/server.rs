@@ -23,6 +23,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
+use chrono::Utc;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::{sync::Arc, time::Duration};
@@ -1464,7 +1465,7 @@ fn packument_response(
     let mut doc: Value = serde_json::from_slice(bytes)?;
     rewrite_tarball_urls(&mut doc, name, &config.public_url);
     let (body, content_type) = if abbreviated {
-        let trimmed = abbreviate_packument(&doc);
+        let trimmed = abbreviate_packument(&doc, Utc::now());
         (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
     } else {
         (serde_json::to_vec(&doc)?, "application/json")
