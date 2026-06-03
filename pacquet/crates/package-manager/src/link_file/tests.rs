@@ -45,6 +45,24 @@ fn copy_materializes_the_file_contents() {
     let _ = (src_ino, dst_ino);
 }
 
+#[test]
+#[cfg(unix)]
+fn copy_restores_executable_mode_from_cas_suffix() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src-exec", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o644)).unwrap();
+    let dst = tmp.path().join("nested/dst.txt");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
+        .expect("copy should restore executable CAS mode");
+
+    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    assert_eq!(dst_mode, 0o755, "copied executable file must stay executable");
+}
+
 /// Hardlinking in the same directory on the same filesystem works on
 /// every mainstream OS the project supports. We verify the post-link
 /// inodes match (on unix) or that the contents match (otherwise).

@@ -214,11 +214,11 @@ fn try_import<Reporter: self::Reporter>(
                 log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
                 Ok(())
             }
-            Err(error) if is_cross_device(&error) => fs::copy(source_file, target_link)
-                .inspect(|_| {
+            Err(error) if is_cross_device(&error) => {
+                copy_file(source_file, target_link).inspect(|_| {
                     log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                 })
-                .map(drop),
+            }
             Err(error) => Err(error),
         },
         PackageImportMethod::Clone => {
@@ -230,12 +230,39 @@ fn try_import<Reporter: self::Reporter>(
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             clone_or_copy_link::<Reporter>(logged, &CLONE_OR_COPY_STATE, source_file, target_link)
         }
-        PackageImportMethod::Copy => fs::copy(source_file, target_link)
-            .inspect(|_| {
-                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-            })
-            .map(drop),
+        PackageImportMethod::Copy => copy_file(source_file, target_link).inspect(|_| {
+            log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+        }),
     }
+}
+
+fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    fs::copy(source_file, target_link)?;
+    preserve_mode_after_copy(source_file, target_link)
+}
+
+#[cfg(unix)]
+fn preserve_mode_after_copy(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut mode = fs::metadata(source_file)?.permissions().mode();
+    if source_file_is_executable_cas_path(source_file) {
+        mode |= 0o111;
+    }
+    fs::set_permissions(target_link, fs::Permissions::from_mode(mode))
+}
+
+#[cfg(not(unix))]
+fn preserve_mode_after_copy(_source_file: &Path, _target_link: &Path) -> io::Result<()> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn source_file_is_executable_cas_path(source_file: &Path) -> bool {
+    source_file
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with("-exec"))
 }
 
 /// EXDEV = "cross-device link not permitted". Linux / macOS / BSD all
@@ -323,11 +350,9 @@ fn auto_link<Reporter: self::Reporter>(
                 }
             },
             _ => {
-                return fs::copy(source, target)
-                    .inspect(|_| {
-                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                    })
-                    .map(drop);
+                return copy_file(source, target).inspect(|_| {
+                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                });
             }
         }
     }
@@ -358,11 +383,9 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
                 }
             },
             _ => {
-                return fs::copy(source, target)
-                    .inspect(|_| {
-                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                    })
-                    .map(drop);
+                return copy_file(source, target).inspect(|_| {
+                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                });
             }
         }
     }
