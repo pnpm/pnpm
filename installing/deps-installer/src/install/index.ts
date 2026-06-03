@@ -4,9 +4,11 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
+import { mergeCatalogs } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
 import {
   LAYOUT_VERSION,
   LOCKFILE_MAJOR_VERSION,
@@ -1659,6 +1661,18 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   if (opts.updateLockfileMinorVersion) {
     newLockfile.lockfileVersion = LOCKFILE_VERSION
+  }
+
+  // `pnpm update` may bump catalog entries during resolution. Overrides that
+  // reference a catalog (e.g. `overrides: { foo: 'catalog:' }`) were resolved
+  // against the pre-update catalog when the install options were extended, so
+  // re-resolve them against the updated catalog. Otherwise lockfile `overrides`
+  // keeps pointing at the old version while `catalogs` advances, and a later
+  // `--frozen-lockfile` install fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
+  if (updatedCatalogs != null && opts.overrides != null && Object.keys(opts.overrides).length > 0) {
+    newLockfile.overrides = createOverridesMapFromParsed(
+      parseOverrides(opts.overrides, mergeCatalogs(opts.catalogs ?? {}, updatedCatalogs))
+    )
   }
 
   const depsStateCache: DepsStateCache = {}

@@ -64,6 +64,7 @@
     "@pnpm/building.after-install": "workspace:*",
     "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
+    "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",

@@ -5646,6 +5646,9 @@ importers:
       '@pnpm/building.policy':
         specifier: workspace:*
         version: link:../../building/policy
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
       '@pnpm/catalogs.protocol-parser':
         specifier: workspace:*
         version: link:../../catalogs/protocol-parser
