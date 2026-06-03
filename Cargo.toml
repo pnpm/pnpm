@@ -115,6 +115,7 @@ reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
 libc = { version = "0.2.186" }
 reqwest = { version = "0.13", default-features = false, features = [
+  "gzip",
   "hickory-dns",
   "json",
   "rustls",
@@ -141,7 +142,7 @@ tabled             = { version = "0.17" }
 tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
-tower-http         = { version = "0.6.11", features = ["trace"] }
+tower-http         = { version = "0.6.11", features = ["compression-gzip", "trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
