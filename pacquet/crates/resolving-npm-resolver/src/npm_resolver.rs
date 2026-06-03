@@ -36,7 +36,7 @@ use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolutionPolicyViolation, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
-    WorkspacePackages,
+    WorkspacePackages, parse_packument_timestamp,
 };
 
 use crate::{
@@ -682,7 +682,7 @@ fn detect_min_release_age_violation(
             _ => {}
         }
     }
-    let parsed = DateTime::parse_from_rfc3339(timestamp).ok()?.with_timezone(&Utc);
+    let parsed = parse_packument_timestamp(timestamp)?;
     if parsed <= cutoff {
         return None;
     }

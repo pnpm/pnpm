@@ -1,6 +1,13 @@
 use super::{abbreviate_packument, extract_version_manifest, rewrite_tarball_urls};
 use crate::package_name::PackageName;
+use chrono::{DateTime, TimeZone, Utc};
 use serde_json::json;
+
+/// Fixed "current time" for abbreviation tests so the `time`-map
+/// coarsening (which buckets entries by age) is deterministic.
+fn now() -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2024, 3, 20, 12, 0, 0).unwrap()
+}
 
 #[test]
 fn rewrites_npm_form_tarball() {
@@ -135,16 +142,19 @@ fn abbreviation_drops_fields_the_resolver_ignores() {
         }
     });
 
-    let out = abbreviate_packument(&doc);
+    let out = abbreviate_packument(&doc, now());
 
     // Top-level: prose and registry bookkeeping gone, `modified`
-    // synthesized from `time.modified`, `time` retained.
+    // synthesized from `time.modified`, `time` retained. Both `time`
+    // entries predate the week-old horizon, so they coarsen to bare
+    // dates.
     assert!(out.get("readme").is_none());
     assert!(out.get("readmeFilename").is_none());
     assert!(out.get("_id").is_none());
     assert!(out.get("_rev").is_none());
-    assert_eq!(out["modified"], "2020-01-01T00:00:00.000Z");
-    assert!(out.get("time").is_some());
+    assert_eq!(out["modified"], "2020-01-01");
+    assert_eq!(out["time"]["modified"], "2020-01-01");
+    assert_eq!(out["time"]["1.0.0"], "2019-01-01");
 
     let version = &out["versions"]["1.0.0"];
     // Resolver-relevant fields kept.
@@ -188,7 +198,7 @@ fn abbreviation_keeps_shasum_when_integrity_absent() {
         }
     });
 
-    let out = abbreviate_packument(&doc);
+    let out = abbreviate_packument(&doc, now());
 
     let dist = &out["versions"]["0.0.1"]["dist"];
     assert!(dist.get("integrity").is_none());
@@ -214,8 +224,49 @@ fn abbreviation_keeps_shasum_when_integrity_is_empty_or_non_string() {
         }
     });
 
-    let out = abbreviate_packument(&doc);
+    let out = abbreviate_packument(&doc, now());
 
     assert_eq!(out["versions"]["1.0.0"]["dist"]["shasum"], "deadbeef");
     assert_eq!(out["versions"]["2.0.0"]["dist"]["shasum"], "cafe");
+}
+
+#[test]
+fn coarsens_time_entries_by_age() {
+    // `now()` is 2024-03-20T12:00Z; the horizon is one week earlier
+    // (2024-03-13T12:00Z). Values are rounded *up* so the coarsened
+    // timestamp never predates the real publish time.
+    let doc = json!({
+        "name": "foo",
+        "time": {
+            // Older than a week: rounded up to the next day...
+            "modified": "2024-03-01T08:15:30.500Z",
+            "1.0.0": "2023-12-25T23:59:59.000Z",
+            // ...unless already exactly midnight, which stays put.
+            "2.0.0": "2024-01-10T00:00:00.000Z",
+            // Within the last week: rounded up to the next minute...
+            "1.1.0": "2024-03-19T08:30:45.123Z",
+            // ...unless already on a minute boundary.
+            "1.2.0": "2024-03-18T06:15:00.000Z",
+            // The reserved `unpublished` object passes through verbatim.
+            "unpublished": { "time": "2024-03-18T00:00:00.000Z", "versions": ["0.9.0"] },
+            // An unparsable value is left untouched.
+            "0.0.1": "not a date"
+        },
+        "versions": {
+            "1.0.0": { "version": "1.0.0", "dist": { "tarball": "x/foo-1.0.0.tgz" } }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let time = &out["time"];
+
+    assert_eq!(time["modified"], "2024-03-02");
+    assert_eq!(time["1.0.0"], "2023-12-26");
+    assert_eq!(time["2.0.0"], "2024-01-10");
+    assert_eq!(time["1.1.0"], "2024-03-19T08:31Z");
+    assert_eq!(time["1.2.0"], "2024-03-18T06:15Z");
+    assert_eq!(time["unpublished"]["versions"][0], "0.9.0");
+    assert_eq!(time["0.0.1"], "not a date");
+    // Synthesized top-level `modified` mirrors the coarsened entry.
+    assert_eq!(out["modified"], "2024-03-02");
 }

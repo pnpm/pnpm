@@ -28,7 +28,7 @@ use pacquet_lockfile::{LockfileResolution, PkgName};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_registry::{Approver, NpmUser, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
 };
 use pipe_trait::Pipe;
 use serde_json::Value as JsonValue;
@@ -453,13 +453,12 @@ impl NpmResolutionVerifier {
                 ),
             });
         };
-        let Ok(parsed) = DateTime::parse_from_rfc3339(&published) else {
+        let Some(parsed) = parse_packument_timestamp(&published) else {
             return Some(ResolutionVerification::Err {
                 code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
                 reason: "publish timestamp is not a valid date".to_string(),
             });
         };
-        let parsed = parsed.with_timezone(&Utc);
         if parsed > cutoff {
             return Some(ResolutionVerification::Err {
                 code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
@@ -596,8 +595,8 @@ impl NpmResolutionVerifier {
             return Ok(None);
         };
         let Some(modified) = meta.modified else { return Ok(None) };
-        let Ok(parsed) = DateTime::parse_from_rfc3339(&modified) else { return Ok(None) };
-        if parsed.with_timezone(&Utc) >= cutoff {
+        let Some(parsed) = parse_packument_timestamp(&modified) else { return Ok(None) };
+        if parsed >= cutoff {
             return Ok(None);
         }
         if !meta.version_tarballs.as_ref().is_some_and(|map| map.contains_key(version)) {
