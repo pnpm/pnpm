@@ -142,26 +142,26 @@ pub fn extract_version_manifest(
 }
 
 /// Top-level packument fields *copied verbatim* into the abbreviated
-/// (`application/vnd.npm.install-v1+json`) form. Mirrors verdaccio's
-/// `convertAbbreviatedManifest` (packages/store/src/storage.ts).
-/// `time` and `readme` go beyond the npm spec but verdaccio keeps
-/// them — `time` specifically for pnpm's `minimumReleaseAge` check.
+/// (`application/vnd.npm.install-v1+json`) form. `time` goes beyond
+/// the npm spec but the pnpm/pacquet resolvers read it for the
+/// `minimumReleaseAge` check, so it stays.
 ///
-/// Two fields aren't here because verdaccio synthesizes them rather
-/// than copying:
-///   * `modified`        — extracted from `time.modified` (real npm
-///     packuments don't have it at the top level)
-///   * `readmeFilename`  — always the empty string
-///
-/// pacquet reads `meta.modified` in its version-pick heuristics
-/// (`pick_package_from_meta.rs`) and as a freshness check
-/// (`pick_package.rs`); omitting it pushes the resolver onto a
-/// slower fallback path.
-const ABBREVIATED_TOP_FIELDS: &[&str] = &["name", "dist-tags", "time", "_id", "_rev", "readme"];
+/// `modified` isn't here because it's synthesized rather than copied:
+/// it's extracted from `time.modified` (real npm packuments nest it
+/// there). pacquet reads `meta.modified` in its version-pick
+/// heuristics (`pick_package_from_meta.rs`) and as a freshness check
+/// (`pick_package.rs`); omitting it pushes the resolver onto a slower
+/// fallback path.
+const ABBREVIATED_TOP_FIELDS: &[&str] = &["name", "dist-tags", "time"];
 
-/// Per-version fields preserved in the abbreviated form. Mirrors
-/// verdaccio's `convertAbbreviatedManifest` and the npm spec at
-/// <https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object>.
+/// Per-version fields preserved in the abbreviated form — a subset of
+/// the npm spec's abbreviated version object
+/// (<https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object>).
+/// Fields neither the pnpm nor the pacquet resolver reads are dropped
+/// to shrink the document: `funding`, `acceptDependencies`,
+/// `_hasShrinkwrap`, and `devDependencies` (a dependency's dev
+/// dependencies are never installed). Redundant `dist` subfields are
+/// trimmed per-version by [`trim_dist_fields`].
 const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
     "name",
     "version",
@@ -169,18 +169,15 @@ const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
     "bin",
     "dist",
     "engines",
-    "funding",
     "directories",
     "dependencies",
-    "devDependencies",
     "peerDependencies",
     "optionalDependencies",
     "bundleDependencies",
     "cpu",
     "os",
+    "libc",
     "peerDependenciesMeta",
-    "acceptDependencies",
-    "_hasShrinkwrap",
     "hasInstallScript",
 ];
 
@@ -197,13 +194,10 @@ pub fn abbreviate_packument(packument: &Value) -> Value {
         }
         // Synthesize `modified` from `time.modified` — npm packuments
         // store it nested and pacquet's resolver reads it at the top
-        // level. Matches verdaccio's `modified: manifest.time.modified`.
+        // level.
         if let Some(time_modified) = obj.get("time").and_then(|time| time.get("modified")) {
             out.insert("modified".to_string(), time_modified.clone());
         }
-        // verdaccio hardcodes `readmeFilename: ''`. Match it for
-        // wire-shape parity with clients that key on its presence.
-        out.insert("readmeFilename".to_string(), Value::String(String::new()));
         if let Some(versions) = obj.get("versions").and_then(Value::as_object) {
             let mut abbreviated_versions = serde_json::Map::with_capacity(versions.len());
             for (version_id, version_value) in versions {
@@ -214,12 +208,46 @@ pub fn abbreviate_packument(packument: &Value) -> Value {
                         trimmed.insert(field.to_string(), value.clone());
                     }
                 }
+                trim_dist_fields(&mut trimmed);
                 abbreviated_versions.insert(version_id.clone(), Value::Object(trimmed));
             }
             out.insert("versions".to_string(), Value::Object(abbreviated_versions));
         }
     }
     Value::Object(out)
+}
+
+/// Trim `dist` subfields the resolver and installer never read:
+///
+/// * `npm-signature` — the legacy PGP detached signature. npm stopped
+///   populating it years ago in favour of the ECDSA `signatures`, and
+///   nothing in pnpm or pacquet reads it.
+/// * `fileCount` — read nowhere in pnpm or pacquet.
+/// * `unpackedSize` — only `pnpm view` reads it, and that command
+///   fetches the *full* metadata document (`fullMetadata: true`) which
+///   pnpr serves unstripped, so dropping it from the abbreviated form
+///   is safe.
+/// * `shasum` — the legacy sha1 hash, redundant once `integrity` (SRI)
+///   is present. "Present" mirrors pnpm's `getIntegrity` truthiness
+///   check (`if (dist.integrity)`): a non-empty string. An absent,
+///   empty, or non-string `integrity` keeps `shasum` so pnpm's
+///   sha1 fallback still has a hash (pre-2017 publishes).
+///
+/// `dist.signatures` (the ECDSA registry signatures) is deliberately
+/// preserved: it binds `name@version:integrity` to the upstream
+/// registry's key and is the input to a potential client-side
+/// install-time verification on the pnpr path.
+fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
+    let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
+        return;
+    };
+    dist.remove("npm-signature");
+    dist.remove("fileCount");
+    dist.remove("unpackedSize");
+    if dist.get("integrity").and_then(Value::as_str).is_some_and(|integrity| !integrity.is_empty())
+    {
+        dist.remove("shasum");
+    }
 }
 
 #[cfg(test)]

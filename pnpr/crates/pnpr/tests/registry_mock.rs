@@ -138,12 +138,15 @@ async fn abbreviated_accept_header_strips_packument() {
     // `_uplinks`, `_distfiles` that the abbreviated form must drop.
     assert_eq!(doc["name"], "@foo/no-deps");
     assert_eq!(doc["dist-tags"]["latest"], "1.0.0");
-    // verdaccio always synthesizes these two; pacquet's resolver
-    // reads `meta.modified` for version-pick freshness checks
-    // (`pick_package_from_meta.rs`), so dropping them quietly
-    // would slow the install on a real npm packument.
+    // `modified` is synthesized from `time.modified`; pacquet's
+    // resolver reads `meta.modified` for version-pick freshness checks
+    // (`pick_package_from_meta.rs`), so dropping it quietly would slow
+    // the install on a real npm packument.
     assert_eq!(doc["modified"], doc["time"]["modified"]);
-    assert_eq!(doc["readmeFilename"], "");
+    // README prose is never read during resolution and is the
+    // dominant per-packument bloat — the abbreviated form drops it.
+    assert!(doc.get("readme").is_none(), "abbreviated form should drop readme");
+    assert!(doc.get("readmeFilename").is_none(), "abbreviated form should drop readmeFilename");
     assert!(doc.get("_attachments").is_none(), "abbreviated form should drop _attachments");
     assert!(doc.get("_uplinks").is_none(), "abbreviated form should drop _uplinks");
     assert!(doc.get("_distfiles").is_none(), "abbreviated form should drop _distfiles");
