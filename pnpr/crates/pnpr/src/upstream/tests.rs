@@ -1,4 +1,4 @@
-use super::{extract_version_manifest, rewrite_tarball_urls};
+use super::{abbreviate_packument, extract_version_manifest, rewrite_tarball_urls};
 use crate::package_name::PackageName;
 use serde_json::json;
 
@@ -97,4 +97,90 @@ fn extract_returns_none_for_unknown_version() {
     let name = PackageName::parse("foo").unwrap();
     assert!(extract_version_manifest(&doc, &name, "9.9.9", "http://reg").is_none());
     assert!(extract_version_manifest(&doc, &name, "latest", "http://reg").is_none());
+}
+
+#[test]
+fn abbreviation_drops_fields_the_resolver_ignores() {
+    let doc = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "modified": "2020-01-01T00:00:00.000Z", "1.0.0": "2019-01-01T00:00:00.000Z" },
+        "_id": "foo",
+        "_rev": "1-abc",
+        "readme": "# foo\nlots of prose",
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dependencies": { "bar": "^1.0.0" },
+                "devDependencies": { "jest": "^29.0.0" },
+                "peerDependencies": { "react": "*" },
+                "os": ["linux"],
+                "cpu": ["x64"],
+                "libc": ["glibc"],
+                "funding": { "url": "https://example.com" },
+                "acceptDependencies": { "bar": "^1.0.0" },
+                "_hasShrinkwrap": false,
+                "hasInstallScript": true,
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
+                    "integrity": "sha512-abc",
+                    "shasum": "deadbeef"
+                }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc);
+
+    // Top-level: prose and registry bookkeeping gone, `modified`
+    // synthesized from `time.modified`, `time` retained.
+    assert!(out.get("readme").is_none());
+    assert!(out.get("readmeFilename").is_none());
+    assert!(out.get("_id").is_none());
+    assert!(out.get("_rev").is_none());
+    assert_eq!(out["modified"], "2020-01-01T00:00:00.000Z");
+    assert!(out.get("time").is_some());
+
+    let version = &out["versions"]["1.0.0"];
+    // Resolver-relevant fields kept.
+    assert_eq!(version["name"], "foo");
+    assert_eq!(version["dependencies"]["bar"], "^1.0.0");
+    assert_eq!(version["peerDependencies"]["react"], "*");
+    assert_eq!(version["hasInstallScript"], true);
+    // Platform-filtering fields kept for optional-dep selection (#9950).
+    assert_eq!(version["os"][0], "linux");
+    assert_eq!(version["cpu"][0], "x64");
+    assert_eq!(version["libc"][0], "glibc");
+    // Ignored fields dropped.
+    assert!(version.get("devDependencies").is_none());
+    assert!(version.get("funding").is_none());
+    assert!(version.get("acceptDependencies").is_none());
+    assert!(version.get("_hasShrinkwrap").is_none());
+    // `shasum` dropped because `integrity` is present.
+    assert_eq!(version["dist"]["integrity"], "sha512-abc");
+    assert!(version["dist"].get("shasum").is_none());
+}
+
+#[test]
+fn abbreviation_keeps_shasum_when_integrity_absent() {
+    let doc = json!({
+        "name": "legacy",
+        "versions": {
+            "0.0.1": {
+                "name": "legacy",
+                "version": "0.0.1",
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/legacy/-/legacy-0.0.1.tgz",
+                    "shasum": "deadbeef"
+                }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc);
+
+    let dist = &out["versions"]["0.0.1"]["dist"];
+    assert!(dist.get("integrity").is_none());
+    assert_eq!(dist["shasum"], "deadbeef");
 }
