@@ -148,7 +148,7 @@ fn abbreviation_drops_fields_the_resolver_ignores() {
     assert_eq!(version["dependencies"]["bar"], "^1.0.0");
     assert_eq!(version["peerDependencies"]["react"], "*");
     assert_eq!(version["hasInstallScript"], true);
-    // Platform-filtering fields kept for optional-dep selection (#9950).
+    // Platform-filtering fields kept for optional-dep selection (`#9950`).
     assert_eq!(version["os"][0], "linux");
     assert_eq!(version["cpu"][0], "x64");
     assert_eq!(version["libc"][0], "glibc");
