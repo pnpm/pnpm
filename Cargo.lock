@@ -2757,6 +2757,7 @@ dependencies = [
 name = "pacquet-pnpr-client"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "derive_more",
  "flate2",
  "mockito",
