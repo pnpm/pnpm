@@ -111,3 +111,79 @@ test('packages are not deduplicated when versions do not match', async () => {
   expect(dependenciesByProjectId.project1.get('foo')).not.toEqual(dependenciesByProjectId.project3.get('foo'))
   expect(dependenciesByProjectId.project3.get('foo')).toEqual(dependenciesByProjectId.project4.get('foo'))
 })
+
+// When a peer-suffixed variant is a subset of two mutually incompatible larger
+// variants, the dedupe pass has to pick which one to collapse it into. That
+// choice must not depend on the order the importers happen to be processed in —
+// otherwise the same workspace resolves to different lockfiles on different
+// machines, and `pnpm dedupe --check` flips between pass and fail.
+test('peer-dependent deduplication does not depend on importer order', async () => {
+  const fooPkg: PartialResolvedPackage = {
+    name: 'foo',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {
+      bar: { version: '1.0.0', optional: true },
+      baz: { version: '1.0.0', optional: true },
+      qux: { version: '1.0.0', optional: true },
+    },
+  }
+  const purePeer = (name: string): PartialResolvedPackage => ({
+    name,
+    version: '1.0.0',
+    pkgIdWithPatchHash: `${name}/1.0.0` as PkgIdWithPatchHash,
+    peerDependencies: {},
+    id: '' as PkgResolutionId,
+  })
+
+  // project-subset resolves foo(bar); project-baz resolves foo(bar)(baz);
+  // project-qux resolves foo(bar)(qux). foo(bar) is a subset of both of the
+  // larger variants, which are themselves incompatible with each other.
+  const makeProject = (id: string, aliases: string[]) => ({
+    directNodeIdsByAlias: new Map(aliases.map((alias) => [alias, `>${id}>${alias}>` as NodeId])),
+    topParents: [],
+    rootDir: '' as ProjectRootDir,
+    id: id as PkgResolutionId,
+  })
+  const projectSubset = makeProject('project-subset', ['foo', 'bar'])
+  const projectBaz = makeProject('project-baz', ['foo', 'bar', 'baz'])
+  const projectQux = makeProject('project-qux', ['foo', 'bar', 'qux'])
+
+  const buildTree = () => new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>(([
+    ['>project-subset>foo>' as NodeId, fooPkg],
+    ['>project-subset>bar>' as NodeId, purePeer('bar')],
+    ['>project-baz>foo>' as NodeId, fooPkg],
+    ['>project-baz>bar>' as NodeId, purePeer('bar')],
+    ['>project-baz>baz>' as NodeId, purePeer('baz')],
+    ['>project-qux>foo>' as NodeId, fooPkg],
+    ['>project-qux>bar>' as NodeId, purePeer('bar')],
+    ['>project-qux>qux>' as NodeId, purePeer('qux')],
+  ] satisfies Array<[NodeId, PartialResolvedPackage]>).map(([path, resolvedPackage]) => [path, {
+    children: {},
+    installable: {},
+    resolvedPackage,
+    depth: 0,
+  } as DependenciesTreeNode<PartialResolvedPackage>]))
+
+  const resolveSubsetFoo = async (projects: Array<ReturnType<typeof makeProject>>) => {
+    const { dependenciesByProjectId } = await resolvePeers({
+      allPeerDepNames: new Set(['bar', 'baz', 'qux']),
+      projects,
+      resolvedImporters: {},
+      dependenciesTree: buildTree(),
+      dedupePeerDependents: true,
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    return dependenciesByProjectId['project-subset'].get('foo')
+  }
+
+  const bazFirst = await resolveSubsetFoo([projectSubset, projectBaz, projectQux])
+  const quxFirst = await resolveSubsetFoo([projectSubset, projectQux, projectBaz])
+
+  expect(bazFirst).toBe(quxFirst)
+})
