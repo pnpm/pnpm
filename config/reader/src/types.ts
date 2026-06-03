@@ -13,7 +13,7 @@ export const pnpmTypes = {
   'child-concurrency': Number,
   'merge-git-branch-lockfiles': Boolean,
   'merge-git-branch-lockfiles-branch-pattern': Array,
-  color: ['always', 'auto', 'never'],
+  color: [Boolean, 'always', 'auto', 'never'],
   'config-dir': String,
   'dangerously-allow-all-builds': Boolean,
   'deploy-all-files': Boolean,

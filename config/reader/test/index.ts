@@ -14,6 +14,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
 const { getConfig } = await import('@pnpm/config.reader')
+const { pnpmTypes } = await import('../src/types.js')
 const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 
 // To override any local settings,
@@ -1325,6 +1326,11 @@ test('normalizing the value of public-hoist-pattern', async () => {
 
     expect(config.publicHoistPattern).toStrictEqual([''])
   }
+})
+
+
+test('bare color flag is parsed as boolean', () => {
+  expect(pnpmTypes.color).toContain(Boolean)
 })
 
 
