@@ -228,8 +228,10 @@ pub fn abbreviate_packument(packument: &Value) -> Value {
 ///   pnpr serves unstripped, so dropping it from the abbreviated form
 ///   is safe.
 /// * `shasum` — the legacy sha1 hash, redundant once `integrity` (SRI)
-///   is present. Kept when `integrity` is absent (pre-2017 publishes)
-///   so pnpm's `getIntegrity` fallback still has a hash.
+///   is present. "Present" mirrors pnpm's `getIntegrity` truthiness
+///   check (`if (dist.integrity)`): a non-empty string. An absent,
+///   empty, or non-string `integrity` keeps `shasum` so pnpm's
+///   sha1 fallback still has a hash (pre-2017 publishes).
 ///
 /// `dist.signatures` (the ECDSA registry signatures) is deliberately
 /// preserved: it binds `name@version:integrity` to the upstream
@@ -242,7 +244,8 @@ fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
     dist.remove("npm-signature");
     dist.remove("fileCount");
     dist.remove("unpackedSize");
-    if dist.get("integrity").is_some_and(|integrity| !integrity.is_null()) {
+    if dist.get("integrity").and_then(Value::as_str).is_some_and(|integrity| !integrity.is_empty())
+    {
         dist.remove("shasum");
     }
 }

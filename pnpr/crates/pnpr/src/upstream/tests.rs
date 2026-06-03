@@ -194,3 +194,28 @@ fn abbreviation_keeps_shasum_when_integrity_absent() {
     assert!(dist.get("integrity").is_none());
     assert_eq!(dist["shasum"], "deadbeef");
 }
+
+#[test]
+fn abbreviation_keeps_shasum_when_integrity_is_empty_or_non_string() {
+    // pnpm's `getIntegrity` falls back to `shasum` unless `integrity`
+    // is a truthy (non-empty) string, so an empty or malformed
+    // `integrity` must not strip the sha1 fallback.
+    let doc = json!({
+        "name": "weird",
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "dist": { "tarball": "x/weird-1.0.0.tgz", "integrity": "", "shasum": "deadbeef" }
+            },
+            "2.0.0": {
+                "version": "2.0.0",
+                "dist": { "tarball": "x/weird-2.0.0.tgz", "integrity": false, "shasum": "cafe" }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc);
+
+    assert_eq!(out["versions"]["1.0.0"]["dist"]["shasum"], "deadbeef");
+    assert_eq!(out["versions"]["2.0.0"]["dist"]["shasum"], "cafe");
+}
