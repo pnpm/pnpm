@@ -78,6 +78,29 @@ test('pnpm install uses pnpr server when configured', async () => {
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
 })
 
+test('pnpm install resolves optionalDependencies via the pnpr server', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['install', `--config.pnprServer=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  // The optional dependency must be forwarded to the server and resolved,
+  // not silently dropped from the request.
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+})
+
 test('a second resolution forwards the existing lockfile to the pnpr server', async () => {
   prepare({})
 

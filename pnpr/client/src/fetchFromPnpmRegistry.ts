@@ -14,6 +14,7 @@ export interface PnprProject {
   dir: string
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
 }
 
 export interface FetchFromPnpmRegistryOptions {
@@ -27,6 +28,8 @@ export interface FetchFromPnpmRegistryOptions {
   dependencies?: Record<string, string>
   /** Dev dependencies to resolve (single project) */
   devDependencies?: Record<string, string>
+  /** Optional dependencies to resolve (single project) */
+  optionalDependencies?: Record<string, string>
   /** Multiple projects in a workspace */
   projects?: PnprProject[]
   /** Overrides */
@@ -81,6 +84,7 @@ export async function fetchFromPnpmRegistry (
     dir: '.',
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
+    optionalDependencies: opts.optionalDependencies,
   }]
 
   const requestBody = JSON.stringify({

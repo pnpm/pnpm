@@ -2374,6 +2374,7 @@ async function installFromPnpmRegistry (
           dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
           dependencies: p.manifest.dependencies,
           devDependencies: p.manifest.devDependencies,
+          optionalDependencies: p.manifest.optionalDependencies,
         }))
         : undefined
 
@@ -2383,6 +2384,7 @@ async function installFromPnpmRegistry (
         storeIndex,
         dependencies: projectsList ? undefined : manifest.dependencies,
         devDependencies: projectsList ? undefined : manifest.devDependencies,
+        optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
         projects: projectsList,
         overrides: opts.overrides,
         minimumReleaseAge: opts.minimumReleaseAge,

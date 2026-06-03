@@ -18,6 +18,8 @@ pub struct InstallRequestProject {
     pub dependencies: DepMap,
     #[serde(default)]
     pub dev_dependencies: DepMap,
+    #[serde(default)]
+    pub optional_dependencies: DepMap,
 }
 
 fn root_dir() -> String {
@@ -38,6 +40,8 @@ pub struct InstallRequest {
     pub dependencies: Option<DepMap>,
     #[serde(default)]
     pub dev_dependencies: Option<DepMap>,
+    #[serde(default)]
+    pub optional_dependencies: Option<DepMap>,
     #[serde(default)]
     pub projects: Option<Vec<InstallRequestProject>>,
     #[serde(default)]
@@ -119,6 +123,7 @@ pub struct ProjectDeps {
     pub dir: String,
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
+    pub optional_dependencies: DepMap,
 }
 
 impl InstallRequest {
@@ -134,6 +139,7 @@ impl InstallRequest {
                     dir: project.dir.clone(),
                     dependencies: project.dependencies.clone(),
                     dev_dependencies: project.dev_dependencies.clone(),
+                    optional_dependencies: project.optional_dependencies.clone(),
                 })
                 .collect();
         }
@@ -141,6 +147,7 @@ impl InstallRequest {
             dir: root_dir(),
             dependencies: self.dependencies.clone().unwrap_or_default(),
             dev_dependencies: self.dev_dependencies.clone().unwrap_or_default(),
+            optional_dependencies: self.optional_dependencies.clone().unwrap_or_default(),
         }]
     }
 }

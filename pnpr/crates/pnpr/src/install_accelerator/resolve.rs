@@ -101,6 +101,7 @@ pub async fn resolve(
             "version": "0.0.0",
             "dependencies": project.dependencies,
             "devDependencies": project.dev_dependencies,
+            "optionalDependencies": project.optional_dependencies,
         });
         let manifest_bytes = serde_json::to_vec(&manifest_json)
             .map_err(|err| ResolveError::Install(err.to_string()))?;
