@@ -9,15 +9,16 @@ import { fetchAndWriteCafsFiles } from '@pnpm/worker'
 
 import type { ResponseMetadata } from './protocol.js'
 
-export interface AgentProject {
+export interface PnprProject {
   /** Relative dir within the workspace (e.g. "." or "packages/foo") */
   dir: string
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
 }
 
 export interface FetchFromPnpmRegistryOptions {
-  /** URL of the pnpm agent server */
+  /** URL of the pnpr server */
   registryUrl: string
   /** Client's store directory */
   storeDir: string
@@ -27,8 +28,10 @@ export interface FetchFromPnpmRegistryOptions {
   dependencies?: Record<string, string>
   /** Dev dependencies to resolve (single project) */
   devDependencies?: Record<string, string>
+  /** Optional dependencies to resolve (single project) */
+  optionalDependencies?: Record<string, string>
   /** Multiple projects in a workspace */
-  projects?: AgentProject[]
+  projects?: PnprProject[]
   /** Overrides */
   overrides?: Record<string, string>
   /** Node.js version for resolution */
@@ -62,7 +65,7 @@ export interface FetchFromPnpmRegistryResult {
 }
 
 /**
- * Fetch resolved dependencies from a pnpm agent server.
+ * Fetch resolved dependencies from a pnpr server.
  *
  * The response is a streaming NDJSON where each line is one message:
  *   - `D\t{digest}\t{size}\t{executable}\n` — file digest (streamed as packages resolve)
@@ -81,6 +84,7 @@ export async function fetchFromPnpmRegistry (
     dir: '.',
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
+    optionalDependencies: opts.optionalDependencies,
   }]
 
   const requestBody = JSON.stringify({
@@ -169,7 +173,7 @@ export async function fetchFromPnpmRegistry (
       } else if (type === 'E') {
         // Server emitted a structured error after headers were sent.
         // Record it so stream `end` / `catch` can reject with the payload.
-        let message = 'pnpm agent server error'
+        let message = 'pnpr server error'
         try {
           const payload = JSON.parse(line.substring(tabIdx + 1)) as { error?: string }
           if (payload?.error) message = payload.error
@@ -189,7 +193,7 @@ export async function fetchFromPnpmRegistry (
       if (serverError) {
         reject(serverError)
       } else if (!resolved) {
-        reject(new Error('pnpm agent server closed the stream without emitting a lockfile'))
+        reject(new Error('pnpr server closed the stream without emitting a lockfile'))
       }
     }, reject)
   })
@@ -203,7 +207,7 @@ function readStoreIntegrities (storeIndex: StoreIndex): string[] {
     const integrity = key.slice(0, tabIdx)
     // StoreIndex also stores non-integrity keys (e.g. git-hosted entries
     // keyed by URL). Filter to actual SRI hashes — sending those over to
-    // the agent server would just bloat the request without ever matching.
+    // the pnpr server would just bloat the request without ever matching.
     if (!isIntegrityLike(integrity)) continue
     seen.add(integrity)
   }
@@ -231,7 +235,7 @@ async function streamNdjsonRequest (
 ): Promise<void> {
   // `urlPath` is expected to be relative (e.g. "v1/install"). We normalize
   // the base to end with "/" so `new URL(rel, base)` preserves any path
-  // prefix configured on the agent URL (e.g. https://host/pnpr/).
+  // prefix configured on the pnpr server URL (e.g. https://host/pnpr/).
   const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
   const url = new URL(urlPath, base)
   const isHttps = url.protocol === 'https:'
@@ -251,7 +255,7 @@ async function streamNdjsonRequest (
         const chunks: Buffer[] = []
         res.on('data', (chunk: Buffer) => chunks.push(chunk))
         res.on('end', () => {
-          reject(new Error(`pnpm agent responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
+          reject(new Error(`pnpr server responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
         })
         return
       }
@@ -274,11 +278,11 @@ async function streamNdjsonRequest (
     })
 
     req.on('timeout', () => {
-      req.destroy(new Error(`pnpm agent request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
+      req.destroy(new Error(`pnpr server request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
     })
     req.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'ECONNREFUSED') {
-        reject(new Error(`Could not connect to pnpm agent at ${registryUrl}. Is the server running?`))
+        reject(new Error(`Could not connect to pnpr server at ${registryUrl}. Is the server running?`))
       } else {
         reject(err)
       }

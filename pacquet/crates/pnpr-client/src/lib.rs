@@ -1,6 +1,6 @@
 //! Client for pnpr's server-accelerated installs.
 //!
-//! Port of the TypeScript `@pnpm/agent.client` (`fetchFromPnpmRegistry`)
+//! Port of the TypeScript `@pnpm/pnpr.client` (`fetchFromPnpmRegistry`)
 //! plus the `fetch-and-write-cafs` worker. Given a set of dependencies
 //! and the client's content-addressable store, it:
 //!

@@ -48,8 +48,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'node-linker',
     'noproxy',
     'package-import-method',
-    'agent',
     'pnpmfile',
+    'pnpr-server',
     'prefer-frozen-lockfile',
     'prefer-offline',
     'production',
@@ -350,7 +350,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'updateConfig'
 | 'overrides'
 | 'packageExtensions'
-| 'agent'
+| 'pnprServer'
 | 'supportedArchitectures'
 | 'packageConfigs'
 > & Pick<ConfigContext,

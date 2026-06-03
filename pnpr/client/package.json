@@ -1,15 +1,15 @@
 {
-  "name": "@pnpm/agent.client",
+  "name": "@pnpm/pnpr.client",
   "version": "1.0.8",
-  "description": "Client for pnpm agent server — sends store state, receives resolved lockfile and missing files",
+  "description": "Client for the pnpr server — sends store state, receives resolved lockfile and missing files",
   "keywords": [
     "pnpm",
     "pnpm11"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/tree/main/agent/client",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/agent/client#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpr/client",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpr/client#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -41,7 +41,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
-    "@pnpm/agent.client": "workspace:*",
+    "@pnpm/pnpr.client": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "engines": {

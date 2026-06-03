@@ -284,7 +284,7 @@ export async function readPkgFromCafs (
 let limitImportingPackage = pLimit(4)
 
 /**
- * Temporarily change import concurrency. Called by the pnpm agent code path
+ * Temporarily change import concurrency. Called by the pnpr server code path
  * where there's no concurrent fetching competing for workers. Returns a
  * disposer that restores the previous limiter — callers must invoke it (in a
  * finally block) to avoid leaking the mutation to other installs in the same

@@ -257,11 +257,10 @@ export interface StrictInstallOptions {
    */
   omitSummaryLog: boolean
   /**
-   * URL of an agent server that resolves dependencies server-side and serves
-   * only the files missing from the client's store. The `pnpr` server
-   * implements this protocol.
+   * URL of a pnpr server that resolves dependencies server-side and serves
+   * only the files missing from the client's store.
    */
-  agent?: string
+  pnprServer?: string
 }
 
 export type InstallOptions =

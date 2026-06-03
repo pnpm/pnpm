@@ -223,7 +223,7 @@ export interface Config extends OptionsFromRootManifest {
   packGzipLevel?: number
   blockExoticSubdeps?: boolean
 
-  agent?: string
+  pnprServer?: string
 
   registries: Registries
   namedRegistries?: Record<string, string>

@@ -39,7 +39,7 @@ packages:
   - testing/*
   - worker
   - pnpm/artifacts/*
-  - agent/*
+  - pnpr/client
   - registry-access/*
   - releasing/*
   - resolving/*
