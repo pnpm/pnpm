@@ -347,3 +347,26 @@ test('view: resolves package.json from opts.dir when cwd differs', async () => {
     fs.rmSync(otherDir, { recursive: true, force: true })
   }
 })
+
+test('view: derives package name even when engines.pnpm is incompatible', async () => {
+  const cwd = process.cwd()
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
+  const pkgJsonPath = path.join(tmpDir, 'package.json')
+
+  try {
+    fs.writeFileSync(pkgJsonPath, JSON.stringify({
+      name: 'is-negative',
+      engines: {
+        pnpm: '999.0.0',
+      },
+    }))
+    process.chdir(tmpDir)
+
+    const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
+    expect(typeof result).toBe('string')
+    expect(result).toContain('is-negative')
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})

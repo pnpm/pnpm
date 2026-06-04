@@ -3487,6 +3487,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../../../workspace/project-manifest-reader
       '@zkochan/table':
         specifier: 'catalog:'
         version: 2.0.1

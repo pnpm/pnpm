@@ -56,6 +56,7 @@
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
     "hosted-git-info": "catalog:",

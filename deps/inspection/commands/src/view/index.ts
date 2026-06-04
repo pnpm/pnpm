@@ -1,10 +1,10 @@
 import path from 'node:path'
 
-import { tryReadProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { formatTimeAgo } from '@pnpm/resolving.npm-resolver'
 import type { ProjectManifest } from '@pnpm/types'
+import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import chalk from 'chalk'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -244,10 +244,10 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
 
 async function findNearestProjectManifest (
   startDir: string,
-  opts: Config & ConfigContext
+  _opts: Config & ConfigContext
 ): Promise<{ manifest: ProjectManifest, fileName: string, projectDir: string } | null> {
   try {
-    const result = await tryReadProjectManifest(startDir, opts)
+    const result = await tryReadProjectManifest(startDir)
     if (result.manifest != null) {
       return {
         manifest: result.manifest,
@@ -263,7 +263,7 @@ async function findNearestProjectManifest (
   if (parentDir === startDir) {
     return null
   }
-  return findNearestProjectManifest(parentDir, opts)
+  return findNearestProjectManifest(parentDir, _opts)
 }
 
 /**
