@@ -150,10 +150,18 @@ function tryExclusiveImport (
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return false
     throw err
   }
+  // We exclusively created newDir, so no other process writes into it directly
+  // (concurrent importers see EEXIST above and take the staging path). The
+  // directory is ours: on failure we remove our partial result before falling
+  // back to staging, so the next attempt — including this process's own method
+  // fallbacks (clone → hardlink → copy) — can fast-path again.
   try {
     tryImportIndexedDir(importer, newDir, filenames)
     return true
   } catch {
+    try {
+      rimrafSync(newDir)
+    } catch {} // eslint-disable-line:no-empty
     return false
   }
 }
