@@ -1,0 +1,105 @@
+name: Create Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Branch to release (the PR base; e.g. main or release/11.1).
+        default: main
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Serialize per target so two dispatches for the same branch can't race on the
+# force-pushed release-pr/<target> branch.
+concurrency:
+  group: create-release-pr-${{ github.event.inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  create-release-pr:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        # Don't persist the write-scoped token in .git/config; the install below
+        # runs third-party lifecycle scripts. Pushing is done with an explicit,
+        # single-use remote URL in the "Commit and push" step.
+        persist-credentials: false
+
+    - name: Install pnpm and Node
+      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      with:
+        runtime: node@26.3.0
+
+    # Base the release on the tip of the target branch, fetched explicitly so the
+    # run is correct even when dispatched from another ref. The release-pr/<target>
+    # name is the convention `pnpm bump` reads to key the .changeset-released ledger
+    # by the target branch instead of this ephemeral PR branch. A force-push reuses
+    # an already-open release PR for the same target rather than opening a second.
+    - name: Prepare release branch
+      env:
+        TARGET: ${{ github.event.inputs.target }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git fetch origin "$TARGET"
+        git checkout -B "release-pr/$TARGET" FETCH_HEAD
+
+    # Consumes the pending changesets: bumps versions, writes changelogs, updates
+    # the ledger, and syncs manifests. A no-op (no pending changesets) leaves the
+    # tree clean and the steps below skip.
+    - name: Bump versions
+      run: pnpm bump
+
+    - name: Check for changes
+      id: changes
+      run: |
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Read new pnpm version
+      id: version
+      if: steps.changes.outputs.changed == 'true'
+      run: echo "version=$(node -p "require('./pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    - name: Commit and push
+      if: steps.changes.outputs.changed == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        TARGET: ${{ github.event.inputs.target }}
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        git add -A
+        git commit -m "chore(release): ${VERSION}"
+        git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "release-pr/$TARGET"
+
+    - name: Create PR if needed
+      if: steps.changes.outputs.changed == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_LOCKFILE_TOKEN }}
+        TARGET: ${{ github.event.inputs.target }}
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        BRANCH="release-pr/$TARGET"
+
+        # An already-open PR now points at the freshly force-pushed branch, so
+        # there is nothing more to do.
+        if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+          echo "PR already exists; the new versions were force-pushed to it"
+        else
+          gh pr create \
+            --title "chore(release): ${VERSION}" \
+            --body "Automated release PR created by the create-release-pr workflow.
+
+        Releasing \`${TARGET}\` as pnpm v${VERSION}. Merging this PR consumes the pending changesets and records them in the \`.changeset-released\` ledger under \`${TARGET}\`." \
+            --base "$TARGET" \
+            --head "$BRANCH"
+        fi
