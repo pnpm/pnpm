@@ -256,6 +256,7 @@
     "postuninstall",
     "postversion",
     "preact",
+    "prebuild",
     "prefoo",
     "prefs",
     "preinstall",
