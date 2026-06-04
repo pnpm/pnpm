@@ -90,7 +90,7 @@
     "react-mixin": "^5.0.0",
     "react-responsive": "9.0.0-beta.10",
     "react-responsive-tabs": "^4.4.3",
-    "react-router": "^6.3.0",
+    "react-router": "^6.30.4",
     "react-router-dom": "^6.3.0",
     "react-select-plus": "1.0.0-rc.3.patch12",
     "react-skylight": "^0.5.1",
