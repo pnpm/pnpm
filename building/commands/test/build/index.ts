@@ -148,9 +148,7 @@ test('rebuilds dependencies in the global virtual store', async () => {
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
 
-  // Regression (GVS): the rebuild previously resolved the package from the classic
-  // virtualStoreDir path, which does not exist under the global virtual store, so
-  // the build script never ran. It must build into the GVS projection instead.
+  // The rebuild must run the build script into the GVS projection.
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
 })
 
@@ -176,11 +174,9 @@ test('rebuilds a dependency shared by multiple workspace projects in the global 
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
-  // With per-project lockfiles (`sharedWorkspaceLockfile: false`) `rebuild -r`
-  // runs a separate pass per project. Both projects depend on the same package,
-  // which the global virtual store collapses into ONE shared projection — so the
-  // passes select the same projection directory concurrently. This is the race
-  // the per-projection build lock serializes.
+  // Per-project lockfiles make `rebuild -r` run a concurrent pass per project, and
+  // both projects share one GVS projection — so the passes select the same directory
+  // at once, exercising the per-projection build lock.
   fs.writeFileSync('pnpm-workspace.yaml', [
     'packages:',
     '  - project-1',
@@ -218,9 +214,7 @@ test('rebuilds a dependency shared by multiple workspace projects in the global 
     `--store-dir=${storeDir}`,
   ])
 
-  // The shared projection must be built (once, without the concurrency failures
-  // the lock prevents — prebuild-install bus errors / node-gyp EEXIST), with the
-  // artifact present in the single directory both projects link to.
+  // The shared projection must be built, with the artifact in the single directory.
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
 })
 

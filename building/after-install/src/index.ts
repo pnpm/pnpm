@@ -54,13 +54,9 @@ import {
 
 export type { BuildOptions }
 
-// Under the global virtual store, a single package projection is shared by every
-// workspace project. With per-project lockfiles the rebuild runs once per project,
-// so without coordination multiple projects would build the SAME shared projection
-// concurrently — racing on the same directory (prebuild-install bus errors, node-gyp
-// EEXIST on the python symlink, etc.). This process-wide map serializes builds per
-// projection directory: the first build proceeds, concurrent ones wait for it and
-// then reuse the result. Keyed by the absolute GVS projection directory.
+// Serializes builds of a shared GVS projection across concurrent per-project
+// rebuilds: the first build proceeds, concurrent ones await it and reuse the
+// result. Keyed by the absolute projection directory.
 const gvsBuildLocks = new Map<string, Promise<void>>()
 
 function findPackages (
@@ -347,17 +343,9 @@ async function _rebuild (
   const builtDepPaths = new Set<string>()
   const storeIndex = opts.skipIfHasSideEffectsCache ? new StoreIndex(opts.storeDir) : undefined
 
-  // Under the global virtual store, packages are NOT projected into
-  // `<virtualStoreDir>/<depPathToFilename>/node_modules/<name>`; they live in a
-  // hash-addressed directory `<globalVirtualStoreDir>/<hash>/node_modules/<name>`
-  // (the same layout the installer creates via iteratePkgsForVirtualStore). The
-  // hash must be computed with the same inputs (graph + allowBuild + nodeVersion),
-  // otherwise rebuild would target the classic location, which does not exist
-  // under GVS — so dependency build scripts (e.g. node-gyp / prebuild-install)
-  // would never run. The base is the store's `links` directory; in this per-project
-  // rebuild context `ctx.virtualStoreDir` is the project-local `node_modules/.pnpm`,
-  // NOT the shared global store, so we resolve it from `storeDir/links` (matching
-  // how the installer derives `globalVirtualStoreDir`).
+  // Under GVS, packages live at `<globalVirtualStoreDir>/<hash>/node_modules/<name>`,
+  // not the classic virtualStoreDir layout. The hash is computed with the same inputs
+  // as the installer so rebuild resolves the exact directory the install created.
   const gvsDirByDepPath = new Map<DepPath, string>()
   if (opts.enableGlobalVirtualStore) {
     const globalVirtualStoreDir = opts.globalVirtualStoreDir ?? path.join(opts.storeDir, 'links')
@@ -390,9 +378,8 @@ async function _rebuild (
         })
       }
       const pkgRoot = pkgRoots[0]
-      // GVS: avoid concurrently building the same shared projection from multiple
-      // workspace projects. If another build for this projection is in flight, wait
-      // for it and reuse the result instead of racing on the same directory.
+      // If another project is already building this shared projection, wait for it
+      // and reuse the result instead of racing on the same directory.
       const gvsDir = gvsDirByDepPath.get(depPath)
       if (gvsDir != null) {
         const inFlight = gvsBuildLocks.get(gvsDir)
