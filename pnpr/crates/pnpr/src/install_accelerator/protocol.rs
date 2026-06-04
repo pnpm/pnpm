@@ -53,17 +53,11 @@ pub struct InstallRequest {
     /// `namedRegistries`).
     #[serde(default)]
     pub named_registries: BTreeMap<String, String>,
-    /// Per-registry `Authorization` header values the client forwards
-    /// so the server can resolve, verify, and fetch the caller's
-    /// **private** content as the caller. Keyed by the nerf-darted
-    /// registry URI (`//host[:port]/path/`), with ready-to-send values
-    /// (`Bearer …` / `Basic …`) — the exact shape
-    /// [`pacquet_network::AuthHeaders::from_map`] consumes. Empty for a
-    /// fully-public install. Separate from the request's HTTP
-    /// `Authorization` header, which identifies the caller to pnpr's own
-    /// gate; these are the *upstream* credentials. A package fetched
-    /// using one of these is gated per-user against its owning registry
-    /// (the grant table) rather than pnpr's local policy.
+    /// The caller's forwarded upstream credentials so the server resolves
+    /// and fetches private content as the caller. Keyed by nerf-darted
+    /// registry URI with ready-to-send values, the shape
+    /// [`pacquet_network::AuthHeaders::from_map`] consumes. Distinct from
+    /// the request's HTTP `Authorization` header (pnpr identity).
     #[serde(default)]
     pub auth_headers: BTreeMap<String, String>,
     /// The client's `overrides` (selector -> spec), applied at resolve

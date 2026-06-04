@@ -432,10 +432,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             auth_override,
         } = self;
 
-        // Resolve/verify against the caller's forwarded credentials when
-        // the pnpr accelerator supplied them; otherwise fall back to the
-        // config's npmrc-derived headers. Computed once and shared by
-        // every registry-touching resolver below.
+        // The pnpr override when supplied, else the config's npmrc headers;
+        // shared by every registry-touching resolver below.
         let auth_headers = auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers));
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same

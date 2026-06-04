@@ -2344,16 +2344,9 @@ async function installFromPnpmRegistry (
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
 
-  // Forward the caller's whole credential map so the server can attach the
-  // right token per fetched URL exactly as a local install would. The set
-  // of registries a dependency graph touches isn't knowable up front — a
-  // transitive package can be scope-routed to another registry or pinned to
-  // a tarball URL on a host that's in the config but isn't a declared
-  // registry — so scoping to the declared registries would silently drop
-  // tokens private sub-dependencies need. These are package-fetch
-  // credentials going to the very service the caller configured to fetch
-  // its packages. `authorization` additionally identifies the caller to the
-  // pnpr server's own access gate (and keys the per-user grant table).
+  // Forward the whole credential map (the registries a graph touches
+  // aren't known up front), so the server attaches the right token per
+  // URL. `authorization` also identifies the caller to pnpr's gate.
   const configByUri = opts.configByUri ?? {}
   const forwardedAuthHeaders = getAuthHeadersFromCreds(configByUri)
   const pnprAuthorization = createGetAuthHeaderByURI(configByUri)(opts.pnprServer!)

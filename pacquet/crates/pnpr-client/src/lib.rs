@@ -55,17 +55,13 @@ pub struct InstallOptions<'a> {
     pub registry: String,
     /// The client's named-registry aliases.
     pub named_registries: DepMap,
-    /// The caller's per-registry `Authorization` header values, keyed by
-    /// nerf-darted registry URI (`pacquet_network::AuthHeaders::entries`).
-    /// Forwarded so the server can resolve, verify, and fetch the
-    /// caller's **private** content as the caller. Separate from
-    /// [`Self::authorization`], which identifies the caller to the pnpr
-    /// server itself.
+    /// The caller's forwarded upstream credentials, keyed by nerf-darted
+    /// registry URI, so the server resolves/fetches private content as the
+    /// caller. Distinct from [`Self::authorization`] (pnpr identity).
     pub auth_headers: DepMap,
-    /// The `Authorization` header value for the pnpr server's own URL, or
-    /// `None` when the server needs no auth. Identifies the caller to
-    /// pnpr's access gate (and keys the per-user grant table) — distinct
-    /// from the forwarded *upstream* credentials in [`Self::auth_headers`].
+    /// `Authorization` for the pnpr server's own URL (`None` if it needs
+    /// none): identifies the caller to pnpr's gate and keys the grant
+    /// table. Distinct from the upstream creds in [`Self::auth_headers`].
     pub authorization: Option<String>,
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
     /// at resolve time server-side.

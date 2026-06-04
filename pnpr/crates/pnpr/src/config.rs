@@ -86,11 +86,9 @@ pub struct Config {
     /// (Verdaccio 6+ shape). Defaults to pretty/info.
     pub logs: LogConfig,
     /// How long the install accelerator keeps a per-user access grant
-    /// for externally-resolved private content before it must be
-    /// re-verified. `None` (the default) means grants are permanent
-    /// (revocation relies on clear-on-discovery); `Some(ttl)` lets
-    /// revocation bite already-granted versions within the window.
-    /// Sourced from the YAML `installAccelerator.grantTtl` (seconds).
+    /// before re-verifying. `None` (default) is permanent (revocation
+    /// relies on clear-on-discovery). YAML `installAccelerator.grantTtl`
+    /// (seconds).
     pub install_accelerator_grant_ttl: Option<Duration>,
 }
 

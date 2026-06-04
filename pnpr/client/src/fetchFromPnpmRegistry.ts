@@ -41,18 +41,14 @@ export interface FetchFromPnpmRegistryOptions {
   /** The client's named-registry aliases (`namedRegistries`). */
   namedRegistries?: Record<string, string>
   /**
-   * Per-registry `Authorization` header values keyed by nerf-darted
-   * registry URI (`//host[:port]/path/`), forwarded so the server can
-   * resolve, verify, and fetch the caller's **private** content as the
-   * caller. Built from the client's registry credentials with
-   * `@pnpm/network.auth-header`. Separate from `authorization`, which
-   * identifies the caller to the pnpr server itself.
+   * The caller's forwarded upstream credentials, keyed by nerf-darted
+   * registry URI, so the server resolves/fetches private content as the
+   * caller. Distinct from `authorization` (pnpr identity).
    */
   authHeaders?: Record<string, string>
   /**
-   * The `Authorization` header value for the pnpr server's own URL, or
-   * `undefined` when it needs no auth. Identifies the caller to pnpr's
-   * access gate (and keys the per-user grant table).
+   * `Authorization` for the pnpr server's own URL (`undefined` if none):
+   * identifies the caller to pnpr's gate and keys the grant table.
    */
   authorization?: string
   /** Overrides */

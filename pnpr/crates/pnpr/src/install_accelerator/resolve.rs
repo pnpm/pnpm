@@ -192,10 +192,8 @@ pub async fn resolve(
         node_linker: NodeLinker::Isolated,
         lockfile_only: true,
         update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
-        // Resolve + verify against the caller's forwarded credentials
-        // instead of `config.auth_headers`, so a private dependency
-        // resolves as the caller without baking per-user auth into the
-        // interned `&'static Config`.
+        // Resolve as the caller (forwarded credentials) without baking
+        // per-user auth into the interned `&'static Config`.
         auth_override: Some(Arc::clone(auth_headers)),
     }
     .run::<SilentReporter>()
@@ -231,10 +229,9 @@ pub fn collect_packages(lockfile: &Lockfile, registry: &str) -> Vec<ResolvedPkg>
 /// absent, populating its `PackageFilesIndex` as a side effect. Cached
 /// packages are skipped, matching the server hot-cache no-op.
 ///
-/// Returns the set of `pkg_id`s actually fetched this call. The upstream
-/// accepted the caller's forwarded credentials for each of them, so the
-/// access gate can treat a freshly-fetched private package as proven for
-/// this caller (and record a grant) without a second round trip.
+/// Returns the `pkg_id`s actually fetched this call — the upstream
+/// accepted the caller's credentials for each, so the gate treats a
+/// freshly-fetched private package as proven (no re-verify).
 pub async fn fetch_uncached(
     config: &'static Config,
     client: &Arc<ThrottledClient>,

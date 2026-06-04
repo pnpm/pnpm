@@ -469,16 +469,9 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             dev_dependencies,
             registry: state.config.registry.clone(),
             named_registries: state.config.named_registries.clone(),
-            // Forward the caller's whole credential map so the server can
-            // attach the right token per fetched URL exactly as a local
-            // install would (`AuthHeaders::for_url`). The set of registries
-            // a dependency graph touches isn't knowable up front — a
-            // transitive package can be scope-routed to another registry or
-            // pinned to a tarball URL on a host that's in `.npmrc` but isn't
-            // a configured registry — so scoping to the declared registries
-            // would silently drop tokens private sub-dependencies need.
-            // These are package-fetch credentials going to the very service
-            // the caller configured to fetch its packages.
+            // Forward the whole credential map: the registries a graph
+            // touches aren't known up front (scope-routed or tarball-URL
+            // sub-deps), so the server attaches the right token per URL.
             auth_headers: state
                 .config
                 .auth_headers

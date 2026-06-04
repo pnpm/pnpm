@@ -1,26 +1,11 @@
-//! Global classification of which packages are **anonymously readable**,
-//! so the per-user grant table never gates a public package
-//! ([pnpm/pnpm#12184](https://github.com/pnpm/pnpm/issues/12184)).
-//!
-//! A forwarded credential matching a package's registry only means pnpr
-//! *fetched* it with the caller's token — not that the package is
-//! private. When one registry serves both a company's private packages
-//! and public ones (the mixed-proxy deployment), a forwarded token
-//! matches every package, and gating the public ones per user would cost
-//! a grant row and an upstream re-verify per user for content anyone may
-//! read.
-//!
-//! This table records, **globally** (not per user), the package names an
-//! anonymous request to the registry served. A name in it short-circuits
-//! the grant machinery: anyone may receive its cached bytes. It is
-//! populated lazily by a single anonymous probe the first time a not-yet-
-//! classified package is served from cache, so a public package costs one
-//! anonymous round trip across the whole fleet rather than one per user.
-//!
-//! Backed by SQLite (WAL) like [`super::grant_table::GrantTable`]; every
-//! method is best-effort (a DB error never fails the request). Honors the
-//! same TTL as grants so a package later restricted is re-classified
-//! within the window.
+//! Global set of **anonymously-readable** package names, so the per-user
+//! grant table never gates a public package
+//! ([pnpm/pnpm#12184](https://github.com/pnpm/pnpm/issues/12184)). A
+//! forwarded token matching a registry only means pnpr fetched a package
+//! with it, not that the package is private; in a mixed proxy that would
+//! gate public content per user too. Populated lazily by one anonymous
+//! probe per name, so a public package costs one round trip fleet-wide.
+//! SQLite (WAL) like [`super::grant_table::GrantTable`]; best-effort.
 
 use std::{
     path::Path,
@@ -55,8 +40,7 @@ impl PublicPackages {
     }
 
     /// Whether `name` was classified anonymously-readable within `ttl`
-    /// (`None` = permanent). Anonymous readability is a per-name property,
-    /// so this is keyed by package name, not `name@version`.
+    /// (`None` = permanent). Keyed by name (readability is per-name).
     pub(crate) fn is_public(&self, name: &str, ttl: Option<Duration>) -> bool {
         let conn = self.conn.lock().expect("public packages poisoned");
         let classified_at: Option<i64> = conn

@@ -177,15 +177,11 @@ where
     /// short-circuit is also bypassed so an `update` that finds newer
     /// in-range versions isn't skipped as "already up to date".
     pub update_seed_policy: UpdateSeedPolicy,
-    /// Per-invocation override for the `Authorization` headers used when
-    /// resolving and verifying against registries. `None` (the default
-    /// for every local install) means "use `config.auth_headers`". The
-    /// pnpr install accelerator threads a request-scoped
-    /// [`AuthHeaders`] here so it can resolve/verify a caller's private
-    /// content with the caller's forwarded credentials *without* baking
-    /// per-user auth into the shared `&'static Config` (which would leak
-    /// one interned config per user). Used only on the fresh-resolve
-    /// path; the frozen path fetches nothing.
+    /// Per-invocation `Authorization`-header override for resolve/verify;
+    /// `None` (every local install) uses `config.auth_headers`. The pnpr
+    /// accelerator threads request-scoped [`AuthHeaders`] here so it
+    /// resolves a caller's private content without baking per-user auth
+    /// into the shared `&'static Config`.
     pub auth_override: Option<Arc<AuthHeaders>>,
 }
 

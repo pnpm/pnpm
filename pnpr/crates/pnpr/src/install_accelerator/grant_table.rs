@@ -1,25 +1,9 @@
-//! Per-user access grants for externally-resolved private content
-//! ([pnpm/pnpm#12184](https://github.com/pnpm/pnpm/issues/12184)).
-//!
-//! When the install accelerator fetches a package from an **external**
-//! registry with the caller's forwarded credentials, the package carries
-//! no pnpr `packages:` policy — its authority is that registry, per user.
-//! The store deduplicates the bytes globally, but possession of the bytes
-//! must not authorize a user the upstream never cleared. This table is
-//! the small per-`(user, name@version)` allow-list that closes the gap:
-//!
-//! * A grant is recorded the moment the upstream accepts the caller's
-//!   token for a version (a cold fetch, or an explicit re-verify).
-//! * A later **cache hit** for the same `(user, version)` is served
-//!   straight from the grant — no upstream round trip.
-//! * **Clear-on-discovery:** a `401`/`403` from the upstream *as that
-//!   user* purges every grant the user holds for the package, so a lost
-//!   entitlement stops authorizing already-cached versions.
-//!
-//! Backed by SQLite (WAL) like [`super::verdict_cache::VerdictCache`], so
-//! many client connections share the file and the server can evict
-//! without append/compaction races. Every method is best-effort: a DB
-//! error never fails the request — the worst case is one extra re-verify.
+//! Per-`(user, name@version)` allow-list gating externally-resolved
+//! private content ([pnpm/pnpm#12184](https://github.com/pnpm/pnpm/issues/12184)):
+//! the store dedups the bytes globally, but possession must not authorize
+//! a user the owning registry never cleared. Backed by SQLite (WAL) like
+//! [`super::verdict_cache::VerdictCache`]; every method is best-effort (a
+//! DB error never fails the request, at worst one extra re-verify).
 
 use std::{
     path::Path,
@@ -30,8 +14,7 @@ use std::{
 use rusqlite::Connection;
 
 /// Soft cap on stored grants; the oldest rows (by `granted_at_ms`) are
-/// evicted past this. Generous — each row is two short strings and a
-/// timestamp.
+/// evicted past this.
 const MAX_ROWS: i64 = 100_000;
 
 /// Concurrency-safe store of per-`(user, name@version)` access grants.
@@ -56,10 +39,8 @@ impl GrantTable {
         Ok(Self { conn: Mutex::new(conn) })
     }
 
-    /// Whether `(user, pkg)` holds a grant still within `ttl`. `ttl` of
-    /// `None` means permanent (a grant never expires — revocation then
-    /// relies on clear-on-discovery alone). `pkg` is the `name@version`
-    /// package id.
+    /// Whether `(user, pkg)` holds a grant still within `ttl` (`None` =
+    /// permanent). `pkg` is the `name@version` package id.
     pub(crate) fn is_granted(&self, user: &str, pkg: &str, ttl: Option<Duration>) -> bool {
         let conn = self.conn.lock().expect("grant table poisoned");
         let granted_at: Option<i64> = conn
@@ -90,10 +71,9 @@ impl GrantTable {
         evict_overflow(&conn);
     }
 
-    /// Clear-on-discovery: drop every grant `user` holds for package
-    /// `name`, across all versions. Rows key `pkg` as `name@version`, so
-    /// this matches by the `name@` prefix via `substr` (LIKE would need
-    /// escaping for names carrying `_`/`%`). Best-effort.
+    /// Clear-on-discovery: drop every grant `user` holds for `name`,
+    /// across all versions (matched by the `name@` prefix, since `pkg` is
+    /// `name@version`). Best-effort.
     pub(crate) fn clear_package(&self, user: &str, name: &str) {
         let with_at = format!("{name}@");
         let prefix_len = with_at.chars().count() as i64;

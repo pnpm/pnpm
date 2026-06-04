@@ -87,11 +87,9 @@ impl AuthHeaders {
         AuthHeaders { by_uri, max_parts }
     }
 
-    /// The `(nerf_darted_uri, header_value)` pairs backing this lookup.
-    /// Lets a caller forward the whole credential set to another process
-    /// (the pnpr install accelerator sends this map so the server
-    /// resolves a caller's private content as the caller) and rebuild it
-    /// there with [`Self::from_map`].
+    /// The `(nerf_darted_uri, header_value)` pairs backing this lookup, so
+    /// a caller can forward the whole set to another process (the pnpr
+    /// accelerator) and rebuild it with [`Self::from_map`].
     pub fn entries(&self) -> impl Iterator<Item = (&str, &str)> {
         self.by_uri.iter().map(|(uri, value)| (uri.as_str(), value.as_str()))
     }

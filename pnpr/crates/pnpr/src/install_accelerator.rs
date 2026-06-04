@@ -16,12 +16,11 @@
 //!   followed by the binary file frames). One round trip
 //!   ([pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165)).
 //!
-//! Files are bound to access: every package whose bytes are served is
-//! authorized first ([`authorize_served_packages`]), so a
-//! content-addressed digest is never a bearer capability for a package
-//! the caller can't read. A package fetched anonymously is checked
-//! against pnpr's own `packages:` policy; one fetched with the caller's
-//! forwarded credentials is gated per user against the owning registry.
+//! Files are bound to access ([`authorize_served_packages`]): a
+//! content-addressed digest is never a bearer capability. Anonymous
+//! content is checked against pnpr's own `packages:` policy; content
+//! fetched with the caller's forwarded credentials is gated per user
+//! against the owning registry.
 //!
 //! The client's `registry`, `namedRegistries`, `overrides`, and the
 //! verification policy (`minimumReleaseAge`, `trustPolicy`, ...) drive
@@ -105,22 +104,17 @@ pub(crate) struct InstallAccelerator {
     /// only if the database couldn't be opened — verification then runs
     /// every time (uncached) rather than failing the server.
     verdict_cache: Option<VerdictCache>,
-    /// SQLite-backed per-`(user, name@version)` access grants for
-    /// externally-resolved private content. `None` only if the database
-    /// couldn't be opened — every upstream-as-authority package then
-    /// re-verifies against the owning registry (uncached) rather than
-    /// failing the server. See [`GrantTable`].
+    /// Per-`(user, name@version)` access grants for externally-resolved
+    /// private content. `None` if the DB couldn't be opened (every such
+    /// package then re-verifies uncached). See [`GrantTable`].
     grant_table: Option<GrantTable>,
-    /// SQLite-backed global set of anonymously-readable package names, so
-    /// a public package served from a credential-bearing registry is not
-    /// gated per user. `None` only if the database couldn't be opened.
+    /// Global set of anonymously-readable package names, so a public
+    /// package isn't gated per user. `None` if the DB couldn't be opened.
     /// See [`PublicPackages`].
     public_packages: Option<PublicPackages>,
-    /// How long a recorded grant stays valid. `None` (the default) makes
-    /// grants permanent, matching local store retention — revocation then
-    /// relies on clear-on-discovery. A `Some(ttl)` lets revocation bite
-    /// already-granted versions within a window even when nothing
-    /// re-contacts the upstream.
+    /// How long a grant (or public classification) stays valid. `None`
+    /// (the default) is permanent, leaving revocation to
+    /// clear-on-discovery; a TTL lets it bite already-seen versions.
     grant_ttl: Option<Duration>,
 }
 
@@ -229,10 +223,9 @@ pub(crate) async fn handle_install(
     // Resolve against the client's registries, not the server's own.
     let config = runtime.config_for(&request);
 
-    // The caller's forwarded per-registry credentials (keyed by
-    // nerf-darted URI). Threaded through resolution, verification, and
-    // fetch so private content resolves as the caller — kept out of the
-    // interned `config` so it never leaks a `&'static Config` per user.
+    // The caller's forwarded upstream credentials, threaded through
+    // resolve/verify/fetch but kept out of the interned `config` so it
+    // never leaks a `&'static Config` per user.
     let request_auth = Arc::new(AuthHeaders::from_map(
         request.auth_headers.iter().map(|(uri, value)| (uri.clone(), value.clone())).collect(),
     ));
@@ -264,10 +257,8 @@ pub(crate) async fn handle_install(
 
     let packages = resolve::collect_packages(&lockfile, &config.registry);
 
-    // The `pkg_id`s fetched from upstream this request (with the
-    // caller's forwarded credentials). The upstream accepted the
-    // caller's token for each, so the access gate can treat a private
-    // one as proven for this caller without re-verifying.
+    // `pkg_id`s fetched from upstream this request: the registry accepted
+    // the caller's token for each, so the gate treats them as proven.
     let mut freshly_fetched: HashSet<String> = HashSet::new();
 
     // `--lockfile-only`: pnpm resolves and writes the lockfile but
@@ -336,24 +327,12 @@ fn stats_json(stats: &diff::Stats) -> serde_json::Value {
     })
 }
 
-/// Authorize every served package before any of its files leave the
-/// store. A content-addressed digest is shared across packages and
-/// reveals nothing about access, so possession of a package's bytes is
-/// never a capability to receive them. Each package falls into one of two
-/// regimes, dispatched by **whether a forwarded credential was used to
-/// fetch it**:
-///
-/// * **pnpr-as-authority** (no forwarded credential matched its
-///   registry): a public or pnpr-hosted package whose authority is
-///   pnpr's own `packages:` policy — checked locally with no round trip,
-///   exactly as `serve_packument` / `serve_tarball` do.
-/// * **upstream-as-authority** (a forwarded credential matched): a
-///   package pnpr resolved from an *external* registry as the caller. It
-///   carries no pnpr policy, so the owning registry decides access **per
-///   user** — see [`authorize_upstream_package`].
-///
-/// Returns a denial response for the first package the caller may not
-/// read, or `None` when every served package is authorized.
+/// Authorize every served package before its files leave the store (a
+/// shared content digest is never a read capability), dispatched by
+/// whether a forwarded credential was used to fetch it: such packages are
+/// gated per user against the owning registry
+/// ([`authorize_upstream_package`]); the rest by pnpr's local `packages:`
+/// policy ([`deny_local_policy`]). Returns the first denial, or `None`.
 async fn authorize_served_packages(
     runtime: &InstallAccelerator,
     policies: &PackagePolicies,
@@ -363,11 +342,9 @@ async fn authorize_served_packages(
     freshly_fetched: &HashSet<String>,
     served: &[diff::PackageIndexEntry],
 ) -> Option<Response> {
-    // The registry pnpr resolved registry dependencies from — the same
-    // default `config_for` derives, and the one `collect_packages` /
-    // `fetch_uncached` built every registry tarball URL against. (Pacquet
-    // routes scoped names through this default too; per-scope external
-    // registries are a future refinement.)
+    // The default registry pnpr resolved against (what `collect_packages`
+    // / `fetch_uncached` built every tarball URL from). Per-scope external
+    // registries are a future refinement.
     let registry = request.registry.as_deref().unwrap_or("https://registry.npmjs.org/");
 
     let mut local_pkg_ids: Vec<&str> = Vec::new();
@@ -396,12 +373,9 @@ async fn authorize_served_packages(
     deny_local_policy(policies, identity, local_pkg_ids.into_iter())
 }
 
-/// Deny the install when the caller may not read a package whose access
-/// is decided by pnpr's own `packages:` policy (the pnpr-as-authority
-/// regime). Evaluates each package name once. Returns the denial response
-/// (401 for an anonymous caller who could authenticate, 403 for an
-/// authenticated caller outside the allowed set) or `None` when every
-/// name is readable.
+/// Deny when the caller may not read a package gated by pnpr's own
+/// `packages:` policy. 401 for anonymous, 403 for an authenticated caller
+/// outside the allowed set; `None` when every name is readable.
 fn deny_local_policy<'a>(
     policies: &PackagePolicies,
     identity: &Identity,
@@ -424,32 +398,14 @@ fn deny_local_policy<'a>(
     None
 }
 
-/// Authorize one upstream-as-authority package for the caller. The
-/// external registry — not pnpr's policy — owns the decision, so a digest
-/// in the shared store must never authorize a user the upstream never
-/// cleared:
-///
-/// * **Known public** (`name` in the global anonymously-readable set):
-///   anyone may read it, so allow with no per-user state and no round
-///   trip.
-/// * **Freshly fetched this request** (`pkg_id` in `freshly_fetched`):
-///   the upstream already accepted the caller's forwarded token during
-///   the cold fetch, proving access. Record a grant and allow.
-/// * **Cache hit with a standing grant**: allow straight from the grant
-///   table, no upstream contact.
-/// * **Cache hit, not yet classified, no grant** (first time anyone wants
-///   this cached version without a grant): probe the registry
-///   **anonymously**. A `2xx` means the package is public — record it
-///   globally so no user pays for it again. A `401`/`403` means it is
-///   private, so re-verify with the caller's forwarded credential: on
-///   success record a grant; on `401`/`403` clear every grant the caller
-///   holds for the package (clear-on-discovery) and deny.
-///
-/// A caller anonymous to pnpr is still authorized this way — the
-/// forwarded credential is what the upstream checks. Grants are only
-/// recorded/consulted for an identified user (there is no key to record
-/// an anonymous grant under); the public set, being global, benefits
-/// anonymous callers too.
+/// Authorize one upstream-as-authority package: the owning registry, not
+/// pnpr, decides. Known-public, freshly fetched, or already granted →
+/// allow (recording a grant where applicable); otherwise probe the
+/// registry anonymously (a `2xx` records it public globally) then
+/// re-verify with the caller's token (`2xx` grants, `401`/`403` clears the
+/// caller's grants and denies). Grants key on an identified user; the
+/// global public set benefits anonymous callers too. See the body's
+/// branches and the module tests for each path.
 async fn authorize_upstream_package(
     runtime: &InstallAccelerator,
     identity: &Identity,
@@ -489,10 +445,8 @@ async fn authorize_upstream_package(
     }
 
     // Classify before gating per user: a package the registry serves
-    // anonymously is public, and recording that globally spares every
-    // other user the same probe (and any grant rows). Only a registry
-    // that withholds the package without a token sends us down the
-    // per-user path.
+    // anonymously is public — record it globally so no one probes it
+    // again. Only a token-gated package takes the per-user path below.
     if let UpstreamAccess::Authorized =
         probe_upstream_access(&runtime.client, None, registry, name).await
     {
@@ -533,12 +487,9 @@ enum UpstreamAccess {
     Unknown,
 }
 
-/// Probe whether `name` is readable from `registry`, by fetching its
-/// (abbreviated) packument. With `auth` set, the caller's forwarded
-/// credential is attached (an authenticated re-verify); with `auth` as
-/// `None`, the request is anonymous (a public/private classification).
-/// Either way it is the same shape of request the caller's own install
-/// would make.
+/// Probe whether `name` is readable from `registry` by fetching its
+/// (abbreviated) packument. `auth` set attaches the caller's credential
+/// (a re-verify); `auth` `None` is anonymous (a public/private check).
 async fn probe_upstream_access(
     client: &ThrottledClient,
     auth: Option<&AuthHeaders>,
