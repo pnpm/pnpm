@@ -52,10 +52,19 @@ pub struct Config {
     /// `dist.tarball` URLs in served packuments so tarball requests
     /// flow through this server.
     pub public_url: String,
-    /// Directory under which packuments and tarballs live.
-    /// In proxy mode this doubles as the cache; with no matching
-    /// `proxy:` rule it is the source of truth.
+    /// Directory under which authoritative packuments and tarballs
+    /// live: packages published to this server and the content served
+    /// in static mode. This is the source of truth — it is never
+    /// overwritten by an upstream refresh, so operators back it up and
+    /// keep it on a durable volume.
     pub storage: PathBuf,
+    /// Directory under which the disposable proxy cache lives —
+    /// the mirror of upstream registries plus the install-accelerator
+    /// store. Safe to wipe at any time; it self-heals on the next
+    /// request. Defaults to a `.pnpr-cache` subdirectory of
+    /// [`Self::storage`]; set the YAML `cache:` key (or `--cache`) to
+    /// an absolute path to put it on separate, ephemeral disk.
+    pub cache_storage: PathBuf,
     /// Named upstream npm registries. Referenced by name from
     /// [`PackageAccess::proxy`].
     pub uplinks: IndexMap<String, UplinkConfig>,
@@ -279,6 +288,10 @@ impl AccessSpec {
 struct ConfigFile {
     #[serde(default = "default_storage_string")]
     storage: String,
+    /// Disposable proxy-cache root. Not a verdaccio key — when omitted
+    /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
+    #[serde(default)]
+    cache: Option<String>,
     #[serde(default)]
     uplinks: IndexMap<String, UplinkConfig>,
     #[serde(default)]
@@ -355,6 +368,7 @@ impl Config {
         Self {
             listen,
             public_url: format!("http://{listen}"),
+            cache_storage: default_cache_dir(&storage),
             storage,
             uplinks,
             packages,
@@ -371,6 +385,7 @@ impl Config {
         Self {
             listen,
             public_url: format!("http://{listen}"),
+            cache_storage: default_cache_dir(&storage),
             storage,
             uplinks: IndexMap::new(),
             packages: IndexMap::new(),
@@ -483,6 +498,11 @@ impl Config {
         let file: ConfigFile = serde_saphyr::from_str(&substituted)
             .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
         let storage = resolve_relative(&file.storage, base_dir);
+        let cache_storage = file
+            .cache
+            .as_deref()
+            .map(|raw| resolve_relative(raw, base_dir))
+            .unwrap_or_else(|| default_cache_dir(&storage));
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
@@ -491,6 +511,7 @@ impl Config {
             listen,
             public_url,
             storage,
+            cache_storage,
             uplinks: file.uplinks,
             packages: file.packages,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
@@ -608,6 +629,17 @@ fn resolve_relative(raw: &str, base_dir: &Path) -> PathBuf {
 
 fn default_storage_string() -> String {
     "./storage".to_string()
+}
+
+/// The disposable proxy cache lives under a hidden `.pnpr-cache`
+/// subdirectory of `storage` by default. Nesting it under `storage`
+/// keeps a `--storage`-only deployment self-contained, while the dot
+/// prefix keeps the local search scan (which walks `<storage>/<pkg>`)
+/// from treating it as a package. Operators who want the cache on a
+/// separate, wipe-able volume point the `cache:` key at an absolute
+/// path instead.
+pub fn default_cache_dir(storage: &Path) -> PathBuf {
+    storage.join(".pnpr-cache")
 }
 
 /// Match a verdaccio package pattern against a package name.

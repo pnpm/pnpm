@@ -19,30 +19,11 @@ const PACKUMENT_FILE: &str = "package.json";
 /// and dest sit in the same directory (they do).
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Verdaccio-shaped on-disk storage for packuments and tarballs:
-///
-/// ```text
-/// <root>/
-///   <package>/
-///     package.json
-///     <basename>-<version>.tgz
-/// ```
-///
-/// For scoped packages the package directory is `<root>/@scope/<name>/`.
-/// Tarballs sit flat alongside `package.json` — no `-/` subdirectory.
-/// This is the layout `@pnpm/registry-mock` (and verdaccio itself)
-/// publishes, so a populated verdaccio storage can be served directly
-/// in static mode.
-#[derive(Debug, Clone)]
-pub struct Cache {
-    root: PathBuf,
-}
-
-/// Handle returned from [`Cache::open_tarball_tmp`]. The caller writes
-/// to `file` (and on success calls [`Self::finalize`] to atomically
-/// promote the temp file to the final cache path); dropping the
-/// handle without calling [`Self::finalize`] is treated as abandon —
-/// callers that hit an error mid-write should call [`Self::abandon`]
+/// Handle returned from [`Cache::open_cached_tarball_tmp`]. The caller
+/// writes to `file` (and on success calls [`Self::finalize`] to
+/// atomically promote the temp file to the final cache path); dropping
+/// the handle without calling [`Self::finalize`] is treated as abandon
+/// — callers that hit an error mid-write should call [`Self::abandon`]
 /// to actively remove the leftover temp file.
 pub struct TarballWrite {
     pub file: fs::File,
@@ -80,14 +61,171 @@ impl TarballWrite {
     }
 }
 
+/// Verdaccio-shaped on-disk storage split into two physically separate
+/// roots with different durability guarantees:
+///
+/// * `published` — the authoritative source of truth: packages
+///   published to this server and the content served in static mode.
+///   Served as-is and never overwritten by an upstream refresh, so a
+///   published version can't be masked or lost. Operators back this up
+///   and put it on a durable volume.
+/// * `cache` — the disposable mirror of upstream registries. Safe to
+///   wipe at any time; it self-heals on the next request. Operators can
+///   keep it on scratch/ephemeral disk.
+///
+/// Both roots use the same on-disk layout:
+///
+/// ```text
+/// <root>/
+///   <package>/
+///     package.json
+///     <basename>-<version>.tgz
+/// ```
+///
+/// For scoped packages the package directory is `<root>/@scope/<name>/`.
+/// Tarballs sit flat alongside `package.json` — no `-/` subdirectory.
+/// This is the layout `@pnpm/registry-mock` (and verdaccio itself)
+/// publishes, so a populated verdaccio storage can be served directly
+/// in static mode.
+#[derive(Debug, Clone)]
+pub struct Cache {
+    published: Store,
+    cache: Store,
+}
+
 impl Cache {
-    pub fn new(root: PathBuf) -> Self {
+    pub fn new(published_root: PathBuf, cache_root: PathBuf) -> Self {
+        Self { published: Store::new(published_root), cache: Store::new(cache_root) }
+    }
+
+    /// The authoritative store's root, used by the local search scan
+    /// (which indexes published/static packages only, never the proxy
+    /// mirror).
+    pub fn published_root(&self) -> &Path {
+        &self.published.root
+    }
+
+    // --- Authoritative (published) store --------------------------------
+
+    /// Read the authoritative packument for `name`, fresh or stale.
+    /// Authoritative content has no TTL — it is the source of truth.
+    pub async fn read_published_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+        self.published.read_packument_any_age(name).await
+    }
+
+    pub async fn write_published_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
+        self.published.write_packument(name, bytes).await
+    }
+
+    /// Reserve a tmp/final path pair for a tarball published to this
+    /// server. The publish flow streams the decode + hash + write
+    /// through `std::fs` inside `spawn_blocking` and only needs the
+    /// paths; finalize with [`Self::finalize_tarball_slot`].
+    pub async fn reserve_published_tarball(
+        &self,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<TarballSlot> {
+        self.published.reserve_tarball_paths(name, filename).await
+    }
+
+    /// Remove a single tarball file from the authoritative store. The
+    /// partial-unpublish flow calls this after PUT'ing the modified
+    /// packument back.
+    pub async fn remove_published_tarball(
+        &self,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<bool> {
+        self.published.remove_tarball(name, filename).await
+    }
+
+    /// Remove the package from both stores. Unpublish must purge the
+    /// authoritative copy *and* any proxied mirror, so a stale cached
+    /// copy can't resurface after the package is gone.
+    pub async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+        let published = self.published.remove_package(name).await?;
+        let cached = self.cache.remove_package(name).await?;
+        Ok(published || cached)
+    }
+
+    // --- Disposable (proxy) cache store ---------------------------------
+
+    /// Read a cached upstream packument if it exists and is newer than
+    /// `now - ttl`.
+    pub async fn read_fresh_cached_packument(
+        &self,
+        name: &PackageName,
+        ttl: Duration,
+    ) -> Result<Option<Vec<u8>>> {
+        self.cache.read_fresh_packument(name, ttl).await
+    }
+
+    /// Read whatever cached upstream packument is on disk, fresh or
+    /// stale. Used as a fallback when the upstream is unreachable.
+    pub async fn read_cached_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+        self.cache.read_packument_any_age(name).await
+    }
+
+    pub async fn write_cached_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
+        self.cache.write_packument(name, bytes).await
+    }
+
+    /// Create and open a per-request temp file for a proxied tarball.
+    /// The caller streams bytes into [`TarballWrite::file`] and calls
+    /// [`TarballWrite::finalize`] (or [`TarballWrite::abandon`]) when
+    /// the upstream response ends.
+    pub async fn open_cached_tarball_tmp(
+        &self,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<TarballWrite> {
+        self.cache.open_tarball_tmp(name, filename).await
+    }
+
+    // --- Composed (published-first) -------------------------------------
+
+    /// Open a tarball for streaming, preferring the authoritative store
+    /// over the proxy mirror. Returns the open file plus its size (for
+    /// `Content-Length`). `Ok(None)` means neither store has it, so the
+    /// caller can fall through to the upstream fetch.
+    pub async fn open_tarball(
+        &self,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<Option<(fs::File, u64)>> {
+        if let Some(hit) = self.published.open_tarball(name, filename).await? {
+            return Ok(Some(hit));
+        }
+        self.cache.open_tarball(name, filename).await
+    }
+
+    /// Atomically promote a tmp tarball written by the publish flow to
+    /// its final path. Mirrors what [`TarballWrite::finalize`] does,
+    /// minus the `sync_all` (the blocking task that wrote the file
+    /// already synced it). Store-agnostic: the slot already carries its
+    /// final path.
+    pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
+        if let Some(parent) = slot.final_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        fs::rename(&slot.tmp_path, &slot.final_path).await?;
+        Ok(())
+    }
+}
+
+/// One verdaccio-shaped on-disk store rooted at a single directory.
+#[derive(Debug, Clone)]
+struct Store {
+    root: PathBuf,
+}
+
+impl Store {
+    fn new(root: PathBuf) -> Self {
         Self { root }
     }
 
-    /// Read a cached packument if it exists and is newer than
-    /// `now - ttl`.
-    pub async fn read_fresh_packument(
+    async fn read_fresh_packument(
         &self,
         name: &PackageName,
         ttl: Duration,
@@ -106,10 +244,7 @@ impl Cache {
         Ok(Some(fs::read(&path).await?))
     }
 
-    /// Read whatever packument is on disk, fresh or stale. Used in
-    /// static mode (TTL doesn't apply) and as a fallback when the
-    /// upstream is unreachable.
-    pub async fn read_packument_any_age(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+    async fn read_packument_any_age(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
         let path = self.packument_path(name);
         match fs::read(&path).await {
             Ok(bytes) => Ok(Some(bytes)),
@@ -118,14 +253,12 @@ impl Cache {
         }
     }
 
-    pub async fn write_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
+    async fn write_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
         let path = self.packument_path(name);
         write_atomic(&path, bytes).await
     }
 
-    /// Open the cached tarball file for streaming, if it exists.
-    /// Returns the open file plus its size (for `Content-Length`).
-    pub async fn open_tarball(
+    async fn open_tarball(
         &self,
         name: &PackageName,
         filename: &str,
@@ -140,15 +273,7 @@ impl Cache {
         Ok(Some((file, len)))
     }
 
-    /// Create and open a per-request temp file for a tarball. The
-    /// caller streams bytes into [`TarballWrite::file`] and calls
-    /// [`TarballWrite::finalize`] (or [`TarballWrite::abandon`]) when
-    /// the upstream response ends.
-    pub async fn open_tarball_tmp(
-        &self,
-        name: &PackageName,
-        filename: &str,
-    ) -> Result<TarballWrite> {
+    async fn open_tarball_tmp(&self, name: &PackageName, filename: &str) -> Result<TarballWrite> {
         let final_path = self.tarball_path(name, filename);
         if let Some(parent) = final_path.parent() {
             fs::create_dir_all(parent).await?;
@@ -158,11 +283,7 @@ impl Cache {
         Ok(TarballWrite { file, tmp_path, final_path })
     }
 
-    /// Reserve a tmp/final path pair for a tarball write without
-    /// opening the file. Used by the publish flow, which streams the
-    /// decode + hash + write through `std::fs` inside
-    /// `spawn_blocking` and only needs the paths.
-    pub async fn reserve_tarball_paths(
+    async fn reserve_tarball_paths(
         &self,
         name: &PackageName,
         filename: &str,
@@ -175,22 +296,10 @@ impl Cache {
         Ok(TarballSlot { tmp_path, final_path })
     }
 
-    /// Atomically promote a tmp tarball written by the publish flow to
-    /// its final cache path. Mirrors what [`TarballWrite::finalize`]
-    /// does, minus the `sync_all` (the blocking task that wrote the
-    /// file already synced it).
-    pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
-        if let Some(parent) = slot.final_path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-        fs::rename(&slot.tmp_path, &slot.final_path).await?;
-        Ok(())
-    }
-
     /// Remove the entire package directory. Returns `Ok(false)` if it
     /// didn't exist (treat as a no-op success, matching what verdaccio
     /// does on a duplicate DELETE).
-    pub async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+    async fn remove_package(&self, name: &PackageName) -> Result<bool> {
         let dir = self.package_dir(name);
         match fs::remove_dir_all(&dir).await {
             Ok(()) => Ok(true),
@@ -203,7 +312,7 @@ impl Cache {
     /// is already gone; the pnpm unpublish flow always issues a DELETE
     /// after the packument-update PUT, and a benign 404 here would
     /// surface as a real error to the caller.
-    pub async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
+    async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
         let path = self.tarball_path(name, filename);
         match fs::remove_file(&path).await {
             Ok(()) => Ok(true),

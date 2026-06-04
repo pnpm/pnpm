@@ -202,6 +202,57 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     );
 }
 
+/// Published packages are the source of truth: they live in the
+/// authoritative `storage` root, never in the disposable proxy cache,
+/// and survive a full wipe of that cache.
+#[tokio::test]
+async fn published_package_survives_wiping_the_proxy_cache() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let bytes = b"durable-tarball-bytes";
+    let body = sample_publish_body("durable-pkg", "1.0.0", bytes);
+    let request = Request::put("/durable-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    // The artifacts land in the authoritative root, not the cache.
+    assert!(storage.join("durable-pkg/package.json").exists());
+    assert!(storage.join("durable-pkg/durable-pkg-1.0.0.tgz").exists());
+    assert!(
+        !storage.join(".pnpr-cache/durable-pkg").exists(),
+        "published package must not be written into the disposable proxy cache",
+    );
+
+    // Blow away the entire proxy cache, the way an operator reclaiming
+    // disk (or a fresh container on an ephemeral cache volume) would.
+    let cache_root = storage.join(".pnpr-cache");
+    std::fs::create_dir_all(&cache_root).unwrap();
+    std::fs::remove_dir_all(&cache_root).unwrap();
+
+    // The package is still served, tarball and all.
+    let response = app
+        .clone()
+        .oneshot(Request::get("/durable-pkg").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let served = body_json(response.into_body()).await;
+    assert_eq!(served["versions"]["1.0.0"]["version"], "1.0.0");
+
+    let response = app
+        .oneshot(Request::get("/durable-pkg/-/durable-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+}
+
 #[tokio::test]
 async fn publish_followed_by_dist_tag_set_works() {
     let tmp = TempDir::new().unwrap();
@@ -844,9 +895,10 @@ async fn search_augments_with_upstream_when_local_misses_exact_name() {
     );
     assert_eq!(body["total"], names.len());
 
-    // The augment also caches the packument; subsequent search hits
-    // disk without another upstream call.
-    let on_disk = tmp.path().join("ghost-pkg/package.json");
+    // The augment also caches the packument in the disposable proxy
+    // cache, so a subsequent search reuses it without another upstream
+    // call.
+    let on_disk = tmp.path().join(".pnpr-cache").join("ghost-pkg/package.json");
     assert!(on_disk.exists(), "augment must cache the fetched packument");
 }
 

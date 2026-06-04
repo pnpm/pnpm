@@ -107,8 +107,8 @@ impl InstallAccelerator {
     }
 
     fn build(config: &RegistryConfig) -> InstallAccelerator {
-        let store_dir = config.storage.join("pnpr-store");
-        let cache_dir = config.storage.join("pnpr-cache");
+        let store_dir = config.cache_storage.join("pnpr-store");
+        let cache_dir = config.cache_storage.join("pnpr-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
         // resurfaces with a precise error on the first store/cache write
         // during resolution, so there's nothing actionable to report yet.

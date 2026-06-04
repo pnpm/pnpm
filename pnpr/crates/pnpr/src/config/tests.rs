@@ -108,6 +108,28 @@ fn from_yaml_str_absolute_storage_is_left_alone() {
 }
 
 #[test]
+fn cache_storage_defaults_to_subdir_of_storage() {
+    let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert_eq!(config.cache_storage, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));
+}
+
+#[test]
+fn explicit_cache_key_overrides_the_default() {
+    let yaml = "storage: /var/lib/pnpr\ncache: /scratch/pnpr\nuplinks: {}\npackages: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert_eq!(config.storage, PathBuf::from("/var/lib/pnpr"));
+    assert_eq!(config.cache_storage, PathBuf::from("/scratch/pnpr"));
+}
+
+#[test]
+fn relative_cache_key_is_resolved_against_base_dir() {
+    let yaml = "storage: ./store\ncache: ./cache\nuplinks: {}\npackages: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert_eq!(config.cache_storage, PathBuf::from("/etc/pnpr/./cache"));
+}
+
+#[test]
 fn from_yaml_str_ignores_unknown_sections() {
     // Sections we don't implement (`auth`, `web`, `plugins`, etc.)
     // must parse silently so existing config files work untouched.

@@ -1,5 +1,12 @@
-# path to a directory with all packages
+# path to a directory with the authoritative packages — those published
+# to this server and anything served in static mode. This is the source
+# of truth; back it up and keep it on a durable volume.
 storage: ./storage
+# path to the disposable proxy cache: the mirror of upstream registries
+# plus the install-accelerator store. Safe to wipe at any time. Defaults
+# to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
+# ephemeral volume to keep cached upstream content off the durable disk.
+#cache: ./cache
 secret: pnpm-registry-mock-secret-key-32
 
 auth:
