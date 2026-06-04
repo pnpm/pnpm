@@ -1159,6 +1159,47 @@ async fn unpublish_requires_publish_auth() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
+/// Two different versions of the same package, published concurrently,
+/// both survive: the per-package serialization guard makes each publish
+/// read-merge-write atomic, so neither overwrites the other's version
+/// (the lost-update the guard exists to prevent). Without the guard the
+/// two publishes can read the same empty packument and the second write
+/// clobbers the first version.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_publishes_of_distinct_versions_all_survive() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = |version: &'static str| {
+        let app = app.clone();
+        let token = token.clone();
+        tokio::spawn(async move {
+            let body = sample_publish_body("racer", version, version.as_bytes());
+            let request = Request::put("/racer")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap();
+            app.oneshot(request).await.unwrap().status()
+        })
+    };
+
+    let first_publish = publish("1.0.0");
+    let second_publish = publish("2.0.0");
+    let (first, second) = tokio::join!(first_publish, second_publish);
+    let first = first.unwrap();
+    let second = second.unwrap();
+    assert_eq!(first, StatusCode::CREATED);
+    assert_eq!(second, StatusCode::CREATED);
+
+    let on_disk = std::fs::read(storage.join("racer/package.json")).expect("packument written");
+    let packument: Value = serde_json::from_slice(&on_disk).unwrap();
+    assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0", "1.0.0 must survive");
+    assert_eq!(packument["versions"]["2.0.0"]["version"], "2.0.0", "2.0.0 must survive");
+}
+
 fn sample_publish_body(name: &str, version: &str, tarball: &[u8]) -> Value {
     let basename = name.rsplit('/').next().unwrap_or(name);
     let filename = format!("{basename}-{version}.tgz");

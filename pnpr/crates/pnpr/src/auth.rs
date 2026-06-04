@@ -1,70 +1,150 @@
 //! User and token storage for the registry.
 //!
-//! Two stores back the auth flow:
+//! Auth state is split into two record stores, each behind a narrow
+//! async trait so the backing store is config-selectable:
 //!
-//! * [`UserStore`] — username → bcrypt-hashed password. Persisted as
-//!   an Apache-style htpasswd file when [`UserStore::open`] is given
-//!   a path; in-memory otherwise. The on-disk format is one
-//!   `<username>:<bcrypt-hash>` line per user, so the same file can
-//!   be inspected and verified by Apache's `htpasswd -v`.
-//! * [`TokenStore`] — SHA-256 token hash → token record. Persisted in
-//!   a SQLite database when [`TokenStore::open`] is given a path;
-//!   in-memory otherwise. The raw token is only returned to the
-//!   caller once on `issue`; only its hash ever hits disk so a leak
-//!   of the database doesn't grant access on its own.
+//! * [`UserBackend`] — username → bcrypt-hashed password.
+//! * [`TokenBackend`] — SHA-256 token hash → token record.
 //!
-//! Both stores keep a full mirror of their state in a `Mutex<...>`
-//! and persist on every write. Reads (the hot path for
-//! `enforce_access`) never touch disk.
+//! Three implementations exist, picked at startup by
+//! [`AuthState::load`]:
+//!
+//! * [`UserStore`] / [`TokenStore`] — the local default. Users are an
+//!   Apache-style htpasswd file; tokens a SQLite database. Each keeps
+//!   a full mirror of its state in a `Mutex<...>` and persists on
+//!   every write, so reads (the hot path for `enforce_access`) never
+//!   touch disk. With no file configured both fall back to a pure
+//!   in-memory map (the `@pnpm/registry-mock` shape).
+//! * [`LibsqlAuth`] — a networked-SQLite (libsql / Turso) backend that
+//!   stores both records in a shared database, so several stateless
+//!   pnpr replicas observe a consistent set of users and tokens. The
+//!   on-disk htpasswd format doesn't network, so users live in a
+//!   `users` table here; the `tokens` table matches the local schema.
+//!
+//! The raw token is only ever returned to the caller once on `issue`;
+//! only its SHA-256 hash hits storage, so a leak of the database
+//! doesn't grant access on its own.
 
 use crate::{
-    config::{AuthConfig, MaxUsers},
+    config::{AuthConfig, BackendConfig, MaxUsers},
     error::{RegistryError, Result},
 };
+use async_trait::async_trait;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use libsql_backend::LibsqlAuth;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
 };
 
-/// Bundle of the user store and the token store. Built once at
-/// startup so the rest of the server doesn't have to know whether
-/// auth is file-backed or in-memory.
-#[derive(Debug)]
+mod libsql_backend;
+
+/// Bundle of the user store and the token store, each a trait object
+/// so the rest of the server doesn't have to know whether auth is
+/// file-backed, in-memory, or networked. Built once at startup by
+/// [`Self::load`].
+#[derive(Clone)]
 pub struct AuthState {
-    pub users: UserStore,
-    pub tokens: TokenStore,
+    pub users: Arc<dyn UserBackend>,
+    pub tokens: Arc<dyn TokenBackend>,
+}
+
+impl std::fmt::Debug for AuthState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("AuthState").finish_non_exhaustive()
+    }
 }
 
 impl AuthState {
-    /// All-in-memory auth state. Used when neither
-    /// `auth.htpasswd.file` nor `auth.tokens.file` are configured,
-    /// and by tests that don't care about persistence.
+    /// All-in-memory auth state. Used when no record backend is
+    /// configured and neither `auth.htpasswd.file` nor
+    /// `auth.tokens.file` are set, and by tests that don't care about
+    /// persistence.
     pub fn in_memory() -> Self {
-        Self { users: UserStore::in_memory(), tokens: TokenStore::in_memory() }
+        Self { users: Arc::new(UserStore::in_memory()), tokens: Arc::new(TokenStore::in_memory()) }
     }
 
-    /// Build the auth state from an [`AuthConfig`]. Either store is
-    /// in-memory when its file path is unset; otherwise the on-disk
-    /// state is loaded eagerly so a malformed htpasswd or a
-    /// permission-denied SQLite file surfaces as a startup error.
-    pub fn load(config: &AuthConfig) -> Result<Self> {
-        let users = match config.htpasswd.file.clone() {
-            Some(path) => UserStore::open(path, config.htpasswd.max_users)?,
-            None => UserStore::in_memory(),
+    /// Build the auth state from the resolved config. The networked
+    /// [`BackendConfig::Libsql`] backs both stores with one shared
+    /// database; otherwise each local store is in-memory when its file
+    /// path is unset and file-backed otherwise. The fallible step (open
+    /// the htpasswd / SQLite file, or connect to the networked DB and
+    /// ensure its schema) runs here so a malformed file or an
+    /// unreachable database surfaces as a startup error before the
+    /// socket is bound.
+    pub async fn load(auth: &AuthConfig, backend: &BackendConfig) -> Result<Self> {
+        if let BackendConfig::Libsql(settings) = backend {
+            let shared = Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+            let tokens: Arc<dyn TokenBackend> = shared;
+            return Ok(Self { users, tokens });
+        }
+        let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
+            Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
+            None => Arc::new(UserStore::in_memory()),
         };
-        let tokens = match config.tokens.file.clone() {
-            Some(path) => TokenStore::open(path)?,
-            None => TokenStore::in_memory(),
+        let tokens: Arc<dyn TokenBackend> = match auth.tokens.file.clone() {
+            Some(path) => Arc::new(TokenStore::open(path)?),
+            None => Arc::new(TokenStore::in_memory()),
         };
         Ok(Self { users, tokens })
+    }
+}
+
+/// Username + password record store. The hot read is
+/// [`Self::verify`] (the Basic-auth path of [`identify`]); the write
+/// is [`Self::add_or_login`] (npm `adduser` / `login`).
+#[async_trait]
+pub trait UserBackend: Send + Sync {
+    /// Add a new user or verify a returning one. See
+    /// [`UpsertOutcome`] for the success cases; a wrong password for
+    /// an existing user is [`RegistryError::Unauthenticated`], and a
+    /// new user past the registration cap is
+    /// [`RegistryError::RegistrationDisabled`] / `TooManyUsers`.
+    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome>;
+
+    /// Verify a username+password pair. Returns `Some(username)` when
+    /// the credentials match, `None` otherwise.
+    async fn verify(&self, username: &str, password: &str) -> Option<String>;
+}
+
+/// Bearer-token record store. The hot read is [`Self::lookup`]
+/// (resolving the `Authorization: Bearer` header on nearly every
+/// request); the rest back the `/-/npm/v1/tokens` CRUD endpoints.
+#[async_trait]
+pub trait TokenBackend: Send + Sync {
+    /// Mint a fresh token for `username`, persist its hash, and return
+    /// the raw token. The raw token is never stored.
+    async fn issue(&self, username: &str) -> Result<String>;
+
+    /// Resolve a raw token back to its username, if it was ever issued
+    /// (and not since revoked).
+    async fn lookup(&self, raw: &str) -> Option<String>;
+
+    /// Snapshot the record for a token by its key (SHA-256 hex). Used
+    /// to check ownership before revocation.
+    async fn find_by_key(&self, key: &str) -> Option<TokenRecord>;
+
+    /// All tokens owned by `username`, as `(key, record)` pairs where
+    /// `key` is the SHA-256 hex digest the listing endpoint surfaces.
+    async fn list_for_user(&self, username: &str) -> Vec<(String, TokenRecord)>;
+
+    /// Remove a token by its key (the SHA-256 hex digest). Returns the
+    /// deleted record so a higher layer can confirm the revocation.
+    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>>;
+
+    /// Remove a token by its raw value — the `DELETE /-/user/token/:tok`
+    /// (npm logout) path puts the bearer token verbatim in the URL, so
+    /// this hashes first and defers to [`Self::revoke_by_key`].
+    async fn revoke_by_raw(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        self.revoke_by_key(&sha256_hex(raw.as_bytes())).await
     }
 }
 
@@ -123,15 +203,24 @@ impl UserStore {
         Ok(Self { users: Mutex::new(users), path: Some(path), max_users, bcrypt_cost })
     }
 
-    /// Add a new user or verify a returning one.
-    ///
+    async fn persist(&self, body: String) -> Result<()> {
+        let Some(path) = self.path.clone() else {
+            return Ok(());
+        };
+        tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes())).await??;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl UserBackend for UserStore {
     /// * Unknown username, registration allowed → bcrypt the password,
     ///   insert, persist, return `Created`.
     /// * Known username, password matches → return `LoggedIn`.
     /// * Known username, password wrong → `Unauthenticated`.
     /// * Unknown username, registration disabled or capped →
     ///   `RegistrationDisabled` / `TooManyUsers`.
-    pub async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
         let existing_hash = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
             users.get(username).cloned()
@@ -187,20 +276,12 @@ impl UserStore {
         }
     }
 
-    /// Verify a username+password pair against the store. Returns
-    /// `Some(username)` when the credentials match, `None`
-    /// otherwise. Used by the Basic-auth path of [`identify`] —
-    /// kept synchronous so `enforce_access` can stay sync.
-    ///
-    /// Bcrypt verification runs inline on the caller's task; at
-    /// cost 10 it's ~50–100 ms, which is fine for the rare Basic
-    /// path. The hot path is Bearer, which doesn't bcrypt.
-    pub fn verify(&self, username: &str, password: &str) -> Option<String> {
+    async fn verify(&self, username: &str, password: &str) -> Option<String> {
         let stored = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
             users.get(username).cloned()?
         };
-        bcrypt::verify(password, &stored).ok()?.then(|| username.to_string())
+        verify_bcrypt(password.to_string(), stored).await.ok()?.then(|| username.to_string())
     }
 }
 
@@ -210,16 +291,6 @@ pub enum UpsertOutcome {
     Created,
     /// The user existed and the password matched.
     LoggedIn,
-}
-
-impl UserStore {
-    async fn persist(&self, body: String) -> Result<()> {
-        let Some(path) = self.path.clone() else {
-            return Ok(());
-        };
-        tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes())).await??;
-        Ok(())
-    }
 }
 
 /// SHA-256-hashed (token_hash → username) map, optionally backed by
@@ -282,11 +353,11 @@ impl TokenStore {
             counter: AtomicU64::new(0),
         })
     }
+}
 
-    /// Mint a fresh token for `username`, persist its hash, and
-    /// return the raw token to the caller. The raw token is never
-    /// stored.
-    pub async fn issue(&self, username: &str) -> Result<String> {
+#[async_trait]
+impl TokenBackend for TokenStore {
+    async fn issue(&self, username: &str) -> Result<String> {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
         let raw = mint_token(&self.secret, nonce, username);
         let token_hash = sha256_hex(raw.as_bytes());
@@ -313,28 +384,20 @@ impl TokenStore {
         Ok(raw)
     }
 
-    /// Resolve a raw token back to its username, if it was ever
-    /// issued (and not since deleted). Runs entirely in memory.
-    pub fn lookup(&self, raw: &str) -> Option<String> {
+    /// Resolves entirely in memory — the on-disk mirror is loaded once
+    /// at startup, so this never touches the database.
+    async fn lookup(&self, raw: &str) -> Option<String> {
         let token_hash = sha256_hex(raw.as_bytes());
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
         inner.tokens.get(&token_hash).map(|record| record.username.clone())
     }
 
-    /// Snapshot the record for a token by its key (SHA-256 hex). Used
-    /// to check ownership before revocation — the revoke handler
-    /// rejects a delete from a non-owner with 403 before touching the
-    /// store.
-    pub fn find_by_key(&self, key: &str) -> Option<TokenRecord> {
+    async fn find_by_key(&self, key: &str) -> Option<TokenRecord> {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
         inner.tokens.get(key).cloned()
     }
 
-    /// All tokens owned by `username`. Returns `(key, record)` pairs
-    /// where `key` is the SHA-256 hex digest of the raw token — the
-    /// same value the `/-/npm/v1/tokens` listing surfaces, and what
-    /// `npm token revoke` sends back to the delete endpoint.
-    pub fn list_for_user(&self, username: &str) -> Vec<(String, TokenRecord)> {
+    async fn list_for_user(&self, username: &str) -> Vec<(String, TokenRecord)> {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
         inner
             .tokens
@@ -344,15 +407,11 @@ impl TokenStore {
             .collect()
     }
 
-    /// Remove a token by its key (the SHA-256 hex digest). Returns
-    /// the deleted record so the caller can check ownership before
-    /// committing the revocation in a higher layer.
-    ///
     /// SQLite gets the `DELETE` *before* the in-memory map is mutated.
     /// If the disk write fails, both views still hold the token and
     /// the caller sees a 5xx — the opposite ordering would leave a
     /// "revoked in memory but resurrected on restart" hole.
-    pub async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let snapshot = {
             let inner = self.inner.lock().expect("TokenStore mutex poisoned");
             inner.tokens.get(key).cloned()
@@ -374,14 +433,6 @@ impl TokenStore {
             inner.tokens.remove(key);
         }
         Ok(Some(record))
-    }
-
-    /// Remove a token by its raw value. The `DELETE /-/user/token/:tok`
-    /// (npm logout) path puts the bearer token verbatim in the URL,
-    /// so this hashes first and then defers to [`Self::revoke_by_key`].
-    pub async fn revoke_by_raw(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        let key = sha256_hex(raw.as_bytes());
-        self.revoke_by_key(&key).await
     }
 }
 
@@ -406,23 +457,23 @@ impl Default for UserStore {
 /// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
 /// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`
 /// all parse the same.
-pub fn identify(
+pub async fn identify(
     header_value: Option<&str>,
-    users: &UserStore,
-    tokens: &TokenStore,
+    users: &dyn UserBackend,
+    tokens: &dyn TokenBackend,
 ) -> Option<String> {
     let value = header_value?.trim();
     let mut parts = value.splitn(2, ' ');
     let scheme = parts.next()?;
     let credentials = parts.next()?.trim();
     if scheme.eq_ignore_ascii_case("Bearer") {
-        return tokens.lookup(credentials);
+        return tokens.lookup(credentials).await;
     }
     if scheme.eq_ignore_ascii_case("Basic") {
         let decoded = BASE64.decode(credentials).ok()?;
         let pair = std::str::from_utf8(&decoded).ok()?;
         let (user, password) = pair.split_once(':')?;
-        return users.verify(user, password);
+        return users.verify(user, password).await;
     }
     None
 }
@@ -558,18 +609,31 @@ async fn verify_returning_user(
 // SQLite-backed token store
 // ---------------------------------------------------------------
 
+/// `tokens` table DDL — shared verbatim by the local [`TokenStore`]
+/// and the networked [`LibsqlAuth`] so the two backends store the
+/// same shape and a database can be moved between them.
+const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
+    token_hash      TEXT PRIMARY KEY,
+    username        TEXT NOT NULL,
+    created_at      INTEGER NOT NULL,
+    last_used_at    INTEGER NOT NULL,
+    readonly        INTEGER NOT NULL DEFAULT 0,
+    cidr_whitelist  TEXT NOT NULL DEFAULT '[]'
+)";
+
+const TOKENS_INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username)";
+
+/// `users` table DDL — only the networked backend needs it, since the
+/// local backend keeps users in an htpasswd file. One bcrypt hash per
+/// username, the same `$2y$...` string the htpasswd file would hold.
+const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
+    username     TEXT PRIMARY KEY,
+    bcrypt_hash  TEXT NOT NULL
+)";
+
 fn init_tokens_schema(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS tokens (
-             token_hash      TEXT PRIMARY KEY,
-             username        TEXT NOT NULL,
-             created_at      INTEGER NOT NULL,
-             last_used_at    INTEGER NOT NULL,
-             readonly        INTEGER NOT NULL DEFAULT 0,
-             cidr_whitelist  TEXT NOT NULL DEFAULT '[]'
-         );
-         CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username);",
-    )?;
+    conn.execute(TOKENS_TABLE_SQL, [])?;
+    conn.execute(TOKENS_INDEX_SQL, [])?;
     Ok(())
 }
 

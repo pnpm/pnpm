@@ -73,7 +73,7 @@ async fn user_and_token_survive_restart() {
 
     let config =
         persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
-    let auth = AuthState::load(&config.auth).expect("first boot");
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
     let app = router_with_auth(config.clone(), auth);
 
     // adduser pulls a fresh token out of the response body.
@@ -94,7 +94,7 @@ async fn user_and_token_survive_restart() {
     // Simulate a restart: drop the router (and the in-memory map),
     // re-load from disk, rebuild the router. Same config, same paths.
     drop(app);
-    let auth = AuthState::load(&config.auth).expect("reload after restart");
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
     let app = router_with_auth(config, auth);
 
     // The token issued before the "restart" must still resolve to
@@ -144,7 +144,9 @@ async fn corrupt_htpasswd_fails_startup_with_diagnostic() {
         htpasswd.clone(),
         auth_dir.path().join("tokens.db"),
     );
-    let err = AuthState::load(&config.auth).expect_err("malformed htpasswd should fail to load");
+    let err = AuthState::load(&config.auth, &config.backend)
+        .await
+        .expect_err("malformed htpasswd should fail to load");
     let message = err.to_string();
     assert!(
         message.contains("htpasswd") && message.contains(&htpasswd.display().to_string()),
@@ -171,7 +173,7 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
         htpasswd.clone(),
         auth_dir.path().join("tokens.db"),
     );
-    let auth = AuthState::load(&config.auth).expect("first boot");
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -223,7 +225,7 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
         },
         tokens: TokensConfig { file: Some(auth_dir.path().join("tokens.db")) },
     };
-    let auth = AuthState::load(&config.auth).unwrap();
+    let auth = AuthState::load(&config.auth, &config.backend).await.unwrap();
     let app = router_with_auth(config, auth);
 
     let response = app

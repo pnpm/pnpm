@@ -107,6 +107,12 @@ pub struct Config {
     /// directory. The YAML `s3:` block switches it to an S3-compatible
     /// object store (S3, Cloudflare R2, MinIO, ...).
     pub hosted_store: HostedStoreConfig,
+    /// Which record store backs the auth state (users + tokens).
+    /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
+    /// plus SQLite token database. The YAML `backend.libsql:` block
+    /// switches both to a shared networked-SQLite database so several
+    /// stateless pnpr replicas see a consistent set of accounts.
+    pub backend: BackendConfig,
 }
 
 /// The resolved hosted-store backend. The object-store client is built
@@ -119,6 +125,56 @@ pub enum HostedStoreConfig {
     /// S3-compatible bucket. `prefix` is normalized to `""` or a
     /// `.../`-terminated key prefix.
     S3 { store: Arc<dyn ObjectStore>, prefix: String },
+}
+
+/// The resolved record-store backend for auth (users + tokens). Unlike
+/// [`HostedStoreConfig`], this only carries the parsed settings — the
+/// fallible step (connecting to the networked database and ensuring its
+/// schema) is async, so it runs in `AuthState::load` rather than at
+/// config-parse time.
+#[derive(Debug, Default, Clone)]
+pub enum BackendConfig {
+    /// Local htpasswd users + SQLite tokens (or in-memory when no file
+    /// is configured). Today's behaviour.
+    #[default]
+    Local,
+    /// Networked SQLite (libsql / Turso): both records live in one
+    /// shared database reachable over the network.
+    Libsql(LibsqlSettings),
+}
+
+/// The YAML `backend.libsql:` block. Whole-file `${ENV}` substitution
+/// runs before parsing, so `url`/`authToken` can hold `${...}` refs and
+/// keep secrets out of the committed config.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibsqlSettings {
+    /// libsql/Turso database URL, e.g. `libsql://db.turso.io` or
+    /// `http://127.0.0.1:8080` for a local `sqld`.
+    pub url: String,
+    /// Bearer token for the database. Omit for an unauthenticated local
+    /// `sqld`.
+    #[serde(default)]
+    pub auth_token: Option<String>,
+    /// Local path for an embedded replica. When set, the primary is
+    /// replicated to this file and reads (the auth hot path) hit the
+    /// local copy instead of a network round-trip per lookup; writes
+    /// still go to the primary. Absent ⇒ every read is a remote query.
+    #[serde(default)]
+    pub replica_path: Option<PathBuf>,
+    /// How often (seconds) the embedded replica pulls from the primary.
+    /// Only meaningful with `replicaPath`; bounds how stale a read can
+    /// be — most importantly, token-revocation lag. `0` disables
+    /// background sync (the replica then only reflects its own writes
+    /// plus the initial sync at startup). Defaults to
+    /// [`LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS`].
+    #[serde(default)]
+    pub sync_interval_secs: Option<u64>,
+}
+
+impl LibsqlSettings {
+    /// Default embedded-replica background sync cadence.
+    pub const DEFAULT_SYNC_INTERVAL_SECS: u64 = 60;
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -322,6 +378,11 @@ struct ConfigFile {
     /// stock verdaccio config (silently ignored there).
     #[serde(default)]
     s3: Option<S3Settings>,
+    /// pnpr-only block: back the auth record stores (users + tokens)
+    /// with a networked SQLite database. Absent on a stock verdaccio
+    /// config (silently ignored there).
+    #[serde(default)]
+    backend: Option<BackendFile>,
     #[serde(default)]
     uplinks: IndexMap<String, UplinkConfig>,
     #[serde(default)]
@@ -369,6 +430,12 @@ struct AuthFile {
     htpasswd: HtpasswdFile,
     #[serde(default)]
     tokens: TokensFile,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct BackendFile {
+    #[serde(default)]
+    libsql: Option<LibsqlSettings>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -421,6 +488,7 @@ impl Config {
             logs: LogConfig::default(),
             install_accelerator_grant_ttl: None,
             hosted_store: HostedStoreConfig::Fs,
+            backend: BackendConfig::Local,
         }
     }
 
@@ -440,6 +508,7 @@ impl Config {
             logs: LogConfig::default(),
             install_accelerator_grant_ttl: None,
             hosted_store: HostedStoreConfig::Fs,
+            backend: BackendConfig::Local,
         }
     }
 
@@ -556,6 +625,10 @@ impl Config {
             }
             None => HostedStoreConfig::Fs,
         };
+        let backend = match file.backend.and_then(|block| block.libsql) {
+            Some(settings) => BackendConfig::Libsql(settings),
+            None => BackendConfig::Local,
+        };
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
@@ -576,6 +649,7 @@ impl Config {
                 .and_then(|block| block.grant_ttl)
                 .map(Duration::from_secs),
             hosted_store,
+            backend,
         })
     }
 

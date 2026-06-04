@@ -64,9 +64,56 @@ struct AppInner {
     upstreams: IndexMap<String, Upstream>,
     config: Config,
     auth: AuthState,
+    /// Serializes the read-modify-write packument flows per package so
+    /// two concurrent writers to the same package on this instance can't
+    /// lose each other's changes. See [`PackageLocks`].
+    package_locks: PackageLocks,
     /// Lazily-built engine backing the `/v1/install` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     install_accelerator: std::sync::OnceLock<crate::install_accelerator::InstallAccelerator>,
+}
+
+/// Per-package serialization for the read-modify-write packument flows
+/// (publish, dist-tag changes, partial-unpublish). Without it, two
+/// concurrent publishes of the same package both read the old
+/// packument, merge their own version in, and write back — last writer
+/// wins and the other version is silently lost.
+///
+/// A fixed stripe set of mutexes keyed by a hash of the package name
+/// serializes writers to the same package while letting different
+/// packages proceed in parallel. The fixed count bounds memory (unlike
+/// a per-name map that grows with every package ever published); two
+/// packages that hash to the same stripe just serialize against each
+/// other, which is harmless.
+///
+/// This guards concurrency **within one instance**. Across replicas
+/// sharing one hosted store, the same race needs a conditional write
+/// (S3 `If-Match` / ETag); that is the cross-replica half tracked in
+/// [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199).
+struct PackageLocks {
+    stripes: Box<[tokio::sync::Mutex<()>]>,
+}
+
+impl PackageLocks {
+    /// Number of stripes. 64 keeps false sharing between distinct
+    /// packages rare while staying tiny in memory.
+    const STRIPES: usize = 64;
+
+    fn new() -> Self {
+        let stripes = (0..Self::STRIPES).map(|_| tokio::sync::Mutex::new(())).collect();
+        Self { stripes }
+    }
+
+    /// Lock the stripe owning `name`, held until the returned guard is
+    /// dropped. Callers hold it across the whole read-modify-write so the
+    /// read and the write are atomic with respect to other same-package
+    /// writers.
+    async fn lock(&self, name: &str) -> tokio::sync::MutexGuard<'_, ()> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(name, &mut hasher);
+        let index = std::hash::Hasher::finish(&hasher) as usize % self.stripes.len();
+        self.stripes[index].lock().await
+    }
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
@@ -101,6 +148,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
             upstreams,
             config,
             auth,
+            package_locks: PackageLocks::new(),
             install_accelerator: std::sync::OnceLock::new(),
         }),
     };
@@ -182,7 +230,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 /// a startup-time auth error surfaces before we accept any client
 /// connections.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
-    let auth = AuthState::load(&config.auth)?;
+    let auth = AuthState::load(&config.auth, &config.backend).await?;
     let listen = config.listen;
     let app = router_with_auth(config, auth);
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
@@ -275,7 +323,7 @@ async fn get_two_segments(
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
     if first == "-" && second == "whoami" {
-        return private_no_cache(serve_whoami(&state, &headers));
+        return private_no_cache(serve_whoami(&state, &headers).await);
     }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
@@ -331,10 +379,10 @@ async fn get_four_segments(
         return get_dist_tags(&state, &headers, &c).await;
     }
     if a == "-" && b == "npm" && c == "v1" && d == "user" {
-        return private_no_cache(serve_profile(&state, &headers));
+        return private_no_cache(serve_profile(&state, &headers).await);
     }
     if a == "-" && b == "npm" && c == "v1" && d == "tokens" {
-        return private_no_cache(list_tokens(&state, &headers));
+        return private_no_cache(list_tokens(&state, &headers).await);
     }
     not_found()
 }
@@ -499,7 +547,7 @@ async fn serve_packument(state: &AppState, headers: &HeaderMap, raw_name: &str) 
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
         return error_response(&err);
     }
     match load_packument_bytes(state, &name).await {
@@ -525,7 +573,7 @@ async fn serve_version_manifest(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
         return error_response(&err);
     }
     let bytes = match load_packument_bytes(state, &name).await {
@@ -561,7 +609,7 @@ async fn serve_tarball(
     if let Err(err) = name.validate_tarball_name(filename) {
         return error_response(&err);
     }
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
         return error_response(&err);
     }
 
@@ -652,8 +700,8 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
 /// pure auth: no per-package policy applies, so anonymous always
 /// gets 401 even when `$all` would let it through for packument
 /// reads.
-fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
-    let Some(username) = caller_username(state, headers) else {
+async fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
+    let Some(username) = caller_username(state, headers).await else {
         return error_response(&RegistryError::Unauthenticated {
             resource: "user identity".to_string(),
         });
@@ -666,8 +714,8 @@ fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
 /// 2FA, or anything beyond the username; the absent fields surface
 /// as their zero-value defaults so the npm CLI's table renderer
 /// doesn't choke on a missing key.
-fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
-    let Some(username) = caller_username(state, headers) else {
+async fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
+    let Some(username) = caller_username(state, headers).await else {
         return error_response(&RegistryError::Unauthenticated {
             resource: "user profile".to_string(),
         });
@@ -691,8 +739,8 @@ fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
 /// raw token itself is never persisted; the `token` field surfaces
 /// the leading 6 hex characters of the key as a preview, matching
 /// what verdaccio does when it can't reconstruct the original.
-fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
-    let Some(username) = caller_username(state, headers) else {
+async fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
+    let Some(username) = caller_username(state, headers).await else {
         return error_response(&RegistryError::Unauthenticated {
             resource: "token list".to_string(),
         });
@@ -702,6 +750,7 @@ fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
         .auth
         .tokens
         .list_for_user(&username)
+        .await
         .into_iter()
         .map(|(key, record)| token_response_object(&key, &record))
         .collect();
@@ -714,12 +763,12 @@ fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
 /// unknown key returns 404. `npm token revoke` calls this with the
 /// `key` it pulled from [`list_tokens`].
 async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -> Response {
-    let Some(username) = caller_username(state, headers) else {
+    let Some(username) = caller_username(state, headers).await else {
         return error_response(&RegistryError::Unauthenticated {
             resource: "token revocation".to_string(),
         });
     };
-    match state.inner.auth.tokens.find_by_key(key) {
+    match state.inner.auth.tokens.find_by_key(key).await {
         Some(record) if record.username != username => error_response(&RegistryError::Forbidden {
             user: username,
             action: "revoke",
@@ -740,10 +789,10 @@ async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -
 /// and require that the auth identifies the same user who owns the
 /// token being deleted.
 async fn logout(state: &AppState, headers: &HeaderMap, raw_token: &str) -> Response {
-    let Some(username) = caller_username(state, headers) else {
+    let Some(username) = caller_username(state, headers).await else {
         return error_response(&RegistryError::Unauthenticated { resource: "logout".to_string() });
     };
-    let Some(target_owner) = state.inner.auth.tokens.lookup(raw_token) else {
+    let Some(target_owner) = state.inner.auth.tokens.lookup(raw_token).await else {
         return not_found();
     };
     if target_owner != username {
@@ -775,12 +824,13 @@ fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value 
     })
 }
 
-fn caller_username(state: &AppState, headers: &HeaderMap) -> Option<String> {
+async fn caller_username(state: &AppState, headers: &HeaderMap) -> Option<String> {
     identify(
         headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
-        &state.inner.auth.users,
-        &state.inner.auth.tokens,
+        state.inner.auth.users.as_ref(),
+        state.inner.auth.tokens.as_ref(),
     )
+    .await
 }
 
 fn json_response(status: StatusCode, body: &Value) -> Response {
@@ -820,7 +870,7 @@ async fn publish_package(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
 
@@ -872,6 +922,12 @@ async fn publish_package(
             .unwrap_or(Value::Null);
         prepared.push((attachment, canonical, dist));
     }
+
+    // Serialize the read-merge-write against other writers of this same
+    // package on this instance, so a concurrent publish can't read the
+    // same `existing`, merge a different version, and overwrite ours.
+    // Held until this function returns, past the packument write below.
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
 
     // Seed the merge from whatever the upstream knows about the
     // package, not just from a cold cache. Without this, a publish
@@ -1016,6 +1072,10 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
     augment_search_with_upstream(state, &text, &mut body).await;
 
     if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
+        // The caller is the same across every result, so resolve the
+        // identity once (the async backend hit) and authorize each
+        // candidate synchronously inside the filter.
+        let identity = resolve_identity(state, headers).await;
         objects.retain(|entry| {
             let Some(name) =
                 entry.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
@@ -1023,7 +1083,7 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
                 // Malformed entry — be conservative and drop it.
                 return false;
             };
-            enforce_access(state, headers, name, Action::Access).is_ok()
+            authorize(state, &identity, name, Action::Access).is_ok()
         });
         let visible = objects.len();
         // Surface the post-filter count so clients can't infer the
@@ -1100,7 +1160,7 @@ async fn update_packument(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
     let mut packument: Value = match serde_json::from_slice(body) {
@@ -1116,6 +1176,10 @@ async fn update_packument(
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
+    // Serialize the write against this instance's other same-package
+    // packument writers (publish / dist-tag), so the client-supplied
+    // rewrite can't interleave with a concurrent merge.
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = state.inner.storage.write_hosted_packument(&name, &bytes).await {
         return error_response(&err);
     }
@@ -1135,7 +1199,7 @@ async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
     if let Err(err) = state.inner.storage.remove_package(&name).await {
@@ -1169,7 +1233,7 @@ async fn delete_tarball(
         Ok(c) => c,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
     if let Err(err) = state.inner.storage.remove_tarball(&name, &canonical).await {
@@ -1191,7 +1255,7 @@ async fn get_dist_tags(state: &AppState, headers: &HeaderMap, raw_name: &str) ->
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
         return error_response(&err);
     }
     let bytes = match load_packument_bytes(state, &name).await {
@@ -1263,9 +1327,13 @@ where
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
+    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
+
+    // Serialize the read-modify-write against other same-package writers
+    // on this instance (held until this function returns).
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
 
     // Start from the authoritative packument if we have one. A
     // dist-tag change is an authoritative override, so it is written
@@ -1365,12 +1433,32 @@ impl Action {
     }
 }
 
-/// Resolve the caller and check the per-package rule. Returns
-/// `Ok(())` when the call is allowed; otherwise the appropriate
-/// `Unauthenticated` / `Forbidden` error.
-fn enforce_access(
+/// Resolve the caller behind a request by inspecting its
+/// `Authorization` header against the auth backends. The backend
+/// lookup is async (a networked record store hits the database here),
+/// so this is the one async step the access checks fan out from.
+async fn resolve_identity(state: &AppState, headers: &HeaderMap) -> Identity {
+    let username = identify(
+        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
+        state.inner.auth.users.as_ref(),
+        state.inner.auth.tokens.as_ref(),
+    )
+    .await;
+    match username {
+        Some(username) => Identity::User { username },
+        None => Identity::Anonymous,
+    }
+}
+
+/// Check an already-resolved `identity` against the per-package rule.
+/// Returns `Ok(())` when the call is allowed; otherwise the
+/// appropriate `Unauthenticated` / `Forbidden` error. Split from
+/// [`resolve_identity`] so a caller that filters many packages (the
+/// search endpoint) resolves the identity once and authorizes each
+/// candidate synchronously.
+fn authorize(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     package: &str,
     action: Action,
 ) -> Result<(), RegistryError> {
@@ -1379,15 +1467,7 @@ fn enforce_access(
         Action::Access => effective.access,
         Action::Publish => effective.publish,
     };
-    let identity = match identify(
-        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
-        &state.inner.auth.users,
-        &state.inner.auth.tokens,
-    ) {
-        Some(username) => Identity::User { username },
-        None => Identity::Anonymous,
-    };
-    if list.allows(&identity) {
+    if list.allows(identity) {
         return Ok(());
     }
     // Denied: an anonymous caller gets a chance to authenticate (401);
@@ -1397,11 +1477,22 @@ fn enforce_access(
             Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
         }
         Identity::User { username } => Err(RegistryError::Forbidden {
-            user: username,
+            user: username.clone(),
             action: action.label(),
             resource: format!("package {package:?}"),
         }),
     }
+}
+
+/// Resolve the caller and check the per-package rule in one step.
+async fn enforce_access(
+    state: &AppState,
+    headers: &HeaderMap,
+    package: &str,
+    action: Action,
+) -> Result<(), RegistryError> {
+    let identity = resolve_identity(state, headers).await;
+    authorize(state, &identity, package, action)
 }
 
 /// True when the client's `Accept` header offers the
@@ -1558,14 +1649,7 @@ async fn serve_install(
         &state.inner.install_accelerator,
         &state.inner.config,
     );
-    let identity = match identify(
-        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
-        &state.inner.auth.users,
-        &state.inner.auth.tokens,
-    ) {
-        Some(username) => Identity::User { username },
-        None => Identity::Anonymous,
-    };
+    let identity = resolve_identity(&state, &headers).await;
     crate::install_accelerator::handle_install(
         runtime,
         &state.inner.config.policies,

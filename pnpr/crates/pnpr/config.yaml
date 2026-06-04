@@ -23,6 +23,20 @@ storage: ./storage
 #  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 #  forcePathStyle: false
 #  allowHttp: false
+# Back the auth record stores (users + tokens) with a networked SQLite
+# database (libsql / Turso) instead of the local htpasswd file + SQLite
+# token db. Lets several stateless pnpr replicas share one consistent set
+# of accounts. When omitted, auth stays on local disk (see `auth:`
+# below). `authToken` is optional for an unauthenticated local `sqld`.
+# Set `replicaPath` to keep a local embedded replica so the auth hot
+# path (token lookups) reads locally instead of over the network;
+# `syncIntervalSecs` bounds how stale a read can be (e.g. revocation lag).
+#backend:
+#  libsql:
+#    url: ${PNPR_LIBSQL_URL}
+#    authToken: ${PNPR_LIBSQL_TOKEN}
+#    replicaPath: ./auth-replica.db
+#    syncIntervalSecs: 60
 secret: pnpm-registry-mock-secret-key-32
 
 auth:

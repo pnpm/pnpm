@@ -1,6 +1,6 @@
 use super::{
-    Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, LogFormat, LogLevel,
-    config_file_in, pattern_matches, resolve_relative,
+    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, LogFormat,
+    LogLevel, config_file_in, pattern_matches, resolve_relative,
 };
 use crate::policy::Identity;
 use std::{
@@ -161,6 +161,79 @@ packages: {}
 fn s3_block_without_a_bucket_is_a_config_error() {
     let yaml = "storage: /x\ns3:\n  region: auto\nuplinks: {}\npackages: {}\n";
     assert!(Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).is_err());
+}
+
+#[test]
+fn backend_defaults_to_local_without_a_block() {
+    let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert!(matches!(config.backend, BackendConfig::Local));
+}
+
+#[test]
+fn libsql_backend_block_selects_the_networked_record_store() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: libsql://db.turso.io
+    authToken: tok-secret
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.backend {
+        BackendConfig::Libsql(settings) => {
+            assert_eq!(settings.url, "libsql://db.turso.io");
+            assert_eq!(settings.auth_token.as_deref(), Some("tok-secret"));
+        }
+        BackendConfig::Local => panic!("expected a libsql backend, got Local"),
+    }
+}
+
+#[test]
+fn libsql_backend_auth_token_is_optional() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: http://127.0.0.1:8080
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.backend {
+        BackendConfig::Libsql(settings) => {
+            assert!(settings.auth_token.is_none());
+            assert!(settings.replica_path.is_none(), "no replica by default");
+        }
+        BackendConfig::Local => panic!("expected a libsql backend, got Local"),
+    }
+}
+
+#[test]
+fn libsql_backend_parses_embedded_replica_options() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: libsql://db.turso.io
+    replicaPath: /var/lib/pnpr/auth-replica.db
+    syncIntervalSecs: 15
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.backend {
+        BackendConfig::Libsql(settings) => {
+            assert_eq!(
+                settings.replica_path.as_deref(),
+                Some(Path::new("/var/lib/pnpr/auth-replica.db")),
+            );
+            assert_eq!(settings.sync_interval_secs, Some(15));
+        }
+        BackendConfig::Local => panic!("expected a libsql backend, got Local"),
+    }
 }
 
 #[test]
