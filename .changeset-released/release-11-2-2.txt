@@ -1,2 +1,0 @@
-fix-pacquet-outdated-lockfile-on-update
-forward-install-flags-to-pacquet
