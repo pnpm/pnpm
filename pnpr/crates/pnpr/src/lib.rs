@@ -8,7 +8,6 @@
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
 mod auth;
-mod cache;
 mod config;
 mod error;
 mod install_accelerator;
@@ -17,13 +16,14 @@ mod policy;
 mod publish;
 mod search;
 mod server;
+mod storage;
 mod streaming;
 mod upstream;
 
 pub use auth::{AuthState, TokenStore, UserStore, identify};
 pub use config::{
     AuthConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HtpasswdConfig, LogConfig, LogFormat,
-    LogLevel, MaxUsers, PackageAccess, TokensConfig, UplinkConfig,
+    LogLevel, MaxUsers, PackageAccess, TokensConfig, UplinkConfig, default_cache_dir,
 };
 pub use error::{RegistryError, Result};
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};

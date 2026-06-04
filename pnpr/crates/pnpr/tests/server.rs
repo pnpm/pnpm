@@ -181,7 +181,8 @@ async fn tarball_streaming_finalizes_cache_with_no_tmp_leftover() {
     // By the time the client's stream ends (rx sees None), the tee
     // task has already called finalize, so the cache file is in
     // place at the canonical path and no `.tmp.*` siblings remain.
-    let package_dir = cache_dir.join("big");
+    // Proxied tarballs land in the disposable cache root.
+    let package_dir = cache_dir.join(".pnpr-cache").join("big");
     let entries: Vec<String> = std::fs::read_dir(&package_dir)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
@@ -293,6 +294,55 @@ async fn packument_is_refetched_after_ttl_expires() {
     mock.assert_async().await;
 }
 
+/// A hosted packument is authoritative: even with a proxy upstream
+/// configured, a divergent upstream packument, and an expired TTL, the
+/// hosted copy is served verbatim and the upstream is never contacted.
+/// This is the guarantee that published versions can't be masked or
+/// lost by a proxy refresh.
+#[tokio::test]
+async fn hosted_packument_is_never_overwritten_by_upstream() {
+    let mut upstream = mockito::Server::new_async().await;
+    let upstream_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(json!({ "name": "foo", "versions": { "9.9.9": {} } }).to_string())
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+
+    // Seed the hosted store directly, as a publish (or static fixture)
+    // would have. The hosted root is `config.storage` == tmp.
+    let hosted = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
+                "tarball": "http://example.test/foo/-/foo-1.0.0.tgz", "shasum": "abc"
+            }},
+        },
+    });
+    std::fs::create_dir_all(tmp.path().join("foo")).unwrap();
+    std::fs::write(tmp.path().join("foo/package.json"), hosted.to_string()).unwrap();
+
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    // Zero TTL: if the hosted copy were treated as a cache entry, this
+    // would force an immediate upstream refetch.
+    config.packument_ttl = Duration::from_millis(0);
+    let app = router(config);
+
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let versions: Vec<&str> =
+        body["versions"].as_object().unwrap().keys().map(String::as_str).collect();
+    assert_eq!(versions, vec!["1.0.0"], "hosted packument must win over upstream's 9.9.9");
+
+    // The upstream was never hit — the hosted copy short-circuits the proxy.
+    upstream_mock.assert_async().await;
+}
+
 #[tokio::test]
 async fn stale_packument_is_served_when_upstream_fails() {
     let mut upstream = mockito::Server::new_async().await;
@@ -377,8 +427,8 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     // `finalize` (rename is last-writer-wins on POSIX, and both
     // wrote identical content). Exactly one `.tgz` file in the
     // package dir, no `.tmp.*` survivors thanks to the unique-tmp
-    // suffix.
-    let dir = cache_dir.join("foo");
+    // suffix. Proxied tarballs live in the disposable cache root.
+    let dir = cache_dir.join(".pnpr-cache").join("foo");
     let entries: Vec<String> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
@@ -401,8 +451,8 @@ async fn cache_tmp_open_failure_falls_back_to_uncached_stream() {
         .await;
 
     // Point `cache_dir` at a regular file so `create_dir_all` inside
-    // `open_tarball_tmp` fails. The handler should still stream the
-    // body to the client and skip the cache write.
+    // `open_cached_tarball_tmp` fails. The handler should still stream
+    // the body to the client and skip the cache write.
     let tmp = TempDir::new().unwrap();
     let blocked = tmp.path().join("not-a-dir");
     std::fs::write(&blocked, b"already a file").unwrap();
@@ -417,7 +467,7 @@ async fn cache_tmp_open_failure_falls_back_to_uncached_stream() {
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 
     // The cache path under the not-a-dir should not exist.
-    let cache_path = blocked.join("foo").join("foo-1.0.0.tgz");
+    let cache_path = blocked.join(".pnpr-cache").join("foo").join("foo-1.0.0.tgz");
     assert!(!cache_path.exists());
 }
 
@@ -493,7 +543,7 @@ async fn upstream_stream_error_clears_cache() {
     // should happen quickly — poll for it so the test fails fast on
     // success and gives a 1s budget for the worst case (heavy CI
     // load).
-    assert!(await_no_tgz(&cache_dir.join("foo"), Duration::from_secs(1)).await);
+    assert!(await_no_tgz(&cache_dir.join(".pnpr-cache").join("foo"), Duration::from_secs(1)).await);
 }
 
 #[tokio::test]
@@ -525,7 +575,7 @@ async fn client_disconnect_mid_stream_clears_cache() {
     // `write.abandon()` runs. Poll for the abandon so the test
     // doesn't depend on a fixed sleep budget under heavy CI load.
     drop(response);
-    assert!(await_no_tgz(&cache_dir.join("big"), Duration::from_secs(1)).await);
+    assert!(await_no_tgz(&cache_dir.join(".pnpr-cache").join("big"), Duration::from_secs(1)).await);
 }
 
 /// Poll `dir` until it contains no `.tgz` files *and* no `.tmp.*`

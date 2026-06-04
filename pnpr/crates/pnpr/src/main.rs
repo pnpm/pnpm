@@ -1,5 +1,5 @@
 use clap::Parser;
-use pnpr::{Config, ConfigSource, LogConfig, LogFormat, serve};
+use pnpr::{Config, ConfigSource, LogConfig, LogFormat, default_cache_dir, serve};
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 
@@ -19,9 +19,18 @@ struct Args {
 
     /// Override the storage path from the loaded config (bundled or
     /// `-c`). Useful for tests and benchmarks that want their own
-    /// cache directory without writing a custom YAML.
+    /// storage directory without writing a custom YAML. Unless
+    /// `--cache` is also given, the disposable proxy cache is
+    /// re-derived as a subdirectory of this path.
     #[arg(long)]
     storage: Option<PathBuf>,
+
+    /// Override the proxy-cache path — the disposable mirror of
+    /// upstream registries plus the install-accelerator store. Point
+    /// it at separate, ephemeral disk to keep published packages and
+    /// cached upstream content on different volumes.
+    #[arg(long)]
+    cache: Option<PathBuf>,
 
     /// URL clients should use to reach this server. Used when
     /// rewriting `dist.tarball` URLs in served packuments. Defaults
@@ -59,7 +68,14 @@ async fn main() -> miette::Result<()> {
                 config.auth.tokens.file = Some(storage.join("tokens.db"));
             }
         }
+        // Keep the cache co-located under the overridden storage dir so a
+        // `--storage`-only run stays self-contained, unless the caller
+        // pins the cache explicitly below.
+        config.cache_storage = default_cache_dir(&storage);
         config.storage = storage;
+    }
+    if let Some(cache) = args.cache {
+        config.cache_storage = cache;
     }
     if let Some(ttl_secs) = args.packument_ttl_secs {
         config.packument_ttl = Duration::from_secs(ttl_secs);

@@ -10,7 +10,7 @@
 //!   final cache path on stream completion. On upstream error or
 //!   client disconnect the temp file is removed.
 
-use crate::cache::TarballWrite;
+use crate::storage::TarballWrite;
 use axum::body::{Body, Bytes};
 use futures_util::{
     Stream,

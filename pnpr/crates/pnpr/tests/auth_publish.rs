@@ -202,6 +202,88 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     );
 }
 
+/// Published packages are the source of truth: they live in the
+/// authoritative `storage` root, never in the disposable proxy cache,
+/// and survive a full wipe of that cache.
+#[tokio::test]
+async fn published_package_survives_wiping_the_proxy_cache() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let bytes = b"durable-tarball-bytes";
+    let body = sample_publish_body("durable-pkg", "1.0.0", bytes);
+    let request = Request::put("/durable-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    // The artifacts land in the authoritative root, not the cache.
+    assert!(storage.join("durable-pkg/package.json").exists());
+    assert!(storage.join("durable-pkg/durable-pkg-1.0.0.tgz").exists());
+    assert!(
+        !storage.join(".pnpr-cache/durable-pkg").exists(),
+        "published package must not be written into the disposable proxy cache",
+    );
+
+    // Blow away the entire proxy cache, the way an operator reclaiming
+    // disk (or a fresh container on an ephemeral cache volume) would.
+    let cache_root = storage.join(".pnpr-cache");
+    std::fs::create_dir_all(&cache_root).unwrap();
+    std::fs::remove_dir_all(&cache_root).unwrap();
+
+    // The package is still served, tarball and all.
+    let response = app
+        .clone()
+        .oneshot(Request::get("/durable-pkg").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let served = body_json(response.into_body()).await;
+    assert_eq!(served["versions"]["1.0.0"]["version"], "1.0.0");
+
+    let response = app
+        .oneshot(Request::get("/durable-pkg/-/durable-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+}
+
+/// When the same tarball filename exists in both stores, `open_tarball`
+/// serves the hosted copy — a stale proxied copy can't shadow it.
+#[tokio::test]
+async fn hosted_tarball_is_preferred_over_a_cached_copy() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let hosted_bytes = b"hosted-bytes";
+    let body = sample_publish_body("pref-pkg", "1.0.0", hosted_bytes);
+    let request = Request::put("/pref-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    // Plant a divergent proxied copy with the same filename.
+    let cached = storage.join(".pnpr-cache").join("pref-pkg");
+    std::fs::create_dir_all(&cached).unwrap();
+    std::fs::write(cached.join("pref-pkg-1.0.0.tgz"), b"stale-proxied-bytes").unwrap();
+
+    let response = app
+        .oneshot(Request::get("/pref-pkg/-/pref-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, hosted_bytes);
+}
+
 #[tokio::test]
 async fn publish_followed_by_dist_tag_set_works() {
     let tmp = TempDir::new().unwrap();
@@ -844,9 +926,10 @@ async fn search_augments_with_upstream_when_local_misses_exact_name() {
     );
     assert_eq!(body["total"], names.len());
 
-    // The augment also caches the packument; subsequent search hits
-    // disk without another upstream call.
-    let on_disk = tmp.path().join("ghost-pkg/package.json");
+    // The augment also caches the packument in the disposable proxy
+    // cache, so a subsequent search reuses it without another upstream
+    // call.
+    let on_disk = tmp.path().join(".pnpr-cache").join("ghost-pkg/package.json");
     assert!(on_disk.exists(), "augment must cache the fetched packument");
 }
 
@@ -966,6 +1049,47 @@ async fn unpublish_partial_writes_modified_packument() {
         .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+/// Deleting a hosted tarball must also drop any proxied copy with the
+/// same filename, so `open_tarball`'s cache fallback can't keep serving
+/// the just-removed version.
+#[tokio::test]
+async fn unpublish_tarball_also_clears_the_proxied_copy() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("blend-pkg", "1.0.0", b"hosted-bytes");
+    let request = Request::put("/blend-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    // Plant a stale proxied copy of the same tarball in the cache root,
+    // as a `proxy:` rule would have left behind.
+    let cached = storage.join(".pnpr-cache").join("blend-pkg");
+    std::fs::create_dir_all(&cached).unwrap();
+    std::fs::write(cached.join("blend-pkg-1.0.0.tgz"), b"stale-proxied-bytes").unwrap();
+
+    let request = Request::delete("/blend-pkg/-/blend-pkg-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    assert!(!storage.join("blend-pkg/blend-pkg-1.0.0.tgz").exists());
+    assert!(!cached.join("blend-pkg-1.0.0.tgz").exists(), "proxied copy must be removed too");
+
+    // With both stores cleared and no upstream, the version is gone.
+    let response = app
+        .oneshot(Request::get("/blend-pkg/-/blend-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
