@@ -88,7 +88,8 @@ pub fn router(config: Config) -> Router {
 /// by [`serve`] to wire the persistent file-backed stores, and by
 /// tests that want to override the bcrypt cost or pre-seed users.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
-    let storage = Storage::new(config.storage.clone(), config.cache_storage.clone());
+    let storage =
+        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
     let upstreams: IndexMap<String, Upstream> = config
         .uplinks
         .iter()
@@ -565,7 +566,7 @@ async fn serve_tarball(
     }
 
     match state.inner.storage.open_tarball(&name, filename).await {
-        Ok(Some((file, len))) => return tarball_response(streaming::stream_file(file), Some(len)),
+        Ok(Some((body, len))) => return tarball_response(body, len),
         Ok(None) => {}
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed")
@@ -1001,12 +1002,10 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
             .expect("static-shape response always builds");
     };
     let size = crate::search::parse_size(query_string, 20);
-    let mut body =
-        match crate::search::run_local_search(state.inner.storage.hosted_root(), &text, size).await
-        {
-            Ok(body) => body,
-            Err(err) => return error_response(&err),
-        };
+    let mut body = match crate::search::run_local_search(&state.inner.storage, &text, size).await {
+        Ok(body) => body,
+        Err(err) => return error_response(&err),
+    };
 
     // Augment with an upstream packument lookup for the exact query
     // name. Without this, freshly-prepared registry-mock storage

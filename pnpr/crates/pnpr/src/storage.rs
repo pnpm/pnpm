@@ -1,10 +1,15 @@
 use crate::{
+    config::HostedStoreConfig,
     error::{RegistryError, Result},
     package_name::PackageName,
+    s3::S3Store,
+    streaming,
 };
+use axum::body::Body;
 use std::{
     io::ErrorKind,
     path::{Path, PathBuf},
+    sync::Arc,
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, SystemTime},
 };
@@ -31,13 +36,17 @@ pub struct TarballWrite {
     final_path: PathBuf,
 }
 
-/// A reserved (tmp_path, final_path) pair for a tarball write. The
-/// publish flow writes the tarball to `tmp_path` inside a blocking
-/// task, then renames via [`Storage::finalize_tarball_slot`].
+/// A reserved slot for a hosted-tarball write. The publish flow writes
+/// the decoded + verified tarball to `tmp_path` (a local file) inside a
+/// blocking task, then promotes it to its final home — a rename on the
+/// fs backend, an upload on the S3 backend — via
+/// [`Storage::finalize_tarball_slot`], which recomputes the
+/// destination from `name`/`filename`.
 #[derive(Debug)]
 pub struct TarballSlot {
     pub tmp_path: PathBuf,
-    pub final_path: PathBuf,
+    name: PackageName,
+    filename: String,
 }
 
 impl TarballWrite {
@@ -61,19 +70,21 @@ impl TarballWrite {
     }
 }
 
-/// Verdaccio-shaped on-disk storage split into two physically separate
-/// roots with different durability guarantees:
+/// Verdaccio-shaped storage split into two stores with different
+/// durability guarantees:
 ///
 /// * `hosted` — the authoritative source of truth: packages this
 ///   server hosts directly (published through its API) plus the content
 ///   served in static mode. Served as-is and never overwritten by an
 ///   upstream refresh, so a hosted version can't be masked or lost.
-///   Operators back this up and put it on a durable volume.
+///   Backed by a local directory by default, or an S3-compatible
+///   object store (S3, Cloudflare R2, MinIO, ...) when the YAML `s3:`
+///   block is set — see [`crate::s3`].
 /// * `cached` — the disposable mirror of upstream registries. Safe to
-///   wipe at any time; it self-heals on the next request. Operators can
-///   keep it on scratch/ephemeral disk.
+///   wipe at any time; it self-heals on the next request. Always local,
+///   on scratch/ephemeral disk.
 ///
-/// Both roots use the same on-disk layout:
+/// Both use the same logical layout:
 ///
 /// ```text
 /// <root>/
@@ -89,19 +100,115 @@ impl TarballWrite {
 /// in static mode.
 #[derive(Debug, Clone)]
 pub struct Storage {
-    hosted: Store,
+    hosted: HostedStore,
     cached: Store,
 }
 
-impl Storage {
-    pub fn new(hosted_root: PathBuf, cache_root: PathBuf) -> Self {
-        Self { hosted: Store::new(hosted_root), cached: Store::new(cache_root) }
+/// The hosted store's pluggable backend: a local directory or an
+/// S3-compatible bucket. The disposable `cached` store is always
+/// local, so only the hosted side varies.
+#[derive(Debug, Clone)]
+enum HostedStore {
+    Fs(Store),
+    S3(S3Store),
+}
+
+impl HostedStore {
+    async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+        match self {
+            HostedStore::Fs(store) => store.read_packument_any_age(name).await,
+            HostedStore::S3(store) => store.read_packument(name).await,
+        }
     }
 
-    /// The hosted store's root, used by the local search scan (which
+    async fn write_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
+        match self {
+            HostedStore::Fs(store) => store.write_packument(name, bytes).await,
+            HostedStore::S3(store) => store.write_packument(name, bytes).await,
+        }
+    }
+
+    async fn open_tarball(
+        &self,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<Option<(Body, Option<u64>)>> {
+        match self {
+            HostedStore::Fs(store) => Ok(store
+                .open_tarball(name, filename)
+                .await?
+                .map(|(file, len)| (streaming::stream_file(file), Some(len)))),
+            HostedStore::S3(store) => store.open_tarball(name, filename).await,
+        }
+    }
+
+    /// Reserve the local staging path the publish flow decodes into.
+    async fn reserve_tarball_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
+        match self {
+            HostedStore::Fs(store) => store.reserve_tarball_tmp(name, filename).await,
+            HostedStore::S3(store) => store.staging_tmp_path(name, filename).await,
+        }
+    }
+
+    async fn finalize_tarball(
+        &self,
+        tmp_path: &Path,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<()> {
+        match self {
+            HostedStore::Fs(store) => store.finalize_tarball(tmp_path, name, filename).await,
+            HostedStore::S3(store) => {
+                store.upload_tarball(tmp_path, name, filename).await?;
+                let _ = fs::remove_file(tmp_path).await;
+                Ok(())
+            }
+        }
+    }
+
+    async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
+        match self {
+            HostedStore::Fs(store) => store.remove_tarball(name, filename).await,
+            HostedStore::S3(store) => store.remove_tarball(name, filename).await,
+        }
+    }
+
+    async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+        match self {
+            HostedStore::Fs(store) => store.remove_package(name).await,
+            HostedStore::S3(store) => store.remove_package(name).await,
+        }
+    }
+
+    async fn list_package_names(&self) -> Result<Vec<String>> {
+        match self {
+            HostedStore::Fs(store) => store.list_package_names().await,
+            HostedStore::S3(store) => store.list_package_names().await,
+        }
+    }
+}
+
+impl Storage {
+    /// Build a [`Storage`] from the resolved hosted-store backend plus
+    /// the local `storage` and `cache_storage` roots. `storage` backs
+    /// the hosted store when it's [`HostedStoreConfig::Fs`];
+    /// `cache_storage` always backs the proxy cache and doubles as the
+    /// S3 backend's local staging scratch.
+    pub fn new(hosted: &HostedStoreConfig, storage: PathBuf, cache_storage: PathBuf) -> Self {
+        let cached = Store::new(cache_storage.clone());
+        let hosted = match hosted {
+            HostedStoreConfig::Fs => HostedStore::Fs(Store::new(storage)),
+            HostedStoreConfig::S3 { store, prefix } => {
+                HostedStore::S3(S3Store::new(Arc::clone(store), prefix.clone(), cache_storage))
+            }
+        };
+        Self { hosted, cached }
+    }
+
+    /// The hosted package names, used by the local search scan (which
     /// indexes hosted/static packages only, never the proxy mirror).
-    pub fn hosted_root(&self) -> &Path {
-        &self.hosted.root
+    pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
+        self.hosted.list_package_names().await
     }
 
     // --- Authoritative (hosted) store -----------------------------------
@@ -109,23 +216,24 @@ impl Storage {
     /// Read the authoritative packument for `name`, fresh or stale.
     /// Hosted content has no TTL — it is the source of truth.
     pub async fn read_hosted_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_packument_any_age(name).await
+        self.hosted.read_packument(name).await
     }
 
     pub async fn write_hosted_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
         self.hosted.write_packument(name, bytes).await
     }
 
-    /// Reserve a tmp/final path pair for a tarball this server hosts.
-    /// The publish flow streams the decode + hash + write through
-    /// `std::fs` inside `spawn_blocking` and only needs the paths;
+    /// Reserve a staging slot for a tarball this server hosts. The
+    /// publish flow streams the decode + hash + write through
+    /// `std::fs` inside `spawn_blocking` and only needs the path;
     /// finalize with [`Self::finalize_tarball_slot`].
     pub async fn reserve_hosted_tarball(
         &self,
         name: &PackageName,
         filename: &str,
     ) -> Result<TarballSlot> {
-        self.hosted.reserve_tarball_paths(name, filename).await
+        let tmp_path = self.hosted.reserve_tarball_tmp(name, filename).await?;
+        Ok(TarballSlot { tmp_path, name: name.clone(), filename: filename.to_string() })
     }
 
     /// Remove a single tarball file from both stores. The
@@ -185,31 +293,28 @@ impl Storage {
     // --- Composed (hosted-first) ----------------------------------------
 
     /// Open a tarball for streaming, preferring the hosted store over
-    /// the proxy mirror. Returns the open file plus its size (for
+    /// the proxy mirror. Returns a response body plus its size (for
     /// `Content-Length`). `Ok(None)` means neither store has it, so the
     /// caller can fall through to the upstream fetch.
     pub async fn open_tarball(
         &self,
         name: &PackageName,
         filename: &str,
-    ) -> Result<Option<(fs::File, u64)>> {
+    ) -> Result<Option<(Body, Option<u64>)>> {
         if let Some(hit) = self.hosted.open_tarball(name, filename).await? {
             return Ok(Some(hit));
         }
-        self.cached.open_tarball(name, filename).await
+        Ok(self
+            .cached
+            .open_tarball(name, filename)
+            .await?
+            .map(|(file, len)| (streaming::stream_file(file), Some(len))))
     }
 
-    /// Atomically promote a tmp tarball written by the publish flow to
-    /// its final path. Mirrors what [`TarballWrite::finalize`] does,
-    /// minus the `sync_all` (the blocking task that wrote the file
-    /// already synced it). Store-agnostic: the slot already carries its
-    /// final path.
+    /// Promote a tmp tarball written by the publish flow to its final
+    /// home: a rename on the fs backend, an upload on the S3 backend.
     pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
-        if let Some(parent) = slot.final_path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-        fs::rename(&slot.tmp_path, &slot.final_path).await?;
-        Ok(())
+        self.hosted.finalize_tarball(&slot.tmp_path, &slot.name, &slot.filename).await
     }
 }
 
@@ -282,17 +387,29 @@ impl Store {
         Ok(TarballWrite { file, tmp_path, final_path })
     }
 
-    async fn reserve_tarball_paths(
-        &self,
-        name: &PackageName,
-        filename: &str,
-    ) -> Result<TarballSlot> {
+    /// Reserve a tmp path in the destination package directory so the
+    /// publish flow can write there and [`Self::finalize_tarball`] can
+    /// rename within the same directory (atomic on POSIX).
+    async fn reserve_tarball_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
         let final_path = self.tarball_path(name, filename);
         if let Some(parent) = final_path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        let tmp_path = unique_tmp_path(&final_path);
-        Ok(TarballSlot { tmp_path, final_path })
+        Ok(unique_tmp_path(&final_path))
+    }
+
+    async fn finalize_tarball(
+        &self,
+        tmp_path: &Path,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<()> {
+        let final_path = self.tarball_path(name, filename);
+        if let Some(parent) = final_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        fs::rename(tmp_path, &final_path).await?;
+        Ok(())
     }
 
     /// Remove the entire package directory. Returns `Ok(false)` if it
@@ -318,6 +435,43 @@ impl Store {
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
             Err(err) => Err(err.into()),
         }
+    }
+
+    /// Walk the storage tree two levels deep to find package names —
+    /// directories holding a `package.json`. Layout is
+    /// `<root>/<pkg>/package.json` for unscoped and
+    /// `<root>/@scope/<name>/package.json` for scoped, so a two-level
+    /// walk suffices and avoids descending into tarball-adjacent junk.
+    /// Hidden entries (the `.pnpr-cache` sibling) are skipped.
+    async fn list_package_names(&self) -> Result<Vec<String>> {
+        let mut names = Vec::new();
+        let mut top = match fs::read_dir(&self.root).await {
+            Ok(rd) => rd,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(names),
+            Err(err) => return Err(err.into()),
+        };
+        while let Some(entry) = top.next_entry().await? {
+            let entry_path = entry.path();
+            let entry_name = entry.file_name();
+            let name_str = entry_name.to_string_lossy();
+            if name_str.starts_with('.') {
+                continue;
+            }
+            if fs::try_exists(entry_path.join(PACKUMENT_FILE)).await.unwrap_or(false) {
+                names.push(name_str.into_owned());
+                continue;
+            }
+            if name_str.starts_with('@')
+                && let Ok(mut inner) = fs::read_dir(&entry_path).await
+            {
+                while let Some(child) = inner.next_entry().await? {
+                    if fs::try_exists(child.path().join(PACKUMENT_FILE)).await.unwrap_or(false) {
+                        names.push(format!("{name_str}/{}", child.file_name().to_string_lossy()));
+                    }
+                }
+            }
+        }
+        Ok(names)
     }
 
     fn package_dir(&self, name: &PackageName) -> PathBuf {
@@ -346,7 +500,11 @@ async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn unique_tmp_path(base: &Path) -> PathBuf {
+/// A unique sibling of `base` (`<base>.tmp.<pid>.<counter>`). The pid +
+/// per-process counter make the suffix unique across every writer this
+/// process spawns; keeping it in `base`'s directory keeps the eventual
+/// rename atomic on POSIX. Shared with [`crate::s3`]'s staging path.
+pub(crate) fn unique_tmp_path(base: &Path) -> PathBuf {
     let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
     let mut name = base.file_name().map(|n| n.to_os_string()).unwrap_or_default();

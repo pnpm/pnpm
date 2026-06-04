@@ -109,6 +109,7 @@ gethostname = { version = "1" }
 getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
 num_cpus = { version = "1.17.0" }
+object_store = { version = "0.12", features = ["aws"] }
 os_display = { version = "0.1.4" }
 owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }

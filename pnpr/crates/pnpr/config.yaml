@@ -7,6 +7,22 @@ storage: ./storage
 # to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
 # ephemeral volume to keep cached upstream content off the durable disk.
 #cache: ./cache
+# Store the hosted (published) packages in an S3-compatible object store
+# instead of the local `storage` directory. Works with AWS S3 (omit
+# `endpoint`), Cloudflare R2 (`region: auto` + the account endpoint),
+# MinIO, Backblaze B2, etc. The proxy cache and install-accelerator
+# stores always stay on local disk. Credentials fall back to the
+# standard AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment
+# variables when not set here.
+#s3:
+#  bucket: my-pnpr-packages
+#  region: auto
+#  endpoint: https://<account-id>.r2.cloudflarestorage.com
+#  prefix: packages
+#  accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
+#  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+#  forcePathStyle: false
+#  allowHttp: false
 secret: pnpm-registry-mock-secret-key-32
 
 auth:
