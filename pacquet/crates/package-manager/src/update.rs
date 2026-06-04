@@ -1,12 +1,14 @@
 use crate::{
-    CatalogModeDep, CatalogVersionMismatchError, Install, InstallError, ResolvedPackages,
-    UpdateSeedPolicy, check_catalog_mode,
+    CatalogDecision, CatalogModeDep, CatalogVersionMismatchError, Install, InstallError,
+    ResolvedPackages, UpdateSeedPolicy, decide_catalog,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
+use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{CatalogMode, Config, matcher::create_matcher};
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
@@ -14,6 +16,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifest
 use pacquet_registry::{PackageTag, PackageVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_tarball::MemCache;
+use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 use std::{collections::HashSet, sync::Arc};
 
 /// The three dependency groups `pacquet update` considers as "direct"
@@ -137,6 +140,11 @@ pub enum UpdateError {
     /// catalog entry for that package.
     #[diagnostic(transparent)]
     CatalogVersionMismatch(#[error(source)] CatalogVersionMismatchError),
+
+    /// Writing the auto-cataloged entries back to `pnpm-workspace.yaml`
+    /// failed.
+    #[diagnostic(transparent)]
+    WriteWorkspaceManifest(#[error(source)] UpdateWorkspaceManifestError),
 
     #[display("Failed to update the manifest: {_0}")]
     UpdateManifest(#[error(source)] PackageManifestError),
@@ -377,12 +385,15 @@ impl Update<'_> {
             }
         };
 
-        // Reconcile the about-to-be-written versions against the
-        // workspace catalogs under `catalogMode`, mirroring pnpm's gate in
-        // `installSome`. Only the rewritten deps carry a user-chosen
-        // version that can disagree with a catalog entry; a bare `update`
-        // (compatible bump) produces no rewrites and nothing to check, so
-        // the workspace I/O is skipped when `rewrites` is empty.
+        // Reconcile the about-to-be-written versions against the workspace
+        // catalogs under `catalogMode`, mirroring pnpm's gate in
+        // `installSome` plus the auto-cataloging that follows it: a matching
+        // (or not-yet-cataloged) version is rewritten to `catalog:` and
+        // recorded for write-back to `pnpm-workspace.yaml`. Only the
+        // rewritten deps carry a user-chosen version, so a bare `update`
+        // (compatible bump) produces no rewrites and nothing to reconcile.
+        let mut updated_catalogs: Catalogs = Catalogs::new();
+        let mut workspace_dir_for_catalogs = None;
         if config.catalog_mode != CatalogMode::Manual && !rewrites.is_empty() {
             let manifest_dir =
                 manifest.path().parent().expect("manifest path always has a parent dir");
@@ -397,24 +408,58 @@ impl Update<'_> {
                 .map_err(UpdateError::InvalidCatalogsConfiguration)?;
             let prefix =
                 workspace_dir_opt.as_deref().unwrap_or(manifest_dir).to_string_lossy().into_owned();
-            // The pre-update specifier of each rewritten dep, so a
-            // `catalog:<name>` entry keeps its named group. Keyed by
-            // `(name, group)` — the same alias can sit in more than one
-            // group with different specifiers, and `rewrites` is
-            // per-group.
-            let deps: Vec<CatalogModeDep> = rewrites
-                .iter()
-                .map(|(name, group, spec)| CatalogModeDep {
+
+            let mut reconciled: Vec<(String, DependencyGroup, String)> =
+                Vec::with_capacity(rewrites.len());
+            for (name, group, spec) in rewrites {
+                let prev = direct
+                    .iter()
+                    .find(|(prev_name, prev_group, _)| *prev_name == name && *prev_group == group)
+                    .map(|(_, _, prev_spec)| prev_spec.as_str());
+
+                // `--latest` on a dependency already pinned to a catalog
+                // keeps the manifest's `catalog:` reference and bumps the
+                // catalog entry itself, matching pnpm's update of a
+                // `catalog:` dep (the manifest bareSpecifier stays
+                // `catalog:<name>`; the resolved version flows to the
+                // catalog).
+                if latest && let Some(catalog_name) = prev.and_then(parse_catalog_protocol) {
+                    updated_catalogs
+                        .entry(catalog_name.to_string())
+                        .or_default()
+                        .insert(name.clone(), spec);
+                    continue;
+                }
+
+                let dep = CatalogModeDep {
                     alias: name.as_str(),
                     bare_specifier: spec.as_str(),
-                    prev_specifier: direct
-                        .iter()
-                        .find(|(prev_name, prev_group, _)| prev_name == name && prev_group == group)
-                        .map(|(_, _, prev_spec)| prev_spec.as_str()),
-                })
-                .collect();
-            check_catalog_mode::<Reporter>(config.catalog_mode, &catalogs, &deps, &prefix)
-                .map_err(UpdateError::CatalogVersionMismatch)?;
+                    prev_specifier: prev,
+                };
+                match decide_catalog::<Reporter>(
+                    config.catalog_mode,
+                    None,
+                    &catalogs,
+                    &dep,
+                    &prefix,
+                )
+                .map_err(UpdateError::CatalogVersionMismatch)?
+                {
+                    CatalogDecision::KeepDirect => reconciled.push((name, group, spec)),
+                    CatalogDecision::Catalog { manifest_specifier, updated_entry } => {
+                        if let Some(entry) = updated_entry {
+                            updated_catalogs
+                                .entry(entry.catalog_name)
+                                .or_default()
+                                .insert(name.clone(), entry.specifier);
+                        }
+                        reconciled.push((name, group, manifest_specifier));
+                    }
+                }
+            }
+            rewrites = reconciled;
+            workspace_dir_for_catalogs =
+                workspace_dir_opt.or_else(|| Some(manifest_dir.to_path_buf()));
         }
 
         // Apply the manifest rewrites in memory before resolving so the
@@ -425,6 +470,19 @@ impl Update<'_> {
         let persist_manifest = save && !rewrites.is_empty();
         for (name, group, spec) in &rewrites {
             manifest.add_dependency(name, spec, *group).map_err(UpdateError::UpdateManifest)?;
+        }
+
+        // Write the new catalog entries to `pnpm-workspace.yaml` before the
+        // install so the resolver reads them back and the lockfile's
+        // `catalogs:` snapshot reflects the resolved versions. Gated on
+        // `save`: `--no-save` persists nothing to disk, matching pnpm's
+        // `if (opts.save !== false)` guard around `updateWorkspaceManifest`.
+        if save
+            && !updated_catalogs.is_empty()
+            && let Some(workspace_dir) = workspace_dir_for_catalogs
+        {
+            update_workspace_manifest(&workspace_dir, &updated_catalogs)
+                .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
         Install {

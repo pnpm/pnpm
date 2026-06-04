@@ -64,6 +64,7 @@ pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-p
 pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }
 pacquet-resolving-tarball-resolver        = { path = "pacquet/crates/resolving-tarball-resolver" }
 pacquet-workspace                         = { path = "pacquet/crates/workspace" }
+pacquet-workspace-manifest-writer         = { path = "pacquet/crates/workspace-manifest-writer" }
 pacquet-workspace-projects-filter         = { path = "pacquet/crates/workspace-projects-filter" }
 pacquet-workspace-projects-graph          = { path = "pacquet/crates/workspace-projects-graph" }
 pacquet-workspace-range-resolver          = { path = "pacquet/crates/workspace-range-resolver" }
@@ -148,6 +149,9 @@ tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
 walkdir            = { version = "2.5.0" }
+yaml_serde         = { version = "0.10.4" }
+yamlpatch          = { version = "1.25.2" }
+yamlpath           = { version = "1.25.2" }
 wax                = { version = "0.7.0" }
 which              = { version = "8.0.2" }
 zip                = { version = "8", default-features = false, features = ["deflate"] }

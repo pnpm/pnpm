@@ -1267,6 +1267,21 @@ pub struct Config {
     /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
     pub catalog_mode: CatalogMode,
 
+    /// Name of the catalog `pnpm add` saves a new dependency into,
+    /// set by `--save-catalog-name=<name>` (with `--save-catalog` a
+    /// shorthand for `default`). When `Some`, an `add` writes
+    /// `catalog:`/`catalog:<name>` to the manifest and inserts the
+    /// entry into `pnpm-workspace.yaml` even under
+    /// [`CatalogMode::Manual`]. Mirrors pnpm's
+    /// [`saveCatalogName`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L92)
+    /// (default
+    /// [`undefined`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L191)).
+    /// A CLI-only flag in pnpm
+    /// ([`excludedPnpmKeys`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L138)),
+    /// so pacquet does not read it from `pnpm-workspace.yaml`; the
+    /// effective value is threaded onto the `add` command from the CLI.
+    pub save_catalog_name: Option<String>,
+
     /// Whether the configured registry returns the per-version `time`
     /// field in its *abbreviated* metadata. When `false` (the default),
     /// [`ResolutionMode::TimeBased`] resolution (and the

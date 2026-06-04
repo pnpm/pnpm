@@ -39,6 +39,9 @@ enum Scalar {
     /// Order-insensitive list of strings (pnpm's array defaults carry
     /// no meaningful order).
     Set(BTreeSet<String>),
+    /// pnpm's `undefined` default — pacquet models it as a `None`
+    /// `Option` field (e.g. `save-catalog-name`).
+    Undefined,
 }
 
 fn s(value: &str) -> Scalar {
@@ -82,7 +85,6 @@ const NOT_PORTED: &[&str] = &[
     "pending",
     "recursive-install",
     "reverse",
-    "save-catalog-name",
     "save-peer",
     "save-workspace-protocol",
     "shared-workspace-lockfile",
@@ -139,6 +141,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("node-linker", node_linker_scalar(cfg.node_linker)),
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
         ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
+        ("save-catalog-name", save_catalog_name_scalar(cfg.save_catalog_name.as_deref())),
         ("fetch-retries", Int(i64::from(cfg.fetch_retries))),
         ("fetch-retry-factor", Int(i64::from(cfg.fetch_retry_factor))),
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
@@ -185,6 +188,13 @@ fn catalog_mode_scalar(value: CatalogMode) -> Scalar {
         CatalogMode::Manual => s("manual"),
         CatalogMode::Strict => s("strict"),
         CatalogMode::Prefer => s("prefer"),
+    }
+}
+
+fn save_catalog_name_scalar(value: Option<&str>) -> Scalar {
+    match value {
+        Some(name) => s(name),
+        None => Scalar::Undefined,
     }
 }
 
@@ -286,6 +296,9 @@ fn strip_line_comment(line: &str) -> &str {
 /// changed — exactly the drift worth failing on).
 fn parse_scalar(raw: &str, key: &str) -> Scalar {
     let raw = raw.trim();
+    if raw == "undefined" {
+        return Scalar::Undefined;
+    }
     if raw == "true" || raw == "false" {
         return Scalar::Bool(raw == "true");
     }

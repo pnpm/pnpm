@@ -1,3 +1,4 @@
+mod catalog_snapshots;
 mod comver;
 mod freshness;
 mod load_lockfile;
@@ -18,6 +19,7 @@ mod snapshot_dep_ref;
 mod snapshot_entry;
 mod yaml_documents;
 
+pub use catalog_snapshots::*;
 pub use comver::*;
 pub use freshness::*;
 pub use load_lockfile::*;
@@ -98,6 +100,15 @@ pub struct Lockfile {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<LockfileSettings>,
+
+    /// `catalogs:` snapshot — the resolved specifier + version for every
+    /// catalog-referenced direct dependency. Sits between `settings` and
+    /// `overrides` in pnpm's
+    /// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/lockfile/fs/src/sortLockfileKeys.ts#L34-L42)
+    /// root-key order, so the field is declared here to serialize in the
+    /// same position.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalogs: Option<CatalogSnapshots>,
 
     /// `overrides` recorded by the install that wrote this lockfile.
     /// Kept in an [`IndexMap`] so the entries serialize in the order

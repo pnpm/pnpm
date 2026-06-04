@@ -1,4 +1,6 @@
-use super::{CatalogModeDep, CatalogVersionMismatchError, check_catalog_mode};
+use super::{
+    CatalogDecision, CatalogEntry, CatalogModeDep, CatalogVersionMismatchError, decide_catalog,
+};
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::CatalogMode;
@@ -22,20 +24,25 @@ fn dep<'a>(alias: &'a str, bare_specifier: &'a str) -> CatalogModeDep<'a> {
     CatalogModeDep { alias, bare_specifier, prev_specifier: None }
 }
 
+fn decide(
+    mode: CatalogMode,
+    catalogs: &Catalogs,
+    dep: &CatalogModeDep<'_>,
+) -> Result<CatalogDecision, CatalogVersionMismatchError> {
+    decide_catalog::<SilentReporter>(mode, None, catalogs, dep, "/repo")
+}
+
 #[test]
-fn manual_mode_never_checks_the_catalog() {
+fn manual_mode_keeps_the_direct_version() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
-    let deps = [dep("is-positive", "2.0.0")];
-    let result =
-        check_catalog_mode::<SilentReporter>(CatalogMode::Manual, &catalogs, &deps, "/repo");
-    assert!(result.is_ok(), "manual mode is a no-op even on a mismatch: {result:?}");
+    let decision = decide(CatalogMode::Manual, &catalogs, &dep("is-positive", "2.0.0")).unwrap();
+    assert_eq!(decision, CatalogDecision::KeepDirect, "manual mode never catalogs");
 }
 
 #[test]
 fn strict_errors_on_a_concrete_version_mismatch() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
-    let deps = [dep("is-positive", "2.0.0")];
-    let err = check_catalog_mode::<SilentReporter>(CatalogMode::Strict, &catalogs, &deps, "/repo")
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "2.0.0"))
         .expect_err("a concrete-vs-concrete mismatch must error under strict mode");
     assert_eq!(
         err,
@@ -51,13 +58,11 @@ fn strict_errors_on_a_concrete_version_mismatch() {
 }
 
 /// The ported fix: a catalog entry that is a *range* must not crash the
-/// comparison. It falls through to the strict mismatch error, never
-/// reaching an exact-version parse of the range.
+/// comparison. It falls through to the strict mismatch error.
 #[test]
 fn strict_errors_when_the_catalog_entry_is_a_range() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
-    let deps = [dep("is-positive", "1.0.0")];
-    let err = check_catalog_mode::<SilentReporter>(CatalogMode::Strict, &catalogs, &deps, "/repo")
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "1.0.0"))
         .expect_err("a range catalog entry must error, not panic, under strict mode");
     assert_eq!(
         err,
@@ -68,43 +73,71 @@ fn strict_errors_when_the_catalog_entry_is_a_range() {
     );
 }
 
-/// The symmetric case: the wanted specifier is the range (e.g.
-/// `update --latest` rewrites `^<latest>`). Still a clean mismatch.
+/// The symmetric case: the wanted specifier is the range.
 #[test]
 fn strict_errors_when_the_wanted_specifier_is_a_range() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
-    let deps = [dep("is-positive", "^2.0.0")];
-    let err = check_catalog_mode::<SilentReporter>(CatalogMode::Strict, &catalogs, &deps, "/repo")
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.0.0"))
         .expect_err("a wanted range that disagrees with the catalog must error");
     assert_eq!(err.wanted_dep, "is-positive@^2.0.0");
     assert_eq!(err.catalog_dep, "is-positive@1.0.0");
 }
 
 #[test]
-fn strict_allows_a_matching_concrete_version() {
+fn strict_uses_the_catalog_on_a_matching_concrete_version() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
-    let deps = [dep("is-positive", "1.0.0")];
-    let result =
-        check_catalog_mode::<SilentReporter>(CatalogMode::Strict, &catalogs, &deps, "/repo");
-    assert!(result.is_ok(), "an exact match agrees with the catalog: {result:?}");
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "1.0.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "an exact match reuses the existing catalog entry",
+    );
 }
 
 #[test]
-fn strict_allows_a_dependency_absent_from_the_catalog() {
+fn strict_catalogs_a_dependency_absent_from_the_catalog() {
     let catalogs = catalogs(&[("default", &[("is-negative", "1.0.0")])]);
-    let deps = [dep("is-positive", "2.0.0")];
-    let result =
-        check_catalog_mode::<SilentReporter>(CatalogMode::Strict, &catalogs, &deps, "/repo");
-    assert!(result.is_ok(), "no catalog entry means nothing to reconcile: {result:?}");
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "2.0.0")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: Some(CatalogEntry {
+                catalog_name: "default".to_string(),
+                specifier: "2.0.0".to_string(),
+            }),
+        },
+        "a dependency with no catalog entry yet is added to the default catalog",
+    );
 }
 
 #[test]
 fn strict_skips_runtime_specifiers() {
     let catalogs = catalogs(&[("default", &[("node", "1.0.0")])]);
-    let deps = [dep("node", "runtime:22.0.0")];
-    let result =
-        check_catalog_mode::<SilentReporter>(CatalogMode::Strict, &catalogs, &deps, "/repo");
-    assert!(result.is_ok(), "a runtime: specifier is never cataloged: {result:?}");
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("node", "runtime:22.0.0")).unwrap();
+    assert_eq!(decision, CatalogDecision::KeepDirect, "a runtime: specifier is never cataloged");
+}
+
+#[test]
+fn reinstalling_a_catalog_dependency_reuses_the_existing_entry() {
+    let catalogs = catalogs(&[("default", &[("is-positive", "^1.0.0")])]);
+    let dep = CatalogModeDep {
+        alias: "is-positive",
+        bare_specifier: "catalog:",
+        prev_specifier: Some("catalog:"),
+    };
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: None
+        },
+        "re-adding a `catalog:` dependency keeps the catalog entry untouched",
+    );
 }
 
 #[test]
@@ -113,16 +146,63 @@ fn strict_resolves_a_named_catalog_via_the_previous_specifier() {
         ("default", &[("is-positive", "9.9.9")]),
         ("my-catalog", &[("is-positive", "1.0.0")]),
     ]);
-    let deps = [CatalogModeDep {
+    let dep = CatalogModeDep {
         alias: "is-positive",
         bare_specifier: "2.0.0",
         prev_specifier: Some("catalog:my-catalog"),
-    }];
-    let err = check_catalog_mode::<SilentReporter>(CatalogMode::Strict, &catalogs, &deps, "/repo")
+    };
+    let err = decide(CatalogMode::Strict, &catalogs, &dep)
         .expect_err("the named catalog's entry must drive the comparison");
     assert_eq!(
         err.catalog_dep, "is-positive@1.0.0",
         "the mismatch is against the named catalog, not `default`",
+    );
+}
+
+#[test]
+fn save_catalog_name_catalogs_even_in_manual_mode() {
+    let catalogs = catalogs(&[]);
+    let decision = decide_catalog::<SilentReporter>(
+        CatalogMode::Manual,
+        Some("default"),
+        &catalogs,
+        &dep("is-positive", "1.0.0"),
+        "/repo",
+    )
+    .unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: Some(CatalogEntry {
+                catalog_name: "default".to_string(),
+                specifier: "1.0.0".to_string(),
+            }),
+        },
+        "--save-catalog-name engages cataloging even under manual mode",
+    );
+}
+
+#[test]
+fn save_catalog_name_targets_a_named_catalog() {
+    let catalogs = catalogs(&[]);
+    let decision = decide_catalog::<SilentReporter>(
+        CatalogMode::Manual,
+        Some("frontend"),
+        &catalogs,
+        &dep("is-positive", "1.0.0"),
+        "/repo",
+    )
+    .unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:frontend".to_string(),
+            updated_entry: Some(CatalogEntry {
+                catalog_name: "frontend".to_string(),
+                specifier: "1.0.0".to_string(),
+            }),
+        },
     );
 }
 
@@ -143,12 +223,18 @@ fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
     EVENTS.lock().unwrap().clear();
 
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
-    let deps = [dep("is-positive", "2.0.0")];
-    let result =
-        check_catalog_mode::<RecordingReporter>(CatalogMode::Prefer, &catalogs, &deps, "/repo");
-    assert!(
-        result.is_ok(),
-        "prefer mode keeps the direct version rather than erroring: {result:?}",
+    let decision = decide_catalog::<RecordingReporter>(
+        CatalogMode::Prefer,
+        None,
+        &catalogs,
+        &dep("is-positive", "2.0.0"),
+        "/repo",
+    )
+    .unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::KeepDirect,
+        "prefer mode keeps the direct version rather than erroring",
     );
 
     let events = EVENTS.lock().unwrap();

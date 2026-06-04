@@ -174,6 +174,7 @@ fn lockfile_with(
     Lockfile {
         lockfile_version: lockfile_version(),
         settings: Some(LockfileSettings::default()),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -191,6 +192,7 @@ fn walker_empty_lockfile_produces_empty_result() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: Some(LockfileSettings::default()),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -640,6 +642,7 @@ fn prev_graph_none_when_current_lockfile_has_no_packages() {
     let current = Lockfile {
         lockfile_version: lockfile_version(),
         settings: Some(LockfileSettings::default()),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -678,6 +681,7 @@ fn prev_graph_none_when_current_lockfile_has_empty_packages() {
     let current = Lockfile {
         lockfile_version: lockfile_version(),
         settings: Some(LockfileSettings::default()),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -811,6 +815,7 @@ fn workspace_lockfile(
     Lockfile {
         lockfile_version: lockfile_version(),
         settings: Some(LockfileSettings::default()),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
