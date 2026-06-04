@@ -50,7 +50,7 @@ async fn packument_roundtrips_and_missing_is_none() {
     store.write_packument(&name, br#"{"name":"is-positive"}"#).await.unwrap();
     assert_eq!(
         store.read_packument(&name).await.unwrap().as_deref(),
-        Some(&br#"{"name":"is-positive"}"#[..])
+        Some(&br#"{"name":"is-positive"}"#[..]),
     );
 }
 

@@ -9,8 +9,10 @@ use axum::body::Body;
 use std::{
     io::ErrorKind,
     path::{Path, PathBuf},
-    sync::Arc,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, SystemTime},
 };
 use tokio::{fs, io::AsyncWriteExt};

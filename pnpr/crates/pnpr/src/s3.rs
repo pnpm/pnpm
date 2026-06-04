@@ -68,7 +68,7 @@ impl S3Settings {
     /// The configured key prefix, normalized to either `""` or a value
     /// ending in `/` so it can be string-concatenated onto object keys.
     pub fn normalized_prefix(&self) -> String {
-        match self.prefix.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+        match self.prefix.as_deref().map(str::trim).filter(|text| !text.is_empty()) {
             None => String::new(),
             Some(prefix) => {
                 let trimmed = prefix.trim_matches('/');
