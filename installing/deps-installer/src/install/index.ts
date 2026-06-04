@@ -792,6 +792,12 @@ export async function mutateModules (
 
       if (opts.catalogMode !== 'manual') {
         for (const wantedDep of wantedDeps) {
+          // A `runtime:` specifier (e.g. node from `devEngines.runtime` or
+          // `pnpm runtime set`) round-trips to `devEngines.runtime` through the
+          // manifest writer, which only recognizes the `runtime:` protocol.
+          // Promoting it into a catalog rewrites the entry to `catalog:`, which
+          // breaks that round-trip and strands it in `devDependencies`.
+          if (wantedDep.bareSpecifier?.startsWith('runtime:')) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
