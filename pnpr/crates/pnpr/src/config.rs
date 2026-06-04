@@ -5,7 +5,8 @@ use crate::{
 };
 use indexmap::IndexMap;
 use object_store::ObjectStore;
-use pacquet_env_replace::{SystemEnv, env_replace_lossy};
+use pacquet_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use std::{
     net::SocketAddr,
@@ -313,12 +314,139 @@ impl LogLevel {
     }
 }
 
-/// Verdaccio-shaped uplink declaration. Only `url` is honored —
-/// other fields verdaccio supports (auth headers, timeouts, agent
-/// options) are not implemented yet.
-#[derive(Debug, Clone, Deserialize)]
+/// Runtime uplink declaration: the upstream `url` plus the request
+/// headers pnpr attaches to every fetch it makes to that uplink.
+///
+/// [`Self::headers`] is resolved once, at config load, from the YAML
+/// `auth:` block (an `Authorization` header derived from
+/// `type`/`token`/`token_env`) merged with the `headers:` map. The
+/// parse-time shape lives in [`UplinkFile`]; [`resolve_uplink`] turns
+/// one into the other. Verdaccio fields pnpr doesn't model yet
+/// (timeouts, agent options, `maxage`) are accepted and dropped.
+#[derive(Debug, Clone)]
 pub struct UplinkConfig {
     pub url: String,
+    /// Auth + custom headers, fully resolved and ready to attach to
+    /// every request pnpr makes to this uplink.
+    pub headers: HeaderMap,
+}
+
+/// Disk shape of one `uplinks:` entry. Mirrors verdaccio's uplink
+/// config for the subset pnpr implements: `url`, an `auth:` block,
+/// and a free-form `headers:` map. Resolved into [`UplinkConfig`] by
+/// [`resolve_uplink`].
+#[derive(Debug, Deserialize)]
+struct UplinkFile {
+    url: String,
+    #[serde(default)]
+    auth: Option<UplinkAuthFile>,
+    #[serde(default)]
+    headers: IndexMap<String, String>,
+}
+
+/// The YAML `auth:` block on an uplink. `token` takes priority over
+/// `token_env`; either resolves to the credential placed in the
+/// `Authorization` header, encoded per [`UplinkAuthType`].
+#[derive(Debug, Deserialize)]
+struct UplinkAuthFile {
+    r#type: UplinkAuthType,
+    #[serde(default)]
+    token: Option<String>,
+    #[serde(default)]
+    token_env: Option<TokenEnv>,
+}
+
+/// How the resolved token is encoded into the `Authorization` header:
+/// `bearer` → `Bearer <token>`, `basic` → `Basic <token>` (the token
+/// is used verbatim, matching verdaccio's assumption that a `basic`
+/// token is already a base64 `user:pass`).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum UplinkAuthType {
+    Bearer,
+    Basic,
+}
+
+/// Verdaccio's `token_env`: either the boolean `true` (read the
+/// default `NPM_TOKEN` env var) or a string naming the env var to
+/// read. `false` reads nothing.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum TokenEnv {
+    Flag(bool),
+    Named(String),
+}
+
+impl TokenEnv {
+    /// Default env var name verdaccio reads for `token_env: true`.
+    const DEFAULT_VAR: &'static str = "NPM_TOKEN";
+
+    /// The env var name to read, or `None` for `token_env: false`.
+    fn var_name(&self) -> Option<&str> {
+        match self {
+            TokenEnv::Flag(true) => Some(Self::DEFAULT_VAR),
+            TokenEnv::Flag(false) => None,
+            TokenEnv::Named(name) => Some(name),
+        }
+    }
+}
+
+/// Resolve one parsed [`UplinkFile`] into a runtime [`UplinkConfig`],
+/// baking the `auth:` credential and `headers:` map into a single
+/// [`HeaderMap`]. Reads env vars (for `token_env`) through `Sys` so
+/// the resolution is testable.
+///
+/// The auth-derived `Authorization` header is inserted first, then the
+/// custom `headers:` are merged on top — so a custom `Authorization`
+/// entry overrides the one derived from `auth:`, matching verdaccio's
+/// merge order. A configured `auth:` block that resolves to no token,
+/// an unknown header name, or a non-ASCII header value is a config
+/// error rather than a silent unauthenticated request.
+fn resolve_uplink<Sys: EnvVar>(
+    name: &str,
+    file: UplinkFile,
+) -> Result<UplinkConfig, RegistryError> {
+    let mut headers = HeaderMap::new();
+    if let Some(auth) = &file.auth {
+        let token =
+            resolve_uplink_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
+                reason: format!(
+                    "uplink {name:?} has an auth block but no token could be resolved \
+                     (set auth.token or point auth.token_env at a set env var)"
+                ),
+            })?;
+        let value = match auth.r#type {
+            UplinkAuthType::Bearer => format!("Bearer {token}"),
+            UplinkAuthType::Basic => format!("Basic {token}"),
+        };
+        let value = HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
+            reason: format!("uplink {name:?} auth token is not a valid header value"),
+        })?;
+        headers.insert(AUTHORIZATION, value);
+    }
+    for (raw_name, raw_value) in &file.headers {
+        let header_name = HeaderName::from_bytes(raw_name.as_bytes()).map_err(|_| {
+            RegistryError::InvalidConfig {
+                reason: format!("uplink {name:?} has an invalid header name {raw_name:?}"),
+            }
+        })?;
+        let header_value =
+            HeaderValue::from_str(raw_value).map_err(|_| RegistryError::InvalidConfig {
+                reason: format!("uplink {name:?} header {raw_name:?} has an invalid value"),
+            })?;
+        headers.insert(header_name, header_value);
+    }
+    Ok(UplinkConfig { url: file.url, headers })
+}
+
+/// Pick the credential for an uplink's `auth:` block: an explicit
+/// `token` wins; otherwise read the env var named by `token_env`.
+fn resolve_uplink_token<Sys: EnvVar>(auth: &UplinkAuthFile) -> Option<String> {
+    if let Some(token) = &auth.token {
+        return Some(token.clone());
+    }
+    let var_name = auth.token_env.as_ref()?.var_name()?;
+    Sys::var(var_name)
 }
 
 /// Per-package routing and access rules. `access` / `publish` are
@@ -384,7 +512,7 @@ struct ConfigFile {
     #[serde(default)]
     backend: Option<BackendFile>,
     #[serde(default)]
-    uplinks: IndexMap<String, UplinkConfig>,
+    uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
     packages: IndexMap<String, PackageAccess>,
     #[serde(default)]
@@ -468,7 +596,10 @@ impl Config {
         let mut uplinks = IndexMap::new();
         uplinks.insert(
             "npmjs".to_string(),
-            UplinkConfig { url: "https://registry.npmjs.org".to_string() },
+            UplinkConfig {
+                url: "https://registry.npmjs.org".to_string(),
+                headers: HeaderMap::new(),
+            },
         );
         let mut packages = IndexMap::new();
         packages.insert(
@@ -643,12 +774,20 @@ impl Config {
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
         let policies = build_policies(&file.packages)?;
+        let uplinks = file
+            .uplinks
+            .into_iter()
+            .map(|(name, uplink)| {
+                let resolved = resolve_uplink::<SystemEnv>(&name, uplink)?;
+                Ok((name, resolved))
+            })
+            .collect::<Result<IndexMap<_, _>, RegistryError>>()?;
         Ok(Self {
             listen,
             public_url,
             storage,
             cache_storage,
-            uplinks: file.uplinks,
+            uplinks,
             packages: file.packages,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies,

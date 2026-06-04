@@ -5,6 +5,7 @@ use crate::{
 use chrono::{DateTime, Duration, Timelike, Utc};
 use pacquet_network::ThrottledClient;
 use reqwest::StatusCode;
+use reqwest::header::HeaderMap;
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -18,6 +19,9 @@ use std::sync::Arc;
 pub struct Upstream {
     client: Arc<ThrottledClient>,
     base: String,
+    /// Resolved per-uplink request headers (auth + custom) attached to
+    /// every fetch. Empty for an uplink with no `auth:`/`headers:`.
+    headers: HeaderMap,
 }
 
 #[derive(Debug)]
@@ -29,8 +33,8 @@ pub enum FetchOutcome<Payload> {
 }
 
 impl Upstream {
-    pub fn new(base: String) -> Self {
-        Self { client: Arc::new(ThrottledClient::new_for_installs()), base }
+    pub fn new(base: String, headers: HeaderMap) -> Self {
+        Self { client: Arc::new(ThrottledClient::new_for_installs()), base, headers }
     }
 
     pub async fn fetch_packument(&self, name: &PackageName) -> Result<FetchOutcome<Vec<u8>>> {
@@ -51,6 +55,7 @@ impl Upstream {
         let client = self.client.acquire_for_url(&url).await;
         let response = client
             .get(&url)
+            .headers(self.headers.clone())
             .send()
             .await
             .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
@@ -65,6 +70,7 @@ impl Upstream {
         let client = self.client.acquire_for_url(url).await;
         let response = client
             .get(url)
+            .headers(self.headers.clone())
             .send()
             .await
             .map_err(|source| RegistryError::Upstream { url: url.to_string(), source })?;

@@ -140,7 +140,9 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     let upstreams: IndexMap<String, Upstream> = config
         .uplinks
         .iter()
-        .map(|(name, uplink)| (name.clone(), Upstream::new(uplink.url.clone())))
+        .map(|(name, uplink)| {
+            (name.clone(), Upstream::new(uplink.url.clone(), uplink.headers.clone()))
+        })
         .collect();
     let state = AppState {
         inner: Arc::new(AppInner {
