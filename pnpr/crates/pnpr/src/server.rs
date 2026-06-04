@@ -1538,12 +1538,30 @@ async fn serve_pnpr_handshake() -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
 }
 
-async fn serve_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+async fn serve_install(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
     let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
         &state.inner.install_accelerator,
         &state.inner.config,
     );
-    crate::install_accelerator::handle_install(runtime, body).await
+    let identity = match identify(
+        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
+        &state.inner.auth.users,
+        &state.inner.auth.tokens,
+    ) {
+        Some(username) => Identity::User { username },
+        None => Identity::Anonymous,
+    };
+    crate::install_accelerator::handle_install(
+        runtime,
+        &state.inner.config.policies,
+        identity,
+        body,
+    )
+    .await
 }
 
 async fn serve_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {

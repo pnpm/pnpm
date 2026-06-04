@@ -38,14 +38,20 @@ mod protocol;
 mod resolve;
 mod verdict_cache;
 
+#[cfg(test)]
+mod tests;
+
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::Write as _,
     path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
 };
 
-use crate::config::Config as RegistryConfig;
+use crate::{
+    config::Config as RegistryConfig,
+    policy::{Identity, PackagePolicies},
+};
 
 use axum::{
     body::{Body, Bytes},
@@ -177,8 +183,16 @@ impl InstallAccelerator {
     }
 }
 
-/// Handle `POST /v1/install`.
-pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) -> Response {
+/// Handle `POST /v1/install`. `identity` is the resolved caller; the
+/// store's possession of a package's bytes is not a capability to read
+/// them, so every served package is checked against `policies` — see
+/// [`deny_unauthorized_packages`].
+pub(crate) async fn handle_install(
+    runtime: &InstallAccelerator,
+    policies: &PackagePolicies,
+    identity: Identity,
+    body: Bytes,
+) -> Response {
     let request: InstallRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
@@ -248,6 +262,10 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
         }
     };
 
+    if let Some(denied) = deny_unauthorized_packages(policies, &identity, &result.package_index) {
+        return denied;
+    }
+
     let stats_json = stats_json(&result.stats);
 
     if request.inline_files {
@@ -292,6 +310,55 @@ fn stats_json(stats: &diff::Stats) -> serde_json::Value {
         "filesToDownload": stats.files_to_download,
         "downloadBytes": stats.download_bytes,
     })
+}
+
+/// Deny the install when the caller may not read a package whose files
+/// are about to be served. A content-addressed digest is shared across
+/// packages and reveals nothing about access, so possession of a
+/// package's bytes in the store is never a capability to receive them:
+/// every served package is checked against pnpr's own `packages:` policy
+/// — the same decision `serve_packument` / `serve_tarball` make, in
+/// process, with no network round trip. Returns the denial response (401
+/// for an anonymous caller who could authenticate, 403 for an
+/// authenticated caller outside the allowed set) or `None` when every
+/// served package is readable.
+///
+/// This authorizes against pnpr's own surface, which is the authority for
+/// everything the store can hold today: pnpr fetches anonymously (no
+/// credential forwarding yet), so cached content is either pnpr-hosted or
+/// publicly fetchable. When credential forwarding lands, packages the
+/// client resolved from *external* registries under its own token become
+/// reachable, and those carry no pnpr policy — their access must then be
+/// re-verified per caller against the owning registry (with a TTL'd
+/// verdict cache), which this local check does not cover.
+fn deny_unauthorized_packages(
+    policies: &PackagePolicies,
+    identity: &Identity,
+    served: &[diff::PackageIndexEntry],
+) -> Option<Response> {
+    let mut checked: HashSet<&str> = HashSet::new();
+    for entry in served {
+        let Some(name) = package_name(&entry.pkg_id) else { continue };
+        // Access is decided per package name, so evaluate each name once.
+        if !checked.insert(name) {
+            continue;
+        }
+        if !policies.for_package(name).access.allows(identity) {
+            let status = match identity {
+                Identity::Anonymous => StatusCode::UNAUTHORIZED,
+                Identity::User { .. } => StatusCode::FORBIDDEN,
+            };
+            return Some(json_error(status, &format!("not authorized to access {name:?}")));
+        }
+    }
+    None
+}
+
+/// The package name from a `name@version` package id, tolerating a
+/// leading scope `@` (`@scope/foo@1.0.0` → `@scope/foo`).
+fn package_name(pkg_id: &str) -> Option<&str> {
+    let at = pkg_id.rfind('@')?;
+    (at > 0).then_some(&pkg_id[..at])
 }
 
 /// gzip level for the file-bearing responses (`/v1/files` and the
