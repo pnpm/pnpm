@@ -900,6 +900,47 @@ fn frozen_store_installs_against_a_read_only_store() {
     drop((root, mock_instance)); // cleanup
 }
 
+/// `--frozen-store` with a configured `pnprServer` is a hard config conflict:
+/// the pnpr path resolves and streams missing files straight into the store,
+/// which `frozenStore` opens read-only. pacquet must refuse up front with
+/// `ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR` (before any network), matching
+/// pnpm's guard in `installFromPnpmRegistry`. The server URL points at a closed
+/// port precisely to prove the guard fires before any connection is attempted.
+#[test]
+fn frozen_store_with_a_pnpr_server_is_a_config_conflict() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    let output = pacquet
+        .with_args(["install", "--frozen-store", "--pnpr-server", "http://127.0.0.1:0"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    // The miette report hard-wraps the message and inserts box-drawing
+    // characters on wrapped lines; strip whitespace and those glyphs before
+    // substring-matching so wrap position can't make the assertion brittle.
+    let flattened: String = stderr
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
+        .collect();
+    assert!(
+        flattened.contains("ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR"),
+        "stderr did not carry the frozen-store/pnpr conflict code: {stderr}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
 /// `resolutionMode: highest` (the default) resolves a direct dependency
 /// to the highest version satisfying its range. `@pnpm.e2e/foo`
 /// publishes `100.0.0` and `100.1.0`; `^100.0.0` therefore lands on

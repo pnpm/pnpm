@@ -1,6 +1,7 @@
 use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::{Args, ValueEnum};
-use miette::Context;
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic};
 use pacquet_config::NodeLinker;
 use pacquet_lockfile::{Lockfile, LockfileResolution};
 use pacquet_package_manager::{Install, TarballPrefetcher, UpdateSeedPolicy};
@@ -441,6 +442,22 @@ struct PnprLink<'a> {
     lockfile_path: Option<&'a std::path::Path>,
 }
 
+/// `frozenStore` was enabled together with a configured `pnprServer`.
+/// The pnpr path writes resolved files into the store, which `frozenStore`
+/// opens read-only, so the combination can't proceed. Mirrors pnpm's
+/// `ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR`.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "The pnpr server resolves dependencies and writes new entries into the store, which is opened read-only when frozenStore is enabled."
+)]
+#[diagnostic(
+    code(ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR),
+    help(
+        "Disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so the install reads from the existing store, or unset `frozenStore` to allow store writes."
+    )
+)]
+struct FrozenStoreIncompatibleWithPnpr;
+
 /// Resolve a single project through a `pnpr` server, then link it.
 ///
 /// Sends the client's registries to the server, which resolves against
@@ -456,6 +473,16 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     pnpr_server: &str,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
+    // The pnpr server resolves dependencies and streams missing files
+    // straight into the store, so this path inherently writes the store.
+    // `frozenStore` promises the store is complete and read-only, so the
+    // two are mutually exclusive — refuse up front instead of failing on
+    // the read-only write. Mirrors pnpm's `FROZEN_STORE_INCOMPATIBLE_WITH_PNPR`
+    // guard in `installFromPnpmRegistry`.
+    if state.config.frozen_store {
+        return Err(FrozenStoreIncompatibleWithPnpr.into());
+    }
+
     let dependencies = state
         .manifest
         .dependencies([DependencyGroup::Prod])

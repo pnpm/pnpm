@@ -23,6 +23,7 @@ export type StrictBuildOptions = {
   scriptsPrependNodePath: boolean | 'warn-only'
   shellEmulator: boolean
   skipIfHasSideEffectsCache?: boolean
+  frozenStore?: boolean
   storeDir: string // TODO: remove this property
   storeController: StoreController
   force: boolean
