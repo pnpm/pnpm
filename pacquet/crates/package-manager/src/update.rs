@@ -1,7 +1,13 @@
-use crate::{Install, InstallError, ResolvedPackages, UpdateSeedPolicy};
+use crate::{
+    CatalogModeDep, CatalogVersionMismatchError, Install, InstallError, ResolvedPackages,
+    UpdateSeedPolicy, check_catalog_mode,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::{Config, matcher::create_matcher};
+use pacquet_catalogs_config::{
+    InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
+};
+use pacquet_config::{CatalogMode, Config, matcher::create_matcher};
 use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
@@ -113,6 +119,24 @@ pub enum UpdateError {
         #[error(source)]
         error: pacquet_registry::RegistryError,
     },
+
+    /// Locating the workspace root (to read `pnpm-workspace.yaml`'s
+    /// catalogs) failed while applying `catalogMode`.
+    #[diagnostic(transparent)]
+    FindWorkspaceDir(#[error(source)] pacquet_workspace::FindWorkspaceDirError),
+
+    /// Reading `pnpm-workspace.yaml` failed while applying `catalogMode`.
+    #[diagnostic(transparent)]
+    ReadWorkspaceManifest(#[error(source)] pacquet_workspace::ReadWorkspaceManifestError),
+
+    /// `pnpm-workspace.yaml`'s catalog sections are misconfigured.
+    #[diagnostic(transparent)]
+    InvalidCatalogsConfiguration(#[error(source)] InvalidCatalogsConfigurationError),
+
+    /// `catalogMode: strict` and an updated version disagreed with the
+    /// catalog entry for that package.
+    #[diagnostic(transparent)]
+    CatalogVersionMismatch(#[error(source)] CatalogVersionMismatchError),
 
     #[display("Failed to update the manifest: {_0}")]
     UpdateManifest(#[error(source)] PackageManifestError),
@@ -352,6 +376,46 @@ impl Update<'_> {
                 UpdateSeedPolicy::DropOnly(drop_names)
             }
         };
+
+        // Reconcile the about-to-be-written versions against the
+        // workspace catalogs under `catalogMode`, mirroring pnpm's gate in
+        // `installSome`. Only the rewritten deps carry a user-chosen
+        // version that can disagree with a catalog entry; a bare `update`
+        // (compatible bump) produces no rewrites and nothing to check, so
+        // the workspace I/O is skipped when `rewrites` is empty.
+        if config.catalog_mode != CatalogMode::Manual && !rewrites.is_empty() {
+            let manifest_dir =
+                manifest.path().parent().expect("manifest path always has a parent dir");
+            let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
+                .map_err(UpdateError::FindWorkspaceDir)?;
+            let workspace_manifest = match workspace_dir_opt.as_deref() {
+                Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+                    .map_err(UpdateError::ReadWorkspaceManifest)?,
+                None => None,
+            };
+            let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+                .map_err(UpdateError::InvalidCatalogsConfiguration)?;
+            let prefix =
+                workspace_dir_opt.as_deref().unwrap_or(manifest_dir).to_string_lossy().into_owned();
+            // The pre-update specifier of each rewritten dep, so a
+            // `catalog:<name>` entry keeps its named group. Keyed by
+            // `(name, group)` — the same alias can sit in more than one
+            // group with different specifiers, and `rewrites` is
+            // per-group.
+            let deps: Vec<CatalogModeDep> = rewrites
+                .iter()
+                .map(|(name, group, spec)| CatalogModeDep {
+                    alias: name.as_str(),
+                    bare_specifier: spec.as_str(),
+                    prev_specifier: direct
+                        .iter()
+                        .find(|(prev_name, prev_group, _)| prev_name == name && prev_group == group)
+                        .map(|(_, _, prev_spec)| prev_spec.as_str()),
+                })
+                .collect();
+            check_catalog_mode::<Reporter>(config.catalog_mode, &catalogs, &deps, &prefix)
+                .map_err(UpdateError::CatalogVersionMismatch)?;
+        }
 
         // Apply the manifest rewrites in memory before resolving so the
         // install picks the new ranges. Under `--no-save` the in-memory

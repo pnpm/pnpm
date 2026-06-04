@@ -410,3 +410,49 @@ fn update_latest_with_spec_is_rejected() {
 
     drop((root, anchor));
 }
+
+/// Append `catalogMode: strict` and a default `catalog:` with the given
+/// `(name, specifier)` entries to the harness-written
+/// `pnpm-workspace.yaml`.
+fn set_strict_catalog(workspace: &Path, entries: &[(&str, &str)]) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("catalogMode: strict\ncatalog:\n");
+    for (name, spec) in entries {
+        yaml.push_str(&format!("  \"{name}\": \"{spec}\"\n"));
+    }
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
+/// `pacquet update --lockfile-only <pkg>@<version>` under
+/// `catalogMode: strict`, where the catalog entry for `<pkg>` is a
+/// *range*, rejects with `ERR_PNPM_CATALOG_VERSION_MISMATCH` instead of
+/// crashing. This is the exact `Renovate` scenario ported from
+/// [pnpm#11706](https://github.com/pnpm/pnpm/pull/11706): before the fix,
+/// passing a range to the exact-version comparison threw `Invalid
+/// Version`.
+#[test]
+fn update_strict_catalog_range_mismatch_errors() {
+    let (root, workspace, anchor) = setup();
+    set_strict_catalog(&workspace, &[(DEP, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+
+    let output = pacquet(&workspace, ["update", "--lockfile-only", &format!("{DEP}@100.0.0")])
+        .output()
+        .expect("run pacquet update");
+    assert!(!output.status.success(), "a strict catalog range mismatch must fail the update");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Wanted dependency outside the version range defined in catalog"),
+        "stderr did not mention the catalog version mismatch: {stderr}",
+    );
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_VERSION_MISMATCH"),
+        "stderr did not carry the error code: {stderr}",
+    );
+
+    drop((root, anchor));
+}

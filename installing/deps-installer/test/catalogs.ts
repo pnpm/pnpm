@@ -1460,6 +1460,32 @@ describe('add', () => {
     ).rejects.toThrow()
   })
 
+  test('catalog specifier as a range does not crash with catalogMode: strict', async () => {
+    const { options, projects } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    await expect(addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@1.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {
+            'is-positive': '^2.0.0',
+          },
+        },
+        catalogMode: 'strict',
+      })
+    ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_CATALOG_VERSION_MISMATCH' }))
+  })
+
   test('adding mismatched version with catalogMode: prefer will warn and use direct', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',

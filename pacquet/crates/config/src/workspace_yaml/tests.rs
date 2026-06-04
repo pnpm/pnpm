@@ -1,6 +1,6 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, ResolutionMode,
+    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, ResolutionMode,
     ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
@@ -1211,6 +1211,33 @@ fn resolution_mode_yaml_values_round_trip() {
         config.resolution_mode,
         ResolutionMode::Highest,
         "default stays highest when the key is absent",
+    );
+}
+
+/// `catalogMode` accepts the three upstream string values; an absent key
+/// leaves the [`CatalogMode::Manual`] default in place.
+#[test]
+fn catalog_mode_yaml_values_round_trip() {
+    for (yaml, expected) in [
+        ("catalogMode: manual\n", CatalogMode::Manual),
+        ("catalogMode: strict\n", CatalogMode::Strict),
+        ("catalogMode: prefer\n", CatalogMode::Prefer),
+    ] {
+        let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        assert_eq!(settings.catalog_mode, Some(expected));
+        let mut config = Config::new();
+        settings.apply_to(&mut config, Path::new("/irrelevant"));
+        assert_eq!(config.catalog_mode, expected);
+    }
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str("").unwrap();
+    assert!(settings.catalog_mode.is_none());
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(
+        config.catalog_mode,
+        CatalogMode::Manual,
+        "default stays manual when the key is absent",
     );
 }
 
