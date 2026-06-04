@@ -53,6 +53,7 @@
     "jest": "catalog:",
     "keyv": "catalog:",
     "lcov-result-merger": "catalog:",
+    "node": "catalog:",
     "rimraf": "catalog:",
     "shx": "catalog:",
     "typescript": "catalog:"
