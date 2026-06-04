@@ -50,11 +50,14 @@ fn deps<const COUNT: usize>(entries: [(&str, &str); COUNT]) -> BTreeMap<String, 
     entries.into_iter().map(|(name, range)| (name.to_string(), range.to_string())).collect()
 }
 
-/// The nerf-darted key (`//host[:port]/`) a forwarded credential for
-/// `url` is keyed by, mirroring `AuthHeaders`' lookup on the server.
+/// The nerf-darted key (`//host[:port]/path/`) a forwarded credential for
+/// `url` is keyed by, mirroring `AuthHeaders`' lookup on the server —
+/// keeping any registry path prefix so the key isn't wrong for one.
 fn nerf_key(url: &str) -> String {
-    let authority = url.split("://").nth(1).unwrap_or(url).split('/').next().unwrap_or("");
-    format!("//{authority}/")
+    let authority_and_path = url.split("://").nth(1).unwrap_or(url);
+    let (authority, path) = authority_and_path.split_once('/').unwrap_or((authority_and_path, ""));
+    let path = path.split(['?', '#']).next().unwrap_or("").trim_matches('/');
+    if path.is_empty() { format!("//{authority}/") } else { format!("//{authority}/{path}/") }
 }
 
 /// Register a user with the shared test registry and return its bearer
@@ -177,8 +180,13 @@ async fn a_private_package_fails_without_a_forwarded_credential() {
     let client = PnprClient::new(pnpr_url);
 
     let opts = options(&store, &registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
-    let result = client.install(opts).await;
-    assert!(result.is_err(), "a gated package must not resolve without a forwarded credential");
+    let Err(PnprClientError::Server(message)) = client.install(opts).await else {
+        panic!("expected the gated install to fail with a server error");
+    };
+    assert!(
+        message.contains("401"),
+        "expected an auth denial without a forwarded credential, got: {message}",
+    );
 }
 
 #[tokio::test]
