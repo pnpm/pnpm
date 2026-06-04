@@ -4,7 +4,11 @@ import { integrityToHashes } from './integrity.js'
 import { encodePurlName } from './purl.js'
 import type { SbomResult } from './types.js'
 
-export function serializeSpdx (result: SbomResult): string {
+export interface SpdxOptions {
+  compact?: boolean
+}
+
+export function serializeSpdx (result: SbomResult, opts?: SpdxOptions): string {
   const { rootComponent, components, relationships } = result
 
   const rootSpdxId = 'SPDXRef-RootPackage'
@@ -145,7 +149,7 @@ export function serializeSpdx (result: SbomResult): string {
     relationships: spdxRelationships,
   }
 
-  return JSON.stringify(doc, null, 2)
+  return JSON.stringify(doc, null, opts?.compact ? undefined : 2)
 }
 
 function sanitizeSpdxId (value: string): string {

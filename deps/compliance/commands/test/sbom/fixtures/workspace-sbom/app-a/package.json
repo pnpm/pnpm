@@ -1,5 +1,5 @@
 {
-  "name": "app-a",
+  "name": "@test/app-a",
   "version": "1.0.0",
   "description": "First workspace app",
   "dependencies": {

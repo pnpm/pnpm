@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
@@ -29,6 +30,8 @@ export type SbomCommandOptions = {
   lockfileOnly?: boolean
   sbomAuthors?: string
   sbomSupplier?: string
+  out?: string
+  split?: boolean
 } & Pick<
   Config,
   | 'dev'
@@ -43,6 +46,7 @@ export type SbomCommandOptions = {
   | 'pnpmHomeDir'
   | 'virtualStoreDirMaxLength'
 > & Pick<ConfigContext,
+| 'allProjectsGraph'
 | 'selectedProjectsGraph'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
@@ -65,6 +69,8 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'sbom-authors': String,
   'sbom-supplier': String,
   'lockfile-only': Boolean,
+  out: String,
+  split: Boolean,
 })
 
 export const shorthands: Record<string, string> = {
@@ -121,6 +127,14 @@ export function help (): string {
             description: 'Don\'t include "optionalDependencies"',
             name: '--no-optional',
           },
+          {
+            description: 'Write SBOM to a file instead of stdout. Use %s for the package name and %v for the version.',
+            name: '--out <path>',
+          },
+          {
+            description: 'Generate a separate SBOM for each matched workspace package. Outputs NDJSON to stdout, or files when combined with --out.',
+            name: '--split',
+          },
         ],
       },
       FILTERING,
@@ -132,6 +146,8 @@ export function help (): string {
       'pnpm sbom --sbom-format cyclonedx --lockfile-only',
       'pnpm sbom --sbom-format spdx --prod',
       'pnpm sbom --sbom-format cyclonedx --filter ./apps/my-app',
+      'pnpm sbom --sbom-format cyclonedx --out sboms/%s.cdx.json',
+      'pnpm sbom --sbom-format cyclonedx --split',
     ],
   })
 }
@@ -159,6 +175,105 @@ export async function handler (
   const sbomType = validateSbomType(opts.sbomType)
   const sbomSpecVersion = validateSbomSpecVersion(opts.sbomSpecVersion, format)
 
+  const ctx = await buildSharedContext(opts)
+  const serialOpts = { format, sbomType, sbomSpecVersion }
+  const shouldSplit = opts.split || (opts.out != null && opts.out.includes('%s'))
+
+  if (shouldSplit) {
+    return handleSplit(opts, serialOpts, ctx)
+  }
+
+  const { output } = await generateSbomForProject(opts, serialOpts, ctx)
+
+  if (opts.out) {
+    const filePath = opts.out
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, output)
+    return { output: filePath, exitCode: 0 }
+  }
+
+  return { output, exitCode: 0 }
+}
+
+interface SerializeOptions {
+  format: SbomFormat
+  sbomType: SbomComponentType
+  sbomSpecVersion: string | undefined
+}
+
+async function handleSplit (
+  opts: SbomCommandOptions,
+  serialOpts: SerializeOptions,
+  ctx: SharedContext
+): Promise<{ output: string, exitCode: number }> {
+  const projectsGraph = opts.selectedProjectsGraph ?? opts.allProjectsGraph
+  if (!projectsGraph) {
+    throw new PnpmError(
+      'SBOM_NO_PROJECTS',
+      'No workspace projects found. --split requires a workspace.'
+    )
+  }
+
+  if (opts.out && !opts.out.includes('%s')) {
+    throw new PnpmError(
+      'SBOM_OUT_MISSING_PLACEHOLDER',
+      'When using --split with --out, the path must contain %s as a placeholder for the package name.'
+    )
+  }
+
+  const entries = Object.entries(projectsGraph)
+  const ndjsonLines: string[] = []
+  const files: string[] = []
+  const compact = !opts.out
+  const createdDirs = new Set<string>()
+
+  for (const [dir, entry] of entries) {
+    const manifest = entry.package.manifest
+    if (!manifest.name) continue
+
+    const singleProjectGraph = { [dir as keyof typeof projectsGraph]: entry }
+
+    // eslint-disable-next-line no-await-in-loop
+    const { output } = await generateSbomForProject(
+      { ...opts, selectedProjectsGraph: singleProjectGraph as typeof projectsGraph, allProjectsGraph: undefined, split: false, out: undefined },
+      serialOpts,
+      ctx,
+      compact
+    )
+
+    if (opts.out) {
+      const filePath = opts.out
+        .replaceAll('%s', sanitizePathSegment(sanitizePackageName(manifest.name)))
+        .replaceAll('%v', sanitizePathSegment(manifest.version ?? '0.0.0'))
+      const fileDir = path.dirname(filePath)
+      if (!createdDirs.has(fileDir)) {
+        fs.mkdirSync(fileDir, { recursive: true })
+        createdDirs.add(fileDir)
+      }
+      fs.writeFileSync(filePath, output)
+      files.push(filePath)
+    } else {
+      ndjsonLines.push(output)
+    }
+  }
+
+  if (opts.out) {
+    return {
+      output: `Generated ${files.length} SBOMs:\n${files.map((f) => `  ${f}`).join('\n')}`,
+      exitCode: 0,
+    }
+  }
+
+  return { output: ndjsonLines.join('\n'), exitCode: 0 }
+}
+
+interface SharedContext {
+  lockfile: Exclude<Awaited<ReturnType<typeof readWantedLockfile>>, null>
+  rootManifest: Awaited<ReturnType<typeof readProjectManifestOnly>>
+  storeDir: string | undefined
+}
+
+async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedContext> {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
     ignoreIncompatible: true,
   })
@@ -169,6 +284,28 @@ export async function handler (
       `No ${WANTED_LOCKFILE} found: Cannot generate SBOM without a lockfile`
     )
   }
+
+  const rootManifest = await readProjectManifestOnly(opts.dir)
+
+  let storeDir: string | undefined
+  if (!opts.lockfileOnly) {
+    storeDir = await getStorePath({
+      pkgRoot: opts.dir,
+      storePath: opts.storeDir,
+      pnpmHomeDir: opts.pnpmHomeDir,
+    })
+  }
+
+  return { lockfile, rootManifest, storeDir }
+}
+
+async function generateSbomForProject (
+  opts: SbomCommandOptions,
+  serialOpts: SerializeOptions,
+  ctx: SharedContext,
+  compact?: boolean
+): Promise<{ output: string, exitCode: number }> {
+  const { lockfile, rootManifest } = ctx
 
   const include = {
     dependencies: opts.production !== false,
@@ -183,7 +320,6 @@ export async function handler (
     ? selectedEntries[0]
     : undefined
 
-  const rootManifest = await readProjectManifestOnly(opts.dir)
   const manifest = singleProject
     ? singleProject[1].package.manifest
     : rootManifest
@@ -221,15 +357,6 @@ export async function handler (
     )
     : undefined
 
-  let storeDir: string | undefined
-  if (!opts.lockfileOnly) {
-    storeDir = await getStorePath({
-      pkgRoot: opts.dir,
-      storePath: opts.storeDir,
-      pnpmHomeDir: opts.pnpmHomeDir,
-    })
-  }
-
   const result = await collectSbomComponents({
     lockfile,
     rootName,
@@ -238,27 +365,28 @@ export async function handler (
     rootDescription: manifest.description,
     rootAuthor,
     rootRepository,
-    sbomType,
+    sbomType: serialOpts.sbomType,
     include,
     registries: opts.registries,
     lockfileDir,
     includedImporterIds,
     lockfileOnly: opts.lockfileOnly,
-    storeDir,
+    storeDir: ctx.storeDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     workspacePackages,
     resolvedWorkspaceDeps,
   })
 
-  const output = format === 'cyclonedx'
+  const output = serialOpts.format === 'cyclonedx'
     ? serializeCycloneDx(result, {
       pnpmVersion: packageManager.version,
       lockfileOnly: opts.lockfileOnly,
       sbomAuthors: opts.sbomAuthors?.split(',').map((s) => s.trim()).filter(Boolean),
       sbomSupplier: opts.sbomSupplier,
-      specVersion: sbomSpecVersion,
+      specVersion: serialOpts.sbomSpecVersion,
+      compact,
     })
-    : serializeSpdx(result)
+    : serializeSpdx(result, { compact })
 
   return { output, exitCode: 0 }
 }
@@ -353,4 +481,12 @@ async function readManifestSafe (dir: string): Promise<{ name?: string, version?
   } catch {
     return undefined
   }
+}
+
+function sanitizePackageName (name: string): string {
+  return name.replace(/^@/, '').replace(/\//g, '-')
+}
+
+function sanitizePathSegment (value: string): string {
+  return value.replace(/[/\\:*?"<>|]/g, '-')
 }
