@@ -31,13 +31,15 @@
 //! non-frozen → reuse-and-update). A multi-project workspace is resolved
 //! by reconstructing the workspace on disk (root manifest +
 //! `pnpm-workspace.yaml` + member manifests) and letting pacquet's
-//! install path discover and resolve every importer. **Deferred:**
-//! auth/credential forwarding (so private registries resolve). Responses
-//! are buffered rather than truly streamed.
+//! install path discover and resolve every importer. The client also
+//! forwards its per-registry credentials, so private dependencies resolve
+//! and fetch as the caller. Responses are buffered rather than truly
+//! streamed.
 
 mod diff;
 mod grant_table;
 mod protocol;
+mod public_packages;
 mod resolve;
 mod verdict_cache;
 
@@ -74,7 +76,10 @@ use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, PackageMetaCache,
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::{StoreDir, StoreIndex};
 
-use self::{grant_table::GrantTable, protocol::InstallRequest, verdict_cache::VerdictCache};
+use self::{
+    grant_table::GrantTable, protocol::InstallRequest, public_packages::PublicPackages,
+    verdict_cache::VerdictCache,
+};
 
 /// Per-server engine backing the pnpr install endpoints: it holds the
 /// store, cache, and HTTP client used to resolve a client's project and
@@ -106,6 +111,11 @@ pub(crate) struct InstallAccelerator {
     /// re-verifies against the owning registry (uncached) rather than
     /// failing the server. See [`GrantTable`].
     grant_table: Option<GrantTable>,
+    /// SQLite-backed global set of anonymously-readable package names, so
+    /// a public package served from a credential-bearing registry is not
+    /// gated per user. `None` only if the database couldn't be opened.
+    /// See [`PublicPackages`].
+    public_packages: Option<PublicPackages>,
     /// How long a recorded grant stays valid. `None` (the default) makes
     /// grants permanent, matching local store retention — revocation then
     /// relies on clear-on-discovery. A `Some(ttl)` lets revocation bite
@@ -132,6 +142,7 @@ impl InstallAccelerator {
         let _ = std::fs::create_dir_all(&cache_dir);
         let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
         let grant_table = GrantTable::open(&cache_dir.join("install-grants.sqlite")).ok();
+        let public_packages = PublicPackages::open(&cache_dir.join("public-packages.sqlite")).ok();
         InstallAccelerator {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
@@ -139,6 +150,7 @@ impl InstallAccelerator {
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
             grant_table,
+            public_packages,
             grant_ttl: config.install_accelerator_grant_ttl,
         }
     }
@@ -417,23 +429,27 @@ fn deny_local_policy<'a>(
 /// in the shared store must never authorize a user the upstream never
 /// cleared:
 ///
+/// * **Known public** (`name` in the global anonymously-readable set):
+///   anyone may read it, so allow with no per-user state and no round
+///   trip.
 /// * **Freshly fetched this request** (`pkg_id` in `freshly_fetched`):
 ///   the upstream already accepted the caller's forwarded token during
-///   the cold fetch, proving access. Record a grant and allow — no extra
-///   round trip.
+///   the cold fetch, proving access. Record a grant and allow.
 /// * **Cache hit with a standing grant**: allow straight from the grant
 ///   table, no upstream contact.
-/// * **Cache hit, no grant** (first time this user wants this cached
-///   version): re-verify against the owning registry with the caller's
-///   forwarded credential. On success record the grant; on `401`/`403`
-///   clear every grant the caller holds for the package
-///   (clear-on-discovery) and deny.
+/// * **Cache hit, not yet classified, no grant** (first time anyone wants
+///   this cached version without a grant): probe the registry
+///   **anonymously**. A `2xx` means the package is public — record it
+///   globally so no user pays for it again. A `401`/`403` means it is
+///   private, so re-verify with the caller's forwarded credential: on
+///   success record a grant; on `401`/`403` clear every grant the caller
+///   holds for the package (clear-on-discovery) and deny.
 ///
 /// A caller anonymous to pnpr is still authorized this way — the
 /// forwarded credential is what the upstream checks. Grants are only
 /// recorded/consulted for an identified user (there is no key to record
-/// an anonymous grant under), so an anonymous caller re-verifies every
-/// cache hit rather than benefiting from the table.
+/// an anonymous grant under); the public set, being global, benefits
+/// anonymous callers too.
 async fn authorize_upstream_package(
     runtime: &InstallAccelerator,
     identity: &Identity,
@@ -443,6 +459,14 @@ async fn authorize_upstream_package(
     name: &str,
     pkg_id: &str,
 ) -> Option<Response> {
+    // Public content needs no per-user gating, so it never reaches the
+    // grant table or an upstream round trip once classified.
+    if let Some(public) = runtime.public_packages.as_ref()
+        && public.is_public(name, runtime.grant_ttl)
+    {
+        return None;
+    }
+
     let user = match identity {
         Identity::User { username } => Some(username.as_str()),
         Identity::Anonymous => None,
@@ -464,7 +488,21 @@ async fn authorize_upstream_package(
         return None;
     }
 
-    match verify_upstream_access(&runtime.client, request_auth, registry, name).await {
+    // Classify before gating per user: a package the registry serves
+    // anonymously is public, and recording that globally spares every
+    // other user the same probe (and any grant rows). Only a registry
+    // that withholds the package without a token sends us down the
+    // per-user path.
+    if let UpstreamAccess::Authorized =
+        probe_upstream_access(&runtime.client, None, registry, name).await
+    {
+        if let Some(public) = runtime.public_packages.as_ref() {
+            public.record(name);
+        }
+        return None;
+    }
+
+    match probe_upstream_access(&runtime.client, Some(request_auth), registry, name).await {
         UpstreamAccess::Authorized => {
             if let Some((user, table)) = grants() {
                 table.record(user, pkg_id);
@@ -484,32 +522,33 @@ async fn authorize_upstream_package(
     }
 }
 
-/// Outcome of a per-caller upstream access probe.
+/// Outcome of an upstream access probe.
 enum UpstreamAccess {
-    /// The upstream served the package to the caller's token.
+    /// The upstream served the package's packument for the probe.
     Authorized,
-    /// The upstream returned `401`/`403` for the caller.
+    /// The upstream returned `401`/`403`.
     Denied,
     /// The upstream was unreachable or returned some other status; access
-    /// can't be decided, so the caller is neither granted nor denied.
+    /// can't be decided.
     Unknown,
 }
 
-/// Probe whether the caller may read `name` from `registry`, by fetching
-/// its (abbreviated) packument with the caller's forwarded credential.
-/// This is the same request the caller's own cold install would make, so
-/// it costs nothing beyond the first time the caller wants a cached
-/// version.
-async fn verify_upstream_access(
+/// Probe whether `name` is readable from `registry`, by fetching its
+/// (abbreviated) packument. With `auth` set, the caller's forwarded
+/// credential is attached (an authenticated re-verify); with `auth` as
+/// `None`, the request is anonymous (a public/private classification).
+/// Either way it is the same shape of request the caller's own install
+/// would make.
+async fn probe_upstream_access(
     client: &ThrottledClient,
-    request_auth: &AuthHeaders,
+    auth: Option<&AuthHeaders>,
     registry: &str,
     name: &str,
 ) -> UpstreamAccess {
     let url = to_registry_url(registry, name);
     let guard = client.acquire_for_url(&url).await;
     let mut request = guard.get(&url).header("accept", "application/vnd.npm.install-v1+json");
-    if let Some(value) = request_auth.for_url(&url) {
+    if let Some(value) = auth.and_then(|auth| auth.for_url(&url)) {
         request = request.header("authorization", value);
     }
     match request.send().await {

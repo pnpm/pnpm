@@ -118,6 +118,10 @@ fn is_granted(acc: &InstallAccelerator, user: &str, pkg: &str) -> bool {
     acc.grant_table.as_ref().expect("grant table opened").is_granted(user, pkg, None)
 }
 
+fn is_public(acc: &InstallAccelerator, name: &str) -> bool {
+    acc.public_packages.as_ref().expect("public set opened").is_public(name, None)
+}
+
 fn fresh(pkg_ids: &[&str]) -> HashSet<String> {
     pkg_ids.iter().map(|id| id.to_string()).collect()
 }
@@ -169,9 +173,18 @@ async fn a_granted_cache_hit_is_served_without_touching_the_upstream() {
 }
 
 #[tokio::test]
-async fn an_ungranted_cache_hit_reverifies_then_records() {
+async fn an_ungranted_private_cache_hit_reverifies_then_records() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server
+    // Private: the registry withholds the packument anonymously, then
+    // serves it once the caller's credential is attached. The two mocks
+    // are mutually exclusive on the `authorization` header.
+    let anon = server
+        .mock("GET", "/foo")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(401)
+        .create_async()
+        .await;
+    let authed = server
         .mock("GET", "/foo")
         .match_header("authorization", "Bearer t")
         .with_status(200)
@@ -197,8 +210,45 @@ async fn an_ungranted_cache_hit_reverifies_then_records() {
     .await;
 
     assert!(denied.is_none());
-    mock.assert_async().await;
+    anon.assert_async().await;
+    authed.assert_async().await;
     assert!(is_granted(&acc, "alice", "foo@1.0.0"));
+    // A private package must never be cached as public.
+    assert!(!is_public(&acc, "foo"));
+}
+
+#[tokio::test]
+async fn a_public_cache_hit_is_classified_once_then_served_for_free() {
+    let mut server = mockito::Server::new_async().await;
+    // Public: the registry serves the packument anonymously. Exactly one
+    // probe is expected across both authorize calls — the second is served
+    // from the global classification with no upstream contact.
+    let mock =
+        server.mock("GET", "/foo").with_status(200).with_body("{}").expect(1).create_async().await;
+    let registry = format!("{}/", server.url());
+
+    let tmp = TempDir::new().unwrap();
+    let acc = accelerator(tmp.path());
+    let auth = auth_for(&registry, "Bearer t");
+    let alice = Identity::User { username: "alice".to_string() };
+
+    let first =
+        authorize_upstream_package(&acc, &alice, &auth, &fresh(&[]), &registry, "foo", "foo@1.0.0")
+            .await;
+    assert!(first.is_none());
+    assert!(is_public(&acc, "foo"));
+    // Public content records no per-user grant.
+    assert!(!is_granted(&acc, "alice", "foo@1.0.0"));
+
+    // A different caller wanting a different cached version is served
+    // straight from the classification — no second probe.
+    let bob = Identity::User { username: "bob".to_string() };
+    let second =
+        authorize_upstream_package(&acc, &bob, &auth, &fresh(&[]), &registry, "foo", "foo@2.0.0")
+            .await;
+    assert!(second.is_none());
+
+    mock.assert_async().await;
 }
 
 #[tokio::test]
