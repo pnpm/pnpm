@@ -69,6 +69,8 @@ export const shorthands: Record<string, string> = {
 
 export const commandNames = ['sbom']
 
+export const recursiveByDefault = true
+
 export function help (): string {
   return renderHelp({
     description: 'Generate a Software Bill of Materials (SBOM) for the project.',
