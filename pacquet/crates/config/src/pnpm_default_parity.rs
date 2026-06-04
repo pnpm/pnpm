@@ -25,7 +25,9 @@
 //! fails the test until someone classifies it — which is how this test
 //! keeps catching the next default that needs porting.
 
-use crate::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, ScriptsPrependNodePath};
+use crate::{
+    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, ScriptsPrependNodePath,
+};
 use std::collections::BTreeSet;
 
 /// A pnpm default value reduced to the shapes this test compares.
@@ -59,7 +61,6 @@ const NON_LITERAL: &[&str] = &[
 /// means moving its key from here into a `mapped` row.
 const NOT_PORTED: &[&str] = &[
     "bail",
-    "catalog-mode",
     "ci",
     "color",
     "deploy-all-files",
@@ -137,6 +138,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ),
         ("node-linker", node_linker_scalar(cfg.node_linker)),
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
+        ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
         ("fetch-retries", Int(i64::from(cfg.fetch_retries))),
         ("fetch-retry-factor", Int(i64::from(cfg.fetch_retry_factor))),
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
@@ -175,6 +177,14 @@ fn resolution_mode_scalar(value: ResolutionMode) -> Scalar {
         ResolutionMode::Highest => s("highest"),
         ResolutionMode::TimeBased => s("time-based"),
         ResolutionMode::LowestDirect => s("lowest-direct"),
+    }
+}
+
+fn catalog_mode_scalar(value: CatalogMode) -> Scalar {
+    match value {
+        CatalogMode::Manual => s("manual"),
+        CatalogMode::Strict => s("strict"),
+        CatalogMode::Prefer => s("prefer"),
     }
 }
 

@@ -12,6 +12,8 @@ repository.workspace  = true
 
 [dependencies]
 pacquet-catalogs-config                   = { workspace = true }
+pacquet-catalogs-protocol-parser          = { workspace = true }
+pacquet-catalogs-resolver                 = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
 pacquet-cmd-shim                          = { workspace = true }
 pacquet-crypto-hash                       = { workspace = true }

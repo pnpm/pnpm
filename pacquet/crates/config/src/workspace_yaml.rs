@@ -1,6 +1,6 @@
 use crate::{
-    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod, ResolutionMode,
-    ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
+    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod,
+    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -406,6 +406,9 @@ pub struct WorkspaceSettings {
     /// [`ResolutionMode`].
     pub resolution_mode: Option<ResolutionMode>,
 
+    /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
+    pub catalog_mode: Option<CatalogMode>,
+
     /// `registrySupportsTimeField` from `pnpm-workspace.yaml`. See
     /// [`Config::registry_supports_time_field`].
     ///
@@ -701,7 +704,7 @@ impl WorkspaceSettings {
             network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
             git_shallow_hosts,
-            resolution_mode, registry_supports_time_field,
+            resolution_mode, catalog_mode, registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
         }

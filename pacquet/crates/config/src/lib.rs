@@ -284,6 +284,30 @@ impl ResolutionMode {
     }
 }
 
+/// How `pnpm add` / `pnpm update` reconcile a directly-specified version
+/// against a `catalog:` entry for the same package. Mirrors pnpm's
+/// [`catalogMode`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L186)
+/// setting.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CatalogMode {
+    /// The catalog is consulted only for explicit `catalog:` specifiers;
+    /// `add` / `update` never reconcile a direct version against it. The
+    /// default, matching pnpm's
+    /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
+    #[default]
+    Manual,
+
+    /// A direct version that disagrees with the matching catalog entry is
+    /// an error (`ERR_PNPM_CATALOG_VERSION_MISMATCH`).
+    Strict,
+
+    /// A direct version that disagrees with the matching catalog entry is
+    /// kept, with a warning; a version that agrees is used from the
+    /// catalog.
+    Prefer,
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PackageImportMethod {
@@ -1236,6 +1260,12 @@ pub struct Config {
     /// [`ResolutionMode::Highest`], matching pnpm's
     /// [`'resolution-mode': 'highest'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L188).
     pub resolution_mode: ResolutionMode,
+
+    /// How `pnpm add` / `pnpm update` reconcile a directly-specified
+    /// version against a matching `catalog:` entry. See [`CatalogMode`].
+    /// Default [`CatalogMode::Manual`], matching pnpm's
+    /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
+    pub catalog_mode: CatalogMode,
 
     /// Whether the configured registry returns the per-version `time`
     /// field in its *abbreviated* metadata. When `false` (the default),

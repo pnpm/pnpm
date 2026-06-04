@@ -2668,6 +2668,8 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pacquet-catalogs-config",
+ "pacquet-catalogs-protocol-parser",
+ "pacquet-catalogs-resolver",
  "pacquet-catalogs-types",
  "pacquet-cmd-shim",
  "pacquet-config",
