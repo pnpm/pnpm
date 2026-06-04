@@ -992,6 +992,7 @@ where
             skipped: &skipped,
             pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
             gather_ancestor_bin_paths: is_hoisted,
+            frozen_store: config.frozen_store,
         }
         .run::<Reporter>()
         .map_err(InstallFrozenLockfileError::BuildModules)?;

@@ -53,6 +53,7 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
     enableGlobalVirtualStore?: boolean
+    frozenStore?: boolean
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -76,6 +77,9 @@ export async function buildModules<T extends string> (
   if (!chunks.length) return {}
   const ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
+  if (opts.frozenStore && opts.enableGlobalVirtualStore) {
+    assertNothingToBuildInFrozenStore(depGraph, chunks, allowBuild, opts.depsToBuild)
+  }
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -132,6 +136,51 @@ export async function buildModules<T extends string> (
     throw patchErrors[0]
   }
   return { ignoredBuilds }
+}
+
+/**
+ * Under the global virtual store, a package's directory lives inside the
+ * store (`{storeDir}/links/...`), so applying a patch or running an
+ * allowlisted lifecycle script writes into the store. `frozenStore`
+ * promises the store is complete and read-only, so any such write would
+ * crash with a raw `EROFS` mid-build. A complete seed never reaches here:
+ * patched and built packages are imported from the side-effects cache with
+ * `isBuilt` set and were filtered out upstream. So a non-empty set means
+ * the seed is missing build output — refuse up front with guidance rather
+ * than failing cryptically once a script starts.
+ *
+ * Bin-linking (the other write `buildDependency` performs) reuses existing
+ * symlinks write-free on a complete seed, and non-allowlisted build scripts
+ * never run, so neither is treated as a blocking write here.
+ */
+function assertNothingToBuildInFrozenStore<T extends string> (
+  depGraph: DependenciesGraph<T>,
+  chunks: T[][],
+  allowBuild: AllowBuild,
+  depsToBuild?: Set<string>
+): void {
+  const blocked = new Set<string>()
+  for (const chunk of chunks) {
+    for (const depPath of chunk) {
+      const node = depGraph[depPath]
+      if (node.isBuilt) continue
+      if (depsToBuild != null && !depsToBuild.has(depPath)) continue
+      const willPatch = node.patch != null
+      const willRunScripts = Boolean(node.requiresBuild) && allowBuild(node.name, node.version) === true
+      if (willPatch || willRunScripts) {
+        blocked.add(`${node.name}@${node.version}`)
+      }
+    }
+  }
+  if (blocked.size === 0) return
+  const list = Array.from(blocked).sort()
+  throw new PnpmError(
+    'FROZEN_STORE_NEEDS_BUILD',
+    `Cannot build the following ${list.length === 1 ? 'package' : 'packages'} because the store is read-only (frozenStore is enabled): ${list.join(', ')}`,
+    {
+      hint: 'This read-only store was not seeded with these packages\' build output. Rebuild the seed with their scripts enabled so the side-effects cache is populated, or remove them from onlyBuiltDependencies.',
+    }
+  )
 }
 
 async function buildDependency<T extends string> (

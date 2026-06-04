@@ -62,6 +62,25 @@ pub enum BuildModulesError {
         #[error(source)]
         source: rayon::ThreadPoolBuildError,
     },
+
+    /// Under the global virtual store a package's directory lives
+    /// inside the store, so applying a patch or running an approved
+    /// lifecycle script writes into the store. `frozen_store` promises
+    /// the store is complete and read-only, so the build cannot run.
+    /// A complete seed never reaches here — patched and built packages
+    /// are imported from the side-effects cache and skipped by the
+    /// `is_built` gate — so this means the seed is missing build
+    /// output. Mirrors the TS `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`
+    /// thrown from
+    /// [`building/during-install`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts).
+    #[display("Cannot build {package} because the store is read-only (frozenStore is enabled)")]
+    #[diagnostic(
+        code(ERR_PNPM_FROZEN_STORE_NEEDS_BUILD),
+        help(
+            "This read-only store was not seeded with this package's build output. Rebuild the seed with its scripts enabled so the side-effects cache is populated, or remove it from onlyBuiltDependencies."
+        )
+    )]
+    FrozenStoreNeedsBuild { package: String },
 }
 
 /// Build policy derived from `allowBuilds` and
@@ -374,6 +393,15 @@ pub struct BuildModules<'a> {
     /// front by [`crate::LinkVirtualStoreBins`], and the script
     /// executor adds that path itself.
     pub gather_ancestor_bin_paths: bool,
+
+    /// Mirrors `config.frozen_store`. When `true` together with the
+    /// global virtual store, a snapshot that would apply a patch or
+    /// run an approved lifecycle script is refused with
+    /// [`BuildModulesError::FrozenStoreNeedsBuild`] before the write
+    /// is attempted — the store is read-only, so the build cannot run.
+    /// Has no effect under the isolated linker, whose slot directories
+    /// live in the writable project store.
+    pub frozen_store: bool,
 }
 
 impl BuildModules<'_> {
@@ -405,6 +433,7 @@ impl BuildModules<'_> {
             skipped,
             pkg_root_by_key,
             gather_ancestor_bin_paths,
+            frozen_store,
         } = self;
 
         let Some(snapshots) = snapshots else { return Ok(Vec::new()) };
@@ -552,6 +581,7 @@ impl BuildModules<'_> {
                         &extra_env,
                         scripts_prepend_node_path,
                         unsafe_perm,
+                        frozen_store,
                     )
                 })
             })?;
@@ -603,6 +633,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     extra_env: &HashMap<String, String>,
     scripts_prepend_node_path: ScriptsPrependNodePath,
     unsafe_perm: bool,
+    frozen_store: bool,
 ) -> Result<(), BuildModulesError> {
     let metadata_key = snapshot_key.without_peer();
     // Look up against the peer-stripped key because patches are
@@ -725,6 +756,22 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             "side-effects cache hit; skipping build",
         );
         return Ok(());
+    }
+
+    // Frozen-store backstop. Under the global virtual store the slot
+    // directory lives inside the read-only store, so applying a patch
+    // or running an approved lifecycle script (the two writes below)
+    // would fail with a raw `EROFS`. Refuse up front with guidance.
+    // We're past the `is_built` gate, so a cached build has already
+    // returned — reaching here means the seed is genuinely missing
+    // this package's build output. Mirrors the TS backstop in
+    // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts>.
+    // Bin-linking (the other write) reuses existing symlinks
+    // write-free on a complete seed, so only patch/script writes gate.
+    if frozen_store && layout.enable_global_virtual_store() && (has_patch || should_run_scripts) {
+        return Err(BuildModulesError::FrozenStoreNeedsBuild {
+            package: format!("{name}@{version}"),
+        });
     }
 
     // Hoisted snapshots without a recorded `pkgRoot` (the walker
