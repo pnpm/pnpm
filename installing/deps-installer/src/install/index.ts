@@ -2340,17 +2340,26 @@ async function installFromPnpmRegistry (
     )
   }
   const { fetchFromPnpmRegistry } = await import('@pnpm/pnpr.client')
-  const { createGetAuthHeaderByURI, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
+  const { createGetAuthHeaderByURI } = await import('@pnpm/network.auth-header')
+  const { nerfDart } = await import('@pnpm/config.nerf-dart')
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
 
-  // Forward the caller's per-registry credentials so the server resolves
-  // and fetches private content as the caller, plus the header that
-  // identifies the caller to the pnpr server's own access gate (and keys
-  // the per-user grant table).
-  const configByUri = opts.configByUri ?? {}
-  const forwardedAuthHeaders = getAuthHeadersFromCreds(configByUri)
-  const pnprAuthorization = createGetAuthHeaderByURI(configByUri)(opts.pnprServer!)
+  // Forward the caller's credentials only for the registries this install
+  // resolves against (the default registry plus every `namedRegistries`
+  // alias), so a token for an unrelated host in the local config never
+  // reaches the pnpr server. The pnpr-server header travels separately as
+  // `authorization` and identifies the caller to its access gate (and
+  // keys the per-user grant table).
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
+  const forwardedAuthHeaders: Record<string, string> = {}
+  const usedRegistries = [opts.registries?.default, ...Object.values(opts.namedRegistries ?? {})]
+  for (const registryUrl of usedRegistries) {
+    if (registryUrl == null) continue
+    const header = getAuthHeader(registryUrl)
+    if (header != null) forwardedAuthHeaders[nerfDart(registryUrl)] = header
+  }
+  const pnprAuthorization = getAuthHeader(opts.pnprServer!)
   // Raise import concurrency for this install only — the pnpr server path has no
   // concurrent fetching competing for workers. Restore afterwards so we
   // don't leak a process-wide mutation to other installs (e.g. tests).
