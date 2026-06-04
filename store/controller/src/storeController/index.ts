@@ -34,6 +34,7 @@ export interface CreatePackageStoreOptions {
   strictStorePkgContentCheck?: boolean
   clearResolutionCache: () => void
   customFetchers?: CustomFetcher[]
+  frozenStore?: boolean
   storeIndex: StoreIndex
 }
 
@@ -65,6 +66,7 @@ export function createPackageStore (
     virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
     strictStorePkgContentCheck: initOpts.strictStorePkgContentCheck,
     customFetchers: initOpts.customFetchers,
+    frozenStore: initOpts.frozenStore,
   })
 
   return {

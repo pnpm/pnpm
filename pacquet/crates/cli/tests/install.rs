@@ -804,6 +804,102 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
     drop((root, mock_instance)); // cleanup
 }
 
+/// The reason `--frozen-store` exists: install against a package store that
+/// lives on a read-only filesystem (a Nix store, a read-only bind mount, an
+/// OCI layer). A complete store plus an up-to-date lockfile is all a
+/// `--frozen-lockfile` install needs, yet the install would still fail
+/// because opening the WAL-mode `index.db` tries to create `-wal`/`-shm`
+/// sidecars in the store directory. `--frozen-store` opens the index through
+/// the `immutable=1` URI ([`StoreIndex::open_readonly`]) and replaces the
+/// store-index writer with a drain-and-drop stub
+/// ([`StoreIndexWriter::spawn_disabled`]), so the install reads from the
+/// store and materializes `node_modules` without creating a single file under
+/// the (here `0555`) store root.
+///
+/// This is the Rust parallel to the TypeScript end-to-end coverage that
+/// caught the equivalent worker-thread regression in pnpm
+/// (`@pnpm/worker` opened its own *writable* `StoreIndex` on every cache hit).
+/// pacquet has no analogous bug — reads always go through the immutable
+/// [`StoreIndex::shared_readonly_in`] and every warm-path store write is
+/// either gated under `frozenStore` or best-effort — so there is no clean
+/// hard-fail negative control here; the load-bearing assertion is that the
+/// install *succeeds* against a genuinely read-only store and mutates nothing.
+#[cfg(unix)]
+#[test]
+fn frozen_store_installs_against_a_read_only_store() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    eprintln!("Priming the store and lockfile with a writable install...");
+    pacquet.with_arg("install").assert().success();
+
+    // Drop node_modules so the frozen run cannot take the up-to-date
+    // short-circuit — it must re-materialize from the store, which
+    // exercises the read path against the now read-only index.
+    eprintln!("Removing node_modules so the frozen install re-materializes...");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    eprintln!("Making every directory in the store tree read-only (0555)...");
+    set_dir_modes(&store_dir, 0o555);
+
+    // The store root is `<store-dir>/v11` (the `STORE_VERSION` suffix), which
+    // is where `index.db` and the CAFS shards live.
+    let store_root = store_dir.join("v11");
+
+    // Guard: prove the chmod actually took. A green result below would be a
+    // false pass if the store dir were somehow still writable.
+    assert!(
+        fs::write(store_root.join("pacquet-write-probe"), b"x").is_err(),
+        "the store root must be read-only for this test to mean anything",
+    );
+
+    eprintln!("Running install --frozen-lockfile --frozen-store --offline...");
+    let output = new_pacquet_command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--frozen-store", "--offline"])
+        .output()
+        .expect("run pacquet install --frozen-store");
+    assert!(
+        output.status.success(),
+        "frozen-store install against a read-only store must succeed: stderr={}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    eprintln!("node_modules must be materialized from the read-only store...");
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    assert!(
+        is_symlink_or_junction(&symlink_path).expect("stat the dependency symlink"),
+        "the direct dependency must be linked into node_modules",
+    );
+    assert!(
+        workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0").exists(),
+        "the virtual-store entry must be present",
+    );
+
+    eprintln!("No WAL/SHM/journal sidecars may have been created under the store...");
+    for sidecar in ["index.db-wal", "index.db-shm", "index.db-journal"] {
+        assert!(
+            !store_root.join(sidecar).exists(),
+            "frozen-store must not create the {sidecar} sidecar under the read-only store",
+        );
+    }
+
+    // Restore writability so the TempDir can clean itself up — unlinking a
+    // file needs write permission on its *parent* directory.
+    set_dir_modes(&store_dir, 0o755);
+
+    drop((root, mock_instance)); // cleanup
+}
+
 /// `resolutionMode: highest` (the default) resolves a direct dependency
 /// to the highest version satisfying its range. `@pnpm.e2e/foo`
 /// publishes `100.0.0` and `100.1.0`; `^100.0.0` therefore lands on
@@ -993,4 +1089,20 @@ fn new_pacquet_command(workspace: &std::path::Path) -> std::process::Command {
     std::process::Command::cargo_bin("pacquet")
         .expect("find the pacquet binary")
         .with_current_dir(workspace)
+}
+
+/// Recursively set `mode` on `path` and every directory beneath it. Children
+/// are re-permissioned before their parent so each `read_dir` runs while the
+/// directory is still traversable, which lets the same helper both lock a
+/// tree down to `0555` and restore it to `0755`.
+#[cfg(unix)]
+fn set_dir_modes(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    for entry in fs::read_dir(path).expect("read directory while setting modes") {
+        let entry = entry.expect("read directory entry");
+        if entry.file_type().expect("stat directory entry").is_dir() {
+            set_dir_modes(&entry.path(), mode);
+        }
+    }
+    fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("set directory mode");
 }

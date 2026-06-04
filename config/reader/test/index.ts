@@ -2687,6 +2687,7 @@ describe('global config.yaml', () => {
       useStderr: true,
       verifyDepsBeforeRun: 'error',
       verifyStoreIntegrity: false,
+      frozenStore: true,
       virtualStoreDir: '/custom/.pnpm',
       virtualStoreDirMaxLength: 80,
     })
@@ -2714,6 +2715,7 @@ describe('global config.yaml', () => {
     expect(config.useStderr).toBe(true)
     expect(config.verifyDepsBeforeRun).toBe('error')
     expect(config.verifyStoreIntegrity).toBe(false)
+    expect(config.frozenStore).toBe(true)
     expect(config.virtualStoreDir).toBe('/custom/.pnpm')
     expect(config.virtualStoreDirMaxLength).toBe(80)
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()

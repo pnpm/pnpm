@@ -165,6 +165,18 @@ pub struct InstallArgs {
     #[clap(long)]
     pub offline: bool,
 
+    /// Open the package store read-only (immutable) and skip all store
+    /// writes. For installs against a store on a read-only filesystem
+    /// (e.g. a Nix store); pair with `--offline --frozen-lockfile`.
+    /// Mirrors pnpm's `--frozen-store`. Overrides `frozenStore` from
+    /// `pnpm-workspace.yaml`: any `--frozen-store` upgrades a yaml
+    /// `false` to `true`, but cannot turn an explicit yaml `true` back
+    /// off. (pnpm additionally rejects `--frozen-store` combined with
+    /// `--force`; pacquet has no `force` flow yet, so there is nothing
+    /// to conflict with — the guard ports alongside `force`.)
+    #[clap(long = "frozen-store")]
+    pub frozen_store: bool,
+
     /// Prefer cached artifacts over network fetches when both have
     /// what's needed. Mirrors pnpm's
     /// [`--prefer-offline`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/npm-resolver/src/pickPackage.ts)
@@ -253,6 +265,9 @@ impl InstallArgs {
             no_runtime,
             node_linker,
             offline: _,
+            // Read from `config.frozen_store` (the CLI flag was already
+            // merged in by the dispatch in `cli_args.rs`), not from here.
+            frozen_store: _,
             prefer_offline: _,
             trust_lockfile,
             update_checksums,

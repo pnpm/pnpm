@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -44,5 +45,54 @@ test('StoreIndex entries() iterates all SQLite entries', () => {
     expect(keys).toContain(key2)
   } finally {
     idx.close()
+  }
+})
+
+// chmod 0555 has no effect on Windows, so the read-only-directory
+// assertion below cannot hold there.
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('StoreIndex frozen mode reads a WAL db on a read-only directory and refuses writes', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const key = storeIndexKey('sha512-frozen', 'frozen-pkg@1.0.0')
+  const data = { algo: 'sha512', files: new Map([['index.js', { digest: 'abc', size: 100, mode: 0o644 }]]) }
+
+  // Seed the WAL db while the directory is still writable, then close
+  // the connection so the on-disk file is a settled WAL db — what a
+  // read-only-store seed-build would leave behind.
+  const seed = new StoreIndex(storeDir)
+  seed.set(key, data)
+  seed.close()
+
+  // Drop the store dir to read + execute only: no writes permitted, so
+  // SQLite cannot create any -shm / -wal sidecar.
+  fs.chmodSync(storeDir, 0o555)
+  try {
+    const idx = new StoreIndex(storeDir, { frozen: true })
+    try {
+      const result = idx.get(key) as typeof data
+      expect(result).toBeDefined()
+      expect(result.algo).toBe('sha512')
+      expect(result.files.get('index.js')?.digest).toBe('abc')
+      expect(idx.has(key)).toBe(true)
+
+      expect(() => {
+        idx.set(key, data)
+      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+      expect(() => {
+        idx.delete(key)
+      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+
+      // The immutable open must not create any sidecar under the
+      // read-only directory.
+      for (const sidecar of ['index.db-shm', 'index.db-wal', 'index.db-journal']) {
+        expect(fs.existsSync(path.join(storeDir, sidecar))).toBe(false)
+      }
+    } finally {
+      idx.close()
+    }
+  } finally {
+    // Restore write permission so the tempdir can be cleaned up.
+    fs.chmodSync(storeDir, 0o755)
   }
 })

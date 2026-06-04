@@ -174,6 +174,27 @@ impl StoreIndexWriter {
         });
         (Arc::new(StoreIndexWriter { tx, warn_on_send_failure: AtomicBool::new(true) }), handle)
     }
+
+    /// Spawn a writer that never opens `index.db` — it drains every
+    /// queued message and drops it.
+    ///
+    /// Used when `frozenStore` is enabled: the store is opened read-only,
+    /// so there is nothing to write back. Producers keep queuing rows
+    /// through the normal handle (the call sites stay identical), but the
+    /// task touches no SQLite connection, so no `index.db` / WAL / SHM
+    /// sidecar is opened or created under the read-only store root.
+    ///
+    /// Returns the same `(handle, JoinHandle)` shape as [`Self::spawn`] so
+    /// call sites can branch on `frozen_store` without diverging.
+    pub fn spawn_disabled()
+    -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
+        let handle = tokio::spawn(async move {
+            while rx.recv().await.is_some() {}
+            Ok::<(), StoreIndexError>(())
+        });
+        (Arc::new(StoreIndexWriter { tx, warn_on_send_failure: AtomicBool::new(true) }), handle)
+    }
 }
 
 /// Fold one queued `WriteMsg` into the batch's in-flight
@@ -411,6 +432,17 @@ impl StoreIndex {
     /// and `CREATE TABLE IF NOT EXISTS`, so the call cannot create WAL /
     /// SHM sidecar files or otherwise mutate the store.
     ///
+    /// Opens through the `file:…?immutable=1` URI rather than a plain
+    /// `SQLITE_OPEN_READ_ONLY` path. `index.db` is a WAL-mode database, and
+    /// plain read-only open of a WAL db still needs to create the `-shm`
+    /// sidecar in the store directory — which fails with "attempt to write a
+    /// readonly database" when the store lives on a read-only *directory*
+    /// (a Nix store, a read-only bind mount, an OCI layer). `immutable=1`
+    /// tells SQLite the file cannot change underneath it, so it bypasses the
+    /// WAL/shm machinery entirely and reads the raw file with zero sidecar
+    /// creation. The store dir being writable is the only reason the plain
+    /// flag has worked so far.
+    ///
     /// We *do* set `busy_timeout`: it's a connection-local wait, not a
     /// DB mutation, and without it a concurrent writer (pnpm or another
     /// pacquet process) turns every cache lookup during contention into
@@ -418,8 +450,12 @@ impl StoreIndex {
     /// triggers a full re-download. 5 s matches the writer side.
     pub fn open_readonly(store_dir: &Path) -> Result<Self, StoreIndexError> {
         let db_path = store_dir.join("index.db");
-        let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
+        let uri = format!("file:{}?immutable=1", db_path.to_string_lossy());
+        let conn = Connection::open_with_flags(
+            &uri,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
+        )
+        .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
         conn.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
         Ok(StoreIndex { conn })

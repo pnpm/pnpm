@@ -294,3 +294,57 @@ fn get_many_handles_more_keys_than_chunk_size() {
         assert_eq!(out.get(key), Some(&payload));
     }
 }
+
+/// `open_readonly` must read a WAL-mode `index.db` that lives on a
+/// read-only *directory* — the `frozenStore` / read-only-store
+/// scenario (a Nix store, a read-only bind mount, an OCI layer).
+///
+/// This is the regression guard for the `immutable=1` open: a plain
+/// `SQLITE_OPEN_READ_ONLY` open of a WAL database still tries to create
+/// the `-shm` sidecar in the directory, which fails with "attempt to
+/// write a readonly database" when the directory is not writable.
+/// Revert `open_readonly` to plain `SQLITE_OPEN_READ_ONLY` and this
+/// test fails — confirming the URI is load-bearing.
+#[cfg(unix)]
+#[test]
+fn open_readonly_reads_wal_db_on_readonly_directory() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let key = store_index_key("sha512-ro", "frozen@1.0.0");
+    let payload = sample_index();
+
+    // Seed the WAL db while the directory is still writable, then close
+    // the writer connection so the on-disk file is a settled WAL db —
+    // exactly what a Nix seed-build would leave behind.
+    {
+        let idx = StoreIndex::open(dir.path()).unwrap();
+        idx.set(&key, &payload).unwrap();
+    }
+
+    // Drop the directory to read + execute only: no writes permitted,
+    // so SQLite cannot create any `-shm` / `-wal` / `-journal` sidecar.
+    let original = fs::metadata(dir.path()).unwrap().permissions();
+    fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
+
+    let read_result = StoreIndex::open_readonly(dir.path()).map(|idx| idx.get(&key));
+
+    // Restore write permission before assertions so the tempdir can be
+    // cleaned up regardless of the outcome.
+    fs::set_permissions(dir.path(), original).unwrap();
+
+    let loaded = read_result
+        .expect("open_readonly must succeed on a read-only directory")
+        .expect("get must not error")
+        .expect("the seeded row must be readable");
+    assert_eq!(loaded, payload);
+
+    // No sidecar may have been created under the read-only directory.
+    for sidecar in ["index.db-shm", "index.db-wal", "index.db-journal"] {
+        assert!(
+            !dir.path().join(sidecar).exists(),
+            "immutable open must not create the {sidecar} sidecar",
+        );
+    }
+}

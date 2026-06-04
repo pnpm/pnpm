@@ -92,6 +92,7 @@ export interface GetContextOptions {
   confirmModulesPurge?: boolean
   force: boolean
   frozenLockfile?: boolean
+  frozenStore?: boolean
   enableGlobalVirtualStore?: boolean
   extraBinPaths: string[]
   extendNodePath?: boolean
@@ -122,10 +123,12 @@ export async function getContext (
   const importersContext = await readProjectsContext(opts.allProjects, { lockfileDir: opts.lockfileDir, modulesDir })
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
 
-  await fs.mkdir(opts.storeDir, { recursive: true })
+  if (!opts.frozenStore) {
+    await fs.mkdir(opts.storeDir, { recursive: true })
 
-  // Register this project for store prune tracking
-  await registerProject(opts.storeDir, opts.lockfileDir)
+    // Register this project for store prune tracking
+    await registerProject(opts.storeDir, opts.lockfileDir)
+  }
 
   for (const project of opts.allProjects) {
     packageManifestLogger.debug({
@@ -243,6 +246,7 @@ export async function getContextForSingleImporter (
     excludeLinksFromLockfile: boolean
     peersSuffixMaxLength: number
     force: boolean
+    frozenStore?: boolean
     confirmModulesPurge?: boolean
     extraBinPaths: string[]
     extendNodePath?: boolean
@@ -293,10 +297,12 @@ export async function getContextForSingleImporter (
   const importerId = importer.id
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
-  await fs.mkdir(storeDir, { recursive: true })
+  if (!opts.frozenStore) {
+    await fs.mkdir(storeDir, { recursive: true })
 
-  // Register this project for store prune tracking
-  await registerProject(storeDir, opts.lockfileDir)
+    // Register this project for store prune tracking
+    await registerProject(storeDir, opts.lockfileDir)
+  }
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]

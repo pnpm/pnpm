@@ -1457,3 +1457,26 @@ fn script_shell_and_node_options_null_clears_inherited_value() {
     assert_eq!(config.script_shell, None, "explicit null must clear the inherited shell");
     assert_eq!(config.node_options, None, "explicit null must clear inherited NODE_OPTIONS");
 }
+
+/// `frozenStore` parses from `pnpm-workspace.yaml` as a camelCase
+/// boolean and `apply_to` pushes it onto the `Config`. Defaults to
+/// `false` when the key is absent, matching pnpm's `frozen-store`
+/// default. Drives the read-only-store open path (`immutable=1`) and
+/// the disabled `index.db` writer.
+#[test]
+fn parses_frozen_store_from_yaml_and_applies() {
+    // Absent → config default stays `false`.
+    let absent: WorkspaceSettings = serde_saphyr::from_str("hoist: true").unwrap();
+    assert_eq!(absent.frozen_store, None);
+    let mut config = Config::new();
+    assert!(!config.frozen_store, "frozen_store must default to false");
+    absent.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.frozen_store, "absent frozenStore must leave the default in place");
+
+    // Explicit `true` parses and applies.
+    let enabled: WorkspaceSettings = serde_saphyr::from_str("frozenStore: true").unwrap();
+    assert_eq!(enabled.frozen_store, Some(true));
+    let mut config = Config::new();
+    enabled.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.frozen_store, "frozenStore: true must apply onto the config");
+}

@@ -243,6 +243,7 @@ impl CliArgs {
                 let cfg = config()?;
                 cfg.offline = cfg.offline || args.offline;
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
+                cfg.frozen_store = cfg.frozen_store || args.frozen_store;
                 cfg.workspace_concurrency =
                     args.resolve_workspace_concurrency(cfg.workspace_concurrency);
                 // Network overrides: a passed `--network-concurrency` /

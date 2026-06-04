@@ -128,6 +128,7 @@ export const pnpmTypes = {
   'use-stderr': Boolean,
   'verify-deps-before-run': Boolean,
   'verify-store-integrity': Boolean,
+  'frozen-store': Boolean,
   'global-virtual-store-dir': String,
   'virtual-store-dir': String,
   'virtual-store-only': Boolean,

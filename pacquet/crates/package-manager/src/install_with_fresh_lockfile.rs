@@ -474,8 +474,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // tarball CAFS writes never pay a `create_dir_all` syscall on the
         // hot path. Ports pnpm's `initStore` in `worker/src/start.ts`.
         // See [`init_store_dir_best_effort`] for the error-degradation
-        // policy shared with `create_virtual_store.rs`.
-        init_store_dir_best_effort(store_dir).await;
+        // policy shared with `create_virtual_store.rs`. Skipped under
+        // `frozenStore`: the store is read-only and complete, so no
+        // directory creation is attempted under its root.
+        if !config.frozen_store {
+            init_store_dir_best_effort(store_dir).await;
+        }
 
         // Resolve pass: walk the manifest's dependencies through the
         // npm resolver chain and produce a flat tree keyed by
@@ -554,7 +558,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             };
         let store_index_ref = store_index.as_ref();
 
-        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
+        // Under `frozenStore` the store is opened read-only, so the
+        // writer is replaced with a drain-and-drop stub that never opens
+        // `index.db` (no WAL / SHM sidecar under the read-only root).
+        let (store_index_writer, writer_task) = if config.frozen_store {
+            StoreIndexWriter::spawn_disabled()
+        } else {
+            StoreIndexWriter::spawn(store_dir)
+        };
 
         let verified_files_cache = SharedVerifiedFilesCache::default();
 

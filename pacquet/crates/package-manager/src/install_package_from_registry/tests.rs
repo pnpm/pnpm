@@ -68,6 +68,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
         verify_store_integrity: true,
+        frozen_store: false,
         side_effects_cache: true,
         side_effects_cache_readonly: false,
         fetch_retries: 2,

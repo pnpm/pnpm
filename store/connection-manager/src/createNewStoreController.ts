@@ -22,6 +22,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'frozenStore'
 | 'nodeDownloadMirrors'
 | 'nodeVersion'
 | 'fetchTimeout'
@@ -72,8 +73,10 @@ export async function createNewStoreController (
       opts.trustPolicy === 'no-downgrade'
     ) && !opts.registrySupportsTimeField
   )
-  await fs.mkdir(opts.storeDir, { recursive: true })
-  const storeIndex = new StoreIndex(opts.storeDir)
+  if (!opts.frozenStore) {
+    await fs.mkdir(opts.storeDir, { recursive: true })
+  }
+  const storeIndex = new StoreIndex(opts.storeDir, { frozen: opts.frozenStore === true })
   const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
@@ -146,6 +149,7 @@ export async function createNewStoreController (
       strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
       clearResolutionCache,
       customFetchers: opts.hooks?.customFetchers,
+      frozenStore: opts.frozenStore,
       storeIndex,
     }),
     dir: opts.storeDir,

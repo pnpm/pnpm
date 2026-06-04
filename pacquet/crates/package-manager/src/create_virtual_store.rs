@@ -266,8 +266,12 @@ impl CreateVirtualStore<'_> {
         // tarball CAFS writes never pay a `create_dir_all` syscall on the
         // hot path. Ports pnpm's `initStore` in `worker/src/start.ts`.
         // See [`init_store_dir_best_effort`] for the error-degradation
-        // policy shared with `install_without_lockfile.rs`.
-        init_store_dir_best_effort(store_dir).await;
+        // policy shared with `install_without_lockfile.rs`. Skipped under
+        // `frozenStore`: the store is read-only and complete, so no
+        // directory creation is attempted under its root.
+        if !config.frozen_store {
+            init_store_dir_best_effort(store_dir).await;
+        }
 
         let store_index =
             match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))

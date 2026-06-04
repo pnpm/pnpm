@@ -48,11 +48,14 @@ const cafsStoreCache = new Map<string, Cafs>()
 const cafsLocker = new Map<string, number>()
 const storeIndexCache = new Map<string, StoreIndex>()
 
-function getStoreIndex (storeDir: string): StoreIndex {
-  if (!storeIndexCache.has(storeDir)) {
-    storeIndexCache.set(storeDir, new StoreIndex(storeDir))
+function getStoreIndex (storeDir: string, frozen = false): StoreIndex {
+  // A frozen store is opened immutable (read-only), so it cannot share a
+  // cached handle with a writable open of the same directory. Key on both.
+  const cacheKey = frozen ? `${storeDir}\0frozen` : storeDir
+  if (!storeIndexCache.has(cacheKey)) {
+    storeIndexCache.set(cacheKey, new StoreIndex(storeDir, { frozen }))
   }
-  return storeIndexCache.get(storeDir)!
+  return storeIndexCache.get(cacheKey)!
 }
 
 async function handleMessage (
@@ -96,8 +99,8 @@ async function handleMessage (
         break
       }
       case 'readPkgFromCafs': {
-        const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck } = message
-        const pkgFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
+        const { storeDir, filesIndexFile, verifyStoreIntegrity, expectedPkg, strictStorePkgContentCheck, frozenStore } = message
+        const pkgFilesIndex = getStoreIndex(storeDir, frozenStore).get(filesIndexFile) as PackageFilesIndex | undefined
         if (!pkgFilesIndex) {
           parentPort!.postMessage({
             status: 'success',

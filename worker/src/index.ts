@@ -204,6 +204,7 @@ export interface ReadPkgFromCafsContext {
   storeDir: string
   verifyStoreIntegrity: boolean
   strictStorePkgContentCheck?: boolean
+  frozenStore?: boolean
 }
 
 export interface ReadPkgFromCafsOptions {

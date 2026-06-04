@@ -129,6 +129,20 @@ fn ignore_manifest_check_flag_parses() {
     assert!(parsed.args.ignore_manifest_check, "flag present → true");
 }
 
+/// `--frozen-store` parses to `true`. Absent → `false`. The flag is
+/// folded into `config.frozen_store` at the dispatch in `cli_args.rs`
+/// (any `--frozen-store` upgrades a yaml `false` to `true`), so the
+/// install path reads the effective value off the config.
+#[test]
+fn frozen_store_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.frozen_store, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--frozen-store"])
+        .expect("parses --frozen-store");
+    assert!(parsed.args.frozen_store, "flag present → true");
+}
+
 /// `--workspace-concurrency` is absent by default, so the override
 /// is `None` and the config-resolved value stays in effect.
 #[test]

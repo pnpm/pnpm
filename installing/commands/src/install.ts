@@ -75,6 +75,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'optional',
     'unsafe-perm',
     'verify-store-integrity',
+    'frozen-store',
     'virtual-store-dir',
     'virtual-store-only',
   ], allTypes)
@@ -220,6 +221,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
           {
             description: 'If false, skips store integrity checks. These checks detect accidental corruption, not tampering by untrusted users with write access to the store',
             name: '--[no-]verify-store-integrity',
+          },
+          {
+            description: 'Open the package store read-only (immutable) and skip all store writes. For installs against a store on a read-only filesystem (e.g. a Nix store); pair with --offline --frozen-lockfile. Incompatible with --force',
+            name: '--frozen-store',
           },
           {
             description: 'Fail on missing or invalid peer dependencies',

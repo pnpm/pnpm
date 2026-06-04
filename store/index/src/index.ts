@@ -2,7 +2,10 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
 
+import { PnpmError } from '@pnpm/error'
 import { Packr } from 'msgpackr'
+
+const FROZEN_STORE_WRITE_MESSAGE = 'Cannot write to the package store because frozenStore is enabled (the store is opened read-only). This indicates the store is missing content the install needs.'
 
 // Use createRequire to load node:sqlite because it is a prefix-only builtin
 // that Jest's ESM module resolver cannot handle.
@@ -108,47 +111,66 @@ export function closeAllStoreIndexes (): void {
 export class StoreIndex {
   private db: DatabaseSyncType
   private closed = false
+  private frozen = false
   private pendingWrites: Array<{ key: string, buffer: Uint8Array }> = []
   private flushScheduled = false
   private stmtGet: StatementSync
-  private stmtSet: StatementSync
-  private stmtDel: StatementSync
+  private stmtSet!: StatementSync
+  private stmtDel!: StatementSync
   private stmtHas: StatementSync
   private stmtAll: StatementSync
   private stmtKeys: StatementSync
   private readonly exitHandler: () => void
 
-  constructor (storeDir: string) {
+  constructor (storeDir: string, opts?: { frozen?: boolean }) {
     const dbPath = `${storeDir}/index.db`
-    fs.mkdirSync(storeDir, { recursive: true })
-    this.db = new DatabaseSync(dbPath)
-    // Set busy_timeout FIRST so SQLite's internal busy handler is active
-    // during all subsequent operations. On Windows, file locking is mandatory
-    // and concurrent processes (e.g. parallel dlx calls) will contend.
-    this.db.exec('PRAGMA busy_timeout=5000')
-    sqliteRetry(() => {
-      this.db.exec('PRAGMA journal_mode=WAL')
-      this.db.exec('PRAGMA synchronous=NORMAL')
-      // Increase memory map size to 512MB
-      this.db.exec('PRAGMA mmap_size=536870912')
-      // Increase page cache size to ~32MB
-      this.db.exec('PRAGMA cache_size=-32000')
-      this.db.exec('PRAGMA temp_store=MEMORY')
-      // Increase wal autocheckpoint interval to reduce I/O during heavy writes
-      this.db.exec('PRAGMA wal_autocheckpoint=10000')
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS package_index (
-          key TEXT PRIMARY KEY,
-          data BLOB NOT NULL
-        ) WITHOUT ROWID
-      `)
-    })
-    this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
-    this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
-    this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
-    this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
-    this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
-    this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
+    if (opts?.frozen) {
+      this.frozen = true
+      // Open the index read-only via the SQLite `immutable=1` URI. This is
+      // required (rather than a plain read-only open) when the store lives on a
+      // read-only filesystem: the index is a WAL-mode database, and a WAL read
+      // normally creates an `index.db-shm` sidecar in the store directory —
+      // which fails on a read-only directory and surfaces as "attempt to write a
+      // readonly database" on the first query. `immutable=1` tells SQLite the
+      // file cannot change, so it bypasses the WAL/shm machinery and reads the
+      // file directly, creating no sidecars. The store is assumed complete; any
+      // write is a programming error and the mutators below throw.
+      this.db = new DatabaseSync(`file:${dbPath}?immutable=1`)
+      this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
+      this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
+      this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+      this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
+    } else {
+      fs.mkdirSync(storeDir, { recursive: true })
+      this.db = new DatabaseSync(dbPath)
+      // Set busy_timeout FIRST so SQLite's internal busy handler is active
+      // during all subsequent operations. On Windows, file locking is mandatory
+      // and concurrent processes (e.g. parallel dlx calls) will contend.
+      this.db.exec('PRAGMA busy_timeout=5000')
+      sqliteRetry(() => {
+        this.db.exec('PRAGMA journal_mode=WAL')
+        this.db.exec('PRAGMA synchronous=NORMAL')
+        // Increase memory map size to 512MB
+        this.db.exec('PRAGMA mmap_size=536870912')
+        // Increase page cache size to ~32MB
+        this.db.exec('PRAGMA cache_size=-32000')
+        this.db.exec('PRAGMA temp_store=MEMORY')
+        // Increase wal autocheckpoint interval to reduce I/O during heavy writes
+        this.db.exec('PRAGMA wal_autocheckpoint=10000')
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS package_index (
+            key TEXT PRIMARY KEY,
+            data BLOB NOT NULL
+          ) WITHOUT ROWID
+        `)
+      })
+      this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
+      this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
+      this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
+      this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
+      this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+      this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
+    }
     this.exitHandler = () => this.close()
     // Multiple StoreIndex instances may be created (e.g. in tests), each adding
     // an exit listener. Raise the limit to avoid MaxListenersExceededWarning.
@@ -178,6 +200,7 @@ export class StoreIndex {
   }
 
   set (key: string, data: unknown): void {
+    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     const buffer = packr.pack(data)
     sqliteRetry(() => {
       this.stmtSet.run(key, buffer)
@@ -185,6 +208,7 @@ export class StoreIndex {
   }
 
   delete (key: string): boolean {
+    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     let result!: { changes: number | bigint }
     sqliteRetry(() => {
       result = this.stmtDel.run(key)
@@ -221,6 +245,7 @@ export class StoreIndex {
    * Used by the fetch phase for throughput.
    */
   queueWrites (writes: Array<{ key: string, buffer: Uint8Array }>): void {
+    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     for (const w of writes) {
       this.pendingWrites.push(w)
     }
@@ -235,6 +260,7 @@ export class StoreIndex {
    */
   flush (): void {
     this.flushScheduled = false
+    if (this.frozen) return
     if (this.pendingWrites.length === 0) return
     this.setRawMany(this.pendingWrites)
     this.pendingWrites = []
@@ -245,6 +271,7 @@ export class StoreIndex {
    * The buffers must already be msgpack-encoded.
    */
   setRawMany (entries: Array<{ key: string, buffer: Uint8Array }>): void {
+    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     if (this.closed || entries.length === 0) return
     if (entries.length === 1) {
       sqliteRetry(() => {
@@ -276,6 +303,7 @@ export class StoreIndex {
    * then VACUUM to reclaim disk space.
    */
   deleteMany (keys: string[]): void {
+    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     if (keys.length === 0) return
     if (keys.length === 1) {
       this.delete(keys[0])
@@ -303,6 +331,7 @@ export class StoreIndex {
   }
 
   checkpoint (): void {
+    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     this.flush()
     // wal_checkpoint can hit SQLITE_BUSY if another process is reading the
     // same index.db concurrently. Retry for consistency with other ops here.
@@ -317,10 +346,12 @@ export class StoreIndex {
     this.closed = true
     openInstances.delete(this)
     process.removeListener('exit', this.exitHandler)
-    try {
-      this.db.exec('PRAGMA optimize')
-    } catch {
-      // PRAGMA optimize is a performance hint; safe to ignore if the DB is locked.
+    if (!this.frozen) {
+      try {
+        this.db.exec('PRAGMA optimize')
+      } catch {
+        // PRAGMA optimize is a performance hint; safe to ignore if the DB is locked.
+      }
     }
     try {
       this.db.close()

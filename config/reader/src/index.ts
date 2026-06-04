@@ -207,6 +207,7 @@ export async function getConfig (opts: {
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': 'install',
     'verify-store-integrity': true,
+    'frozen-store': false,
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,

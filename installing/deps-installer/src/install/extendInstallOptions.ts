@@ -37,6 +37,7 @@ export interface StrictInstallOptions {
   cleanupUnusedCatalogs: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
+  frozenStore: boolean
   enableGlobalVirtualStore: boolean
   enablePnp: boolean
   extraBinPaths: string[]
@@ -289,6 +290,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     force: false,
     forceFullResolution: false,
     frozenLockfile: false,
+    frozenStore: false,
     hoistPattern: undefined,
     publicHoistPattern: undefined,
     hooks: {},
@@ -416,6 +418,10 @@ export function extendOptions (
       throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
         `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
     }
+  }
+  if (extendedOpts.frozenStore && extendedOpts.force) {
+    throw new PnpmError('CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE',
+      'Cannot use force together with frozenStore: --force re-imports packages into the store, which is opened read-only when frozenStore is enabled')
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
