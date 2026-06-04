@@ -219,7 +219,12 @@ impl S3Store {
         while let Some(meta) = listing.next().await {
             let meta = meta?;
             let key = meta.location.as_ref();
-            let rest = key.strip_prefix(self.prefix.as_str()).unwrap_or(key);
+            // Skip anything that isn't actually under our prefix rather
+            // than falling back to the full key, which would synthesize
+            // a wrong name. (Empty prefix strips to the whole key.)
+            let Some(rest) = key.strip_prefix(self.prefix.as_str()) else {
+                continue;
+            };
             if let Some(name) = rest.strip_suffix(&format!("/{PACKUMENT_FILE}")) {
                 names.push(name.to_string());
             }

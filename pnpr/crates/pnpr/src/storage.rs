@@ -445,6 +445,13 @@ impl Store {
     /// `<root>/@scope/<name>/package.json` for scoped, so a two-level
     /// walk suffices and avoids descending into tarball-adjacent junk.
     /// Hidden entries (the `.pnpr-cache` sibling) are skipped.
+    ///
+    /// Per-entry stat/read failures are tolerated (the entry is just
+    /// skipped) so a single unreadable directory or a stray non-package
+    /// file can't fail the whole search — this backs the best-effort,
+    /// verdaccio-style `/-/v1/search`, which prefers partial results
+    /// over a hard error. A failure to open the store root itself still
+    /// propagates.
     async fn list_package_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
         let mut top = match fs::read_dir(&self.root).await {
