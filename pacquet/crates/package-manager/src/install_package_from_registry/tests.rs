@@ -106,6 +106,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),
         catalog_mode: Default::default(),
+        save_catalog_name: None,
         registry_supports_time_field: false,
         allowed_deprecated_versions: Default::default(),
         update_config: Default::default(),

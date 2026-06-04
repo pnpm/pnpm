@@ -812,6 +812,26 @@ Tracks pnpm/pnpm#11940. Pacquet's port (`pacquet-package-manager::optimistic_rep
 
 Each unported entry above gates the optimistic short-circuit on a code path pacquet does not yet have. The fall-through is safe — when the optimistic check returns `Skipped`, the install runs the regular pipeline, which still has its own freshness guards. None of the unported branches can silently mask drift; they only become relevant once pacquet *enables* the feature in question.
 
+## `catalogMode` Auto-Cataloging (`saveCatalogName` / catalog write-back)
+
+Tracks pnpm/pnpm#12196. The `catalogMode` mismatch gate landed earlier (pnpm#11706); this is the auto-cataloging half — writing `catalog:` / `catalog:<name>` to `package.json`, the entry to `pnpm-workspace.yaml`, and the snapshot to `pnpm-lock.yaml`. The decision core is `pacquet-package-manager::catalog_mode::decide_catalog`; the format-preserving workspace writer is the `pacquet-workspace-manifest-writer` crate; the lockfile `catalogs:` snapshot is built in `dependencies_graph_to_lockfile::build_catalog_snapshots`.
+
+### Ported
+
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1312` `adding with catalogMode: strict will add to or use from catalog` — `pacquet-cli::catalog::add_strict_catalogs_a_new_dependency`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1348` `re-adding existing catalog dependency with catalogMode: strict preserves catalog specifier` (pnpm#10176) — `pacquet-cli::catalog::readd_catalog_dependency_preserves_specifier`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1404` `adding with catalogMode: prefer will add to or use from catalog` — `pacquet-cli::catalog::add_prefer_catalogs_a_new_dependency`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1435` `adding mismatched version with catalogMode: strict will error` — `pacquet-cli::catalog::add_mismatched_version_strict_errors`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1840` `update --latest works on named catalog dependency with catalogMode=prefer` — `pacquet-cli::catalog::update_latest_named_catalog_bumps_the_entry`.
+- [x] `TypeScript repo: workspace/workspace-manifest-writer/test/addCatalogs.test.ts` and `updateWorkspaceManifest.test.ts` (catalog cases) — ported as byte-for-byte unit tests in `pacquet-workspace-manifest-writer::tests` (comment/blank-line/quote-style/sorted-insert/named-catalog preservation).
+- [x] Decision-core branches (gate strict/prefer/manual, named-catalog resolution, `--save-catalog-name`, runtime skip) — `pacquet-package-manager::catalog_mode::tests`.
+
+### Not yet ported / known divergences
+
+- [ ] `TypeScript repo: installing/commands/test/saveCatalog.ts` — the `--save-catalog` / `--save-catalog-name` CLI surface is wired and unit-tested via `catalog_mode::tests::save_catalog_name_*`, but the command-level `saveCatalog.ts` flows (e.g. interaction with `--save-dev`, recursive installs) are not yet ported as CLI integration tests.
+- [ ] `cleanupUnusedCatalogs` (the `removePackagesFromWorkspaceCatalog` half of the writer) is not ported — pacquet's writer only adds/updates catalog entries.
+- [ ] Manual-mode `update --latest` of a `catalog:` dependency: pacquet's catalog handling is gated on `catalogMode != manual`, so under the default manual mode such an update still rewrites the manifest to the version (pre-existing pacquet behavior). The strict/prefer paths match pnpm.
+
 ### Rust port notes
 
 - Settings drift comparison is field-by-field on `WorkspaceStateSettings::PartialEq` rather than the upstream `Object.entries` walk. Equivalent in behavior: any field present in the cached state but `None` in today's `current_settings` (or vice versa) trips the check.

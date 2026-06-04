@@ -1056,6 +1056,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 &importer_manifests,
                 &merged_graph,
                 &direct_by_importer,
+                &catalogs,
             );
             let wanted_lockfile = if config.lockfile {
                 save_wanted_lockfile(
@@ -1179,8 +1180,13 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // [`Self::wanted_lockfile`], which is the *previous* run's
         // lockfile threaded in for preferred-versions seeding.
         let phase_start = std::time::Instant::now();
-        let built_lockfile =
-            build_fresh_lockfile(config, &importer_manifests, &merged_graph, &direct_by_importer);
+        let built_lockfile = build_fresh_lockfile(
+            config,
+            &importer_manifests,
+            &merged_graph,
+            &direct_by_importer,
+            &catalogs,
+        );
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_fresh_lockfile",
@@ -1667,6 +1673,7 @@ fn build_fresh_lockfile(
         String,
         BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>,
     >,
+    catalogs: &pacquet_catalogs_types::Catalogs,
 ) -> Lockfile {
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
@@ -1692,6 +1699,7 @@ fn build_fresh_lockfile(
             .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
         package_extensions_checksum: compute_package_extensions_checksum(config),
+        catalogs,
     })
 }
 

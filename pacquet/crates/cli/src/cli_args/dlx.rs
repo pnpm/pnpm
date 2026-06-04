@@ -300,6 +300,8 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
             state,
             pkg,
             false,
+            // dlx never catalogs.
+            None,
             // dlx must download to run the bin, so never lockfile-only.
             false,
             config.supported_architectures.clone(),

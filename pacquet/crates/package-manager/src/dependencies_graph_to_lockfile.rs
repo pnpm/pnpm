@@ -14,10 +14,13 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use indexmap::IndexMap;
+use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
-    ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings, LockfileVersion,
-    PackageKey, PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
+    LockfileVersion, PackageKey, PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer,
+    PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry, ResolvedDependencyMap,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -97,6 +100,11 @@ pub struct GraphToLockfileOptions<'a> {
     /// pnpm's `hashObjectNullableWithPrefix` short-circuit on empty
     /// input).
     pub package_extensions_checksum: Option<String>,
+    /// The workspace catalogs (with any `add` / `update` edits already
+    /// merged in) used to render the lockfile's `catalogs:` snapshot —
+    /// the resolved specifier + version for every `catalog:` direct
+    /// dependency. Empty for projects with no catalogs.
+    pub catalogs: &'a Catalogs,
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
@@ -127,6 +135,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         overrides,
         ignored_optional_dependencies,
         package_extensions_checksum,
+        catalogs,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
@@ -138,6 +147,8 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         importers.insert(id.clone(), build_importer(input, graph, exclude_links_from_lockfile));
     }
 
+    let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
+
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
             .expect("lockfileVersion 9.0 is always compatible with MAJOR=9"),
@@ -148,6 +159,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
             inject_workspace_packages,
             peers_suffix_max_length,
         }),
+        catalogs: catalog_snapshots,
         overrides: overrides.filter(|map| !map.is_empty()),
         package_extensions_checksum,
         ignored_optional_dependencies: ignored_optional_dependencies
@@ -156,6 +168,51 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
     }
+}
+
+/// Build the lockfile's `catalogs:` snapshot from the resolved importers.
+///
+/// Ports pnpm's
+/// [`getCatalogSnapshots`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/installing/deps-resolver/src/getCatalogSnapshots.ts):
+/// for every importer dependency whose recorded specifier is a `catalog:`
+/// protocol, emit `{ specifier: <catalog entry>, version: <resolved> }`. The
+/// `specifier` comes from `catalogs` (which already carries any `add` /
+/// `update` edit), and the `version` from the importer's resolved dep map.
+fn build_catalog_snapshots(
+    importers: &HashMap<String, ProjectSnapshot>,
+    catalogs: &Catalogs,
+) -> Option<CatalogSnapshots> {
+    let mut snapshots: CatalogSnapshots = BTreeMap::new();
+    for importer in importers.values() {
+        let Some(specifiers) = importer.specifiers.as_ref() else { continue };
+        for (alias, specifier) in specifiers {
+            let Some(catalog_name) = parse_catalog_protocol(specifier) else { continue };
+            let Some(entry_specifier) =
+                catalogs.get(catalog_name).and_then(|catalog| catalog.get(alias))
+            else {
+                continue;
+            };
+            let Some(version) = importer_resolved_version(importer, alias) else { continue };
+            snapshots.entry(catalog_name.to_string()).or_default().insert(
+                alias.clone(),
+                ResolvedCatalogEntry { specifier: entry_specifier.clone(), version },
+            );
+        }
+    }
+    (!snapshots.is_empty()).then_some(snapshots)
+}
+
+/// The concrete version `alias` resolved to in `importer`, read from whichever
+/// dependency group carries it. Returns the peer-stripped version, matching
+/// pnpm's `dep.version` in a catalog snapshot.
+fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
+    let key = PkgName::parse(alias).ok()?;
+    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        .into_iter()
+        .flatten()
+        .find_map(|map| map.get(&key))
+        .and_then(|spec| spec.version.as_regular())
+        .map(|version| version.version().to_string())
 }
 
 /// Build an importer's [`ProjectSnapshot`] from its on-disk manifest

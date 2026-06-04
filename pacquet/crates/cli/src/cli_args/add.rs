@@ -81,6 +81,16 @@ pub struct AddArgs {
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
+    /// Save the new dependency to the default catalog: `catalog:` is written
+    /// to `package.json` and the specifier to `pnpm-workspace.yaml`'s
+    /// `catalog:` block. Shorthand for `--save-catalog-name=default`.
+    #[clap(long = "save-catalog")]
+    pub save_catalog: bool,
+    /// Save the new dependency to the named catalog `<name>`: `catalog:<name>`
+    /// is written to `package.json` and the specifier to the matching entry
+    /// under `pnpm-workspace.yaml`'s `catalogs:`.
+    #[clap(long = "save-catalog-name", value_name = "name")]
+    pub save_catalog_name: Option<String>,
     /// Dependencies are not downloaded. The package is added to the
     /// manifest and only `pnpm-lock.yaml` is updated; no `node_modules`
     /// is created. Mirrors pnpm's `--lockfile-only`.
@@ -103,10 +113,21 @@ impl AddArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(state.config.supported_architectures.clone());
 
+        // `--save-catalog-name=<name>` wins; `--save-catalog` is the
+        // shorthand for the default catalog; otherwise fall back to the
+        // `saveCatalogName` config default (`None`). Mirrors pnpm's
+        // `save-catalog` → `--save-catalog-name=default` shorthand.
+        let save_catalog_name = self
+            .save_catalog_name
+            .clone()
+            .or_else(|| self.save_catalog.then(|| "default".to_string()))
+            .or_else(|| state.config.save_catalog_name.clone());
+
         add_package::<Reporter, _, _>(
             state,
             &self.package_name,
             self.save_exact,
+            save_catalog_name,
             self.lockfile_only,
             supported_architectures,
             || self.dependency_options.dependency_groups(),
@@ -125,6 +146,7 @@ pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupL
     mut state: State,
     package_name: &str,
     save_exact: bool,
+    save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
     list_dependency_groups: ListDependencyGroups,
@@ -151,6 +173,7 @@ where
         list_dependency_groups,
         package_name,
         save_exact,
+        save_catalog_name,
         resolved_packages,
         supported_architectures,
         lockfile_only,

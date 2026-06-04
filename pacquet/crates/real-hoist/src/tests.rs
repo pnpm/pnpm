@@ -33,6 +33,7 @@ fn empty_lockfile() -> Lockfile {
     Lockfile {
         lockfile_version: lockfile_version(),
         settings: Some(LockfileSettings::default()),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -62,6 +63,7 @@ fn hoist_throws_on_broken_lockfile() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -113,6 +115,7 @@ fn one_transitive_dep_hoists_to_root() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -166,6 +169,7 @@ fn diamond_dep_hoists_once_to_root() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -244,6 +248,7 @@ fn version_conflict_keeps_loser_at_parent() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -315,6 +320,7 @@ fn deep_chain_flattens_in_one_pass() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -354,6 +360,7 @@ fn external_dependencies_are_stripped_from_the_result() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -407,6 +414,7 @@ fn transitive_npm_alias_resolves_target_snapshot() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -511,6 +519,7 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -594,6 +603,7 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -659,6 +669,7 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -735,6 +746,7 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -787,6 +799,7 @@ fn hoisting_limits_border_keeps_descendants_nested() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -842,6 +855,7 @@ fn hoisting_limits_border_keeps_all_descendants_nested() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -899,6 +913,7 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -950,6 +965,7 @@ fn self_dependency_does_not_loop() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -1004,6 +1020,7 @@ fn basic_cyclic_dependency_terminates() {
         &Lockfile {
             lockfile_version: lockfile_version(),
             settings: None,
+            catalogs: None,
             overrides: None,
             package_extensions_checksum: None,
             ignored_optional_dependencies: None,
@@ -1041,6 +1058,7 @@ fn multi_importer_lockfile_emits_workspace_children() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
@@ -1085,6 +1103,7 @@ fn hoist_workspace_packages_false_omits_workspace_children() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
         ignored_optional_dependencies: None,
