@@ -17,9 +17,11 @@
 //!   ([pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165)).
 //!
 //! Files are bound to access: every package whose bytes are served is
-//! checked against pnpr's `packages:` policy first
-//! ([`deny_unauthorized_packages`]), so a content-addressed digest is
-//! never a bearer capability for a package the caller can't read.
+//! authorized first ([`authorize_served_packages`]), so a
+//! content-addressed digest is never a bearer capability for a package
+//! the caller can't read. A package fetched anonymously is checked
+//! against pnpr's own `packages:` policy; one fetched with the caller's
+//! forwarded credentials is gated per user against the owning registry.
 //!
 //! The client's `registry`, `namedRegistries`, `overrides`, and the
 //! verification policy (`minimumReleaseAge`, `trustPolicy`, ...) drive
@@ -199,8 +201,8 @@ impl InstallAccelerator {
 
 /// Handle `POST /v1/install`. `identity` is the resolved caller; the
 /// store's possession of a package's bytes is not a capability to read
-/// them, so every served package is checked against `policies` — see
-/// [`deny_unauthorized_packages`].
+/// them, so every served package is authorized first — see
+/// [`authorize_served_packages`].
 pub(crate) async fn handle_install(
     runtime: &InstallAccelerator,
     policies: &PackagePolicies,
