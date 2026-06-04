@@ -50,6 +50,28 @@ fn deps<const COUNT: usize>(entries: [(&str, &str); COUNT]) -> BTreeMap<String, 
     entries.into_iter().map(|(name, range)| (name.to_string(), range.to_string())).collect()
 }
 
+/// The nerf-darted key (`//host[:port]/`) a forwarded credential for
+/// `url` is keyed by, mirroring `AuthHeaders`' lookup on the server.
+fn nerf_key(url: &str) -> String {
+    let authority = url.split("://").nth(1).unwrap_or(url).split('/').next().unwrap_or("");
+    format!("//{authority}/")
+}
+
+/// Register a user with the shared test registry and return its bearer
+/// token, so a test can forward it as the caller's upstream credential.
+async fn register_token(registry_url: &str, username: &str) -> String {
+    let body = serde_json::json!({ "name": username, "password": "password123" });
+    let response = reqwest::Client::new()
+        .put(format!("{registry_url}-/user/org.couchdb.user:{username}"))
+        .json(&body)
+        .send()
+        .await
+        .expect("adduser request");
+    assert!(response.status().is_success(), "adduser returned {}", response.status());
+    let json: serde_json::Value = response.json().await.expect("adduser response json");
+    json["token"].as_str().expect("token in adduser response").to_string()
+}
+
 fn options<'a>(
     store: &'a StoreDir,
     registry: &str,
@@ -111,6 +133,52 @@ async fn forwards_credentials_and_the_identity_header() {
     let result = client.install(opts).await;
     assert!(result.is_err(), "the canned 500 should surface as an error");
     mock.assert_async().await;
+}
+
+/// End-to-end: the test registry gates `@pnpm.e2e/needs-auth` behind
+/// `$authenticated`, so resolving it through the accelerator only works
+/// when the caller's upstream token is forwarded and the server fetches
+/// the packument + tarball as the caller.
+#[tokio::test]
+async fn a_forwarded_credential_resolves_a_private_package() {
+    let registry = TestRegistry::start();
+    let token = register_token(&registry.url(), "needs-auth-forwarder").await;
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client_store = TempDir::new().unwrap();
+    let store = StoreDir::new(client_store.path().to_path_buf());
+    let client = PnprClient::new(pnpr_url);
+
+    let mut opts = options(&store, &registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let mut auth = BTreeMap::new();
+    auth.insert(nerf_key(&registry.url()), format!("Bearer {token}"));
+    opts.auth_headers = auth;
+
+    let outcome = client.install(opts).await.expect("forwarded credential should resolve it");
+    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
+    assert!(
+        packages.keys().any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
+        "lockfile should contain the authed package, got: {:?}",
+        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+    );
+    assert!(outcome.files_written >= 1, "its files should be materialized");
+}
+
+/// The same install without a forwarded credential fails: the registry
+/// won't serve the gated packument anonymously, so resolution can't read
+/// it.
+#[tokio::test]
+async fn a_private_package_fails_without_a_forwarded_credential() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client_store = TempDir::new().unwrap();
+    let store = StoreDir::new(client_store.path().to_path_buf());
+    let client = PnprClient::new(pnpr_url);
+
+    let opts = options(&store, &registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let result = client.install(opts).await;
+    assert!(result.is_err(), "a gated package must not resolve without a forwarded credential");
 }
 
 #[tokio::test]

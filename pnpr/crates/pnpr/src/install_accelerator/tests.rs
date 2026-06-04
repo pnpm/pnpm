@@ -281,6 +281,29 @@ async fn a_denied_reverify_clears_the_users_grants_and_denies() {
 }
 
 #[tokio::test]
+async fn an_unreachable_upstream_during_reverify_is_a_bad_gateway() {
+    let tmp = TempDir::new().unwrap();
+    let acc = accelerator(tmp.path());
+    let auth = auth_for("http://127.0.0.1:1/", "Bearer t");
+    let identity = Identity::User { username: "alice".to_string() };
+
+    // Port 1 refuses the connection, so neither the anonymous classify
+    // probe nor the authed re-verify can decide access.
+    let denied = authorize_upstream_package(
+        &acc,
+        &identity,
+        &auth,
+        &fresh(&[]),
+        "http://127.0.0.1:1/",
+        "foo",
+        "foo@1.0.0",
+    )
+    .await;
+
+    assert_eq!(denied.map(|response| response.status()), Some(StatusCode::BAD_GATEWAY));
+}
+
+#[tokio::test]
 async fn a_forwarded_credential_routes_around_the_local_policy() {
     // `@private/foo` is gated to `$authenticated` by the local policy, so
     // an anonymous caller would be denied under pnpr-as-authority. With a
