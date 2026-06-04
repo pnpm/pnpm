@@ -178,7 +178,7 @@ test('rebuilds a dependency shared by multiple workspace projects in the global 
 
   // With per-project lockfiles (`sharedWorkspaceLockfile: false`) `rebuild -r`
   // runs a separate pass per project. Both projects depend on the same package,
-  // which the global virtual store dedups into ONE shared projection — so the
+  // which the global virtual store collapses into ONE shared projection — so the
   // passes select the same projection directory concurrently. This is the race
   // the per-projection build lock serializes.
   fs.writeFileSync('pnpm-workspace.yaml', [
