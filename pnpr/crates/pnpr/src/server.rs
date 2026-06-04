@@ -1,6 +1,5 @@
 use crate::{
     auth::{AuthState, UpsertOutcome, identify},
-    cache::Cache,
     config::Config,
     error::RegistryError,
     package_name::PackageName,
@@ -9,6 +8,7 @@ use crate::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
+    storage::Storage,
     streaming,
     upstream::{
         FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest,
@@ -57,7 +57,7 @@ struct AppState {
 }
 
 struct AppInner {
-    cache: Cache,
+    storage: Storage,
     /// One [`Upstream`] per declared uplink, keyed by the same name
     /// used in [`Config::uplinks`]. Built once at router construction
     /// time so each request avoids re-allocating a `ThrottledClient`.
@@ -88,7 +88,7 @@ pub fn router(config: Config) -> Router {
 /// by [`serve`] to wire the persistent file-backed stores, and by
 /// tests that want to override the bcrypt cost or pre-seed users.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
-    let cache = Cache::new(config.storage.clone(), config.cache_storage.clone());
+    let storage = Storage::new(config.storage.clone(), config.cache_storage.clone());
     let upstreams: IndexMap<String, Upstream> = config
         .uplinks
         .iter()
@@ -96,7 +96,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         .collect();
     let state = AppState {
         inner: Arc::new(AppInner {
-            cache,
+            storage,
             upstreams,
             config,
             auth,
@@ -564,7 +564,7 @@ async fn serve_tarball(
         return error_response(&err);
     }
 
-    match state.inner.cache.open_tarball(&name, filename).await {
+    match state.inner.storage.open_tarball(&name, filename).await {
         Ok(Some((file, len))) => return tarball_response(streaming::stream_file(file), Some(len)),
         Ok(None) => {}
         Err(err) => {
@@ -583,7 +583,7 @@ async fn serve_tarball(
     };
     let upstream_len = response.content_length();
 
-    let write = match state.inner.cache.open_cached_tarball_tmp(&name, filename).await {
+    let write = match state.inner.storage.open_cached_tarball_tmp(&name, filename).await {
         Ok(w) => w,
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache tmp-open failed; streaming without cache");
@@ -879,7 +879,7 @@ async fn publish_package(
     // would mask every upstream version + dist-tag on subsequent
     // reads. `update_dist_tag` already does the same fallback —
     // we just mirror it here.
-    let existing_bytes = match state.inner.cache.read_hosted_packument(&name).await {
+    let existing_bytes = match state.inner.storage.read_hosted_packument(&name).await {
         Ok(Some(bytes)) => Some(bytes),
         Ok(None) => match load_packument_bytes(state, &name).await {
             PackumentLoad::Ok(bytes) => Some(bytes),
@@ -913,7 +913,7 @@ async fn publish_package(
     // disk.
     let mut written_slots = Vec::with_capacity(prepared.len());
     for (attachment, canonical, dist) in prepared {
-        let slot = match state.inner.cache.reserve_hosted_tarball(&name, &canonical).await {
+        let slot = match state.inner.storage.reserve_hosted_tarball(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
@@ -945,12 +945,12 @@ async fn publish_package(
     }
 
     for slot in written_slots {
-        if let Err(err) = state.inner.cache.finalize_tarball_slot(slot).await {
+        if let Err(err) = state.inner.storage.finalize_tarball_slot(slot).await {
             return error_response(&err);
         }
     }
 
-    if let Err(err) = state.inner.cache.write_hosted_packument(&name, &merged_bytes).await {
+    if let Err(err) = state.inner.storage.write_hosted_packument(&name, &merged_bytes).await {
         return error_response(&err);
     }
 
@@ -967,7 +967,7 @@ async fn publish_package(
 /// already wrote. Errors are swallowed: the caller is already
 /// returning an error response, and a leftover `*.tmp.*` file is
 /// harmless beyond a small amount of disk.
-async fn cleanup_tmp_slots(slots: Vec<crate::cache::TarballSlot>) {
+async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
     for slot in slots {
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
     }
@@ -1002,7 +1002,8 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
     };
     let size = crate::search::parse_size(query_string, 20);
     let mut body =
-        match crate::search::run_local_search(state.inner.cache.hosted_root(), &text, size).await {
+        match crate::search::run_local_search(state.inner.storage.hosted_root(), &text, size).await
+        {
             Ok(body) => body,
             Err(err) => return error_response(&err),
         };
@@ -1116,7 +1117,7 @@ async fn update_packument(
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    if let Err(err) = state.inner.cache.write_hosted_packument(&name, &bytes).await {
+    if let Err(err) = state.inner.storage.write_hosted_packument(&name, &bytes).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -1138,7 +1139,7 @@ async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -
     if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
-    if let Err(err) = state.inner.cache.remove_package(&name).await {
+    if let Err(err) = state.inner.storage.remove_package(&name).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -1172,7 +1173,7 @@ async fn delete_tarball(
     if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
-    if let Err(err) = state.inner.cache.remove_tarball(&name, &canonical).await {
+    if let Err(err) = state.inner.storage.remove_tarball(&name, &canonical).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -1271,7 +1272,7 @@ where
     // dist-tag change is an authoritative override, so it is written
     // back to the hosted store (below) regardless of whether the
     // package originated locally or from upstream.
-    let mut packument: Value = match state.inner.cache.read_hosted_packument(&name).await {
+    let mut packument: Value = match state.inner.storage.read_hosted_packument(&name).await {
         Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
             Ok(v) => v,
             Err(err) => return error_response(&RegistryError::Json(err)),
@@ -1332,7 +1333,7 @@ where
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    if let Err(err) = state.inner.cache.write_hosted_packument(&name, &new_bytes).await {
+    if let Err(err) = state.inner.storage.write_hosted_packument(&name, &new_bytes).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -1441,7 +1442,7 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     // A hosted packument — published here or static-served — is
     // authoritative: serve it as-is and never overwrite it with an
     // upstream refresh, so hosted versions can't be masked or lost.
-    match state.inner.cache.read_hosted_packument(name).await {
+    match state.inner.storage.read_hosted_packument(name).await {
         Ok(Some(bytes)) => return PackumentLoad::Ok(bytes),
         Ok(None) => {}
         Err(err) => {
@@ -1453,7 +1454,7 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
         // Nothing published and no upstream to proxy. The only thing
         // left is a leftover cache entry (e.g. a `proxy:` rule was
         // removed after the package was mirrored).
-        return match state.inner.cache.read_cached_packument(name).await {
+        return match state.inner.storage.read_cached_packument(name).await {
             Ok(Some(bytes)) => PackumentLoad::Ok(bytes),
             Ok(None) => PackumentLoad::NotFound,
             Err(err) => PackumentLoad::Err(err),
@@ -1461,7 +1462,7 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     };
 
     let ttl = state.inner.config.packument_ttl;
-    match state.inner.cache.read_fresh_cached_packument(name, ttl).await {
+    match state.inner.storage.read_fresh_cached_packument(name, ttl).await {
         Ok(Some(bytes)) => return PackumentLoad::Ok(bytes),
         Ok(None) => {}
         Err(err) => tracing::warn!(?err, package = %name.as_str(), "cache read failed"),
@@ -1469,7 +1470,7 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
 
     match upstream.fetch_packument(name).await {
         Ok(FetchOutcome::Ok(bytes)) => {
-            if let Err(err) = state.inner.cache.write_cached_packument(name, &bytes).await {
+            if let Err(err) = state.inner.storage.write_cached_packument(name, &bytes).await {
                 tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
             }
             PackumentLoad::Ok(bytes)
@@ -1477,7 +1478,7 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
         Ok(FetchOutcome::NotFound) => PackumentLoad::NotFound,
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), "upstream packument fetch failed");
-            match state.inner.cache.read_cached_packument(name).await {
+            match state.inner.storage.read_cached_packument(name).await {
                 Ok(Some(bytes)) => PackumentLoad::Ok(bytes),
                 Ok(None) => PackumentLoad::Err(err),
                 Err(cache_err) => PackumentLoad::Err(cache_err),

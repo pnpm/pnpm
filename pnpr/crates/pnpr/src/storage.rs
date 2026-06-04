@@ -19,7 +19,7 @@ const PACKUMENT_FILE: &str = "package.json";
 /// and dest sit in the same directory (they do).
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Handle returned from [`Cache::open_cached_tarball_tmp`]. The caller
+/// Handle returned from [`Storage::open_cached_tarball_tmp`]. The caller
 /// writes to `file` (and on success calls [`Self::finalize`] to
 /// atomically promote the temp file to the final cache path); dropping
 /// the handle without calling [`Self::finalize`] is treated as abandon
@@ -33,7 +33,7 @@ pub struct TarballWrite {
 
 /// A reserved (tmp_path, final_path) pair for a tarball write. The
 /// publish flow writes the tarball to `tmp_path` inside a blocking
-/// task, then renames via [`Cache::finalize_tarball_slot`].
+/// task, then renames via [`Storage::finalize_tarball_slot`].
 #[derive(Debug)]
 pub struct TarballSlot {
     pub tmp_path: PathBuf,
@@ -88,12 +88,12 @@ impl TarballWrite {
 /// publishes, so a populated verdaccio storage can be served directly
 /// in static mode.
 #[derive(Debug, Clone)]
-pub struct Cache {
+pub struct Storage {
     hosted: Store,
     cached: Store,
 }
 
-impl Cache {
+impl Storage {
     pub fn new(hosted_root: PathBuf, cache_root: PathBuf) -> Self {
         Self { hosted: Store::new(hosted_root), cached: Store::new(cache_root) }
     }

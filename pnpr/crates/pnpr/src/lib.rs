@@ -8,7 +8,6 @@
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
 mod auth;
-mod cache;
 mod config;
 mod error;
 mod install_accelerator;
@@ -17,6 +16,7 @@ mod policy;
 mod publish;
 mod search;
 mod server;
+mod storage;
 mod streaming;
 mod upstream;
 
