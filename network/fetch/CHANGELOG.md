@@ -1,5 +1,17 @@
 # @pnpm/fetch
 
+## 1100.1.0
+
+### Minor Changes
+
+- 60a1eec: Avoided a Node.js crash when pnpm exits after network requests on Windows.
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/core-loggers@1100.1.3
+
 ## 1100.0.8
 
 ### Patch Changes

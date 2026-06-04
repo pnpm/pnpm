@@ -1,5 +1,14 @@
 # @pnpm/pkg-manifest.commands
 
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/cli.utils@1101.0.9
+
 ## 1100.1.2
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/bins.resolver@1100.0.6
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
 ## 1100.0.10
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/directory-fetcher
 
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/building.pkg-requires-build@1100.0.6
+  - @pnpm/fetching.fetcher-base@1100.1.7
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
 ## 1100.0.13
 
 ### Patch Changes

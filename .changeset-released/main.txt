@@ -1,0 +1,13 @@
+catalog-range-spec-update-crash
+destroy-windows-dispatchers
+fix-concurrent-import-partial-pkg
+gvs-rebuild-native-deps
+pnpr-forward-credentials
+pnpr-forward-optional-deps
+pnpr-inline-only-access
+pnpr-lockfile-only
+prefer-locked-peer-contexts
+rename-agent-to-pnpr-server
+runtime-not-cataloged
+short-lamps-relax
+tarball-url-binding

@@ -1,5 +1,50 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.7.2
+
+### Patch Changes
+
+- a017bf3: Renamed the experimental `agent` setting to `pnprServer` so the pnpm CLI matches the same setting name pacquet uses for offloading resolution to a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server. Point pnpm at a pnpr server with `pnprServer: <url>` in `pnpm-workspace.yaml` (or `--pnpr-server <url>`); the previous `agent` / `--agent` name no longer works. The client package was likewise renamed from `@pnpm/agent.client` to `@pnpm/pnpr.client`.
+- Updated dependencies [e7e99f0]
+- Updated dependencies [4e740d5]
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+- Updated dependencies [f429f93]
+- Updated dependencies [a017bf3]
+- Updated dependencies [a358ee0]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/installing.deps-installer@1101.7.0
+  - @pnpm/building.after-install@1101.0.19
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/global.commands@1100.0.25
+  - @pnpm/installing.env-installer@1101.1.6
+  - @pnpm/deps.status@1100.0.22
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/workspace.state@1100.0.19
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.pick-registry-for-package@1100.0.7
+  - @pnpm/config.writer@1100.0.11
+  - @pnpm/deps.inspection.outdated@1100.1.5
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/hooks.pnpmfile@1100.0.12
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/installing.dedupe.check@1100.0.9
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/store.controller@1101.0.11
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+  - @pnpm/workspace.project-manifest-writer@1100.0.6
+  - @pnpm/workspace.projects-filter@1100.0.18
+  - @pnpm/workspace.projects-graph@1100.0.15
+  - @pnpm/workspace.projects-reader@1101.0.9
+  - @pnpm/workspace.projects-sorter@1100.0.5
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.11
+
 ## 1100.7.1
 
 ### Patch Changes

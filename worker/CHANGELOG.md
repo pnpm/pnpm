@@ -1,5 +1,17 @@
 # @pnpm/worker
 
+## 1100.1.9
+
+### Patch Changes
+
+- 3b76b8e: The pnpr install accelerator now serves resolved files only in the single gzipped `POST /v1/install` response and authorizes every package whose bytes it serves against the server's access policy. The separate unauthenticated `POST /v1/files` endpoint has been removed: the client materializes the inlined files straight into its content-addressable store, and a content-addressed digest is no longer a bearer capability for a package the caller cannot read.
+  - @pnpm/store.create-cafs-store@1100.0.11
+  - @pnpm/building.pkg-requires-build@1100.0.6
+  - @pnpm/fs.symlink-dependency@1100.0.7
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+
 ## 1100.1.8
 
 ### Patch Changes

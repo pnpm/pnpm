@@ -1,5 +1,16 @@
 # @pnpm/lockfile.preferred-versions
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/pkg-manifest.utils@1100.2.2
+
 ## 1100.0.12
 
 ### Patch Changes

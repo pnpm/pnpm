@@ -1,5 +1,31 @@
 # @pnpm/default-resolver
 
+## 1100.3.5
+
+### Patch Changes
+
+- 6d17b66: The lockfile verifier now checks that a registry entry pinning an explicit `tarball` URL points at the artifact the registry's own metadata lists for that `name@version`. Previously a tampered lockfile could pair a trusted `name@version` with an attacker-chosen tarball URL (and a matching integrity for those bytes), so the install fetched the attacker's bytes. A mismatch — or any entry that can't be confirmed against the registry — is rejected with `ERR_PNPM_TARBALL_URL_MISMATCH`. Non-registry resolutions (`file:`, git-hosted, etc.) and registry entries without an explicit tarball URL (the URL is reconstructed from name+version+registry, so it is inherently bound) are unaffected; non-standard registry tarball URLs (npm Enterprise, GitHub Packages) still pass because they match the metadata.
+
+  This binding is unconditional — it runs regardless of `minimumReleaseAge`/`trustPolicy` and is not narrowed by their exclude lists, since it guards integrity rather than maturity/trust. It is **fail-closed**: an entry passes only when the registry metadata affirmatively lists the version with a matching tarball URL. If the metadata can't be fetched, doesn't list the version, or omits `dist.tarball`, the entry is rejected. As a result, an install that re-verifies a lockfile (any install whose lockfile content changed since the last verified run, where the verification cache no longer applies) now requires the configured registry to be reachable. `trustLockfile` is the opt-out for environments that treat the on-disk lockfile as already trusted.
+
+  The `minimumReleaseAge`/`trustPolicy` verification also no longer applies to URL-keyed tarball dependencies (e.g. `https:` tarballs) that carry a semver `version` copied from their manifest — those are deliberate non-registry dependencies.
+
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/network.auth-header@1101.1.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.4
+  - @pnpm/resolving.git-resolver@1100.1.3
+  - @pnpm/resolving.tarball-resolver@1100.1.2
+  - @pnpm/engine.runtime.bun-resolver@1101.1.5
+  - @pnpm/engine.runtime.deno-resolver@1101.1.5
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/resolving.local-resolver@1101.1.3
+
 ## 1100.3.4
 
 ### Patch Changes
