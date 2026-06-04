@@ -55,6 +55,18 @@ pub struct InstallOptions<'a> {
     pub registry: String,
     /// The client's named-registry aliases.
     pub named_registries: DepMap,
+    /// The caller's per-registry `Authorization` header values, keyed by
+    /// nerf-darted registry URI (`pacquet_network::AuthHeaders::entries`).
+    /// Forwarded so the server can resolve, verify, and fetch the
+    /// caller's **private** content as the caller. Separate from
+    /// [`Self::authorization`], which identifies the caller to the pnpr
+    /// server itself.
+    pub auth_headers: DepMap,
+    /// The `Authorization` header value for the pnpr server's own URL, or
+    /// `None` when the server needs no auth. Identifies the caller to
+    /// pnpr's access gate (and keys the per-user grant table) — distinct
+    /// from the forwarded *upstream* credentials in [`Self::auth_headers`].
+    pub authorization: Option<String>,
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
     /// at resolve time server-side.
     pub overrides: Option<serde_json::Value>,
@@ -213,6 +225,7 @@ impl PnprClient {
             "storeIntegrities": store_integrities,
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
+            "authHeaders": opts.auth_headers,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
@@ -229,8 +242,11 @@ impl PnprClient {
             "inlineFiles": true,
         });
 
-        let response =
-            self.http.post(format!("{}v1/install", self.base_url)).json(&request).send().await?;
+        let mut post = self.http.post(format!("{}v1/install", self.base_url)).json(&request);
+        if let Some(authorization) = opts.authorization.as_deref() {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();

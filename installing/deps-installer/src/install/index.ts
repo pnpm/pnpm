@@ -2340,8 +2340,17 @@ async function installFromPnpmRegistry (
     )
   }
   const { fetchFromPnpmRegistry } = await import('@pnpm/pnpr.client')
+  const { createGetAuthHeaderByURI, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
+
+  // Forward the caller's per-registry credentials so the server resolves
+  // and fetches private content as the caller, plus the header that
+  // identifies the caller to the pnpr server's own access gate (and keys
+  // the per-user grant table).
+  const configByUri = opts.configByUri ?? {}
+  const forwardedAuthHeaders = getAuthHeadersFromCreds(configByUri)
+  const pnprAuthorization = createGetAuthHeaderByURI(configByUri)(opts.pnprServer!)
   // Raise import concurrency for this install only — the pnpr server path has no
   // concurrent fetching competing for workers. Restore afterwards so we
   // don't leak a process-wide mutation to other installs (e.g. tests).
@@ -2386,6 +2395,10 @@ async function installFromPnpmRegistry (
         devDependencies: projectsList ? undefined : manifest.devDependencies,
         optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
         projects: projectsList,
+        registry: opts.registries?.default,
+        namedRegistries: opts.namedRegistries,
+        authHeaders: forwardedAuthHeaders,
+        authorization: pnprAuthorization,
         overrides: opts.overrides,
         minimumReleaseAge: opts.minimumReleaseAge,
         lockfile: existingLockfile ?? undefined,

@@ -5673,6 +5673,9 @@ importers:
       '@pnpm/lockfile.walker':
         specifier: workspace:*
         version: link:../../lockfile/walker
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0

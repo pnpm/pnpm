@@ -133,6 +133,9 @@
       "path": "../../lockfile/walker"
     },
     {
+      "path": "../../network/auth-header"
+    },
+    {
       "path": "../../network/git-utils"
     },
     {

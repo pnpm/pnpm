@@ -17,7 +17,7 @@ use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
 use pacquet_hooks::finder;
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
-use pacquet_network::ThrottledClient;
+use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_default_resolver::DefaultResolver;
@@ -170,6 +170,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// satisfying their manifest range. Drives `pacquet update`'s
     /// compatible bump; see [`UpdateSeedPolicy`].
     pub update_seed_policy: UpdateSeedPolicy,
+    /// Per-invocation `Authorization`-header override; `None` uses
+    /// `config.auth_headers`. See [`crate::Install::auth_override`].
+    pub auth_override: Option<Arc<AuthHeaders>>,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -426,7 +429,14 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             supported_architectures,
             lockfile_only,
             update_seed_policy,
+            auth_override,
         } = self;
+
+        // Resolve/verify against the caller's forwarded credentials when
+        // the pnpr accelerator supplied them; otherwise fall back to the
+        // config's npmrc-derived headers. Computed once and shared by
+        // every registry-touching resolver below.
+        let auth_headers = auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers));
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
@@ -532,7 +542,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             registries,
             named_registries: merged_named_registries.clone(),
             http_client: Arc::clone(&http_client_arc),
-            auth_headers: Arc::clone(&config.auth_headers),
+            auth_headers: Arc::clone(&auth_headers),
             meta_cache: Arc::clone(&meta_cache),
             fetch_locker: Arc::clone(&fetch_locker),
             picked_manifest_cache: Arc::clone(&picked_manifest_cache),
@@ -593,7 +603,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 store_dir,
                 store_index_writer: Some(Arc::clone(&store_index_writer)),
                 mem_cache: Some(Arc::clone(&tarball_mem_cache)),
-                auth_headers: Arc::clone(&config.auth_headers),
+                auth_headers: Arc::clone(&auth_headers),
                 retry_opts: crate::retry_config::retry_opts_from_config(config),
                 store_index: store_index.clone(),
                 verify_store_integrity: config.verify_store_integrity,
@@ -620,7 +630,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             named_registries: merged_named_registries,
             registry_names: named_registry_aliases,
             http_client: Arc::clone(&http_client_arc),
-            auth_headers: Arc::clone(&config.auth_headers),
+            auth_headers: Arc::clone(&auth_headers),
             meta_cache: Arc::clone(&meta_cache),
             fetch_locker: Arc::clone(&fetch_locker),
             picked_manifest_cache: Arc::clone(&picked_manifest_cache),

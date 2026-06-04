@@ -34,6 +34,7 @@
 //! are buffered rather than truly streamed.
 
 mod diff;
+mod grant_table;
 mod protocol;
 mod resolve;
 mod verdict_cache;
@@ -46,6 +47,7 @@ use std::{
     io::Write as _,
     path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
+    time::Duration,
 };
 
 use crate::{
@@ -64,13 +66,13 @@ use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
-use pacquet_network::ThrottledClient;
+use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::build_resolution_verifiers;
-use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, PackageMetaCache};
+use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, PackageMetaCache, to_registry_url};
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::{StoreDir, StoreIndex};
 
-use self::{protocol::InstallRequest, verdict_cache::VerdictCache};
+use self::{grant_table::GrantTable, protocol::InstallRequest, verdict_cache::VerdictCache};
 
 /// Per-server engine backing the pnpr install endpoints: it holds the
 /// store, cache, and HTTP client used to resolve a client's project and
@@ -96,6 +98,18 @@ pub(crate) struct InstallAccelerator {
     /// only if the database couldn't be opened — verification then runs
     /// every time (uncached) rather than failing the server.
     verdict_cache: Option<VerdictCache>,
+    /// SQLite-backed per-`(user, name@version)` access grants for
+    /// externally-resolved private content. `None` only if the database
+    /// couldn't be opened — every upstream-as-authority package then
+    /// re-verifies against the owning registry (uncached) rather than
+    /// failing the server. See [`GrantTable`].
+    grant_table: Option<GrantTable>,
+    /// How long a recorded grant stays valid. `None` (the default) makes
+    /// grants permanent, matching local store retention — revocation then
+    /// relies on clear-on-discovery. A `Some(ttl)` lets revocation bite
+    /// already-granted versions within a window even when nothing
+    /// re-contacts the upstream.
+    grant_ttl: Option<Duration>,
 }
 
 impl InstallAccelerator {
@@ -115,12 +129,15 @@ impl InstallAccelerator {
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
         let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
+        let grant_table = GrantTable::open(&cache_dir.join("install-grants.sqlite")).ok();
         InstallAccelerator {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
             client: Arc::new(ThrottledClient::new_for_installs()),
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
+            grant_table,
+            grant_ttl: config.install_accelerator_grant_ttl,
         }
     }
 
@@ -198,6 +215,14 @@ pub(crate) async fn handle_install(
     // Resolve against the client's registries, not the server's own.
     let config = runtime.config_for(&request);
 
+    // The caller's forwarded per-registry credentials (keyed by
+    // nerf-darted URI). Threaded through resolution, verification, and
+    // fetch so private content resolves as the caller — kept out of the
+    // interned `config` so it never leaks a `&'static Config` per user.
+    let request_auth = Arc::new(AuthHeaders::from_map(
+        request.auth_headers.iter().map(|(uri, value)| (uri.clone(), value.clone())).collect(),
+    ));
+
     // Verify the *input* lockfile under the client's policy before
     // resolving ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
     // The client skips its own `verifyLockfileResolutions` whenever a
@@ -209,7 +234,8 @@ pub(crate) async fn handle_install(
     // pick-time gate (the policy is wired into `config`).
     if !request.trust_lockfile
         && let Some(input_lockfile) = request.lockfile.as_ref()
-        && let Err(failure) = verify_input_lockfile(runtime, config, input_lockfile).await
+        && let Err(failure) =
+            verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await
     {
         return match failure {
             VerifyFailure::Internal(response) => response,
@@ -217,12 +243,18 @@ pub(crate) async fn handle_install(
         };
     }
 
-    let lockfile = match resolve::resolve(config, &runtime.client, &request).await {
+    let lockfile = match resolve::resolve(config, &runtime.client, &request, &request_auth).await {
         Ok(lockfile) => lockfile,
         Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
     };
 
     let packages = resolve::collect_packages(&lockfile, &config.registry);
+
+    // The `pkg_id`s fetched from upstream this request (with the
+    // caller's forwarded credentials). The upstream accepted the
+    // caller's token for each, so the access gate can treat a private
+    // one as proven for this caller without re-verifying.
+    let mut freshly_fetched: HashSet<String> = HashSet::new();
 
     // `--lockfile-only`: pnpm resolves and writes the lockfile but
     // fetches nothing and links nothing. Skip the tarball fetch + the
@@ -236,8 +268,9 @@ pub(crate) async fn handle_install(
             stats: diff::Stats { total_packages: packages.len() as u64, ..diff::Stats::default() },
         }
     } else {
-        if let Err(err) = resolve::fetch_uncached(config, &runtime.client, &packages).await {
-            return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string());
+        match resolve::fetch_uncached(config, &runtime.client, &request_auth, &packages).await {
+            Ok(fetched) => freshly_fetched = fetched,
+            Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
         }
 
         let store = match StoreIndex::open_readonly_in(&config.store_dir) {
@@ -259,7 +292,17 @@ pub(crate) async fn handle_install(
         }
     };
 
-    if let Some(denied) = deny_unauthorized_packages(policies, &identity, &result.package_index) {
+    if let Some(denied) = authorize_served_packages(
+        runtime,
+        policies,
+        &identity,
+        &request,
+        &request_auth,
+        &freshly_fetched,
+        &result.package_index,
+    )
+    .await
+    {
         return denied;
     }
 
@@ -279,34 +322,80 @@ fn stats_json(stats: &diff::Stats) -> serde_json::Value {
     })
 }
 
-/// Deny the install when the caller may not read a package whose files
-/// are about to be served. A content-addressed digest is shared across
-/// packages and reveals nothing about access, so possession of a
-/// package's bytes in the store is never a capability to receive them:
-/// every served package is checked against pnpr's own `packages:` policy
-/// — the same decision `serve_packument` / `serve_tarball` make, in
-/// process, with no network round trip. Returns the denial response (401
-/// for an anonymous caller who could authenticate, 403 for an
-/// authenticated caller outside the allowed set) or `None` when every
-/// served package is readable.
+/// Authorize every served package before any of its files leave the
+/// store. A content-addressed digest is shared across packages and
+/// reveals nothing about access, so possession of a package's bytes is
+/// never a capability to receive them. Each package falls into one of two
+/// regimes, dispatched by **whether a forwarded credential was used to
+/// fetch it**:
 ///
-/// This authorizes against pnpr's own surface, which is the authority for
-/// everything the store can hold today: pnpr fetches anonymously (no
-/// credential forwarding yet), so cached content is either pnpr-hosted or
-/// publicly fetchable. When credential forwarding lands, packages the
-/// client resolved from *external* registries under its own token become
-/// reachable, and those carry no pnpr policy — their access must then be
-/// re-verified per caller against the owning registry (with a TTL'd
-/// verdict cache), which this local check does not cover.
-fn deny_unauthorized_packages(
+/// * **pnpr-as-authority** (no forwarded credential matched its
+///   registry): a public or pnpr-hosted package whose authority is
+///   pnpr's own `packages:` policy — checked locally with no round trip,
+///   exactly as `serve_packument` / `serve_tarball` do.
+/// * **upstream-as-authority** (a forwarded credential matched): a
+///   package pnpr resolved from an *external* registry as the caller. It
+///   carries no pnpr policy, so the owning registry decides access **per
+///   user** — see [`authorize_upstream_package`].
+///
+/// Returns a denial response for the first package the caller may not
+/// read, or `None` when every served package is authorized.
+async fn authorize_served_packages(
+    runtime: &InstallAccelerator,
     policies: &PackagePolicies,
     identity: &Identity,
+    request: &InstallRequest,
+    request_auth: &AuthHeaders,
+    freshly_fetched: &HashSet<String>,
     served: &[diff::PackageIndexEntry],
 ) -> Option<Response> {
-    let mut checked: HashSet<&str> = HashSet::new();
+    // The registry pnpr resolved registry dependencies from — the same
+    // default `config_for` derives, and the one `collect_packages` /
+    // `fetch_uncached` built every registry tarball URL against. (Pacquet
+    // routes scoped names through this default too; per-scope external
+    // registries are a future refinement.)
+    let registry = request.registry.as_deref().unwrap_or("https://registry.npmjs.org/");
+
+    let mut local_pkg_ids: Vec<&str> = Vec::new();
     for entry in served {
         let Some(name) = package_name(&entry.pkg_id) else { continue };
-        // Access is decided per package name, so evaluate each name once.
+        let pkg_url = to_registry_url(registry, name);
+        if request_auth.for_url(&pkg_url).is_none() {
+            local_pkg_ids.push(entry.pkg_id.as_str());
+            continue;
+        }
+        if let Some(denied) = authorize_upstream_package(
+            runtime,
+            identity,
+            request_auth,
+            freshly_fetched,
+            registry,
+            name,
+            &entry.pkg_id,
+        )
+        .await
+        {
+            return Some(denied);
+        }
+    }
+
+    deny_local_policy(policies, identity, local_pkg_ids.into_iter())
+}
+
+/// Deny the install when the caller may not read a package whose access
+/// is decided by pnpr's own `packages:` policy (the pnpr-as-authority
+/// regime). Evaluates each package name once. Returns the denial response
+/// (401 for an anonymous caller who could authenticate, 403 for an
+/// authenticated caller outside the allowed set) or `None` when every
+/// name is readable.
+fn deny_local_policy<'a>(
+    policies: &PackagePolicies,
+    identity: &Identity,
+    pkg_ids: impl Iterator<Item = &'a str>,
+) -> Option<Response> {
+    let mut checked: HashSet<&str> = HashSet::new();
+    for pkg_id in pkg_ids {
+        let Some(name) = package_name(pkg_id) else { continue };
         if !checked.insert(name) {
             continue;
         }
@@ -319,6 +408,121 @@ fn deny_unauthorized_packages(
         }
     }
     None
+}
+
+/// Authorize one upstream-as-authority package for the caller. The
+/// external registry — not pnpr's policy — owns the decision, so a digest
+/// in the shared store must never authorize a user the upstream never
+/// cleared:
+///
+/// * **Freshly fetched this request** (`pkg_id` in `freshly_fetched`):
+///   the upstream already accepted the caller's forwarded token during
+///   the cold fetch, proving access. Record a grant and allow — no extra
+///   round trip.
+/// * **Cache hit with a standing grant**: allow straight from the grant
+///   table, no upstream contact.
+/// * **Cache hit, no grant** (first time this user wants this cached
+///   version): re-verify against the owning registry with the caller's
+///   forwarded credential. On success record the grant; on `401`/`403`
+///   clear every grant the caller holds for the package
+///   (clear-on-discovery) and deny.
+///
+/// A caller anonymous to pnpr is still authorized this way — the
+/// forwarded credential is what the upstream checks. Grants are only
+/// recorded/consulted for an identified user (there is no key to record
+/// an anonymous grant under), so an anonymous caller re-verifies every
+/// cache hit rather than benefiting from the table.
+async fn authorize_upstream_package(
+    runtime: &InstallAccelerator,
+    identity: &Identity,
+    request_auth: &AuthHeaders,
+    freshly_fetched: &HashSet<String>,
+    registry: &str,
+    name: &str,
+    pkg_id: &str,
+) -> Option<Response> {
+    let user = match identity {
+        Identity::User { username } => Some(username.as_str()),
+        Identity::Anonymous => None,
+    };
+    let grants = || user.zip(runtime.grant_table.as_ref());
+
+    // The cold fetch this request already proved access: the upstream
+    // accepted the caller's forwarded token.
+    if freshly_fetched.contains(pkg_id) {
+        if let Some((user, table)) = grants() {
+            table.record(user, pkg_id);
+        }
+        return None;
+    }
+
+    if let Some((user, table)) = grants()
+        && table.is_granted(user, pkg_id, runtime.grant_ttl)
+    {
+        return None;
+    }
+
+    match verify_upstream_access(&runtime.client, request_auth, registry, name).await {
+        UpstreamAccess::Authorized => {
+            if let Some((user, table)) = grants() {
+                table.record(user, pkg_id);
+            }
+            None
+        }
+        UpstreamAccess::Denied => {
+            if let Some((user, table)) = grants() {
+                table.clear_package(user, name);
+            }
+            Some(json_error(StatusCode::FORBIDDEN, &format!("not authorized to access {name:?}")))
+        }
+        UpstreamAccess::Unknown => Some(json_error(
+            StatusCode::BAD_GATEWAY,
+            &format!("could not verify access to {name:?}"),
+        )),
+    }
+}
+
+/// Outcome of a per-caller upstream access probe.
+enum UpstreamAccess {
+    /// The upstream served the package to the caller's token.
+    Authorized,
+    /// The upstream returned `401`/`403` for the caller.
+    Denied,
+    /// The upstream was unreachable or returned some other status; access
+    /// can't be decided, so the caller is neither granted nor denied.
+    Unknown,
+}
+
+/// Probe whether the caller may read `name` from `registry`, by fetching
+/// its (abbreviated) packument with the caller's forwarded credential.
+/// This is the same request the caller's own cold install would make, so
+/// it costs nothing beyond the first time the caller wants a cached
+/// version.
+async fn verify_upstream_access(
+    client: &ThrottledClient,
+    request_auth: &AuthHeaders,
+    registry: &str,
+    name: &str,
+) -> UpstreamAccess {
+    let url = to_registry_url(registry, name);
+    let guard = client.acquire_for_url(&url).await;
+    let mut request = guard.get(&url).header("accept", "application/vnd.npm.install-v1+json");
+    if let Some(value) = request_auth.for_url(&url) {
+        request = request.header("authorization", value);
+    }
+    match request.send().await {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            if (200..300).contains(&status) {
+                UpstreamAccess::Authorized
+            } else if status == 401 || status == 403 {
+                UpstreamAccess::Denied
+            } else {
+                UpstreamAccess::Unknown
+            }
+        }
+        Err(_) => UpstreamAccess::Unknown,
+    }
 }
 
 /// The package name from a `name@version` package id, tolerating a
@@ -421,6 +625,7 @@ enum VerifyFailure {
 async fn verify_input_lockfile(
     runtime: &InstallAccelerator,
     config: &'static PacquetConfig,
+    auth_headers: &Arc<AuthHeaders>,
     lockfile: &Lockfile,
 ) -> Result<(), VerifyFailure> {
     // A fresh per-request packument cache shared with the verifier; the
@@ -431,6 +636,7 @@ async fn verify_input_lockfile(
         config,
         Arc::clone(&runtime.client),
         Some(meta_cache as Arc<dyn PackageMetaCache>),
+        Some(Arc::clone(auth_headers)),
     )
     .map_err(|err| {
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))

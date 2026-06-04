@@ -85,6 +85,13 @@ pub struct Config {
     /// installs at startup. Sourced from the YAML `log:` object
     /// (Verdaccio 6+ shape). Defaults to pretty/info.
     pub logs: LogConfig,
+    /// How long the install accelerator keeps a per-user access grant
+    /// for externally-resolved private content before it must be
+    /// re-verified. `None` (the default) means grants are permanent
+    /// (revocation relies on clear-on-discovery); `Some(ttl)` lets
+    /// revocation bite already-granted versions within the window.
+    /// Sourced from the YAML `installAccelerator.grantTtl` (seconds).
+    pub install_accelerator_grant_ttl: Option<Duration>,
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -290,6 +297,19 @@ struct ConfigFile {
     /// intentionally not accepted.
     #[serde(default)]
     log: Option<LogEntryFile>,
+    /// pnpr-only block tuning the install accelerator. Absent on a
+    /// stock verdaccio config (silently ignored there, like the other
+    /// keys verdaccio doesn't share).
+    #[serde(default, rename = "installAccelerator")]
+    install_accelerator: Option<InstallAcceleratorFile>,
+}
+
+/// The YAML `installAccelerator:` block.
+#[derive(Debug, Default, Deserialize)]
+struct InstallAcceleratorFile {
+    /// `grantTtl` in seconds. Absent ⇒ permanent grants.
+    #[serde(default, rename = "grantTtl")]
+    grant_ttl: Option<u64>,
 }
 
 /// The YAML `log:` object. Mirrors verdaccio 6's logger config.
@@ -362,6 +382,7 @@ impl Config {
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
+            install_accelerator_grant_ttl: None,
         }
     }
 
@@ -378,6 +399,7 @@ impl Config {
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
+            install_accelerator_grant_ttl: None,
         }
     }
 
@@ -497,6 +519,10 @@ impl Config {
             policies,
             auth,
             logs,
+            install_accelerator_grant_ttl: file
+                .install_accelerator
+                .and_then(|block| block.grant_ttl)
+                .map(Duration::from_secs),
         })
     }
 

@@ -61,6 +61,8 @@ fn options<'a>(
         dev_dependencies: BTreeMap::new(),
         registry: registry.to_string(),
         named_registries: BTreeMap::new(),
+        auth_headers: BTreeMap::new(),
+        authorization: None,
         overrides: None,
         lockfile: None,
         frozen_lockfile: false,
@@ -75,6 +77,40 @@ fn options<'a>(
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
     }
+}
+
+/// The forwarded per-registry credentials and the pnpr-server identity
+/// header must travel on the wire: `authHeaders` in the body (so the
+/// server resolves/fetches private content as the caller) and
+/// `Authorization` on the request (so pnpr's gate + grant table key on
+/// the right user). A `mockito` server captures the request and asserts
+/// both are present; the canned 500 just short-circuits the client after
+/// the match.
+#[tokio::test]
+async fn forwards_credentials_and_the_identity_header() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("POST", "/v1/install")
+        .match_header("authorization", "Bearer pnpr-token")
+        .match_body(mockito::Matcher::PartialJsonString(
+            r#"{"authHeaders":{"//npm.acme.test/":"Bearer upstream-token"}}"#.to_string(),
+        ))
+        .with_status(500)
+        .with_body("stop")
+        .create_async()
+        .await;
+
+    let client_store = TempDir::new().unwrap();
+    let store = StoreDir::new(client_store.path().to_path_buf());
+    let client = PnprClient::new(format!("{}/", server.url()));
+
+    let mut opts = options(&store, "https://npm.acme.test/", deps([("@acme/foo", "1.0.0")]));
+    opts.auth_headers = deps([("//npm.acme.test/", "Bearer upstream-token")]);
+    opts.authorization = Some("Bearer pnpr-token".to_string());
+
+    let result = client.install(opts).await;
+    assert!(result.is_err(), "the canned 500 should surface as an error");
+    mock.assert_async().await;
 }
 
 #[tokio::test]

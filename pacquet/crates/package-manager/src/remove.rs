@@ -139,6 +139,7 @@ impl<'a> Remove<'a> {
             // every remaining lockfile pin in the preferred-versions
             // seed, same as `install` / `add`.
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            auth_override: None,
         }
         .run::<Reporter>()
         .await
