@@ -1172,7 +1172,7 @@ async fn delete_tarball(
     if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
-    if let Err(err) = state.inner.cache.remove_hosted_tarball(&name, &canonical).await {
+    if let Err(err) = state.inner.cache.remove_tarball(&name, &canonical).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });

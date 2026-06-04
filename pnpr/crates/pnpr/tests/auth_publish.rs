@@ -1020,6 +1020,47 @@ async fn unpublish_partial_writes_modified_packument() {
     assert_eq!(response.status(), StatusCode::CREATED);
 }
 
+/// Deleting a hosted tarball must also drop any proxied copy with the
+/// same filename, so `open_tarball`'s cache fallback can't keep serving
+/// the just-removed version.
+#[tokio::test]
+async fn unpublish_tarball_also_clears_the_proxied_copy() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("blend-pkg", "1.0.0", b"hosted-bytes");
+    let request = Request::put("/blend-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    // Plant a stale proxied copy of the same tarball in the cache root,
+    // as a `proxy:` rule would have left behind.
+    let cached = storage.join(".pnpr-cache").join("blend-pkg");
+    std::fs::create_dir_all(&cached).unwrap();
+    std::fs::write(cached.join("blend-pkg-1.0.0.tgz"), b"stale-proxied-bytes").unwrap();
+
+    let request = Request::delete("/blend-pkg/-/blend-pkg-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    assert!(!storage.join("blend-pkg/blend-pkg-1.0.0.tgz").exists());
+    assert!(!cached.join("blend-pkg-1.0.0.tgz").exists(), "proxied copy must be removed too");
+
+    // With both stores cleared and no upstream, the version is gone.
+    let response = app
+        .oneshot(Request::get("/blend-pkg/-/blend-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
 #[tokio::test]
 async fn unpublish_force_removes_entire_package() {
     let tmp = TempDir::new().unwrap();

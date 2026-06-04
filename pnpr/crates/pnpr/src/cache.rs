@@ -128,11 +128,15 @@ impl Cache {
         self.hosted.reserve_tarball_paths(name, filename).await
     }
 
-    /// Remove a single tarball file from the hosted store. The
+    /// Remove a single tarball file from both stores. The
     /// partial-unpublish flow calls this after PUT'ing the modified
-    /// packument back.
-    pub async fn remove_hosted_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
-        self.hosted.remove_tarball(name, filename).await
+    /// packument back; clearing the proxied mirror too stops
+    /// [`Self::open_tarball`]'s cache fallback from serving a stale copy
+    /// of the just-removed version.
+    pub async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
+        let hosted = self.hosted.remove_tarball(name, filename).await?;
+        let cached = self.cache.remove_tarball(name, filename).await?;
+        Ok(hosted || cached)
     }
 
     /// Remove the package from both stores. Unpublish must purge the
