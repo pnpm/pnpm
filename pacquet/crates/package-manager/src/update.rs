@@ -392,6 +392,7 @@ impl Update<'_> {
             node_linker: config.node_linker,
             lockfile_only,
             update_seed_policy: seed_policy,
+            auth_override: None,
         }
         .run::<Reporter>()
         .await

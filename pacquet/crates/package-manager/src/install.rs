@@ -25,7 +25,7 @@ use pacquet_modules_yaml::{
     Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
     WriteModulesError, read_modules_manifest, write_modules_manifest,
 };
-use pacquet_network::ThrottledClient;
+use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
     ContextLog, LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
@@ -177,6 +177,12 @@ where
     /// short-circuit is also bypassed so an `update` that finds newer
     /// in-range versions isn't skipped as "already up to date".
     pub update_seed_policy: UpdateSeedPolicy,
+    /// Per-invocation `Authorization`-header override for resolve/verify;
+    /// `None` (every local install) uses `config.auth_headers`. The pnpr
+    /// accelerator threads request-scoped [`AuthHeaders`] here so it
+    /// resolves a caller's private content without baking per-user auth
+    /// into the shared `&'static Config`.
+    pub auth_override: Option<Arc<AuthHeaders>>,
 }
 
 /// Error type of [`Install`].
@@ -365,6 +371,7 @@ where
             node_linker,
             lockfile_only,
             update_seed_policy,
+            auth_override,
         } = self;
 
         // `--lockfile-only` with `lockfile: false` (pnpm's
@@ -625,6 +632,7 @@ where
                 Arc::clone(&http_client_arc),
                 Some(Arc::clone(&meta_cache)
                     as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
+                auth_override.clone(),
             )
             .map_err(InstallError::BuildVerifiers)?;
             verify_lockfile_resolutions::<Reporter>(
@@ -961,6 +969,7 @@ where
                 supported_architectures: supported_architectures.as_ref(),
                 lockfile_only,
                 update_seed_policy,
+                auth_override,
             }
             .run::<Reporter>()
             .await

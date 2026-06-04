@@ -358,6 +358,7 @@ impl InstallArgs {
             node_linker,
             lockfile_only,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            auth_override: None,
         }
         .run::<Reporter>()
         .await
@@ -468,6 +469,16 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             dev_dependencies,
             registry: state.config.registry.clone(),
             named_registries: state.config.named_registries.clone(),
+            // Forward the whole credential map: the registries a graph
+            // touches aren't known up front (scope-routed or tarball-URL
+            // sub-deps), so the server attaches the right token per URL.
+            auth_headers: state
+                .config
+                .auth_headers
+                .entries()
+                .map(|(uri, value)| (uri.to_string(), value.to_string()))
+                .collect(),
+            authorization: state.config.auth_headers.for_url(pnpr_server),
             overrides,
             lockfile: state.lockfile.clone(),
             frozen_lockfile: link.frozen_lockfile,
@@ -544,6 +555,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         node_linker: link.node_linker,
         lockfile_only: false,
         update_seed_policy: UpdateSeedPolicy::KeepAll,
+        auth_override: None,
     }
     .run::<Reporter>()
     .await

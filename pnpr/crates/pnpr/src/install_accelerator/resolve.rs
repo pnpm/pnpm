@@ -14,7 +14,7 @@ use std::{
 use dashmap::DashMap;
 use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{Lockfile, LockfileResolution};
-use pacquet_network::ThrottledClient;
+use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::{Install, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;
@@ -71,6 +71,7 @@ pub async fn resolve(
     config: &'static Config,
     client: &Arc<ThrottledClient>,
     request: &InstallRequest,
+    auth_headers: &Arc<AuthHeaders>,
 ) -> Result<Lockfile, ResolveError> {
     let projects = request.projects_normalized();
 
@@ -191,6 +192,9 @@ pub async fn resolve(
         node_linker: NodeLinker::Isolated,
         lockfile_only: true,
         update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+        // Resolve as the caller (forwarded credentials) without baking
+        // per-user auth into the interned `&'static Config`.
+        auth_override: Some(Arc::clone(auth_headers)),
     }
     .run::<SilentReporter>()
     .await
@@ -224,11 +228,16 @@ pub fn collect_packages(lockfile: &Lockfile, registry: &str) -> Vec<ResolvedPkg>
 /// Fetch into the shared store every package whose store-index row is
 /// absent, populating its `PackageFilesIndex` as a side effect. Cached
 /// packages are skipped, matching the server hot-cache no-op.
+///
+/// Returns the `pkg_id`s actually fetched this call — the upstream
+/// accepted the caller's credentials for each, so the gate treats a
+/// freshly-fetched private package as proven (no re-verify).
 pub async fn fetch_uncached(
     config: &'static Config,
     client: &Arc<ThrottledClient>,
+    auth_headers: &AuthHeaders,
     packages: &[ResolvedPkg],
-) -> Result<(), ResolveError> {
+) -> Result<HashSet<String>, ResolveError> {
     let store_dir = &config.store_dir;
 
     let present: HashSet<String> = match StoreIndex::open_readonly_in(store_dir) {
@@ -243,8 +252,10 @@ pub async fn fetch_uncached(
         .collect();
 
     if to_fetch.is_empty() {
-        return Ok(());
+        return Ok(HashSet::new());
     }
+
+    let fetched_ids: HashSet<String> = to_fetch.iter().map(|pkg| pkg.pkg_id.clone()).collect();
 
     let integrities: Vec<Option<ssri::Integrity>> =
         to_fetch.iter().map(|pkg| pkg.integrity.parse::<ssri::Integrity>().ok()).collect();
@@ -270,7 +281,7 @@ pub async fn fetch_uncached(
                 package_unpacked_size: None,
                 package_url: &pkg.tarball_url,
                 package_id: &pkg.pkg_id,
-                auth_headers: &config.auth_headers,
+                auth_headers,
                 requester: "pnpr",
                 prefetched_cas_paths: None,
                 retry_opts: RetryOpts::default(),
@@ -291,7 +302,7 @@ pub async fn fetch_uncached(
     for result in results {
         result?;
     }
-    Ok(())
+    Ok(fetched_ids)
 }
 
 /// Derive `(integrity, tarball_url)` for a resolution, mirroring

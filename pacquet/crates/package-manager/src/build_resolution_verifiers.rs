@@ -23,7 +23,7 @@ use pacquet_config::{
     Config, TrustPolicy,
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
-use pacquet_network::ThrottledClient;
+use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_resolving_npm_resolver::{
     CreateNpmResolutionVerifierOptions, PackageMetaCache, create_npm_resolution_verifier,
 };
@@ -71,6 +71,7 @@ pub fn build_resolution_verifiers(
     config: &Config,
     http_client: Arc<ThrottledClient>,
     meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    auth_override: Option<Arc<AuthHeaders>>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
     let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
 
@@ -119,7 +120,7 @@ pub fn build_resolution_verifiers(
             .map(|(name, url)| (name.clone(), url.clone()))
             .collect(),
         http_client,
-        auth_headers: Arc::clone(&config.auth_headers),
+        auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
         cache_dir: Some(config.cache_dir.clone()),
         meta_cache,
         retry_opts: retry_opts_from_config(config),

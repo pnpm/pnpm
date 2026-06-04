@@ -33,6 +33,24 @@ export interface FetchFromPnpmRegistryOptions {
   optionalDependencies?: Record<string, string>
   /** Multiple projects in a workspace */
   projects?: PnprProject[]
+  /**
+   * The client's default registry. The server resolves against this
+   * (and `namedRegistries`) rather than its own configuration.
+   */
+  registry?: string
+  /** The client's named-registry aliases (`namedRegistries`). */
+  namedRegistries?: Record<string, string>
+  /**
+   * The caller's forwarded upstream credentials, keyed by nerf-darted
+   * registry URI, so the server resolves/fetches private content as the
+   * caller. Distinct from `authorization` (pnpr identity).
+   */
+  authHeaders?: Record<string, string>
+  /**
+   * `Authorization` for the pnpr server's own URL (`undefined` if none):
+   * identifies the caller to pnpr's gate and keys the grant table.
+   */
+  authorization?: string
   /** Overrides */
   overrides?: Record<string, string>
   /** Node.js version for resolution */
@@ -94,6 +112,9 @@ export async function fetchFromPnpmRegistry (
 
   const requestBody = JSON.stringify({
     projects,
+    registry: opts.registry,
+    namedRegistries: opts.namedRegistries,
+    authHeaders: opts.authHeaders,
     overrides: opts.overrides,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     os: process.platform,
@@ -108,7 +129,7 @@ export async function fetchFromPnpmRegistry (
     inlineFiles: true,
   })
 
-  const body = await postInstall(opts.registryUrl, requestBody)
+  const body = await postInstall(opts.registryUrl, requestBody, opts.authorization)
 
   // The combined response is `[u32 header length][header JSON][file frames]`.
   if (body.length < 4) {
@@ -179,20 +200,27 @@ const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be 
  * prefix configured on the pnpr server URL (e.g. https://host/pnpr/) is
  * preserved.
  */
-async function postInstall (registryUrl: string, body: string): Promise<Buffer> {
+async function postInstall (registryUrl: string, body: string, authorization?: string): Promise<Buffer> {
   const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
   const url = new URL('v1/install', base)
   const requestFn = url.protocol === 'https:' ? https.request : http.request
+
+  const headers: http.OutgoingHttpHeaders = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+    'Accept-Encoding': 'gzip',
+  }
+  // Identify the caller to the pnpr server's access gate so protected
+  // packages resolve and the per-user grant table keys on the right user.
+  if (authorization != null) {
+    headers.Authorization = authorization
+  }
 
   return new Promise<Buffer>((resolve, reject) => {
     const req = requestFn(url, {
       method: 'POST',
       timeout: REQUEST_TIMEOUT,
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
-        'Accept-Encoding': 'gzip',
-      },
+      headers,
     }, (res) => {
       const chunks: Buffer[] = []
       res.on('data', (chunk: Buffer) => chunks.push(chunk))

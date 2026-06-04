@@ -98,6 +98,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",

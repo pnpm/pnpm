@@ -124,6 +124,7 @@ where
             // is the only thing that re-resolves. `update`'s bump is a
             // separate operation.
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            auth_override: None,
         }
         .run::<Reporter>()
         .await

@@ -87,6 +87,13 @@ impl AuthHeaders {
         AuthHeaders { by_uri, max_parts }
     }
 
+    /// The `(nerf_darted_uri, header_value)` pairs backing this lookup, so
+    /// a caller can forward the whole set to another process (the pnpr
+    /// accelerator) and rebuild it with [`Self::from_map`].
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.by_uri.iter().map(|(uri, value)| (uri.as_str(), value.as_str()))
+    }
+
     /// Resolve an `Authorization` header for `url`, mirroring pnpm's
     /// `getAuthHeaderByURI`:
     ///
