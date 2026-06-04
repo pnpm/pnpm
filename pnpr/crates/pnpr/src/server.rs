@@ -879,7 +879,7 @@ async fn publish_package(
     // would mask every upstream version + dist-tag on subsequent
     // reads. `update_dist_tag` already does the same fallback —
     // we just mirror it here.
-    let existing_bytes = match state.inner.cache.read_published_packument(&name).await {
+    let existing_bytes = match state.inner.cache.read_hosted_packument(&name).await {
         Ok(Some(bytes)) => Some(bytes),
         Ok(None) => match load_packument_bytes(state, &name).await {
             PackumentLoad::Ok(bytes) => Some(bytes),
@@ -913,7 +913,7 @@ async fn publish_package(
     // disk.
     let mut written_slots = Vec::with_capacity(prepared.len());
     for (attachment, canonical, dist) in prepared {
-        let slot = match state.inner.cache.reserve_published_tarball(&name, &canonical).await {
+        let slot = match state.inner.cache.reserve_hosted_tarball(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
@@ -950,7 +950,7 @@ async fn publish_package(
         }
     }
 
-    if let Err(err) = state.inner.cache.write_published_packument(&name, &merged_bytes).await {
+    if let Err(err) = state.inner.cache.write_hosted_packument(&name, &merged_bytes).await {
         return error_response(&err);
     }
 
@@ -1001,16 +1001,11 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
             .expect("static-shape response always builds");
     };
     let size = crate::search::parse_size(query_string, 20);
-    let mut body = match crate::search::run_local_search(
-        state.inner.cache.published_root(),
-        &text,
-        size,
-    )
-    .await
-    {
-        Ok(body) => body,
-        Err(err) => return error_response(&err),
-    };
+    let mut body =
+        match crate::search::run_local_search(state.inner.cache.hosted_root(), &text, size).await {
+            Ok(body) => body,
+            Err(err) => return error_response(&err),
+        };
 
     // Augment with an upstream packument lookup for the exact query
     // name. Without this, freshly-prepared registry-mock storage
@@ -1121,7 +1116,7 @@ async fn update_packument(
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    if let Err(err) = state.inner.cache.write_published_packument(&name, &bytes).await {
+    if let Err(err) = state.inner.cache.write_hosted_packument(&name, &bytes).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -1177,7 +1172,7 @@ async fn delete_tarball(
     if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
-    if let Err(err) = state.inner.cache.remove_published_tarball(&name, &canonical).await {
+    if let Err(err) = state.inner.cache.remove_hosted_tarball(&name, &canonical).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -1274,9 +1269,9 @@ where
 
     // Start from the authoritative packument if we have one. A
     // dist-tag change is an authoritative override, so it is written
-    // back to the published store (below) regardless of whether the
+    // back to the hosted store (below) regardless of whether the
     // package originated locally or from upstream.
-    let mut packument: Value = match state.inner.cache.read_published_packument(&name).await {
+    let mut packument: Value = match state.inner.cache.read_hosted_packument(&name).await {
         Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
             Ok(v) => v,
             Err(err) => return error_response(&RegistryError::Json(err)),
@@ -1337,7 +1332,7 @@ where
         Ok(b) => b,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    if let Err(err) = state.inner.cache.write_published_packument(&name, &new_bytes).await {
+    if let Err(err) = state.inner.cache.write_hosted_packument(&name, &new_bytes).await {
         return error_response(&err);
     }
     let body = json!({ "ok": true });
@@ -1443,10 +1438,10 @@ enum PackumentLoad {
 /// the cache when configured. The same logic backs both the packument
 /// and the version-manifest endpoints.
 async fn load_packument_bytes(state: &AppState, name: &PackageName) -> PackumentLoad {
-    // A locally-published or static-served packument is authoritative:
-    // serve it as-is and never overwrite it with an upstream refresh,
-    // so published versions can't be masked or lost.
-    match state.inner.cache.read_published_packument(name).await {
+    // A hosted packument — published here or static-served — is
+    // authoritative: serve it as-is and never overwrite it with an
+    // upstream refresh, so hosted versions can't be masked or lost.
+    match state.inner.cache.read_hosted_packument(name).await {
         Ok(Some(bytes)) => return PackumentLoad::Ok(bytes),
         Ok(None) => {}
         Err(err) => {

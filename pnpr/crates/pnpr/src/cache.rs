@@ -64,11 +64,11 @@ impl TarballWrite {
 /// Verdaccio-shaped on-disk storage split into two physically separate
 /// roots with different durability guarantees:
 ///
-/// * `published` — the authoritative source of truth: packages
-///   published to this server and the content served in static mode.
-///   Served as-is and never overwritten by an upstream refresh, so a
-///   published version can't be masked or lost. Operators back this up
-///   and put it on a durable volume.
+/// * `hosted` — the authoritative source of truth: packages this
+///   server hosts directly (published through its API) plus the content
+///   served in static mode. Served as-is and never overwritten by an
+///   upstream refresh, so a hosted version can't be masked or lost.
+///   Operators back this up and put it on a durable volume.
 /// * `cache` — the disposable mirror of upstream registries. Safe to
 ///   wipe at any time; it self-heals on the next request. Operators can
 ///   keep it on scratch/ephemeral disk.
@@ -89,64 +89,59 @@ impl TarballWrite {
 /// in static mode.
 #[derive(Debug, Clone)]
 pub struct Cache {
-    published: Store,
+    hosted: Store,
     cache: Store,
 }
 
 impl Cache {
-    pub fn new(published_root: PathBuf, cache_root: PathBuf) -> Self {
-        Self { published: Store::new(published_root), cache: Store::new(cache_root) }
+    pub fn new(hosted_root: PathBuf, cache_root: PathBuf) -> Self {
+        Self { hosted: Store::new(hosted_root), cache: Store::new(cache_root) }
     }
 
-    /// The authoritative store's root, used by the local search scan
-    /// (which indexes published/static packages only, never the proxy
-    /// mirror).
-    pub fn published_root(&self) -> &Path {
-        &self.published.root
+    /// The hosted store's root, used by the local search scan (which
+    /// indexes hosted/static packages only, never the proxy mirror).
+    pub fn hosted_root(&self) -> &Path {
+        &self.hosted.root
     }
 
-    // --- Authoritative (published) store --------------------------------
+    // --- Authoritative (hosted) store -----------------------------------
 
     /// Read the authoritative packument for `name`, fresh or stale.
-    /// Authoritative content has no TTL — it is the source of truth.
-    pub async fn read_published_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
-        self.published.read_packument_any_age(name).await
+    /// Hosted content has no TTL — it is the source of truth.
+    pub async fn read_hosted_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+        self.hosted.read_packument_any_age(name).await
     }
 
-    pub async fn write_published_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
-        self.published.write_packument(name, bytes).await
+    pub async fn write_hosted_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
+        self.hosted.write_packument(name, bytes).await
     }
 
-    /// Reserve a tmp/final path pair for a tarball published to this
-    /// server. The publish flow streams the decode + hash + write
-    /// through `std::fs` inside `spawn_blocking` and only needs the
-    /// paths; finalize with [`Self::finalize_tarball_slot`].
-    pub async fn reserve_published_tarball(
+    /// Reserve a tmp/final path pair for a tarball this server hosts.
+    /// The publish flow streams the decode + hash + write through
+    /// `std::fs` inside `spawn_blocking` and only needs the paths;
+    /// finalize with [`Self::finalize_tarball_slot`].
+    pub async fn reserve_hosted_tarball(
         &self,
         name: &PackageName,
         filename: &str,
     ) -> Result<TarballSlot> {
-        self.published.reserve_tarball_paths(name, filename).await
+        self.hosted.reserve_tarball_paths(name, filename).await
     }
 
-    /// Remove a single tarball file from the authoritative store. The
+    /// Remove a single tarball file from the hosted store. The
     /// partial-unpublish flow calls this after PUT'ing the modified
     /// packument back.
-    pub async fn remove_published_tarball(
-        &self,
-        name: &PackageName,
-        filename: &str,
-    ) -> Result<bool> {
-        self.published.remove_tarball(name, filename).await
+    pub async fn remove_hosted_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
+        self.hosted.remove_tarball(name, filename).await
     }
 
     /// Remove the package from both stores. Unpublish must purge the
-    /// authoritative copy *and* any proxied mirror, so a stale cached
-    /// copy can't resurface after the package is gone.
+    /// hosted copy *and* any proxied mirror, so a stale cached copy
+    /// can't resurface after the package is gone.
     pub async fn remove_package(&self, name: &PackageName) -> Result<bool> {
-        let published = self.published.remove_package(name).await?;
+        let hosted = self.hosted.remove_package(name).await?;
         let cached = self.cache.remove_package(name).await?;
-        Ok(published || cached)
+        Ok(hosted || cached)
     }
 
     // --- Disposable (proxy) cache store ---------------------------------
@@ -183,10 +178,10 @@ impl Cache {
         self.cache.open_tarball_tmp(name, filename).await
     }
 
-    // --- Composed (published-first) -------------------------------------
+    // --- Composed (hosted-first) ----------------------------------------
 
-    /// Open a tarball for streaming, preferring the authoritative store
-    /// over the proxy mirror. Returns the open file plus its size (for
+    /// Open a tarball for streaming, preferring the hosted store over
+    /// the proxy mirror. Returns the open file plus its size (for
     /// `Content-Length`). `Ok(None)` means neither store has it, so the
     /// caller can fall through to the upstream fetch.
     pub async fn open_tarball(
@@ -194,7 +189,7 @@ impl Cache {
         name: &PackageName,
         filename: &str,
     ) -> Result<Option<(fs::File, u64)>> {
-        if let Some(hit) = self.published.open_tarball(name, filename).await? {
+        if let Some(hit) = self.hosted.open_tarball(name, filename).await? {
             return Ok(Some(hit));
         }
         self.cache.open_tarball(name, filename).await
