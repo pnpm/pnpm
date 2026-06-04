@@ -611,7 +611,7 @@ test('pnpm sbom --out with %s writes per-package files', async () => {
     selectedProjectsGraph,
   })
 
-  const outDir = path.join(workspaceDir, 'sboms')
+  const outDir = path.join(workspaceDir, 'sbom-out')
   const outPattern = path.join(outDir, '%s.cdx.json')
 
   const { exitCode } = await sbom.handler({
@@ -710,7 +710,7 @@ test('pnpm sbom --out with %s and %v uses name and version in filename', async (
     selectedProjectsGraph,
   })
 
-  const outDir = path.join(workspaceDir, 'sboms')
+  const outDir = path.join(workspaceDir, 'sbom-out')
   const outPattern = path.join(outDir, '%s-%v.cdx.json')
 
   const appADir = path.join(workspaceDir, 'app-a')

@@ -146,7 +146,7 @@ export function help (): string {
       'pnpm sbom --sbom-format cyclonedx --lockfile-only',
       'pnpm sbom --sbom-format spdx --prod',
       'pnpm sbom --sbom-format cyclonedx --filter ./apps/my-app',
-      'pnpm sbom --sbom-format cyclonedx --out sboms/%s.cdx.json',
+      'pnpm sbom --sbom-format cyclonedx --out out/%s.cdx.json',
       'pnpm sbom --sbom-format cyclonedx --split',
     ],
   })
