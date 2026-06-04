@@ -69,7 +69,7 @@ impl TarballWrite {
 ///   served in static mode. Served as-is and never overwritten by an
 ///   upstream refresh, so a hosted version can't be masked or lost.
 ///   Operators back this up and put it on a durable volume.
-/// * `cache` — the disposable mirror of upstream registries. Safe to
+/// * `cached` — the disposable mirror of upstream registries. Safe to
 ///   wipe at any time; it self-heals on the next request. Operators can
 ///   keep it on scratch/ephemeral disk.
 ///
@@ -90,12 +90,12 @@ impl TarballWrite {
 #[derive(Debug, Clone)]
 pub struct Cache {
     hosted: Store,
-    cache: Store,
+    cached: Store,
 }
 
 impl Cache {
     pub fn new(hosted_root: PathBuf, cache_root: PathBuf) -> Self {
-        Self { hosted: Store::new(hosted_root), cache: Store::new(cache_root) }
+        Self { hosted: Store::new(hosted_root), cached: Store::new(cache_root) }
     }
 
     /// The hosted store's root, used by the local search scan (which
@@ -135,7 +135,7 @@ impl Cache {
     /// of the just-removed version.
     pub async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
         let hosted = self.hosted.remove_tarball(name, filename).await?;
-        let cached = self.cache.remove_tarball(name, filename).await?;
+        let cached = self.cached.remove_tarball(name, filename).await?;
         Ok(hosted || cached)
     }
 
@@ -144,7 +144,7 @@ impl Cache {
     /// can't resurface after the package is gone.
     pub async fn remove_package(&self, name: &PackageName) -> Result<bool> {
         let hosted = self.hosted.remove_package(name).await?;
-        let cached = self.cache.remove_package(name).await?;
+        let cached = self.cached.remove_package(name).await?;
         Ok(hosted || cached)
     }
 
@@ -157,17 +157,17 @@ impl Cache {
         name: &PackageName,
         ttl: Duration,
     ) -> Result<Option<Vec<u8>>> {
-        self.cache.read_fresh_packument(name, ttl).await
+        self.cached.read_fresh_packument(name, ttl).await
     }
 
     /// Read whatever cached upstream packument is on disk, fresh or
     /// stale. Used as a fallback when the upstream is unreachable.
     pub async fn read_cached_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
-        self.cache.read_packument_any_age(name).await
+        self.cached.read_packument_any_age(name).await
     }
 
     pub async fn write_cached_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
-        self.cache.write_packument(name, bytes).await
+        self.cached.write_packument(name, bytes).await
     }
 
     /// Create and open a per-request temp file for a proxied tarball.
@@ -179,7 +179,7 @@ impl Cache {
         name: &PackageName,
         filename: &str,
     ) -> Result<TarballWrite> {
-        self.cache.open_tarball_tmp(name, filename).await
+        self.cached.open_tarball_tmp(name, filename).await
     }
 
     // --- Composed (hosted-first) ----------------------------------------
@@ -196,7 +196,7 @@ impl Cache {
         if let Some(hit) = self.hosted.open_tarball(name, filename).await? {
             return Ok(Some(hit));
         }
-        self.cache.open_tarball(name, filename).await
+        self.cached.open_tarball(name, filename).await
     }
 
     /// Atomically promote a tmp tarball written by the publish flow to
