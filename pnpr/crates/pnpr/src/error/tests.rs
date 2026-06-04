@@ -31,3 +31,12 @@ async fn timeout_error_maps_to_gateway_timeout() {
     let registry_err = RegistryError::Upstream { url, source: err };
     assert_eq!(registry_err.status_code(), StatusCode::GATEWAY_TIMEOUT);
 }
+
+#[test]
+fn object_store_error_maps_to_bad_gateway() {
+    let err = RegistryError::ObjectStore(object_store::Error::Generic {
+        store: "test",
+        source: "boom".into(),
+    });
+    assert_eq!(err.status_code(), StatusCode::BAD_GATEWAY);
+}

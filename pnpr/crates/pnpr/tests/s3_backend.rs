@@ -8,13 +8,14 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use object_store::{ObjectStore, memory::InMemory};
+use futures_util::StreamExt;
+use object_store::{ObjectStore, memory::InMemory, path::Path as ObjectPath};
 use pnpr::{Config, HostedStoreConfig, router};
 use serde_json::{Value, json};
 use std::{
     fmt::Write,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 use tempfile::TempDir;
@@ -70,6 +71,84 @@ async fn publishes_to_and_serves_from_the_object_store() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, bytes);
+}
+
+/// A publish whose tarball fails the integrity check must not leave an
+/// object behind in the bucket, and must not leak the local staging
+/// file it decoded into.
+#[tokio::test]
+async fn rejected_publish_uploads_nothing_and_leaves_no_staging_file() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let app = router(s3_config(storage.clone(), Arc::clone(&store)));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let mut body = sample_publish_body("bad-pkg", "1.0.0", b"actual-bytes");
+    // Declare an integrity over different bytes than the body carries,
+    // so the server's recomputed hash won't match.
+    body["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"different-bytes"));
+    let request = Request::put("/bad-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(text.contains("EINTEGRITY"), "error body should carry EINTEGRITY: {text}");
+
+    assert!(bucket_keys(&store, "bad-pkg").await.is_empty(), "nothing should be uploaded");
+    assert_eq!(staging_file_count(&storage), 0, "no staging tmp file should be left behind");
+}
+
+/// A full-package unpublish (`DELETE /:pkg/-rev/:rev`) must remove the
+/// package's objects from the bucket.
+#[tokio::test]
+async fn unpublish_removes_the_package_from_the_bucket() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let app = router(s3_config(storage.clone(), Arc::clone(&store)));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("mypkg", "1.0.0", b"fake-tarball-bytes");
+    let request = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(bucket_keys(&store, "mypkg").await.len(), 2, "packument + tarball uploaded");
+
+    let request = Request::delete("/mypkg/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    assert!(
+        bucket_keys(&store, "mypkg").await.is_empty(),
+        "package should be gone from the bucket",
+    );
+}
+
+/// Every object key in the bucket under `<prefix>/`.
+async fn bucket_keys(store: &Arc<dyn ObjectStore>, prefix: &str) -> Vec<String> {
+    let scope = ObjectPath::from(prefix);
+    store
+        .list(Some(&scope))
+        .map(|meta| meta.expect("list entry").location.to_string())
+        .collect::<Vec<_>>()
+        .await
+}
+
+/// Number of files left in the S3 upload-staging directory (a
+/// subdirectory of the proxy-cache root, which `static_serve` nests
+/// under `storage`).
+fn staging_file_count(storage: &Path) -> usize {
+    let dir = storage.join(".pnpr-cache").join("pnpr-hosted-staging");
+    std::fs::read_dir(dir).map(|rd| rd.count()).unwrap_or(0)
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {

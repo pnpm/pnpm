@@ -1,6 +1,6 @@
 use super::{
-    Config, ConfigSource, DEFAULT_CONFIG_YAML, LogFormat, LogLevel, config_file_in,
-    pattern_matches, resolve_relative,
+    Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, LogFormat, LogLevel,
+    config_file_in, pattern_matches, resolve_relative,
 };
 use crate::policy::Identity;
 use std::{
@@ -127,6 +127,40 @@ fn relative_cache_key_is_resolved_against_base_dir() {
     let yaml = "storage: ./store\ncache: ./cache\nuplinks: {}\npackages: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.cache_storage, PathBuf::from("/etc/pnpr/./cache"));
+}
+
+#[test]
+fn hosted_store_defaults_to_fs_without_an_s3_block() {
+    let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert!(matches!(config.hosted_store, HostedStoreConfig::Fs));
+}
+
+#[test]
+fn s3_block_selects_the_object_store_backend_with_normalized_prefix() {
+    let yaml = "\
+storage: /var/lib/pnpr
+s3:
+  bucket: my-bucket
+  region: auto
+  endpoint: https://acct.r2.cloudflarestorage.com
+  prefix: packages
+  accessKeyId: AKIA-test
+  secretAccessKey: secret-test
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.hosted_store {
+        HostedStoreConfig::S3 { prefix, .. } => assert_eq!(prefix, "packages/"),
+        HostedStoreConfig::Fs => panic!("expected an S3 hosted store, got Fs"),
+    }
+}
+
+#[test]
+fn s3_block_without_a_bucket_is_a_config_error() {
+    let yaml = "storage: /x\ns3:\n  region: auto\nuplinks: {}\npackages: {}\n";
+    assert!(Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).is_err());
 }
 
 #[test]
