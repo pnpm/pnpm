@@ -405,7 +405,9 @@ async function _rebuild (
       let releaseGvsLock: (() => void) | undefined
       if (gvsDir != null) {
         let resolveLock!: () => void
-        gvsBuildLocks.set(gvsDir, new Promise<void>((resolve) => { resolveLock = resolve }))
+        gvsBuildLocks.set(gvsDir, new Promise<void>((resolve) => {
+          resolveLock = resolve
+        }))
         releaseGvsLock = () => {
           gvsBuildLocks.delete(gvsDir)
           resolveLock()
@@ -523,7 +525,7 @@ async function _rebuild (
         .map(async (depPath) => limitLinking(async () => {
           const pkgSnapshot = pkgSnapshots[depPath]
           const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
+          const modules = pkgModulesDir(depPath)
           const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
           return linkBins(modules, binPath, { warn })
         }))

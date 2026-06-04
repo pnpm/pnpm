@@ -1,5 +1,6 @@
 ---
 "@pnpm/building.after-install": patch
+"pnpm": patch
 ---
 
 Fix dependency build scripts not running under the global virtual store (`enableGlobalVirtualStore`).
