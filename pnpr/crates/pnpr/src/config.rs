@@ -110,8 +110,8 @@ pub struct Config {
 }
 
 /// The resolved hosted-store backend. The object-store client is built
-/// once at config-load time (the fallible step), so constructing a
-/// [`crate::storage::Storage`] from it is infallible.
+/// once at config-load time (the fallible step), so constructing the
+/// storage layer from it is infallible.
 #[derive(Debug, Clone)]
 pub enum HostedStoreConfig {
     /// Local directory — [`Config::storage`].
