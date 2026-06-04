@@ -22,7 +22,7 @@ use std::{
     sync::Arc,
 };
 
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, UpdateBehavior, WantedDependency,
@@ -86,6 +86,10 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// [`PickPackageContext::full_metadata`]. Mirrors upstream's
     /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
     pub full_metadata: bool,
+    /// Retry budget threaded through to
+    /// [`PickPackageContext::retry_opts`]. Same `fetch-retries`-sourced
+    /// budget the sibling [`crate::NpmResolver`] uses.
+    pub retry_opts: RetryOpts,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NamedRegistryResolver<Cache> {
@@ -218,6 +222,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
             full_metadata: self.full_metadata,
+            retry_opts: self.retry_opts,
         };
 
         let pick_result = pick_package(&ctx, spec, &pick_opts)

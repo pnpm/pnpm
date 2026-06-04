@@ -29,6 +29,8 @@ use pacquet_resolving_npm_resolver::{
 };
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 
+use crate::retry_config::retry_opts_from_config;
+
 /// Error from [`build_resolution_verifiers`]. Today the only thing
 /// that can fail is `create_package_version_policy` rejecting an
 /// invalid `minimumReleaseAgeExclude` / `trustPolicyExclude`
@@ -55,9 +57,9 @@ pub enum BuildVerifiersError {
     },
 }
 
-/// Assemble the verifier list for this install. Returns an empty
-/// `Vec` when neither policy is active — the runner short-circuits
-/// on an empty list, so the caller doesn't need a separate guard.
+/// Assemble the verifier list for this install. The npm verifier is
+/// always included — it enforces the tarball-URL binding regardless of
+/// policy configuration — so the list is non-empty.
 ///
 /// `meta_cache` is the optional per-install packument cache shared
 /// with the resolver. When provided, the verifier reads it before
@@ -120,12 +122,11 @@ pub fn build_resolution_verifiers(
         auth_headers: Arc::clone(&config.auth_headers),
         cache_dir: Some(config.cache_dir.clone()),
         meta_cache,
+        retry_opts: retry_opts_from_config(config),
         now: None,
     };
 
-    if let Some(verifier) = create_npm_resolution_verifier(opts) {
-        verifiers.push(Arc::new(verifier));
-    }
+    verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));
 
     Ok(verifiers)
 }

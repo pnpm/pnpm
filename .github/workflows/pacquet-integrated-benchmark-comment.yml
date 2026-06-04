@@ -144,6 +144,10 @@ jobs:
         # `meta` above), never from the artifact body. `--ci-number`
         # is required here because Bencher can't infer the PR from a
         # workflow_run event the way it does on pull_request.
+        #
+        # One benchmark, two testbeds: `pacquet` (direct install) and
+        # `pnpr` (the accelerated path). Each uploads from its own
+        # bencher-results file produced by the build workflow.
         if: hashFiles('benchmark-artifact/bencher-results.json') != ''
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
@@ -158,15 +162,24 @@ jobs:
           # `--start-point-clone-thresholds` so the PR branch inherits the
           # threshold configured on main; `--err` so the action surfaces
           # a regression on the PR check.
-          bencher run \
-            --project pnpm \
-            --testbed pacquet \
-            --branch "pr/$PR_NUMBER" \
-            --start-point main \
-            --start-point-reset \
-            --start-point-clone-thresholds \
-            --err \
-            --adapter shell_hyperfine \
-            --file benchmark-artifact/bencher-results.json \
-            --ci-number "$PR_NUMBER" \
-            --github-actions "$GITHUB_TOKEN"
+          upload() {
+            local testbed=$1 file=$2
+            if [ ! -f "$file" ]; then
+              echo "::notice::$file not in artifact, skipping $testbed upload"
+              return 0
+            fi
+            bencher run \
+              --project pnpm \
+              --testbed "$testbed" \
+              --branch "pr/$PR_NUMBER" \
+              --start-point main \
+              --start-point-reset \
+              --start-point-clone-thresholds \
+              --err \
+              --adapter shell_hyperfine \
+              --file "$file" \
+              --ci-number "$PR_NUMBER" \
+              --github-actions "$GITHUB_TOKEN"
+          }
+          upload pacquet benchmark-artifact/bencher-results.json
+          upload pnpr benchmark-artifact/bencher-results-pnpr.json

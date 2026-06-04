@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 1101.0.12
+
+### Patch Changes
+
+- 719cc21: Improve `pnpm audit` performance by pruning non-vulnerable lockfile subtrees and stopping path enumeration once vulnerable findings reach the path cap.
+
 ## 1101.0.11
 
 ### Patch Changes

@@ -111,7 +111,14 @@ export type ResolutionVerification =
  * across registries) name it the same and share the cache slot.
  */
 export interface ResolutionVerifier {
-  verify: (resolution: Resolution, ctx: { name: string, version: string }) => Promise<ResolutionVerification>
+  /**
+   * `ctx.nonSemverVersion` is set when the lockfile entry is keyed by a
+   * non-semver reference (URL tarball, git, etc.) rather than a registry
+   * `name@version`. Verifiers that only police registry entries use it to
+   * skip deliberate non-registry deps, which can still carry a semver
+   * `version` copied from the resolved manifest.
+   */
+  verify: (resolution: Resolution, ctx: { name: string, version: string, nonSemverVersion?: string }) => Promise<ResolutionVerification>
   /**
    * Snapshot of the policy fields this verifier enforces. Merged with
    * every other active verifier's `policy` into the cache record. A

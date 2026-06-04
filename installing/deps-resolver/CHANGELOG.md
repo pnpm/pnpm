@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 1100.1.6
+
+### Patch Changes
+
+- 6f382f4: Preserve the `integrity` field of a remote (non-registry) tarball dependency when its lockfile entry is rebuilt. Re-resolving such a dependency without re-fetching it (for example via `pnpm update`, or when another dependency changes) produced a resolution with no integrity — URL/tarball resolvers only learn the integrity after the tarball is downloaded — so the previously recorded integrity was dropped, making later installs fail with `ERR_PNPM_MISSING_TARBALL_INTEGRITY` [#12067](https://github.com/pnpm/pnpm/issues/12067).
+- 122ab0a: Preserve compatible optional peer versions already present in the lockfile when resolving dependencies.
+- 1db05c6: Fixed inconsistent resolution of a peer dependency that is shared through a diamond. When a package peer-depends on both another package and one of that package's own peer dependencies (for example `@typescript-eslint/eslint-plugin` peer-depends on both `@typescript-eslint/parser` and `typescript`, and `@typescript-eslint/parser` peer-depends on `typescript`), pnpm no longer reuses a hoisted instance of the shared peer that was resolved against a different version [#12079](https://github.com/pnpm/pnpm/issues/12079).
+
 ## 1100.1.5
 
 ### Patch Changes

@@ -18,7 +18,9 @@
 //! resolved-pkgs share is a follow-up perf win.
 
 use crate::{
-    resolve_dependency_tree::{ManifestHook, WorkspaceTreeCtx, importer_direct_wanted_specs},
+    resolve_dependency_tree::{
+        ManifestHook, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
+    },
     resolve_importer::{
         ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
         resolve_importer_with_workspace,
@@ -31,7 +33,7 @@ use crate::{
 };
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_resolving_resolver_base::{Resolver, WantedDependency};
+use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
 use std::{path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
@@ -76,6 +78,27 @@ pub struct WorkspaceResolveOptions {
     /// [`getPublishedByDate`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L506-L517)
     /// step.
     pub time_based: bool,
+
+    /// The prior `pnpm-lock.yaml` the install started from, when one
+    /// exists. Threaded into [`WorkspaceTreeCtx`] so the tree walk can
+    /// reuse already-resolved dependencies instead of re-resolving them
+    /// (see `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`). `None` on a
+    /// first install or when reuse is disabled.
+    pub wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
+
+    /// Which dependencies `pacquet update` excludes from lockfile-
+    /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
+    pub update_reuse_scope: UpdateReuseScope,
+
+    /// `pnpmfileHook` applied to every resolved manifest before it
+    /// enters the wanted-dep cache. Workspace-wide (one hook per
+    /// install); wraps `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
+    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+
+    /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
+    /// calls, pre-bound to the install's reporter. `None` leaves hook
+    /// logging a no-op.
+    pub read_package_log: Option<pacquet_hooks::LogFn>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -115,10 +138,21 @@ where
         lockfile_dir,
         peers_suffix_max_length,
         manifest_hook,
+        pnpmfile_hook,
+        read_package_log,
         pick_lowest_direct,
         time_based,
+        wanted_lockfile,
+        update_reuse_scope,
     } = opts;
-    let workspace = Arc::new(WorkspaceTreeCtx::default().with_manifest_hook(manifest_hook));
+    let workspace = Arc::new(
+        WorkspaceTreeCtx::default()
+            .with_manifest_hook(manifest_hook)
+            .with_wanted_lockfile(wanted_lockfile)
+            .with_update_reuse_scope(update_reuse_scope)
+            .with_pnpmfile_hook(pnpmfile_hook)
+            .with_read_package_log(read_package_log),
+    );
 
     // Build every importer's options up front so the `time-based`
     // pre-pass and the resolve loop see the same per-importer wiring.
@@ -152,6 +186,7 @@ where
         let modules_dir = importer_opts.modules_dir.clone();
         let ResolveImporterResult { resolved_tree, .. } = resolve_importer_with_workspace(
             resolver,
+            &importer.id,
             importer.manifest,
             dependency_groups.iter().copied(),
             importer_opts,
@@ -243,9 +278,8 @@ where
             };
             if let Ok(Some(result)) = resolver.resolve(&wanted, &direct_opts).await
                 && let Some(published_at) = result.published_at.as_deref()
-                && let Ok(parsed) = DateTime::parse_from_rfc3339(published_at)
+                && let Some(parsed) = parse_packument_timestamp(published_at)
             {
-                let parsed = parsed.with_timezone(&Utc);
                 newest = Some(newest.map_or(parsed, |current| current.max(parsed)));
             }
         }

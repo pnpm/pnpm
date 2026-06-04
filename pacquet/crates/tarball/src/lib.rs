@@ -10,6 +10,7 @@ use dashmap::DashMap;
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
 use pacquet_fs::file_mode;
+pub use pacquet_network::RetryOpts;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
@@ -21,7 +22,6 @@ use pacquet_store_dir::{
 };
 use pipe_trait::Pipe;
 use rayon::prelude::*;
-use smart_default::SmartDefault;
 use ssri::{Algorithm, Integrity, IntegrityOpts};
 use tar::Archive;
 use tokio::sync::{Notify, RwLock, Semaphore};
@@ -74,72 +74,6 @@ fn walk_reqwest_chain(error: &reqwest::Error) -> String {
         error = src;
     }
     out
-}
-
-/// Settings for the per-fetch retry loop. Mirrors pnpm's
-/// `fetch-retries` / `fetch-retry-factor` /
-/// `fetch-retry-mintimeout` / `fetch-retry-maxtimeout` and the
-/// `@zkochan/retry` algorithm pnpm uses in
-/// `network/fetch/src/fetch.ts`:
-///
-/// `delay = min(min_timeout * factor.pow(attempt), max_timeout)`
-///
-/// `attempt` is zero-indexed, so the first post-failure wait is
-/// `min_timeout`. `retries` is the number of *retries* — total
-/// attempts is `retries + 1`.
-///
-/// # Pathological configurations
-///
-/// We don't sanitize these here because pnpm doesn't either —
-/// the config plumbing is meant to be byte-equivalent to upstream.
-/// The total number of attempts is always bounded by `retries`, so
-/// even a degenerate `delay_for` only removes the backoff:
-///
-/// * `factor == 0` keeps the first wait at `min_timeout` (`0u32.pow(0)
-///   == 1`), but every subsequent wait is `0` — i.e. no backoff
-///   between retries. Same as pnpm.
-/// * `factor == 1` waits `min_timeout` between every attempt. Same as
-///   pnpm.
-/// * `max_timeout < min_timeout` makes every wait `max_timeout`. Same
-///   as pnpm.
-///
-/// If a caller wants stricter validation (warn / reject these
-/// configs), it belongs above the `Config` boundary, alongside any
-/// other npmrc sanity checks pnpm grows over time.
-///
-/// Defaults (via [`SmartDefault`]) match pnpm's
-/// [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L146-L149)
-/// (2 retries, factor 10, 10 s floor, 60 s cap).
-#[derive(Debug, Clone, Copy, SmartDefault)]
-pub struct RetryOpts {
-    #[default = 2]
-    pub retries: u32,
-    #[default = 10]
-    pub factor: u32,
-    #[default(Duration::from_millis(10_000))]
-    pub min_timeout: Duration,
-    #[default(Duration::from_millis(60_000))]
-    pub max_timeout: Duration,
-}
-
-impl RetryOpts {
-    /// Backoff to wait before the `(attempt + 1)`-th attempt, where
-    /// `attempt` is the zero-indexed number of failures so far.
-    /// Matches `@zkochan/retry`'s formula with `randomize: false`.
-    fn delay_for(self, attempt: u32) -> Duration {
-        // `Duration::as_millis` returns `u128` because a `Duration` can
-        // hold values that overflow `u64` milliseconds, but
-        // `Duration::from_millis` only takes `u64`. Saturate on the way
-        // down so a pathological caller-supplied timeout produces the
-        // largest expressible delay rather than a silently truncated one.
-        let min_ms = self.min_timeout.as_millis().pipe(u64::try_from).unwrap_or(u64::MAX);
-        let max_ms = self.max_timeout.as_millis().pipe(u64::try_from).unwrap_or(u64::MAX);
-        let factor = u64::from(self.factor);
-        let pow = factor.checked_pow(attempt).unwrap_or(u64::MAX);
-        let ms = min_ms.saturating_mul(pow);
-        let capped = ms.min(max_ms);
-        Duration::from_millis(capped)
-    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -484,10 +418,10 @@ fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<serde_json::V
     if picked.is_empty() { None } else { Some(serde_json::Value::Object(picked)) }
 }
 
-/// Walk a decompressed tar archive, writing each regular-file entry
-/// into the CAFS and returning the `{in-tarball path → CAFS path}` map
-/// plus the per-tarball [`PackageFilesIndex`] row to hand off to the
-/// shared store-index writer.
+/// Walk decompressed tar bytes, writing each regular-file entry into
+/// the CAFS and returning the `{in-tarball path → CAFS path}` map plus
+/// the per-tarball [`PackageFilesIndex`] row to hand off to the shared
+/// store-index writer.
 ///
 /// Non-regular-file entries (symlinks, hardlinks, character / block
 /// devices, fifos, GNU / PAX extension headers, directories) are
@@ -496,21 +430,28 @@ fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<serde_json::V
 /// do, and silently reading a symlink's 0-byte body into the CAFS as
 /// if it were a file would just corrupt the store.
 ///
+/// The archive is already fully buffered in memory by the download
+/// pipeline. Use `entries_with_seek` + `raw_file_position` to borrow
+/// each file payload as a slice of that buffer instead of allocating a
+/// fresh `Vec<u8>` and `read_to_end`-ing every entry.
+///
 /// Every tar-side failure — a corrupt entries iterator, a mangled
-/// header (bad mode, bad size), a short body read, a path decode error,
-/// a path whose components would escape the CAFS root — comes back as
-/// [`TarballError::ReadTarballEntries`] instead of panicking. Non-UTF-8
-/// entry paths are coerced via [`std::path::Path::to_string_lossy`],
-/// matching pnpm's string-based handling so a mixed install against the
-/// shared `index.db` stays consistent; real-world npm tarballs are
-/// UTF-8 so the coercion is almost never hit in practice.
+/// header (bad mode, bad size), an invalid file offset, a path decode
+/// error, a path whose components would escape the CAFS root — comes
+/// back as [`TarballError::ReadTarballEntries`] instead of panicking.
+/// Non-UTF-8 entry paths are coerced via
+/// [`std::path::Path::to_string_lossy`], matching pnpm's string-based
+/// handling so a mixed install against the shared `index.db` stays
+/// consistent; real-world npm tarballs are UTF-8 so the coercion is
+/// almost never hit in practice.
 fn extract_tarball_entries(
-    archive: &mut Archive<Cursor<Vec<u8>>>,
+    tar_data: &[u8],
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let mut archive = Archive::new(Cursor::new(tar_data));
     let entries = archive
-        .entries()
+        .entries_with_seek()
         .map_err(TarballError::ReadTarballEntries)?
         // Keep only regular-file `Ok` entries; anything else in the
         // `Ok` arm (directories, symlinks, hardlinks, pax/gnu
@@ -534,32 +475,35 @@ fn extract_tarball_entries(
     };
 
     for entry in entries {
-        let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
+        let entry = entry.map_err(TarballError::ReadTarballEntries)?;
 
         let file_mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
         let file_is_executable = file_mode::is_executable(file_mode);
-
-        // Read the contents of the entry. `entry.size()` is the size
-        // from the tar header — untrusted input from the tarball, not
-        // from any disk-side signal we've verified. Clamp the
-        // pre-allocation hint so a corrupt or malicious tarball that
-        // claims gigabytes can't turn `Vec::with_capacity` into an OOM
-        // abort before `read_to_end` has a chance to surface the real
-        // error. The claimed size beyond the clamp is still read
-        // through `Vec`'s geometric growth. `try_reserve` propagates
-        // an allocation failure as an I/O error rather than aborting.
-        // 64 MiB is generous for any legitimate single-file entry in
-        // an npm tarball — typical entries are well under 1 MiB.
-        const MAX_ENTRY_PREALLOC_BYTES: u64 = 64 * 1024 * 1024;
-        let prealloc_hint = entry.size().min(MAX_ENTRY_PREALLOC_BYTES) as usize;
-        let mut buffer = Vec::new();
-        buffer.try_reserve(prealloc_hint).map_err(|err| {
+        let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+        let data_offset = usize::try_from(entry.raw_file_position()).map_err(|_| {
             TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::OutOfMemory,
-                format!("failed to reserve {prealloc_hint} bytes for tar entry: {err}"),
+                std::io::ErrorKind::InvalidData,
+                "tar entry file offset does not fit in usize",
             ))
         })?;
-        entry.read_to_end(&mut buffer).map_err(TarballError::ReadTarballEntries)?;
+        let size = usize::try_from(file_size).map_err(|_| {
+            TarballError::ReadTarballEntries(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "tar entry file size does not fit in usize",
+            ))
+        })?;
+        let end = data_offset.checked_add(size).ok_or_else(|| {
+            TarballError::ReadTarballEntries(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "tar entry file offset plus size overflows usize",
+            ))
+        })?;
+        let entry_data = tar_data.get(data_offset..end).ok_or_else(|| {
+            TarballError::ReadTarballEntries(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "tar entry payload extends beyond archive",
+            ))
+        })?;
 
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
         // `components().skip(1)` drops the top-level package
@@ -616,7 +560,7 @@ fn extract_tarball_entries(
             continue;
         }
         let (file_path, file_hash) = store_dir
-            .write_cas_file(&buffer, file_is_executable)
+            .write_cas_file(entry_data, file_is_executable)
             .map_err(TarballError::WriteCasFile)?;
 
         if let Some(previous) = cas_paths.insert(cleaned_entry_path.clone(), file_path) {
@@ -649,7 +593,7 @@ fn extract_tarball_entries(
         // [pnpm/pnpm@4750fd370c]: <https://github.com/pnpm/pnpm/blob/4750fd370c/worker/src/start.ts#L218>
         // [`addFilesFromTarball`]: <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43>
         if cleaned_entry_path == "package.json" {
-            match serde_json::from_slice::<serde_json::Value>(&buffer) {
+            match serde_json::from_slice::<serde_json::Value>(entry_data) {
                 Ok(parsed) => pkg_files_idx.manifest = normalize_bundled_manifest(&parsed),
                 Err(error) => {
                     tracing::debug!(
@@ -671,7 +615,6 @@ fn extract_tarball_entries(
         // is optional and pnpm tolerates `None`.
         let checked_at =
             UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-        let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
         let file_attrs = CafsFileInfo {
             digest: format!("{file_hash:x}"),
             mode: file_mode,
@@ -1653,10 +1596,8 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
             // are released before we return — a large package's inflated
             // bytes can be many MB.
             let (cas_paths, pkg_files_idx) = {
-                let mut archive = decompress_gzip(&buffer, package_unpacked_size)?
-                    .pipe(Cursor::new)
-                    .pipe(Archive::new);
-                extract_tarball_entries(&mut archive, store_dir, ignore_file_pattern.as_deref())?
+                let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
+                extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?
             };
             Ok((integrity, cas_paths, pkg_files_idx))
         },

@@ -14,7 +14,7 @@ use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolv
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -95,7 +95,7 @@ pub enum HoistingLimits {
 /// `dist.attestations.provenance`) is weaker than an earlier-published
 /// version's. Defaults to [`TrustPolicy::Off`] so installs without an
 /// explicit policy don't change behavior.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TrustPolicy {
     #[default]
@@ -725,11 +725,11 @@ pub struct Config {
     /// per-importer symlink) and bin linking (the deduped dep won't
     /// reappear under the project's `node_modules/.bin`).
     ///
-    /// Default `true`. Mirrors pnpm's
-    /// [`dedupeDirectDeps`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L243)
-    /// and the linker call site at
-    /// [`installing/deps-installer/src/install/link.ts:303`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/link.ts#L303).
-    #[default = true]
+    /// Default `false`, matching pnpm's config-reader default at
+    /// [`config/reader/src/index.ts:139`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L139)
+    /// (`'dedupe-direct-deps': false`). The linker call site is at
+    /// [`installing/deps-restorer/src/index.ts:777`](https://github.com/pnpm/pnpm/blob/a23956e3ab/installing/deps-restorer/src/index.ts#L777).
+    #[default = false]
     pub dedupe_direct_deps: bool,
 
     /// When `true`, injected workspace dependencies whose materialised
@@ -863,6 +863,16 @@ pub struct Config {
     #[default(_code = "default_user_agent()")]
     pub user_agent: String,
 
+    /// URL of a `pnpr` server. When set, `pacquet install` offloads
+    /// dependency resolution and file fetching to the server: it sends
+    /// its own registry configuration, the server resolves against those
+    /// registries and streams back the files the local store is missing,
+    /// and `node_modules` is then linked locally from the
+    /// server-produced lockfile (like server-side rendering — the
+    /// compute runs remotely, the result is materialized locally).
+    /// `None` runs the normal local resolution flow.
+    pub pnpr_server: Option<String>,
+
     /// Path to the user-level `.npmrc` to read auth from, overriding the
     /// default `~/.npmrc`. Mirrors pnpm's `npmrcAuthFile` (and the
     /// `--userconfig` alias). Resolved in [`Config::current`] from this
@@ -926,6 +936,34 @@ pub struct Config {
     /// [`StrictBuildOptions.scriptsPrependNodePath: false`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/after-install/src/extendBuildOptions.ts#L78).
     /// Yaml accepts `true` / `false` / `"warn-only"`.
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
+
+    /// `enablePrePostScripts` from `pnpm-workspace.yaml`. When `true`,
+    /// `pnpm run <name>` also runs the `pre<name>` and `post<name>`
+    /// scripts if they exist. Defaults to `true`, matching pnpm's
+    /// [`defaultOptions['enable-pre-post-scripts']`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L143).
+    #[default = true]
+    pub enable_pre_post_scripts: bool,
+
+    /// `scriptShell` from `pnpm-workspace.yaml`. The shell used to run
+    /// scripts and `pnpm exec`. `None` selects the platform default
+    /// (`sh` on POSIX, `cmd.exe` on Windows). Mirrors pnpm's
+    /// [`Config.scriptShell`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L95).
+    pub script_shell: Option<String>,
+
+    /// `nodeOptions` from `pnpm-workspace.yaml`. When set, it is exported
+    /// as `NODE_OPTIONS` to scripts and `pnpm exec` child processes.
+    /// Mirrors pnpm's
+    /// [`Config.nodeOptions`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L251).
+    pub node_options: Option<String>,
+
+    /// `extraBinPaths`: directories prepended to `PATH` (after the
+    /// project's own `node_modules/.bin`) when running scripts and
+    /// `pnpm exec`. pnpm computes this as the workspace root's
+    /// `node_modules/.bin` inside a workspace and leaves it empty
+    /// otherwise. pacquet defaults it empty until workspace support
+    /// lands. Mirrors pnpm's
+    /// [`Config.extraBinPaths`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L72).
+    pub extra_bin_paths: Vec<PathBuf>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
     /// pnpm runs lifecycle scripts under a TMPDIR isolated to
@@ -1097,6 +1135,13 @@ pub struct Config {
     /// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
     #[default(_code = "default_cache_dir::<Host>()")]
     pub cache_dir: PathBuf,
+
+    /// `dlxCacheMaxAge`: the maximum age in **minutes** of a cached
+    /// `pnpm dlx` install before it is rebuilt from scratch. Defaults to
+    /// `1440` (24 hours). Mirrors pnpm's
+    /// [`Config.dlxCacheMaxAge`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L211).
+    #[default(_code = "24 * 60")]
+    pub dlx_cache_max_age: u64,
 
     /// Minimum age, in **minutes**, a published version must reach
     /// before pacquet accepts it. Drives the
@@ -1817,5 +1862,7 @@ fn read_npm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+#[cfg(test)]
+mod pnpm_default_parity;
 #[cfg(test)]
 mod tests;

@@ -1,9 +1,9 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import net from 'node:net'
 
-import { afterEach, describe, expect, test } from '@jest/globals'
-import { clearDispatcherCache, type DispatcherOptions, getDispatcher } from '@pnpm/network.fetch'
-import { Agent, ProxyAgent } from 'undici'
+import { afterEach, describe, expect, jest, test } from '@jest/globals'
+import { clearDispatcherCache, destroyDispatchers, type DispatcherOptions, getDispatcher } from '@pnpm/network.fetch'
+import { Agent, getGlobalDispatcher, ProxyAgent } from 'undici'
 
 afterEach(() => {
   clearDispatcherCache()
@@ -268,5 +268,22 @@ describe('client certificates', () => {
     const d1 = getDispatcher('https://registry.example.com/foo', opts)
     const d2 = getDispatcher('https://other.example.com/foo', opts)
     expect(d1).not.toBe(d2) // different certs → different dispatchers
+  })
+})
+
+describe('destroyDispatchers', () => {
+  // The destroy() calls are mocked so the live global dispatcher survives the test run.
+  test('destroys the global dispatcher and every cached dispatcher without throwing', async () => {
+    const globalDestroySpy = jest.spyOn(getGlobalDispatcher(), 'destroy').mockResolvedValue()
+    const cached = getDispatcher('https://registry.npmjs.org/foo', { strictSsl: false })!
+    const cachedDestroySpy = jest.spyOn(cached, 'destroy').mockResolvedValue()
+    try {
+      await expect(destroyDispatchers()).resolves.toBeUndefined()
+      expect(globalDestroySpy).toHaveBeenCalled()
+      expect(cachedDestroySpy).toHaveBeenCalled()
+    } finally {
+      globalDestroySpy.mockRestore()
+      cachedDestroySpy.mockRestore()
+    }
   })
 })

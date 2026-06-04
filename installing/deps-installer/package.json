@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1101.6.0",
+  "version": "1101.6.1",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -57,7 +57,6 @@
   },
   "dependencies": {
     "@inquirer/prompts": "catalog:",
-    "@pnpm/agent.client": "workspace:*",
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/bins.remover": "workspace:*",
     "@pnpm/building.after-install": "workspace:*",
@@ -102,6 +101,7 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
+    "@pnpm/pnpr.client": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

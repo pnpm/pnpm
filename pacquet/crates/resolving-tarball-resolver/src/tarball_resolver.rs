@@ -3,7 +3,7 @@
 //! plus the `resolveLatestFromTarball` companion at the same file's
 //! lines 43-47.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_network::{AuthHeaders, ThrottledClient};
@@ -12,8 +12,12 @@ use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pacquet_store_dir::{StoreDir, StoreIndexWriter};
-use pacquet_tarball::{FetchTarballForResolution, MemCache, RetryOpts};
+use pacquet_store_dir::{
+    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
+};
+use pacquet_tarball::{
+    FetchTarballForResolution, MemCache, PrefetchResult, RetryOpts, prefetch_cas_paths,
+};
 use ssri::Integrity;
 
 /// Store/network handles the [`TarballResolver`] needs to fetch a
@@ -31,6 +35,16 @@ pub struct TarballFetchContext {
     pub mem_cache: Option<Arc<MemCache>>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
+    /// Read-only store index, for reusing a warm tarball without a
+    /// re-download (see `reuse_from_warm_store`).
+    pub store_index: Option<SharedReadonlyStoreIndex>,
+    pub verify_store_integrity: bool,
+    pub verified_files_cache: SharedVerifiedFilesCache,
+    /// Tarball URL → `(integrity, <integrity>\t<pkg_id>` store-index key)`
+    /// for every remote-tarball entry the prior lockfile recorded. Lets a
+    /// re-resolve reuse the already-extracted store content instead of
+    /// re-downloading. Empty on a first install.
+    pub prior_tarball_entries: Arc<HashMap<String, (Integrity, String)>>,
 }
 
 /// Resolves `http://...` / `https://...` tarball URLs from a project's
@@ -85,6 +99,22 @@ impl TarballResolver {
         // matching upstream's `new URL(spec).toString()`.
         let normalized_bare_specifier =
             reqwest::Url::parse(bare).map_err(|err| Box::new(err) as ResolveError)?.to_string();
+
+        // Warm-store reuse, mirroring pnpm's lazy fetch: when the prior
+        // lockfile recorded this exact tarball URL with an integrity and
+        // the content is already extracted in the store, reuse the cached
+        // integrity + bundled manifest instead of re-downloading. The
+        // bundled manifest carries the same dependency fields a fresh
+        // extraction would, so transitive resolution is unchanged. Done
+        // before the HEAD request so a hit needs no network at all (this
+        // is what lets a re-resolve succeed under `--offline`). Any miss
+        // (cold store, key drift, a row without a bundled manifest) falls
+        // through to the HEAD + download below.
+        if let Some(reused) =
+            self.reuse_from_warm_store(wanted_dependency, &normalized_bare_specifier).await
+        {
+            return Ok(Some(reused));
+        }
 
         let client = self.http_client.acquire_for_url(&normalized_bare_specifier).await;
         let mut request = client.head(&normalized_bare_specifier);
@@ -155,6 +185,44 @@ impl TarballResolver {
             Some(resolved.integrity),
             resolved.manifest.map(Arc::new),
         )))
+    }
+
+    /// Reuse an already-extracted store entry for `tarball_url` when the
+    /// prior lockfile recorded it with an integrity and the store still
+    /// holds the content + its bundled manifest. Returns `None` (caller
+    /// downloads) when there's no fetch context, no prior entry for the
+    /// URL, or the store-index lookup misses — never on a wrong-content
+    /// risk, since the key embeds the integrity and the CAFS is
+    /// content-addressed.
+    async fn reuse_from_warm_store(
+        &self,
+        wanted_dependency: &WantedDependency,
+        tarball_url: &str,
+    ) -> Option<ResolveResult> {
+        let ctx = self.fetch_context.as_ref()?;
+        let (integrity, cache_key) = ctx.prior_tarball_entries.get(tarball_url)?;
+        let PrefetchResult { cas_paths, manifests, .. } = prefetch_cas_paths(
+            ctx.store_index.clone(),
+            ctx.store_dir,
+            vec![cache_key.clone()],
+            ctx.verify_store_integrity,
+            Arc::clone(&ctx.verified_files_cache),
+        )
+        .await;
+        // The bundled manifest is required to resolve the tarball's
+        // transitive dependencies; a row without one (or with no CAFS
+        // entry) is treated as a miss so the caller re-fetches.
+        if !cas_paths.contains_key(cache_key) {
+            return None;
+        }
+        let manifest = manifests.get(cache_key)?;
+        Some(self.head_only_result(
+            wanted_dependency,
+            tarball_url.to_string(),
+            tarball_url.to_string(),
+            Some(integrity.clone()),
+            Some(Arc::clone(manifest)),
+        ))
     }
 
     /// Build the `ResolveResult` for a claimed http(s) tarball.

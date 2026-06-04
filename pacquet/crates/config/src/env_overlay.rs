@@ -115,6 +115,17 @@ impl WorkspaceSettings {
                 }
             };
         }
+        // Env vars cannot express the "explicit null clears" state that
+        // yaml supports (an empty value reads as unset — see `read_env`),
+        // so a present env var always lands as `Some(Some(s))`, never
+        // `Some(None)`. Same limitation as `tri_array_field!`.
+        macro_rules! tri_string_field {
+            ($field:ident, $suffix:literal) => {
+                if let Some(s) = read_env::<Sys>($suffix) {
+                    settings.$field = Some(Some(s));
+                }
+            };
+        }
 
         json_field!(hoist, "HOIST");
         tri_array_field!(hoist_pattern, "HOIST_PATTERN");
@@ -137,6 +148,7 @@ impl WorkspaceSettings {
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
         string_field!(registry, "REGISTRY");
+        string_field!(pnpr_server, "PNPR_SERVER");
         json_field!(auto_install_peers, "AUTO_INSTALL_PEERS");
         json_field!(auto_install_peers_from_highest_match, "AUTO_INSTALL_PEERS_FROM_HIGHEST_MATCH");
         json_field!(exclude_links_from_lockfile, "EXCLUDE_LINKS_FROM_LOCKFILE");
@@ -165,6 +177,9 @@ impl WorkspaceSettings {
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
+        json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
+        tri_string_field!(script_shell, "SCRIPT_SHELL");
+        tri_string_field!(node_options, "NODE_OPTIONS");
         json_field!(unsafe_perm, "UNSAFE_PERM");
         json_field!(child_concurrency, "CHILD_CONCURRENCY");
         json_field!(workspace_concurrency, "WORKSPACE_CONCURRENCY");
@@ -174,6 +189,7 @@ impl WorkspaceSettings {
         json_field!(overrides, "OVERRIDES");
         json_field!(package_extensions, "PACKAGE_EXTENSIONS");
         string_field!(cache_dir, "CACHE_DIR");
+        json_field!(dlx_cache_max_age, "DLX_CACHE_MAX_AGE");
         json_field!(minimum_release_age, "MINIMUM_RELEASE_AGE");
         json_field!(minimum_release_age_exclude, "MINIMUM_RELEASE_AGE_EXCLUDE");
         json_field!(

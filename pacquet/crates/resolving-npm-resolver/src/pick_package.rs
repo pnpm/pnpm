@@ -61,9 +61,9 @@ use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
-use pacquet_resolving_resolver_base::VersionSelectors;
+use pacquet_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
 
 use crate::{
@@ -237,6 +237,11 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// `false`; the verifier-time fetcher sets it `true` because
     /// it needs `time` and trust evidence for every entry.
     pub full_metadata: bool,
+    /// Retry budget for the picker's metadata fetches. Sourced from
+    /// the same `fetch-retries` config the verifier and tarball paths
+    /// use, so a registry flap during a pick retries (and a user who
+    /// sets `fetch-retries=0` fails fast) exactly as in pnpm.
+    pub retry_opts: RetryOpts,
 }
 
 /// Per-call options the orchestrator threads to the picker. Mirrors
@@ -602,6 +607,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         auth_headers: ctx.auth_headers,
         cache_dir: ctx.cache_dir,
         full_metadata,
+        retry_opts: ctx.retry_opts,
     };
 
     let fetch_result = fetch_full_metadata_cached(&spec.name, &fetch_opts).await;
@@ -1071,8 +1077,8 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
     // upgrade — better to spend one extra fetch than to silently
     // bypass the maturity check.
     if let Some(modified_str) = meta.modified.as_deref()
-        && let Ok(modified) = chrono::DateTime::parse_from_rfc3339(modified_str)
-        && modified.with_timezone(&Utc) <= cutoff
+        && let Some(modified) = parse_packument_timestamp(modified_str)
+        && modified <= cutoff
     {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
@@ -1083,6 +1089,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         full_metadata: true,
         etag: meta.etag.as_deref(),
         modified: meta.modified.as_deref(),
+        retry_opts: ctx.retry_opts,
     };
     match fetch_full_metadata(&spec.name, &fetch_opts).await? {
         FetchFullMetadataOutcome::Modified(upgraded) => {

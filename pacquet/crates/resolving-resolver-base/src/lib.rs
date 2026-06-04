@@ -22,9 +22,11 @@
 //! [`pacquet_lockfile::LockfileResolution`]; a resolver result *also*
 //! carries one).
 
+mod publish_time;
 mod resolve;
 mod verifier;
 
+pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
     DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT, LatestInfo,
     LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,

@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { logger } from '@pnpm/logger'
 import type { ConfigDependencies } from '@pnpm/types'
+import writeFileAtomic from 'write-file-atomic'
 
 import { createWorkspaceState } from './createWorkspaceState.js'
 import { getFilePath } from './filePath.js'
@@ -23,5 +24,5 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
   const workspaceStateJSON = JSON.stringify(workspaceState, undefined, 2) + '\n'
   const cacheFile = getFilePath(opts.workspaceDir)
   await fs.promises.mkdir(path.dirname(cacheFile), { recursive: true })
-  await fs.promises.writeFile(cacheFile, workspaceStateJSON)
+  await writeFileAtomic(cacheFile, workspaceStateJSON)
 }

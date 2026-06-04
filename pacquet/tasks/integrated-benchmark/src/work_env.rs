@@ -3,20 +3,25 @@ use crate::{
         BenchmarkScenario, Cleanup, HyperfineOptions, RegistryMode, TargetKind, TargetSpec,
     },
     fixtures::{LOCKFILE, PACKAGE_JSON},
+    latency_proxy::LatencyProxy,
     verify::executor,
     workspace_manifest::MinimalWorkspaceManifest,
 };
 use itertools::Itertools;
 use os_display::Quotable;
 use pacquet_fs::file_mode::make_file_executable;
+use pacquet_registry_mock::pick_unused_port;
 use pipe_trait::Pipe;
 use std::{
     borrow::Cow,
     fmt,
     fs::{self, File},
     io::Write,
+    net::{Ipv4Addr, SocketAddr, TcpStream},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
+    thread,
+    time::Duration,
 };
 
 #[derive(Debug)]
@@ -31,10 +36,24 @@ pub struct WorkEnv {
     pub scenario: Option<BenchmarkScenario>,
     pub hyperfine_options: HyperfineOptions,
     pub fixture_dir: Option<PathBuf>,
+    /// Round-trip latency (ms) to inject between the client and each
+    /// `pnpr@<rev>` target's server. `0` leaves the server on loopback.
+    pub pnpr_latency_ms: u64,
+    /// Round-trip latency (ms) to inject between the direct targets and
+    /// the registry. `0` leaves the registry on loopback. Ignored in
+    /// `--registry=npm` mode (already remote).
+    pub registry_latency_ms: u64,
+    /// Port the local registry listens on, used as the latency proxy's
+    /// upstream when `registry_latency_ms > 0`.
+    pub registry_port: u16,
+    /// Skip the clone + `cargo build` for a target whose output binary is
+    /// already present — i.e. restored from a per-commit CI cache. Off by
+    /// default so a local run always rebuilds.
+    pub reuse_prebuilt_binaries: bool,
 }
 
 impl WorkEnv {
-    const INIT_PROXY_CACHE: BenchId<'static> = BenchId::Static(".init-proxy-cache");
+    const INIT_PROXY_CACHE: BenchId<'static> = BenchId::Static(INIT_PROXY_CACHE_ID);
     const SYSTEM_PNPM: BenchId<'static> = BenchId::Static("pnpm");
 
     fn root(&self) -> &'_ Path {
@@ -49,10 +68,6 @@ impl WorkEnv {
     /// requested, the system-pnpm sibling.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
         self.target_ids().chain(self.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
-    }
-
-    fn registry(&self) -> &'_ str {
-        &self.registry
     }
 
     fn repository(&self) -> &'_ Path {
@@ -87,6 +102,14 @@ impl WorkEnv {
     /// Source-tree location for a pacquet revision: `<bench_dir>/pacquet`.
     fn pacquet_source_dir(&self, revision: &str) -> PathBuf {
         self.bench_dir(BenchId::PacquetRevision(revision)).join("pacquet")
+    }
+
+    /// Source-tree location for a pnpr revision: `<bench_dir>/pacquet`.
+    /// A pnpr target builds from the same monorepo clone as a pacquet
+    /// target (the `pacquet` and `pnpr` crates share one workspace), so
+    /// the layout matches [`Self::pacquet_source_dir`].
+    fn pnpr_source_dir(&self, revision: &str) -> PathBuf {
+        self.bench_dir(BenchId::PnprRevision(revision)).join("pacquet")
     }
 
     /// Source-tree location for a pnpm revision: `<bench_dir>/pnpm-source`.
@@ -126,7 +149,13 @@ impl WorkEnv {
     /// shell metacharacters from a user-supplied `--work-env`.
     fn install_command(id: BenchId) -> String {
         match id {
-            BenchId::PacquetRevision(_) => "./pacquet/target/release/pacquet".to_string(),
+            // A pnpr target runs the same pacquet client binary; the
+            // pnpr server it talks to is started separately at benchmark
+            // time and reached via the `PNPR_SERVER` env var that
+            // `install.bash` sources from `.pnpr-env`.
+            BenchId::PacquetRevision(_) | BenchId::PnprRevision(_) => {
+                "./pacquet/target/release/pacquet".to_string()
+            }
             BenchId::PnpmRevision(_) => {
                 // Prefer `pnpm.mjs`, fall back to `pnpm.cjs`. Resolved
                 // at script runtime so the existence check sees the
@@ -141,7 +170,7 @@ impl WorkEnv {
         }
     }
 
-    fn init(&self) {
+    fn init(&self, direct_registry: &str) {
         let scenario = self.scenario.expect("scenario set when init() is reached");
         eprintln!("Initializing...");
         // The proxy-cache populator only runs against a local
@@ -159,11 +188,12 @@ impl WorkEnv {
         for id in id_list {
             eprintln!("ID: {id}");
             let dir = self.bench_dir(id);
+            let registry = self.registry_for(id, direct_registry);
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.fixture_dir.as_deref());
-            create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), self.registry(), scenario);
-            create_install_script(&dir, scenario, &WorkEnv::install_command(id));
-            create_npmrc(&dir, self.registry(), scenario);
+            create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), registry, scenario);
+            create_install_script(&dir, scenario, &WorkEnv::install_command(id), id.is_pnpr());
+            create_npmrc(&dir, registry, scenario);
             may_create_lockfile(&dir, scenario, self.fixture_dir.as_deref());
             save_pristine_copies(&dir);
         }
@@ -176,17 +206,72 @@ impl WorkEnv {
         }
     }
 
+    /// Output binary a `pacquet@<rev>` target runs.
+    fn pacquet_binary(&self, revision: &str) -> PathBuf {
+        self.pacquet_source_dir(revision).join("target").join("release").join("pacquet")
+    }
+
+    /// The `pacquet` client binary a `pnpr@<rev>` build produces (the pnpr
+    /// target builds `--bin=pacquet --bin=pnpr`).
+    fn pnpr_pacquet_binary(&self, revision: &str) -> PathBuf {
+        self.pnpr_source_dir(revision).join("target").join("release").join("pacquet")
+    }
+
+    /// The `pnpr` server binary a `pnpr@<rev>` build produces.
+    fn pnpr_server_binary(&self, revision: &str) -> PathBuf {
+        self.pnpr_source_dir(revision).join("target").join("release").join("pnpr")
+    }
+
     pub fn build(&self) {
         eprintln!("Building...");
-        for target in &self.targets {
+        // Build `pnpr@<rev>` targets first: a pnpr build also produces the
+        // `pacquet` client binary, so a same-revision `pacquet@<rev>` can
+        // reuse it (see [`Self::build_pacquet`]) instead of compiling the
+        // identical commit a second time.
+        let pnpr_first = self
+            .targets
+            .iter()
+            .filter(|target| target.kind == TargetKind::Pnpr)
+            .chain(self.targets.iter().filter(|target| target.kind != TargetKind::Pnpr));
+        for target in pnpr_first {
             match target.kind {
                 TargetKind::Pacquet => self.build_pacquet(&target.rev),
                 TargetKind::Pnpm => self.build_pnpm(&target.rev),
+                TargetKind::Pnpr => self.build_pnpr(&target.rev),
             }
         }
     }
 
     fn build_pacquet(&self, revision: &str) {
+        let dest = self.pacquet_binary(revision);
+
+        // Restored from the per-commit CI binary cache: nothing to build.
+        if self.reuse_prebuilt_binaries && dest.is_file() {
+            eprintln!("Revision: {revision:?} (pacquet) — reusing prebuilt binary");
+            return;
+        }
+
+        // The same commit's `pnpr@<revision>` target (built first) already
+        // produced an identical `pacquet` client binary; copy it rather
+        // than compiling the revision twice.
+        if self
+            .targets
+            .iter()
+            .any(|target| target.kind == TargetKind::Pnpr && target.rev == revision)
+        {
+            let from_pnpr = self.pnpr_pacquet_binary(revision);
+            if from_pnpr.is_file() {
+                eprintln!(
+                    "Revision: {revision:?} (pacquet) — reusing the binary from the pnpr@{revision} build",
+                );
+                if let Some(parent) = dest.parent() {
+                    fs::create_dir_all(parent).expect("create pacquet target/release dir");
+                }
+                fs::copy(&from_pnpr, &dest).expect("copy pacquet binary from the pnpr build");
+                return;
+            }
+        }
+
         eprintln!("Revision: {revision:?} (pacquet)");
 
         let repository = self.repository();
@@ -212,6 +297,40 @@ impl WorkEnv {
             .arg("build")
             .arg("--release")
             .arg("--bin=pacquet")
+            .pipe(executor("cargo build"));
+    }
+
+    /// Build a pnpr target: both the `pacquet` client and the `pnpr`
+    /// server binaries from the revision's monorepo clone. The server is
+    /// spawned later, at benchmark time, from
+    /// `<bench_dir>/pacquet/target/release/pnpr`.
+    fn build_pnpr(&self, revision: &str) {
+        // Restored from the per-commit CI binary cache: nothing to build.
+        if self.reuse_prebuilt_binaries
+            && self.pnpr_pacquet_binary(revision).is_file()
+            && self.pnpr_server_binary(revision).is_file()
+        {
+            eprintln!("Revision: {revision:?} (pnpr) — reusing prebuilt binaries");
+            return;
+        }
+
+        eprintln!("Revision: {revision:?} (pnpr)");
+
+        let repository = self.repository();
+        let revision_repo = self.pnpr_source_dir(revision);
+
+        let commit = WorkEnv::resolve_revision(repository, revision);
+        eprintln!("Resolved {revision:?} to {commit}");
+
+        sync_bench_repo(repository, &revision_repo, &commit);
+
+        eprintln!("Building {revision:?} (pacquet + pnpr)...");
+        Command::new("cargo")
+            .current_dir(&revision_repo)
+            .arg("build")
+            .arg("--release")
+            .arg("--bin=pacquet")
+            .arg("--bin=pnpr")
             .pipe(executor("cargo build"));
     }
 
@@ -264,14 +383,27 @@ impl WorkEnv {
         // priming run no matter what state the work-env was in. For
         // cold-cache scenarios this is redundant with the per-iteration
         // wipe but harmless (Copilot review on <https://github.com/pnpm/pacquet/pull/296>).
+        // `pnpr-storage` is the per-target pnpr server's store + cache
+        // (only present for `pnpr@<rev>` targets). Wiping it upfront makes
+        // the hyperfine warmup the run that primes the server store, the
+        // same way it primes the client store — so timed runs measure a
+        // warm long-running server rather than whatever a previous run
+        // left behind.
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            for name in ["node_modules", "store-dir"] {
+            for name in ["node_modules", "store-dir", "pnpr-storage"] {
                 let path = dir.join(name);
                 if path.exists() {
                     fs::remove_dir_all(&path).expect("pre-benchmark wipe");
                 }
             }
         }
+
+        // Start a pnpr server per `pnpr@<rev>` target and keep the guards
+        // alive for the whole benchmark; they kill the servers on drop at
+        // the end of this method. Empty (no-op) when there are no pnpr
+        // targets. Spawned before the GVS pre-warm below so a pnpr target
+        // would have its server up if a scenario ever combines the two.
+        let _pnpr_servers = self.start_pnpr_servers();
 
         // For GVS-warm we need a pre-warm pass: hyperfine's `--warmup`
         // would otherwise time-from-empty for the first run since the
@@ -322,11 +454,170 @@ impl WorkEnv {
         executor("hyperfine")(&mut command);
     }
 
+    /// Start a pnpr install-accelerator server for every `pnpr@<rev>`
+    /// target and write the `.pnpr-env` its `install.bash` sources. Each
+    /// server gets an isolated `<bench_dir>/pnpr-storage`. The returned
+    /// guards keep the servers alive and kill them on drop; the vec is
+    /// empty when no target is a pnpr target.
+    fn start_pnpr_servers(&self) -> Vec<PnprServer> {
+        self.benchmarked_ids()
+            .filter(|id| id.is_pnpr())
+            .map(|id| self.start_pnpr_server(id))
+            .collect()
+    }
+
+    fn start_pnpr_server(&self, id: BenchId) -> PnprServer {
+        let bench_dir = self.bench_dir(id);
+        let binary = bench_dir.join("pacquet").join("target").join("release").join("pnpr");
+        assert!(
+            binary.is_file(),
+            "pnpr binary not found at {binary:?} — the build step did not produce it",
+        );
+        let port = pick_unused_port().expect("pick an unused port for the pnpr server");
+
+        eprintln!("Starting pnpr server for {id} on 127.0.0.1:{port}...");
+        let stdout = File::create(bench_dir.join("pnpr-server.stdout.log"))
+            .expect("create pnpr server stdout log");
+        let stderr = File::create(bench_dir.join("pnpr-server.stderr.log"))
+            .expect("create pnpr server stderr log");
+        let process = Command::new(&binary)
+            .arg("--listen")
+            .arg(format!("127.0.0.1:{port}"))
+            .arg("--storage")
+            .arg(bench_dir.join("pnpr-storage"))
+            // The accelerator resolves against the registry the client
+            // sends, caching packuments in its own store. A long TTL keeps
+            // those cached packuments authoritative across the run, the
+            // same value the registry-mock pins for the same reason.
+            .arg("--packument-ttl-secs")
+            .arg("31536000")
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr)
+            .spawn()
+            .expect("spawn pnpr server");
+
+        // Wrap the child in its guard *before* anything that can panic
+        // (readiness wait, `.pnpr-env` write), so an early failure unwinds
+        // through `PnprServer::drop` and kills the process instead of
+        // leaking an orphaned server.
+        let mut server = PnprServer { process, latency_proxy: None };
+
+        wait_for_pnpr_ready(port);
+
+        // With `--pnpr-latency-ms`, the client reaches the server through
+        // a latency-injecting proxy instead of directly, so the benchmark
+        // measures pnpr as the remote service it is in production. The
+        // proxy guard rides along in `PnprServer` so it's torn down with
+        // the server.
+        let client_url = if self.pnpr_latency_ms > 0 {
+            let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
+            let one_way = Duration::from_millis(self.pnpr_latency_ms) / 2;
+            let proxy = LatencyProxy::spawn(upstream, one_way).expect("spawn pnpr latency proxy");
+            let proxy_url = format!("http://{}", proxy.addr);
+            eprintln!(
+                "Injecting {}ms round-trip latency in front of {id}'s server (proxy at {})",
+                self.pnpr_latency_ms, proxy.addr,
+            );
+            server.latency_proxy = Some(proxy);
+            proxy_url
+        } else {
+            format!("http://127.0.0.1:{port}")
+        };
+
+        fs::write(bench_dir.join(".pnpr-env"), format!("export PNPR_SERVER={client_url}\n"))
+            .expect("write .pnpr-env");
+
+        server
+    }
+
     pub fn run(&self) {
-        self.init();
+        // Front the registry with a latency proxy for the direct targets,
+        // when requested. The guard lives for the whole run so installs
+        // (in `benchmark`) cross it; the URL is baked into the direct
+        // targets' config during `init`. `pnpr@<rev>` targets keep the
+        // real (fast) registry — see [`Self::registry_for`].
+        let registry_proxy = self.start_registry_proxy();
+        let direct_registry = registry_proxy
+            .as_ref()
+            .map(|proxy| format!("http://{}/", proxy.addr))
+            .unwrap_or_else(|| self.registry.clone());
+
+        self.init(&direct_registry);
         self.build();
         self.benchmark();
+        drop(registry_proxy);
     }
+
+    /// Start a latency proxy in front of the registry, or `None` when no
+    /// latency is requested, the registry is already remote (`npm` mode),
+    /// or no direct target would use it.
+    fn start_registry_proxy(&self) -> Option<LatencyProxy> {
+        if self.registry_latency_ms == 0 || matches!(self.registry_mode, RegistryMode::Npm) {
+            return None;
+        }
+        let has_direct_target =
+            self.targets.iter().any(|target| target.kind != TargetKind::Pnpr) || self.with_pnpm;
+        if !has_direct_target {
+            return None;
+        }
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.registry_port));
+        let one_way = Duration::from_millis(self.registry_latency_ms) / 2;
+        let proxy = LatencyProxy::spawn(upstream, one_way).expect("spawn registry latency proxy");
+        eprintln!(
+            "Injecting {}ms round-trip latency in front of the registry for direct targets (proxy at {})",
+            self.registry_latency_ms, proxy.addr,
+        );
+        Some(proxy)
+    }
+
+    /// The registry a given bench id resolves against. Direct targets use
+    /// `direct_registry` (the latency proxy when injection is on); pnpr
+    /// targets and the proxy-cache populator keep the real registry — the
+    /// pnpr server's upstream stays fast, and warming the proxy cache is
+    /// untimed setup.
+    fn registry_for<'a>(&'a self, id: BenchId, direct_registry: &'a str) -> &'a str {
+        if id.is_pnpr() || id.is_proxy_cache_populator() { &self.registry } else { direct_registry }
+    }
+}
+
+/// A pnpr install-accelerator server spawned for one `pnpr@<rev>`
+/// target. Killed on drop so it never outlives the benchmark run.
+struct PnprServer {
+    process: Child,
+    /// The latency proxy fronting this server, when `--pnpr-latency-ms`
+    /// is set. Dropped (stopping the proxy) alongside the server.
+    latency_proxy: Option<LatencyProxy>,
+}
+
+impl Drop for PnprServer {
+    fn drop(&mut self) {
+        // Drop the proxy first (it stops accepting new connections and
+        // joins its accept loop), then kill the server. By the time a
+        // server is torn down the benchmark has finished, so there are no
+        // in-flight connections to drain; this is just tidy teardown
+        // order, not a guarantee that existing connections are flushed.
+        self.latency_proxy = None;
+        let pid = self.process.id();
+        let _ = self.process.kill();
+        let _ = self.process.wait();
+        eprintln!("info: Terminated pnpr server pid {pid}");
+    }
+}
+
+/// Poll the pnpr server's TCP port until it accepts a connection. Stays
+/// dependency-free (no async HTTP client) because the orchestrator's
+/// benchmark path is synchronous, unlike the registry-mock's spawn.
+fn wait_for_pnpr_ready(port: u16) {
+    const MAX_RETRIES: usize = 40;
+    const RETRY_DELAY: Duration = Duration::from_millis(250);
+    for _ in 0..MAX_RETRIES {
+        if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            return;
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+    panic!("pnpr server on 127.0.0.1:{port} did not become ready");
 }
 
 /// Fetch `commit` into `revision_repo`, creating it if missing, and
@@ -580,7 +871,18 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
 /// Write `install.bash` that invokes `command` (the resolved binary,
 /// e.g. `./pacquet/target/release/pacquet` or `node .../pnpm.mjs`)
 /// with the scenario's install arguments.
-fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str) {
+///
+/// When `needs_pnpr_env` is set, the script sources `.pnpr-env` (written
+/// at benchmark time once the per-target pnpr server has a port) so the
+/// client picks up `PNPR_SERVER` and routes the install through it. The
+/// `source` fails loudly under `errexit` if the file is missing, rather
+/// than silently falling back to a direct install.
+fn create_install_script(
+    dir: &Path,
+    scenario: BenchmarkScenario,
+    command: &str,
+    needs_pnpr_env: bool,
+) {
     let path = dir.join("install.bash");
 
     eprintln!("Creating script {path:?}...");
@@ -589,6 +891,9 @@ fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str)
     writeln!(file, "#!/bin/bash").unwrap();
     writeln!(file, "set -o errexit -o nounset -o pipefail").unwrap();
     writeln!(file, r#"cd "$(dirname "$0")""#).unwrap();
+    if needs_pnpr_env {
+        writeln!(file, "source ./.pnpr-env").unwrap();
+    }
 
     write!(file, "exec {command}").unwrap();
     for arg in scenario.install_args() {
@@ -603,6 +908,7 @@ fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str)
 enum BenchId<'a> {
     PacquetRevision(&'a str),
     PnpmRevision(&'a str),
+    PnprRevision(&'a str),
     Static(&'a str),
 }
 
@@ -611,7 +917,25 @@ impl<'a> From<&'a TargetSpec> for BenchId<'a> {
         match spec.kind {
             TargetKind::Pacquet => BenchId::PacquetRevision(&spec.rev),
             TargetKind::Pnpm => BenchId::PnpmRevision(&spec.rev),
+            TargetKind::Pnpr => BenchId::PnprRevision(&spec.rev),
         }
+    }
+}
+
+/// Static bench id of the proxy-cache populator — the one id that warms
+/// the registry's on-disk cache rather than being benchmarked.
+const INIT_PROXY_CACHE_ID: &str = ".init-proxy-cache";
+
+impl BenchId<'_> {
+    /// Whether this bench id drives the client through a pnpr server.
+    fn is_pnpr(self) -> bool {
+        matches!(self, BenchId::PnprRevision(_))
+    }
+
+    /// Whether this is the proxy-cache populator (untimed setup that
+    /// warms the registry cache), which always uses the real registry.
+    fn is_proxy_cache_populator(self) -> bool {
+        matches!(self, BenchId::Static(name) if name == INIT_PROXY_CACHE_ID)
     }
 }
 
@@ -620,6 +944,7 @@ impl<'a> fmt::Display for BenchId<'a> {
         match self {
             BenchId::PacquetRevision(revision) => write!(f, "pacquet@{revision}"),
             BenchId::PnpmRevision(revision) => write!(f, "pnpm@{revision}"),
+            BenchId::PnprRevision(revision) => write!(f, "pnpr@{revision}"),
             BenchId::Static(name) => write!(f, "{name}"),
         }
     }

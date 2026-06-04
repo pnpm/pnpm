@@ -2044,6 +2044,26 @@ test('peer dependency cache is invalidated correctly when the peer of a peer mis
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@2.0.0))']).toBeTruthy()
 })
 
+// https://github.com/pnpm/pnpm/issues/12079
+// peer-diamond-plugin peer-depends both peer-diamond-parser and peer-diamond-ts,
+// and peer-diamond-parser peer-depends peer-diamond-ts. The plugin's parser and
+// its ts must agree. A top-level parser resolved against ts@2.0.0 must not be
+// reused for the plugin, which is nested under ts@1.0.0.
+test('a peer shared through a diamond is resolved consistently', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/peer-diamond-ts@2.0.0',
+    '@pnpm.e2e/peer-diamond-parser@1.0.0',
+    '@pnpm.e2e/peer-diamond-app@1.0.0',
+  ], testDefaults({ autoInstallPeers: true }))
+
+  const lockfile = project.readLockfile()
+  const pluginSnapshots = Object.keys(lockfile.snapshots).filter((key) => key.includes('peer-diamond-plugin'))
+  expect(pluginSnapshots).toStrictEqual([
+    '@pnpm.e2e/peer-diamond-plugin@1.0.0(@pnpm.e2e/peer-diamond-parser@1.0.0(@pnpm.e2e/peer-diamond-ts@1.0.0))(@pnpm.e2e/peer-diamond-ts@1.0.0)',
+  ])
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/8759
 test('detection of circular peer dependencies should not crash with aliased dependencies', async () => {
   prepareEmpty()
@@ -2089,6 +2109,61 @@ test('dedupePeers: version-only peer suffixes without nested dep paths', async (
     'is-positive@1.0.0',
   ])
   expect(lockfile.settings.dedupePeers).toBe(true)
+})
+
+test('a newly added top-level peer provider wins over a locked context', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const opts = testDefaults({ strictPeerDependencies: false })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-parent-with-ab@1.0.0'],
+    opts
+  )
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/peer-c@2.0.0'], opts)
+
+  expect(project.readLockfile().importers['.']?.dependencies?.['@pnpm.e2e/abc-parent-with-ab'].version)
+    .toBe('1.0.0(@pnpm.e2e/peer-c@2.0.0)')
+})
+
+test('an explicitly updated top-level peer provider wins over a locked context', async () => {
+  const project = prepareEmpty()
+  const opts = testDefaults({ strictPeerDependencies: false })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-parent-with-ab@1.0.0', '@pnpm.e2e/peer-c@1.0.0', '@pnpm.e2e/has-peer-c-in-deps@1.0.0'],
+    opts
+  )
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/peer-c@2.0.0'], opts)
+
+  expect(project.readLockfile().importers['.']?.dependencies?.['@pnpm.e2e/abc-parent-with-ab'].version)
+    .toBe('1.0.0(@pnpm.e2e/peer-c@2.0.0)')
+})
+
+test('compatible existing peer contexts survive writable lockfile regeneration', async () => {
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const opts = testDefaults({ strictPeerDependencies: false })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-grand-parent-with-c', '@pnpm.e2e/peer-c@2.0.0'],
+    opts
+  )
+  const { updatedManifest: manifestWithBothContexts } = await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/abc-parent-with-ab'],
+    opts
+  )
+  await addDependenciesToPackage(manifestWithBothContexts, ['is-positive@1.0.0'], opts)
+
+  expect(project.readLockfile().snapshots)
+    .toHaveProperty(['@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)'])
+  expect(project.readLockfile().snapshots)
+    .toHaveProperty(['@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@2.0.0)'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/11070

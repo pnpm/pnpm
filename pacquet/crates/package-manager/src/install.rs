@@ -1,6 +1,6 @@
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
-    InstallWithFreshLockfile, InstallWithFreshLockfileError, ResolvedPackages,
+    InstallWithFreshLockfile, InstallWithFreshLockfileError, ResolvedPackages, UpdateSeedPolicy,
     build_resolution_verifiers, check_optimistic_repeat_install,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
@@ -167,6 +167,16 @@ where
     /// [`lockfileOnly`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L170)
     /// (`like npm's --package-lock-only`).
     pub lockfile_only: bool,
+    /// Which lockfile pins to withhold from the preferred-versions seed.
+    /// [`UpdateSeedPolicy::KeepAll`] for `install` / `add`; the `DropAll`
+    /// / `DropOnly` variants drive `pacquet update`'s compatible bump by
+    /// forcing the affected names to re-resolve to highest-in-range.
+    /// Forwarded to [`InstallWithFreshLockfile`]; ignored on the frozen
+    /// path (`update` always takes the fresh-resolve path). When set to
+    /// anything other than `KeepAll` the optimistic repeat-install
+    /// short-circuit is also bypassed so an `update` that finds newer
+    /// in-range versions isn't skipped as "already up to date".
+    pub update_seed_policy: UpdateSeedPolicy,
 }
 
 /// Error type of [`Install`].
@@ -354,6 +364,7 @@ where
             supported_architectures,
             node_linker,
             lockfile_only,
+            update_seed_policy,
         } = self;
 
         // `--lockfile-only` with `lockfile: false` (pnpm's
@@ -450,7 +461,14 @@ where
         // forcing the frozen path.
         let project_manifests =
             build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
-        if !frozen_lockfile
+        // `pacquet update` must always re-resolve, so it bypasses the
+        // optimistic short-circuit: a compatible bump leaves the
+        // manifest byte-identical, which the repeat-install check would
+        // otherwise read as "nothing changed → already up to date" and
+        // skip the registry re-resolution entirely. Gating on
+        // `KeepAll` keeps `install` / `add` on the fast path.
+        if matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
+            && !frozen_lockfile
             && let OptimisticRepeatInstallDecision::UpToDate = check_optimistic_repeat_install(
                 &workspace_root,
                 config,
@@ -942,6 +960,7 @@ where
                 node_linker,
                 supported_architectures: supported_architectures.as_ref(),
                 lockfile_only,
+                update_seed_policy,
             }
             .run::<Reporter>()
             .await

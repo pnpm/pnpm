@@ -1,7 +1,7 @@
 use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
 use pacquet_config::Config;
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_network::ThrottledClient;
+use pacquet_network::{RetryOpts, ThrottledClient};
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
@@ -44,6 +44,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         prefer_offline: false,
         lockfile_include_tarball_url: false,
         registry: "https://registry.npmjs.com/".to_string(),
+        pnpr_server: None,
         named_registries: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,
@@ -78,6 +79,10 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         allow_builds: Default::default(),
         dangerously_allow_all_builds: false,
         scripts_prepend_node_path: Default::default(),
+        enable_pre_post_scripts: false,
+        script_shell: None,
+        node_options: None,
+        extra_bin_paths: Default::default(),
         unsafe_perm: true,
         child_concurrency: 1,
         workspace_concurrency: 1,
@@ -90,6 +95,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         overrides: None,
         package_extensions: None,
         cache_dir: tempdir().unwrap().keep(),
+        dlx_cache_max_age: 24 * 60,
         minimum_release_age: None,
         minimum_release_age_exclude: None,
         minimum_release_age_ignore_missing_time: true,
@@ -132,6 +138,7 @@ async fn resolve_via_mock(
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),

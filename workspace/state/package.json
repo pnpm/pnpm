@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.state",
-  "version": "1100.0.17",
+  "version": "1100.0.18",
   "description": "Track the list of actual paths of workspace packages in a cache",
   "keywords": [
     "pnpm",
@@ -35,7 +35,8 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "catalog:"
+    "ramda": "catalog:",
+    "write-file-atomic": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -45,7 +46,8 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "@types/write-file-atomic": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

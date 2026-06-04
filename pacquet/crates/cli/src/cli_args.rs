@@ -1,21 +1,33 @@
 pub mod add;
+pub mod dlx;
+pub mod exec;
 pub mod install;
+pub mod outdated;
+pub mod recursive;
+pub mod remove;
 pub mod run;
 pub mod store;
 pub mod supported_architectures;
+pub mod update;
+pub mod update_interactive;
 
 use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use dlx::DlxArgs;
+use exec::ExecArgs;
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
+use outdated::{OutdatedArgs, OutdatedOutcome};
 use pacquet_config::{Config, Host};
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use remove::RemoveArgs;
 use run::RunArgs;
 use std::path::PathBuf;
 use store::StoreCommand;
+use update::UpdateArgs;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
@@ -99,10 +111,24 @@ pub enum CliCommand {
     Add(AddArgs),
     /// Install packages
     Install(InstallArgs),
+    /// Update packages to their newest version based on the specified range
+    #[clap(visible_aliases = ["up", "upgrade"])]
+    Update(UpdateArgs),
+    /// Check for outdated packages
+    Outdated(OutdatedArgs),
+    /// Removes packages from `node_modules` and from the project's `package.json`.
+    // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
+    // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
+    #[clap(visible_aliases = ["uninstall", "rm", "un", "uni"])]
+    Remove(RemoveArgs),
     /// Runs a package's "test" script, if one was provided.
     Test,
     /// Runs a defined package script.
     Run(RunArgs),
+    /// Run a shell command in the context of a project.
+    Exec(ExecArgs),
+    /// Run a package in a temporary environment.
+    Dlx(DlxArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Managing the package store.
@@ -186,6 +212,24 @@ impl CliArgs {
                 ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
                 ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
             },
+            CliCommand::Update(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+            },
+            // `outdated` is a read-only query: it prints a report to
+            // stdout and never installs, so it has no reporter-typed
+            // install pipeline to dispatch on. It reports back whether any
+            // dependency was outdated; process termination stays here, at
+            // the top-level harness, rather than inside the command.
+            CliCommand::Outdated(args) => {
+                if args.run(state(false)?).await? == OutdatedOutcome::Outdated {
+                    std::process::exit(1);
+                }
+            }
+            CliCommand::Remove(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+            },
             CliCommand::Install(args) => {
                 // CLI overrides for `offline` / `prefer_offline` live
                 // alongside `--frozen-lockfile`: they upgrade an
@@ -214,6 +258,9 @@ impl CliArgs {
                 if let Some(user_agent) = args.user_agent.clone() {
                     cfg.user_agent = user_agent;
                 }
+                if let Some(pnpr_server) = args.pnpr_server.clone() {
+                    cfg.pnpr_server = Some(pnpr_server);
+                }
                 let require_lockfile = args.frozen_lockfile;
                 let state = State::init(manifest_path(), cfg, require_lockfile)
                     .wrap_err("initialize the state")?;
@@ -230,7 +277,24 @@ impl CliArgs {
                         .wrap_err(format!("executing command: \"{0}\"", script))?;
                 }
             }
-            CliCommand::Run(args) => args.run(manifest_path())?,
+            CliCommand::Run(args) => {
+                if recursive {
+                    args.run_recursive(config()?, &dir)?;
+                } else {
+                    args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
+                }
+            }
+            CliCommand::Exec(args) => {
+                if recursive {
+                    args.run_recursive(config()?, &dir)?;
+                } else {
+                    args.run(&dir, config()?)?;
+                }
+            }
+            CliCommand::Dlx(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(&dir, config()?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(&dir, config()?).await?,
+            },
             CliCommand::Start => {
                 // Runs an arbitrary command specified in the package's start property of its scripts
                 // object. If no start property is specified on the scripts object, it will attempt to

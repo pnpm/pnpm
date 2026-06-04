@@ -2,9 +2,11 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
+use flate2::read::GzDecoder;
 use pnpr::{Config, router};
 use serde_json::{Value, json};
 use std::{
+    io::Read as _,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     time::Duration,
 };
@@ -564,4 +566,126 @@ async fn ping_endpoint_returns_json_empty_object() {
     let body_bytes = body_bytes(response.into_body()).await;
     let body: Value = serde_json::from_slice(&body_bytes).unwrap();
     assert_eq!(body, json!({}));
+}
+
+fn foo_packument(upstream_url: &str) -> Value {
+    json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("{upstream_url}/foo/-/foo-1.0.0.tgz"),
+                    "shasum": "deadbeef",
+                },
+            },
+        },
+    })
+}
+
+#[tokio::test]
+async fn packument_is_gzipped_for_clients_that_accept_it() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(foo_packument(&upstream.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let response = app
+        .oneshot(
+            Request::get("/foo").header("accept-encoding", "gzip").body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get("content-encoding").and_then(|value| value.to_str().ok()),
+        Some("gzip"),
+        "a packument should be gzipped when the client accepts gzip",
+    );
+
+    // Decoding yields the same rewritten JSON a plain request would return.
+    let gzipped = body_bytes(response.into_body()).await;
+    let mut decoded = Vec::new();
+    GzDecoder::new(&gzipped[..]).read_to_end(&mut decoded).expect("decode gzip");
+    let body: Value = serde_json::from_slice(&decoded).unwrap();
+    assert_eq!(
+        body["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://example.test/foo/-/foo-1.0.0.tgz",
+    );
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn packument_is_not_gzipped_without_accept_encoding() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(foo_packument(&upstream.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers().get("content-encoding").is_none(),
+        "no Accept-Encoding means the packument is served uncompressed",
+    );
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(body["name"], "foo");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn tarball_is_not_gzipped_even_when_accepted() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"fake-tarball-bytes-long-enough-to-clear-the-compression-size-floor";
+    let mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_header("content-type", "application/octet-stream")
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    // Tarballs are already `.tgz` (gzip); the layer must not re-compress
+    // them even when the client offers `Accept-Encoding: gzip`.
+    let response = app
+        .oneshot(
+            Request::get("/foo/-/foo-1.0.0.tgz")
+                .header("accept-encoding", "gzip")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers().get("content-encoding").is_none(),
+        "tarballs must not be re-gzipped",
+    );
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+
+    mock.assert_async().await;
 }

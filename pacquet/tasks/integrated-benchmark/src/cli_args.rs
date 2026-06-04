@@ -41,11 +41,39 @@ pub struct CliArgs {
     #[clap(long)]
     pub with_pnpm: bool,
 
+    /// Round-trip latency, in milliseconds, to inject between the pacquet
+    /// client and the pnpr server, so `pnpr@<rev>` targets are measured
+    /// as the remote service pnpr is in production rather than a loopback
+    /// peer. Applied as half the value in each direction. `0` disables
+    /// injection; non-pnpr targets are unaffected.
+    #[clap(long, default_value_t = 0)]
+    pub pnpr_latency_ms: u64,
+
+    /// Round-trip latency, in milliseconds, to inject between the client
+    /// and the *registry* for the direct (`pacquet@<rev>` / `pnpm@<rev>` /
+    /// `--with-pnpm`) targets, so a direct install crosses the same
+    /// network a pnpr install does. Set this equal to `--pnpr-latency-ms`
+    /// for a fair pnpr-vs-direct comparison. `pnpr@<rev>` targets keep a
+    /// direct (fast) registry link — that models a warm, colocated server,
+    /// so pnpr's advantage shows up as fewer round trips rather than a
+    /// faster backend. `0` disables injection; ignored with
+    /// `--registry=npm` (already remote).
+    #[clap(long, default_value_t = 0)]
+    pub registry_latency_ms: u64,
+
     /// Build each target without running the benchmark.
     #[clap(long)]
     pub build_only: bool,
 
-    /// Targets to benchmark. Each is `pacquet@<rev>` or `pnpm@<rev>`.
+    /// Skip cloning + building a target whose output binary is already
+    /// present, e.g. restored from a per-commit CI cache. A `pnpr@<rev>`
+    /// build also yields the `pacquet` client binary, so a same-revision
+    /// `pacquet@<rev>` reuses it rather than recompiling the commit.
+    #[clap(long)]
+    pub reuse_prebuilt_binaries: bool,
+
+    /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
+    /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
     #[clap(required = true)]
     pub targets: Vec<TargetSpec>,
 }
@@ -62,21 +90,28 @@ pub struct TargetSpec {
 pub enum TargetKind {
     Pacquet,
     Pnpm,
+    /// A pacquet client driven through a pnpr install-accelerator server.
+    /// Builds both the `pacquet` and `pnpr` binaries from the revision's
+    /// monorepo clone, boots a per-target pnpr server with an isolated
+    /// store, and points the client at it via `PNPR_SERVER`.
+    Pnpr,
 }
 
 impl FromStr for TargetSpec {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let (prefix, rev) = input
-            .split_once('@')
-            .ok_or_else(|| format!("target {input:?}: must be `pacquet@<rev>` or `pnpm@<rev>`"))?;
+        let (prefix, rev) = input.split_once('@').ok_or_else(|| {
+            format!("target {input:?}: must be `pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`")
+        })?;
         let kind = match prefix {
             "pacquet" => TargetKind::Pacquet,
             "pnpm" => TargetKind::Pnpm,
+            "pnpr" => TargetKind::Pnpr,
             other => {
                 return Err(format!(
-                    "target {input:?}: unknown kind {other:?} (expected `pacquet` or `pnpm`)",
+                    "target {input:?}: unknown kind {other:?} \
+                     (expected `pacquet`, `pnpm`, or `pnpr`)",
                 ));
             }
         };

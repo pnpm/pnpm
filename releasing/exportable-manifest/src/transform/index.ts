@@ -4,6 +4,7 @@ import { pipe } from 'ramda'
 
 import { transformBin } from './bin.js'
 import { transformPeerDependenciesMeta } from './peerDependenciesMeta.js'
+import { transformRepository } from './repository.js'
 import { transformRequiredFields } from './requiredFields.js'
 
 export { type ExportedManifest }
@@ -12,5 +13,6 @@ export type Transform = (manifest: ProjectManifest) => ExportedManifest
 export const transform: Transform = pipe(
   transformRequiredFields,
   transformBin,
-  transformPeerDependenciesMeta
+  transformPeerDependenciesMeta,
+  transformRepository
 ) as Transform

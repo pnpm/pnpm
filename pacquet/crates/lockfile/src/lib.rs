@@ -37,6 +37,7 @@ pub use snapshot_dep_ref::*;
 pub use snapshot_entry::*;
 pub use yaml_documents::*;
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -98,8 +99,15 @@ pub struct Lockfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<LockfileSettings>,
 
+    /// `overrides` recorded by the install that wrote this lockfile.
+    /// Kept in an [`IndexMap`] so the entries serialize in the order
+    /// the user declared them — pnpm does **not** sort this map (it is
+    /// the one lockfile map left out of
+    /// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/sortLockfileKeys.ts)),
+    /// so preserving insertion order is what keeps pacquet byte-stable
+    /// *and* faithful to pnpm.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub overrides: Option<HashMap<String, String>>,
+    pub overrides: Option<IndexMap<String, String>>,
 
     /// `packageExtensionsChecksum` recorded by the install that wrote
     /// this lockfile. Top-level in the v9 wire shape, mirroring
@@ -130,13 +138,23 @@ pub struct Lockfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignored_optional_dependencies: Option<Vec<String>>,
 
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "HashMap::is_empty",
+        serialize_with = "crate::serialize_yaml::sorted_map"
+    )]
     pub importers: HashMap<String, ProjectSnapshot>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
     pub packages: Option<HashMap<PackageKey, PackageMetadata>>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
     pub snapshots: Option<HashMap<PackageKey, SnapshotEntry>>,
 }
 

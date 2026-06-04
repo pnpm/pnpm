@@ -1,4 +1,4 @@
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use tempfile::TempDir;
 
 use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
@@ -21,6 +21,10 @@ const PACKAGE_BODY: &str = r#"{
         }
     }
 }"#;
+
+fn no_retry_opts() -> RetryOpts {
+    RetryOpts { retries: 0, ..Default::default() }
+}
 
 /// Cold cache (no mirror file) → registry returns 200 → mirror is
 /// populated with the response body + etag.
@@ -47,6 +51,7 @@ async fn cold_cache_writes_mirror_on_200() {
         auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
+        retry_opts: no_retry_opts(),
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 → ok");
@@ -94,6 +99,7 @@ async fn warm_cache_serves_from_mirror_on_304() {
         auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
+        retry_opts: no_retry_opts(),
     };
 
     let _first_pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 populates cache");
@@ -140,6 +146,7 @@ async fn stale_cache_refreshes_mirror_on_200() {
         auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
+        retry_opts: no_retry_opts(),
     };
 
     let _ = fetch_full_metadata_cached("acme", &opts).await.expect("populate");
@@ -177,6 +184,7 @@ async fn no_cache_dir_skips_mirror_io() {
         auth_headers: &auth_headers,
         cache_dir: None,
         full_metadata: true,
+        retry_opts: no_retry_opts(),
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 → ok");
@@ -215,6 +223,7 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
         auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
+        retry_opts: no_retry_opts(),
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("read-only must not fail");

@@ -1,6 +1,13 @@
-use super::{extract_version_manifest, rewrite_tarball_urls};
+use super::{abbreviate_packument, extract_version_manifest, rewrite_tarball_urls};
 use crate::package_name::PackageName;
+use chrono::{DateTime, TimeZone, Utc};
 use serde_json::json;
+
+/// Fixed "current time" for abbreviation tests so the `time`-map
+/// coarsening (which buckets entries by age) is deterministic.
+fn now() -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2024, 3, 20, 12, 0, 0).unwrap()
+}
 
 #[test]
 fn rewrites_npm_form_tarball() {
@@ -97,4 +104,169 @@ fn extract_returns_none_for_unknown_version() {
     let name = PackageName::parse("foo").unwrap();
     assert!(extract_version_manifest(&doc, &name, "9.9.9", "http://reg").is_none());
     assert!(extract_version_manifest(&doc, &name, "latest", "http://reg").is_none());
+}
+
+#[test]
+fn abbreviation_drops_fields_the_resolver_ignores() {
+    let doc = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "modified": "2020-01-01T00:00:00.000Z", "1.0.0": "2019-01-01T00:00:00.000Z" },
+        "_id": "foo",
+        "_rev": "1-abc",
+        "readme": "# foo\nlots of prose",
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dependencies": { "bar": "^1.0.0" },
+                "devDependencies": { "jest": "^29.0.0" },
+                "peerDependencies": { "react": "*" },
+                "os": ["linux"],
+                "cpu": ["x64"],
+                "libc": ["glibc"],
+                "funding": { "url": "https://example.com" },
+                "acceptDependencies": { "bar": "^1.0.0" },
+                "_hasShrinkwrap": false,
+                "hasInstallScript": true,
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
+                    "integrity": "sha512-abc",
+                    "shasum": "deadbeef",
+                    "fileCount": 12,
+                    "unpackedSize": 34567,
+                    "signatures": [{ "keyid": "SHA256:xyz", "sig": "base64sig" }],
+                    "npm-signature": "-----BEGIN PGP SIGNATURE-----"
+                }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+
+    // Top-level: prose and registry bookkeeping gone, `modified`
+    // synthesized from `time.modified`, `time` retained. Both `time`
+    // entries predate the week-old horizon, so they coarsen to bare
+    // dates.
+    assert!(out.get("readme").is_none());
+    assert!(out.get("readmeFilename").is_none());
+    assert!(out.get("_id").is_none());
+    assert!(out.get("_rev").is_none());
+    assert_eq!(out["modified"], "2020-01-01");
+    assert_eq!(out["time"]["modified"], "2020-01-01");
+    assert_eq!(out["time"]["1.0.0"], "2019-01-01");
+
+    let version = &out["versions"]["1.0.0"];
+    // Resolver-relevant fields kept.
+    assert_eq!(version["name"], "foo");
+    assert_eq!(version["dependencies"]["bar"], "^1.0.0");
+    assert_eq!(version["peerDependencies"]["react"], "*");
+    assert_eq!(version["hasInstallScript"], true);
+    // Platform-filtering fields kept for optional-dep selection (`#9950`).
+    assert_eq!(version["os"][0], "linux");
+    assert_eq!(version["cpu"][0], "x64");
+    assert_eq!(version["libc"][0], "glibc");
+    // Ignored fields dropped.
+    assert!(version.get("devDependencies").is_none());
+    assert!(version.get("funding").is_none());
+    assert!(version.get("acceptDependencies").is_none());
+    assert!(version.get("_hasShrinkwrap").is_none());
+    // `shasum` dropped because `integrity` is present.
+    assert_eq!(version["dist"]["integrity"], "sha512-abc");
+    assert!(version["dist"].get("shasum").is_none());
+    // Legacy PGP signature and unused size fields dropped; ECDSA
+    // registry signatures kept.
+    assert!(version["dist"].get("npm-signature").is_none());
+    assert!(version["dist"].get("fileCount").is_none());
+    assert!(version["dist"].get("unpackedSize").is_none());
+    assert_eq!(version["dist"]["signatures"][0]["keyid"], "SHA256:xyz");
+}
+
+#[test]
+fn abbreviation_keeps_shasum_when_integrity_absent() {
+    let doc = json!({
+        "name": "legacy",
+        "versions": {
+            "0.0.1": {
+                "name": "legacy",
+                "version": "0.0.1",
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/legacy/-/legacy-0.0.1.tgz",
+                    "shasum": "deadbeef"
+                }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+
+    let dist = &out["versions"]["0.0.1"]["dist"];
+    assert!(dist.get("integrity").is_none());
+    assert_eq!(dist["shasum"], "deadbeef");
+}
+
+#[test]
+fn abbreviation_keeps_shasum_when_integrity_is_empty_or_non_string() {
+    // pnpm's `getIntegrity` falls back to `shasum` unless `integrity`
+    // is a truthy (non-empty) string, so an empty or malformed
+    // `integrity` must not strip the sha1 fallback.
+    let doc = json!({
+        "name": "weird",
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "dist": { "tarball": "x/weird-1.0.0.tgz", "integrity": "", "shasum": "deadbeef" }
+            },
+            "2.0.0": {
+                "version": "2.0.0",
+                "dist": { "tarball": "x/weird-2.0.0.tgz", "integrity": false, "shasum": "cafe" }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+
+    assert_eq!(out["versions"]["1.0.0"]["dist"]["shasum"], "deadbeef");
+    assert_eq!(out["versions"]["2.0.0"]["dist"]["shasum"], "cafe");
+}
+
+#[test]
+fn coarsens_time_entries_by_age() {
+    // `now()` is 2024-03-20T12:00Z; the horizon is one week earlier
+    // (2024-03-13T12:00Z). Values are rounded *up* so the coarsened
+    // timestamp never predates the real publish time.
+    let doc = json!({
+        "name": "foo",
+        "time": {
+            // Older than a week: rounded up to the next day...
+            "modified": "2024-03-01T08:15:30.500Z",
+            "1.0.0": "2023-12-25T23:59:59.000Z",
+            // ...unless already exactly midnight, which stays put.
+            "2.0.0": "2024-01-10T00:00:00.000Z",
+            // Within the last week: rounded up to the next minute...
+            "1.1.0": "2024-03-19T08:30:45.123Z",
+            // ...unless already on a minute boundary.
+            "1.2.0": "2024-03-18T06:15:00.000Z",
+            // The reserved `unpublished` object passes through verbatim.
+            "unpublished": { "time": "2024-03-18T00:00:00.000Z", "versions": ["0.9.0"] },
+            // An unparsable value is left untouched.
+            "0.0.1": "not a date"
+        },
+        "versions": {
+            "1.0.0": { "version": "1.0.0", "dist": { "tarball": "x/foo-1.0.0.tgz" } }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let time = &out["time"];
+
+    assert_eq!(time["modified"], "2024-03-02");
+    assert_eq!(time["1.0.0"], "2023-12-26");
+    assert_eq!(time["2.0.0"], "2024-01-10");
+    assert_eq!(time["1.1.0"], "2024-03-19T08:31Z");
+    assert_eq!(time["1.2.0"], "2024-03-18T06:15Z");
+    assert_eq!(time["unpublished"]["versions"][0], "0.9.0");
+    assert_eq!(time["0.0.1"], "not a date");
+    // Synthesized top-level `modified` mirrors the coarsened entry.
+    assert_eq!(out["modified"], "2024-03-02");
 }

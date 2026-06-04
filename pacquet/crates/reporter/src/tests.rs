@@ -6,13 +6,13 @@ use serde_json::Value;
 
 use crate::{
     AddedRoot, BrokenModulesLog, ContextLog, DependencyType, Envelope, FetchingProgressLog,
-    FetchingProgressMessage, GetHostName, Host, IgnoredScriptsLog, LifecycleLog, LifecycleMessage,
-    LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel,
-    PackageImportMethod, PackageImportMethodLog, PackageManifestLog, PackageManifestMessage,
-    PnpmLog, ProgressLog, ProgressMessage, RemovedRoot, Reporter, RequestRetryError,
-    RequestRetryLog, RootLog, RootMessage, SilentReporter, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog, StatsLog, StatsMessage,
-    SummaryLog,
+    FetchingProgressMessage, GetHostName, HookLog, Host, IgnoredScriptsLog, LifecycleLog,
+    LifecycleMessage, LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage,
+    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
+    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RemovedRoot, Reporter,
+    RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog,
+    StatsLog, StatsMessage, SummaryLog,
 };
 
 /// Context log serializes with the camelCase field names
@@ -118,6 +118,35 @@ fn pnpm_event_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm");
     assert_eq!(json["level"], "info");
     assert_eq!(json["message"], "Lockfile is up to date, resolution step is skipped");
+    assert_eq!(json["prefix"], "/some/project");
+}
+
+/// Hook log (`name: "pnpm:hook"`) carries the `from` / `hook` /
+/// `message` / `prefix` fields pnpm's `hookLogger` emits, at the
+/// `debug` level the hook-context logger uses. `@pnpm/cli.default-reporter`
+/// dispatches on these to attribute the message to its pnpmfile.
+#[test]
+fn hook_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Hook(HookLog {
+        level: LogLevel::Debug,
+        from: "/some/project/.pnpmfile.cjs".to_string(),
+        hook: "readPackage".to_string(),
+        message: "is-positive pinned to 1.0.0".to_string(),
+        prefix: "/some/project".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm:hook");
+    assert_eq!(json["level"], "debug");
+    assert_eq!(json["from"], "/some/project/.pnpmfile.cjs");
+    assert_eq!(json["hook"], "readPackage");
+    assert_eq!(json["message"], "is-positive pinned to 1.0.0");
     assert_eq!(json["prefix"], "/some/project");
 }
 

@@ -1,6 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { scheduler } from 'node:timers/promises'
@@ -10,7 +9,6 @@ import getPort from 'get-port'
 import treeKill from 'tree-kill'
 
 const kill = promisify(treeKill)
-const require = createRequire(import.meta.url)
 
 const REPO_ROOT = path.join(import.meta.dirname, '..', '..', '..')
 const FIXTURE_PACKAGES = path.join(REPO_ROOT, 'pnpr', '.fixtures', 'packages')
@@ -101,7 +99,12 @@ function resolvePnprPrepareBin () {
  *
  * 1. `PNPR_BIN` env var override.
  * 2. A locally-built `target/{release,debug}/pnpr`.
- * 3. The platform binary shipped as an optionalDependency of `@pnpm/pnpr`.
+ *
+ * There is no published-binary fallback on purpose: running these tests
+ * already requires building `pnpr-prepare` from source (it has no npm
+ * fallback either), so the toolchain to build `pnpr` is always present,
+ * and a published `@pnpm/pnpr` could predate the server protocol the
+ * tests exercise.
  */
 function resolvePnprBin () {
   if (process.env.PNPR_BIN) {
@@ -109,18 +112,9 @@ function resolvePnprBin () {
   }
   const localBin = findRustTargetBin('pnpr')
   if (localBin) return localBin
-
-  const ext = process.platform === 'win32' ? '.exe' : ''
-  const platformPkg = `@pnpm/pnpr.${process.platform}-${process.arch}`
-  try {
-    const wrapperRequire = createRequire(require.resolve('@pnpm/pnpr/bin/pnpr'))
-    return wrapperRequire.resolve(`${platformPkg}/pnpr${ext}`)
-  } catch {
-    throw new Error(
-      'pnpr binary not found. Build it with `cargo build -p pnpr`, ' +
-      `set PNPR_BIN, or install ${platformPkg} (an optionalDependency of @pnpm/pnpr).`
-    )
-  }
+  throw new Error(
+    'pnpr binary not found. Build it with `cargo build -p pnpr` or set PNPR_BIN to an absolute path.'
+  )
 }
 
 function resolveRustBin (name, envVar) {

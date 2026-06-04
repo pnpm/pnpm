@@ -13,7 +13,10 @@ use std::collections::HashMap;
 pub struct PackageMetadata {
     pub resolution: LockfileResolution,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
     pub engines: Option<HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cpu: Option<Vec<String>>,
@@ -34,9 +37,15 @@ pub struct PackageMetadata {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bundled_dependencies: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
     pub peer_dependencies: Option<HashMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
 }
 

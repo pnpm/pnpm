@@ -65,7 +65,25 @@ allow = [
   "Zlib", # required by foldhash, a transitive dep of rusqlite
 ]
 confidence-threshold = 0.8
-exceptions = []
+exceptions = [
+  # `pnpr` and `pnpr-fixtures` are first-party crates licensed under
+  # PolyForm Shield (see `pnpr/LICENSE.md`), not the MIT used by the rest
+  # of the workspace. cargo-deny only recognizes the PolyForm-Noncommercial
+  # identifier for this license text, so allow that id for just these two
+  # crates (the clarify entries below pin it by file hash).
+  { name = "pnpr", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-fixtures", allow = ["PolyForm-Noncommercial-1.0.0"] },
+]
+
+[[licenses.clarify]]
+name = "pnpr"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-fixtures"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 
 [[licenses.clarify]]
 name = "ring"

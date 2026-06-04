@@ -508,7 +508,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
   const { createGunzip } = await import('node:zlib')
   const { contentPathFromHex } = await import('@pnpm/store.cafs')
 
-  // Preserve any path prefix on the agent URL (e.g. https://host/pnpm-agent/)
+  // Preserve any path prefix on the pnpr server URL (e.g. https://host/pnpr/)
   // by normalizing the base and using a relative URL.
   const base = message.registryUrl.endsWith('/') ? message.registryUrl : `${message.registryUrl}/`
   const url = new URL('v1/files', base)
@@ -517,7 +517,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
   const createdDirs = new Set<string>()
 
   // Build a set of digests we actually requested, so we can reject a
-  // misbehaving agent that streams unrelated entries and tries to write
+  // misbehaving pnpr server that streams unrelated entries and tries to write
   // unbounded files into our CAFS. The set is keyed by `${digest}:${exec}`
   // because the same digest may appear with different modes.
   const requestedDigests = new Set<string>()
@@ -565,7 +565,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
 
         const requestKey = `${digest}:${executable ? 'x' : ''}`
         if (!requestedDigests.has(requestKey)) {
-          throw new Error(`pnpm agent /v1/files returned an entry that was not requested: digest=${digest} executable=${String(executable)}`)
+          throw new Error(`pnpr server /v1/files returned an entry that was not requested: digest=${digest} executable=${String(executable)}`)
         }
         // Consume the request so duplicates past the requested count also fail.
         requestedDigests.delete(requestKey)
@@ -588,7 +588,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
           // EEXIST means the same digest is already at this CAFS path. CAFS
           // is content-addressed, so a complete file is by definition correct.
           // But a previous process could have crashed mid-write and left a
-          // truncated file — the agent path skips integrity verification, so
+          // truncated file — the pnpr server path skips integrity verification, so
           // we'd silently install garbage. Detect truncation by size and
           // overwrite atomically if the on-disk file is the wrong length.
           const onDiskSize = fs.statSync(fullPath).size
@@ -630,13 +630,13 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
         'Accept-Encoding': 'gzip',
       },
     }, (res: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      // Non-2xx responses are JSON error bodies from the agent server; read
+      // Non-2xx responses are JSON error bodies from the pnpr server; read
       // and reject so we never try to gunzip an error payload as a file stream.
       if (typeof res.statusCode === 'number' && (res.statusCode < 200 || res.statusCode >= 300)) {
         const chunks: Buffer[] = []
         res.on('data', (chunk: Buffer) => chunks.push(chunk))
         res.on('end', () => {
-          reject(new Error(`pnpm agent /v1/files responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
+          reject(new Error(`pnpr server /v1/files responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
         })
         res.on('error', reject)
         return
@@ -660,11 +660,11 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
         // partial entry still in `buf`, fail — otherwise we'd silently leave
         // the CAFS missing files.
         if (!endMarkerSeen) {
-          reject(new Error('pnpm agent /v1/files stream ended without the end marker'))
+          reject(new Error('pnpr server /v1/files stream ended without the end marker'))
           return
         }
         if (buf.length > 0) {
-          reject(new Error(`pnpm agent /v1/files stream left ${buf.length} unparsed bytes after end marker`))
+          reject(new Error(`pnpr server /v1/files stream left ${buf.length} unparsed bytes after end marker`))
           return
         }
         // Every received entry was drained from `requestedDigests` as it was
@@ -672,7 +672,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
         // but omitted files, which would silently leave the CAFS incomplete.
         if (requestedDigests.size > 0) {
           const sample = [...requestedDigests].slice(0, 3).join(', ')
-          reject(new Error(`pnpm agent /v1/files omitted ${requestedDigests.size} requested entries (e.g. ${sample})`))
+          reject(new Error(`pnpr server /v1/files omitted ${requestedDigests.size} requested entries (e.g. ${sample})`))
           return
         }
         resolve({ status: 'success', filesWritten })
@@ -680,7 +680,7 @@ async function fetchAndWriteCafs (message: FetchAndWriteCafsMessage): Promise<{ 
       stream.on('error', reject)
     })
     req.on('timeout', () => {
-      req.destroy(new Error(`pnpm agent /v1/files request timed out after ${FILES_REQUEST_TIMEOUT_MS / 1000}s`))
+      req.destroy(new Error(`pnpr server /v1/files request timed out after ${FILES_REQUEST_TIMEOUT_MS / 1000}s`))
     })
     req.on('error', reject)
     req.write(body)

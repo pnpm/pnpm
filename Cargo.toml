@@ -13,6 +13,7 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
+pacquet-pnpr-client                       = { path = "pacquet/crates/pnpr-client" }
 pacquet-catalogs-config                   = { path = "pacquet/crates/catalogs-config" }
 pacquet-catalogs-protocol-parser          = { path = "pacquet/crates/catalogs-protocol-parser" }
 pacquet-catalogs-resolver                 = { path = "pacquet/crates/catalogs-resolver" }
@@ -48,6 +49,7 @@ pacquet-deps-path                         = { path = "pacquet/crates/deps-path" 
 pacquet-detect-libc                       = { path = "pacquet/crates/detect-libc" }
 pacquet-diagnostics                       = { path = "pacquet/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pacquet/crates/graph-hasher" }
+pacquet-hooks                             = { path = "pacquet/crates/hooks" }
 pacquet-store-dir                         = { path = "pacquet/crates/store-dir" }
 pacquet-reporter                          = { path = "pacquet/crates/reporter" }
 pacquet-patching                          = { path = "pacquet/crates/patching" }
@@ -92,6 +94,7 @@ bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 dashmap = { version = "6.1.0" }
 derive_more = { version = "2.1.1", features = ["full"] }
+dialoguer = { version = "0.11.0", default-features = false }
 diffy = { version = "0.5.0" }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
@@ -107,10 +110,12 @@ getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
 num_cpus = { version = "1.17.0" }
 os_display = { version = "0.1.4" }
+owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
 libc = { version = "0.2.186" }
 reqwest = { version = "0.13", default-features = false, features = [
+  "gzip",
   "hickory-dns",
   "json",
   "rustls",
@@ -133,10 +138,11 @@ split-first-char   = { version = "2.0.1" }
 ssri               = { version = "9.2.0" }
 strum              = { version = "0.28.0", features = ["derive"] }
 sysinfo            = { version = "0.39.2" }
+tabled             = { version = "0.17" }
 tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
-tower-http         = { version = "0.6.11", features = ["trace"] }
+tower-http         = { version = "0.6.11", features = ["compression-gzip", "trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }

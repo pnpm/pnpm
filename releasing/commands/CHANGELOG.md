@@ -1,5 +1,13 @@
 # @pnpm/releasing.commands
 
+## 1100.4.1
+
+### Patch Changes
+
+- Updated dependencies [33921c8]
+  - @pnpm/releasing.exportable-manifest@1100.1.2
+  - @pnpm/installing.commands@1100.7.1
+
 ## 1100.4.0
 
 ### Minor Changes

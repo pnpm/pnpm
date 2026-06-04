@@ -1,5 +1,11 @@
 # @pnpm/workspace.state
 
+## 1100.0.18
+
+### Patch Changes
+
+- 37669c2: Avoid crashing when the workspace state cache is partially written or malformed.
+
 ## 1100.0.17
 
 ### Patch Changes

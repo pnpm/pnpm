@@ -7,7 +7,7 @@ use pacquet_modules_yaml::{
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    BrokenModulesLog, ContextLog, IgnoredScriptsLog, LogEvent, PackageManifestLog,
+    BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LogEvent, PackageManifestLog,
     PackageManifestMessage, ProgressLog, ProgressMessage, Reporter, SilentReporter, Stage,
     StageLog, StatsLog, StatsMessage, SummaryLog,
 };
@@ -71,6 +71,7 @@ async fn should_install_dependencies() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -142,6 +143,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -188,6 +190,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -263,6 +266,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -331,6 +335,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -418,6 +423,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -488,6 +494,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -578,6 +585,7 @@ async fn install_emits_pnpm_event_sequence() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -725,6 +733,7 @@ async fn install_writes_modules_yaml() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -828,6 +837,7 @@ async fn install_writes_workspace_state() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -1054,6 +1064,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -1129,6 +1140,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -1227,6 +1239,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -1354,13 +1367,14 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -1454,13 +1468,14 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await;
@@ -1569,6 +1584,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -1621,6 +1637,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -1708,13 +1725,14 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -1770,6 +1788,12 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 /// network / integrity failure — distinguishable from the early
 /// `OutdatedLockfile` we expect.
 ///
+/// `trust_lockfile` is on so lockfile-resolution verification is
+/// skipped: the unconditional tarball-URL binding check would otherwise
+/// flag the fixture's tripwire tarball URL as a `TARBALL_URL_MISMATCH`
+/// before the drift gate runs. Verification is orthogonal to the drift
+/// check this test exercises.
+///
 /// [#447]: https://github.com/pnpm/pacquet/issues/447
 #[tokio::test]
 async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
@@ -1806,13 +1830,14 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
         resolved_packages: &Default::default(),
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -1879,6 +1904,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -1946,6 +1972,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -2039,6 +2066,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -2148,6 +2176,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -2211,6 +2240,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -2301,6 +2331,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -2410,6 +2441,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -2526,6 +2558,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -2608,6 +2641,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -2810,6 +2844,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -2904,12 +2939,6 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     // Keep retries minimal — 127.0.0.1:1 fails immediately on every
     // try, but a long retry schedule would dominate the test runtime.
     config.fetch_retries = 0;
-    // The lockfile-verification gate is unrelated to what this test
-    // exercises (optional-tarball swallow path). Disable
-    // `minimumReleaseAge` so the gate doesn't try to fetch metadata
-    // for `broken-pkg` against the unreachable default registry
-    // (which would fail closed with a verifier violation and abort
-    // the install before the optional-snapshot code path runs).
     config.minimum_release_age = None;
     let config = config.leak();
 
@@ -2929,13 +2958,20 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        // The lockfile-resolution verifier is unrelated to what this test
+        // exercises (the optional-tarball swallow path) and now always runs;
+        // its fail-closed tarball-URL check would otherwise try to fetch
+        // metadata for `broken-pkg` from the unreachable default registry and
+        // abort the install before the optional-snapshot code path runs.
+        // `trust_lockfile` is the opt-out that skips verification entirely.
+        trust_lockfile: true,
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -3038,6 +3074,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -3146,6 +3183,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -3239,6 +3277,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -3335,6 +3374,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -3430,6 +3470,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -3520,6 +3561,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -3618,6 +3660,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         resolved_packages: &Default::default(),
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -3714,6 +3757,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         resolved_packages: &Default::default(),
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -3814,6 +3858,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -3916,6 +3961,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -4004,6 +4050,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4090,6 +4137,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4162,6 +4210,7 @@ async fn fresh_install_records_user_written_specifier() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4230,6 +4279,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4297,6 +4347,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4367,6 +4418,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4453,6 +4505,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4517,6 +4570,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4606,6 +4660,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4675,6 +4730,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -4741,13 +4797,14 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
         skip_runtimes: false,
-        trust_lockfile: false,
+        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
         update_checksums: false,
         is_full_install: true,
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -4822,6 +4879,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -4890,6 +4948,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -5144,6 +5203,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -5327,6 +5387,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -5477,6 +5538,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -5628,6 +5690,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await;
@@ -5708,6 +5771,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -5761,6 +5825,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<RecordingReporter>()
     .await
@@ -5870,6 +5935,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
         resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await
@@ -5967,6 +6033,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
     }
     .run::<SilentReporter>()
     .await;
@@ -5982,4 +6049,328 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     }
 
     drop(dir);
+}
+
+/// Runs a fresh install in `root` with `root_deps` as direct prod
+/// dependencies and `pnpmfile_src` written to `<root>/.pnpmfile.cjs`, so the
+/// pnpmfile hooks are discovered and run during resolution.
+async fn install_with_pnpmfile(
+    registry_url: String,
+    root: &std::path::Path,
+    root_deps: &[(&str, &str)],
+    pnpmfile_src: &str,
+) -> Result<(), InstallError> {
+    install_with_pnpmfile_reporter::<SilentReporter>(registry_url, root, root_deps, pnpmfile_src)
+        .await
+}
+
+/// Same as [`install_with_pnpmfile`] but routes install events through the
+/// given reporter, so a recording reporter can assert on the `pnpm:hook`
+/// log channel.
+async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
+    registry_url: String,
+    root: &std::path::Path,
+    root_deps: &[(&str, &str)],
+    pnpmfile_src: &str,
+) -> Result<(), InstallError> {
+    let modules_dir = root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    for (name, spec) in root_deps {
+        manifest.add_dependency(name, spec, DependencyGroup::Prod).unwrap();
+    }
+    manifest.save().unwrap();
+
+    std::fs::write(root.join(".pnpmfile.cjs"), pnpmfile_src).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = root.join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = registry_url;
+    let config = config.leak();
+
+    let http_client = Default::default();
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &http_client,
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+    }
+    .run::<Reporter>()
+    .await
+}
+
+// Ports pnpm's `readPackage hook` install test
+// (pnpm/test/install/hooks.ts): the hook rewrites a resolved package's
+// dependency range, and resolution honors it. `@pnpm.e2e/pkg-with-1-dep`
+// depends on `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0`, which would resolve
+// to 100.1.0; pinning it to 100.0.0 in the hook installs 100.0.0 instead.
+#[tokio::test]
+async fn read_package_hook_pins_transitive_dependency_version() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+    pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
+  }
+  return pkg;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let vsd = dir.path().join("node_modules/.pacquet");
+    assert!(
+        vsd.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0").exists(),
+        "readPackage hook should have pinned the transitive dep to 100.0.0",
+    );
+    assert!(
+        !vsd.join("@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0").exists(),
+        "the un-pinned 100.1.0 must not be installed",
+    );
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `readPackage hook makes installation fail if it does not
+// return the modified package manifests`.
+#[tokio::test]
+async fn read_package_hook_failure_aborts_install() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let result = install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "module.exports = { hooks: { readPackage (pkg) {} } }",
+    )
+    .await;
+
+    assert!(result.is_err(), "install must fail when readPackage returns nothing");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `prints meaningful error when there is syntax error in
+// .pnpmfile.cjs`.
+#[tokio::test]
+async fn pnpmfile_syntax_error_aborts_install() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let result = install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "/boom",
+    )
+    .await;
+
+    assert!(result.is_err(), "install must fail on a pnpmfile syntax error");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `pnpmfile: run afterAllResolved hook` and the deps-installer
+// `readPackage, afterAllResolved hooks` test: the hook receives the resolved
+// lockfile object and its return value is what gets written, so an arbitrary
+// added key must survive to pnpm-lock.yaml.
+#[tokio::test]
+async fn after_all_resolved_hook_modifies_written_lockfile() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { afterAllResolved (lockfile) {
+  lockfile.foo = 'foo';
+  return lockfile;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
+    eprintln!("{lockfile_text}");
+    assert!(
+        lockfile_text.contains("foo: foo"),
+        "the afterAllResolved addition must be written to pnpm-lock.yaml",
+    );
+    // The lockfile is still a valid lockfile carrying the resolved package.
+    assert!(lockfile_text.contains("@pnpm.e2e/pkg-with-1-dep"));
+}
+
+// A throwing afterAllResolved hook aborts the install, matching pnpm.
+#[tokio::test]
+async fn after_all_resolved_hook_failure_aborts_install() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let result = install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "module.exports = { hooks: { afterAllResolved () { throw new Error('boom'); } } }",
+    )
+    .await;
+
+    assert!(result.is_err(), "install must fail when afterAllResolved throws");
+}
+
+/// The first `pnpm:hook` event in `events`, or panic.
+fn first_hook_log(events: &[LogEvent]) -> &HookLog {
+    events
+        .iter()
+        .find_map(|event| match event {
+            LogEvent::Hook(log) => Some(log),
+            _ => None,
+        })
+        .expect("a pnpm:hook event must be emitted")
+}
+
+// Ports pnpm's `pnpmfile: pass log function to readPackage hook`
+// (pnpm/test/install/hooks.ts): a `readPackage` hook's `context.log(...)`
+// surfaces on the `pnpm:hook` channel with the pnpmfile path (`from`), the
+// project (`prefix`), the hook name, and the message.
+#[tokio::test]
+async fn read_package_hook_log_is_forwarded_to_pnpm_hook_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile_reporter::<RecordingReporter>(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { readPackage (pkg, context) {
+  if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+    pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
+    context.log('@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0');
+  }
+  return pkg;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let hook_log = first_hook_log(&captured);
+    assert_eq!(hook_log.hook, "readPackage");
+    assert_eq!(hook_log.message, "@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0");
+    assert!(!hook_log.from.is_empty(), "from must be the pnpmfile path");
+    assert!(!hook_log.prefix.is_empty(), "prefix must be the project dir");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `pnpmfile: run afterAllResolved hook`: an `afterAllResolved`
+// hook's `context.log(...)` surfaces on the `pnpm:hook` channel.
+#[tokio::test]
+async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile_reporter::<RecordingReporter>(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { afterAllResolved (lockfile, context) {
+  context.log('All resolved');
+  return lockfile;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let hook_log = first_hook_log(&captured);
+    assert_eq!(hook_log.hook, "afterAllResolved");
+    assert_eq!(hook_log.message, "All resolved");
+    assert!(!hook_log.from.is_empty(), "from must be the pnpmfile path");
+    assert!(!hook_log.prefix.is_empty(), "prefix must be the project dir");
+
+    drop((dir, registry));
+}
+
+// Ports pnpm's `pnpmfile: run async afterAllResolved hook`: an async
+// `afterAllResolved` hook's `context.log(...)` also surfaces on `pnpm:hook`.
+#[tokio::test]
+async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile_reporter::<RecordingReporter>(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r#"module.exports = { hooks: { async afterAllResolved (lockfile, context) {
+  context.log('All resolved');
+  return lockfile;
+} } }"#,
+    )
+    .await
+    .expect("install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let hook_log = first_hook_log(&captured);
+    assert_eq!(hook_log.hook, "afterAllResolved");
+    assert_eq!(hook_log.message, "All resolved");
+
+    drop((dir, registry));
 }

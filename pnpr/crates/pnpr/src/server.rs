@@ -21,12 +21,19 @@ use axum::{
     extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{delete, get},
+    routing::{delete, get, post},
 };
+use chrono::Utc;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::{sync::Arc, time::Duration};
-use tower_http::trace::TraceLayer;
+use tower_http::{
+    compression::{
+        CompressionLayer,
+        predicate::{DefaultPredicate, NotForContentType, Predicate as _},
+    },
+    trace::TraceLayer,
+};
 use tracing::Span;
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
@@ -57,6 +64,10 @@ struct AppInner {
     upstreams: IndexMap<String, Upstream>,
     config: Config,
     auth: AuthState,
+    /// Lazily-built engine backing the `/v1/install` and `/v1/files`
+    /// endpoints. Built on first such request so servers that never
+    /// receive one pay nothing.
+    install_accelerator: std::sync::OnceLock<crate::install_accelerator::InstallAccelerator>,
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
@@ -84,9 +95,23 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         .iter()
         .map(|(name, uplink)| (name.clone(), Upstream::new(uplink.url.clone())))
         .collect();
-    let state = AppState { inner: Arc::new(AppInner { cache, upstreams, config, auth }) };
+    let state = AppState {
+        inner: Arc::new(AppInner {
+            cache,
+            upstreams,
+            config,
+            auth,
+            install_accelerator: std::sync::OnceLock::new(),
+        }),
+    };
     Router::new()
         .route("/-/ping", get(serve_ping))
+        // pnpr install accelerator: opt-in, versioned endpoints layered on the
+        // registry core. Non-pnpm clients never touch these. `/-/pnpr`
+        // is the capability handshake (404 on a plain registry).
+        .route("/-/pnpr", get(serve_pnpr_handshake))
+        .route("/v1/install", post(serve_install))
+        .route("/v1/files", post(serve_files))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -102,6 +127,25 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
         .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments))
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
+        // gzip metadata responses for clients that send `Accept-Encoding:
+        // gzip`, matching how a real (CDN-fronted) registry serves
+        // packuments — pnpr is commonly hit directly with no proxy in
+        // front, so the application is the only layer that can compress.
+        // Scoped to JSON: the binary endpoints are excluded so we never
+        // re-gzip an already-compressed payload — tarballs
+        // (`application/octet-stream`, already `.tgz`), the install
+        // accelerator's file stream (`application/x-pnpm-install`, already
+        // gzipped), and its NDJSON resolve response
+        // (`application/x-ndjson`). Already-`Content-Encoding` responses
+        // are skipped by the layer regardless.
+        .layer(
+            CompressionLayer::new().compress_when(
+                DefaultPredicate::new()
+                    .and(NotForContentType::const_new("application/octet-stream"))
+                    .and(NotForContentType::const_new("application/x-pnpm-install"))
+                    .and(NotForContentType::const_new("application/x-ndjson")),
+            ),
+        )
         // One structured access record per HTTP request: a span
         // carrying method + URI plus a single `finished processing
         // request` event on the response with status and latency.
@@ -1446,7 +1490,7 @@ fn packument_response(
     let mut doc: Value = serde_json::from_slice(bytes)?;
     rewrite_tarball_urls(&mut doc, name, &config.public_url);
     let (body, content_type) = if abbreviated {
-        let trimmed = abbreviate_packument(&doc);
+        let trimmed = abbreviate_packument(&doc, Utc::now());
         (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
     } else {
         (serde_json::to_vec(&doc)?, "application/json")
@@ -1484,4 +1528,28 @@ fn error_response(err: &RegistryError) -> Response {
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
+}
+
+/// `GET /-/pnpr` — capability handshake for the pnpr install-accelerator
+/// protocol. A plain npm registry has no such route and 404s, so a
+/// client can fail fast against a misconfigured server. `versions`
+/// lists the `/vN/install` protocol versions this server speaks.
+async fn serve_pnpr_handshake() -> Response {
+    (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
+}
+
+async fn serve_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
+        &state.inner.install_accelerator,
+        &state.inner.config,
+    );
+    crate::install_accelerator::handle_install(runtime, body).await
+}
+
+async fn serve_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
+        &state.inner.install_accelerator,
+        &state.inner.config,
+    );
+    crate::install_accelerator::handle_files(runtime, body).await
 }

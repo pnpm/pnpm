@@ -137,13 +137,7 @@ impl UserStore {
             users.get(username).cloned()
         };
         if let Some(stored) = existing_hash {
-            return verify_bcrypt(password.to_string(), stored).await.and_then(|ok| {
-                if ok {
-                    Ok(UpsertOutcome::LoggedIn)
-                } else {
-                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-                }
-            });
+            return verify_returning_user(username, password, stored).await;
         }
 
         // Brand-new user — check the registration cap before doing
@@ -160,23 +154,37 @@ impl UserStore {
         }
 
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        let snapshot = {
+        enum NextStep {
+            Persist(String),
+            VerifyExisting(String),
+        }
+        let next_step = {
             let mut users = self.users.lock().expect("UserStore mutex poisoned");
-            // Re-check the cap under the lock to make the limit hold
-            // under concurrent adduser bursts. A second writer that
-            // raced in while we were hashing could otherwise push
-            // past the cap.
-            if let MaxUsers::Limited(max) = self.max_users
-                && (users.len() as u64) >= max
-                && !users.contains_key(username)
-            {
-                return Err(RegistryError::TooManyUsers { max });
+            if let Some(stored) = users.get(username).cloned() {
+                NextStep::VerifyExisting(stored)
+            } else {
+                // Re-check the cap under the lock to make the limit hold
+                // under concurrent adduser bursts. A second writer that
+                // raced in while we were hashing could otherwise push
+                // past the cap.
+                if let MaxUsers::Limited(max) = self.max_users
+                    && (users.len() as u64) >= max
+                {
+                    return Err(RegistryError::TooManyUsers { max });
+                }
+                users.insert(username.to_string(), hash);
+                NextStep::Persist(serialize_htpasswd(&users))
             }
-            users.insert(username.to_string(), hash);
-            serialize_htpasswd(&users)
         };
-        self.persist(snapshot).await?;
-        Ok(UpsertOutcome::Created)
+        match next_step {
+            NextStep::Persist(snapshot) => {
+                self.persist(snapshot).await?;
+                Ok(UpsertOutcome::Created)
+            }
+            NextStep::VerifyExisting(stored) => {
+                verify_returning_user(username, password, stored).await
+            }
+        }
     }
 
     /// Verify a username+password pair against the store. Returns
@@ -529,6 +537,21 @@ async fn verify_bcrypt(password: String, hash: String) -> Result<bool> {
         bcrypt::verify(&password, &hash).map_err(RegistryError::from)
     })
     .await?
+}
+
+/// Verify `password` against an existing user's `stored` hash,
+/// mapping the result to the login outcome a returning user expects:
+/// `LoggedIn` on a match, `Unauthenticated` otherwise.
+async fn verify_returning_user(
+    username: &str,
+    password: &str,
+    stored: String,
+) -> Result<UpsertOutcome> {
+    if verify_bcrypt(password.to_string(), stored).await? {
+        Ok(UpsertOutcome::LoggedIn)
+    } else {
+        Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+    }
 }
 
 // ---------------------------------------------------------------

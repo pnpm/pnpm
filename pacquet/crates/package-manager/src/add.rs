@@ -1,4 +1,4 @@
-use crate::{Install, InstallError, ResolvedPackages};
+use crate::{Install, InstallError, ResolvedPackages, UpdateSeedPolicy};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
@@ -42,7 +42,7 @@ where
 pub enum AddError {
     #[display("Failed to add package to manifest: {_0}")]
     AddDependencyToManifest(#[error(source)] PackageManifestError),
-    #[display("Failed save the manifest file: {_0}")]
+    #[display("Failed to save the manifest file: {_0}")]
     SaveManifest(#[error(source)] PackageManifestError),
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
@@ -120,6 +120,10 @@ where
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
+            // `add` keeps every lockfile pin; the freshly-added range
+            // is the only thing that re-resolves. `update`'s bump is a
+            // separate operation.
+            update_seed_policy: UpdateSeedPolicy::KeepAll,
         }
         .run::<Reporter>()
         .await

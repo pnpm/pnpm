@@ -1,5 +1,11 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.3.3
+
+### Patch Changes
+
+- @pnpm/global.commands@1100.0.24
+
 ## 1100.3.2
 
 ### Patch Changes

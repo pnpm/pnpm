@@ -19,31 +19,45 @@ name = "pnpr"
 path = "src/main.rs"
 
 [dependencies]
-pacquet-config-dir  = { workspace = true }
-pacquet-env-replace = { workspace = true }
-pacquet-network     = { workspace = true }
-axum                = { workspace = true }
-base64              = { workspace = true }
-bcrypt              = { workspace = true }
-clap                = { workspace = true }
-derive_more         = { workspace = true }
-futures-util        = { workspace = true }
-getrandom           = { workspace = true }
-home                = { workspace = true }
-indexmap            = { workspace = true }
-miette              = { workspace = true }
-reqwest             = { workspace = true }
-rusqlite            = { workspace = true }
-serde               = { workspace = true }
-serde-saphyr        = { workspace = true }
-serde_json          = { workspace = true }
-sha2                = { workspace = true }
-ssri                = { workspace = true }
-tokio               = { workspace = true }
-tower-http          = { workspace = true }
-tracing             = { workspace = true }
-tracing-subscriber  = { workspace = true, features = ["json"] }
-wax                 = { workspace = true }
+pacquet-config                  = { workspace = true }
+pacquet-config-dir              = { workspace = true }
+pacquet-env-replace             = { workspace = true }
+pacquet-lockfile                = { workspace = true }
+pacquet-lockfile-verification   = { workspace = true }
+pacquet-network                 = { workspace = true }
+pacquet-package-manager         = { workspace = true }
+pacquet-package-manifest        = { workspace = true }
+pacquet-reporter                = { workspace = true }
+pacquet-resolving-npm-resolver  = { workspace = true }
+pacquet-resolving-resolver-base = { workspace = true }
+pacquet-store-dir               = { workspace = true }
+pacquet-tarball                 = { workspace = true }
+axum                            = { workspace = true }
+base64                          = { workspace = true }
+bcrypt                          = { workspace = true }
+chrono                          = { workspace = true }
+clap                            = { workspace = true }
+dashmap                         = { workspace = true }
+derive_more                     = { workspace = true }
+flate2                          = { workspace = true }
+futures-util                    = { workspace = true }
+getrandom                       = { workspace = true }
+home                            = { workspace = true }
+indexmap                        = { workspace = true }
+miette                          = { workspace = true }
+reqwest                         = { workspace = true }
+rusqlite                        = { workspace = true }
+serde                           = { workspace = true }
+serde-saphyr                    = { workspace = true }
+serde_json                      = { workspace = true }
+sha2                            = { workspace = true }
+ssri                            = { workspace = true }
+tempfile                        = { workspace = true }
+tokio                           = { workspace = true }
+tower-http                      = { workspace = true }
+tracing                         = { workspace = true }
+tracing-subscriber              = { workspace = true, features = ["json"] }
+wax                             = { workspace = true }
 
 [dev-dependencies]
 mockito    = { workspace = true }
