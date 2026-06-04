@@ -185,5 +185,40 @@ fn update_latest_named_catalog_bumps_the_entry() {
         "the named catalog entry should have been bumped off 1.0.0:\n{workspace_yaml}",
     );
 
+    // The lockfile keeps the named-catalog wiring and its snapshot is bumped
+    // off the original 1.0.0 alongside the workspace manifest.
+    let lockfile = read(&workspace, "pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("catalogs:") && lockfile.contains("specifier: catalog:foo"),
+        "lockfile should keep the named-catalog wiring:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("specifier: 1.0.0"),
+        "the lockfile catalog snapshot should have been bumped off 1.0.0:\n{lockfile}",
+    );
+
+    drop((root, anchor));
+}
+
+/// `update --latest --no-save` must not persist catalog edits to
+/// `pnpm-workspace.yaml`, matching pnpm's `if (opts.save !== false)` guard.
+#[test]
+fn update_latest_no_save_leaves_the_catalog_untouched() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(
+        &workspace,
+        &format!("catalogMode: prefer\ncatalog:\n  '{FOO}': 1.0.0\n"),
+    );
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+    run_ok(&workspace, &["update", "--latest", "--no-save", "--lockfile-only", FOO]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("'{FOO}': 1.0.0")),
+        "--no-save must not rewrite the catalog entry:\n{workspace_yaml}",
+    );
+
     drop((root, anchor));
 }

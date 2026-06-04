@@ -169,6 +169,16 @@ fn updates_named_catalog_value_preserving_comment() {
 }
 
 #[test]
+fn inserts_entry_into_a_four_space_indented_block() {
+    // The block uses a four-space indent; a new entry must match it rather
+    // than assume two spaces.
+    let original = "catalogs:\n    react:\n        react: 18.0.0\n";
+    let out =
+        run(Some(original), &catalogs(&[("react", &[("react-dom", "18.0.0")])])).expect("written");
+    assert_eq!(out, "catalogs:\n    react:\n        react: 18.0.0\n        react-dom: 18.0.0\n");
+}
+
+#[test]
 fn quotes_scoped_package_keys() {
     // A key starting with `@` cannot be a YAML plain scalar, so it must be
     // quoted — both when creating the block and when adding an entry.

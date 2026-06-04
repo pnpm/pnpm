@@ -474,8 +474,11 @@ impl Update<'_> {
 
         // Write the new catalog entries to `pnpm-workspace.yaml` before the
         // install so the resolver reads them back and the lockfile's
-        // `catalogs:` snapshot reflects the resolved versions.
-        if !updated_catalogs.is_empty()
+        // `catalogs:` snapshot reflects the resolved versions. Gated on
+        // `save`: `--no-save` persists nothing to disk, matching pnpm's
+        // `if (opts.save !== false)` guard around `updateWorkspaceManifest`.
+        if save
+            && !updated_catalogs.is_empty()
             && let Some(workspace_dir) = workspace_dir_for_catalogs
         {
             update_workspace_manifest(&workspace_dir, &updated_catalogs)

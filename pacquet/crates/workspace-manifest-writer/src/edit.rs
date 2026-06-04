@@ -411,18 +411,22 @@ fn locate(text: &str, path: &[&str]) -> Option<Mapping> {
             })
             .unwrap_or(hi);
 
+        // The child indent is whatever the block's first structural line
+        // uses, not a hard-coded two spaces — so a manifest written with a
+        // wider indent is still traversed correctly.
+        let child_indent = (key_idx + 1..block_end_idx)
+            .find_map(|idx| structural_indent(all[idx].content))
+            .unwrap_or(base_indent + 2);
+
         if depth + 1 == path.len() {
-            let entry_indent = (key_idx + 1..block_end_idx)
-                .find_map(|idx| structural_indent(all[idx].content))
-                .unwrap_or(base_indent + 2);
             let body_start = all.get(key_idx + 1).map_or(all[key_idx].end, |line| line.start);
-            let entries = collect_entries(&all, key_idx + 1, block_end_idx, entry_indent);
-            return Some(Mapping { body_start, entry_indent, entries });
+            let entries = collect_entries(&all, key_idx + 1, block_end_idx, child_indent);
+            return Some(Mapping { body_start, entry_indent: child_indent, entries });
         }
 
         lo = key_idx + 1;
         hi = block_end_idx;
-        base_indent += 2;
+        base_indent = child_indent;
     }
     None
 }
