@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
@@ -145,8 +146,9 @@ test('view: text output includes dist section', async () => {
 
 test('view: text output includes dist-tags', async () => {
   const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative']) as string
-  expect(result).toContain('dist-tags:')
-  expect(result).toContain('latest:')
+  const plainTextResult = stripAnsi(result)
+  expect(plainTextResult).toContain('dist-tags:')
+  expect(plainTextResult).toContain('latest:')
 })
 
 test('view: text output for package with dependencies shows deps count', async () => {
@@ -231,10 +233,10 @@ test('view: published info includes timestamp', async () => {
 test('view: published info includes publisher when maintainer data is available', async () => {
   // Note: is-negative package has maintainer data in the mock registry
   const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative@1.0.0']) as string
-  expect(result).toMatch(/published .* ago by /)
+  expect(stripAnsi(result)).toMatch(/published .* ago by /)
 })
 
-test('view: uses package.json name when no package name provided', async () => {
+test('view: uses package manifest name when no package name provided', async () => {
   const cwd = process.cwd()
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
   const pkgJsonPath = path.join(tmpDir, 'package.json')
@@ -252,7 +254,7 @@ test('view: uses package.json name when no package name provided', async () => {
   }
 })
 
-test('view: searches upward for package.json in nested directory', async () => {
+test('view: searches upward for package manifest in nested directory', async () => {
   const cwd = process.cwd()
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
   const nestedDir = path.join(tmpDir, 'a', 'b')
@@ -284,6 +286,24 @@ test('view: package.json without name field throws error', async () => {
     await expect(
       view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_PACKAGE_JSON' })
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('view: uses package.yaml name when no package name provided', async () => {
+  const cwd = process.cwd()
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-test-'))
+  const pkgYamlPath = path.join(tmpDir, 'package.yaml')
+
+  try {
+    fs.writeFileSync(pkgYamlPath, 'name: is-negative\n')
+    process.chdir(tmpDir)
+
+    const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, [])
+    expect(typeof result).toBe('string')
+    expect(result).toContain('is-negative')
   } finally {
     process.chdir(cwd)
     fs.rmSync(tmpDir, { recursive: true, force: true })

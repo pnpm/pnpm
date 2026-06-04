@@ -58,7 +58,6 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
-    "empathic": "catalog:",
     "hosted-git-info": "catalog:",
     "open": "catalog:",
     "ramda": "catalog:",

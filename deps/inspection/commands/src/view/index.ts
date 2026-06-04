@@ -1,10 +1,11 @@
-import fs from 'node:fs'
+import path from 'node:path'
 
+import { tryReadProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { formatTimeAgo } from '@pnpm/resolving.npm-resolver'
+import type { ProjectManifest } from '@pnpm/types'
 import chalk from 'chalk'
-import * as pkg from 'empathic/package'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -25,11 +26,11 @@ export const commandNames = ['view', 'info', 'show', 'v']
 
 export function help (): string {
   return renderHelp({
-    description: 'View package information from the registry. If package name is omitted, searches upward for the nearest package.json.',
+    description: 'View package information from the registry. If package name is omitted, searches upward for the nearest package manifest.',
     usages: [
-      'pnpm view [package-name]',
-      'pnpm view [package-name@<version>]',
-      'pnpm view [package-name] [<field>[.subfield]...]',
+      'pnpm view [<package-name>]',
+      'pnpm view [<package-name>@<version>]',
+      'pnpm view [<package-name>] [<field>[.subfield]...]',
     ],
     descriptionLists: [
       {
@@ -54,26 +55,17 @@ export async function handler (
   let packageSpec = params[0]
 
   if (!packageSpec) {
-    const pkgFile = pkg.up({ cwd: opts.dir ?? process.cwd() })
-    if (pkgFile) {
-      let pkgInfo: { name?: unknown }
-      try {
-        const parsed = JSON.parse(fs.readFileSync(pkgFile, 'utf8'))
-        if (typeof parsed !== 'object' || parsed === null) {
-          throw new TypeError('Expected package.json to contain a JSON object.')
-        }
-        pkgInfo = parsed as { name?: unknown }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        throw new PnpmError('INVALID_PACKAGE_JSON', `Failed to read or parse package.json at "${pkgFile}": ${message}`)
-      }
-      if (!pkgInfo.name || typeof pkgInfo.name !== 'string' || pkgInfo.name === '') {
-        throw new PnpmError('INVALID_PACKAGE_JSON', `Invalid package.json at "${pkgFile}". The "name" field is required and must be a non-empty string.`)
-      }
-      packageSpec = pkgInfo.name
-    } else {
-      throw new PnpmError('MISSING_PACKAGE_NAME', 'Package name is required. Usage: pnpm view <package-name>')
+    const nearestManifest = await findNearestProjectManifest(opts.dir ?? process.cwd(), opts)
+    if (!nearestManifest) {
+      throw new PnpmError('MISSING_PACKAGE_NAME', 'Package name is required. Usage: pnpm view [<package-name>]')
     }
+    if (typeof nearestManifest.manifest.name !== 'string' || nearestManifest.manifest.name.length === 0) {
+      throw new PnpmError(
+        'INVALID_PACKAGE_JSON',
+        `Invalid ${nearestManifest.fileName} at "${nearestManifest.projectDir}". The "name" field is required and must be a non-empty string.`
+      )
+    }
+    packageSpec = nearestManifest.manifest.name
   }
 
   const fields = params.slice(1)
@@ -248,6 +240,30 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
     return `published ${chalk.cyan(timeAgo)} by ${publisher}`
   }
   return `published ${chalk.cyan(timeAgo)}`
+}
+
+async function findNearestProjectManifest (
+  startDir: string,
+  opts: Config & ConfigContext
+): Promise<{ manifest: ProjectManifest, fileName: string, projectDir: string } | null> {
+  try {
+    const result = await tryReadProjectManifest(startDir, opts)
+    if (result.manifest != null) {
+      return {
+        manifest: result.manifest,
+        fileName: result.fileName,
+        projectDir: startDir,
+      }
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new PnpmError('INVALID_PACKAGE_JSON', `Failed to read or parse project manifest in "${startDir}": ${message}`)
+  }
+  const parentDir = path.dirname(startDir)
+  if (parentDir === startDir) {
+    return null
+  }
+  return findNearestProjectManifest(parentDir, opts)
 }
 
 /**

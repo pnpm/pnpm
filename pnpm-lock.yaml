@@ -3493,9 +3493,6 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
-      empathic:
-        specifier: 'catalog:'
-        version: 2.0.1
       hosted-git-info:
         specifier: 'catalog:'
         version: '@pnpm/hosted-git-info@1.0.0'
@@ -14889,13 +14886,6 @@ packages:
     resolution: {integrity: sha512-gvVijfZvn7R+2qyPX8mAuKcFGDf6Nc61GdvGafQsHL0sBIxfKzA+usWn4GFC/bk+QdwPUD4kWFJLhElipq+0VA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  locate-path@8.0.0:
-    resolution: {integrity: sha512-XT9ewWAC43tiAV7xDAPflMkG0qOPn2QjHqlgX8FOqmWa/rxnyYDulF9T0F7tRy1u+TVTmK/M//6VIOye+2zDXg==}
-    engines: {node: '>=20'}
-
-  lockfile@1.0.4:
-    resolution: {integrity: sha512-cvbTwETRfsFh4nHsL1eGWapU1XFi5Ot9E85sWAwia7Y7EgB7vfqcZhTKZ+l7hCGxSPoushMv5GKhT5PdLv03WA==}
-
   lodash._baseclone@4.5.7:
     resolution: {integrity: sha512-nOtLg6tdIdD+TehqBv0WI7jbkLaohHhKSwLmS/UXSFWMWWUxdJc9EVtAfD4L0mV15vV+lZVfF4LEo363VdrMBw==}
 
@@ -23290,14 +23280,6 @@ snapshots:
   locate-path@7.2.0:
     dependencies:
       p-locate: 6.0.0
-
-  locate-path@8.0.0:
-    dependencies:
-      p-locate: 6.0.0
-
-  lockfile@1.0.4:
-    dependencies:
-      signal-exit: 3.0.7
 
   lodash._baseclone@4.5.7: {}
 
