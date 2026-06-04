@@ -5577,9 +5577,6 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
-      '@pnpm/config.nerf-dart':
-        specifier: 'catalog:'
-        version: 1.0.1
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries

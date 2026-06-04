@@ -2340,26 +2340,23 @@ async function installFromPnpmRegistry (
     )
   }
   const { fetchFromPnpmRegistry } = await import('@pnpm/pnpr.client')
-  const { createGetAuthHeaderByURI } = await import('@pnpm/network.auth-header')
-  const { nerfDart } = await import('@pnpm/config.nerf-dart')
+  const { createGetAuthHeaderByURI, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
   const { StoreIndex } = await import('@pnpm/store.index')
   const { setImportConcurrency } = await import('@pnpm/worker')
 
-  // Forward the caller's credentials only for the registries this install
-  // resolves against (the default registry plus every `namedRegistries`
-  // alias), so a token for an unrelated host in the local config never
-  // reaches the pnpr server. The pnpr-server header travels separately as
-  // `authorization` and identifies the caller to its access gate (and
-  // keys the per-user grant table).
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
-  const forwardedAuthHeaders: Record<string, string> = {}
-  const usedRegistries = [opts.registries?.default, ...Object.values(opts.namedRegistries ?? {})]
-  for (const registryUrl of usedRegistries) {
-    if (registryUrl == null) continue
-    const header = getAuthHeader(registryUrl)
-    if (header != null) forwardedAuthHeaders[nerfDart(registryUrl)] = header
-  }
-  const pnprAuthorization = getAuthHeader(opts.pnprServer!)
+  // Forward the caller's whole credential map so the server can attach the
+  // right token per fetched URL exactly as a local install would. The set
+  // of registries a dependency graph touches isn't knowable up front — a
+  // transitive package can be scope-routed to another registry or pinned to
+  // a tarball URL on a host that's in the config but isn't a declared
+  // registry — so scoping to the declared registries would silently drop
+  // tokens private sub-dependencies need. These are package-fetch
+  // credentials going to the very service the caller configured to fetch
+  // its packages. `authorization` additionally identifies the caller to the
+  // pnpr server's own access gate (and keys the per-user grant table).
+  const configByUri = opts.configByUri ?? {}
+  const forwardedAuthHeaders = getAuthHeadersFromCreds(configByUri)
+  const pnprAuthorization = createGetAuthHeaderByURI(configByUri)(opts.pnprServer!)
   // Raise import concurrency for this install only — the pnpr server path has no
   // concurrent fetching competing for workers. Restore afterwards so we
   // don't leak a process-wide mutation to other installs (e.g. tests).

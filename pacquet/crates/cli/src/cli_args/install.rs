@@ -469,11 +469,22 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             dev_dependencies,
             registry: state.config.registry.clone(),
             named_registries: state.config.named_registries.clone(),
-            // Forward the caller's credentials only for the registries this
-            // install actually resolves against, so an unrelated host's
-            // token in the local `.npmrc` never reaches the pnpr server.
-            // The pnpr-server header travels separately in `authorization`.
-            auth_headers: forwarded_auth_headers(state.config),
+            // Forward the caller's whole credential map so the server can
+            // attach the right token per fetched URL exactly as a local
+            // install would (`AuthHeaders::for_url`). The set of registries
+            // a dependency graph touches isn't knowable up front — a
+            // transitive package can be scope-routed to another registry or
+            // pinned to a tarball URL on a host that's in `.npmrc` but isn't
+            // a configured registry — so scoping to the declared registries
+            // would silently drop tokens private sub-dependencies need.
+            // These are package-fetch credentials going to the very service
+            // the caller configured to fetch its packages.
+            auth_headers: state
+                .config
+                .auth_headers
+                .entries()
+                .map(|(uri, value)| (uri.to_string(), value.to_string()))
+                .collect(),
             authorization: state.config.auth_headers.for_url(pnpr_server),
             overrides,
             lockfile: state.lockfile.clone(),
@@ -558,26 +569,6 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     .wrap_err("linking dependencies resolved via the pnpr server")?;
 
     Ok(())
-}
-
-/// The subset of the caller's credentials the pnpr server needs: one
-/// `Authorization` header per registry this install resolves against (the
-/// default `registry` plus every `namedRegistries` alias), keyed by its
-/// nerf-darted URI. Scoping to these registries keeps a token for an
-/// unrelated host in the local `.npmrc` from being forwarded, and
-/// naturally omits the pnpr server's own credential — that one travels in
-/// the request's `Authorization` header instead.
-fn forwarded_auth_headers(
-    config: &pacquet_config::Config,
-) -> std::collections::BTreeMap<String, String> {
-    let mut headers = std::collections::BTreeMap::new();
-    let registries = std::iter::once(&config.registry).chain(config.named_registries.values());
-    for registry in registries {
-        if let Some(value) = config.auth_headers.for_url(registry) {
-            headers.insert(pacquet_network::nerf_dart(registry), value);
-        }
-    }
-    headers
 }
 
 #[cfg(test)]

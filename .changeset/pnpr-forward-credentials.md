@@ -1,5 +1,6 @@
 ---
 "@pnpm/installing.deps-installer": minor
+"@pnpm/network.auth-header": minor
 "@pnpm/pnpr.client": minor
 "pnpm": minor
 ---
