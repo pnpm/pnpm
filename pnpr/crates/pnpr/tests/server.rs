@@ -294,6 +294,55 @@ async fn packument_is_refetched_after_ttl_expires() {
     mock.assert_async().await;
 }
 
+/// A hosted packument is authoritative: even with a proxy upstream
+/// configured, a divergent upstream packument, and an expired TTL, the
+/// hosted copy is served verbatim and the upstream is never contacted.
+/// This is the guarantee that published versions can't be masked or
+/// lost by a proxy refresh.
+#[tokio::test]
+async fn hosted_packument_is_never_overwritten_by_upstream() {
+    let mut upstream = mockito::Server::new_async().await;
+    let upstream_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(json!({ "name": "foo", "versions": { "9.9.9": {} } }).to_string())
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+
+    // Seed the hosted store directly, as a publish (or static fixture)
+    // would have. The hosted root is `config.storage` == tmp.
+    let hosted = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
+                "tarball": "http://example.test/foo/-/foo-1.0.0.tgz", "shasum": "abc"
+            }},
+        },
+    });
+    std::fs::create_dir_all(tmp.path().join("foo")).unwrap();
+    std::fs::write(tmp.path().join("foo/package.json"), hosted.to_string()).unwrap();
+
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    // Zero TTL: if the hosted copy were treated as a cache entry, this
+    // would force an immediate upstream refetch.
+    config.packument_ttl = Duration::from_millis(0);
+    let app = router(config);
+
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let versions: Vec<&str> =
+        body["versions"].as_object().unwrap().keys().map(String::as_str).collect();
+    assert_eq!(versions, vec!["1.0.0"], "hosted packument must win over upstream's 9.9.9");
+
+    // The upstream was never hit — the hosted copy short-circuits the proxy.
+    upstream_mock.assert_async().await;
+}
+
 #[tokio::test]
 async fn stale_packument_is_served_when_upstream_fails() {
     let mut upstream = mockito::Server::new_async().await;

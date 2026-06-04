@@ -253,6 +253,37 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 }
 
+/// When the same tarball filename exists in both stores, `open_tarball`
+/// serves the hosted copy — a stale proxied copy can't shadow it.
+#[tokio::test]
+async fn hosted_tarball_is_preferred_over_a_cached_copy() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let hosted_bytes = b"hosted-bytes";
+    let body = sample_publish_body("pref-pkg", "1.0.0", hosted_bytes);
+    let request = Request::put("/pref-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    // Plant a divergent proxied copy with the same filename.
+    let cached = storage.join(".pnpr-cache").join("pref-pkg");
+    std::fs::create_dir_all(&cached).unwrap();
+    std::fs::write(cached.join("pref-pkg-1.0.0.tgz"), b"stale-proxied-bytes").unwrap();
+
+    let response = app
+        .oneshot(Request::get("/pref-pkg/-/pref-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, hosted_bytes);
+}
+
 #[tokio::test]
 async fn publish_followed_by_dist_tag_set_works() {
     let tmp = TempDir::new().unwrap();
