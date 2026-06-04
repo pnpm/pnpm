@@ -80,9 +80,14 @@ export interface HardLinkDirMessage {
   destDirs: string[]
 }
 
-export interface FetchAndWriteCafsMessage {
-  type: 'fetch-and-write-cafs'
-  registryUrl: string
+export interface WriteCafsFilesMessage {
+  type: 'write-cafs-files'
   storeDir: string
-  digests: Array<{ digest: string, size: number, executable: boolean }>
+  /**
+   * The binary file frames from a `/v1/install` response, already
+   * decompressed: a length-prefixed JSON header followed by one
+   * `[64-byte digest][u32 size][1-byte exec][content]` frame per file,
+   * terminated by 64 zero bytes.
+   */
+  payload: Uint8Array
 }
