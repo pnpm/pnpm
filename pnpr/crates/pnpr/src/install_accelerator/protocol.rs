@@ -115,17 +115,6 @@ pub struct InstallRequest {
     /// check.
     #[serde(default)]
     pub trust_policy_ignore_after: Option<u64>,
-    /// When `true`, the client wants the file contents it's missing
-    /// streamed inline in this response rather than fetched in a second
-    /// `POST /v1/files` round trip. The server answers with a single
-    /// gzipped binary body (a length-prefixed header carrying the
-    /// lockfile, stats, and store-index entries, followed by the
-    /// `/v1/files` binary frames) instead of the NDJSON stream. Cuts the
-    /// cold-path round trips from three (handshake + install + files) to
-    /// one. See
-    /// [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165).
-    #[serde(default)]
-    pub inline_files: bool,
 }
 
 /// One project's importer dir and its dependency maps, normalized
@@ -161,25 +150,4 @@ impl InstallRequest {
             optional_dependencies: self.optional_dependencies.clone().unwrap_or_default(),
         }]
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct FilesRequest {
-    pub digests: Vec<FileDigest>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct FileDigest {
-    pub digest: String,
-    #[serde(default)]
-    pub executable: bool,
-}
-
-/// A valid sha512 digest is 128 lowercase hex chars. The all-zero
-/// digest is rejected because it collides with the 64-byte end-of-
-/// stream marker in the `/v1/files` binary framing.
-pub fn is_valid_sha512_hex(digest: &str) -> bool {
-    digest.len() == 128
-        && digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        && digest.bytes().any(|byte| byte != b'0')
 }

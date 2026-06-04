@@ -27,7 +27,6 @@ pub struct ResolvedPackage {
 pub struct MissingFile {
     /// Lowercase sha512 hex digest (no `sha512-` prefix).
     pub digest: String,
-    pub size: u64,
     pub executable: bool,
 }
 
@@ -141,11 +140,7 @@ pub fn compute_diff(
             if client_digests.insert(key) {
                 stats.files_to_download += 1;
                 stats.download_bytes += file.size;
-                missing_files.push(MissingFile {
-                    digest: file.digest.clone(),
-                    size: file.size,
-                    executable,
-                });
+                missing_files.push(MissingFile { digest: file.digest.clone(), executable });
             } else {
                 stats.files_already_in_cafs += 1;
             }

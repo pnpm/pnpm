@@ -64,9 +64,8 @@ struct AppInner {
     upstreams: IndexMap<String, Upstream>,
     config: Config,
     auth: AuthState,
-    /// Lazily-built engine backing the `/v1/install` and `/v1/files`
-    /// endpoints. Built on first such request so servers that never
-    /// receive one pay nothing.
+    /// Lazily-built engine backing the `/v1/install` endpoint. Built on
+    /// first such request so servers that never receive one pay nothing.
     install_accelerator: std::sync::OnceLock<crate::install_accelerator::InstallAccelerator>,
 }
 
@@ -111,7 +110,6 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // is the capability handshake (404 on a plain registry).
         .route("/-/pnpr", get(serve_pnpr_handshake))
         .route("/v1/install", post(serve_install))
-        .route("/v1/files", post(serve_files))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -133,17 +131,15 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // front, so the application is the only layer that can compress.
         // Scoped to JSON: the binary endpoints are excluded so we never
         // re-gzip an already-compressed payload — tarballs
-        // (`application/octet-stream`, already `.tgz`), the install
-        // accelerator's file stream (`application/x-pnpm-install`, already
-        // gzipped), and its NDJSON resolve response
-        // (`application/x-ndjson`). Already-`Content-Encoding` responses
-        // are skipped by the layer regardless.
+        // (`application/octet-stream`, already `.tgz`) and the install
+        // accelerator response (`application/x-pnpr-install-inline`,
+        // already gzipped). Already-`Content-Encoding` responses are
+        // skipped by the layer regardless.
         .layer(
             CompressionLayer::new().compress_when(
                 DefaultPredicate::new()
                     .and(NotForContentType::const_new("application/octet-stream"))
-                    .and(NotForContentType::const_new("application/x-pnpm-install"))
-                    .and(NotForContentType::const_new("application/x-ndjson")),
+                    .and(NotForContentType::const_new("application/x-pnpr-install-inline")),
             ),
         )
         // One structured access record per HTTP request: a span
@@ -1538,18 +1534,28 @@ async fn serve_pnpr_handshake() -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
 }
 
-async fn serve_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+async fn serve_install(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
     let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
         &state.inner.install_accelerator,
         &state.inner.config,
     );
-    crate::install_accelerator::handle_install(runtime, body).await
-}
-
-async fn serve_files(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
-        &state.inner.install_accelerator,
-        &state.inner.config,
-    );
-    crate::install_accelerator::handle_files(runtime, body).await
+    let identity = match identify(
+        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
+        &state.inner.auth.users,
+        &state.inner.auth.tokens,
+    ) {
+        Some(username) => Identity::User { username },
+        None => Identity::Anonymous,
+    };
+    crate::install_accelerator::handle_install(
+        runtime,
+        &state.inner.config.policies,
+        identity,
+        body,
+    )
+    .await
 }

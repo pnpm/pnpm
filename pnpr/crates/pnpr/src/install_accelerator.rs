@@ -3,23 +3,23 @@
 //! alongside pnpr's npm-compatible API. The handshake + endpoints are
 //! served under one base URL (the `pnprServer`).
 //!
-//! Three routes, built on pacquet's resolver and content-addressable
+//! Two routes, built on pacquet's resolver and content-addressable
 //! store:
 //!
 //! * `GET /-/pnpr` — capability handshake; advertises the supported
 //!   protocol versions so a client can negotiate or fail fast.
 //! * `POST /v1/install` — resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
-//!   the client), then return the missing-file digests, pre-packed
-//!   store-index entries, lockfile, and stats. With `inlineFiles` the
-//!   client also gets the missing files' *contents* in the same response
-//!   (a length-prefixed JSON header followed by the `/v1/files` binary
-//!   frames, gzipped), collapsing the cold path to a single round trip
-//!   ([pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165));
-//!   otherwise the response is the NDJSON stream of `D`/`I`/`L`/`E`
-//!   lines and the client fetches files separately.
-//! * `POST /v1/files` — serve a batch of files by digest as a gzip
-//!   binary stream the client writes straight into its CAFS.
+//!   the client), then return, in a single gzipped binary response, the
+//!   lockfile, stats, pre-packed store-index entries, and the contents of
+//!   the files the client is missing (a length-prefixed JSON header
+//!   followed by the binary file frames). One round trip
+//!   ([pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165)).
+//!
+//! Files are bound to access: every package whose bytes are served is
+//! checked against pnpr's `packages:` policy first
+//! ([`deny_unauthorized_packages`]), so a content-addressed digest is
+//! never a bearer capability for a package the caller can't read.
 //!
 //! The client's `registry`, `namedRegistries`, `overrides`, and the
 //! verification policy (`minimumReleaseAge`, `trustPolicy`, ...) drive
@@ -38,14 +38,20 @@ mod protocol;
 mod resolve;
 mod verdict_cache;
 
+#[cfg(test)]
+mod tests;
+
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::Write as _,
     path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
 };
 
-use crate::config::Config as RegistryConfig;
+use crate::{
+    config::Config as RegistryConfig,
+    policy::{Identity, PackagePolicies},
+};
 
 use axum::{
     body::{Body, Bytes},
@@ -64,10 +70,7 @@ use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, PackageMetaCache}
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::{StoreDir, StoreIndex};
 
-use self::{
-    protocol::{FilesRequest, InstallRequest, is_valid_sha512_hex},
-    verdict_cache::VerdictCache,
-};
+use self::{protocol::InstallRequest, verdict_cache::VerdictCache};
 
 /// Per-server engine backing the pnpr install endpoints: it holds the
 /// store, cache, and HTTP client used to resolve a client's project and
@@ -177,8 +180,16 @@ impl InstallAccelerator {
     }
 }
 
-/// Handle `POST /v1/install`.
-pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) -> Response {
+/// Handle `POST /v1/install`. `identity` is the resolved caller; the
+/// store's possession of a package's bytes is not a capability to read
+/// them, so every served package is checked against `policies` — see
+/// [`deny_unauthorized_packages`].
+pub(crate) async fn handle_install(
+    runtime: &InstallAccelerator,
+    policies: &PackagePolicies,
+    identity: Identity,
+    body: Bytes,
+) -> Response {
     let request: InstallRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
@@ -202,7 +213,7 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
     {
         return match failure {
             VerifyFailure::Internal(response) => response,
-            VerifyFailure::Violations(violations) => violation_response(&violations, &request),
+            VerifyFailure::Violations(violations) => violation_response(&violations),
         };
     }
 
@@ -248,38 +259,12 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
         }
     };
 
+    if let Some(denied) = deny_unauthorized_packages(policies, &identity, &result.package_index) {
+        return denied;
+    }
+
     let stats_json = stats_json(&result.stats);
-
-    if request.inline_files {
-        return inline_response(runtime, &lockfile, &stats_json, &result);
-    }
-
-    let mut ndjson: Vec<u8> = Vec::new();
-    for file in &result.missing_files {
-        let _ =
-            writeln!(ndjson, "D\t{}\t{}\t{}", file.digest, file.size, u8::from(file.executable));
-    }
-    for entry in &result.package_index {
-        let _ = writeln!(
-            ndjson,
-            "I\t{}\t{}\t{}",
-            entry.integrity,
-            entry.pkg_id,
-            BASE64.encode(&entry.raw),
-        );
-    }
-
-    let payload = serde_json::json!({
-        "lockfile": serde_json::to_value(&lockfile).unwrap_or(serde_json::Value::Null),
-        "stats": stats_json,
-    });
-    let _ = writeln!(ndjson, "L\t{}", payload);
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/x-ndjson")
-        .body(Body::from(ndjson))
-        .expect("static ndjson response is always valid")
+    inline_response(runtime, &lockfile, &stats_json, &result)
 }
 
 fn stats_json(stats: &diff::Stats) -> serde_json::Value {
@@ -294,23 +279,70 @@ fn stats_json(stats: &diff::Stats) -> serde_json::Value {
     })
 }
 
-/// gzip level for the file-bearing responses (`/v1/files` and the
-/// `inlineFiles` install body). Level 6 (the gzip default) shrinks the
-/// payload ~16% over level 1 — the win that matters once the server is
-/// across a latency link, where fewer bytes means fewer TCP slow-start
-/// round trips — while level 9 adds under a percent for several times
-/// the CPU.
+/// Deny the install when the caller may not read a package whose files
+/// are about to be served. A content-addressed digest is shared across
+/// packages and reveals nothing about access, so possession of a
+/// package's bytes in the store is never a capability to receive them:
+/// every served package is checked against pnpr's own `packages:` policy
+/// — the same decision `serve_packument` / `serve_tarball` make, in
+/// process, with no network round trip. Returns the denial response (401
+/// for an anonymous caller who could authenticate, 403 for an
+/// authenticated caller outside the allowed set) or `None` when every
+/// served package is readable.
+///
+/// This authorizes against pnpr's own surface, which is the authority for
+/// everything the store can hold today: pnpr fetches anonymously (no
+/// credential forwarding yet), so cached content is either pnpr-hosted or
+/// publicly fetchable. When credential forwarding lands, packages the
+/// client resolved from *external* registries under its own token become
+/// reachable, and those carry no pnpr policy — their access must then be
+/// re-verified per caller against the owning registry (with a TTL'd
+/// verdict cache), which this local check does not cover.
+fn deny_unauthorized_packages(
+    policies: &PackagePolicies,
+    identity: &Identity,
+    served: &[diff::PackageIndexEntry],
+) -> Option<Response> {
+    let mut checked: HashSet<&str> = HashSet::new();
+    for entry in served {
+        let Some(name) = package_name(&entry.pkg_id) else { continue };
+        // Access is decided per package name, so evaluate each name once.
+        if !checked.insert(name) {
+            continue;
+        }
+        if !policies.for_package(name).access.allows(identity) {
+            let status = match identity {
+                Identity::Anonymous => StatusCode::UNAUTHORIZED,
+                Identity::User { .. } => StatusCode::FORBIDDEN,
+            };
+            return Some(json_error(status, &format!("not authorized to access {name:?}")));
+        }
+    }
+    None
+}
+
+/// The package name from a `name@version` package id, tolerating a
+/// leading scope `@` (`@scope/foo@1.0.0` → `@scope/foo`).
+fn package_name(pkg_id: &str) -> Option<&str> {
+    let at = pkg_id.rfind('@')?;
+    (at > 0).then_some(&pkg_id[..at])
+}
+
+/// gzip level for the install response body. Level 6 (the gzip default)
+/// shrinks the payload ~16% over level 1 — the win that matters once the
+/// server is across a latency link, where fewer bytes means fewer TCP
+/// slow-start round trips — while level 9 adds under a percent for several
+/// times the CPU.
 const FILES_GZIP_LEVEL: u32 = 6;
 
-/// Content type of the combined `inlineFiles` install response: a
-/// length-prefixed JSON header followed by the [`build_files_payload`]
-/// binary frames, gzip-compressed.
+/// Content type of the install response: a length-prefixed JSON header
+/// followed by the [`build_files_payload`] binary frames, gzip-compressed.
 const INLINE_CONTENT_TYPE: &str = "application/x-pnpr-install-inline";
 
-/// Build the combined single-response body for an `inlineFiles` request:
-/// the lockfile, stats, and store-index entries in a length-prefixed JSON
-/// header, followed by the missing files' contents as `/v1/files` binary
-/// frames — so the client materializes everything from one round trip.
+/// Build the single-response body: the lockfile, stats, and store-index
+/// entries in a length-prefixed JSON header, followed by the contents of
+/// the files the client is missing as binary frames — so the client
+/// materializes everything from one round trip.
 fn inline_response(
     runtime: &InstallAccelerator,
     lockfile: &Lockfile,
@@ -439,27 +471,16 @@ async fn verify_input_lockfile(
     Err(VerifyFailure::Violations(rendered))
 }
 
-/// Render input-lockfile policy violations in the protocol the client
-/// asked for: the inline header (`{ "violations": [...] }`, no files) for
-/// an `inlineFiles` request, otherwise a 200 NDJSON `E` line. Either way
-/// the client rebuilds the identical `VerifyError` and aborts the same
-/// way the local gate would.
-fn violation_response(violations: &[serde_json::Value], request: &InstallRequest) -> Response {
-    if request.inline_files {
-        let header = serde_json::json!({ "violations": violations });
-        // No files follow a verification failure: just the end-of-stream
-        // marker so the client's frame parser terminates cleanly.
-        let files_payload = empty_files_payload();
-        return finish_inline_response(&header, &files_payload);
-    }
-
-    let payload = serde_json::json!({ "violations": violations });
-    let body = format!("E\t{payload}\n");
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/x-ndjson")
-        .body(Body::from(body))
-        .expect("static ndjson violation response is always valid")
+/// Render input-lockfile policy violations into the inline response
+/// header (`{ "violations": [...] }`, no files following) so the client
+/// rebuilds the identical `VerifyError` and aborts the same way the local
+/// gate would.
+fn violation_response(violations: &[serde_json::Value]) -> Response {
+    let header = serde_json::json!({ "violations": violations });
+    // No files follow a verification failure: just the end-of-stream
+    // marker so the client's frame parser terminates cleanly.
+    let files_payload = empty_files_payload();
+    finish_inline_response(&header, &files_payload)
 }
 
 /// Merge every active verifier's policy snapshot into one bag, the key
@@ -479,52 +500,11 @@ fn merge_policies(
     merged
 }
 
-/// Handle `POST /v1/files`.
-pub(crate) async fn handle_files(runtime: &InstallAccelerator, body: Bytes) -> Response {
-    let request: FilesRequest = match serde_json::from_slice(&body) {
-        Ok(request) => request,
-        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
-    };
-
-    for (index, file) in request.digests.iter().enumerate() {
-        if !is_valid_sha512_hex(&file.digest) {
-            return json_error(
-                StatusCode::BAD_REQUEST,
-                &format!("digests[{index}].digest must be a valid sha512 hex string"),
-            );
-        }
-    }
-
-    // Build the binary payload up front so a missing file surfaces as a
-    // clean 500 before any bytes are committed to the response.
-    let files = request.digests.iter().map(|file| (file.digest.as_str(), file.executable));
-    let payload = match build_files_payload(&runtime.store_dir, files) {
-        Ok(payload) => payload,
-        Err((status, message)) => return json_error(status, &message),
-    };
-
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::new(FILES_GZIP_LEVEL));
-    if encoder.write_all(&payload).is_err() {
-        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed");
-    }
-    let gzipped = match encoder.finish() {
-        Ok(gzipped) => gzipped,
-        Err(_) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed"),
-    };
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/x-pnpm-install")
-        .header(header::CONTENT_ENCODING, "gzip")
-        .body(Body::from(gzipped))
-        .expect("binary response is always valid")
-}
-
-/// The binary frames `/v1/files` serves and the `inlineFiles` install
-/// response embeds: a 2-byte `{}` JSON header (length-prefixed) followed
-/// by one `[64-byte digest][u32 size][1-byte exec][content]` frame per
-/// file, terminated by 64 zero bytes. Reads each file's content from the
-/// store by digest; an `Err` is a ready-made error response.
+/// The binary file frames the install response embeds: a 2-byte `{}` JSON
+/// header (length-prefixed) followed by one
+/// `[64-byte digest][u32 size][1-byte exec][content]` frame per file,
+/// terminated by 64 zero bytes. Reads each file's content from the store
+/// by digest; an `Err` is a ready-made error response.
 fn build_files_payload<'a>(
     store_dir: &StoreDir,
     files: impl Iterator<Item = (&'a str, bool)>,

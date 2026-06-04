@@ -1,11 +1,12 @@
 import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
+import { gunzip } from 'node:zlib'
 
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { StoreIndex } from '@pnpm/store.index'
-import { fetchAndWriteCafsFiles } from '@pnpm/worker'
+import { writeCafsFiles } from '@pnpm/worker'
 
 import type { ResponseMetadata } from './protocol.js'
 
@@ -47,10 +48,9 @@ export interface FetchFromPnpmRegistryOptions {
   /**
    * `--lockfile-only`: resolve and return only the lockfile — fetch no
    * files into the local store. Forwarded to the server (which skips the
-   * file diff when it understands the flag); the client also ignores any
-   * `D`/`I` lines so the store stays untouched even against an older
-   * server. Mirrors pnpm's resolve + write, fetch nothing, link nothing.
-   * See https://github.com/pnpm/pnpm/issues/12146.
+   * file diff); the client ignores the (empty) file payload so the store
+   * stays untouched. Mirrors pnpm's resolve + write, fetch nothing, link
+   * nothing. See https://github.com/pnpm/pnpm/issues/12146.
    */
   lockfileOnly?: boolean
 }
@@ -64,16 +64,21 @@ export interface FetchFromPnpmRegistryResult {
   indexEntries: Array<{ key: string, buffer: Uint8Array }>
 }
 
+interface InstallResponseHeader {
+  lockfile: LockfileFile
+  stats: ResponseMetadata['stats']
+  indexEntries?: Array<{ key: string, b64: string }>
+  violations?: Array<{ name: string, version: string, code: string, reason: string }>
+}
+
 /**
- * Fetch resolved dependencies from a pnpr server.
+ * Fetch resolved dependencies from a pnpr server in a single round trip.
  *
- * The response is a streaming NDJSON where each line is one message:
- *   - `D\t{digest}\t{size}\t{executable}\n` — file digest (streamed as packages resolve)
- *   - `L\t{json}\n` — final lockfile (on-disk format) + stats (after resolution)
- *   - `I\t{key}\t{base64}\n` — pre-packed msgpack index entry
- *
- * As digest lines arrive, we batch them and dispatch workers to /v1/files.
- * File downloads happen IN PARALLEL with server-side resolution.
+ * `POST /v1/install` (with `inlineFiles`) answers with one gzipped binary
+ * body: a length-prefixed JSON header (lockfile, stats, store-index
+ * entries, or verification violations) followed by the missing files'
+ * contents as binary frames. We parse the header here and hand the file
+ * frames to a worker that writes them straight into the CAFS.
  */
 export async function fetchFromPnpmRegistry (
   opts: FetchFromPnpmRegistryOptions
@@ -100,103 +105,48 @@ export async function fetchFromPnpmRegistry (
     lockfile: opts.lockfile,
     lockfileOnly: opts.lockfileOnly,
     storeIntegrities,
+    inlineFiles: true,
   })
 
-  const indexEntries: Array<{ key: string, buffer: Uint8Array }> = []
-  const workerPromises: Array<Promise<number>> = []
-  let currentBatch: Array<{ digest: string, size: number, executable: boolean }> = []
+  const body = await postInstall(opts.registryUrl, requestBody)
 
-  const dispatchBatch = () => {
-    if (currentBatch.length === 0) return
-    const digests = currentBatch
-    currentBatch = []
-    workerPromises.push(fetchAndWriteCafsFiles({
-      registryUrl: opts.registryUrl,
-      storeDir: opts.storeDir,
-      digests,
-    }))
+  // The combined response is `[u32 header length][header JSON][file frames]`.
+  if (body.length < 4) {
+    throw new Error('pnpr server returned a truncated /v1/install response')
+  }
+  const headerLength = body.readUInt32BE(0)
+  const header = JSON.parse(body.subarray(4, 4 + headerLength).toString('utf-8')) as InstallResponseHeader
+
+  if (header.violations != null && header.violations.length > 0) {
+    const rendered = header.violations
+      .map((violation) => `  ${violation.name}@${violation.version}: ${violation.reason}`)
+      .join('\n')
+    throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
   }
 
-  // Returns as soon as the lockfile arrives — the stream continues
-  // in the background, dispatching more file download workers.
-  // fileDownloads covers ALL workers (past and future).
-  return new Promise<FetchFromPnpmRegistryResult>((resolve, reject) => {
-    let resolved = false
-    let serverError: Error | undefined
-    const handleLine = (line: string) => {
-      if (line.length === 0) return
-      const tabIdx = line.indexOf('\t')
-      const type = line.charAt(0)
-      if (type === 'D') {
-        // `--lockfile-only` fetches nothing — ignore any file digests an
-        // older server still streams rather than writing them to the store.
-        if (opts.lockfileOnly) return
-        const parts = line.split('\t')
-        currentBatch.push({
-          digest: parts[1],
-          size: parseInt(parts[2], 10),
-          executable: parts[3] === '1',
-        })
-        if (currentBatch.length >= FILES_PER_WORKER) {
-          dispatchBatch()
-        }
-      } else if (type === 'L') {
-        const payload = JSON.parse(line.substring(tabIdx + 1)) as {
-          lockfile: LockfileFile
-          stats: ResponseMetadata['stats']
-        }
-        dispatchBatch()
-        resolved = true
-        // Resolve immediately — the caller can start headless install
-        // while the stream continues dispatching remaining D/I lines.
-        resolve({
-          // The server speaks the on-disk lockfile format; convert it to the
-          // in-memory `LockfileObject` the rest of pnpm consumes.
-          lockfile: convertToLockfileObject(payload.lockfile),
-          stats: payload.stats,
-          fileDownloads: streamComplete.then(() =>
-            Promise.all(workerPromises)
-          ).then(() => {}),
-          indexEntries,
-        })
-      } else if (type === 'I') {
-        // `--lockfile-only` writes no store-index entries — ignore any an
-        // older server still streams.
-        if (opts.lockfileOnly) return
-        // Format: I\t{integrity}\t{pkgId}\t{base64}
-        // Key is "{integrity}\t{pkgId}" — everything between first and last tab
-        const rest = line.substring(tabIdx + 1)
-        const lastTab = rest.lastIndexOf('\t')
-        const key = rest.substring(0, lastTab)
-        const buffer = new Uint8Array(Buffer.from(rest.substring(lastTab + 1), 'base64'))
-        indexEntries.push({ key, buffer })
-      } else if (type === 'E') {
-        // Server emitted a structured error after headers were sent.
-        // Record it so stream `end` / `catch` can reject with the payload.
-        let message = 'pnpr server error'
-        try {
-          const payload = JSON.parse(line.substring(tabIdx + 1)) as { error?: string }
-          if (payload?.error) message = payload.error
-        } catch {
-          // Fall back to the raw payload if it isn't JSON.
-          message = line.substring(tabIdx + 1) || message
-        }
-        serverError = new Error(message)
-      }
-    }
+  const indexEntries = (header.indexEntries ?? []).map(({ key, b64 }) => ({
+    key,
+    buffer: new Uint8Array(Buffer.from(b64, 'base64')),
+  }))
 
-    const streamComplete = streamNdjsonRequest(
-      opts.registryUrl, 'v1/install', requestBody, handleLine
-    )
+  // `--lockfile-only` fetches nothing: there are no file frames to write
+  // (the server sends only the end-of-stream marker), so leave the store
+  // untouched.
+  const fileDownloads = opts.lockfileOnly
+    ? Promise.resolve()
+    : writeCafsFiles({
+      storeDir: opts.storeDir,
+      payload: body.subarray(4 + headerLength),
+    }).then(() => {})
 
-    streamComplete.then(() => {
-      if (serverError) {
-        reject(serverError)
-      } else if (!resolved) {
-        reject(new Error('pnpr server closed the stream without emitting a lockfile'))
-      }
-    }, reject)
-  })
+  return {
+    // The server speaks the on-disk lockfile format; convert it to the
+    // in-memory `LockfileObject` the rest of pnpm consumes.
+    lockfile: convertToLockfileObject(header.lockfile),
+    stats: header.stats,
+    fileDownloads,
+    indexEntries,
+  }
 }
 
 function readStoreIntegrities (storeIndex: StoreIndex): string[] {
@@ -220,59 +170,54 @@ function isIntegrityLike (value: string): boolean {
     value.startsWith('sha1-')
 }
 
-const FILES_PER_WORKER = 4000
 const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be slow on first run
 
 /**
- * Stream an NDJSON response, calling `onLine` for each complete line as
- * it arrives. Chunks are buffered until a newline is seen.
+ * `POST /v1/install` and return the full response body, decompressed.
+ *
+ * `urlPath` resolution normalizes the base to end with "/" so a path
+ * prefix configured on the pnpr server URL (e.g. https://host/pnpr/) is
+ * preserved.
  */
-async function streamNdjsonRequest (
-  registryUrl: string,
-  urlPath: string,
-  body: string,
-  onLine: (line: string) => void
-): Promise<void> {
-  // `urlPath` is expected to be relative (e.g. "v1/install"). We normalize
-  // the base to end with "/" so `new URL(rel, base)` preserves any path
-  // prefix configured on the pnpr server URL (e.g. https://host/pnpr/).
+async function postInstall (registryUrl: string, body: string): Promise<Buffer> {
   const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
-  const url = new URL(urlPath, base)
-  const isHttps = url.protocol === 'https:'
-  const requestFn = isHttps ? https.request : http.request
+  const url = new URL('v1/install', base)
+  const requestFn = url.protocol === 'https:' ? https.request : http.request
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<Buffer>((resolve, reject) => {
     const req = requestFn(url, {
       method: 'POST',
       timeout: REQUEST_TIMEOUT,
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
-        'Accept': 'application/x-ndjson',
+        'Accept-Encoding': 'gzip',
       },
     }, (res) => {
-      if (res.statusCode !== 200) {
-        const chunks: Buffer[] = []
-        res.on('data', (chunk: Buffer) => chunks.push(chunk))
-        res.on('end', () => {
-          reject(new Error(`pnpr server responded with ${res.statusCode}: ${Buffer.concat(chunks).toString('utf-8')}`))
-        })
-        return
-      }
-
-      let leftover = ''
-      res.setEncoding('utf-8')
-      res.on('data', (chunk: string) => {
-        const data = leftover + chunk
-        const lines = data.split('\n')
-        leftover = lines.pop() ?? ''
-        for (const line of lines) {
-          onLine(line)
-        }
-      })
+      const chunks: Buffer[] = []
+      res.on('data', (chunk: Buffer) => chunks.push(chunk))
       res.on('end', () => {
-        if (leftover) onLine(leftover)
-        resolve()
+        const raw = Buffer.concat(chunks)
+        // The server gzips both the install body and its JSON error bodies
+        // (e.g. a 401/403 access denial), so decompress *before* branching
+        // on the status code — otherwise an error surfaces as binary
+        // garbage instead of the server's message. Skip it only when the
+        // HTTP stack already decompressed (no gzip magic bytes).
+        const finish = (body: Buffer): void => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`pnpr server responded with ${res.statusCode}: ${body.toString('utf-8')}`))
+          } else {
+            resolve(body)
+          }
+        }
+        if (res.headers['content-encoding'] === 'gzip' || (raw[0] === 0x1f && raw[1] === 0x8b)) {
+          gunzip(raw, (err, decompressed) => {
+            if (err) reject(err)
+            else finish(decompressed)
+          })
+        } else {
+          finish(raw)
+        }
       })
       res.on('error', reject)
     })
@@ -301,5 +246,3 @@ export function writeRawIndexEntries (
     storeIndex.setRawMany(writes)
   }
 }
-
-
