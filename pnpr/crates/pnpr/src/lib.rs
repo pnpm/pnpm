@@ -14,6 +14,7 @@ mod install_accelerator;
 mod package_name;
 mod policy;
 mod publish;
+mod s3;
 mod search;
 mod server;
 mod storage;
@@ -22,8 +23,9 @@ mod upstream;
 
 pub use auth::{AuthState, TokenStore, UserStore, identify};
 pub use config::{
-    AuthConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HtpasswdConfig, LogConfig, LogFormat,
-    LogLevel, MaxUsers, PackageAccess, TokensConfig, UplinkConfig, default_cache_dir,
+    AuthConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, HtpasswdConfig,
+    LogConfig, LogFormat, LogLevel, MaxUsers, PackageAccess, TokensConfig, UplinkConfig,
+    default_cache_dir,
 };
 pub use error::{RegistryError, Result};
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};

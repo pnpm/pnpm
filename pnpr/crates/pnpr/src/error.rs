@@ -129,6 +129,11 @@ pub enum RegistryError {
     #[display("I/O error: {_0}")]
     Io(std::io::Error),
 
+    /// Object-store (S3 / R2 / S3-compatible) backend failure on the
+    /// hosted store.
+    #[display("Object store error: {_0}")]
+    ObjectStore(object_store::Error),
+
     #[display("JSON error: {_0}")]
     Json(serde_json::Error),
 }
@@ -175,7 +180,9 @@ impl RegistryError {
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
             | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            RegistryError::Io(_) | RegistryError::Json(_) => StatusCode::BAD_GATEWAY,
+            RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
+                StatusCode::BAD_GATEWAY
+            }
         }
     }
 }

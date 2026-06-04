@@ -424,6 +424,7 @@ checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
 dependencies = [
  "iana-time-zone",
  "num-traits",
+ "serde",
  "windows-link",
 ]
 
@@ -1000,12 +1001,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
+name = "futures"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07bbe89c50d7a535e539b8c17bc0b49bdb77747034daa8087407d655f3f7cc1d"
 dependencies = [
  "futures-core",
+ "futures-sink",
 ]
 
 [[package]]
@@ -1013,6 +1030,17 @@ name = "futures-core"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baf29c38818342a3b26b5b923639e7b1f4a61fc5e76102d4b1981c6dc7a7579d"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
 
 [[package]]
 name = "futures-io"
@@ -1049,6 +1077,7 @@ version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6"
 dependencies = [
+ "futures-channel",
  "futures-core",
  "futures-io",
  "futures-macro",
@@ -1345,6 +1374,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
+name = "humantime"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "135b12329e5e3ce057a9f972339ea52bc954fe1e9358ef27f95e89716fbc5424"
+
+[[package]]
 name = "hybrid-array"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1385,6 +1420,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "rustls",
+ "rustls-native-certs",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -1625,7 +1661,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1848,6 +1884,16 @@ name = "matchit"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
+
+[[package]]
+name = "md-5"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+dependencies = [
+ "cfg-if",
+ "digest",
+]
 
 [[package]]
 name = "memchr"
@@ -2116,6 +2162,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "object_store"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbfbfff40aeccab00ec8a910b57ca8ecf4319b335c542f2edcd19dd25a1e2a00"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "form_urlencoded",
+ "futures",
+ "http",
+ "http-body-util",
+ "humantime",
+ "hyper",
+ "itertools 0.14.0",
+ "md-5",
+ "parking_lot",
+ "percent-encoding",
+ "quick-xml",
+ "rand",
+ "reqwest 0.12.28",
+ "ring",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "url",
+ "walkdir",
+ "wasm-bindgen-futures",
+ "web-time",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2321,7 +2403,7 @@ dependencies = [
  "miette 7.6.0",
  "pacquet-network",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "tokio",
 ]
 
@@ -2377,7 +2459,7 @@ dependencies = [
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "ssri",
@@ -2396,7 +2478,7 @@ dependencies = [
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-resolver-base",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "ssri",
@@ -2415,7 +2497,7 @@ dependencies = [
  "pacquet-network",
  "pacquet-resolving-resolver-base",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "ssri",
@@ -2521,7 +2603,7 @@ dependencies = [
  "pacquet-fs",
  "pacquet-registry-mock",
  "pipe-trait",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde-saphyr",
  "tokio",
@@ -2635,7 +2717,7 @@ dependencies = [
  "mockito",
  "pipe-trait",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "tokio",
  "tracing",
 ]
@@ -2769,7 +2851,7 @@ dependencies = [
  "pacquet-store-dir",
  "pacquet-testing-utils",
  "pnpr",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "tempfile",
@@ -2800,7 +2882,7 @@ dependencies = [
  "pacquet-network",
  "pipe-trait",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "ssri",
@@ -2817,7 +2899,7 @@ dependencies = [
  "home",
  "pipe-trait",
  "pnpr-fixtures",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "sysinfo",
@@ -2888,7 +2970,7 @@ dependencies = [
  "pacquet-network",
  "pacquet-resolving-resolver-base",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "tokio",
  "tracing",
 ]
@@ -2946,7 +3028,7 @@ dependencies = [
  "pacquet-workspace-spec",
  "pipe-trait",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "sha2",
@@ -2986,7 +3068,7 @@ dependencies = [
  "pacquet-store-dir",
  "pacquet-tarball",
  "pretty_assertions",
- "reqwest",
+ "reqwest 0.13.3",
  "serde_json",
  "ssri",
  "tokio",
@@ -3034,7 +3116,7 @@ dependencies = [
  "pipe-trait",
  "pretty_assertions",
  "rayon",
- "reqwest",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "ssri",
@@ -3251,6 +3333,7 @@ dependencies = [
  "indexmap",
  "miette 7.6.0",
  "mockito",
+ "object_store",
  "pacquet-config",
  "pacquet-config-dir",
  "pacquet-env-replace",
@@ -3265,7 +3348,7 @@ dependencies = [
  "pacquet-store-dir",
  "pacquet-tarball",
  "pipe-trait",
- "reqwest",
+ "reqwest 0.13.3",
  "rusqlite",
  "serde",
  "serde-saphyr",
@@ -3411,6 +3494,16 @@ name = "project-root"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bccbff07d5ed689c4087d20d7307a52ab6141edeedf487c3876a55b86cf63df"
+
+[[package]]
+name = "quick-xml"
+version = "0.38.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
+dependencies = [
+ "memchr",
+ "serde",
+]
 
 [[package]]
 name = "quinn"
@@ -3599,6 +3692,48 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "reqwest"
+version = "0.12.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "h2",
+ "http",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "js-sys",
+ "log",
+ "percent-encoding",
+ "pin-project-lite",
+ "quinn",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sync_wrapper",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tower",
+ "tower-http",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-streams 0.4.2",
+ "web-sys",
+]
+
+[[package]]
+name = "reqwest"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62e0021ea2c22aed41653bc7e1419abb2c97e038ff2c33d0e1309e49a97deec0"
@@ -3635,7 +3770,7 @@ dependencies = [
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams",
+ "wasm-streams 0.5.0",
  "web-sys",
 ]
 
@@ -3745,6 +3880,7 @@ checksum = "7c2c118cb077cca2822033836dfb1b975355dfb784b5e8da48f7b6c5db74e60e"
 dependencies = [
  "aws-lc-rs",
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",
@@ -4834,6 +4970,19 @@ dependencies = [
  "indexmap",
  "wasm-encoder",
  "wasmparser",
+]
+
+[[package]]
+name = "wasm-streams"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15053d8d85c7eccdbefef60f06769760a563c7f0a9d6902a13d35c7800b0ad65"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

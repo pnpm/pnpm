@@ -1,13 +1,16 @@
 use crate::{
     error::RegistryError,
     policy::{AccessList, PackagePolicies, PackagePolicy},
+    s3::{S3Settings, build_s3_store},
 };
 use indexmap::IndexMap;
+use object_store::ObjectStore;
 use pacquet_env_replace::{SystemEnv, env_replace_lossy};
 use serde::Deserialize;
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
@@ -99,6 +102,23 @@ pub struct Config {
     /// relies on clear-on-discovery). YAML `installAccelerator.grantTtl`
     /// (seconds).
     pub install_accelerator_grant_ttl: Option<Duration>,
+    /// Where the authoritative (hosted) store lives. Defaults to
+    /// [`HostedStoreConfig::Fs`] — the local [`Self::storage`]
+    /// directory. The YAML `s3:` block switches it to an S3-compatible
+    /// object store (S3, Cloudflare R2, MinIO, ...).
+    pub hosted_store: HostedStoreConfig,
+}
+
+/// The resolved hosted-store backend. The object-store client is built
+/// once at config-load time (the fallible step), so constructing the
+/// storage layer from it is infallible.
+#[derive(Debug, Clone)]
+pub enum HostedStoreConfig {
+    /// Local directory — [`Config::storage`].
+    Fs,
+    /// S3-compatible bucket. `prefix` is normalized to `""` or a
+    /// `.../`-terminated key prefix.
+    S3 { store: Arc<dyn ObjectStore>, prefix: String },
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -297,6 +317,11 @@ struct ConfigFile {
     /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
     cache: Option<String>,
+    /// pnpr-only block: store the hosted (published) packages in an
+    /// S3-compatible object store instead of `storage`. Absent on a
+    /// stock verdaccio config (silently ignored there).
+    #[serde(default)]
+    s3: Option<S3Settings>,
     #[serde(default)]
     uplinks: IndexMap<String, UplinkConfig>,
     #[serde(default)]
@@ -395,6 +420,7 @@ impl Config {
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
             install_accelerator_grant_ttl: None,
+            hosted_store: HostedStoreConfig::Fs,
         }
     }
 
@@ -413,6 +439,7 @@ impl Config {
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
             install_accelerator_grant_ttl: None,
+            hosted_store: HostedStoreConfig::Fs,
         }
     }
 
@@ -523,6 +550,12 @@ impl Config {
             .as_deref()
             .map(|raw| resolve_relative(raw, base_dir))
             .unwrap_or_else(|| default_cache_dir(&storage));
+        let hosted_store = match &file.s3 {
+            Some(s3) => {
+                HostedStoreConfig::S3 { store: build_s3_store(s3)?, prefix: s3.normalized_prefix() }
+            }
+            None => HostedStoreConfig::Fs,
+        };
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
@@ -542,6 +575,7 @@ impl Config {
                 .install_accelerator
                 .and_then(|block| block.grant_ttl)
                 .map(Duration::from_secs),
+            hosted_store,
         })
     }
 

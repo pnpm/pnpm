@@ -14,13 +14,9 @@
 //! the `@pnpm/registry-mock` fixture (a few dozen packages) and the
 //! test queries that exercise it.
 
-use crate::{error::Result, publish::now_iso};
+use crate::{error::Result, package_name::PackageName, publish::now_iso, storage::Storage};
 use serde_json::{Map, Value, json};
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
-use tokio::fs;
+use std::collections::BTreeMap;
 
 /// Parse the `text` query parameter out of a `/-/v1/search?...`
 /// query string. npm clients always send `text=...`; we accept
@@ -72,20 +68,18 @@ pub fn parse_size(query_string: &str, default_size: usize) -> usize {
     default_size
 }
 
-/// Scan `storage` for packuments whose name contains `query` (case-
-/// insensitive). Returns at most `limit` matches in npm search v1
+/// Scan the hosted store for packuments whose name contains `query`
+/// (case-insensitive). Returns at most `limit` matches in npm search v1
 /// shape: `{ objects: [{ package: {...}, score: {...}, searchScore }],
 /// total, time }`. Errors reading individual packuments are tolerated —
-/// a malformed file just doesn't match anything.
-pub async fn run_local_search(storage: &Path, query: &str, limit: usize) -> Result<Value> {
+/// a malformed packument just doesn't match anything. Works against
+/// both the local-directory and the S3-backed hosted store.
+pub async fn run_local_search(storage: &Storage, query: &str, limit: usize) -> Result<Value> {
     let needle = query.to_lowercase();
     let mut matches: Vec<Value> = Vec::new();
     let mut total: usize = 0;
 
-    for path in collect_packument_paths(storage).await? {
-        let Some((name, _scope_dir)) = derive_name(&path, storage) else {
-            continue;
-        };
+    for name in storage.hosted_package_names().await? {
         if !name.to_lowercase().contains(&needle) {
             continue;
         }
@@ -93,7 +87,8 @@ pub async fn run_local_search(storage: &Path, query: &str, limit: usize) -> Resu
         if matches.len() >= limit {
             continue;
         }
-        let Ok(bytes) = fs::read(&path).await else { continue };
+        let Ok(parsed) = PackageName::parse(&name) else { continue };
+        let Ok(Some(bytes)) = storage.read_hosted_packument(&parsed).await else { continue };
         let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
         if let Some(entry) = build_search_entry(&name, &packument) {
             matches.push(entry);
@@ -116,58 +111,6 @@ pub fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
         "score": {"final": 1.0, "detail": {"quality": 1.0, "popularity": 1.0, "maintenance": 1.0}},
         "searchScore": 1.0,
     }))
-}
-
-/// Walk the storage tree two levels deep to find `package.json` files.
-/// Storage layout is `<root>/<pkg>/package.json` for unscoped and
-/// `<root>/@scope/<name>/package.json` for scoped, so a two-level walk
-/// suffices and avoids descending into tarball-adjacent junk.
-async fn collect_packument_paths(storage: &Path) -> Result<Vec<PathBuf>> {
-    let mut out = Vec::new();
-    let mut top = match fs::read_dir(storage).await {
-        Ok(rd) => rd,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(out),
-        Err(err) => return Err(err.into()),
-    };
-    while let Some(entry) = top.next_entry().await? {
-        let entry_path = entry.path();
-        let entry_name = entry.file_name();
-        let name_str = entry_name.to_string_lossy();
-        if name_str.starts_with('.') {
-            continue;
-        }
-        let unscoped_pkg = entry_path.join("package.json");
-        if fs::try_exists(&unscoped_pkg).await.unwrap_or(false) {
-            out.push(unscoped_pkg);
-            continue;
-        }
-        if name_str.starts_with('@')
-            && let Ok(mut inner) = fs::read_dir(&entry_path).await
-        {
-            while let Some(child) = inner.next_entry().await? {
-                let scoped_pkg = child.path().join("package.json");
-                if fs::try_exists(&scoped_pkg).await.unwrap_or(false) {
-                    out.push(scoped_pkg);
-                }
-            }
-        }
-    }
-    Ok(out)
-}
-
-/// Reconstruct `<scope>/<name>` (or `<name>`) from the packument
-/// path. We deliberately don't trust the on-disk `name` field —
-/// the directory layout is the source of truth, same as verdaccio.
-fn derive_name(packument_path: &Path, storage: &Path) -> Option<(String, bool)> {
-    let relative = packument_path.strip_prefix(storage).ok()?;
-    let mut components: Vec<&str> =
-        relative.components().filter_map(|component| component.as_os_str().to_str()).collect();
-    components.pop()?; // drop "package.json"
-    match components.as_slice() {
-        [name] => Some(((*name).to_string(), false)),
-        [scope, name] if scope.starts_with('@') => Some((format!("{scope}/{name}"), true)),
-        _ => None,
-    }
 }
 
 /// Project a packument into the subset of fields npm's search
