@@ -462,7 +462,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     // server-side now — both for reused entries (the input-lockfile
     // verifier) and freshly-resolved ones (the resolver's pick-time
     // gate, since the policy is wired into the server's config).
-    let outcome = match PnprClient::new(pnpr_server)
+    let mut outcome = match PnprClient::new(pnpr_server)
         .install(InstallOptions {
             store_dir: &state.config.store_dir,
             dependencies,
@@ -525,10 +525,20 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     // writing the lockfile rather than running the materialization pass.
     // See [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
     if link.lockfile_only {
+        outcome.finish_index_writes().await;
         return Ok(());
     }
 
-    Install {
+    let pnpr_prefetch = std::mem::take(&mut outcome.prefetch);
+    let pnpr_prefetch = if pnpr_prefetch.cas_paths.is_empty()
+        && pnpr_prefetch.manifests.is_empty()
+        && pnpr_prefetch.side_effects_maps.is_empty()
+    {
+        None
+    } else {
+        Some(pnpr_prefetch)
+    };
+    let link_result = Install {
         tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
         http_client: &state.http_client,
         http_client_arc: std::sync::Arc::clone(&state.http_client),
@@ -557,9 +567,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         update_seed_policy: UpdateSeedPolicy::KeepAll,
         auth_override: None,
     }
-    .run::<Reporter>()
-    .await
-    .wrap_err("linking dependencies resolved via the pnpr server")?;
+    .run_with_prefetched_cas_paths::<Reporter>(pnpr_prefetch)
+    .await;
+
+    outcome.finish_index_writes().await;
+    link_result.wrap_err("linking dependencies resolved via the pnpr server")?;
 
     Ok(())
 }

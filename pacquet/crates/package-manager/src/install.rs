@@ -32,7 +32,7 @@ use pacquet_reporter::{
     Stage, StageLog, SummaryLog,
 };
 use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
-use pacquet_tarball::MemCache;
+use pacquet_tarball::{MemCache, PrefetchResult};
 use pacquet_workspace_state::{
     ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
 };
@@ -350,6 +350,14 @@ where
 {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
+        self.run_with_prefetched_cas_paths::<Reporter>(None).await
+    }
+
+    /// Execute the subroutine with package file maps supplied by the pnpr accelerator.
+    pub async fn run_with_prefetched_cas_paths<Reporter: self::Reporter + 'static>(
+        self,
+        prefetched_from_pnpr: Option<PrefetchResult>,
+    ) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
             resolved_packages,
@@ -864,6 +872,7 @@ where
                 supported_architectures: supported_architectures.as_ref(),
                 skip_runtimes,
                 node_linker,
+                prefetched_from_pnpr: prefetched_from_pnpr.as_ref(),
             }
             .run::<Reporter>()
             .await

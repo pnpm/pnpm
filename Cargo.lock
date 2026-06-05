@@ -3343,6 +3343,7 @@ dependencies = [
  "pacquet-lockfile",
  "pacquet-lockfile-verification",
  "pacquet-store-dir",
+ "pacquet-tarball",
  "pacquet-testing-utils",
  "pnpr",
  "reqwest 0.13.3",

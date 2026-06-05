@@ -15,6 +15,7 @@ pacquet-config                = { workspace = true }
 pacquet-lockfile              = { workspace = true }
 pacquet-lockfile-verification = { workspace = true }
 pacquet-store-dir             = { workspace = true }
+pacquet-tarball               = { workspace = true }
 base64                        = { workspace = true }
 derive_more                   = { workspace = true }
 flate2                        = { workspace = true }

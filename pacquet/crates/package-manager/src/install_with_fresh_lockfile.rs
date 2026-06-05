@@ -1266,6 +1266,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             skipped: &skipped,
             workspace_root: lockfile_dir,
             node_linker,
+            prefetched_from_pnpr: None,
         }
         .run::<Reporter>()
         .await

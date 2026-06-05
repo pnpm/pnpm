@@ -21,6 +21,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     io::Read as _,
+    sync::Arc,
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -30,10 +31,13 @@ use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
 use pacquet_store_dir::{
-    StoreDir, StoreIndex, StoreIndexWriter, decode_package_files_index, store_index_key,
+    PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter, build_file_maps_from_index,
+    decode_package_files_index, store_index_key,
 };
+use pacquet_tarball::PrefetchResult;
 use reqwest::Client;
 use serde::Deserialize;
+use tokio::task::JoinHandle;
 
 /// Dependency map (`name` -> `version range`).
 pub type DepMap = BTreeMap<String, String>;
@@ -108,10 +112,34 @@ pub struct InstallOutcome {
     pub lockfile: Lockfile,
     pub stats: Stats,
     pub reused_input_lockfile: bool,
+    /// Server-provided package file maps ready for pacquet's warm-batch materializer.
+    pub prefetch: PrefetchResult,
     /// Number of inlined file entries written into the local CAFS.
     pub files_written: usize,
     /// Number of store-index entries written to the local index.
     pub index_entries_written: usize,
+    index_write_task: Option<JoinHandle<usize>>,
+}
+
+impl InstallOutcome {
+    pub async fn finish_index_writes(&mut self) -> usize {
+        let Some(task) = self.index_write_task.take() else {
+            return self.index_entries_written;
+        };
+        let written = match task.await {
+            Ok(written) => written,
+            Err(error) => {
+                tracing::warn!(
+                    target: "pacquet::pnpr_client",
+                    ?error,
+                    "pnpr store-index writer task failed",
+                );
+                0
+            }
+        };
+        self.index_entries_written = written;
+        written
+    }
 }
 
 /// Resolution statistics from the response header. Field names mirror
@@ -259,15 +287,19 @@ impl PnprClient {
         // `--lockfile-only` resolve and a verification pass both carry an
         // empty file payload, so this writes nothing in those cases.
         let files_written = write_files_payload(opts.store_dir, &parsed.files_payload)?;
-        let index_entries_written =
-            write_index_entries(opts.store_dir, parsed.index_entries, &present).await;
+        let index_entries = decode_index_entries(parsed.index_entries);
+        let prefetch = build_prefetch_from_index_entries(opts.store_dir, &index_entries);
+        let (index_entries_written, index_write_task) =
+            queue_index_entries(opts.store_dir, index_entries, &present);
 
         Ok(InstallOutcome {
             lockfile: parsed.lockfile,
             stats: parsed.stats,
             reused_input_lockfile: parsed.reused_input_lockfile,
+            prefetch,
             files_written,
             index_entries_written,
+            index_write_task,
         })
     }
 }
@@ -510,32 +542,89 @@ fn set_executable(_path: &std::path::Path, _executable: bool) -> std::io::Result
     Ok(())
 }
 
-/// Write the forwarded store-index entries, skipping keys already
-/// present. Each entry's raw msgpackr-records buffer is decoded and
-/// re-queued through the writer, whose blocking drain is awaited so the
-/// rows are flushed before they're reported as written.
-async fn write_index_entries(
+fn decode_index_entries(entries: Vec<(String, Vec<u8>)>) -> Vec<(String, PackageFilesIndex)> {
+    let mut decoded = Vec::with_capacity(entries.len());
+    for (key, raw) in entries {
+        match decode_package_files_index(&raw) {
+            Ok(value) => decoded.push((key, value)),
+            Err(error) => tracing::debug!(
+                target: "pacquet::pnpr_client",
+                ?key,
+                ?error,
+                "skipping undecodable pnpr package_index row",
+            ),
+        }
+    }
+    decoded
+}
+
+fn build_prefetch_from_index_entries(
     store_dir: &StoreDir,
-    entries: Vec<(String, Vec<u8>)>,
+    entries: &[(String, PackageFilesIndex)],
+) -> PrefetchResult {
+    let mut result = PrefetchResult::default();
+    for (key, entry) in entries {
+        let mut entry = entry.clone();
+        let manifest = entry.manifest.take().map(Arc::new);
+        let verify_result = build_file_maps_from_index(store_dir, entry);
+        if !verify_result.passed {
+            continue;
+        }
+        if let Some(manifest) = manifest {
+            result.manifests.insert(key.clone(), manifest);
+        }
+        if let Some(side_effects_maps) = verify_result.side_effects_maps
+            && !side_effects_maps.is_empty()
+        {
+            result.side_effects_maps.insert(key.clone(), Arc::new(side_effects_maps));
+        }
+        result.cas_paths.insert(key.clone(), Arc::new(verify_result.files_map));
+    }
+    result
+}
+
+/// Queue the forwarded store-index entries, skipping keys already
+/// present. The blocking writer drains in the background so the current
+/// install can start materializing from the in-memory prefetch maps.
+fn queue_index_entries(
+    store_dir: &StoreDir,
+    entries: Vec<(String, PackageFilesIndex)>,
     present: &HashSet<&str>,
-) -> usize {
-    let to_write: Vec<(String, Vec<u8>)> =
+) -> (usize, Option<JoinHandle<usize>>) {
+    let to_write: Vec<(String, PackageFilesIndex)> =
         entries.into_iter().filter(|(key, _)| !present.contains(key.as_str())).collect();
     if to_write.is_empty() {
-        return 0;
+        return (0, None);
     }
 
     let (writer, writer_task) = StoreIndexWriter::spawn(store_dir);
-    let mut written = 0;
-    for (key, raw) in &to_write {
-        if let Ok(decoded) = decode_package_files_index(raw) {
-            writer.queue(key.clone(), decoded);
-            written += 1;
-        }
+    let queued = to_write.len();
+    for (key, decoded) in to_write {
+        writer.queue(key, decoded);
     }
-    drop(writer);
-    let _ = writer_task.await;
-    written
+    let task = tokio::spawn(async move {
+        drop(writer);
+        match writer_task.await {
+            Ok(Ok(())) => queued,
+            Ok(Err(error)) => {
+                tracing::warn!(
+                    target: "pacquet::pnpr_client",
+                    ?error,
+                    "pnpr store-index writer failed",
+                );
+                0
+            }
+            Err(error) => {
+                tracing::warn!(
+                    target: "pacquet::pnpr_client",
+                    ?error,
+                    "pnpr store-index writer join failed",
+                );
+                0
+            }
+        }
+    });
+    (queued, Some(task))
 }
 
 fn read_relevant_store_keys(store_dir: &StoreDir, lockfile: Option<&Lockfile>) -> Vec<String> {

@@ -778,7 +778,7 @@ pub fn pick_store_index_key(
 /// value half of each `package_index` row.
 ///
 /// Mirrors pnpm v11's `PackageFilesIndex` from `store/cafs/src/checkPkgFilesIntegrity.ts`.
-#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageFilesIndex {
     /// Subset of the tarball's `package.json` that pnpm keeps on hand to avoid
@@ -815,7 +815,7 @@ pub struct PackageFilesIndex {
 /// Value of [`PackageFilesIndex::files`]. Mirrors pnpm v11's
 /// [`PackageFileInfo`](https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs-types/src/index.ts)
 /// field-for-field so that the msgpack payload interops.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CafsFileInfo {
     /// Content-addressed digest of the file — raw hex (no `sha512-` prefix),
@@ -861,7 +861,7 @@ fn serialize_checked_at<Serializer: serde::Serializer>(
 /// the bespoke encoder in `msgpackr_records.rs` (it iterates the
 /// map in sorted-key order). The derived serde `Serialize` impl
 /// is unused on the write path.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SideEffectsDiff {
     #[serde(skip_serializing_if = "Option::is_none")]

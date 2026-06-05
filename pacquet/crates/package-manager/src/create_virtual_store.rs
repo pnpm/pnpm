@@ -157,6 +157,7 @@ pub struct CreateVirtualStore<'a> {
     /// Tarball downloads and CAS writes still happen for both
     /// linkers; only the slot-materialization step differs.
     pub node_linker: NodeLinker,
+    pub prefetched_from_pnpr: Option<&'a PrefetchResult>,
 }
 
 /// Error type of [`CreateVirtualStore`].
@@ -176,6 +177,28 @@ pub enum CreateVirtualStoreError {
     )]
     #[diagnostic(code(pacquet_package_manager::missing_packages_section))]
     MissingPackagesSection,
+}
+
+fn merge_prefetch_results(
+    mut local: PrefetchResult,
+    from_pnpr: Option<&PrefetchResult>,
+) -> PrefetchResult {
+    let Some(from_pnpr) = from_pnpr else { return local };
+
+    local.cas_paths.extend(
+        from_pnpr.cas_paths.iter().map(|(key, value)| (key.clone(), std::sync::Arc::clone(value))),
+    );
+    local.manifests.extend(
+        from_pnpr.manifests.iter().map(|(key, value)| (key.clone(), std::sync::Arc::clone(value))),
+    );
+    local.side_effects_maps.extend(
+        from_pnpr
+            .side_effects_maps
+            .iter()
+            .map(|(key, value)| (key.clone(), std::sync::Arc::clone(value))),
+    );
+
+    local
 }
 
 impl<'a> CreateVirtualStore<'a> {
@@ -201,6 +224,7 @@ impl<'a> CreateVirtualStore<'a> {
             skipped,
             workspace_root,
             node_linker,
+            prefetched_from_pnpr,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -508,18 +532,29 @@ impl<'a> CreateVirtualStore<'a> {
         cache_key_refs.sort_unstable();
         cache_key_refs.dedup();
         let cache_keys: Vec<String> = cache_key_refs.into_iter().map(String::from).collect();
+        let local_cache_keys = match prefetched_from_pnpr {
+            Some(prefetched) => cache_keys
+                .iter()
+                .filter(|key| !prefetched.cas_paths.contains_key(key.as_str()))
+                .cloned()
+                .collect(),
+            None => cache_keys,
+        };
         let PrefetchResult {
             cas_paths: prefetched,
             manifests: prefetched_manifests,
             side_effects_maps: prefetched_side_effects,
-        } = prefetch_cas_paths(
-            store_index.clone(),
-            store_dir,
-            cache_keys,
-            config.verify_store_integrity,
-            SharedVerifiedFilesCache::clone(&verified_files_cache),
-        )
-        .await;
+        } = merge_prefetch_results(
+            prefetch_cas_paths(
+                store_index.clone(),
+                store_dir,
+                local_cache_keys,
+                config.verify_store_integrity,
+                SharedVerifiedFilesCache::clone(&verified_files_cache),
+            )
+            .await,
+            prefetched_from_pnpr,
+        );
 
         // Partition snapshots by whether the prefetch covered them. The
         // warm batch — every snapshot whose tarball is already in the
