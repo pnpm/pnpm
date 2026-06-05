@@ -14,8 +14,7 @@ use pacquet_registry_mock::pick_unused_port;
 use pipe_trait::Pipe;
 use std::{
     borrow::Cow,
-    fmt,
-    fmt::Write as _,
+    fmt::{self, Write as _},
     fs::{self, File},
     io::Write,
     net::{Ipv4Addr, SocketAddr, TcpStream},
