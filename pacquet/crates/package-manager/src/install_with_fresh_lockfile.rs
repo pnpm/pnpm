@@ -1700,6 +1700,8 @@ fn build_fresh_lockfile(
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
         package_extensions_checksum: compute_package_extensions_checksum(config),
         catalogs,
+        registry: &config.registry,
+        lockfile_include_tarball_url: config.lockfile_include_tarball_url,
     })
 }
 

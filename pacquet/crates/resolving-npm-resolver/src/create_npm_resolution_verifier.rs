@@ -994,6 +994,7 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
         peer_dependencies_meta: None,
         npm_user,
         deprecated: None,
+        other: HashMap::new(),
     }
 }
 

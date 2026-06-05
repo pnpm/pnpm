@@ -32,14 +32,14 @@ const LOCKFILE_YAML: &str = text_block! {
     ""
     "packages:"
     ""
-    "  react@17.0.2:"
-    "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
-    "    engines: {node: '>=0.10.0'}"
-    ""
     "  react-dom@17.0.2:"
     "    resolution: {integrity: sha512-s4h96KtLDUQlsENhMn1ar8t2bEa+q/YAtj8pPPdIjPDGBDIVNsrD9aXNWqspUe6AzKCIG0C1HZZLqLV7qpOBGA==}"
     "    peerDependencies:"
     "      react: 17.0.2"
+    ""
+    "  react@17.0.2:"
+    "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+    "    engines: {node: '>=0.10.0'}"
     ""
     "  typescript@5.1.6:"
     "    resolution: {integrity: sha512-zaWCozRZ6DLEWAWFrVDz1H6FVXzUSfTy5FUMWsQlU8Ym5JP9eO4xkTIROFCQvhQf61z6O/G6ugw3SgAnvvm+HA==}"
@@ -48,11 +48,11 @@ const LOCKFILE_YAML: &str = text_block! {
     ""
     "snapshots:"
     ""
-    "  react@17.0.2: {}"
-    ""
     "  react-dom@17.0.2(react@17.0.2):"
     "    dependencies:"
     "      react: 17.0.2"
+    ""
+    "  react@17.0.2: {}"
     ""
     "  typescript@5.1.6: {}"
 };
@@ -82,6 +82,25 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
     let reparsed: Lockfile = serde_saphyr::from_str(&saved_bytes).expect("reparse lockfile");
 
     assert_eq!(original, reparsed);
+}
+
+/// Byte-for-byte parity: parsing a pnpm-authored v9 lockfile and saving it
+/// reproduces the exact bytes pnpm wrote. [`LOCKFILE_YAML`] is laid out the way
+/// pnpm's `js-yaml` dumper writes it — blank lines between top-level and
+/// section entries, single-quoted ambiguous scalars, single-line
+/// `resolution` / `engines`, and priority-then-lexical key ordering — so an
+/// exact match proves pacquet's writer matches pnpm's formatting.
+#[test]
+fn save_reproduces_pnpm_authored_bytes() {
+    let original: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    original.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    // `text_block!` omits the trailing newline; the writer appends one.
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n"));
 }
 
 /// A workspace lockfile with multiple importers, one of which has a
