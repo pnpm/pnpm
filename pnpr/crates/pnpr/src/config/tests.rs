@@ -132,6 +132,46 @@ fn uplink_auth_without_resolvable_token_is_a_config_error() {
 }
 
 #[test]
+fn uplink_token_env_false_resolves_no_token_and_is_a_config_error() {
+    let auth = UplinkAuthFile {
+        r#type: UplinkAuthType::Bearer,
+        token: None,
+        token_env: Some(TokenEnv::Flag(false)),
+    };
+    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
+        .expect_err("token_env: false reads nothing, so an auth block must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn uplink_auth_token_with_control_char_is_a_config_error() {
+    let auth = UplinkAuthFile {
+        r#type: UplinkAuthType::Bearer,
+        token: Some("bad\ntoken".to_string()),
+        token_env: None,
+    };
+    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
+        .expect_err("a token that is not a valid header value must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn uplink_invalid_custom_header_name_is_a_config_error() {
+    let headers = IndexMap::from_iter([("bad header".to_string(), "value".to_string())]);
+    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(None, headers))
+        .expect_err("a header name with a space must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn uplink_invalid_custom_header_value_is_a_config_error() {
+    let headers = IndexMap::from_iter([("x-custom".to_string(), "bad\nvalue".to_string())]);
+    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(None, headers))
+        .expect_err("a header value with a control char must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
 fn from_yaml_str_resolves_uplink_auth_and_headers() {
     let yaml = r#"
 uplinks:
@@ -150,6 +190,19 @@ packages:
     let uplink = &config.uplinks["npmjs"];
     assert_eq!(uplink.headers.get(AUTHORIZATION).unwrap().to_str().unwrap(), "Bearer secret-token");
     assert_eq!(uplink.headers.get("x-org").unwrap().to_str().unwrap(), "acme");
+}
+
+#[test]
+fn from_yaml_str_tolerates_unresolved_env_var_references() {
+    let yaml = r#"
+storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
+packages:
+  '**':
+    proxy: npmjs
+"#;
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect("an unresolved ${VAR} is replaced with empty, not an error");
+    assert!(config.storage.ends_with("store"));
 }
 
 fn user(name: &str) -> Identity {
