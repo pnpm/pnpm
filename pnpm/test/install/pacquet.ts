@@ -7,11 +7,15 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't
-// carry it (or its platform-specific binary sub-packages). Pinned to a
-// version known to ship the `configDependencies` integration surface this
-// PR depends on; tests are gated on the public registry being reachable.
+// carry it (or its platform-specific binary sub-packages). Tests are gated
+// on the public registry being reachable.
 const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
-const PACQUET_VERSION = '0.2.2'
+// pacquet >= 0.11 ships its own resolver, so pnpm delegates resolution to
+// it on a non-frozen install too.
+const PACQUET_VERSION = '0.11.0'
+// pacquet < 0.11 has no resolver: pnpm resolves and pacquet only
+// materializes the finished lockfile.
+const PACQUET_MATERIALIZE_ONLY_VERSION = '0.2.14'
 
 // Each test runs two or three installs against the public registry; raise
 // the per-test timeout above jest's 5s default to allow for cold caches.
@@ -21,6 +25,8 @@ interface PrepareOpts {
   manifest?: { dependencies?: Record<string, string>, devDependencies?: Record<string, string> }
   /** Which `configDependencies` slot declares pacquet. Both work. */
   pacquetConfigDepName?: 'pacquet' | '@pnpm/pacquet'
+  /** Which pacquet version to declare. Defaults to {@link PACQUET_VERSION}. */
+  version?: string
 }
 
 /** Set up a temp project + workspace yaml + initial install. */
@@ -28,7 +34,7 @@ async function prepareWithPacquet (opts: PrepareOpts = {}): Promise<void> {
   prepare(opts.manifest ?? {})
   writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
-      [opts.pacquetConfigDepName ?? 'pacquet']: PACQUET_VERSION,
+      [opts.pacquetConfigDepName ?? 'pacquet']: opts.version ?? PACQUET_VERSION,
     },
   })
   // Initial install populates pnpm-lock.yaml plus configDependencies
@@ -56,14 +62,13 @@ test('pnpm install --frozen-lockfile delegates to pacquet when declared in confi
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
-test('bare `pnpm install` (no --frozen-lockfile) delegates the materialization to pacquet', async () => {
+test('bare `pnpm install` (no --frozen-lockfile) delegates to pacquet when the lockfile is up to date', async () => {
   await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '3.1.0' } } })
   await fs.promises.rm('node_modules', { recursive: true, force: true })
 
-  // No `--frozen-lockfile` flag. The expected path is: pnpm runs a
-  // lockfileOnly resolve pass (the lockfile is already up-to-date so
-  // it's a no-op write), then hands fetch / import / link off to
-  // pacquet via the default-isolated-linker branch.
+  // No `--frozen-lockfile` flag, but the lockfile is already up to date
+  // with the manifest, so no resolution is needed: pnpm delegates the
+  // whole install to pacquet just as it would for a frozen install.
   const { stdout, status } = execPnpmSync(
     [PUBLIC_REGISTRY, 'install'],
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
@@ -73,17 +78,44 @@ test('bare `pnpm install` (no --frozen-lockfile) delegates the materialization t
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
-// Skipped until pacquet writes a `.modules.yaml` whose `publicHoistPattern`
-// matches what pnpm computes on a follow-up command. Today pacquet's
-// materialization writes a different value, so the second pnpm command
-// in the same project fails with
-// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`. Bare `--frozen-lockfile` /
-// `install` tests escape this by wiping `node_modules` between
-// invocations; `pnpm add` and `pnpm update` can't, because they need
-// the prior install's state to do anything meaningful. Tracked as a
-// pacquet-side parity gap; re-enable once pacquet's `.modules.yaml`
-// shape matches pnpm's.
-test.skip('`pnpm add <pkg>` resolves the new dep with pnpm and materializes with pacquet', async () => {
+test('pnpm install resolves a newly-added dependency with pacquet >= 0.11', async () => {
+  // `prepare` installs with no dependencies, so the lockfile has no entry
+  // for `is-positive`. Adding it to the manifest forces a real resolution
+  // on the next install — which pacquet 0.11 performs itself, in a single
+  // non-frozen pass (resolve + materialize), without a pnpm resolve pass.
+  await prepareWithPacquet()
+  const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+  manifest.dependencies = { 'is-positive': '3.1.0' }
+  fs.writeFileSync('package.json', JSON.stringify(manifest, null, 2))
+
+  const { stdout, status } = execPnpmSync(
+    [PUBLIC_REGISTRY, 'install'],
+    { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
+  )
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Using pacquet for this install')
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+}, TIMEOUT)
+
+test('pnpm install resolves a newly-added dependency itself when pacquet < 0.11 only materializes', async () => {
+  // Same setup as the resolving test above, but with a pre-resolver
+  // pacquet: pnpm runs its own lockfileOnly resolve pass for the new dep
+  // and hands the freshly-written lockfile to pacquet to materialize.
+  await prepareWithPacquet({ version: PACQUET_MATERIALIZE_ONLY_VERSION })
+  const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+  manifest.dependencies = { 'is-positive': '3.1.0' }
+  fs.writeFileSync('package.json', JSON.stringify(manifest, null, 2))
+
+  const { stdout, status } = execPnpmSync(
+    [PUBLIC_REGISTRY, 'install'],
+    { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
+  )
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Using pacquet for this install')
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+}, TIMEOUT)
+
+test('`pnpm add <pkg>` resolves the new dep with pnpm and materializes with pacquet', async () => {
   await prepareWithPacquet()
 
   const { stdout, status } = execPnpmSync(
@@ -101,14 +133,14 @@ test.skip('`pnpm add <pkg>` resolves the new dep with pnpm and materializes with
   expect(manifest.dependencies?.['is-positive']).toBeDefined()
 }, TIMEOUT)
 
-// Same skip reason as the `pnpm add` test above:
-// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF` on the second invocation.
-test.skip('`pnpm update <pkg>` resolves a new version with pnpm and materializes with pacquet', async () => {
-  // Start pinned to an older minor so `update` has something to do.
-  await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '^3.0.0' } } })
+test('`pnpm update <pkg>` resolves a new version with pnpm and materializes with pacquet', async () => {
+  // Start pinned to an old exact version so `update --latest` has
+  // something to do (is-positive's latest is 3.1.0).
+  await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '1.0.0' } } })
   const oldVersion = JSON.parse(
     await fs.promises.readFile('node_modules/is-positive/package.json', 'utf8')
   ).version as string
+  expect(oldVersion).toBe('1.0.0')
 
   const { stdout, status } = execPnpmSync(
     [PUBLIC_REGISTRY, 'update', 'is-positive', '--latest'],
@@ -119,17 +151,11 @@ test.skip('`pnpm update <pkg>` resolves a new version with pnpm and materializes
   const newVersion = JSON.parse(
     await fs.promises.readFile('node_modules/is-positive/package.json', 'utf8')
   ).version as string
-  // is-positive@4 is the current latest and is a major bump from the 3.x
-  // line; `update --latest` should move past the original `^3.0.0` pin.
+  // `update --latest` moves the `1.0.0` pin to the current latest (3.1.0).
   expect(newVersion).not.toBe(oldVersion)
 }, TIMEOUT)
 
-// Skipped until pacquet ships a release built with the updated
-// `generate-packages.mjs` (this PR's change) so the `@pnpm/pacquet`
-// scoped alias actually exists on npm. The pinned PACQUET_VERSION
-// above doesn't publish that mirror yet. Re-enable when the next
-// pacquet release ships under both names.
-test.skip('the `@pnpm/pacquet` scoped alias is recognized in configDependencies', async () => {
+test('the `@pnpm/pacquet` scoped alias is recognized in configDependencies', async () => {
   await prepareWithPacquet({
     manifest: { dependencies: { 'is-positive': '3.1.0' } },
     pacquetConfigDepName: '@pnpm/pacquet',

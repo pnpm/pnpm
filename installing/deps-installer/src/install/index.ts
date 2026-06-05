@@ -46,8 +46,10 @@ import {
   isEmptyLockfile,
   type LockfileObject,
   type ProjectSnapshot,
+  readEnvLockfile,
   readWantedLockfileFile,
   writeCurrentLockfile,
+  writeEnvLockfile,
   writeLockfiles,
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
@@ -2078,7 +2080,17 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       // resolve the new specs first (pacquet's `install` reads
       // package.json from disk, which pnpm hasn't rewritten yet).
       if (opts.runPacquet.supportsResolution && !opts.frozenLockfile && allMutationsAreInstalls(projects)) {
+        // `configDependencies` are recorded in a YAML document prepended
+        // to `pnpm-lock.yaml` — purely a pnpm concept that pacquet doesn't
+        // model. Capture it before pacquet rewrites the lockfile and
+        // restore it afterwards (`writeEnvLockfile` re-reads pacquet's main
+        // document and re-prepends the env document), otherwise the next
+        // `--frozen-lockfile` install fails its config-deps freshness gate.
+        const envLockfile = await readEnvLockfile(ctx.lockfileDir)
         await opts.runPacquet.run({ resolve: true })
+        if (envLockfile != null) {
+          await writeEnvLockfile(ctx.lockfileDir, envLockfile)
+        }
         return pacquetResolveResult(projects, ctx)
       }
       // Older pacquet can only materialize: split the install in two —
