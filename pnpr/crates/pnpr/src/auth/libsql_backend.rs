@@ -162,9 +162,16 @@ impl UserBackend for LibsqlAuth {
         Ok(UpsertOutcome::Created)
     }
 
-    async fn verify(&self, username: &str, password: &str) -> Option<String> {
-        let stored = self.stored_hash(username).await.ok().flatten()?;
-        verify_bcrypt(password.to_string(), stored).await.ok()?.then(|| username.to_string())
+    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
+        let Some(stored) = self.stored_hash(username).await? else {
+            return Ok(None);
+        };
+        // A database error already propagated above; a bcrypt error here
+        // is treated as a non-match, not a store outage.
+        Ok(verify_bcrypt(password.to_string(), stored)
+            .await
+            .unwrap_or(false)
+            .then(|| username.to_string()))
     }
 }
 
@@ -187,40 +194,39 @@ impl TokenBackend for LibsqlAuth {
         Ok(raw)
     }
 
-    async fn lookup(&self, raw: &str) -> Option<String> {
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let mut rows = self
             .conn
             .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
-            .await
-            .ok()?;
-        let row = rows.next().await.ok()??;
-        row.get::<String>(0).ok()
-    }
-
-    async fn find_by_key(&self, key: &str) -> Option<TokenRecord> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        let mut rows = self.conn.query(&query, params![key]).await.ok()?;
-        let row = rows.next().await.ok()??;
-        row_to_keyed_record(&row).ok().map(|(_, record)| record)
-    }
-
-    async fn list_for_user(&self, username: &str) -> Vec<(String, TokenRecord)> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        let Ok(mut rows) = self.conn.query(&query, params![username]).await else {
-            return Vec::new();
-        };
-        let mut out = Vec::new();
-        while let Ok(Some(row)) = rows.next().await {
-            if let Ok(keyed) = row_to_keyed_record(&row) {
-                out.push(keyed);
-            }
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(row.get::<String>(0)?)),
+            None => Ok(None),
         }
-        out
+    }
+
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
+        let mut rows = self.conn.query(&query, params![key]).await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
+            None => Ok(None),
+        }
+    }
+
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
+        let mut rows = self.conn.query(&query, params![username]).await?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next().await? {
+            out.push(row_to_keyed_record(&row)?);
+        }
+        Ok(out)
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = self.find_by_key(key).await else {
+        let Some(record) = self.find_by_key(key).await? else {
             return Ok(None);
         };
         self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;

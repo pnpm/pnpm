@@ -28,9 +28,9 @@ async fn adduser_creates_then_validates() {
     let outcome = store.add_or_login("alice", "secret").await.unwrap();
     assert!(matches!(outcome, UpsertOutcome::LoggedIn));
 
-    assert!(store.verify("alice", "secret").await.is_some());
-    assert!(store.verify("alice", "wrong").await.is_none());
-    assert!(store.verify("bob", "secret").await.is_none());
+    assert!(store.verify("alice", "secret").await.unwrap().is_some());
+    assert!(store.verify("alice", "wrong").await.unwrap().is_none());
+    assert!(store.verify("bob", "secret").await.unwrap().is_none());
 }
 
 #[tokio::test]
@@ -86,8 +86,8 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
     assert_eq!(created, 1, "exactly one concurrent adduser should create the account");
     assert_eq!(unauthorized, 1, "the losing registration must be rejected");
     assert_ne!(
-        store.verify("alice", "pw-a").await.is_some(),
-        store.verify("alice", "pw-b").await.is_some(),
+        store.verify("alice", "pw-a").await.unwrap().is_some(),
+        store.verify("alice", "pw-b").await.unwrap().is_some(),
     );
 }
 
@@ -104,7 +104,7 @@ async fn adduser_persists_across_reopen() {
     let reopened = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
     let outcome = reopened.add_or_login("alice", "secret").await.unwrap();
     assert!(matches!(outcome, UpsertOutcome::LoggedIn));
-    assert!(reopened.verify("alice", "secret").await.is_some());
+    assert!(reopened.verify("alice", "secret").await.unwrap().is_some());
 }
 
 #[tokio::test]
@@ -169,8 +169,8 @@ fn parse_htpasswd_accepts_blank_and_comment_lines() {
 async fn tokens_round_trip() {
     let tokens = TokenStore::in_memory();
     let token = tokens.issue("alice").await.unwrap();
-    assert_eq!(tokens.lookup(&token).await.as_deref(), Some("alice"));
-    assert!(tokens.lookup("not-a-token").await.is_none());
+    assert_eq!(tokens.lookup(&token).await.unwrap().as_deref(), Some("alice"));
+    assert!(tokens.lookup("not-a-token").await.unwrap().is_none());
 }
 
 #[tokio::test]
@@ -192,7 +192,7 @@ async fn tokens_persist_across_reopen() {
 
     let reopened = TokenStore::open(path).unwrap();
     assert_eq!(
-        reopened.lookup(&raw).await.as_deref(),
+        reopened.lookup(&raw).await.unwrap().as_deref(),
         Some("alice"),
         "token issued before restart must still resolve after reload",
     );
@@ -224,20 +224,20 @@ async fn identify_recognizes_bearer_and_basic() {
     let token = tokens.issue("alice").await.unwrap();
 
     let header = format!("Bearer {token}");
-    assert_eq!(identify(Some(&header), &users, &tokens).await.as_deref(), Some("alice"));
+    assert_eq!(identify(Some(&header), &users, &tokens).await.unwrap().as_deref(), Some("alice"));
 
     // Basic: base64(alice:secret) = YWxpY2U6c2VjcmV0
     let basic = "Basic YWxpY2U6c2VjcmV0";
-    assert_eq!(identify(Some(basic), &users, &tokens).await.as_deref(), Some("alice"));
+    assert_eq!(identify(Some(basic), &users, &tokens).await.unwrap().as_deref(), Some("alice"));
 
     let wrong = format!(
         "Basic {}",
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"alice:wrong"),
     );
-    assert!(identify(Some(&wrong), &users, &tokens).await.is_none());
+    assert!(identify(Some(&wrong), &users, &tokens).await.unwrap().is_none());
 
-    assert!(identify(None, &users, &tokens).await.is_none());
-    assert!(identify(Some("Bearer total-nonsense"), &users, &tokens).await.is_none());
+    assert!(identify(None, &users, &tokens).await.unwrap().is_none());
+    assert!(identify(Some("Bearer total-nonsense"), &users, &tokens).await.unwrap().is_none());
 }
 
 /// RFC 7235 §2.1: "the scheme is case-insensitive". All of
@@ -253,7 +253,7 @@ async fn identify_parses_auth_scheme_case_insensitively() {
     for scheme in ["Bearer", "bearer", "BEARER", "BeArEr"] {
         let header = format!("{scheme} {token}");
         assert_eq!(
-            identify(Some(&header), &users, &tokens).await.as_deref(),
+            identify(Some(&header), &users, &tokens).await.unwrap().as_deref(),
             Some("alice"),
             "Bearer scheme {scheme:?} should be recognized",
         );
@@ -261,7 +261,7 @@ async fn identify_parses_auth_scheme_case_insensitively() {
     for scheme in ["Basic", "basic", "BASIC", "bAsIc"] {
         let header = format!("{scheme} YWxpY2U6c2VjcmV0");
         assert_eq!(
-            identify(Some(&header), &users, &tokens).await.as_deref(),
+            identify(Some(&header), &users, &tokens).await.unwrap().as_deref(),
             Some("alice"),
             "Basic scheme {scheme:?} should be recognized",
         );

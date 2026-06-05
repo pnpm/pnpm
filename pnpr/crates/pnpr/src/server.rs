@@ -249,7 +249,11 @@ pub async fn serve_listener(
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
-    let app = router(config);
+    // Load the configured auth backends here too — going through
+    // `router` would silently fall back to in-memory auth and ignore a
+    // persisted htpasswd / SQLite store or a configured `backend:`.
+    let auth = AuthState::load(&config.auth, &config.backend).await?;
+    let app = router_with_auth(config, auth);
     tracing::info!(%listen, "pnpr listening");
     axum::serve(NodelayTcpListener(listener), app)
         .with_graceful_shutdown(shutdown_signal())
@@ -701,10 +705,9 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
 /// gets 401 even when `$all` would let it through for packument
 /// reads.
 async fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
-    let Some(username) = caller_username(state, headers).await else {
-        return error_response(&RegistryError::Unauthenticated {
-            resource: "user identity".to_string(),
-        });
+    let username = match require_caller(state, headers, "user identity").await {
+        Ok(username) => username,
+        Err(response) => return response,
     };
     json_response(StatusCode::OK, &json!({ "username": username }))
 }
@@ -715,10 +718,9 @@ async fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
 /// as their zero-value defaults so the npm CLI's table renderer
 /// doesn't choke on a missing key.
 async fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
-    let Some(username) = caller_username(state, headers).await else {
-        return error_response(&RegistryError::Unauthenticated {
-            resource: "user profile".to_string(),
-        });
+    let username = match require_caller(state, headers, "user profile").await {
+        Ok(username) => username,
+        Err(response) => return response,
     };
     json_response(
         StatusCode::OK,
@@ -740,20 +742,16 @@ async fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
 /// the leading 6 hex characters of the key as a preview, matching
 /// what verdaccio does when it can't reconstruct the original.
 async fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
-    let Some(username) = caller_username(state, headers).await else {
-        return error_response(&RegistryError::Unauthenticated {
-            resource: "token list".to_string(),
-        });
+    let username = match require_caller(state, headers, "token list").await {
+        Ok(username) => username,
+        Err(response) => return response,
     };
-    let objects: Vec<Value> = state
-        .inner
-        .auth
-        .tokens
-        .list_for_user(&username)
-        .await
-        .into_iter()
-        .map(|(key, record)| token_response_object(&key, &record))
-        .collect();
+    let tokens = match state.inner.auth.tokens.list_for_user(&username).await {
+        Ok(tokens) => tokens,
+        Err(err) => return error_response(&err),
+    };
+    let objects: Vec<Value> =
+        tokens.into_iter().map(|(key, record)| token_response_object(&key, &record)).collect();
     json_response(StatusCode::OK, &json!({ "objects": objects, "urls": {} }))
 }
 
@@ -763,23 +761,25 @@ async fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
 /// unknown key returns 404. `npm token revoke` calls this with the
 /// `key` it pulled from [`list_tokens`].
 async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -> Response {
-    let Some(username) = caller_username(state, headers).await else {
-        return error_response(&RegistryError::Unauthenticated {
-            resource: "token revocation".to_string(),
-        });
+    let username = match require_caller(state, headers, "token revocation").await {
+        Ok(username) => username,
+        Err(response) => return response,
     };
     match state.inner.auth.tokens.find_by_key(key).await {
-        Some(record) if record.username != username => error_response(&RegistryError::Forbidden {
-            user: username,
-            action: "revoke",
-            resource: "this token".to_string(),
-        }),
-        Some(_) => match state.inner.auth.tokens.revoke_by_key(key).await {
+        Ok(Some(record)) if record.username != username => {
+            error_response(&RegistryError::Forbidden {
+                user: username,
+                action: "revoke",
+                resource: "this token".to_string(),
+            })
+        }
+        Ok(Some(_)) => match state.inner.auth.tokens.revoke_by_key(key).await {
             Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
             Ok(None) => not_found(),
             Err(err) => error_response(&err),
         },
-        None => not_found(),
+        Ok(None) => not_found(),
+        Err(err) => error_response(&err),
     }
 }
 
@@ -789,11 +789,14 @@ async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -
 /// and require that the auth identifies the same user who owns the
 /// token being deleted.
 async fn logout(state: &AppState, headers: &HeaderMap, raw_token: &str) -> Response {
-    let Some(username) = caller_username(state, headers).await else {
-        return error_response(&RegistryError::Unauthenticated { resource: "logout".to_string() });
+    let username = match require_caller(state, headers, "logout").await {
+        Ok(username) => username,
+        Err(response) => return response,
     };
-    let Some(target_owner) = state.inner.auth.tokens.lookup(raw_token).await else {
-        return not_found();
+    let target_owner = match state.inner.auth.tokens.lookup(raw_token).await {
+        Ok(Some(owner)) => owner,
+        Ok(None) => return not_found(),
+        Err(err) => return error_response(&err),
     };
     if target_owner != username {
         return error_response(&RegistryError::Forbidden {
@@ -824,13 +827,35 @@ fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value 
     })
 }
 
-async fn caller_username(state: &AppState, headers: &HeaderMap) -> Option<String> {
+async fn caller_username(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<Option<String>, RegistryError> {
     identify(
         headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
         state.inner.auth.users.as_ref(),
         state.inner.auth.tokens.as_ref(),
     )
     .await
+}
+
+/// Resolve the authenticated caller for an endpoint that requires one,
+/// or return the ready-made response to send back: 401 when the request
+/// is anonymous, or a 5xx when the auth backend itself failed (so an
+/// outage isn't mistaken for "not logged in"). `resource` names what the
+/// 401 is about.
+async fn require_caller(
+    state: &AppState,
+    headers: &HeaderMap,
+    resource: &str,
+) -> Result<String, Response> {
+    match caller_username(state, headers).await {
+        Ok(Some(username)) => Ok(username),
+        Ok(None) => {
+            Err(error_response(&RegistryError::Unauthenticated { resource: resource.to_string() }))
+        }
+        Err(err) => Err(error_response(&err)),
+    }
 }
 
 fn json_response(status: StatusCode, body: &Value) -> Response {
@@ -1075,7 +1100,10 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
         // The caller is the same across every result, so resolve the
         // identity once (the async backend hit) and authorize each
         // candidate synchronously inside the filter.
-        let identity = resolve_identity(state, headers).await;
+        let identity = match resolve_identity(state, headers).await {
+            Ok(identity) => identity,
+            Err(err) => return error_response(&err),
+        };
         objects.retain(|entry| {
             let Some(name) =
                 entry.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
@@ -1437,17 +1465,20 @@ impl Action {
 /// `Authorization` header against the auth backends. The backend
 /// lookup is async (a networked record store hits the database here),
 /// so this is the one async step the access checks fan out from.
-async fn resolve_identity(state: &AppState, headers: &HeaderMap) -> Identity {
+async fn resolve_identity(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<Identity, RegistryError> {
     let username = identify(
         headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
         state.inner.auth.users.as_ref(),
         state.inner.auth.tokens.as_ref(),
     )
-    .await;
-    match username {
+    .await?;
+    Ok(match username {
         Some(username) => Identity::User { username },
         None => Identity::Anonymous,
-    }
+    })
 }
 
 /// Check an already-resolved `identity` against the per-package rule.
@@ -1491,7 +1522,7 @@ async fn enforce_access(
     package: &str,
     action: Action,
 ) -> Result<(), RegistryError> {
-    let identity = resolve_identity(state, headers).await;
+    let identity = resolve_identity(state, headers).await?;
     authorize(state, &identity, package, action)
 }
 
@@ -1649,7 +1680,10 @@ async fn serve_install(
         &state.inner.install_accelerator,
         &state.inner.config,
     );
-    let identity = resolve_identity(&state, &headers).await;
+    let identity = match resolve_identity(&state, &headers).await {
+        Ok(identity) => identity,
+        Err(err) => return error_response(&err),
+    };
     crate::install_accelerator::handle_install(
         runtime,
         &state.inner.config.policies,

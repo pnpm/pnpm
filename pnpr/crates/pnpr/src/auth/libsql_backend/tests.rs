@@ -18,9 +18,9 @@ async fn add_or_login_creates_then_logs_in() {
         backend.add_or_login("alice", "secret").await.unwrap(),
         UpsertOutcome::LoggedIn,
     ));
-    assert_eq!(backend.verify("alice", "secret").await.as_deref(), Some("alice"));
-    assert!(backend.verify("alice", "wrong").await.is_none());
-    assert!(backend.verify("bob", "secret").await.is_none());
+    assert_eq!(backend.verify("alice", "secret").await.unwrap().as_deref(), Some("alice"));
+    assert!(backend.verify("alice", "wrong").await.unwrap().is_none());
+    assert!(backend.verify("bob", "secret").await.unwrap().is_none());
 }
 
 #[tokio::test]
@@ -46,17 +46,17 @@ async fn max_users_caps_registration() {
 async fn tokens_round_trip_and_revoke() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     let token = backend.issue("alice").await.unwrap();
-    assert_eq!(backend.lookup(&token).await.as_deref(), Some("alice"));
-    assert!(backend.lookup("not-a-token").await.is_none());
+    assert_eq!(backend.lookup(&token).await.unwrap().as_deref(), Some("alice"));
+    assert!(backend.lookup("not-a-token").await.unwrap().is_none());
 
     let key = sha256_hex(token.as_bytes());
-    let listed = backend.list_for_user("alice").await;
+    let listed = backend.list_for_user("alice").await.unwrap();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].0, key);
     assert_eq!(listed[0].1.username, "alice");
 
     assert!(backend.revoke_by_key(&key).await.unwrap().is_some());
-    assert!(backend.lookup(&token).await.is_none());
+    assert!(backend.lookup(&token).await.unwrap().is_none());
     assert!(backend.revoke_by_key(&key).await.unwrap().is_none());
 }
 
@@ -69,4 +69,19 @@ async fn tokens_store_hash_not_raw() {
     let stored: String = row.get(0).unwrap();
     assert_ne!(stored, raw, "raw token must not be persisted");
     assert_eq!(stored.len(), 64, "SHA-256 hex is 64 chars");
+}
+
+/// A store failure must surface as `Err`, never a silent `Ok(None)` —
+/// otherwise a database outage would read as "token not found" and the
+/// caller would answer 401 instead of 5xx.
+#[tokio::test]
+async fn reads_propagate_a_backend_error_instead_of_swallowing_it() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.issue("alice").await.unwrap();
+    // Break the store out from under the reads: a query against a
+    // dropped table errors rather than returning an empty result.
+    backend.conn.execute("DROP TABLE tokens", ()).await.unwrap();
+    assert!(backend.lookup("anything").await.is_err());
+    assert!(backend.find_by_key("anything").await.is_err());
+    assert!(backend.list_for_user("alice").await.is_err());
 }

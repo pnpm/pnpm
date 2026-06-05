@@ -626,7 +626,17 @@ impl Config {
             None => HostedStoreConfig::Fs,
         };
         let backend = match file.backend.and_then(|block| block.libsql) {
-            Some(settings) => BackendConfig::Libsql(settings),
+            Some(mut settings) => {
+                // Resolve a relative `replicaPath` against the config
+                // file's directory, the same convention `storage` and
+                // the auth files follow, so `./auth-replica.db` lands
+                // next to the config rather than in the process CWD.
+                if let Some(path) = settings.replica_path.take() {
+                    settings.replica_path =
+                        Some(if path.is_absolute() { path } else { base_dir.join(path) });
+                }
+                BackendConfig::Libsql(settings)
+            }
             None => BackendConfig::Local,
         };
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));

@@ -110,9 +110,12 @@ pub trait UserBackend: Send + Sync {
     /// [`RegistryError::RegistrationDisabled`] / `TooManyUsers`.
     async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome>;
 
-    /// Verify a username+password pair. Returns `Some(username)` when
-    /// the credentials match, `None` otherwise.
-    async fn verify(&self, username: &str, password: &str) -> Option<String>;
+    /// Verify a username+password pair. `Ok(Some(username))` on a match,
+    /// `Ok(None)` when the user is unknown or the password is wrong, and
+    /// `Err` only when the backing store itself fails — so a store
+    /// outage surfaces as a 5xx rather than masquerading as a bad
+    /// password.
+    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>>;
 }
 
 /// Bearer-token record store. The hot read is [`Self::lookup`]
@@ -124,17 +127,20 @@ pub trait TokenBackend: Send + Sync {
     /// the raw token. The raw token is never stored.
     async fn issue(&self, username: &str) -> Result<String>;
 
-    /// Resolve a raw token back to its username, if it was ever issued
-    /// (and not since revoked).
-    async fn lookup(&self, raw: &str) -> Option<String>;
+    /// Resolve a raw token back to its username. `Ok(None)` means the
+    /// token was never issued (or was revoked); `Err` means the backing
+    /// store failed — never conflate the two, or a store outage reads as
+    /// "not authenticated".
+    async fn lookup(&self, raw: &str) -> Result<Option<String>>;
 
     /// Snapshot the record for a token by its key (SHA-256 hex). Used
-    /// to check ownership before revocation.
-    async fn find_by_key(&self, key: &str) -> Option<TokenRecord>;
+    /// to check ownership before revocation. `Ok(None)` if no such
+    /// token; `Err` on a store failure.
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>>;
 
     /// All tokens owned by `username`, as `(key, record)` pairs where
     /// `key` is the SHA-256 hex digest the listing endpoint surfaces.
-    async fn list_for_user(&self, username: &str) -> Vec<(String, TokenRecord)>;
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
 
     /// Remove a token by its key (the SHA-256 hex digest). Returns the
     /// deleted record so a higher layer can confirm the revocation.
@@ -276,12 +282,20 @@ impl UserBackend for UserStore {
         }
     }
 
-    async fn verify(&self, username: &str, password: &str) -> Option<String> {
+    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
         let stored = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
-            users.get(username).cloned()?
+            users.get(username).cloned()
         };
-        verify_bcrypt(password.to_string(), stored).await.ok()?.then(|| username.to_string())
+        let Some(stored) = stored else {
+            return Ok(None);
+        };
+        // The in-memory read can't fail; a bcrypt error is treated as a
+        // non-match (not a store outage), so it stays `Ok(None)`.
+        Ok(verify_bcrypt(password.to_string(), stored)
+            .await
+            .unwrap_or(false)
+            .then(|| username.to_string()))
     }
 }
 
@@ -385,26 +399,26 @@ impl TokenBackend for TokenStore {
     }
 
     /// Resolves entirely in memory — the on-disk mirror is loaded once
-    /// at startup, so this never touches the database.
-    async fn lookup(&self, raw: &str) -> Option<String> {
+    /// at startup, so this never touches the database and never fails.
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        inner.tokens.get(&token_hash).map(|record| record.username.clone())
+        Ok(inner.tokens.get(&token_hash).map(|record| record.username.clone()))
     }
 
-    async fn find_by_key(&self, key: &str) -> Option<TokenRecord> {
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        inner.tokens.get(key).cloned()
+        Ok(inner.tokens.get(key).cloned())
     }
 
-    async fn list_for_user(&self, username: &str) -> Vec<(String, TokenRecord)> {
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        inner
+        Ok(inner
             .tokens
             .iter()
             .filter(|(_, record)| record.username == username)
             .map(|(hash, record)| (hash.clone(), record.clone()))
-            .collect()
+            .collect())
     }
 
     /// SQLite gets the `DELETE` *before* the in-memory map is mutated.
@@ -457,25 +471,42 @@ impl Default for UserStore {
 /// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
 /// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`
 /// all parse the same.
+/// `Ok(None)` covers every "no usable credentials" case — a missing or
+/// malformed header, an unsupported scheme, or credentials that simply
+/// don't match. `Err` is reserved for a failure of the backing store
+/// (e.g. the networked auth DB is unreachable) so the caller can return
+/// a 5xx instead of a misleading 401.
 pub async fn identify(
     header_value: Option<&str>,
     users: &dyn UserBackend,
     tokens: &dyn TokenBackend,
-) -> Option<String> {
-    let value = header_value?.trim();
+) -> Result<Option<String>> {
+    let Some(value) = header_value.map(str::trim) else {
+        return Ok(None);
+    };
     let mut parts = value.splitn(2, ' ');
-    let scheme = parts.next()?;
-    let credentials = parts.next()?.trim();
+    let Some(scheme) = parts.next() else {
+        return Ok(None);
+    };
+    let Some(credentials) = parts.next().map(str::trim) else {
+        return Ok(None);
+    };
     if scheme.eq_ignore_ascii_case("Bearer") {
         return tokens.lookup(credentials).await;
     }
     if scheme.eq_ignore_ascii_case("Basic") {
-        let decoded = BASE64.decode(credentials).ok()?;
-        let pair = std::str::from_utf8(&decoded).ok()?;
-        let (user, password) = pair.split_once(':')?;
+        let Ok(decoded) = BASE64.decode(credentials) else {
+            return Ok(None);
+        };
+        let Ok(pair) = std::str::from_utf8(&decoded) else {
+            return Ok(None);
+        };
+        let Some((user, password)) = pair.split_once(':') else {
+            return Ok(None);
+        };
         return users.verify(user, password).await;
     }
-    None
+    Ok(None)
 }
 
 // ---------------------------------------------------------------

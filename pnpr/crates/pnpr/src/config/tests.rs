@@ -212,13 +212,13 @@ packages: {}
 }
 
 #[test]
-fn libsql_backend_parses_embedded_replica_options() {
+fn libsql_backend_resolves_relative_replica_path_against_config_dir() {
     let yaml = "\
 storage: /var/lib/pnpr
 backend:
   libsql:
     url: libsql://db.turso.io
-    replicaPath: /var/lib/pnpr/auth-replica.db
+    replicaPath: auth-replica.db
     syncIntervalSecs: 15
 uplinks: {}
 packages: {}
@@ -228,10 +228,32 @@ packages: {}
         BackendConfig::Libsql(settings) => {
             assert_eq!(
                 settings.replica_path.as_deref(),
-                Some(Path::new("/var/lib/pnpr/auth-replica.db")),
+                Some(Path::new("/etc/pnpr/auth-replica.db")),
+                "a relative replicaPath resolves against the config file's directory",
             );
             assert_eq!(settings.sync_interval_secs, Some(15));
         }
+        BackendConfig::Local => panic!("expected a libsql backend, got Local"),
+    }
+}
+
+#[test]
+fn libsql_backend_keeps_absolute_replica_path() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: libsql://db.turso.io
+    replicaPath: /var/lib/pnpr/auth-replica.db
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.backend {
+        BackendConfig::Libsql(settings) => assert_eq!(
+            settings.replica_path.as_deref(),
+            Some(Path::new("/var/lib/pnpr/auth-replica.db")),
+        ),
         BackendConfig::Local => panic!("expected a libsql backend, got Local"),
     }
 }
