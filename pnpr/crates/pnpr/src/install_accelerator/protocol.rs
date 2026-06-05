@@ -44,8 +44,6 @@ pub struct InstallRequest {
     pub optional_dependencies: Option<DepMap>,
     #[serde(default)]
     pub projects: Option<Vec<InstallRequestProject>>,
-    #[serde(default)]
-    pub store_integrities: Vec<String>,
     /// The client's default registry. Falls back to npmjs when absent.
     #[serde(default)]
     pub registry: Option<String>,
@@ -85,14 +83,6 @@ pub struct InstallRequest {
     /// comparison during the frozen resolve.
     #[serde(default)]
     pub ignore_manifest_check: bool,
-    /// `lockfileOnly`: resolve and return only the lockfile — skip the
-    /// tarball fetch and the file-level diff entirely. Mirrors pnpm's
-    /// `--lockfile-only` (resolve + write lockfile, fetch nothing, link
-    /// nothing); the response carries just the `L` line, no `D`/`I`
-    /// lines. See
-    /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    #[serde(default)]
-    pub lockfile_only: bool,
     /// The client's effective `trustLockfile`. When `true` the client
     /// opted out of lockfile verification, so the server skips the
     /// input-lockfile verify gate (it still reuses the lockfile for

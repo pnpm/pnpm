@@ -1673,24 +1673,14 @@ async fn serve_pnpr_handshake() -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
 }
 
-async fn serve_install(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    body: axum::body::Bytes,
-) -> Response {
+async fn serve_install(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    // pnpr resolves but serves no file content, so there is no per-package
+    // read gate here: the client fetches every tarball directly from the
+    // registry with its own credentials, and resolution uses the client's
+    // forwarded credentials for private packages.
     let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
         &state.inner.install_accelerator,
         &state.inner.config,
     );
-    let identity = match resolve_identity(&state, &headers).await {
-        Ok(identity) => identity,
-        Err(err) => return error_response(&err),
-    };
-    crate::install_accelerator::handle_install(
-        runtime,
-        &state.inner.config.policies,
-        identity,
-        body,
-    )
-    .await
+    crate::install_accelerator::handle_install(runtime, body).await
 }

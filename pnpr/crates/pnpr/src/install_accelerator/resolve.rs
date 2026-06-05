@@ -1,10 +1,10 @@
 //! Server-side dependency resolution backed by pacquet.
 //!
 //! Writes a throwaway project, resolves it lockfile-only (so
-//! `node_modules` is never linked), reads the produced lockfile back,
-//! then fetches into the shared store only the packages that aren't
-//! cached yet. The store index that results is the source of truth the
-//! [`super::diff`] pass reads.
+//! `node_modules` is never linked and no tarball is fetched), then reads
+//! the produced lockfile back. pnpr serves no files, so the store is
+//! never populated with package contents — the client fetches every
+//! tarball itself.
 
 use std::{
     collections::HashSet,
@@ -13,24 +13,14 @@ use std::{
 
 use dashmap::DashMap;
 use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::{Lockfile, LockfileResolution};
+use pacquet_lockfile::Lockfile;
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::{Install, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;
-use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
-use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
+use pacquet_tarball::MemCache;
 
 use super::protocol::InstallRequest;
-
-/// A resolved package distilled from the lockfile, carrying everything
-/// needed both to fetch it (`tarball_url`) and to diff it (`integrity`,
-/// `pkg_id`).
-pub struct ResolvedPkg {
-    pub pkg_id: String,
-    pub integrity: String,
-    pub tarball_url: String,
-}
 
 #[derive(Debug)]
 pub enum ResolveError {
@@ -58,8 +48,8 @@ impl From<std::io::Error> for ResolveError {
 }
 
 /// Resolve a request lockfile-only and return the produced lockfile.
-/// The store is intentionally left untouched here (no tarball is
-/// fetched); [`fetch_uncached`] populates it afterward.
+/// The store is intentionally left untouched (no tarball is fetched):
+/// pnpr serves no file content, so the client fetches every tarball.
 ///
 /// A single-project request resolves one root (`.`) importer. A
 /// multi-project request is reconstructed as a real workspace in the
@@ -205,141 +195,6 @@ pub async fn resolve(
         .ok_or(ResolveError::NoLockfile)?;
 
     Ok(lockfile)
-}
-
-/// Extract every registry/tarball package from the lockfile, deriving
-/// the tarball URL the same way pacquet's install path does (registry
-/// resolutions never store the URL in a v9 lockfile).
-pub fn collect_packages(lockfile: &Lockfile, registry: &str) -> Vec<ResolvedPkg> {
-    let Some(packages) = lockfile.packages.as_ref() else { return Vec::new() };
-    let mut out = Vec::with_capacity(packages.len());
-    for (key, metadata) in packages {
-        let dep_path = key.to_string();
-        let pkg_id = dep_path.split('(').next().unwrap_or(&dep_path).to_string();
-        let Some((integrity, tarball_url)) = fetch_info(&metadata.resolution, &pkg_id, registry)
-        else {
-            continue;
-        };
-        out.push(ResolvedPkg { pkg_id, integrity, tarball_url });
-    }
-    out
-}
-
-/// Fetch into the shared store every package whose store-index row is
-/// absent, populating its `PackageFilesIndex` as a side effect. Cached
-/// packages are skipped, matching the server hot-cache no-op.
-///
-/// Returns the `pkg_id`s actually fetched this call — the upstream
-/// accepted the caller's credentials for each, so the gate treats a
-/// freshly-fetched private package as proven (no re-verify).
-pub async fn fetch_uncached(
-    config: &'static Config,
-    client: &Arc<ThrottledClient>,
-    auth_headers: &AuthHeaders,
-    packages: &[ResolvedPkg],
-) -> Result<HashSet<String>, ResolveError> {
-    let store_dir = &config.store_dir;
-
-    let present: HashSet<String> = match StoreIndex::open_readonly_in(store_dir) {
-        Ok(index) => index.keys().unwrap_or_default().into_iter().collect(),
-        Err(_) => HashSet::new(),
-    };
-
-    let to_fetch: Vec<&ResolvedPkg> = packages
-        .iter()
-        .filter(|pkg| !present.contains(&store_index_key(&pkg.integrity, &pkg.pkg_id)))
-        .filter(|pkg| !pkg.tarball_url.is_empty())
-        .collect();
-
-    if to_fetch.is_empty() {
-        return Ok(HashSet::new());
-    }
-
-    let fetched_ids: HashSet<String> = to_fetch.iter().map(|pkg| pkg.pkg_id.clone()).collect();
-
-    let integrities: Vec<Option<ssri::Integrity>> =
-        to_fetch.iter().map(|pkg| pkg.integrity.parse::<ssri::Integrity>().ok()).collect();
-
-    let shared_index = StoreIndex::shared_readonly_in(store_dir);
-    let (writer, writer_task) = StoreIndexWriter::spawn(store_dir);
-    let verified = SharedVerifiedFilesCache::default();
-
-    let downloads = to_fetch.iter().zip(integrities.iter()).filter_map(|(pkg, integrity)| {
-        let integrity = integrity.as_ref()?;
-        let store_index = shared_index.clone();
-        let writer = Arc::clone(&writer);
-        let verified = SharedVerifiedFilesCache::clone(&verified);
-        Some(async move {
-            DownloadTarballToStore {
-                http_client: client,
-                store_dir,
-                store_index,
-                store_index_writer: Some(writer),
-                verify_store_integrity: config.verify_store_integrity,
-                verified_files_cache: verified,
-                package_integrity: integrity,
-                package_unpacked_size: None,
-                package_url: &pkg.tarball_url,
-                package_id: &pkg.pkg_id,
-                auth_headers,
-                requester: "pnpr",
-                prefetched_cas_paths: None,
-                retry_opts: RetryOpts::default(),
-                ignore_file_pattern: None,
-                offline: false,
-            }
-            .run_without_mem_cache::<SilentReporter>()
-            .await
-            .map_err(|err| ResolveError::Install(err.to_string()))
-        })
-    });
-
-    let results = futures_util::future::join_all(downloads).await;
-
-    drop(writer);
-    let _ = writer_task.await;
-
-    for result in results {
-        result?;
-    }
-    Ok(fetched_ids)
-}
-
-/// Derive `(integrity, tarball_url)` for a resolution, mirroring
-/// pacquet's `tarball_url_and_integrity`. Returns `None` for git,
-/// directory, binary, and variations resolutions (not served by the
-/// pnpr install accelerator).
-fn fetch_info(
-    resolution: &LockfileResolution,
-    pkg_id: &str,
-    registry: &str,
-) -> Option<(String, String)> {
-    match resolution {
-        LockfileResolution::Tarball(tarball) => {
-            let integrity = tarball.integrity.as_ref()?;
-            Some((integrity.to_string(), tarball.tarball.clone()))
-        }
-        LockfileResolution::Registry(registry_resolution) => {
-            let (name, version) = split_name_version(pkg_id)?;
-            let bare = name.rsplit('/').next().unwrap_or(name);
-            let registry = registry.strip_suffix('/').unwrap_or(registry);
-            Some((
-                registry_resolution.integrity.to_string(),
-                format!("{registry}/{name}/-/{bare}-{version}.tgz"),
-            ))
-        }
-        _ => None,
-    }
-}
-
-/// Split `name@version` into its parts, tolerating a leading scope
-/// `@` (`@scope/name@1.2.3` → `("@scope/name", "1.2.3")`).
-fn split_name_version(pkg_id: &str) -> Option<(&str, &str)> {
-    let at = pkg_id.rfind('@')?;
-    if at == 0 {
-        return None;
-    }
-    Some((&pkg_id[..at], &pkg_id[at + 1..]))
 }
 
 /// Validate a client-supplied importer dir before joining it onto the

@@ -5,8 +5,6 @@ import { gunzip } from 'node:zlib'
 
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
-import { StoreIndex } from '@pnpm/store.index'
-import { writeCafsFiles } from '@pnpm/worker'
 
 import type { ResponseMetadata } from './protocol.js'
 
@@ -21,10 +19,6 @@ export interface PnprProject {
 export interface FetchFromPnpmRegistryOptions {
   /** URL of the pnpr server */
   registryUrl: string
-  /** Client's store directory */
-  storeDir: string
-  /** Client's store index */
-  storeIndex: StoreIndex
   /** Dependencies to resolve (single project) */
   dependencies?: Record<string, string>
   /** Dev dependencies to resolve (single project) */
@@ -42,13 +36,13 @@ export interface FetchFromPnpmRegistryOptions {
   namedRegistries?: Record<string, string>
   /**
    * The caller's forwarded upstream credentials, keyed by nerf-darted
-   * registry URI, so the server resolves/fetches private content as the
+   * registry URI, so the server resolves private content as the
    * caller. Distinct from `authorization` (pnpr identity).
    */
   authHeaders?: Record<string, string>
   /**
    * `Authorization` for the pnpr server's own URL (`undefined` if none):
-   * identifies the caller to pnpr's gate and keys the grant table.
+   * identifies the caller to pnpr's gate.
    */
   authorization?: string
   /** Overrides */
@@ -63,46 +57,32 @@ export interface FetchFromPnpmRegistryOptions {
    * `readWantedLockfileFile` so no in-memory→on-disk round-trip is needed.
    */
   lockfile?: LockfileFile
-  /**
-   * `--lockfile-only`: resolve and return only the lockfile — fetch no
-   * files into the local store. Forwarded to the server (which skips the
-   * file diff); the client ignores the (empty) file payload so the store
-   * stays untouched. Mirrors pnpm's resolve + write, fetch nothing, link
-   * nothing. See https://github.com/pnpm/pnpm/issues/12146.
-   */
-  lockfileOnly?: boolean
 }
 
 export interface FetchFromPnpmRegistryResult {
   lockfile: LockfileObject
   stats: ResponseMetadata['stats']
-  /** Promise that resolves when all file downloads are written to CAFS */
-  fileDownloads: Promise<void>
-  /** Pre-packed store index entries to write to SQLite */
-  indexEntries: Array<{ key: string, buffer: Uint8Array }>
 }
 
-interface InstallResponseHeader {
+interface InstallResponse {
   lockfile: LockfileFile
   stats: ResponseMetadata['stats']
-  indexEntries?: Array<{ key: string, b64: string }>
   violations?: Array<{ name: string, version: string, code: string, reason: string }>
 }
 
 /**
- * Fetch resolved dependencies from a pnpr server in a single round trip.
+ * Resolve a project against a pnpr server and return the resolved
+ * lockfile.
  *
- * `POST /v1/install` (with `inlineFiles`) answers with one gzipped binary
- * body: a length-prefixed JSON header (lockfile, stats, store-index
- * entries, or verification violations) followed by the missing files'
- * contents as binary frames. We parse the header here and hand the file
- * frames to a worker that writes them straight into the CAFS.
+ * `POST /v1/install` answers with one gzipped JSON object carrying the
+ * server-resolved, server-verified lockfile (and stats). pnpr serves no
+ * file content — the caller fetches every tarball itself, in parallel,
+ * like a normal install
+ * ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
  */
 export async function fetchFromPnpmRegistry (
   opts: FetchFromPnpmRegistryOptions
 ): Promise<FetchFromPnpmRegistryResult> {
-  const storeIntegrities = readStoreIntegrities(opts.storeIndex)
-
   const projects = opts.projects ?? [{
     dir: '.',
     dependencies: opts.dependencies,
@@ -124,71 +104,24 @@ export async function fetchFromPnpmRegistry (
     // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
     // importer deps).
     lockfile: opts.lockfile,
-    lockfileOnly: opts.lockfileOnly,
-    storeIntegrities,
-    inlineFiles: true,
   })
 
   const body = await postInstall(opts.registryUrl, requestBody, opts.authorization)
+  const response = JSON.parse(body.toString('utf-8')) as InstallResponse
 
-  // The combined response is `[u32 header length][header JSON][file frames]`.
-  if (body.length < 4) {
-    throw new Error('pnpr server returned a truncated /v1/install response')
-  }
-  const headerLength = body.readUInt32BE(0)
-  const header = JSON.parse(body.subarray(4, 4 + headerLength).toString('utf-8')) as InstallResponseHeader
-
-  if (header.violations != null && header.violations.length > 0) {
-    const rendered = header.violations
+  if (response.violations != null && response.violations.length > 0) {
+    const rendered = response.violations
       .map((violation) => `  ${violation.name}@${violation.version}: ${violation.reason}`)
       .join('\n')
     throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
   }
 
-  const indexEntries = (header.indexEntries ?? []).map(({ key, b64 }) => ({
-    key,
-    buffer: new Uint8Array(Buffer.from(b64, 'base64')),
-  }))
-
-  // `--lockfile-only` fetches nothing: there are no file frames to write
-  // (the server sends only the end-of-stream marker), so leave the store
-  // untouched.
-  const fileDownloads = opts.lockfileOnly
-    ? Promise.resolve()
-    : writeCafsFiles({
-      storeDir: opts.storeDir,
-      payload: body.subarray(4 + headerLength),
-    }).then(() => {})
-
   return {
     // The server speaks the on-disk lockfile format; convert it to the
     // in-memory `LockfileObject` the rest of pnpm consumes.
-    lockfile: convertToLockfileObject(header.lockfile),
-    stats: header.stats,
-    fileDownloads,
-    indexEntries,
+    lockfile: convertToLockfileObject(response.lockfile),
+    stats: response.stats,
   }
-}
-
-function readStoreIntegrities (storeIndex: StoreIndex): string[] {
-  const seen = new Set<string>()
-  for (const key of storeIndex.keys()) {
-    const tabIdx = key.indexOf('\t')
-    if (tabIdx === -1) continue
-    const integrity = key.slice(0, tabIdx)
-    // StoreIndex also stores non-integrity keys (e.g. git-hosted entries
-    // keyed by URL). Filter to actual SRI hashes — sending those over to
-    // the pnpr server would just bloat the request without ever matching.
-    if (!isIntegrityLike(integrity)) continue
-    seen.add(integrity)
-  }
-  return [...seen]
-}
-
-function isIntegrityLike (value: string): boolean {
-  return value.startsWith('sha512-') ||
-    value.startsWith('sha256-') ||
-    value.startsWith('sha1-')
 }
 
 const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be slow on first run
@@ -210,8 +143,8 @@ async function postInstall (registryUrl: string, body: string, authorization?: s
     'Content-Length': Buffer.byteLength(body),
     'Accept-Encoding': 'gzip',
   }
-  // Identify the caller to the pnpr server's access gate so protected
-  // packages resolve and the per-user grant table keys on the right user.
+  // Identify the caller to the pnpr server so private packages resolve
+  // with the right credentials.
   if (authorization != null) {
     headers.Authorization = authorization
   }
@@ -263,14 +196,4 @@ async function postInstall (registryUrl: string, body: string, authorization?: s
     req.write(body)
     req.end()
   })
-}
-
-export function writeRawIndexEntries (
-  indexEntries: Array<{ key: string, buffer: Uint8Array }>,
-  storeIndex: StoreIndex
-): void {
-  const writes = indexEntries.filter(({ key }) => !storeIndex.has(key))
-  if (writes.length > 0) {
-    storeIndex.setRawMany(writes)
-  }
 }

@@ -18,7 +18,6 @@ import type {
   LinkPkgMessage,
   SymlinkAllModulesMessage,
   TarballExtractMessage,
-  WriteCafsFilesMessage,
 } from './types.js'
 
 let workerPool: WorkerPool | undefined
@@ -201,31 +200,6 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
 }
 
 
-export async function writeCafsFiles (opts: {
-  storeDir: string
-  payload: Uint8Array
-}): Promise<number> {
-  if (!workerPool) {
-    workerPool = createTarballWorkerPool()
-  }
-  const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<number>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, filesWritten }) => {
-      workerPool!.checkinWorker(localWorker)
-      if (status === 'error') {
-        reject(new PnpmError('CAFS_WRITE', error.message))
-        return
-      }
-      resolve(filesWritten)
-    })
-    localWorker.postMessage({
-      type: 'write-cafs-files',
-      storeDir: opts.storeDir,
-      payload: opts.payload,
-    } satisfies WriteCafsFilesMessage)
-  })
-}
-
 export interface ReadPkgFromCafsContext {
   storeDir: string
   verifyStoreIntegrity: boolean
@@ -279,33 +253,7 @@ export async function readPkgFromCafs (
 // so, running them in parallel helps only to a point.
 // With local experimenting it was discovered that running 4 workers gives the best results.
 // Adding more workers actually makes installation slower.
-let limitImportingPackage = pLimit(4)
-
-/**
- * Temporarily change import concurrency. Called by the pnpr server code path
- * where there's no concurrent fetching competing for workers. Returns a
- * disposer that restores the previous limiter — callers must invoke it (in a
- * finally block) to avoid leaking the mutation to other installs in the same
- * process (e.g. test suites).
- *
- * If two installs overlap, the disposer for the outer install would otherwise
- * clobber the inner one's still-active limiter. Each disposer captures the
- * limiter it installed and only restores when it's still the active one,
- * leaving any newer override in place.
- */
-export function setImportConcurrency (concurrency: number): () => void {
-  if (!Number.isInteger(concurrency) || concurrency < 1) {
-    throw new Error(`setImportConcurrency: expected a positive integer, got ${concurrency}`)
-  }
-  const previous = limitImportingPackage
-  const installed = pLimit(concurrency)
-  limitImportingPackage = installed
-  return () => {
-    if (limitImportingPackage === installed) {
-      limitImportingPackage = previous
-    }
-  }
-}
+const limitImportingPackage = pLimit(4)
 
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>
