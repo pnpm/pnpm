@@ -196,7 +196,6 @@ cast_possible_wrap                        = "allow"
 cast_precision_loss                       = "allow"
 missing_errors_doc                        = "allow" # error enums are self-documenting (#[display] + #[diagnostic(code)]); a # Errors section would just restate them
 missing_panics_doc                        = "allow" # deferred: refactor away / document / #[expect] each panic before enabling
-return_self_not_must_use                  = "allow"
 too_many_lines                            = "allow" # pacquet mirrors pnpm's function decomposition
 struct_excessive_bools                    = "allow" # option structs mirror pnpm's
 fn_params_excessive_bools                 = "allow" # mirrors pnpm's option parameters

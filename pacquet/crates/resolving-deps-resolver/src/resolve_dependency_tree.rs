@@ -517,6 +517,7 @@ impl WorkspaceTreeCtx {
     /// Attach a `readPackageHook` applied to every resolved manifest
     /// before it enters the wanted-dep cache. See [`ManifestHook`] for
     /// the signature.
+    #[must_use]
     pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
         self.manifest_hook = manifest_hook;
         self
@@ -525,6 +526,7 @@ impl WorkspaceTreeCtx {
     /// Attach the prior `pnpm-lock.yaml` so `resolve_node` can reuse
     /// already-resolved dependencies instead of re-resolving them. See
     /// the `wanted_lockfile` field.
+    #[must_use]
     pub fn with_wanted_lockfile(
         mut self,
         wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
@@ -540,11 +542,13 @@ impl WorkspaceTreeCtx {
 
     /// Set which dependencies `pacquet update` excludes from reuse. See
     /// [`UpdateReuseScope`].
+    #[must_use]
     pub fn with_update_reuse_scope(mut self, scope: UpdateReuseScope) -> Self {
         self.update_reuse_scope = scope;
         self
     }
 
+    #[must_use]
     pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
         self.pnpmfile_hook = pnpmfile_hook;
         self
@@ -554,6 +558,7 @@ impl WorkspaceTreeCtx {
     /// `readPackage` calls forward to. The install layer pre-binds the
     /// reporter, project prefix, and pnpmfile path into the closure so the
     /// resolver stays reporter-agnostic.
+    #[must_use]
     pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
         self.read_package_log = read_package_log;
         self
