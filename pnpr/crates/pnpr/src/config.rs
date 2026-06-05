@@ -320,7 +320,7 @@ impl LogLevel {
 /// [`Self::headers`] is resolved once, at config load, from the YAML
 /// `auth:` block (an `Authorization` header derived from
 /// `type`/`token`/`token_env`) merged with the `headers:` map. The
-/// parse-time shape lives in [`UplinkFile`]; [`resolve_uplink`] turns
+/// parse-time shape lives in `UplinkFile`; `resolve_uplink` turns
 /// one into the other. Verdaccio fields pnpr doesn't model yet
 /// (timeouts, agent options, `maxage`) are accepted and dropped.
 #[derive(Debug, Clone)]
@@ -412,7 +412,7 @@ fn resolve_uplink<Sys: EnvVar>(
             resolve_uplink_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
                 reason: format!(
                     "uplink {name:?} has an auth block but no token could be resolved \
-                     (set auth.token or point auth.token_env at a set env var)"
+                     (set auth.token or point auth.token_env at a set env var)",
                 ),
             })?;
         let value = match auth.r#type {

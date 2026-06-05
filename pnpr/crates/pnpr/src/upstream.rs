@@ -4,8 +4,7 @@ use crate::{
 };
 use chrono::{DateTime, Duration, Timelike, Utc};
 use pacquet_network::ThrottledClient;
-use reqwest::StatusCode;
-use reqwest::header::HeaderMap;
+use reqwest::{StatusCode, header::HeaderMap};
 use serde_json::Value;
 use std::sync::Arc;
 

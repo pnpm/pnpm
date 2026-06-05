@@ -3,8 +3,7 @@ use super::{
     LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkFile, config_file_in, pattern_matches,
     resolve_relative, resolve_uplink,
 };
-use crate::error::RegistryError;
-use crate::policy::Identity;
+use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
 use pacquet_env_replace::EnvVar;
 use reqwest::header::AUTHORIZATION;
