@@ -85,3 +85,17 @@ test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
     message: 'The overrides field should be an object, but got array',
   }))
 })
+
+test('getOptionsFromPnpmSettings() preserves version references when the manifest has no direct dependencies', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: {
+      react: '$react',
+    },
+  }, {
+    packageManager: 'pnpm@11.5.0',
+  })
+
+  expect(options.overrides).toStrictEqual({
+    react: '$react',
+  })
+})

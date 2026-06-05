@@ -474,6 +474,31 @@ test('camelCase settings from pnpm-workspace.yaml are read into typed Config pro
   })
 })
 
+test('workspace overrides with $ references do not fail for a package-manager-only manifest', async () => {
+  prepare({
+    packageManager: 'pnpm@11.5.0',
+  })
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    overrides: {
+      react: '$react',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '11.5.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.overrides).toStrictEqual({
+    react: '$react',
+  })
+})
+
 test('workspace-specific settings are read into typed Config properties', async () => {
   prepareEmpty()
 

@@ -31,7 +31,7 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
     assertValidOverrides(settings.overrides)
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
-    } else if (manifest) {
+    } else if (manifestHasDirectDependencies(manifest)) {
       settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
     }
   }
@@ -99,6 +99,14 @@ function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: str
     ...manifest.optionalDependencies,
   }
   return replaceVersionReferences.bind(null, allDeps)
+}
+
+function manifestHasDirectDependencies (manifest?: ProjectManifest): manifest is ProjectManifest {
+  return Boolean(
+    Object.keys(manifest?.devDependencies ?? {}).length > 0 ||
+    Object.keys(manifest?.dependencies ?? {}).length > 0 ||
+    Object.keys(manifest?.optionalDependencies ?? {}).length > 0
+  )
 }
 
 function replaceVersionReferences (dep: Record<string, string>, spec: string): string {
