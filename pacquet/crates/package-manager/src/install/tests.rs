@@ -1,3 +1,8 @@
+#![expect(
+    clippy::default_trait_access,
+    reason = "struct-literal test fixtures; field types are evident from the literal and naming each would force ~20 imports"
+)]
+
 use super::{Install, InstallError};
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;

@@ -1,7 +1,7 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, ResolutionMode,
-    ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PeerDependencyRules,
+    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
@@ -1316,7 +1316,7 @@ peerDependencyRules:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
 
     let mut config = Config::new();
-    assert_eq!(config.peer_dependency_rules, Default::default(), "default is empty");
+    assert_eq!(config.peer_dependency_rules, PeerDependencyRules::default(), "default is empty");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let rules = &config.peer_dependency_rules;
     assert_eq!(rules.ignore_missing.as_deref(), Some(&["ajv".to_string()][..]));

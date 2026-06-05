@@ -55,7 +55,7 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run()
@@ -126,7 +126,7 @@ fn skips_slot_own_package_when_walking_children() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run()
@@ -154,7 +154,7 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run()
@@ -195,7 +195,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run()
@@ -249,7 +249,7 @@ fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run()
@@ -302,7 +302,7 @@ fn link_virtual_store_bins_handles_unscoped_name_with_plus() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run()
@@ -330,7 +330,7 @@ fn link_virtual_store_bins_skips_slot_without_node_modules() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run()
@@ -360,7 +360,7 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run()
@@ -514,7 +514,7 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
         ),
         snapshots: None,
         packages: None,
-        package_manifests: &Default::default(),
+        package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
     }
     .run_with::<DenyVirtualStore>()

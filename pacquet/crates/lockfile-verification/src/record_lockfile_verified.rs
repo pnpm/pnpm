@@ -20,7 +20,10 @@ use std::{path::Path, sync::Arc};
 use pacquet_lockfile::Lockfile;
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 
-use crate::{cache::record_verification, hash_lockfile};
+use crate::{
+    cache::{CachePrecomputed, record_verification},
+    hash_lockfile,
+};
 
 /// Persist the post-resolution lockfile as already-verified.
 /// Inputs match upstream's `RecordLockfileVerifiedOptions`:
@@ -48,6 +51,6 @@ pub fn record_lockfile_verified(
         lockfile_path,
         verifiers,
         || hash_lockfile(lockfile),
-        Default::default(),
+        CachePrecomputed::default(),
     );
 }

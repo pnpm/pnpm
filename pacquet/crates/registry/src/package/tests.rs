@@ -117,7 +117,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         modified: None,
         etag: None,
         homepage: None,
-        mutex: Default::default(),
+        mutex: std::sync::Arc::default(),
     }
 }
 

@@ -55,7 +55,7 @@ fn make_package(
         modified: None,
         etag: None,
         homepage: None,
-        mutex: Default::default(),
+        mutex: std::sync::Arc::default(),
     }
 }
 

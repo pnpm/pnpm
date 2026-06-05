@@ -55,7 +55,7 @@ async fn main() {
                     .arg("install")
                     .pipe(verify::executor("just install"));
                 pacquet_registry_mock::MockInstanceOptions {
-                    client: &Default::default(),
+                    client: &reqwest::Client::default(),
                     port: registry_port,
                     stdout: work_env.join("verdaccio.stdout.log").pipe(Some).as_deref(),
                     stderr: work_env.join("verdaccio.stderr.log").pipe(Some).as_deref(),

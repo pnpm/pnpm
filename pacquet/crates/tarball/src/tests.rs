@@ -162,7 +162,7 @@ fn tempdir_with_leaked_path() -> (TempDir, &'static StoreDir) {
 async fn packages_under_orgs_should_work() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     let cas_files = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -212,7 +212,7 @@ async fn packages_under_orgs_should_work() {
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -2425,7 +2425,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
     let pkg_id = "@fastify/error@3.3.0";
 
     let err = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -2495,7 +2495,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
     prefetched.insert(cache_key, Arc::new(HashMap::new()));
 
     let cas_paths = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,

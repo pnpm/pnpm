@@ -205,7 +205,6 @@ unnecessary_wraps                         = "allow"
 needless_pass_by_value                    = "allow"
 unused_async                              = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
 similar_names                             = "allow" # names ported verbatim from pnpm
-default_trait_access                      = "allow"
 items_after_statements                    = "allow"
 format_push_string                        = "allow"
 needless_continue                         = "allow"
