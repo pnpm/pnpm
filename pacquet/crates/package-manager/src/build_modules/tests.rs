@@ -946,8 +946,8 @@ fn gvs_without_frozen_store_does_not_trip_backstop() {
     let store_dir = tempdir().expect("create temp dir");
     let layout = gvs_layout(store_dir.path());
 
-    let ignored =
-        frozen_backstop_run(layout, false).expect("without frozen_store the backstop must not fire");
+    let ignored = frozen_backstop_run(layout, false)
+        .expect("without frozen_store the backstop must not fire");
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 

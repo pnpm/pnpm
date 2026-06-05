@@ -4,8 +4,7 @@ use super::{
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
-use std::collections::HashMap;
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 use tempfile::tempdir;
 
 #[test]
