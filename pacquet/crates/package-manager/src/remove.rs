@@ -7,8 +7,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_tarball::MemCache;
-use std::fmt::Write as _;
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, fmt::Write as _, sync::Arc};
 
 /// This subroutine does everything `pacquet remove` is supposed to do.
 #[must_use]

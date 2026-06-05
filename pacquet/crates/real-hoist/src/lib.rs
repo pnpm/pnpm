@@ -14,10 +14,10 @@ use derive_more::{Display, Error};
 use indexmap::IndexSet;
 use miette::Diagnostic;
 use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
-use std::fmt::Write as _;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    fmt::Write as _,
     rc::Rc,
 };
 

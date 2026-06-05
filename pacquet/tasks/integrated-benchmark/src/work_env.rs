@@ -12,10 +12,10 @@ use os_display::Quotable;
 use pacquet_fs::file_mode::make_file_executable;
 use pacquet_registry_mock::pick_unused_port;
 use pipe_trait::Pipe;
-use std::fmt::Write as _;
 use std::{
     borrow::Cow,
     fmt,
+    fmt::Write as _,
     fs::{self, File},
     io::Write,
     net::{Ipv4Addr, SocketAddr, TcpStream},

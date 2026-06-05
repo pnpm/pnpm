@@ -25,8 +25,8 @@
 //!   filesystem-safe encoding the npm `encode-registry` package
 //!   produces).
 
-use std::fmt::Write as _;
 use std::{
+    fmt::Write as _,
     fs::{self, File, OpenOptions},
     io::{self, Read, Write},
     path::{Path, PathBuf},

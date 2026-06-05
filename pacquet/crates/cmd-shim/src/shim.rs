@@ -198,7 +198,7 @@ pub fn generate_sh_shim(
             let sh_long_prog = format!("\"$basedir/{prog}\"");
             writeln!(
                 sh,
-                "if [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi"
+                "if [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi",
             )
             .unwrap();
         }
@@ -242,7 +242,7 @@ pub fn generate_cmd_shim(
             let long_prog = format!("\"%~dp0\\{prog}.exe\"");
             writeln!(
                 cmd,
-                "@IF EXIST {long_prog} (\r\n  {long_prog} {args} {quoted_target} %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  {prog} {args} {quoted_target} %*\r\n)\r"
+                "@IF EXIST {long_prog} (\r\n  {long_prog} {args} {quoted_target} %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  {prog} {args} {quoted_target} %*\r\n)\r",
             )
             .unwrap();
         }

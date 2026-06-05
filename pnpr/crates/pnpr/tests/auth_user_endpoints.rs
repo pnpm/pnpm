@@ -12,8 +12,8 @@ use pnpr::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
 };
 use serde_json::{Value, json};
-use std::fmt::Write as _;
 use std::{
+    fmt::Write as _,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,
 };

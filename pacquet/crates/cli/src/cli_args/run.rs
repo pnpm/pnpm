@@ -5,10 +5,10 @@ use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use serde_json::Value;
-use std::fmt::Write as _;
 use std::{
     collections::HashMap,
     env,
+    fmt::Write as _,
     path::{Path, PathBuf},
 };
 

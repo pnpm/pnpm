@@ -3,8 +3,7 @@ use command_extra::CommandExtra;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
-use std::fmt::Write as _;
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use std::{ffi::OsStr, fmt::Write as _, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";

@@ -34,9 +34,9 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use libsql_backend::LibsqlAuth;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
-use std::fmt::Write as _;
 use std::{
     collections::HashMap,
+    fmt::Write as _,
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
