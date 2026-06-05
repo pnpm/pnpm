@@ -536,7 +536,7 @@ fn package_name(pkg_id: &str) -> Option<&str> {
 const FILES_GZIP_LEVEL: u32 = 6;
 
 /// Content type of the install response: a length-prefixed JSON header
-/// followed by the [`build_files_payload`] binary frames, gzip-compressed.
+/// followed by the binary file frames, gzip-compressed.
 const INLINE_CONTENT_TYPE: &str = "application/x-pnpr-install-inline";
 
 /// Build the single-response body: the lockfile, stats, and store-index
@@ -700,8 +700,11 @@ impl std::io::Write for ChannelWriter {
     }
 }
 
-/// Frame a JSON `header` and an already-built [`build_files_payload`]
-/// byte buffer into one length-prefixed, gzip-compressed body.
+/// Frame a JSON `header` and an already-built files-payload byte buffer
+/// (see [`empty_files_payload`]) into one length-prefixed, gzip-compressed
+/// body. The streaming success path emits the same framing incrementally
+/// in [`stream_install_body`]; this buffered form serves the small
+/// metadata-only responses ([`violation_response`]).
 fn finish_inline_response(header: &serde_json::Value, files_payload: &[u8]) -> Response {
     let header_bytes = serde_json::to_vec(header).unwrap_or_else(|_| b"{}".to_vec());
     let Ok(header_len) = u32::try_from(header_bytes.len()) else {
