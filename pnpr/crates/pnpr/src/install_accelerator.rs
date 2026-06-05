@@ -316,7 +316,7 @@ pub(crate) async fn handle_install(
     }
 
     let stats_json = stats_json(&result.stats);
-    inline_response(runtime, &lockfile, &stats_json, result)
+    inline_response(runtime, &lockfile, &stats_json, result).await
 }
 
 fn stats_json(stats: &diff::Stats) -> serde_json::Value {
@@ -550,7 +550,13 @@ const INLINE_CONTENT_TYPE: &str = "application/x-pnpr-install-inline";
 /// are still being read and sent. The *decompressed* byte sequence is
 /// identical to a buffered `[u32 header len][header][file frames]`
 /// response, so a client that buffers-then-parses is unaffected.
-fn inline_response(
+///
+/// The whole file manifest is validated ([`validate_files`]) before the
+/// `200` is committed: once the response is streaming, a per-file failure
+/// can only truncate the body, not return a status. Validating up front
+/// keeps a store inconsistency (a missing or oversized file) an
+/// actionable `4xx`/`5xx` instead of a client-side protocol error.
+async fn inline_response(
     runtime: &InstallAccelerator,
     lockfile: &Lockfile,
     stats_json: &serde_json::Value,
@@ -579,7 +585,60 @@ fn inline_response(
     let files: Vec<(String, bool)> =
         result.missing_files.into_iter().map(|file| (file.digest, file.executable)).collect();
 
-    stream_install_body(runtime.store_dir.clone(), header_len, header_bytes, files)
+    let store_dir = runtime.store_dir.clone();
+    let validated =
+        match tokio::task::spawn_blocking(move || validate_files(&store_dir, &files)).await {
+            Ok(Ok(validated)) => validated,
+            Ok(Err((status, message))) => return json_error(status, &message),
+            Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
+        };
+
+    stream_install_body(header_len, header_bytes, validated)
+}
+
+/// A missing file the diff resolved to a concrete, readable CAS path —
+/// the validated unit [`stream_install_body`] frames. Carrying the
+/// pre-decoded digest bytes and the resolved path means the streaming
+/// task only does the content read, with nothing left that can fail with
+/// a status code.
+struct ValidatedFile {
+    path: PathBuf,
+    /// The 64 raw digest bytes, ready to write into the frame header.
+    digest_bytes: [u8; 64],
+    executable: bool,
+}
+
+/// Resolve, decode, and stat every missing file so a store inconsistency
+/// surfaces as a status code before the streamed `200` starts. Returns the
+/// first failure as a `(status, message)` ready for [`json_error`]. Runs
+/// on the blocking pool (one `stat` per file); the files were just written
+/// by this request's fetch, so they're warm.
+fn validate_files(
+    store_dir: &StoreDir,
+    files: &[(String, bool)],
+) -> Result<Vec<ValidatedFile>, (StatusCode, String)> {
+    let mut validated = Vec::with_capacity(files.len());
+    for (digest, executable) in files {
+        let mode = if *executable { 0o755 } else { 0o644 };
+        let path = store_dir.cas_file_path_by_mode(digest, mode).ok_or_else(|| {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("could not resolve file path: {digest}"))
+        })?;
+        let digest_bytes = hex_to_bytes(digest)
+            .ok_or_else(|| (StatusCode::BAD_REQUEST, format!("invalid digest: {digest}")))?;
+        let metadata = std::fs::metadata(&path)
+            .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, format!("{digest}: {err}")))?;
+        // The wire framing encodes the size as a u32; npm files never
+        // approach 4 GiB, but reject cleanly here rather than truncate the
+        // stream later.
+        if u32::try_from(metadata.len()).is_err() {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("{digest}: file too large for the protocol"),
+            ));
+        }
+        validated.push(ValidatedFile { path, digest_bytes, executable: *executable });
+    }
+    Ok(validated)
 }
 
 /// Backpressure budget for the install-body channel. Each item is one
@@ -595,27 +654,25 @@ const STREAM_CHANNEL: usize = 16;
 /// streams smoothly while keeping sync-flush boundaries rare.
 const STREAM_FLUSH_THRESHOLD: usize = 256 * 1024;
 
-/// Spawn the blocking encoder that reads each missing file from the store
-/// and gzip-streams the framed body into an mpsc channel, and wrap the
-/// channel's receiver as the response body. File reads and gzip happen on
-/// a blocking thread; `blocking_send` provides backpressure.
+/// Spawn the blocking encoder that reads each validated file from the
+/// store and gzip-streams the framed body into an mpsc channel, and wrap
+/// the channel's receiver as the response body. File reads and gzip happen
+/// on a blocking thread; `blocking_send` provides backpressure.
 fn stream_install_body(
-    store_dir: StoreDir,
     header_len: u32,
     header_bytes: Vec<u8>,
-    files: Vec<(String, bool)>,
+    files: Vec<ValidatedFile>,
 ) -> Response {
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, std::io::Error>>(STREAM_CHANNEL);
 
     tokio::task::spawn_blocking(move || {
         let mut encoder = GzEncoder::new(ChannelWriter { tx }, Compression::new(FILES_GZIP_LEVEL));
-        if let Err(err) =
-            write_install_frames(&mut encoder, &store_dir, header_len, &header_bytes, &files)
-        {
-            // Headers (200) are already on the wire, so a mid-stream read
-            // failure can't become a 500. Drop the encoder without the end
-            // marker; the client reports a truncated-stream protocol error
-            // — the same failure class the buffered path raised as a 500.
+        if let Err(err) = write_install_frames(&mut encoder, header_len, &header_bytes, &files) {
+            // The manifest was validated before the 200, so reaching here
+            // means a file became unreadable *after* its stat — a race on
+            // the (immutable) CAS that can't be turned into a status now
+            // the body is on the wire. Drop the encoder without the end
+            // marker; the client reports a truncated-stream protocol error.
             tracing::error!(%err, "install response stream aborted");
             return;
         }
@@ -635,37 +692,29 @@ fn stream_install_body(
 
 /// Write the framed install body into `encoder`: the length-prefixed JSON
 /// header, the `{}` files-payload prefix, one
-/// `[64-byte digest][u32 size][1-byte exec][content]` frame per missing
-/// file (read from the store by digest), and the 64-zero end marker.
+/// `[64-byte digest][u32 size][1-byte exec][content]` frame per validated
+/// file, and the 64-zero end marker.
 fn write_install_frames(
     encoder: &mut GzEncoder<ChannelWriter>,
-    store_dir: &StoreDir,
     header_len: u32,
     header_bytes: &[u8],
-    files: &[(String, bool)],
+    files: &[ValidatedFile],
 ) -> std::io::Result<()> {
     encoder.write_all(&header_len.to_be_bytes())?;
     encoder.write_all(header_bytes)?;
     encoder.write_all(&empty_files_payload_prefix())?;
 
     let mut since_flush = 0;
-    for (digest, executable) in files {
-        let mode = if *executable { 0o755 } else { 0o644 };
-        let path = store_dir.cas_file_path_by_mode(digest, mode).ok_or_else(|| {
-            std::io::Error::other(format!("could not resolve file path: {digest}"))
-        })?;
-        let content = std::fs::read(&path)?;
-        let digest_bytes = hex_to_bytes(digest)
-            .ok_or_else(|| std::io::Error::other(format!("invalid digest: {digest}")))?;
-        // The wire framing encodes the size as a u32; npm files never
-        // approach 4 GiB, but fail cleanly rather than truncate the stream.
-        let content_len = u32::try_from(content.len()).map_err(|_| {
-            std::io::Error::other(format!("{digest}: file too large for the protocol"))
-        })?;
+    for file in files {
+        let content = std::fs::read(&file.path)?;
+        // Validated as `<= u32::MAX` by `validate_files`; an immutable CAS
+        // file can't have grown past it since, so this never fails.
+        let content_len = u32::try_from(content.len())
+            .map_err(|_| std::io::Error::other("file too large for the protocol"))?;
 
-        encoder.write_all(&digest_bytes)?;
+        encoder.write_all(&file.digest_bytes)?;
         encoder.write_all(&content_len.to_be_bytes())?;
-        encoder.write_all(&[u8::from(*executable)])?;
+        encoder.write_all(&[u8::from(file.executable)])?;
         encoder.write_all(&content)?;
 
         since_flush += 69 + content.len();

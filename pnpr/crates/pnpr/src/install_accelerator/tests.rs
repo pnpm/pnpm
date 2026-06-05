@@ -9,11 +9,12 @@ use std::collections::HashSet;
 
 use axum::http::StatusCode;
 use pacquet_network::AuthHeaders;
+use pacquet_store_dir::StoreDir;
 use tempfile::TempDir;
 
 use super::{
     InstallAccelerator, authorize_served_packages, authorize_upstream_package, deny_local_policy,
-    diff::PackageIndexEntry, protocol::InstallRequest,
+    diff::PackageIndexEntry, protocol::InstallRequest, validate_files,
 };
 use crate::policy::{AccessList, Identity, PackagePolicies, PackagePolicy};
 
@@ -351,4 +352,60 @@ async fn without_a_forwarded_credential_the_local_policy_still_applies() {
     .await;
 
     assert_eq!(denied.map(|response| response.status()), Some(StatusCode::UNAUTHORIZED));
+}
+
+/// A valid 128-hex-char digest whose first two chars shard the CAS path.
+fn digest(byte: &str) -> String {
+    byte.repeat(64)
+}
+
+/// Write `content` at the non-executable CAS path for `digest` so a later
+/// `validate_files` finds it.
+fn write_cas(store_dir: &StoreDir, digest: &str, content: &[u8]) {
+    let path = store_dir.cas_file_path_by_mode(digest, 0o644).expect("resolvable digest");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, content).unwrap();
+}
+
+/// A present, readable file resolves to a `ValidatedFile` carrying its CAS
+/// path and decoded digest bytes.
+#[test]
+fn validate_files_accepts_a_present_file() {
+    let tmp = TempDir::new().unwrap();
+    let store_dir = StoreDir::new(tmp.path().to_path_buf());
+    let digest = digest("ab");
+    write_cas(&store_dir, &digest, b"console.log(1)");
+
+    let validated = validate_files(&store_dir, &[(digest, false)]).expect("present file");
+    assert_eq!(validated.len(), 1);
+    assert_eq!(validated[0].digest_bytes, [0xab; 64]);
+    assert!(!validated[0].executable);
+    assert_eq!(std::fs::read(&validated[0].path).unwrap(), b"console.log(1)");
+}
+
+/// A digest the diff produced but whose file is absent from the store
+/// fails *before* the streamed `200`, as a `500` — not a truncated body.
+/// This is the regression the up-front manifest validation guards against.
+#[test]
+fn validate_files_rejects_a_missing_store_file() {
+    let tmp = TempDir::new().unwrap();
+    let store_dir = StoreDir::new(tmp.path().to_path_buf());
+
+    let Err((status, _)) = validate_files(&store_dir, &[(digest("cd"), false)]) else {
+        panic!("a missing store file must fail validation");
+    };
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+/// A digest that resolves to a CAS path but isn't 64 bytes of hex is a
+/// `400`, decoded up front rather than mid-stream.
+#[test]
+fn validate_files_rejects_a_malformed_digest() {
+    let tmp = TempDir::new().unwrap();
+    let store_dir = StoreDir::new(tmp.path().to_path_buf());
+
+    let Err((status, _)) = validate_files(&store_dir, &[("abc".to_string(), false)]) else {
+        panic!("a malformed digest must fail validation");
+    };
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
