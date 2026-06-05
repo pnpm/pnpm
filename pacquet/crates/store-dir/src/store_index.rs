@@ -4,7 +4,7 @@ use miette::Diagnostic;
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -565,6 +565,33 @@ impl StoreIndex {
             for row in rows {
                 let row = row.map_err(|source| StoreIndexError::Read { source })?;
                 out.push(row);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Return the subset of `keys` that exists in `package_index`.
+    ///
+    /// This is the read-only presence check counterpart to
+    /// [`Self::get_many_raw`]: callers that only need to know whether a
+    /// package row exists should avoid selecting and decoding the blob
+    /// payload.
+    pub fn existing_keys(&self, keys: &[String]) -> Result<HashSet<String>, StoreIndexError> {
+        let mut out = HashSet::with_capacity(keys.len());
+        if keys.is_empty() {
+            return Ok(out);
+        }
+        for chunk in keys.chunks(GET_MANY_CHUNK) {
+            let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
+            let sql = format!("SELECT key FROM package_index WHERE key IN ({placeholders})");
+            let mut stmt =
+                self.conn.prepare(&sql).map_err(|source| StoreIndexError::Read { source })?;
+            let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
+            let rows = stmt
+                .query_map(params, |row| row.get::<_, String>(0))
+                .map_err(|source| StoreIndexError::Read { source })?;
+            for row in rows {
+                out.insert(row.map_err(|source| StoreIndexError::Read { source })?);
             }
         }
         Ok(out)

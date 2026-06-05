@@ -510,7 +510,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         }
     };
 
-    if state.config.lockfile {
+    if state.config.lockfile && !(outcome.reused_input_lockfile && !link.lockfile_only) {
         let lockfile_dir =
             state.manifest.path().parent().expect("manifest path always has a parent dir");
         outcome

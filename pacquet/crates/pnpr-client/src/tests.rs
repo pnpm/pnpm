@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion};
+
 use super::{PnprClientError, VerifyError, parse_inline_response};
 
 /// Frame a JSON header into a complete inline install payload with an
@@ -22,7 +26,8 @@ fn header_with_violations_rebuilds_a_verify_error() {
     let payload = inline_payload(
         r#"{"violations":[{"name":"@foo/no-deps","version":"1.0.0","code":"MINIMUM_RELEASE_AGE_VIOLATION","reason":"was published yesterday"}]}"#,
     );
-    let Err(PnprClientError::Verification(verify_err)) = parse_inline_response(&payload) else {
+    let Err(PnprClientError::Verification(verify_err)) = parse_inline_response(&payload, None)
+    else {
         panic!("expected a Verification error");
     };
     assert!(
@@ -40,7 +45,8 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
     let payload = inline_payload(
         r#"{"violations":[{"name":"acme","version":"1.0.0","code":"TARBALL_URL_MISMATCH","reason":"url mismatch"}]}"#,
     );
-    let Err(PnprClientError::Verification(verify_err)) = parse_inline_response(&payload) else {
+    let Err(PnprClientError::Verification(verify_err)) = parse_inline_response(&payload, None)
+    else {
         panic!("expected a Verification error");
     };
     assert!(
@@ -54,7 +60,28 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
 #[test]
 fn header_without_a_lockfile_is_a_protocol_error() {
     let payload = inline_payload("{}");
-    let Err(PnprClientError::Protocol(_)) = parse_inline_response(&payload) else {
+    let Err(PnprClientError::Protocol(_)) = parse_inline_response(&payload, None) else {
         panic!("expected a Protocol error");
     };
+}
+
+#[test]
+fn use_input_lockfile_reuses_the_clients_lockfile() {
+    let input = Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        ignored_optional_dependencies: None,
+        importers: HashMap::new(),
+        packages: None,
+        snapshots: None,
+    };
+    let payload = inline_payload(r#"{"useInputLockfile":true}"#);
+
+    let parsed = parse_inline_response(&payload, Some(&input)).expect("parse response");
+
+    assert!(parsed.reused_input_lockfile);
+    assert_eq!(parsed.lockfile, input);
 }

@@ -242,6 +242,32 @@ fn get_many_mixed_hit_and_miss_returns_only_hits() {
     }
 }
 
+#[test]
+fn existing_keys_returns_only_present_keys() {
+    let dir = tempdir().unwrap();
+    let idx = StoreIndex::open(dir.path()).unwrap();
+    let payload = sample_index();
+    let hit_keys: Vec<String> =
+        (0..3).map(|index| store_index_key("sha512-h", &format!("hit{index}@1.0.0"))).collect();
+    let miss_keys: Vec<String> =
+        (0..3).map(|index| store_index_key("sha512-m", &format!("miss{index}@1.0.0"))).collect();
+    for key in &hit_keys {
+        idx.set(key, &payload).unwrap();
+    }
+
+    let mut all_keys = hit_keys.clone();
+    all_keys.extend(miss_keys.clone());
+    let out = idx.existing_keys(&all_keys).unwrap();
+
+    assert_eq!(out.len(), hit_keys.len());
+    for key in &hit_keys {
+        assert!(out.contains(key), "hit key missing from result: {key}");
+    }
+    for key in &miss_keys {
+        assert!(!out.contains(key), "miss key present in result: {key}");
+    }
+}
+
 /// A row whose bytes don't decode (corruption, foreign writer) must
 /// be skipped without failing the batch. `load_cached_cas_paths`
 /// already does `.ok()?` on the per-key path, treating decode
@@ -292,5 +318,24 @@ fn get_many_handles_more_keys_than_chunk_size() {
     assert_eq!(out.len(), total);
     for key in &keys {
         assert_eq!(out.get(key), Some(&payload));
+    }
+}
+
+#[test]
+fn existing_keys_handles_more_keys_than_chunk_size() {
+    let dir = tempdir().unwrap();
+    let mut idx = StoreIndex::open(dir.path()).unwrap();
+    let total = GET_MANY_CHUNK + 100;
+    let keys: Vec<String> = (0..total)
+        .map(|index| store_index_key("sha512-c", &format!("chunked{index}@1.0.0")))
+        .collect();
+    let entries = keys.iter().map(|key| (key.clone(), sample_index()));
+    idx.set_many(entries).unwrap();
+
+    let out = idx.existing_keys(&keys).unwrap();
+
+    assert_eq!(out.len(), total);
+    for key in &keys {
+        assert!(out.contains(key), "chunked key missing from result: {key}");
     }
 }

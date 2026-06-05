@@ -13,7 +13,9 @@ use std::{
 
 use dashmap::DashMap;
 use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::{Lockfile, LockfileResolution};
+use pacquet_lockfile::{
+    Lockfile, LockfileResolution, check_lockfile_settings, satisfies_package_manifest,
+};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::{Install, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -207,6 +209,71 @@ pub async fn resolve(
     Ok(lockfile)
 }
 
+/// Return the caller's frozen input lockfile when pacquet's freshness
+/// checks prove the server's lockfile-only resolve would return it
+/// unchanged.
+pub fn fresh_frozen_input_lockfile(config: &Config, request: &InstallRequest) -> Option<Lockfile> {
+    if !request.frozen_lockfile || request.prefer_frozen_lockfile == Some(false) {
+        return None;
+    }
+    if request.overrides.as_ref().is_some_and(|value| match value {
+        serde_json::Value::Object(map) => !map.is_empty(),
+        serde_json::Value::Null => false,
+        _ => true,
+    }) {
+        return None;
+    }
+    if config.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
+        || config
+            .ignored_optional_dependencies
+            .as_ref()
+            .is_some_and(|patterns| !patterns.is_empty())
+        || config.inject_workspace_packages
+    {
+        return None;
+    }
+
+    let lockfile = request.lockfile.as_ref()?;
+    check_lockfile_settings(
+        lockfile,
+        None,
+        None,
+        None,
+        config.inject_workspace_packages,
+        config.peers_suffix_max_length,
+    )
+    .ok()?;
+
+    if request.ignore_manifest_check {
+        return Some(lockfile.clone());
+    }
+
+    let mut projects = request.projects_normalized();
+    if projects.len() != 1 {
+        return None;
+    }
+    let project = projects.pop()?;
+    if project.dir != "." && !project.dir.is_empty() {
+        return None;
+    }
+    let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
+    let temp = tempfile::Builder::new().prefix("pnpr-frozen-").tempdir().ok()?;
+    let manifest_path = temp.path().join("package.json");
+    let manifest_json = serde_json::json!({
+        "name": "pnpr-resolve",
+        "version": "0.0.0",
+        "dependencies": project.dependencies,
+        "devDependencies": project.dev_dependencies,
+        "optionalDependencies": project.optional_dependencies,
+    });
+    std::fs::write(&manifest_path, serde_json::to_vec(&manifest_json).ok()?).ok()?;
+    let manifest = PackageManifest::from_path(manifest_path).ok()?;
+    satisfies_package_manifest(importer, &manifest, Lockfile::ROOT_IMPORTER_KEY, &|_: &str| false)
+        .ok()?;
+
+    Some(lockfile.clone())
+}
+
 /// Extract every registry/tarball package from the lockfile, deriving
 /// the tarball URL the same way pacquet's install path does (registry
 /// resolutions never store the URL in a v9 lockfile).
@@ -239,9 +306,11 @@ pub async fn fetch_uncached(
     packages: &[ResolvedPkg],
 ) -> Result<HashSet<String>, ResolveError> {
     let store_dir = &config.store_dir;
+    let package_keys: Vec<String> =
+        packages.iter().map(|pkg| store_index_key(&pkg.integrity, &pkg.pkg_id)).collect();
 
     let present: HashSet<String> = match StoreIndex::open_readonly_in(store_dir) {
-        Ok(index) => index.keys().unwrap_or_default().into_iter().collect(),
+        Ok(index) => index.existing_keys(&package_keys).unwrap_or_default(),
         Err(_) => HashSet::new(),
     };
 

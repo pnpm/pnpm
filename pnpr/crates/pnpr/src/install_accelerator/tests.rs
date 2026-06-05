@@ -5,15 +5,16 @@
 //! upstream-as-authority regime — forwarded-credential content gated per
 //! user — is exercised end to end in the pnpr-client integration tests.)
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use axum::http::StatusCode;
+use pacquet_config::Config as PacquetConfig;
 use pacquet_network::AuthHeaders;
 use tempfile::TempDir;
 
 use super::{
     InstallAccelerator, authorize_served_packages, authorize_upstream_package, deny_local_policy,
-    diff::PackageIndexEntry, protocol::InstallRequest,
+    diff::PackageIndexEntry, protocol::InstallRequest, resolution_cache_key,
 };
 use crate::policy::{AccessList, Identity, PackagePolicies, PackagePolicy};
 
@@ -124,6 +125,38 @@ fn is_public(acc: &InstallAccelerator, name: &str) -> bool {
 
 fn fresh(pkg_ids: &[&str]) -> HashSet<String> {
     pkg_ids.iter().map(|id| id.to_string()).collect()
+}
+
+fn cache_key_config() -> PacquetConfig {
+    let mut config = PacquetConfig::new();
+    config.registry = "https://registry.npmjs.org/".to_string();
+    config
+}
+
+fn request_with_dep(spec: &str) -> InstallRequest {
+    InstallRequest {
+        dependencies: Some(BTreeMap::from([("is-positive".to_string(), spec.to_string())])),
+        ..InstallRequest::default()
+    }
+}
+
+#[test]
+fn resolution_cache_key_ignores_client_store_contents() {
+    let config = cache_key_config();
+    let mut request = request_with_dep("^3.1.0");
+    let first = resolution_cache_key(&config, &request).expect("key");
+    request.store_integrities.push("sha512-client-has-this".to_string());
+
+    assert_eq!(resolution_cache_key(&config, &request).expect("key"), first);
+}
+
+#[test]
+fn resolution_cache_key_tracks_dependency_specs() {
+    let config = cache_key_config();
+    let first = resolution_cache_key(&config, &request_with_dep("^3.1.0")).expect("key");
+    let second = resolution_cache_key(&config, &request_with_dep("^3.0.0")).expect("key");
+
+    assert_ne!(second, first);
 }
 
 #[tokio::test]

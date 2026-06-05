@@ -50,7 +50,7 @@ use std::{
     io::Write as _,
     path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -74,6 +74,7 @@ use pacquet_package_manager::build_resolution_verifiers;
 use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, PackageMetaCache, to_registry_url};
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::{StoreDir, StoreIndex};
+use sha2::{Digest, Sha256};
 
 use self::{
     grant_table::GrantTable, protocol::InstallRequest, public_packages::PublicPackages,
@@ -96,6 +97,8 @@ pub(crate) struct InstallAccelerator {
     store_dir: StoreDir,
     cache_dir: PathBuf,
     client: Arc<ThrottledClient>,
+    resolution_cache: Mutex<HashMap<String, CachedResolution>>,
+    resolution_cache_ttl: Duration,
     /// One leaked `Config` per distinct client registry configuration,
     /// keyed by its canonical JSON. Bounds the leak to the number of
     /// distinct client setups the server sees (typically one).
@@ -116,6 +119,11 @@ pub(crate) struct InstallAccelerator {
     /// (the default) is permanent, leaving revocation to
     /// clear-on-discovery; a TTL lets it bite already-seen versions.
     grant_ttl: Option<Duration>,
+}
+
+struct CachedResolution {
+    lockfile: Lockfile,
+    inserted: Instant,
 }
 
 impl InstallAccelerator {
@@ -141,6 +149,8 @@ impl InstallAccelerator {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
             client: Arc::new(ThrottledClient::new_for_installs()),
+            resolution_cache: Mutex::new(HashMap::new()),
+            resolution_cache_ttl: config.packument_ttl,
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
             grant_table,
@@ -250,9 +260,34 @@ pub(crate) async fn handle_install(
         };
     }
 
-    let lockfile = match resolve::resolve(config, &runtime.client, &request, &request_auth).await {
-        Ok(lockfile) => lockfile,
-        Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
+    let (lockfile, use_input_lockfile) = if let Some(lockfile) =
+        resolve::fresh_frozen_input_lockfile(config, &request)
+    {
+        (lockfile, true)
+    } else {
+        let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none()
+        {
+            resolution_cache_key(config, &request)
+        } else {
+            None
+        };
+        if let Some(key) = resolution_cache_key.as_ref()
+            && let Some(lockfile) = cached_resolution(runtime, key)
+        {
+            (lockfile, false)
+        } else {
+            let lockfile =
+                match resolve::resolve(config, &runtime.client, &request, &request_auth).await {
+                    Ok(lockfile) => lockfile,
+                    Err(err) => {
+                        return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string());
+                    }
+                };
+            if let Some(key) = resolution_cache_key {
+                store_resolution(runtime, key, &lockfile);
+            }
+            (lockfile, false)
+        }
     };
 
     let packages = resolve::collect_packages(&lockfile, &config.registry);
@@ -312,7 +347,81 @@ pub(crate) async fn handle_install(
     }
 
     let stats_json = stats_json(&result.stats);
-    inline_response(runtime, &lockfile, &stats_json, &result)
+    inline_response(runtime, &lockfile, use_input_lockfile, &stats_json, &result)
+}
+
+const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
+
+fn cached_resolution(runtime: &InstallAccelerator, key: &str) -> Option<Lockfile> {
+    if runtime.resolution_cache_ttl.is_zero() {
+        return None;
+    }
+    let mut cache = runtime.resolution_cache.lock().expect("resolution cache poisoned");
+    match cache.get(key) {
+        Some(cached) if cached.inserted.elapsed() <= runtime.resolution_cache_ttl => {
+            Some(cached.lockfile.clone())
+        }
+        Some(_) => {
+            cache.remove(key);
+            None
+        }
+        None => None,
+    }
+}
+
+fn store_resolution(runtime: &InstallAccelerator, key: String, lockfile: &Lockfile) {
+    if runtime.resolution_cache_ttl.is_zero() {
+        return;
+    }
+    let mut cache = runtime.resolution_cache.lock().expect("resolution cache poisoned");
+    if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES {
+        let ttl = runtime.resolution_cache_ttl;
+        cache.retain(|_, cached| cached.inserted.elapsed() <= ttl);
+    }
+    if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES
+        && let Some(oldest) =
+            cache.iter().min_by_key(|(_, cached)| cached.inserted).map(|(key, _)| key.clone())
+    {
+        cache.remove(&oldest);
+    }
+    cache.insert(key, CachedResolution { lockfile: lockfile.clone(), inserted: Instant::now() });
+}
+
+fn resolution_cache_key(config: &PacquetConfig, request: &InstallRequest) -> Option<String> {
+    let projects: Vec<serde_json::Value> = request
+        .projects_normalized()
+        .into_iter()
+        .map(|project| {
+            serde_json::json!({
+                "dir": project.dir,
+                "dependencies": project.dependencies,
+                "devDependencies": project.dev_dependencies,
+                "optionalDependencies": project.optional_dependencies,
+            })
+        })
+        .collect();
+    let input = serde_json::json!({
+        "registry": &config.registry,
+        "namedRegistries": &request.named_registries,
+        "overrides": &request.overrides,
+        "projects": projects,
+        "lockfile": &request.lockfile,
+        "frozenLockfile": request.frozen_lockfile,
+        "preferFrozenLockfile": request.prefer_frozen_lockfile,
+        "ignoreManifestCheck": request.ignore_manifest_check,
+        "lockfileOnly": request.lockfile_only,
+        "trustLockfile": request.trust_lockfile,
+        "minimumReleaseAge": request.minimum_release_age,
+        "minimumReleaseAgeExclude": &request.minimum_release_age_exclude,
+        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
+        "trustPolicy": request.trust_policy,
+        "trustPolicyExclude": &request.trust_policy_exclude,
+        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
+    });
+    let bytes = serde_json::to_vec(&input).ok()?;
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    Some(format!("{:x}", hasher.finalize()))
 }
 
 fn stats_json(stats: &diff::Stats) -> serde_json::Value {
@@ -542,6 +651,7 @@ const INLINE_CONTENT_TYPE: &str = "application/x-pnpr-install-inline";
 fn inline_response(
     runtime: &InstallAccelerator,
     lockfile: &Lockfile,
+    use_input_lockfile: bool,
     stats_json: &serde_json::Value,
     result: &diff::DiffResult,
 ) -> Response {
@@ -555,11 +665,15 @@ fn inline_response(
             })
         })
         .collect();
-    let header = serde_json::json!({
-        "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
+    let mut header = serde_json::json!({
         "stats": stats_json,
         "indexEntries": index_entries,
     });
+    if use_input_lockfile {
+        header["useInputLockfile"] = serde_json::Value::Bool(true);
+    } else {
+        header["lockfile"] = serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null);
+    }
 
     let files = result.missing_files.iter().map(|file| (file.digest.as_str(), file.executable));
     let files_payload = match build_files_payload(&runtime.store_dir, files) {

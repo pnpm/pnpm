@@ -29,7 +29,9 @@ use flate2::read::GzDecoder;
 use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
-use pacquet_store_dir::{StoreDir, StoreIndex, StoreIndexWriter, decode_package_files_index};
+use pacquet_store_dir::{
+    StoreDir, StoreIndex, StoreIndexWriter, decode_package_files_index, store_index_key,
+};
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -105,6 +107,7 @@ pub struct InstallOutcome {
     /// The resolved lockfile, ready for a headless install.
     pub lockfile: Lockfile,
     pub stats: Stats,
+    pub reused_input_lockfile: bool,
     /// Number of inlined file entries written into the local CAFS.
     pub files_written: usize,
     /// Number of store-index entries written to the local index.
@@ -208,7 +211,7 @@ impl PnprClient {
         &self,
         opts: InstallOptions<'_>,
     ) -> Result<InstallOutcome, PnprClientError> {
-        let store_keys = read_store_keys(opts.store_dir);
+        let store_keys = read_relevant_store_keys(opts.store_dir, opts.lockfile.as_ref());
         let store_integrities = integrities_from_keys(&store_keys);
         let present: HashSet<&str> = store_keys.iter().map(String::as_str).collect();
 
@@ -250,7 +253,7 @@ impl PnprClient {
         }
 
         let raw = response.bytes().await?;
-        let parsed = parse_inline_response(&decompress(&raw)?)?;
+        let parsed = parse_inline_response(&decompress(&raw)?, opts.lockfile.as_ref())?;
 
         // The server inlines only the files the client is missing; a
         // `--lockfile-only` resolve and a verification pass both carry an
@@ -262,6 +265,7 @@ impl PnprClient {
         Ok(InstallOutcome {
             lockfile: parsed.lockfile,
             stats: parsed.stats,
+            reused_input_lockfile: parsed.reused_input_lockfile,
             files_written,
             index_entries_written,
         })
@@ -285,6 +289,7 @@ fn decompress(raw: &[u8]) -> Result<Vec<u8>, PnprClientError> {
 
 struct ParsedInstall {
     lockfile: Lockfile,
+    reused_input_lockfile: bool,
     stats: Stats,
     /// The `/v1/files`-shaped binary frames the server inlined after the
     /// header — written into the CAFS by [`write_files_payload`].
@@ -296,7 +301,10 @@ struct ParsedInstall {
 /// big-endian header length, that many bytes of JSON header (lockfile,
 /// stats, store-index entries, or verification violations), then the
 /// file frames.
-fn parse_inline_response(payload: &[u8]) -> Result<ParsedInstall, PnprClientError> {
+fn parse_inline_response(
+    payload: &[u8],
+    input_lockfile: Option<&Lockfile>,
+) -> Result<ParsedInstall, PnprClientError> {
     if payload.len() < 4 {
         return Err(PnprClientError::Protocol("install response too short".to_string()));
     }
@@ -312,9 +320,19 @@ fn parse_inline_response(payload: &[u8]) -> Result<ParsedInstall, PnprClientErro
         return Err(PnprClientError::Verification(build_verify_error(violations)));
     }
 
-    let lockfile = header
-        .lockfile
-        .ok_or_else(|| PnprClientError::Protocol("install response had no lockfile".to_string()))?;
+    let reused_input_lockfile = header.use_input_lockfile;
+    let lockfile = match (header.lockfile, reused_input_lockfile, input_lockfile) {
+        (Some(lockfile), _, _) => lockfile,
+        (None, true, Some(lockfile)) => lockfile.clone(),
+        (None, true, None) => {
+            return Err(PnprClientError::Protocol(
+                "install response reused an input lockfile the client did not send".to_string(),
+            ));
+        }
+        (None, false, _) => {
+            return Err(PnprClientError::Protocol("install response had no lockfile".to_string()));
+        }
+    };
 
     let mut index_entries = Vec::with_capacity(header.index_entries.len());
     for entry in header.index_entries {
@@ -325,6 +343,7 @@ fn parse_inline_response(payload: &[u8]) -> Result<ParsedInstall, PnprClientErro
 
     Ok(ParsedInstall {
         lockfile,
+        reused_input_lockfile,
         stats: header.stats,
         files_payload: payload[header_end..].to_vec(),
         index_entries,
@@ -335,6 +354,8 @@ fn parse_inline_response(payload: &[u8]) -> Result<ParsedInstall, PnprClientErro
 #[serde(rename_all = "camelCase")]
 struct InlineHeader {
     lockfile: Option<Lockfile>,
+    #[serde(default)]
+    use_input_lockfile: bool,
     #[serde(default)]
     stats: Stats,
     #[serde(default)]
@@ -517,11 +538,43 @@ async fn write_index_entries(
     written
 }
 
+fn read_relevant_store_keys(store_dir: &StoreDir, lockfile: Option<&Lockfile>) -> Vec<String> {
+    let Some(lockfile) = lockfile else {
+        return read_store_keys(store_dir);
+    };
+    let expected = store_keys_from_lockfile(lockfile);
+    if expected.is_empty() {
+        return Vec::new();
+    }
+    match StoreIndex::open_readonly_in(store_dir) {
+        Ok(index) => index
+            .existing_keys(&expected)
+            .map(|keys| keys.into_iter().collect())
+            .unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
 fn read_store_keys(store_dir: &StoreDir) -> Vec<String> {
     match StoreIndex::open_readonly_in(store_dir) {
         Ok(index) => index.keys().unwrap_or_default(),
         Err(_) => Vec::new(),
     }
+}
+
+fn store_keys_from_lockfile(lockfile: &Lockfile) -> Vec<String> {
+    let Some(packages) = lockfile.packages.as_ref() else { return Vec::new() };
+    let mut seen = HashSet::new();
+    let mut out = Vec::with_capacity(packages.len());
+    for (key, metadata) in packages {
+        let Some(integrity) = metadata.resolution.integrity() else { continue };
+        let pkg_id = key.without_peer().to_string();
+        let store_key = store_index_key(&integrity.to_string(), &pkg_id);
+        if seen.insert(store_key.clone()) {
+            out.push(store_key);
+        }
+    }
+    out
 }
 
 /// The SRI integrities already in the store, derived from the
