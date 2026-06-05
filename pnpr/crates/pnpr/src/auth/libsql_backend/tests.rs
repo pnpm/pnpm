@@ -42,6 +42,32 @@ async fn max_users_caps_registration() {
     backend.add_or_login("alice", "x").await.unwrap();
 }
 
+/// The cap is strict, not best-effort: a concurrent burst of distinct
+/// new users against a cap of 1 admits exactly one. The count-and-insert
+/// runs in a single statement, so the guard can't be raced.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn registration_cap_is_strict_under_concurrency() {
+    let backend = std::sync::Arc::new(local_backend(MaxUsers::Limited(1)).await);
+    let mut handles = Vec::new();
+    for index in 0..6 {
+        let backend = std::sync::Arc::clone(&backend);
+        handles.push(tokio::spawn(async move {
+            backend.add_or_login(&format!("user{index}"), "x").await
+        }));
+    }
+    let mut created = 0;
+    for handle in handles {
+        if matches!(handle.await.unwrap(), Ok(UpsertOutcome::Created)) {
+            created += 1;
+        }
+    }
+    assert_eq!(created, 1, "exactly one registration may win the cap of 1");
+
+    let mut rows = backend.conn.query("SELECT COUNT(*) FROM users", ()).await.unwrap();
+    let total: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
+    assert_eq!(total, 1, "the cap must be strictly enforced, never exceeded");
+}
+
 #[tokio::test]
 async fn tokens_round_trip_and_revoke() {
     let backend = local_backend(MaxUsers::Unlimited).await;
