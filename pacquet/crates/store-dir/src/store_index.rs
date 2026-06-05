@@ -821,6 +821,7 @@ pub struct CafsFileInfo {
 /// interop reasoning — short version, msgpackr reads `uint 64` as a
 /// `BigInt` and pnpm's integrity check then crashes on Number/BigInt
 /// mixing.
+#[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
 fn serialize_checked_at<Serializer: serde::Serializer>(
     value: &Option<u64>,
     serializer: Serializer,

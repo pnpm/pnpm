@@ -203,7 +203,6 @@ fn_params_excessive_bools                 = "allow" # mirrors pnpm's option para
 match_same_arms                           = "allow" # arms kept explicit to mirror pnpm's switch cases
 unnecessary_wraps                         = "allow"
 needless_pass_by_value                    = "allow"
-ref_option                                = "allow"
 trivially_copy_pass_by_ref                = "allow"
 unused_async                              = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
 similar_names                             = "allow" # names ported verbatim from pnpm
