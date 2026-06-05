@@ -807,6 +807,21 @@ export function parsePackageManager (packageManager: string): { name: string, ve
   }
 }
 
+/**
+ * Decides whether the resolved pnpm integrity info should be written to
+ * `pnpm-lock.yaml` under the project's `packageManagerDependencies` section.
+ *
+ * `onFail: ignore` means pnpm should not enforce or record the package manager
+ * policy. Otherwise, `devEngines.packageManager` persists because it may use
+ * ranges, while the legacy `packageManager` field only persists for pnpm v12+.
+ */
+export function shouldPersistLockfile (pm: Pick<WantedPackageManager, 'version' | 'fromDevEngines' | 'onFail'>): boolean {
+  if (pm.onFail === 'ignore') return false
+  if (pm.fromDevEngines === true) return true
+  if (pm.version == null || semver.valid(pm.version) == null) return false
+  return semver.major(pm.version) >= 12
+}
+
 function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependency | undefined {
   if (!devEngines?.packageManager) return undefined
   let pmEngine: EngineDependency | undefined

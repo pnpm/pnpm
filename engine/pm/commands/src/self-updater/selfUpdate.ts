@@ -4,7 +4,7 @@ import path from 'node:path'
 import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, parsePackageManager, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
@@ -184,13 +184,15 @@ export async function handler (
           }
         }
         if (manifestChanged) await writeProjectManifest(manifest)
-        const store = await createStoreController(opts)
-        await resolvePackageManagerIntegrities(resolution.manifest.version, {
-          registries: opts.registries,
-          rootDir: opts.rootProjectManifestDir,
-          storeController: store.ctrl,
-          storeDir: store.dir,
-        })
+        if (shouldPersistLockfile(opts.wantedPackageManager)) {
+          const store = await createStoreController(opts)
+          await resolvePackageManagerIntegrities(resolution.manifest.version, {
+            registries: opts.registries,
+            rootDir: opts.rootProjectManifestDir,
+            storeController: store.ctrl,
+            storeDir: store.dir,
+          })
+        }
       } else {
         manifest.packageManager = `pnpm@${resolution.manifest.version}`
         await writeProjectManifest(manifest)
@@ -319,4 +321,3 @@ async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spe
   }
   return lockfilePinned ?? specMin
 }
-

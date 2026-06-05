@@ -291,6 +291,45 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
+test('self-update does not write packageManagerDependencies when package manager onFail is ignore', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '^9.0.0',
+      },
+    },
+  })
+  const lockfilePath = path.join(opts.dir, 'pnpm-lock.yaml')
+  fs.writeFileSync(lockfilePath, [
+    '---',
+    "lockfileVersion: '9.0'",
+    '',
+    'importers:',
+    '',
+    '  .:',
+    '    configDependencies: {}',
+    '',
+    'packages: {}',
+    'snapshots: {}',
+    '---',
+    '',
+  ].join('\n'), 'utf8')
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '^9.0.0',
+      fromDevEngines: true,
+      onFail: 'ignore',
+    },
+  }, [])
+
+  expect(fs.readFileSync(lockfilePath, 'utf8')).not.toContain('packageManagerDependencies')
+})
+
 test('global self-update respects minimumReleaseAge: skips immature latest, no-op when older mature matches active', async () => {
   // Reproduces #11655: a globally-installed pnpm (no project pin / no
   // wantedPackageManager) must not jump to a "latest" version younger than

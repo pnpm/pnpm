@@ -3,11 +3,12 @@ import { describe, expect, test } from '@jest/globals'
 import { shouldPersistLockfile } from './shouldPersistLockfile.js'
 
 describe('shouldPersistLockfile', () => {
-  test('devEngines.packageManager always persists, regardless of version', () => {
+  test('devEngines.packageManager persists unless onFail is ignore', () => {
     expect(shouldPersistLockfile({ version: '9.3.0', fromDevEngines: true })).toBe(true)
     expect(shouldPersistLockfile({ version: '11.0.0', fromDevEngines: true })).toBe(true)
     expect(shouldPersistLockfile({ version: '12.0.0', fromDevEngines: true })).toBe(true)
     expect(shouldPersistLockfile({ version: '>=9.0.0', fromDevEngines: true })).toBe(true)
+    expect(shouldPersistLockfile({ version: '>=9.0.0', fromDevEngines: true, onFail: 'ignore' })).toBe(false)
   })
 
   test('packageManager field with pnpm v11 or older does not persist', () => {
@@ -22,6 +23,7 @@ describe('shouldPersistLockfile', () => {
     expect(shouldPersistLockfile({ version: '12.5.3' })).toBe(true)
     expect(shouldPersistLockfile({ version: '13.0.0' })).toBe(true)
     expect(shouldPersistLockfile({ version: '100.0.0' })).toBe(true)
+    expect(shouldPersistLockfile({ version: '12.0.0', onFail: 'ignore' })).toBe(false)
   })
 
   test('missing or invalid version does not persist', () => {
